@@ -505,11 +505,42 @@ export interface BlobRecord {
   updatedAt?: number
 }
 
+/**
+ * A byte range to read, in the shape an HTTP `Range` header resolves to.
+ *
+ * `offset` is measured from the start of the object and must be inside it;
+ * `length` defaults to "everything from `offset` to the end" and is clamped to
+ * the end when it overshoots. Suffix ranges (`bytes=-500`) are the caller's to
+ * resolve against the known size — a serve route has the size on the artifact
+ * record, and has to compare against it anyway to answer `416` before reading.
+ */
+export interface BlobRange {
+  offset: number
+  length?: number
+}
+
+/** Options for {@link BlobStore.get}. */
+export interface BlobGetOptions {
+  /**
+   * Read only this slice of the object. `body`, `arrayBuffer()` and `text()`
+   * then cover the slice, `size` still reports the WHOLE object, and `range`
+   * reports the slice actually served — the three numbers a `206` response
+   * needs (`Content-Range: bytes <offset>-<offset+length-1>/<size>`).
+   */
+  range?: BlobRange
+}
+
 /** A stored blob's metadata plus lazy accessors for its bytes. */
 export interface BlobObject extends BlobRecord {
   arrayBuffer: () => Promise<ArrayBuffer>
   text: () => Promise<string>
   body?: ReadableStream<Uint8Array>
+  /**
+   * The slice this object exposes, when a {@link BlobGetOptions.range} was
+   * requested and honoured: `offset` as asked, `length` as actually served
+   * (clamped to the end of the object). Absent on a whole-object read.
+   */
+  range?: { offset: number; length: number }
 }
 
 /**
@@ -527,6 +558,22 @@ export interface BlobListPage {
 export interface BlobPutOptions {
   contentType?: string
   customMetadata?: Record<string, string>
+  /**
+   * The exact byte length of `body`, when the producer knows it up front.
+   *
+   * Advisory, not a contract the store must honor: it exists so a store can
+   * pick an upload strategy knowingly instead of discovering the length by
+   * buffering. Most useful to an SDK that wants the length as a separate
+   * argument rather than reading it off the stream — S3's `PutObject`
+   * (`ContentLength`) is the archetype — and to a runtime that can re-attach
+   * one (workerd's `FixedLengthStream` ahead of `R2Bucket.put`).
+   *
+   * Only ever set when the length is exact — a wrong value is worse than none,
+   * since runtimes that enforce declared lengths fail the write. Absent means
+   * unknown, and a store must accept a length-less stream regardless:
+   * producers hand one over whenever the origin does not declare a length.
+   */
+  expectedLength?: number
 }
 
 export interface BlobListOptions {
@@ -543,8 +590,24 @@ export interface BlobStore {
     body: BlobBody,
     options?: BlobPutOptions,
   ) => Promise<BlobRecord>
-  /** Return the object at `key` (metadata + byte accessors), or `null`. */
-  get: (key: string) => Promise<BlobObject | null>
+  /**
+   * Return the object at `key` (metadata + byte accessors), or `null`.
+   *
+   * RANGE SEMANTICS: with `options.range`, return only that slice — the bytes
+   * a `206` response carries — and report it back as `range`. `size` still
+   * reports the whole object, so the caller can build `Content-Range` without
+   * a second `head`. The reported `length` is what was actually served: a
+   * requested `length` past the end clamps. An `offset` at or past the end is
+   * a caller error, not a store one — the size is on the artifact record, so a
+   * serve route answers `416` before ever asking the store.
+   *
+   * Range support is part of the contract for any store that holds bytes (the
+   * conformance testkit asserts it): serving a whole file where a slice was
+   * asked for is what makes `<video>` seeking, and Safari playback at all,
+   * fail. A reference-only backend that stores no bytes skips `blobs`
+   * entirely rather than half-implementing it.
+   */
+  get: (key: string, options?: BlobGetOptions) => Promise<BlobObject | null>
   /** Return only the metadata for `key`, or `null`. */
   head: (key: string) => Promise<BlobRecord | null>
   /** Remove the object at `key`. A no-op if absent. */

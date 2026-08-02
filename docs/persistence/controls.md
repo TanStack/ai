@@ -19,7 +19,7 @@ Need a mutex across instances? See [Locks](#locks-coordination) below.
 | `ChatPersistenceStores` / `ChatPersistence` | `messages` + `runs` + `interrupts` + `metadata` | Packaged backends (`memoryPersistence`, Drizzle, Prisma, D1) |
 | `ChatWithInterruptsStores` / `ChatWithInterruptsPersistence` | `messages` + `runs` + `interrupts` | HITL without requiring metadata |
 
-There is no public sparse `AIPersistenceStores` export — use a named shape or
+There is no public sparse `AIPersistenceStores` export, so use a named shape or
 `AIPersistence<{ messages: MessageStore, … }>` for custom maps.
 `defineAIPersistence` / `composePersistence` still accept sparse maps by
 inference.
@@ -94,7 +94,7 @@ values arrive from untyped JavaScript.
 To define a partial backend directly rather than by composing, use
 `defineAIPersistence({ stores: { ... } })` and pass only the stores you have.
 See the
-[store interface reference](./build-your-own-adapter#store-interface-reference)
+[store reference](./store-reference)
 for the store contracts.
 
 ## Locks (coordination)

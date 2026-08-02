@@ -16,7 +16,7 @@ results.
   together re-fired the hydrate GET on every discarded/speculative render,
   flooding the connection pool (`ERR_INSUFFICIENT_RESOURCES`). Hydration now runs once from `mountDevtools`
   (the hooks' commit-phase mount effect), guarded by `serverHydrationStarted`.
-  `initialResumeSnapshot` still seeds SSR/first paint. Note for direct
+  Note for direct
   (non-framework) `GenerationClient`/`VideoGenerationClient` users: mount
   hydration and the "missing `hydrateGeneration` handler" warning now fire from
   `mountDevtools()` rather than the constructor, so call `mountDevtools()` (as

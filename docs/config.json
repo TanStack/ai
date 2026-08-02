@@ -12,7 +12,8 @@
         {
           "label": "Overview",
           "to": "getting-started/overview",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Quick Start: React",
@@ -290,6 +291,21 @@
           "updatedAt": "2026-07-31"
         },
         {
+          "label": "Build a Chat Adapter",
+          "to": "persistence/build-your-own-chat-adapter",
+          "addedAt": "2026-07-31"
+        },
+        {
+          "label": "Build a Generation Adapter",
+          "to": "persistence/build-your-own-generation-adapter",
+          "addedAt": "2026-07-31"
+        },
+        {
+          "label": "Store Reference",
+          "to": "persistence/store-reference",
+          "addedAt": "2026-07-31"
+        },
+        {
           "label": "Migrations",
           "to": "persistence/migrations",
           "addedAt": "2026-07-22",
@@ -299,7 +315,7 @@
           "label": "Internals",
           "to": "persistence/internals",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-07-31"
         }
       ]
     },
@@ -393,13 +409,14 @@
         {
           "label": "Text-to-Speech",
           "to": "media/text-to-speech",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Audio Recording",
@@ -417,13 +434,13 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-02"
         },
         {
           "label": "Generation Hooks",
@@ -802,6 +819,11 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25"
+        },
+        {
+          "label": "BytePlus",
+          "to": "adapters/byteplus",
+          "addedAt": "2026-07-31"
         }
       ]
     },

@@ -37,19 +37,16 @@ export interface ChatResumeState {
 
 export type ChatPendingInterrupt = Interrupt
 
-export interface ChatResumeSnapshotV1 {
-  schemaVersion?: 1
+/**
+ * The durable pointer a chat keeps for the run it may need to rejoin, plus any
+ * interrupt that run is waiting on.
+ *
+ * @internal
+ */
+export interface ChatResumeSnapshot {
   resumeState: ChatResumeState
   pendingInterrupts?: Array<ChatPendingInterrupt>
 }
-
-export interface ChatResumeSnapshotV2 {
-  schemaVersion: 2
-  resumeState: ChatResumeState
-  pendingInterrupts?: Array<ChatPendingInterrupt>
-}
-
-export type ChatResumeSnapshot = ChatResumeSnapshotV1 | ChatResumeSnapshotV2
 
 export type InterruptItemStatus =
   | 'pending'

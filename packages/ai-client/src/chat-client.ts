@@ -867,7 +867,6 @@ export class ChatClient<
         // approval card (and hang on a stream that never comes), so the interrupt
         // always wins.
         this.applyResumeSnapshot({
-          schemaVersion: 2,
           resumeState: {
             threadId: this.threadId,
             runId: result.interrupts.runId,
@@ -1280,7 +1279,6 @@ export class ChatClient<
     }
     const descriptors = this.interruptManager.getDescriptors()
     this.persistor.persistResumeSnapshot({
-      schemaVersion: 2,
       resumeState,
       ...(descriptors.length > 0
         ? { pendingInterrupts: [...descriptors] }

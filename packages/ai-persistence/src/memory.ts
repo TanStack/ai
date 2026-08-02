@@ -1,11 +1,15 @@
 import { defineAIPersistence } from './types'
+import { resolveBlobRange } from './blob-range'
 import type { ModelMessage } from '@tanstack/ai'
 import type {
   ArtifactRecord,
   ArtifactStore,
   BlobBody,
+  BlobGetOptions,
   BlobListOptions,
   BlobObject,
+  BlobPutOptions,
+  BlobRange,
   BlobRecord,
   BlobStore,
   GenerationRunRecord,
@@ -324,10 +328,21 @@ function blobRecordSnapshot(record: BlobRecord): BlobRecord {
   }
 }
 
-function blobObject(record: BlobRecord, bytes: Uint8Array): BlobObject {
-  const copied = copyBytes(bytes)
+function blobObject(
+  record: BlobRecord,
+  bytes: Uint8Array,
+  range?: BlobRange,
+): BlobObject {
+  // `size` keeps reporting the whole object; only the bytes narrow.
+  const served = range
+    ? resolveBlobRange(bytes.byteLength, range)
+    : { offset: 0, length: bytes.byteLength }
+  const copied = copyBytes(
+    bytes.subarray(served.offset, served.offset + served.length),
+  )
   return {
     ...blobRecordSnapshot(record),
+    ...(range ? { range: served } : {}),
     body: new ReadableStream<Uint8Array>({
       start(controller) {
         controller.enqueue(copyBytes(copied))
@@ -346,10 +361,7 @@ class MemoryBlobStore implements BlobStore {
   async put(
     key: string,
     body: BlobBody,
-    options?: {
-      contentType?: string
-      customMetadata?: Record<string, string>
-    },
+    options?: BlobPutOptions,
   ): Promise<BlobRecord> {
     const bytes = await bytesFromBlobBody(body)
     const existing = this.blobs.get(key)
@@ -373,9 +385,11 @@ class MemoryBlobStore implements BlobStore {
     return blobRecordSnapshot(record)
   }
 
-  get(key: string): Promise<BlobObject | null> {
+  get(key: string, options?: BlobGetOptions): Promise<BlobObject | null> {
     const entry = this.blobs.get(key)
-    return Promise.resolve(entry ? blobObject(entry.record, entry.bytes) : null)
+    return Promise.resolve(
+      entry ? blobObject(entry.record, entry.bytes, options?.range) : null,
+    )
   }
 
   head(key: string): Promise<BlobRecord | null> {

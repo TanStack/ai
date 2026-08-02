@@ -16,6 +16,9 @@ import type {
   GenerationArtifactExtractionInput,
   GenerationArtifactNameInput,
   AIPersistence,
+  BlobBody,
+  BlobPutOptions,
+  BlobStore,
 } from '../src'
 import type {
   AudioAdapter,
@@ -910,6 +913,75 @@ describe('artifact URL fetching', () => {
     return vi.fn(async () => new Response(body, { status: 200 }))
   }
 
+  /**
+   * A blob store standing in for workerd + R2: its "bucket" refuses a stream
+   * that carries no declared length, exactly as `R2Bucket.put` does
+   * (`TypeError: Provided readable stream must have a known length`). The store
+   * itself follows the recipe the Cloudflare skill documents — re-declare the
+   * length from `expectedLength` when the producer knows it, otherwise buffer
+   * the stream into parts and upload them — and records which path it took so
+   * a test can pin the hint to an observable effect.
+   */
+  function lengthStrictBlobStore() {
+    const uploads: Array<'single-shot' | 'multipart'> = []
+    // Stand-in for `FixedLengthStream`: the marker workerd checks for.
+    const declared = new WeakSet<ReadableStream<Uint8Array>>()
+    const bucket = memoryPersistence().stores.blobs
+
+    async function bucketPut(
+      key: string,
+      body: BlobBody,
+      options?: BlobPutOptions,
+    ) {
+      if (body instanceof ReadableStream && !declared.has(body)) {
+        throw new TypeError('Provided readable stream must have a known length')
+      }
+      return await bucket.put(key, body, options)
+    }
+
+    const store: BlobStore = {
+      async put(key, body, options) {
+        if (!(body instanceof ReadableStream)) {
+          return await bucketPut(key, body, options)
+        }
+        if (options?.expectedLength !== undefined) {
+          // `FixedLengthStream`: same bytes, now carrying a declared length.
+          const fixed = body.pipeThrough(
+            new TransformStream<Uint8Array, Uint8Array>(),
+          )
+          declared.add(fixed)
+          uploads.push('single-shot')
+          return await bucketPut(key, fixed, options)
+        }
+        // No length to declare: drain the stream into parts instead. Real
+        // multipart uploads them one at a time; buffering here is enough to
+        // prove the store never hands the bucket a length-less stream.
+        const reader = body.getReader()
+        const parts: Array<Uint8Array> = []
+        let total = 0
+        for (;;) {
+          const { value, done } = await reader.read()
+          if (done) break
+          parts.push(value)
+          total += value.byteLength
+        }
+        const bytes = new Uint8Array(total)
+        let offset = 0
+        for (const part of parts) {
+          bytes.set(part, offset)
+          offset += part.byteLength
+        }
+        uploads.push('multipart')
+        return await bucketPut(key, bytes, options)
+      },
+      get: (key, options) => bucket.get(key, options),
+      head: (key) => bucket.head(key),
+      delete: (key) => bucket.delete(key),
+      list: (options) => bucket.list(options),
+    }
+    return { store, uploads }
+  }
+
   /** A prompt referencing media by URL — the caller-controlled input case. */
   function urlPrompt(url: string) {
     return [
@@ -1139,6 +1211,317 @@ describe('artifact URL fetching', () => {
     expect(job).toMatchObject({ status: 'failed' })
     expect(job?.artifacts).toBeUndefined()
   })
+
+  it('forwards a trustworthy content-length to the blob store as expectedLength', async () => {
+    const persistence = memoryPersistence()
+    const artifactFetch = vi.fn(
+      async () =>
+        new Response('generated-bytes', {
+          status: 200,
+          headers: { 'content-length': '15' },
+        }),
+    )
+    const putSpy = vi.spyOn(persistence.stores.blobs!, 'put')
+
+    await generateImage({
+      adapter: urlImageAdapter('https://cdn.example.com/out.png'),
+      prompt: 'make an image',
+      threadId: 'thread-hint',
+      runId: 'run-hint',
+      middleware: [
+        withGenerationPersistence(persistence, {
+          threadId: 'thread-hint',
+          artifactFetch,
+        }),
+      ],
+    })
+
+    expect(putSpy).toHaveBeenCalled()
+    expect(putSpy.mock.calls[0]?.[2]?.expectedLength).toBe(15)
+  })
+
+  it('omits expectedLength when the origin declares no length', async () => {
+    const persistence = memoryPersistence()
+    // A chunked reply declares no length — and `Number(null) === 0` must not
+    // read that as a declared length of 0.
+    const artifactFetch = vi.fn(
+      async () => new Response('generated-bytes', { status: 200 }),
+    )
+    const putSpy = vi.spyOn(persistence.stores.blobs!, 'put')
+
+    await generateImage({
+      adapter: urlImageAdapter('https://cdn.example.com/out.png'),
+      prompt: 'make an image',
+      threadId: 'thread-no-length',
+      runId: 'run-no-length',
+      middleware: [
+        withGenerationPersistence(persistence, {
+          threadId: 'thread-no-length',
+          artifactFetch,
+        }),
+      ],
+    })
+
+    expect(putSpy).toHaveBeenCalled()
+    expect(putSpy.mock.calls[0]?.[2]?.expectedLength).toBeUndefined()
+  })
+
+  it('omits expectedLength when the response is content-encoded', async () => {
+    const persistence = memoryPersistence()
+    // fetch transparently decompresses: a gzipped reply's content-length is
+    // the COMPRESSED size, so it cannot describe the decoded stream the store
+    // drains. Forwarding it would be worse than no hint.
+    const artifactFetch = vi.fn(
+      async () =>
+        new Response('generated-bytes', {
+          status: 200,
+          headers: { 'content-length': '15', 'content-encoding': 'gzip' },
+        }),
+    )
+    const putSpy = vi.spyOn(persistence.stores.blobs!, 'put')
+
+    await generateImage({
+      adapter: urlImageAdapter('https://cdn.example.com/out.png'),
+      prompt: 'make an image',
+      threadId: 'thread-encoded',
+      runId: 'run-encoded',
+      middleware: [
+        withGenerationPersistence(persistence, {
+          threadId: 'thread-encoded',
+          artifactFetch,
+        }),
+      ],
+    })
+
+    expect(putSpy).toHaveBeenCalled()
+    expect(putSpy.mock.calls[0]?.[2]?.expectedLength).toBeUndefined()
+  })
+
+  it('defaults maxArtifactBytes to 1 GiB', async () => {
+    const persistence = memoryPersistence()
+    // Declared above the old 100 MiB default but below 1 GiB: must persist.
+    // Nothing buffers a byte of it — the cap is a drain-time counter and the
+    // declared length is only read from the header.
+    const artifactFetch = vi.fn(
+      async () =>
+        new Response('ok', {
+          status: 200,
+          headers: { 'content-length': String(150 * 1024 * 1024) },
+        }),
+    )
+    const result = await generateImage({
+      adapter: urlImageAdapter('https://cdn.example.com/big.png'),
+      prompt: 'make an image',
+      threadId: 'thread-default-cap',
+      runId: 'run-default-cap',
+      middleware: [
+        withGenerationPersistence(persistence, {
+          threadId: 'thread-default-cap',
+          artifactFetch,
+        }),
+      ],
+    })
+    expect(result.artifacts?.some((a) => a.role === 'output')).toBe(true)
+
+    // Declared above 1 GiB: the early-reject fires before a byte is read.
+    const tooBigFetch = vi.fn(
+      async () =>
+        new Response('ok', {
+          status: 200,
+          headers: { 'content-length': String(1025 * 1024 * 1024) },
+        }),
+    )
+    await expect(
+      generateImage({
+        adapter: urlImageAdapter('https://cdn.example.com/huge.png'),
+        prompt: 'make an image',
+        threadId: 'thread-default-cap',
+        runId: 'run-too-big',
+        middleware: [
+          withGenerationPersistence(persistence, {
+            threadId: 'thread-default-cap',
+            artifactFetch: tooBigFetch,
+          }),
+        ],
+      }),
+    ).rejects.toThrow(/exceeds maxArtifactBytes/)
+  })
+
+  const wrapCases: Array<{
+    name: string
+    headers: Record<string, string>
+    wrapped: boolean
+  }> = [
+    {
+      name: 'trustworthy content-length: passed through untouched',
+      headers: { 'content-length': '15' },
+      wrapped: false,
+    },
+    {
+      name: 'chunked reply: wrapped, nothing else bounds it',
+      headers: {},
+      wrapped: true,
+    },
+    {
+      name: 'content-encoded: wrapped, the declared length is the compressed size',
+      headers: { 'content-length': '15', 'content-encoding': 'gzip' },
+      wrapped: true,
+    },
+  ]
+
+  it.each(wrapCases)(
+    'caps by wrapping the body only when it has to ($name)',
+    async ({ headers, wrapped }) => {
+      // The wrapper is a TransformStream, and a transform's readable side has no
+      // declared length — the whole of #1030. So it is applied only where it is
+      // load-bearing: when `content-length` describes what the store will drain,
+      // HTTP framing already holds the origin to it and the body goes through
+      // untouched, length intact, ready for a single-shot `R2Bucket.put`.
+      const persistence = memoryPersistence()
+      const response = new Response('generated-bytes', { status: 200, headers })
+      const responseBody = response.body
+      const putSpy = vi.spyOn(persistence.stores.blobs!, 'put')
+
+      const result = await generateImage({
+        adapter: urlImageAdapter('https://cdn.example.com/out.png'),
+        prompt: 'make an image',
+        threadId: 'thread-wrap',
+        runId: 'run-wrap',
+        middleware: [
+          withGenerationPersistence(persistence, {
+            threadId: 'thread-wrap',
+            artifactFetch: vi.fn(async () => response),
+          }),
+        ],
+      })
+
+      const body = putSpy.mock.calls[0]?.[1]
+      if (wrapped) {
+        expect(body).not.toBe(responseBody)
+      } else {
+        expect(body).toBe(responseBody)
+      }
+      // Wrapped or not, the bytes land intact.
+      const ref = result.artifacts?.find((a) => a.role === 'output')
+      await expect(
+        (await retrieveBlob(persistence, ref!.artifactId))?.text(),
+      ).resolves.toBe('generated-bytes')
+    },
+  )
+
+  it('still caps a chunked body during the drain', async () => {
+    const persistence = memoryPersistence()
+    // No declared length, so nothing bounds the transfer but the counter —
+    // this is the case the wrapper exists for.
+    const artifactFetch = vi.fn(
+      async () => new Response('generated-bytes', { status: 200 }),
+    )
+
+    await expect(
+      generateImage({
+        adapter: urlImageAdapter('https://cdn.example.com/out.png'),
+        prompt: 'make an image',
+        threadId: 'thread-drain-cap',
+        runId: 'run-drain-cap',
+        middleware: [
+          withGenerationPersistence(persistence, {
+            threadId: 'thread-drain-cap',
+            artifactFetch,
+            maxArtifactBytes: 4,
+          }),
+        ],
+      }),
+    ).rejects.toThrow(/exceeds maxArtifactBytes/)
+  })
+
+  it('maxArtifactBytes: false hands the store the untouched fetch body', async () => {
+    const persistence = memoryPersistence()
+    // The zero-copy path for workerd + R2: with no cap there is no
+    // TransformStream wrapper, so the store receives the very stream `fetch`
+    // produced — which on workerd still carries its own declared length, so
+    // `R2Bucket.put` single-shots it with no hint and no multipart. Identity,
+    // not equality, is the assertion that pins that down.
+    const response = new Response('generated-bytes', {
+      status: 200,
+      // Far above the 1 GiB default: an uncapped fetch must not consult it.
+      headers: { 'content-length': String(8 * 1024 * 1024 * 1024) },
+    })
+    const responseBody = response.body
+    const artifactFetch = vi.fn(async () => response)
+    const putSpy = vi.spyOn(persistence.stores.blobs!, 'put')
+
+    const result = await generateImage({
+      adapter: urlImageAdapter('https://cdn.example.com/huge.mp4'),
+      prompt: 'make a video',
+      threadId: 'thread-uncapped',
+      runId: 'run-uncapped',
+      middleware: [
+        withGenerationPersistence(persistence, {
+          threadId: 'thread-uncapped',
+          artifactFetch,
+          maxArtifactBytes: false,
+        }),
+      ],
+    })
+
+    expect(putSpy.mock.calls[0]?.[1]).toBe(responseBody)
+    const ref = result.artifacts?.find((a) => a.role === 'output')
+    await expect(
+      (await retrieveBlob(persistence, ref!.artifactId))?.text(),
+    ).resolves.toBe('generated-bytes')
+  })
+
+  it.each([
+    { name: 'declared length: single-shot', contentLength: '15' as const },
+    { name: 'no declared length: multipart', contentLength: undefined },
+  ])(
+    'persists a URL artifact into a length-strict store ($name)',
+    async ({ contentLength }) => {
+      // The #1030 regression, end to end: workerd's `R2Bucket.put` rejects a
+      // stream with no declared length, and the cap-enforcing wrapper strips
+      // the length off every URL-fetched body. `lengthStrictBlobStore` is that
+      // rule in miniature, so this fails the moment the middleware stops
+      // forwarding `expectedLength` — or a store follows the old "pass the
+      // body straight through" recipe.
+      const strict = lengthStrictBlobStore()
+      const persistence = composePersistence(memoryPersistence(), {
+        overrides: { blobs: strict.store },
+      })
+      const artifactFetch = vi.fn(
+        async () =>
+          new Response('generated-bytes', {
+            status: 200,
+            ...(contentLength
+              ? { headers: { 'content-length': contentLength } }
+              : {}),
+          }),
+      )
+
+      const result = await generateImage({
+        adapter: urlImageAdapter('https://cdn.example.com/out.png'),
+        prompt: 'make an image',
+        threadId: 'thread-strict',
+        runId: 'run-strict',
+        middleware: [
+          withGenerationPersistence(persistence, {
+            threadId: 'thread-strict',
+            artifactFetch,
+          }),
+        ],
+      })
+
+      const ref = result.artifacts?.find((a) => a.role === 'output')
+      expect(ref?.size).toBe(15)
+      await expect(
+        (await retrieveBlob(persistence, ref!.artifactId))?.text(),
+      ).resolves.toBe('generated-bytes')
+      // Which upload path the store took follows from the hint, and the hint
+      // follows from the origin declaring a length.
+      expect(strict.uploads).toEqual([
+        contentLength ? 'single-shot' : 'multipart',
+      ])
+    },
+  )
 
   it('fails the run when the provider CDN 404s', async () => {
     const persistence = memoryPersistence()

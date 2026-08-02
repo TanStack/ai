@@ -15,8 +15,6 @@ import type {
   GenerationClientState,
   GenerationFetcher,
   GenerationPersistenceOptions,
-  GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
   VideoGenerateInput,
   VideoGenerateResult,
@@ -65,8 +63,6 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * it falls back to `id` purely to satisfy the wire.
    */
   threadId?: string
-  /** Explicit resume-snapshot seed for apps that manage storage themselves; skips automatic hydration from `persistence`. Later run events merge into it. */
-  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -192,14 +188,12 @@ export function useGenerateVideo<TTransformed = void>(
   const [isLoading, setIsLoading] = createSignal(false)
   const [error, setError] = createSignal<Error | undefined>(undefined)
   const [status, setStatus] = createSignal<GenerationClientState>('idle')
-  const [runId, setRunId] = createSignal<string | null>(
-    options.initialResumeSnapshot?.resumeState?.runId ?? null,
-  )
+  const [runId, setRunId] = createSignal<string | null>(null)
   let disposed = false
 
   // Built once. `untrack` keeps the option reads below from subscribing
-  // construction to `options.persistence` / `options.initialResumeSnapshot` /
-  // `options.devtools` / `options.body`: a re-run would build a second client
+  // construction to `options.persistence` / `options.devtools` /
+  // `options.body`: a re-run would build a second client
   // and orphan the first (only the live one is disposed on cleanup). Later
   // `options.body` changes are pushed through `updateOptions` instead.
   const client = untrack((): VideoGenerationClient<TOutput> => {
@@ -213,9 +207,6 @@ export function useGenerateVideo<TTransformed = void>(
         : { id: options.id ?? hookId }),
       ...(options.persistence !== undefined && {
         persistence: options.persistence,
-      }),
-      ...(options.initialResumeSnapshot !== undefined && {
-        initialResumeSnapshot: options.initialResumeSnapshot,
       }),
       ...(options.hydrateGeneration !== undefined && {
         hydrateGeneration: options.hydrateGeneration,
@@ -267,7 +258,7 @@ export function useGenerateVideo<TTransformed = void>(
       onVideoStatusChange: (s: VideoStatusInfo | null) => {
         if (!disposed) setVideoStatus(s)
       },
-      onResumeStateChange: (rs: GenerationResumeState | null) => {
+      onResumeStateChange: (rs: { runId: string } | null) => {
         if (!disposed) setRunId(rs?.runId ?? null)
       },
     }

@@ -3,15 +3,16 @@
 ---
 
 `localStoragePersistence` / `sessionStoragePersistence` / `indexedDBPersistence`
-default their `TValue` back to `ChatPersistedState` instead of `any`.
+are no longer generic. Each returns a `ChatStorageAdapter<ChatPersistedState>`,
+and `WebStoragePersistenceOptions` types its `serialize` / `deserialize` codec
+over `ChatPersistedState`.
 
-The `any` default was justified by a claim that "a bare call works for both the
-chat **and generation** `persistence` options with no type argument". That is no
-longer true: generation `persistence` is now `boolean` (server-driven only), so
-chat is the sole `persistence` option that takes a storage adapter — and the
-`any` default erased `getItem` / `setItem` type safety for chat users in exchange
-for nothing.
+The type parameter existed so one adapter could back both the chat and the
+generation `persistence` option. Generation `persistence` is now `boolean`
+(server-driven only), so chat is the sole option that takes a storage adapter and
+the parameter had no second value to hold.
 
-A bare `localStoragePersistence()` still needs no type argument. Only a
-standalone store holding something other than a chat transcript needs the
-explicit one, e.g. `localStoragePersistence<MyValue>()`.
+A bare `localStoragePersistence()` is unchanged. A call that passed an explicit
+type argument for a standalone store, `localStoragePersistence<MyValue>()`, no
+longer compiles: build that store with your own object literal, since these
+factories are for chat state.

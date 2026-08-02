@@ -14,7 +14,6 @@ import type {
 } from '@tanstack/ai'
 import type {
   ConnectConnectionAdapter,
-  GenerationResumeSnapshot,
   RunAgentInputContext,
 } from '@tanstack/ai-client'
 
@@ -80,12 +79,10 @@ function createVideoChunks(jobId: string, url: string): Array<StreamChunk> {
   ]
 }
 
-const videoResumeSnapshot: GenerationResumeSnapshot = {
-  resumeState: {
-    threadId: 'thread-resume',
-    runId: 'run-resume',
-  },
-  status: 'running',
+const videoResumeSnapshot = {
+  schemaVersion: 1 as const,
+  resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
+  status: 'running' as const,
 }
 
 function createRunContextCaptureAdapter(chunks: Array<StreamChunk>): {
@@ -228,29 +225,6 @@ describe('createGeneration', () => {
       expect(gen.status).toBe('error')
       expect(gen.error?.message).toBe('Generation failed')
     })
-
-    it('does not auto-fire a generation on setup from a persisted running snapshot', async () => {
-      // Regression guard for the removed generation resume surface.
-      const snapshot: GenerationResumeSnapshot = {
-        resumeState: { threadId: 'thread-resume', runId: 'run-resume' },
-        status: 'running',
-      }
-      const { adapter, connect } = createRunContextCaptureAdapter([])
-      const gen = createGeneration({
-        threadId: 'no-auto-fire',
-        connection: adapter,
-        initialResumeSnapshot: snapshot,
-      })
-
-      await Promise.resolve()
-
-      expect(connect).not.toHaveBeenCalled()
-      expect(gen.isLoading).toBe(false)
-      expect(gen.status).toBe('idle')
-      // The persisted snapshot remains exposed as read-only state.
-      expect(gen.runId).toBe(snapshot.resumeState?.runId)
-    })
-
     it('repaints a hydrated running snapshot with no joinRun as an interrupted error on setup', async () => {
       const { adapter, connect } = createRunContextCaptureAdapter([])
       const hydrateGeneration = vi.fn(async () => ({
@@ -867,22 +841,27 @@ describe('createGenerateVideo', () => {
     expect(gen.status).toBe('idle')
   })
 
-  it('does not auto-fire a video generation on setup from a persisted running snapshot', async () => {
-    // Regression guard for the removed generation resume surface (video).
+  it('does not auto-fire a video generation on setup from a hydrated running snapshot', async () => {
     const { adapter, connect } = createRunContextCaptureAdapter([])
+    const hydrateGeneration = vi.fn(async () => ({
+      resumeSnapshot: videoResumeSnapshot,
+      activeRun: null,
+    }))
     const gen = createGenerateVideo({
       threadId: 'video-no-auto-fire',
-      connection: adapter,
-      initialResumeSnapshot: videoResumeSnapshot,
+      // No `joinRun`, so the restored run cannot be tailed.
+      connection: { ...adapter, hydrateGeneration },
+      persistence: true,
     })
 
-    await Promise.resolve()
+    await flushAsync()
 
+    // Hydration only surfaces state; it never restarts the run.
     expect(connect).not.toHaveBeenCalled()
+    expect(gen.error?.message).toMatch(/interrupted/)
+    expect(gen.status).toBe('error')
     expect(gen.isLoading).toBe(false)
-    expect(gen.status).toBe('idle')
-    // The seeded in-flight identity is exposed as the read-only `runId`.
-    expect(gen.runId).toBe(videoResumeSnapshot.resumeState?.runId)
+    expect(gen.runId).toBeNull()
   })
 
   it('should expose generate, stop, reset, and updateBody methods', () => {

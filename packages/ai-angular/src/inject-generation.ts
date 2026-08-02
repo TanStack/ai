@@ -20,8 +20,6 @@ import type {
   GenerationFetcher,
   GenerationPersistenceOptions,
   GenerationRestoredResult,
-  GenerationResumeSnapshot,
-  GenerationResumeState,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 import type { ReactiveOption } from './internal/to-reactive'
@@ -64,8 +62,6 @@ export interface InjectGenerationOptions<TInput, TResult, TOutput = TResult> {
    * it falls back to `id` purely to satisfy the wire.
    */
   threadId?: string
-  /** Explicit resume-snapshot seed for apps that manage storage themselves; skips automatic hydration from `persistence`. Later run events merge into it. */
-  initialResumeSnapshot?: GenerationResumeSnapshot
   /**
    * Server-driven hydration handler for `persistence: true` when the
    * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
@@ -168,9 +164,7 @@ export function injectGeneration<
   const isLoading = signal(false)
   const error = signal<Error | undefined>(undefined)
   const status = signal<GenerationClientState>('idle')
-  const runId = signal<string | null>(
-    options.initialResumeSnapshot?.resumeState?.runId ?? null,
-  )
+  const runId = signal<string | null>(null)
   let disposed = false
 
   const bodySource =
@@ -184,9 +178,6 @@ export function injectGeneration<
       : { id: options.id ?? `injectGeneration-${nextId++}` }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
-    }),
-    ...(options.initialResumeSnapshot !== undefined && {
-      initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
@@ -228,7 +219,7 @@ export function injectGeneration<
     onStatusChange: (s: GenerationClientState) => {
       if (!disposed) status.set(s)
     },
-    onResumeStateChange: (rs: GenerationResumeState | null) => {
+    onResumeStateChange: (rs) => {
       if (!disposed) runId.set(rs?.runId ?? null)
     },
   }

@@ -27,9 +27,9 @@ so a record without one could be written and then never read back. And the
 client discarded any snapshot that arrived without one.
 
 That last disagreement was a silent failure: the server legitimately omitted
-`threadId` for a record that had none, and `parseGenerationResumeSnapshot`
-responded by dropping the **entire** snapshot — status, result and error along
-with the cursor — leaving a blank idle panel with no diagnostic while the
+`threadId` for a record that had none, and the client's snapshot validation
+responded by dropping the **entire** snapshot (status, result and error along
+with the cursor), leaving a blank idle panel with no diagnostic while the
 provider kept billing. Making the field required removes the disagreement by
 construction rather than patching one side of it.
 

@@ -22,7 +22,7 @@ import {
 } from '../lib/generation-server-store'
 
 const TRANSCRIPTION_PROVIDER_SCHEMA = z
-  .enum(['openai', 'openai-diarize', 'fal', 'grok', 'elevenlabs'])
+  .enum(['openai', 'openai-diarize', 'fal', 'grok', 'elevenlabs', 'byteplus'])
   .optional()
 
 const TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA = z

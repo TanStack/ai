@@ -9,6 +9,28 @@
  *
  * Usage:
  *   pnpm tsx scripts/sync-provider-models.ts
+ *
+ * ## Providers deliberately NOT synced
+ *
+ * The sync is only safe when the provider's own model ids can be derived from
+ * OpenRouter's. Adding an entry to `PROVIDER_MAP` for a provider where that
+ * doesn't hold generates ids that 404 at request time, which is worse than no
+ * automation. These are excluded on purpose:
+ *
+ * - **byteplus** (`@tanstack/ai-byteplus`) — OpenRouter lists the same models
+ *   under undated slugs (`bytedance-seed/seed-1.6`), but BytePlus Ark
+ *   addresses them by *date-suffixed* id (`seed-1-6-250615`), and the suffix
+ *   is not derivable from anything OpenRouter publishes. Ark's own `GET
+ *   /models` is the catalog, and it is not exhaustive. On top of that the
+ *   package's capability tables are live-probe-verified specifically because
+ *   the published metadata is wrong in both directions, so a metadata-driven
+ *   sync would overwrite probed facts with worse ones. Use `/gap-analysis
+ *   byteplus` instead; the probe recipe is in that package's `model-meta.ts`.
+ * - **fal**, **elevenlabs** — media-only providers whose endpoint ids are not
+ *   OpenRouter models at all. fal image fields have their own generator
+ *   (`scripts/generate-fal-image-field-map.ts`).
+ * - **bedrock** — ids are AWS-region-qualified; see
+ *   `scripts/fetch-bedrock-models.ts`.
  */
 
 import { execFileSync } from 'node:child_process'

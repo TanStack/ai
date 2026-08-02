@@ -1,0 +1,381 @@
+import { afterEach, describe, expect, it } from 'vitest'
+import {
+  BYTEPLUS_ARK_BASE_URL,
+  BYTEPLUS_VOICE_BASE_URL,
+  bytePlusArkError,
+  bytePlusArkHeaders,
+  bytePlusVoiceError,
+  bytePlusVoiceHeaders,
+  getBytePlusArkApiKeyFromEnv,
+  getBytePlusVoiceApiKeyFromEnv,
+  withBytePlusArkDefaults,
+  withBytePlusVoiceDefaults,
+} from '../src/index'
+import { readJsonBody, toHeaderRecord } from '../src/utils/client'
+
+const ENV_KEYS = [
+  'ARK_API_KEY',
+  'BYTEPLUS_API_KEY',
+  'BYTEPLUS_VOICE_API_KEY',
+] as const
+const originalEnv = new Map(ENV_KEYS.map((key) => [key, process.env[key]]))
+
+afterEach(() => {
+  for (const key of ENV_KEYS) {
+    const original = originalEnv.get(key)
+    if (original === undefined) {
+      delete process.env[key]
+    } else {
+      process.env[key] = original
+    }
+  }
+})
+
+describe('API key resolution', () => {
+  it('reads the Ark key from ARK_API_KEY', () => {
+    process.env.ARK_API_KEY = 'ark-test-key'
+    expect(getBytePlusArkApiKeyFromEnv()).toBe('ark-test-key')
+  })
+
+  it('falls back to BYTEPLUS_API_KEY when ARK_API_KEY is unset', () => {
+    delete process.env.ARK_API_KEY
+    process.env.BYTEPLUS_API_KEY = 'byteplus-test-key'
+    expect(getBytePlusArkApiKeyFromEnv()).toBe('byteplus-test-key')
+  })
+
+  it('prefers ARK_API_KEY over the BYTEPLUS_API_KEY fallback', () => {
+    process.env.ARK_API_KEY = 'ark-test-key'
+    process.env.BYTEPLUS_API_KEY = 'byteplus-test-key'
+    expect(getBytePlusArkApiKeyFromEnv()).toBe('ark-test-key')
+  })
+
+  it('names both variables when neither is set', () => {
+    delete process.env.ARK_API_KEY
+    delete process.env.BYTEPLUS_API_KEY
+    expect(() => getBytePlusArkApiKeyFromEnv()).toThrow(
+      /ARK_API_KEY or BYTEPLUS_API_KEY/,
+    )
+  })
+
+  it('reads the Seed Speech key from BYTEPLUS_VOICE_API_KEY', () => {
+    process.env.BYTEPLUS_VOICE_API_KEY = 'voice-test-key'
+    expect(getBytePlusVoiceApiKeyFromEnv()).toBe('voice-test-key')
+  })
+
+  it('points at the separate Seed Speech key when it is missing', () => {
+    delete process.env.BYTEPLUS_VOICE_API_KEY
+    expect(() => getBytePlusVoiceApiKeyFromEnv()).toThrow(
+      /BYTEPLUS_VOICE_API_KEY/,
+    )
+  })
+})
+
+describe('config defaults', () => {
+  it('applies the Ark base URL and preserves the injected fetch', () => {
+    const injectedFetch: typeof fetch = () => {
+      throw new Error('not called')
+    }
+    const config = withBytePlusArkDefaults({
+      apiKey: 'ark-test-key',
+      fetch: injectedFetch,
+    })
+    expect(config.baseURL).toBe(BYTEPLUS_ARK_BASE_URL)
+    expect(config.fetch).toBe(injectedFetch)
+  })
+
+  it('keeps an explicit Ark base URL (e.g. the EU host)', () => {
+    const config = withBytePlusArkDefaults({
+      apiKey: 'ark-test-key',
+      baseURL: 'https://ark.eu-west.bytepluses.com/api/v3',
+    })
+    expect(config.baseURL).toBe('https://ark.eu-west.bytepluses.com/api/v3')
+  })
+
+  it('trims trailing slashes from an explicit Ark base URL', () => {
+    const config = withBytePlusArkDefaults({
+      apiKey: 'ark-test-key',
+      baseURL: 'https://ark.eu-west.bytepluses.com/api/v3//',
+    })
+    expect(config.baseURL).toBe('https://ark.eu-west.bytepluses.com/api/v3')
+  })
+
+  it('resolves a base URL for a null or empty override', () => {
+    // openai's ClientOptions types baseURL as nullable, so adapters that
+    // interpolate it must never see undefined.
+    expect(
+      withBytePlusArkDefaults({ apiKey: 'ark-test-key', baseURL: null })
+        .baseURL,
+    ).toBe(BYTEPLUS_ARK_BASE_URL)
+    expect(
+      withBytePlusArkDefaults({ apiKey: 'ark-test-key', baseURL: '' }).baseURL,
+    ).toBe(BYTEPLUS_ARK_BASE_URL)
+  })
+
+  it('preserves adapter-specific config fields', () => {
+    const config = withBytePlusArkDefaults({
+      apiKey: 'ark-test-key',
+      maxRetries: 4,
+    })
+    expect(config.maxRetries).toBe(4)
+  })
+
+  it('applies the Seed Speech base URL', () => {
+    const config = withBytePlusVoiceDefaults({ apiKey: 'voice-test-key' })
+    expect(config.baseURL).toBe(BYTEPLUS_VOICE_BASE_URL)
+  })
+
+  it('trims trailing slashes from an explicit Seed Speech base URL', () => {
+    const config = withBytePlusVoiceDefaults({
+      apiKey: 'voice-test-key',
+      baseURL: 'https://voice.example.com//',
+    })
+    expect(config.baseURL).toBe('https://voice.example.com')
+  })
+})
+
+describe('headers', () => {
+  it('sends the Ark key as a bearer token', () => {
+    expect(bytePlusArkHeaders('ark-test-key')).toEqual({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ark-test-key',
+    })
+  })
+
+  it('sends the Seed Speech key as X-Api-Key', () => {
+    expect(bytePlusVoiceHeaders('voice-test-key')).toEqual({
+      'Content-Type': 'application/json',
+      'X-Api-Key': 'voice-test-key',
+    })
+  })
+
+  it('merges extra headers alongside the auth headers', () => {
+    expect(
+      bytePlusArkHeaders('ark-test-key', { 'X-Test-Id': 'abc' }),
+    ).toMatchObject({ 'X-Test-Id': 'abc' })
+  })
+
+  it('does not let extra headers clobber the Ark bearer token', () => {
+    // A caller-supplied Authorization in defaultHeaders would otherwise turn
+    // every request into a 401 that reads like a bad API key.
+    expect(
+      bytePlusArkHeaders('ark-test-key', {
+        Authorization: 'Bearer wrong-key',
+        'Content-Type': 'text/plain',
+      }),
+    ).toEqual({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer ark-test-key',
+    })
+  })
+
+  it('does not let extra headers clobber X-Api-Key', () => {
+    expect(
+      bytePlusVoiceHeaders('voice-test-key', {
+        'X-Api-Key': 'wrong-key',
+        'Content-Type': 'text/plain',
+        'X-Test-Id': 'abc',
+      }),
+    ).toEqual({
+      'Content-Type': 'application/json',
+      'X-Api-Key': 'voice-test-key',
+      'X-Test-Id': 'abc',
+    })
+  })
+
+  // Header names are case-insensitive but object keys are not, so a
+  // differently-cased duplicate survives the spread and `fetch`'s Headers
+  // constructor *appends* it: `authorization: "Bearer wrong, Bearer right"`,
+  // which 401s and reads like a bad key. `toHeaderRecord` lowercases names for
+  // the `Headers` form of `defaultHeaders`, so this is reachable from ordinary
+  // config. Assert through `new Headers(...)` — the object alone can look fine
+  // while the wire value is the concatenation.
+  it.each([
+    ['lowercase', 'authorization'],
+    ['canonical', 'Authorization'],
+    ['upper', 'AUTHORIZATION'],
+    ['mixed', 'AuThOrIzAtIoN'],
+  ])(
+    'drops a %s caller Authorization rather than appending to it',
+    (_label, key) => {
+      const built = bytePlusArkHeaders('ark-test-key', {
+        [key]: 'Bearer wrong-key',
+      })
+      expect(new Headers(built).get('authorization')).toBe(
+        'Bearer ark-test-key',
+      )
+    },
+  )
+
+  it.each([
+    ['lowercase', 'x-api-key'],
+    ['canonical', 'X-Api-Key'],
+    ['upper', 'X-API-KEY'],
+  ])(
+    'drops a %s caller X-Api-Key rather than appending to it',
+    (_label, key) => {
+      const built = bytePlusVoiceHeaders('voice-test-key', {
+        [key]: 'wrong-key',
+      })
+      expect(new Headers(built).get('x-api-key')).toBe('voice-test-key')
+    },
+  )
+
+  it('drops a differently-cased Content-Type on both hosts', () => {
+    expect(
+      new Headers(
+        bytePlusArkHeaders('ark-test-key', { 'content-type': 'text/plain' }),
+      ).get('content-type'),
+    ).toBe('application/json')
+    expect(
+      new Headers(
+        bytePlusVoiceHeaders('voice-key', { 'CONTENT-TYPE': 'text/plain' }),
+      ).get('content-type'),
+    ).toBe('application/json')
+  })
+
+  // The `Headers` form is the realistic route to the collision above:
+  // `Headers.forEach` yields lowercased names, so a caller who passes
+  // `new Headers({ Authorization: ... })` as `defaultHeaders` lands on the
+  // lowercase key even though they wrote the canonical one.
+  it('survives a Headers-instance defaultHeaders carrying an auth key', () => {
+    const built = bytePlusArkHeaders(
+      'ark-test-key',
+      toHeaderRecord(
+        new Headers({ Authorization: 'Bearer stale', 'X-Trace': 't1' }),
+      ),
+    )
+    expect(new Headers(built).get('authorization')).toBe('Bearer ark-test-key')
+    expect(new Headers(built).get('x-trace')).toBe('t1')
+  })
+
+  it('survives an entry-list defaultHeaders carrying an auth key', () => {
+    const built = bytePlusVoiceHeaders(
+      'voice-key',
+      toHeaderRecord([
+        ['X-Api-Key', 'stale'],
+        ['X-Trace', 't1'],
+      ]),
+    )
+    expect(new Headers(built).get('x-api-key')).toBe('voice-key')
+    expect(new Headers(built).get('x-trace')).toBe('t1')
+  })
+})
+
+describe('toHeaderRecord', () => {
+  it('returns an empty record for absent headers', () => {
+    expect(toHeaderRecord(undefined)).toEqual({})
+    expect(toHeaderRecord(null)).toEqual({})
+  })
+
+  it('flattens a Headers instance', () => {
+    const headers = new Headers({ 'X-Test-Id': 'abc' })
+    expect(toHeaderRecord(headers)).toEqual({ 'x-test-id': 'abc' })
+  })
+
+  it('reads an entry list', () => {
+    expect(
+      toHeaderRecord([
+        ['X-Test-Id', 'abc'],
+        ['X-Other', 'def'],
+      ]),
+    ).toEqual({ 'X-Test-Id': 'abc', 'X-Other': 'def' })
+  })
+
+  it('drops non-string values rather than serializing them', () => {
+    // openai's ClientOptions allows null/undefined as a "remove this header"
+    // signal, and an array for a repeated header. None of the three maps onto
+    // a single string, and none may reach the request as "null" or "a,b".
+    expect(
+      toHeaderRecord({
+        'X-Test-Id': 'abc',
+        'X-Removed': null,
+        'X-Absent': undefined,
+        'X-Repeated': ['a', 'b'],
+      }),
+    ).toEqual({ 'X-Test-Id': 'abc' })
+  })
+
+  it('skips entry-list pairs with a null value', () => {
+    expect(
+      toHeaderRecord([
+        ['X-Test-Id', 'abc'],
+        ['X-Removed', null],
+      ]),
+    ).toEqual({ 'X-Test-Id': 'abc' })
+  })
+})
+
+describe('readJsonBody', () => {
+  it('parses a JSON body', async () => {
+    const response = new Response(JSON.stringify({ id: 'cgt-1' }))
+    await expect(readJsonBody(response)).resolves.toEqual({ id: 'cgt-1' })
+  })
+
+  it('returns undefined for an empty body', async () => {
+    await expect(readJsonBody(new Response(''))).resolves.toBeUndefined()
+  })
+
+  it('falls back to raw text for a non-JSON body', async () => {
+    // Proxies in front of either host answer with HTML, which must still reach
+    // the error formatters instead of throwing a SyntaxError here.
+    const response = new Response('<html>Bad Gateway</html>', { status: 502 })
+    await expect(readJsonBody(response)).resolves.toBe(
+      '<html>Bad Gateway</html>',
+    )
+  })
+})
+
+describe('error formatting', () => {
+  it('reads code and message out of the Ark envelope', () => {
+    const error = bytePlusArkError(
+      404,
+      {
+        error: {
+          code: 'InvalidEndpointOrModel.NotFound',
+          message: 'The model does not exist.',
+        },
+      },
+      'video task creation',
+    )
+    expect(error.message).toBe(
+      'BytePlus Ark video task creation failed (404 InvalidEndpointOrModel.NotFound): The model does not exist.',
+    )
+  })
+
+  it('falls back to the raw body when Ark returns something else', () => {
+    const error = bytePlusArkError(502, '<html>Bad Gateway</html>')
+    expect(error.message).toBe(
+      'BytePlus Ark request failed (502): <html>Bad Gateway</html>',
+    )
+  })
+
+  it('reads the flat numeric code out of the Seed Speech envelope', () => {
+    const error = bytePlusVoiceError(
+      401,
+      { code: 45000010, message: 'Invalid X-Api-Key' },
+      'speech synthesis',
+    )
+    expect(error.message).toBe(
+      'BytePlus Seed Speech speech synthesis failed (401 45000010): Invalid X-Api-Key',
+    )
+  })
+
+  it('serializes an object body that carries no message', () => {
+    expect(
+      bytePlusArkError(500, { error: { type: 'server_error' } }).message,
+    ).toBe(
+      'BytePlus Ark request failed (500): {"error":{"type":"server_error"}}',
+    )
+    expect(
+      bytePlusVoiceError(500, { detail: 'upstream timeout' }).message,
+    ).toBe(
+      'BytePlus Seed Speech request failed (500): {"detail":"upstream timeout"}',
+    )
+  })
+
+  it('degrades to the status alone for an unreadable body', () => {
+    expect(bytePlusVoiceError(500, undefined).message).toBe(
+      'BytePlus Seed Speech request failed (500)',
+    )
+  })
+})
