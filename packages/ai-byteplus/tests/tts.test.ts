@@ -451,6 +451,58 @@ describe('BytePlusTTSAdapter', () => {
       expect(result.audio).toBe('QUJD')
     })
 
+    // Only the *error* envelope was verified live; the success envelope is
+    // docs-derived. A string-typed code must not slip through as success —
+    // `readStringField` already renders both forms in the error message, so
+    // requiring a number here would have returned a failed 200 as valid audio.
+    it('rejects a 200 whose non-zero code arrives as a string', async () => {
+      const fetchMock = ttsFetch({
+        code: '45000010',
+        message: 'Invalid X-Api-Key',
+        audio: 'QUJD',
+        duration: 1.5,
+      })
+      await expect(
+        generateSpeech({
+          adapter: adapterWith(fetchMock),
+          text: 'hi',
+          debug: false,
+        }),
+      ).rejects.toThrow(/45000010/)
+    })
+
+    it('accepts a 200 whose success code arrives as the string "0"', async () => {
+      const fetchMock = ttsFetch({ code: '0', audio: 'QUJD', duration: 1.5 })
+      const result = await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+      })
+      expect(result.audio).toBe('QUJD')
+    })
+
+    it('accepts a 200 that omits code entirely', async () => {
+      const fetchMock = ttsFetch({ audio: 'QUJD', duration: 1.5 })
+      const result = await generateSpeech({
+        adapter: adapterWith(fetchMock),
+        text: 'hi',
+      })
+      expect(result.audio).toBe('QUJD')
+    })
+
+    // An empty string is a *well-formed* success envelope carrying nothing to
+    // play, so it needs its own message — reusing the envelope-error phrasing
+    // ("failed (200)") gives no hint that the adapter is the one rejecting it.
+    it('rejects a success envelope whose audio is an empty string', async () => {
+      const fetchMock = ttsFetch({ code: 0, audio: '', duration: 1.5 })
+      await expect(
+        generateSpeech({
+          adapter: adapterWith(fetchMock),
+          text: 'hi',
+          debug: false,
+        }),
+      ).rejects.toThrow(/success response with no audio/)
+    })
+
     it('fails when a 200 response carries no audio', async () => {
       const fetchMock = ttsFetch({ code: 45000151, message: 'Quota exceeded' })
       await expect(

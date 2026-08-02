@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { generateTranscription } from '@tanstack/ai'
+import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
   BytePlusTranscriptionAdapter,
   createBytePlusTranscription,
@@ -387,6 +388,100 @@ describe('BytePlusTranscriptionAdapter', () => {
       expect(mapped.words).toBeUndefined()
       expect(mapped.usage).toBeUndefined()
       expect(mapped.duration).toBeUndefined()
+    })
+
+    // The word-level drop filter had no coverage: every fixture in this file
+    // and in the e2e mount is fully timed, so a field rename upstream
+    // (`word.text` → `word.word`) would have emptied `words` — or shipped
+    // `{ word: undefined, start: NaN }` — with nothing failing.
+    it('drops words with missing or non-numeric timings', async () => {
+      const mapped = mapRecognizeResponse(
+        {
+          result: {
+            text: 'a b c',
+            utterances: [
+              {
+                text: 'a b c',
+                start_time: 0,
+                end_time: 900,
+                words: [
+                  { text: 'a', start_time: 0, end_time: 300 },
+                  { text: 'b', start_time: 300 },
+                  { start_time: 600, end_time: 900 },
+                ],
+              },
+            ],
+          },
+        },
+        'a b c',
+      )
+
+      expect(mapped.words).toEqual([{ word: 'a', start: 0, end: 0.3 }])
+    })
+
+    it('warns when words are dropped rather than dropping them silently', async () => {
+      const logger = captureLogger()
+      mapRecognizeResponse(
+        {
+          result: {
+            text: 'a b',
+            utterances: [
+              {
+                text: 'a b',
+                start_time: 0,
+                end_time: 600,
+                words: [
+                  { text: 'a', start_time: 0, end_time: 300 },
+                  { text: 'b', start_time: 300 },
+                ],
+              },
+            ],
+          },
+        },
+        'a b',
+        resolveDebugOption({ logger }),
+      )
+
+      expect(
+        logger.warnings.some((w) => w.includes('dropped 1 of 2 word(s)')),
+      ).toBe(true)
+    })
+
+    it('warns when utterances are dropped rather than dropping them silently', async () => {
+      const logger = captureLogger()
+      mapRecognizeResponse(
+        {
+          result: {
+            text: 'partial',
+            utterances: [
+              { text: 'no timings' },
+              { text: 'timed', start_time: 0, end_time: 500 },
+            ],
+          },
+        },
+        'partial',
+        resolveDebugOption({ logger }),
+      )
+
+      expect(
+        logger.warnings.some((w) => w.includes('dropped 1 of 2 utterance(s)')),
+      ).toBe(true)
+    })
+
+    // An empty transcript is legitimate for silent audio, so it isn't an
+    // error — but it is also what a 200-wrapped failure looks like, and it
+    // used to be returned as a plain success with no signal at all.
+    it('warns on an empty transcript with no utterances', async () => {
+      const logger = captureLogger()
+      await generateTranscription({
+        adapter: adapterWith(asrFetch({ result: { text: '' } })),
+        audio: 'https://example.com/guitar.mp3',
+        debug: { logger },
+      })
+
+      expect(logger.warnings.some((w) => w.includes('empty transcript'))).toBe(
+        true,
+      )
     })
 
     it('surfaces per-word confidence for callers that narrow the type', async () => {

@@ -110,6 +110,8 @@ export default function SeedanceStudio({
   const [firstFrame, setFirstFrame] = useState<AttachedMedia | null>(null)
   const [lastFrame, setLastFrame] = useState<AttachedMedia | null>(null)
   const [references, setReferences] = useState<Array<AttachedMedia>>([])
+  /** Last file-attach failure, rendered beside the pickers. */
+  const [attachError, setAttachError] = useState<string | null>(null)
   /**
    * Template media, kept apart from the uploads: these are remote URLs the app
    * never holds bytes for, and their order carries the prompt's `@Video1` /
@@ -279,10 +281,18 @@ export default function SeedanceStudio({
     const file = e.target.files?.[0]
     e.target.value = ''
     if (!file) return
+    setAttachError(null)
     try {
       apply(await readMediaFile(file))
-    } catch {
-      // Unreadable file — leave the current attachment in place.
+    } catch (error) {
+      // The input was already reset above, so without this the failure has no
+      // observable effect at all: no message, no console entry, and the same
+      // file re-picks to the same silence. Surface it next to the picker.
+      setAttachError(
+        `Could not read "${file.name}": ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      )
     }
   }
 
@@ -735,6 +745,15 @@ export default function SeedanceStudio({
               )}
             </div>
           </div>
+        )}
+
+        {attachError && (
+          <p
+            role="alert"
+            className="text-sm text-red-400 bg-red-950/40 border border-red-900/60 rounded-lg px-3 py-2"
+          >
+            {attachError}
+          </p>
         )}
 
         <input

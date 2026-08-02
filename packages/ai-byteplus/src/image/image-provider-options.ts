@@ -224,13 +224,22 @@ export function validateBytePlusImagePrompt(
 /**
  * Validates the reference-image count against the model's editing limit.
  *
- * @throws Error when more references are supplied than the model accepts.
+ * A model this package has no limit for is left to Ark, deliberately and
+ * explicitly. `model` is typed closed, but `wire-types.ts` documents that the
+ * endpoint also accepts preconfigured endpoint ids (`ep-…`), so a JS caller
+ * can reach an id that is not in the table. Reading `undefined` out of it and
+ * comparing `count > undefined` — always false — would disable the guard by
+ * accident and look identical to passing; the explicit early return says the
+ * skip is intended.
+ *
+ * @throws Error when more references are supplied than a *known* model accepts.
  */
 export function validateBytePlusReferenceImages(
   model: BytePlusImageModel,
   count: number,
 ): void {
-  const max = BYTEPLUS_IMAGE_MAX_REFERENCE_IMAGES[model]
+  const max = BYTEPLUS_IMAGE_MAX_REFERENCE_IMAGES[model] as number | undefined
+  if (max === undefined) return
   if (count > max) {
     throw new Error(
       `byteplus: model "${model}" accepts at most ${max} reference images; received ${count}.`,

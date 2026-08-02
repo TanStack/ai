@@ -181,6 +181,84 @@ describe('headers', () => {
       'X-Test-Id': 'abc',
     })
   })
+
+  // Header names are case-insensitive but object keys are not, so a
+  // differently-cased duplicate survives the spread and `fetch`'s Headers
+  // constructor *appends* it: `authorization: "Bearer wrong, Bearer right"`,
+  // which 401s and reads like a bad key. `toHeaderRecord` lowercases names for
+  // the `Headers` form of `defaultHeaders`, so this is reachable from ordinary
+  // config. Assert through `new Headers(...)` — the object alone can look fine
+  // while the wire value is the concatenation.
+  it.each([
+    ['lowercase', 'authorization'],
+    ['canonical', 'Authorization'],
+    ['upper', 'AUTHORIZATION'],
+    ['mixed', 'AuThOrIzAtIoN'],
+  ])(
+    'drops a %s caller Authorization rather than appending to it',
+    (_label, key) => {
+      const built = bytePlusArkHeaders('ark-test-key', {
+        [key]: 'Bearer wrong-key',
+      })
+      expect(new Headers(built).get('authorization')).toBe(
+        'Bearer ark-test-key',
+      )
+    },
+  )
+
+  it.each([
+    ['lowercase', 'x-api-key'],
+    ['canonical', 'X-Api-Key'],
+    ['upper', 'X-API-KEY'],
+  ])(
+    'drops a %s caller X-Api-Key rather than appending to it',
+    (_label, key) => {
+      const built = bytePlusVoiceHeaders('voice-test-key', {
+        [key]: 'wrong-key',
+      })
+      expect(new Headers(built).get('x-api-key')).toBe('voice-test-key')
+    },
+  )
+
+  it('drops a differently-cased Content-Type on both hosts', () => {
+    expect(
+      new Headers(
+        bytePlusArkHeaders('ark-test-key', { 'content-type': 'text/plain' }),
+      ).get('content-type'),
+    ).toBe('application/json')
+    expect(
+      new Headers(
+        bytePlusVoiceHeaders('voice-key', { 'CONTENT-TYPE': 'text/plain' }),
+      ).get('content-type'),
+    ).toBe('application/json')
+  })
+
+  // The `Headers` form is the realistic route to the collision above:
+  // `Headers.forEach` yields lowercased names, so a caller who passes
+  // `new Headers({ Authorization: ... })` as `defaultHeaders` lands on the
+  // lowercase key even though they wrote the canonical one.
+  it('survives a Headers-instance defaultHeaders carrying an auth key', () => {
+    const built = bytePlusArkHeaders(
+      'ark-test-key',
+      toHeaderRecord(
+        new Headers({ Authorization: 'Bearer stale', 'X-Trace': 't1' }),
+      ),
+    )
+    expect(new Headers(built).get('authorization')).toBe('Bearer ark-test-key')
+    expect(new Headers(built).get('x-trace')).toBe('t1')
+  })
+
+  it('survives an entry-list defaultHeaders carrying an auth key', () => {
+    const built = bytePlusVoiceHeaders(
+      'voice-key',
+      toHeaderRecord([
+        ['X-Api-Key', 'stale'],
+        ['X-Trace', 't1'],
+      ]),
+    )
+    expect(new Headers(built).get('x-api-key')).toBe('voice-key')
+    expect(new Headers(built).get('x-trace')).toBe('t1')
+  })
 })
 
 describe('toHeaderRecord', () => {

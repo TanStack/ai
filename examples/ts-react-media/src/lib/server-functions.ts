@@ -499,7 +499,7 @@ export const generateVideoFn = createServerFn({ method: 'POST' })
 function acceptedResolutions(
   model: BytePlusVideoModel,
 ): Array<BytePlusVideoResolution> {
-  return SEEDANCE_RESOLUTION_TIERS.filter((tier) => {
+  const accepted = SEEDANCE_RESOLUTION_TIERS.filter((tier) => {
     try {
       resolveBytePlusVideoResolution(model, tier)
       return true
@@ -507,6 +507,21 @@ function acceptedResolutions(
       return false
     }
   })
+
+  // Using a throw as the predicate means *any* change to that function's
+  // contract reads as "no tier is supported". Every Seedance model offers at
+  // least 480p and 720p, so an empty list is drift, not a real answer —
+  // without this the Studio would silently fall back to a hardcoded '720p'
+  // and build requests on a guess. The route has an errorComponent for
+  // exactly this.
+  if (accepted.length === 0) {
+    throw new Error(
+      `Seedance capability probe returned no resolution tiers for "${model}". ` +
+        `resolveBytePlusVideoResolution's contract has probably changed — the ` +
+        `Studio's controls cannot be built from this.`,
+    )
+  }
+  return accepted
 }
 
 /**

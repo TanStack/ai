@@ -4,6 +4,7 @@ import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import {
   bytePlusArkError,
   bytePlusArkHeaders,
+  bytePlusTimeoutSignal,
   getBytePlusArkApiKeyFromEnv,
   readJsonBody,
   toHeaderRecord,
@@ -117,8 +118,16 @@ function buildBytePlusVideoUsage(
   }
 }
 
-/** Formats a terminal task's error detail for a status / failure message. */
-function describeTaskFailure(task: BytePlusVideoTask): string | undefined {
+/**
+ * Formats a terminal task's error detail for a status / failure message.
+ *
+ * Always returns a string. Core surfaces a failed job as
+ * `throw new Error(statusResult.error || 'Video generation failed')`, so
+ * returning `undefined` for a failure Ark reported without an `error` block
+ * would hand the caller an unattributable error. The final fallback is a
+ * snapshot of the identifying fields instead.
+ */
+function describeTaskFailure(task: BytePlusVideoTask): string {
   const { code, message } = task.error ?? {}
   if (code && message) return `${code}: ${message}`
   if (message) return message
@@ -128,7 +137,10 @@ function describeTaskFailure(task: BytePlusVideoTask): string | undefined {
     return 'Task expired before it finished (execution_expires_after elapsed).'
   }
   if (task.status === 'cancelled') return 'Task was cancelled.'
-  return undefined
+  return (
+    `Task reported status "${task.status ?? 'unknown'}" with no error detail ` +
+    `(id=${task.id ?? 'unknown'}, model=${task.model ?? 'unknown'}).`
+  )
 }
 
 /**
@@ -196,8 +208,10 @@ export class BytePlusVideoAdapter<
     init?: Omit<RequestInit, 'headers'>,
   ): Promise<{ response: Response; body: unknown }> {
     const fetchImpl = this.clientConfig.fetch ?? fetch
+    const signal = bytePlusTimeoutSignal(this.clientConfig.timeout)
     const response = await fetchImpl(`${this.clientConfig.baseURL}${path}`, {
       ...init,
+      ...(signal && { signal }),
       headers: bytePlusArkHeaders(
         this.clientConfig.apiKey,
         toHeaderRecord(this.clientConfig.defaultHeaders),
@@ -460,7 +474,17 @@ export class BytePlusVideoAdapter<
     }
   }
 
-  /** Fetches a task, tagging the thrown error with the HTTP status. */
+  /**
+   * Fetches a task, tagging the thrown error with the HTTP status.
+   *
+   * The 200 body is validated rather than cast. `readJsonBody` returns
+   * `undefined` for an empty body and the raw text for a non-JSON one — both
+   * documented failure modes of these hosts (an HTML error page from a proxy
+   * in front of the API). Casting either to `BytePlusVideoTask` yields a task
+   * whose `status` is `undefined`, which {@link mapStatus} would have to
+   * interpret; the honest answer is that the response was not a task at all,
+   * so say so while the body is still in hand.
+   */
   private async retrieveTask(jobId: string): Promise<BytePlusVideoTask> {
     const { response, body } = await this.request(
       `${TASKS_PATH}/${encodeURIComponent(jobId)}`,
@@ -470,7 +494,14 @@ export class BytePlusVideoAdapter<
       ;(error as { status?: number }).status = response.status
       throw error
     }
-    return (body ?? {}) as BytePlusVideoTask
+    if (typeof body !== 'object' || body === null) {
+      throw bytePlusArkError(
+        response.status,
+        body,
+        `video task lookup (job ${jobId}) returned a non-object body`,
+      )
+    }
+    return body as BytePlusVideoTask
   }
 
   async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
@@ -478,9 +509,16 @@ export class BytePlusVideoAdapter<
     try {
       task = await this.retrieveTask(jobId)
     } catch (error) {
-      // A task record lives 7 days from creation; past that the id 404s.
+      // A task record lives 7 days from creation; past that the id 404s. Keep
+      // Ark's own code/message: a 404 from a wrong baseURL, a proxy, or a
+      // region mismatch is not an expired job id, and collapsing them all to
+      // "Job not found" sends the caller hunting the wrong thing.
       if ((error as { status?: number }).status === 404) {
-        return { jobId, status: 'failed', error: 'Job not found' }
+        return {
+          jobId,
+          status: 'failed',
+          error: `Job not found: ${jobId} (${(error as Error).message})`,
+        }
       }
       throw error
     }
@@ -499,17 +537,20 @@ export class BytePlusVideoAdapter<
     try {
       task = await this.retrieveTask(jobId)
     } catch (error) {
+      // See getVideoStatus: Ark's detail distinguishes an expired id from a
+      // misrouted request.
       if ((error as { status?: number }).status === 404) {
-        throw new Error(`Video job not found: ${jobId}`)
+        throw new Error(
+          `Video job not found: ${jobId} (${(error as Error).message})`,
+        )
       }
       throw error
     }
 
     const status = this.mapStatus(task.status)
     if (status === 'failed') {
-      const failure = describeTaskFailure(task)
       throw new Error(
-        `Video generation failed${failure ? `: ${failure}` : ''}. Job ID: ${jobId}`,
+        `Video generation failed: ${describeTaskFailure(task)}. Job ID: ${jobId}`,
       )
     }
 
@@ -546,6 +587,13 @@ export class BytePlusVideoAdapter<
    * Maps Seedance task states onto the generic video status set. `expired`
    * (the task outlived `execution_expires_after`) and `cancelled` are
    * terminal non-successes, so both report as failed.
+   *
+   * An unrecognized state throws rather than defaulting to `processing`.
+   * Core's poll loop treats `processing` as "keep waiting", so mapping an
+   * unknown state — a missing `status`, or a terminal one Ark adds later such
+   * as `rejected` — onto it means polling until `maxDuration` and then
+   * reporting a generic timeout, with the state Ark actually sent never
+   * reaching the caller. Failing here names it.
    */
   protected mapStatus(
     apiStatus: BytePlusVideoTaskStatus | string | undefined,
@@ -563,7 +611,11 @@ export class BytePlusVideoAdapter<
         return 'failed'
       case undefined:
       default:
-        return 'processing'
+        throw new Error(
+          `byteplus: unrecognized Seedance task status ` +
+            `${apiStatus === undefined ? '(missing)' : `"${apiStatus}"`}. ` +
+            `Known states: queued, running, succeeded, failed, expired, cancelled.`,
+        )
     }
   }
 

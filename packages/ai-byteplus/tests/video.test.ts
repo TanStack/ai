@@ -726,6 +726,96 @@ describe('getVideoStatus', () => {
     )
   })
 
+  // Core's poll loop treats `processing` as "keep waiting", so a status it
+  // can't map must not answer `processing` — that turns a malformed or
+  // newly-added terminal state into a silent poll to `maxDuration` and a
+  // generic timeout, with what Ark actually sent never reaching the caller.
+  it.each([
+    ['a status Ark adds later', { id: JOB_ID, status: 'rejected' }],
+    ['a task with no status at all', { id: JOB_ID }],
+  ])('throws naming %s', async (_label, body) => {
+    const adapter = adapterWithFetch(
+      mockFetch(() => jsonResponse(body)),
+      'seedance-1-0-pro-fast-251015',
+    )
+
+    await expect(adapter.getVideoStatus(JOB_ID)).rejects.toThrow(
+      /unrecognized Seedance task status/,
+    )
+  })
+
+  it('names the offending status value in the error', async () => {
+    const adapter = adapterWithFetch(
+      mockFetch(() => jsonResponse({ id: JOB_ID, status: 'rejected' })),
+      'seedance-1-0-pro-fast-251015',
+    )
+
+    await expect(adapter.getVideoStatus(JOB_ID)).rejects.toThrow(/"rejected"/)
+  })
+
+  // `readJsonBody` returns `undefined` for an empty body and the raw text for
+  // a non-JSON one — both documented failure modes of these hosts (an HTML
+  // error page from a proxy). Casting either to a task hides the body.
+  it.each([
+    ['an empty body', new Response('', { status: 200 })],
+    [
+      'an HTML error page served with 200',
+      new Response('<html><body>502 Bad Gateway</body></html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    ],
+  ])('throws with the body in hand for %s', async (_label, response) => {
+    const adapter = adapterWithFetch(
+      mockFetch(() => response),
+      'seedance-1-0-pro-fast-251015',
+    )
+
+    await expect(adapter.getVideoStatus(JOB_ID)).rejects.toThrow(
+      /non-object body/,
+    )
+  })
+
+  it('carries the raw HTML into the error so the failure stays diagnosable', async () => {
+    const adapter = adapterWithFetch(
+      mockFetch(
+        () =>
+          new Response('<html><body>502 Bad Gateway</body></html>', {
+            status: 200,
+            headers: { 'Content-Type': 'text/html' },
+          }),
+      ),
+      'seedance-1-0-pro-fast-251015',
+    )
+
+    await expect(adapter.getVideoStatus(JOB_ID)).rejects.toThrow(
+      /502 Bad Gateway/,
+    )
+  })
+
+  // Core does `throw new Error(statusResult.error || 'Video generation
+  // failed')`, so a failure with no `error` block must still carry something
+  // identifying or the caller gets an unattributable error.
+  it('describes a failed task that carries no error block', async () => {
+    const adapter = adapterWithFetch(
+      mockFetch(() =>
+        jsonResponse({
+          id: JOB_ID,
+          status: 'failed',
+          model: 'seedance-1-0-pro-fast-251015',
+        }),
+      ),
+      'seedance-1-0-pro-fast-251015',
+    )
+
+    const status = await adapter.getVideoStatus(JOB_ID)
+
+    expect(status.status).toBe('failed')
+    expect(status.error).toContain(JOB_ID)
+    expect(status.error).toContain('seedance-1-0-pro-fast-251015')
+    expect(status.error).toContain('no error detail')
+  })
+
   it('surfaces the error code and message of a failed task', async () => {
     const fetchMock = mockFetch(() =>
       jsonResponse({
@@ -767,11 +857,14 @@ describe('getVideoStatus', () => {
     )
     const adapter = adapterWithFetch(fetchMock, 'seedance-1-0-pro-250528')
 
-    expect(await adapter.getVideoStatus(JOB_ID)).toEqual({
-      jobId: JOB_ID,
-      status: 'failed',
-      error: 'Job not found',
-    })
+    const result = await adapter.getVideoStatus(JOB_ID)
+    expect(result).toMatchObject({ jobId: JOB_ID, status: 'failed' })
+    // Ark's own code/message is kept: a 404 from a wrong baseURL or a proxy in
+    // front of the API is not an expired job id, and collapsing both to a bare
+    // "Job not found" points the caller at the wrong cause.
+    expect(result.error).toContain(JOB_ID)
+    expect(result.error).toContain('NotFound')
+    expect(result.error).toContain('task not found')
   })
 
   it('propagates non-404 lookup failures', async () => {

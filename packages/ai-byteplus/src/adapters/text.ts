@@ -292,12 +292,18 @@ export class BytePlusTextAdapter<
    * `response_format: json_schema`; the rest reject it with a 400.
    *
    * Returning `false` for a rejecting model does not make structured output
-   * work — the engine's separate finalization call sends the same
-   * `response_format` and fails too (that path is stopped by the guard in
-   * {@link BytePlusTextAdapter.structuredOutput}). What it buys is keeping
-   * `response_format` out of the *streaming chat* request, so an ordinary
-   * `chat()` call that happens to carry an `outputSchema` still streams
-   * normally instead of 400-ing on every turn.
+   * work — Ark has no `json_object` fallback to downgrade to. What it buys is
+   * keeping `response_format` out of the request the engine would otherwise
+   * build: with the hook false the engine takes its separate finalization
+   * path, and the guard in {@link BytePlusTextAdapter.structuredOutput} /
+   * {@link BytePlusTextAdapter.structuredOutputStream} stops that *before*
+   * any HTTP call. So a `chat({ outputSchema })` on a rejecting model fails
+   * loudly, named, without a schema Ark would 400 on ever leaving the
+   * process — rather than 400-ing on every turn, or (worse) parsing prose as
+   * if it were JSON.
+   *
+   * Tools without a schema are unaffected: `tools` alone never involves
+   * `response_format`.
    */
   override supportsCombinedToolsAndSchema(): boolean {
     return supportsStructuredOutput(this.model)

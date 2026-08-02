@@ -1,5 +1,6 @@
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import { generateId } from '@tanstack/ai-utils'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import {
   BYTEPLUS_VOICE_BASE_URL,
   bytePlusVoiceError,
@@ -45,6 +46,20 @@ const TTS_TEXT_FIELD = 'text_prompt' satisfies keyof BytePlusTTSCreateRequest
  * never relies on the server default and always sends this instead.
  */
 const DEFAULT_SAMPLE_RATE = 24000
+
+/**
+ * True when a Seed Speech envelope's `code` means success.
+ *
+ * Seed Speech uses `0` for success and a flat numeric code otherwise
+ * (`45000010 Invalid X-Api-Key`). The success envelope has not been confirmed
+ * against a live key, so `code` is accepted as a number, its string form, or
+ * absent — an envelope that omits `code` entirely is treated as success, which
+ * is what the HTTP status already told us.
+ */
+function isZeroCode(code: number | string | undefined): boolean {
+  if (code === undefined) return true
+  return Number(code) === 0
+}
 
 /**
  * Voice used when neither `TTSOptions.voice` nor `modelOptions.speaker` is
@@ -160,14 +175,25 @@ export class BytePlusTTSAdapter<
       // a 200 can carry a non-zero `code`. Check it before looking at `audio`,
       // because a failed call may still return a partial or placeholder
       // payload that would otherwise be handed back as if it were valid.
-      if (typeof data.code === 'number' && data.code !== 0) {
+      //
+      // `code` is accepted as a number *or* a string. The success envelope was
+      // never confirmed against a live key (no voice key yet — see
+      // `audio/wire-types.ts`), and `readStringField` already tolerates both
+      // forms when rendering the error, so requiring a number here would let
+      // `{"code": "45000010"}` through both this gate and the one below.
+      if (!isZeroCode(data.code)) {
         throw bytePlusVoiceError(response.status, payload, 'text-to-speech')
       }
 
       // Belt and braces for a 200 that reports success but carries nothing to
-      // play. `bytePlusVoiceError` surfaces whatever `message` came back.
+      // play. Say that the adapter rejected it, rather than reusing the
+      // envelope-error phrasing — a bare "failed (200)" gives no hint that the
+      // response was well-formed and simply empty.
       if (typeof data.audio !== 'string' || data.audio.length === 0) {
-        throw bytePlusVoiceError(response.status, payload, 'text-to-speech')
+        throw new Error(
+          `BytePlus Seed Speech text-to-speech returned a success response ` +
+            `with no audio (model ${model}).`,
+        )
       }
 
       const duration = toDurationSeconds(data.duration)
@@ -186,7 +212,7 @@ export class BytePlusTTSAdapter<
       }
     } catch (error) {
       logger.errors('byteplus.generateSpeech fatal', {
-        error,
+        error: toRunErrorPayload(error, 'byteplus.generateSpeech failed'),
         source: 'byteplus.generateSpeech',
       })
       throw error

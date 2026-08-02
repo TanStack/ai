@@ -148,8 +148,17 @@ export interface BytePlusTTSSubtitle {
 
 /** Response body for `POST /api/v3/tts/create`. */
 export interface BytePlusTTSCreateResponse {
-  /** Numeric status code. Present on success as well as on failure. */
-  code?: number
+  /**
+   * Status code — `0` on success, a flat error code otherwise.
+   *
+   * Typed as `number | string` because only the *error* envelope was verified
+   * live (HTTP 401 `{"code":45000010,…}`); the success envelope's shape is
+   * docs-derived and no voice key was available to confirm it. Treating a
+   * string code as "not a failure" would return a failed 200 as success, so
+   * the adapter coerces before comparing — see `isZeroCode` in
+   * `adapters/tts.ts`.
+   */
+  code?: number | string
   message?: string
   /** Base64-encoded audio in the requested `audio_config.format`. */
   audio?: string

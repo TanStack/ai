@@ -117,8 +117,6 @@ export type {
   BytePlusSequentialImageGenerationOptions,
 } from './image/wire-types'
 
-// Adapters exported by later phases — append a block above this line.
-
 export {
   BytePlusTextAdapter,
   byteplusText,

@@ -749,7 +749,20 @@ const { jobId } = await generateVideo({
 
 Options are **model-specific and validated server-side**: Ark rejects an inapplicable field with a `400` instead of ignoring it. `service_tier` and `camera_fixed` are Seedance 1.x only, `frames` works on the 1.0-pro models, `draft` on 1.5-pro, `priority` on the 2.0 family, and `duration: -1` (let the model choose) on 2.0 and 1.5-pro. Durations are 4–15s on the 2.0 family, 4–12s on 1.5-pro and 2–12s on the 1.0-pro models.
 
-**Seedance video URLs expire 24 hours after the task completes** (the task record is kept for seven days), so persist the bytes rather than the link. See the [BytePlus adapter](../adapters/byteplus#video-generation-seedance) for the full option table, and note that Seedance is also reachable indirectly through the [fal adapter](../adapters/fal) — this is the direct-to-BytePlus path.
+**Seedance video URLs expire 24 hours after the task completes** (the task record is kept for seven days), so persist the bytes rather than the link. See the [BytePlus adapter](../adapters/byteplus#video-generation-seedance) for the full option table.
+
+#### Porting a Seedance call between providers
+
+Seedance is reachable through more than one adapter — this package is the direct-to-BytePlus path, and the [fal adapter](../adapters/fal) proxies the same models. The `metadata.role` vocabulary is identical across them (see the role table above), but **`size` is not**, because each provider sizes its endpoints differently:
+
+| Adapter                | `size` shape                             | Example        |
+| ---------------------- | ---------------------------------------- | -------------- |
+| `@tanstack/ai-byteplus` | `ratio` or `ratio_resolution` (required ratio) | `'16:9_720p'`, `'16:9'` |
+| `@tanstack/ai-fal`      | `ratio_resolution`, `ratio`, **or** a bare resolution | `'16:9_720p'`, `'16:9'`, `'720p'` |
+
+A bare `size: '720p'` is valid on fal and throws on BytePlus, which follows the [Grok Imagine](#grok-xai-imagine-model-options) template and always wants the ratio. Pass the ratio explicitly (`'16:9_720p'`) and the same string works on both.
+
+The mode also moves: fal encodes it in the endpoint id (`fal-ai/bytedance/seedance/v1/pro/image-to-video` vs `.../reference-to-video`), while BytePlus takes one model id and infers the mode from the prompt parts you attach. Neither is configurable — it follows each provider's own API.
 
 ## Response Types
 

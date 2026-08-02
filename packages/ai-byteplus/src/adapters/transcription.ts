@@ -1,5 +1,6 @@
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
+import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import {
   BYTEPLUS_VOICE_BASE_URL,
   bytePlusVoiceError,
@@ -19,6 +20,7 @@ import type {
   TranscriptionSegment,
   TranscriptionWord,
 } from '@tanstack/ai'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { BytePlusVoiceConfig } from '../utils/client'
 import type { BytePlusTranscriptionModel } from '../model-meta'
 import type {
@@ -177,6 +179,19 @@ export class BytePlusTranscriptionAdapter<
         throw bytePlusVoiceError(response.status, payload, 'transcription')
       }
 
+      // An empty string is well-formed, so it isn't an error — silence is a
+      // legitimate transcription. But it is also what a 200-wrapped failure
+      // looks like, so say so rather than handing back a successful, empty
+      // result with no signal.
+      if (text === '' && !hasUtterances(data)) {
+        logger.warn(
+          `byteplus: transcription returned an empty transcript with no ` +
+            `utterances. This is a valid result for silent audio, and is also ` +
+            `what a 200-wrapped failure looks like.`,
+          { provider: this.name, model },
+        )
+      }
+
       // Seed ASR doesn't echo the language back, so report the one that was
       // actually sent — which is `modelOptions.language` when it overrode the
       // cross-provider hint.
@@ -185,12 +200,12 @@ export class BytePlusTranscriptionAdapter<
       return {
         id: generateId(this.name),
         model,
-        ...mapRecognizeResponse(data, text),
+        ...mapRecognizeResponse(data, text, logger),
         ...(requestedLanguage !== undefined && { language: requestedLanguage }),
       }
     } catch (error) {
       logger.errors('byteplus.transcribe fatal', {
-        error,
+        error: toRunErrorPayload(error, 'byteplus.transcribe failed'),
         source: 'byteplus.transcribe',
       })
       throw error
@@ -244,6 +259,7 @@ export function buildRecognizeRequestBody(options: {
 export function mapRecognizeResponse(
   data: BytePlusASRRecognizeResponse,
   text: string,
+  logger?: InternalLogger,
 ): Omit<TranscriptionResult, 'id' | 'model'> {
   const utterances = data.result?.utterances ?? data.utterances ?? []
   // `id` numbers the segments we emit, not the utterances we were given, so
@@ -252,24 +268,45 @@ export function mapRecognizeResponse(
     .flatMap((utterance) => toSegment(utterance))
     .map((segment, index) => ({ ...segment, id: index }))
 
-  const words = utterances
-    .flatMap((utterance) => utterance.words ?? [])
-    .flatMap((word) => {
-      if (
-        typeof word.text !== 'string' ||
-        typeof word.start_time !== 'number' ||
-        typeof word.end_time !== 'number'
-      ) {
-        return []
-      }
-      const mapped: BytePlusTranscriptionWord = {
-        word: word.text,
-        start: msToSeconds(word.start_time),
-        end: msToSeconds(word.end_time),
-      }
-      if (word.confidence !== undefined) mapped.confidence = word.confidence
-      return [mapped]
-    })
+  const rawWords = utterances.flatMap((utterance) => utterance.words ?? [])
+  const words = rawWords.flatMap((word) => {
+    if (
+      typeof word.text !== 'string' ||
+      typeof word.start_time !== 'number' ||
+      typeof word.end_time !== 'number'
+    ) {
+      return []
+    }
+    const mapped: BytePlusTranscriptionWord = {
+      word: word.text,
+      start: msToSeconds(word.start_time),
+      end: msToSeconds(word.end_time),
+    }
+    if (word.confidence !== undefined) mapped.confidence = word.confidence
+    return [mapped]
+  })
+
+  // Untimed entries are dropped rather than emitted with NaN timings, but a
+  // silent drop leaves the caller unable to tell "the provider sent no
+  // timings" from "the adapter discarded them" — the two have very different
+  // fixes, and a field rename upstream (e.g. `text` → `word`) would empty
+  // these arrays without a single error anywhere.
+  const droppedWords = rawWords.length - words.length
+  if (droppedWords > 0) {
+    logger?.warn(
+      `byteplus: dropped ${droppedWords} of ${rawWords.length} word(s) with ` +
+        `missing or non-numeric timings.`,
+      { provider: 'byteplus' },
+    )
+  }
+  const droppedSegments = utterances.length - segments.length
+  if (droppedSegments > 0) {
+    logger?.warn(
+      `byteplus: dropped ${droppedSegments} of ${utterances.length} ` +
+        `utterance(s) with missing or non-numeric timings.`,
+      { provider: 'byteplus' },
+    )
+  }
 
   const durationMs = data.audio_info?.duration
   const duration =
@@ -303,6 +340,16 @@ export function mapRecognizeResponse(
  * Convert one utterance into a segment, or nothing when it carries no
  * timings. The `id` is a placeholder — the caller renumbers after filtering.
  */
+/**
+ * True when the response carries at least one utterance, in either envelope
+ * form. Used to tell "silent audio" from a 200-wrapped failure: a genuinely
+ * empty transcript usually still arrives with no utterances, so the pairing is
+ * a hint rather than proof — hence a warning rather than a throw.
+ */
+function hasUtterances(data: BytePlusASRRecognizeResponse): boolean {
+  return (data.result?.utterances ?? data.utterances ?? []).length > 0
+}
+
 function toSegment(
   utterance: BytePlusASRUtterance,
 ): Array<TranscriptionSegment> {

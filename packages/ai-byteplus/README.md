@@ -31,6 +31,26 @@ south-east endpoint (`https://ark.ap-southeast.bytepluses.com/api/v3`); per the
 BytePlus docs the EU endpoint serves chat and image only (docs-derived — only
 the ap-southeast host was exercised live).
 
+## Why there's no Volcengine SDK dependency
+
+This package does **not** depend on `@volcengine/ark-runtime` (or any other
+first-party BytePlus/Volcengine SDK). That is deliberate:
+
+- **Chat doesn't need one.** Ark's `/chat/completions` is OpenAI-compatible, so
+  the chat adapter rides the `openai` SDK through `@tanstack/openai-base` — the
+  same path `@tanstack/ai-grok` and `@tanstack/ai-groq` take, with identical
+  dependencies. That reuses the shared streaming, tool-calling and
+  structured-output machinery instead of forking it per provider.
+- **Nothing else is OpenAI-shaped anyway.** Seedance video, Seedream image and
+  Seed Speech are bespoke endpoints on two different hosts with two different
+  auth headers. An SDK would not spare us the wire types; it would add a second
+  dependency that still had to be translated at the boundary.
+
+The cost is that the non-chat wire types are hand-written and pinned by tests
+rather than generated. That is a considered trade, not an oversight — see
+`src/video/wire-types.ts`, `src/image/wire-types.ts` and
+`src/audio/wire-types.ts`, each of which records how its shape was verified.
+
 ## Usage
 
 ### Chat

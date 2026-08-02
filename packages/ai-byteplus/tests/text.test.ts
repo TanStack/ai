@@ -7,7 +7,7 @@ import {
   vi,
   type Mock,
 } from 'vitest'
-import { EventType, chat } from '@tanstack/ai'
+import { EventType, StreamProcessor, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
   createBytePlusText as _realCreateBytePlusText,
@@ -113,6 +113,23 @@ const ENCRYPTED_BLOB = 'ENC-eyJhbGciOiJzaWduZWQifQ.reasoning-signature'
 const weatherTool: Tool = {
   name: 'lookup_weather',
   description: 'Return the forecast for a location',
+}
+
+/** A minimal plain-text completion: one content delta, then a finish chunk. */
+function textStreamChunks(model: string): Array<Record<string, unknown>> {
+  return [
+    {
+      id: 'chatcmpl-text',
+      model,
+      choices: [{ index: 0, delta: { content: 'Hello!' } }],
+    },
+    {
+      id: 'chatcmpl-text',
+      model,
+      choices: [{ index: 0, delta: {}, finish_reason: 'stop' }],
+      usage: { prompt_tokens: 12, completion_tokens: 7, total_tokens: 19 },
+    },
+  ]
 }
 
 /**
@@ -748,6 +765,58 @@ describe('BytePlus text adapter', () => {
       ).rejects.toThrow('does not support structured output')
     })
 
+    // The two tests above assert the hook's return value and the
+    // structuredOutput* entry points in isolation. This one drives the whole
+    // chat() activity, which is where `supportsCombinedToolsAndSchema()` is
+    // actually consumed (`nativeCombined`, twice, in chat()'s activity), and
+    // pins the end-to-end consequence: on a rejecting model the guard fires
+    // *before* any request, so no schema Ark would 400 on ever leaves the
+    // process. Every structured E2E overrides to a supporting model, so this
+    // path ran nowhere.
+    it('fails before issuing a request when the model rejects json_schema', async () => {
+      const mockCreate = setupMockSdkClient(
+        textStreamChunks(UNSTRUCTURED_MODEL),
+      )
+      const adapter = createBytePlusText(UNSTRUCTURED_MODEL, 'ark-test-key')
+
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Say hi' }],
+        outputSchema: { type: 'object', properties: {} },
+        stream: true,
+      })) {
+        chunks.push(chunk)
+      }
+
+      // Ark has no json_object fallback, so there is nothing to downgrade to.
+      // The request is never made rather than being made without the schema.
+      expect(mockCreate).not.toHaveBeenCalled()
+
+      // And it surfaces as a named RUN_ERROR, not a raw 400 or silent prose.
+      const runError = chunks.find((c) => c.type === EventType.RUN_ERROR)
+      expect(
+        runError?.type === EventType.RUN_ERROR && runError.message,
+      ).toContain('does not support structured output')
+    })
+
+    it('does forward response_format into the streaming turns on a supported model', async () => {
+      const mockCreate = setupMockSdkClient(textStreamChunks(STRUCTURED_MODEL))
+      const adapter = createBytePlusText(STRUCTURED_MODEL, 'ark-test-key')
+
+      for await (const _ of chat({
+        adapter,
+        messages: [{ role: 'user', content: 'Say hi' }],
+        outputSchema: { type: 'object', properties: {} },
+        stream: true,
+      })) {
+        // consume
+      }
+
+      const request = mockCreate.mock.calls[0]?.[0] as Record<string, unknown>
+      expect(request.response_format).toMatchObject({ type: 'json_schema' })
+    })
+
     it('emits RUN_ERROR (not a throw) from structuredOutputStream on those models', async () => {
       const adapter = createBytePlusText(UNSTRUCTURED_MODEL, 'ark-test-key')
 
@@ -1010,5 +1079,44 @@ describe('encrypted_content through the chat() agent loop', () => {
     // An assistant turn with only tool calls sends `content: null`, per the
     // Chat Completions contract the base implements.
     expect(assistant.content).toBeNull()
+  })
+})
+
+// The adapter stamps `delta` onto a STEP_FINISHED that already carries the
+// same reasoning text via REASONING_MESSAGE_CONTENT, because chat()'s agent
+// loop reads thinking only from STEP_FINISHED.delta and drops the whole step —
+// signature included — when that accumulation is empty.
+//
+// Nothing double-counts today only because StreamProcessor short-circuits
+// STEP_FINISHED content once it has seen reasoning events. That guarantee
+// lives in @tanstack/ai, not here, so without this test a change over there
+// would double every BytePlus reasoning block in the UI while this package
+// stayed green.
+describe('reasoning delta round-trip through StreamProcessor', () => {
+  it('surfaces the thinking text once, with the signature attached', async () => {
+    setupMockSdkClient(thinkingStreamChunks(THINKING_SUMMARY_MODEL))
+    const adapter = createBytePlusText(THINKING_SUMMARY_MODEL, 'ark-test-key')
+
+    const processor = new StreamProcessor()
+    for await (const chunk of adapter.chatStream({
+      model: THINKING_SUMMARY_MODEL,
+      messages: [{ role: 'user', content: 'Say hi' }],
+      logger: testLogger,
+    })) {
+      processor.processChunk(chunk)
+    }
+
+    const thinkingParts = processor
+      .getMessages()
+      .flatMap((message) => message.parts ?? [])
+      .filter((part) => part.type === 'thinking')
+
+    expect(thinkingParts).toHaveLength(1)
+    // Not 'The user wants a greeting.The user wants a greeting.' — the exact
+    // failure the STEP_FINISHED short-circuit prevents.
+    expect(thinkingParts[0]).toMatchObject({
+      content: 'The user wants a greeting.',
+      signature: ENCRYPTED_BLOB,
+    })
   })
 })

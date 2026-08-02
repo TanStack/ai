@@ -640,6 +640,95 @@ describe('response mapping', () => {
     )
   })
 
+  // Ark's OpenAPI document describes a second, nested `data[]` item form, so
+  // an item matching none of b64_json / url / error is a live possibility. It
+  // used to be dropped without even being counted, which turned provider drift
+  // into a bare "returned no images" with nothing to act on.
+  it('reports unrecognized data items rather than dropping them', async () => {
+    const { spy, logger } = capturingLogger()
+    const fetchMock = mockFetch(() =>
+      jsonResponse({
+        model: 'seedream-4-0-250828',
+        data: [{ imagecontent: [{ image_url: 'https://example.com/1.png' }] }],
+      }),
+    )
+
+    await expect(
+      adapterWithFetch(fetchMock).generateImages({
+        model: 'seedream-4-0-250828',
+        prompt: 'a guitar',
+        logger,
+      }),
+    ).rejects.toThrow(/1 unrecognized response item/)
+    expect(messages(spy.error)).toContain(
+      'matched none of b64_json / url / error',
+    )
+  })
+
+  it('carries the raw body into the unrecognized-item error', async () => {
+    const fetchMock = mockFetch(() =>
+      jsonResponse({
+        model: 'seedream-4-0-250828',
+        data: [{ imagecontent: [{ image_url: 'https://example.com/1.png' }] }],
+      }),
+    )
+
+    await expect(
+      adapterWithFetch(fetchMock).generateImages({
+        model: 'seedream-4-0-250828',
+        prompt: 'a guitar',
+        logger: testLogger,
+      }),
+    ).rejects.toThrow(/imagecontent/)
+  })
+
+  // `readJsonBody` returns the raw text for a non-JSON body — an HTML error
+  // page from a proxy in front of the API, served with a 200.
+  it.each([
+    ['an empty body', new Response('', { status: 200 })],
+    [
+      'an HTML page',
+      new Response('<html>502 Bad Gateway</html>', {
+        status: 200,
+        headers: { 'Content-Type': 'text/html' },
+      }),
+    ],
+  ])('throws with the body in hand for %s', async (_label, response) => {
+    await expect(
+      adapterWithFetch(mockFetch(() => response)).generateImages({
+        model: 'seedream-4-0-250828',
+        prompt: 'a guitar',
+        logger: testLogger,
+      }),
+    ).rejects.toThrow(/non-object body/)
+  })
+
+  // A partial group failure returns successfully with a short array. The
+  // `numberOfImages` warning only fires when the count was set explicitly, so
+  // without this one a caller who omitted it gets no signal at all.
+  it('warns on a partial failure even when numberOfImages is unset', async () => {
+    const { spy, logger } = capturingLogger()
+    const fetchMock = mockFetch(() =>
+      jsonResponse({
+        model: 'seedream-4-0-250828',
+        data: [
+          { url: 'https://example.com/1.png' },
+          { error: { code: 'InternalServiceError', message: 'try again' } },
+        ],
+        usage: { generated_images: 1, output_tokens: 10, total_tokens: 10 },
+      }),
+    )
+
+    const result = await adapterWithFetch(fetchMock).generateImages({
+      model: 'seedream-4-0-250828',
+      prompt: 'a guitar',
+      logger,
+    })
+
+    expect(result.images).toHaveLength(1)
+    expect(messages(spy.warn)).toContain('1 of 2 images failed to generate')
+  })
+
   it('throws with the response error when no image comes back', async () => {
     const fetchMock = mockFetch(() =>
       jsonResponse({

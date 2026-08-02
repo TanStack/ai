@@ -41,6 +41,14 @@ export const BYTEPLUS_VOICE_BASE_URL =
  * from `ClientOptions`, and the video/image adapters — which issue plain JSON
  * requests rather than SDK calls — honour the same two fields so tests can
  * inject a fetch instead of patching the global one.
+ *
+ * Two inherited fields differ in reach, because the fetch-based adapters have
+ * no SDK to delegate to:
+ * - `timeout` is honoured everywhere — the fetch-based adapters convert it to
+ *   an `AbortSignal` (see {@link bytePlusTimeoutSignal}).
+ * - `maxRetries` applies to the **chat adapter only**. The video, image and
+ *   speech adapters do not retry; video polling is driven by core's loop,
+ *   which owns its own retry policy.
  */
 export interface BytePlusArkConfig extends Omit<ClientOptions, 'apiKey'> {
   apiKey: string
@@ -187,39 +195,84 @@ export function toHeaderRecord(
 }
 
 /**
+ * Drops any caller-supplied header whose name case-insensitively collides with
+ * one the adapter sets itself, then applies the adapter's own.
+ *
+ * Spreading `reserved` last is not enough on its own: HTTP header names are
+ * case-insensitive, but plain object keys are not, so `authorization` and
+ * `Authorization` are two distinct properties that both survive the spread.
+ * `fetch` then feeds the object to the `Headers` constructor, which *appends*
+ * rather than replaces — turning the pair into
+ * `authorization: "Bearer wrong, Bearer right"` and 401ing every request with
+ * what reads like a bad key. `toHeaderRecord` lowercases names whenever
+ * `defaultHeaders` arrives as a `Headers` instance, so that collision is
+ * reachable through ordinary config, not just a hand-built record.
+ */
+function applyReservedHeaders(
+  extraHeaders: Record<string, string> | undefined,
+  reserved: Record<string, string>,
+): Record<string, string> {
+  const blocked = new Set(Object.keys(reserved).map((key) => key.toLowerCase()))
+  const merged: Record<string, string> = {}
+  for (const [key, value] of Object.entries(extraHeaders ?? {})) {
+    if (!blocked.has(key.toLowerCase())) merged[key] = value
+  }
+  return { ...merged, ...reserved }
+}
+
+/**
+ * Turns the OpenAI-shaped `timeout` config field (milliseconds) into the
+ * `signal` a plain `fetch` needs, or `undefined` when no timeout is set.
+ *
+ * `BytePlusArkConfig` extends the OpenAI SDK's `ClientOptions` because the
+ * chat adapter drives the SDK, which honours `timeout` and `maxRetries`
+ * itself. The video, image and speech adapters issue plain JSON requests, so
+ * without this they would accept a `timeout` and ignore it — a stalled Ark
+ * connection hanging the caller forever despite an explicit setting.
+ *
+ * `maxRetries` has no equivalent here and stays SDK-path-only; it is
+ * documented as such on {@link BytePlusArkConfig}.
+ */
+export function bytePlusTimeoutSignal(
+  timeout: number | undefined,
+): AbortSignal | undefined {
+  return typeof timeout === 'number' && timeout > 0
+    ? AbortSignal.timeout(timeout)
+    : undefined
+}
+
+/**
  * Headers for a JSON request against the Ark data plane.
+ *
+ * A caller-supplied `Authorization` or `Content-Type` in `defaultHeaders` is
+ * dropped in any casing — see {@link applyReservedHeaders}.
  */
 export function bytePlusArkHeaders(
   apiKey: string,
   extraHeaders?: Record<string, string>,
 ): Record<string, string> {
-  return {
-    // `extraHeaders` first so the Authorization / Content-Type below always
-    // win — otherwise a caller-supplied `Authorization` in `defaultHeaders`
-    // could silently clobber the bearer token and turn every request into a
-    // 401 that looks like a bad key.
-    ...extraHeaders,
+  return applyReservedHeaders(extraHeaders, {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${apiKey}`,
-  }
+  })
 }
 
 /**
  * Headers for a JSON request against the Seed Speech host.
+ *
+ * As with {@link bytePlusArkHeaders}, a caller-supplied `X-Api-Key` is dropped
+ * in any casing. Seed Speech answers a clobbered key with
+ * `45000010 Invalid X-Api-Key`, which reads as a misconfigured key rather than
+ * a header collision.
  */
 export function bytePlusVoiceHeaders(
   apiKey: string,
   extraHeaders?: Record<string, string>,
 ): Record<string, string> {
-  return {
-    // `extraHeaders` first so the X-Api-Key / Content-Type below always win —
-    // see {@link bytePlusArkHeaders}. Seed Speech answers a clobbered key with
-    // `45000010 Invalid X-Api-Key`, which reads as a misconfigured key rather
-    // than a header collision.
-    ...extraHeaders,
+  return applyReservedHeaders(extraHeaders, {
     'Content-Type': 'application/json',
     'X-Api-Key': apiKey,
-  }
+  })
 }
 
 /**
@@ -245,8 +298,12 @@ export async function readJsonBody(response: Response): Promise<unknown> {
  * Best-effort human-readable rendering of a response body we could not pull a
  * `message` out of — a raw string passes through, any other object is
  * serialized so the detail reaches the error instead of being dropped.
+ *
+ * Exported for adapters that need to attach a body to an error they raise
+ * themselves rather than one derived from a non-OK response — e.g. the image
+ * adapter reporting a 200 whose `data[]` items match no known shape.
  */
-function describeBody(body: unknown): string | undefined {
+export function describeBody(body: unknown): string | undefined {
   if (typeof body === 'string') return body || undefined
   if (typeof body !== 'object' || body === null) return undefined
   try {

@@ -5,6 +5,8 @@ import { generateId } from '@tanstack/ai-utils'
 import {
   bytePlusArkError,
   bytePlusArkHeaders,
+  bytePlusTimeoutSignal,
+  describeBody,
   getBytePlusArkApiKeyFromEnv,
   readJsonBody,
   toHeaderRecord,
@@ -210,10 +212,12 @@ export class BytePlusImageAdapter<
       )
 
       const fetchImpl = this.clientConfig.fetch ?? fetch
+      const signal = bytePlusTimeoutSignal(this.clientConfig.timeout)
       const response = await fetchImpl(
         `${this.clientConfig.baseURL}/images/generations`,
         {
           method: 'POST',
+          ...(signal && { signal }),
           headers: bytePlusArkHeaders(
             this.clientConfig.apiKey,
             toHeaderRecord(this.clientConfig.defaultHeaders),
@@ -243,12 +247,28 @@ export class BytePlusImageAdapter<
     numberOfImages: number | undefined,
   ): ImageGenerationResult {
     // Shape pinned by a live seedream-4-0-250828 call and the Ark OpenAPI
-    // document; anything unexpected falls out as an empty `images` array
-    // below rather than being silently returned.
-    const payload = (body ?? {}) as BytePlusImageGenerationResponse
+    // document. Validate rather than cast: `readJsonBody` returns `undefined`
+    // for an empty body and the raw text for a non-JSON one (an HTML error
+    // page from a proxy in front of the API), and casting either would report
+    // "returned no images" with the body — the only evidence of what actually
+    // happened — thrown away.
+    if (typeof body !== 'object' || body === null) {
+      throw bytePlusArkError(
+        200,
+        body,
+        'image generation returned a non-object body',
+      )
+    }
+    const payload = body as BytePlusImageGenerationResponse
 
     const images: Array<GeneratedImage> = []
     const failures: Array<BytePlusImageErrorObject> = []
+    // Items matching none of the three known shapes. Ark's OpenAPI document
+    // describes a second, nested item form, so this is a live possibility
+    // rather than a defensive branch — and an unrecognized item that is
+    // neither counted nor reported turns provider drift into an
+    // "returned no images" with no attribution at all.
+    let unrecognized = 0
     for (const item of payload.data ?? []) {
       if (item.b64_json) {
         images.push({ b64Json: item.b64_json })
@@ -258,12 +278,31 @@ export class BytePlusImageAdapter<
         // Group-image mode reports per-image failures alongside successes;
         // dropping them silently would make a short result look complete.
         failures.push(item.error)
+      } else {
+        unrecognized += 1
       }
     }
     if (payload.error) failures.push(payload.error)
 
+    if (unrecognized > 0) {
+      logger.errors(
+        `${this.name}.generateImages: ${unrecognized} response item(s) matched ` +
+          `none of b64_json / url / error — the response shape may have changed.`,
+        {
+          source: `${this.name}.generateImages`,
+          provider: this.name,
+          model: this.model,
+          body,
+        },
+      )
+    }
+
     if (images.length === 0) {
-      const detail = describeFailures(failures)
+      const detail =
+        describeFailures(failures) ||
+        (unrecognized > 0
+          ? `${unrecognized} unrecognized response item(s): ${describeBody(body) ?? ''}`
+          : '')
       throw new Error(
         `byteplus: image generation returned no images` +
           (detail ? `: ${detail}` : '.'),
@@ -279,6 +318,15 @@ export class BytePlusImageAdapter<
           model: this.model,
           failures,
         },
+      )
+      // The caller asked for a group and is getting a short array. Warn
+      // unconditionally: the `numberOfImages` warning below only fires when
+      // the count was set explicitly, so a partial failure would otherwise
+      // return successfully with no signal at all.
+      logger.warn(
+        `byteplus: ${failures.length} of ${failures.length + images.length} ` +
+          `images failed to generate; returning ${images.length}.`,
+        { provider: this.name, model: this.model },
       )
     }
 
