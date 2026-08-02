@@ -2043,6 +2043,190 @@ const GPT_5_4_IMAGE_2 = {
     OpenAIMetadataOptions
 >
 
+const GPT_5_6 = {
+  name: 'gpt-5.6',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2026-02-16',
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: [
+      'streaming',
+      'function_calling',
+      'structured_outputs',
+      'distillation',
+    ],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 30,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_5_6_SOL = {
+  name: 'gpt-5.6-sol',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2026-02-16',
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: [
+      'streaming',
+      'function_calling',
+      'structured_outputs',
+      'distillation',
+    ],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 30,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_5_6_TERRA = {
+  name: 'gpt-5.6-terra',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2026-02-16',
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: [
+      'streaming',
+      'function_calling',
+      'structured_outputs',
+      'distillation',
+    ],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 12,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_5_6_LUNA = {
+  name: 'gpt-5.6-luna',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2026-02-16',
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: [
+      'streaming',
+      'function_calling',
+      'structured_outputs',
+      'distillation',
+    ],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 0.2,
+      cached: 0.02,
+    },
+    output: {
+      normal: 1.2,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
 const GPT_5_5 = {
   name: 'gpt-5.5',
   context_window: 1_050_000,
@@ -2230,6 +2414,10 @@ export const OPENAI_CHAT_MODELS = [
   GPT_5_4_NANO.name,
 
   GPT_5_4_IMAGE_2.name,
+  GPT_5_6.name,
+  GPT_5_6_SOL.name,
+  GPT_5_6_TERRA.name,
+  GPT_5_6_LUNA.name,
   GPT_5_5.name,
   GPT_5_5_PRO.name,
   GPT_CHAT_LATEST.name,
@@ -2522,6 +2710,30 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
+  [GPT_5_6.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_5_6_SOL.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_5_6_TERRA.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_5_6_LUNA.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
   [GPT_5_5.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
@@ -2646,6 +2858,10 @@ export type OpenAIModelInputModalitiesByName = {
   [GPT_5_4_MINI.name]: typeof GPT_5_4_MINI.supports.input
   [GPT_5_4_NANO.name]: typeof GPT_5_4_NANO.supports.input
   [GPT_5_4_IMAGE_2.name]: typeof GPT_5_4_IMAGE_2.supports.input
+  [GPT_5_6.name]: typeof GPT_5_6.supports.input
+  [GPT_5_6_SOL.name]: typeof GPT_5_6_SOL.supports.input
+  [GPT_5_6_TERRA.name]: typeof GPT_5_6_TERRA.supports.input
+  [GPT_5_6_LUNA.name]: typeof GPT_5_6_LUNA.supports.input
   [GPT_5_5.name]: typeof GPT_5_5.supports.input
   [GPT_5_5_PRO.name]: typeof GPT_5_5_PRO.supports.input
   [GPT_CHAT_LATEST.name]: typeof GPT_CHAT_LATEST.supports.input
