@@ -1,5 +1,23 @@
 # @tanstack/ai-sandbox-sprites
 
+## 0.2.1
+
+### Patch Changes
+
+- [#889](https://github.com/TanStack/ai/pull/889) [`9b58c08`](https://github.com/TanStack/ai/commit/9b58c08258dfb8dc261a0dd1954216cc5a75cc3e) - Give providers a deterministic sandbox id on create.
+
+  `SandboxCreateInput` now carries an optional `id`, and `ensure()` passes the
+  compound sandbox key into `provider.create()`. Providers whose native id is
+  addressable by name **and** expose a preview URL keyed by that id — Cloudflare
+  (DO id) and Sprites (sprite name) — honor it (`input.id ?? <random>`), so
+  out-of-band consumers (e.g. attaching a preview iframe) can reconstruct the
+  exact sandbox an agent is editing from run context instead of the random id
+  previously recoverable only from the sandbox store. Providers that mint their
+  own opaque id (Daytona, Vercel) ignore it, so behavior is unchanged for them.
+
+- Updated dependencies [[`9b58c08`](https://github.com/TanStack/ai/commit/9b58c08258dfb8dc261a0dd1954216cc5a75cc3e)]:
+  - @tanstack/ai-sandbox@0.2.1
+
 ## 0.2.0
 
 ### Minor Changes

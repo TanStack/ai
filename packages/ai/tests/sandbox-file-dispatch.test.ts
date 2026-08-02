@@ -4,14 +4,17 @@ import { resolveDebugOption } from '../src/logger/resolve'
 import type {
   ChatMiddleware,
   ChatMiddlewareContext,
-  SandboxFileEvent,
+  SandboxFileHookEvent,
 } from '../src/activities/chat/middleware/types'
 
 const ctx = {} as ChatMiddlewareContext
-const ev = (type: SandboxFileEvent['type']): SandboxFileEvent => ({
+const ev = (type: SandboxFileHookEvent['type']): SandboxFileHookEvent => ({
   type,
   path: `/workspace/a-${type}.ts`,
   timestamp: 1,
+  before: async () => '',
+  after: async () => '',
+  diff: async () => '',
 })
 
 describe('MiddlewareRunner.runSandboxFile', () => {

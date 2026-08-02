@@ -1,12 +1,15 @@
 import type {
+  AgentLoopState,
   JSONSchema,
   ModelMessage,
+  RunAgentResumeItem,
   StreamChunk,
   TokenUsage,
   Tool,
   ToolCall,
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
+import type { ToolApprovalResolution } from '../../../interrupts'
 import type {
   Capability,
   CapabilityHandle,
@@ -21,6 +24,19 @@ export interface SandboxFileEvent {
   timestamp: number
 }
 
+/** The file event a sandbox hook receives: the serializable {@link SandboxFileEvent}
+ *  plus lazy, git-backed content accessors. Accessors compute on call, so a hook
+ *  that only reads `path`/`type` pays nothing. Never present on the serialized
+ *  `sandbox.file` CUSTOM chunk. */
+export interface SandboxFileHookEvent extends SandboxFileEvent {
+  /** Content at the session baseline (`''` for a new file or non-git workspace). */
+  before: () => Promise<string>
+  /** Current content (`''` when the event is a delete). */
+  after: () => Promise<string>
+  /** Unified patch vs the session baseline (synthesized add-patch when non-git). */
+  diff: () => Promise<string>
+}
+
 /**
  * Sandbox file-event hooks a chat middleware can declare. Fire server-side for
  * every file create/change/delete observed in the sandbox during the run.
@@ -28,19 +44,19 @@ export interface SandboxFileEvent {
 export interface ChatSandboxHooks<TContext = unknown> {
   onFile?: (
     ctx: ChatMiddlewareContext<TContext>,
-    e: SandboxFileEvent,
+    e: SandboxFileHookEvent,
   ) => void | Promise<void>
   onFileCreate?: (
     ctx: ChatMiddlewareContext<TContext>,
-    e: SandboxFileEvent,
+    e: SandboxFileHookEvent,
   ) => void | Promise<void>
   onFileChange?: (
     ctx: ChatMiddlewareContext<TContext>,
-    e: SandboxFileEvent,
+    e: SandboxFileHookEvent,
   ) => void | Promise<void>
   onFileDelete?: (
     ctx: ChatMiddlewareContext<TContext>,
-    e: SandboxFileEvent,
+    e: SandboxFileHookEvent,
   ) => void | Promise<void>
 }
 
@@ -77,6 +93,8 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   streamId: string
   /** AG-UI run identifier for correlating client and server events */
   runId: string
+  /** Interrupted or parent run correlated with this continuation. */
+  parentRunId?: string
   /**
    * AG-UI thread identifier — a stable per-conversation ID used to
    * correlate client and server devtools events. Resolves to the
@@ -120,7 +138,7 @@ export interface ChatMiddlewareContext<TContext = unknown> {
   activity: 'chat'
   /** Provider name (e.g., 'openai', 'anthropic') */
   provider: string
-  /** Model identifier (e.g., 'gpt-4o') */
+  /** Model identifier (e.g., 'gpt-5.5') */
   model: string
   /** Source of the chat invocation — always 'server' for server-side chat */
   source: 'client' | 'server'
@@ -195,9 +213,30 @@ export interface ChatMiddlewareConfig {
   messages: Array<ModelMessage>
   systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
+  resume?: Array<RunAgentResumeItem> | undefined
+  resumeToolState?: ChatResumeToolState | undefined
   metadata?: Record<string, unknown> | undefined
   modelOptions?: Record<string, unknown> | undefined
 }
+
+/**
+ * Tool decisions reconstructed by server-side middleware from validated resume
+ * entries. This lets empty-message interrupt resumes continue tool execution
+ * without relying on client message history.
+ */
+export interface ChatResumeToolState {
+  approvals?: ReadonlyMap<string, ToolApprovalResolution> | undefined
+  clientToolResults?: ReadonlyMap<string, unknown> | undefined
+  genericInterrupts?:
+    | ReadonlyMap<string, ChatResumeGenericResolution>
+    | undefined
+  deniedToolResults?: ReadonlyMap<string, unknown> | undefined
+  cancelledToolCallIds?: ReadonlySet<string> | undefined
+}
+
+export type ChatResumeGenericResolution =
+  | { interruptId: string; status: 'resolved'; payload: unknown }
+  | { interruptId: string; status: 'cancelled'; payload?: never }
 
 /**
  * Config passed to onStructuredOutputConfig.
@@ -492,6 +531,25 @@ export interface ChatMiddleware<TContext = unknown> {
     ctx: ChatMiddlewareContext<TContext>,
     info: IterationInfo,
   ) => void | Promise<void>
+
+  /**
+   * Called when the engine is deciding whether to start another agent-loop
+   * iteration (after a tool phase or between model turns).
+   *
+   * Return `false` to stop further iterations. Return `true`, `void`, or
+   * `undefined` to allow continuation. Combined with AND semantics across
+   * middleware and with `agentLoopStrategy` — any `false` stops the loop.
+   *
+   * Does not abort the run: the stream finishes normally with the current
+   * messages. Use `ctx.abort()` only when you need a hard abort.
+   *
+   * Receives the same {@link AgentLoopState} passed to strategies
+   * (`iterationCount`, `toolCallCount`, `lastTurnToolCallCount`, etc.).
+   */
+  onShouldContinue?: (
+    ctx: ChatMiddlewareContext<TContext>,
+    state: AgentLoopState,
+  ) => boolean | void | Promise<boolean | void>
 
   /**
    * Called for every chunk yielded by chat().

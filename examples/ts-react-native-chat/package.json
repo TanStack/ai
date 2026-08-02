@@ -18,6 +18,7 @@
     "dev:app": "node -e \"const { spawnSync } = require('node:child_process'); const env = { ...process.env, EXPO_NO_DOTENV: '1' }; delete env.OPENAI_API_KEY; delete env.OPENAI_MODEL; const args = ['exec', 'expo', 'start', '--lan', '--clear']; const result = process.platform === 'win32' ? spawnSync(env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', 'pnpm.cmd', ...args], { stdio: 'inherit', env }) : spawnSync('pnpm', args, { stdio: 'inherit', env }); process.exit(result.status ?? 1)\"",
     "test:dev-script": "node --test scripts/dev.test.mjs",
     "typecheck": "tsc --noEmit",
+    "test:types": "tsc --noEmit",
     "smoke:server": "tsx scripts/smoke-server.ts",
     "smoke:expo": "node -e \"const { spawnSync } = require('node:child_process'); const env = { ...process.env, EXPO_NO_DOTENV: '1' }; delete env.OPENAI_API_KEY; delete env.OPENAI_MODEL; const args = ['exec', 'expo', 'export', '--platform', 'ios', '--no-bytecode', '--output-dir', '.expo-example-dist', '--max-workers', '0']; const result = process.platform === 'win32' ? spawnSync(env.ComSpec ?? 'cmd.exe', ['/d', '/s', '/c', 'pnpm.cmd', ...args], { stdio: 'inherit', env }) : spawnSync('pnpm', args, { stdio: 'inherit', env }); process.exit(result.status ?? 1)\"",
     "verify:react-resolution": "node scripts/verify-react-resolution.mjs",

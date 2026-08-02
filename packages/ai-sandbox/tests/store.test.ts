@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { InMemoryLockStore, InMemorySandboxStore } from '../src/store'
+import { InMemoryLockStore } from '@tanstack/ai/locks'
+import { InMemorySandboxInstanceStore } from '../src/instance-store'
 
-describe('InMemorySandboxStore', () => {
+describe('InMemorySandboxInstanceStore', () => {
   it('round-trips upsert/get/delete', async () => {
-    const store = new InMemorySandboxStore()
+    const store = new InMemorySandboxInstanceStore()
     expect(await store.get('k')).toBeNull()
     await store.upsert({
       key: 'k',

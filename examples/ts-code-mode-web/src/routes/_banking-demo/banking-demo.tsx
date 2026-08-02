@@ -18,6 +18,7 @@ import {
 } from '@/components/reports/useReportSSE'
 import ChatInput from '@/components/ChatInput'
 import { Header } from '@/components'
+import { toolResultContentToString } from '@/lib/tool-result-content'
 import { applyUIEvent, applyUIUpdates } from '@/lib/reports/apply-event'
 import type {
   RefreshResult,
@@ -159,7 +160,7 @@ function Messages({ messages }: { messages: Array<UIMessage> }) {
         for (const p of message.parts) {
           if (p.type === 'tool-result') {
             toolResults.set(p.toolCallId, {
-              content: p.content,
+              content: toolResultContentToString(p.content),
               state: p.state,
               error: p.error,
             })

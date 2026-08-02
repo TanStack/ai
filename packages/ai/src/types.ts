@@ -5,6 +5,8 @@ import type {
 import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
+import type { InterruptSubmissionError } from './interrupts'
+import type { ProviderTool } from './tools/provider-tool'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -18,6 +20,7 @@ import type {
 import type {
   BaseEvent as AGUIBaseEvent,
   CustomEvent as AGUICustomEvent,
+  Interrupt as AGUIInterrupt,
   MessagesSnapshotEvent as AGUIMessagesSnapshotEvent,
   ReasoningEncryptedValueEvent as AGUIReasoningEncryptedValueEvent,
   ReasoningEndEvent as AGUIReasoningEndEvent,
@@ -25,8 +28,10 @@ import type {
   ReasoningMessageEndEvent as AGUIReasoningMessageEndEvent,
   ReasoningMessageStartEvent as AGUIReasoningMessageStartEvent,
   ReasoningStartEvent as AGUIReasoningStartEvent,
+  ResumeEntry as AGUIResumeEntry,
   RunErrorEvent as AGUIRunErrorEvent,
   RunFinishedEvent as AGUIRunFinishedEvent,
+  RunFinishedOutcome as AGUIRunFinishedOutcome,
   RunStartedEvent as AGUIRunStartedEvent,
   StateDeltaEvent as AGUIStateDeltaEvent,
   StateSnapshotEvent as AGUIStateSnapshotEvent,
@@ -41,6 +46,12 @@ import type {
   ToolCallStartEvent as AGUIToolCallStartEvent,
   EventType,
 } from '@ag-ui/core'
+
+// Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
+// entry via `export * from './types'` without forcing the subpath import.
+// The canonical declaration lives in `./tools/provider-tool` alongside its
+// runtime helper `brandProviderTool`.
+export type { ProviderTool } from './tools/provider-tool'
 
 /**
  * Tool call states - track the lifecycle of a tool call
@@ -158,6 +169,26 @@ export interface ToolCall<TMetadata = unknown> {
    * Typed per-adapter via `TToolCallMetadata`. For example,
    * `@tanstack/ai-gemini` sets this to `{ thoughtSignature?: string }`. */
   metadata?: TMetadata
+}
+
+/**
+ * Convention for tool-call `metadata` that marks a call as **provider-executed**
+ * — run by the provider's own infrastructure (e.g. Anthropic `web_search` /
+ * `web_fetch` server tools) rather than by the agent loop. Adapters set
+ * `providerExecuted: true` so that:
+ *
+ * 1. The agent loop never tries to execute the call client-side (see
+ *    {@link isProviderExecutedToolCall} usage in the chat engine), and
+ * 2. The adapter can stash the raw provider result alongside it so the call —
+ *    and its evidence — round-trips into the next turn's request.
+ *
+ * Provider-specific payloads live under a namespaced key (e.g. `anthropic`),
+ * keeping this convention opaque to the framework core. The index signature
+ * preserves those per-adapter fields.
+ */
+export interface ProviderExecutedToolMetadata {
+  providerExecuted?: boolean
+  [key: string]: unknown
 }
 
 // ============================================================================
@@ -336,6 +367,15 @@ export interface ModelMessage<
   toolCalls?: Array<ToolCall>
   toolCallId?: string
   thinking?: Array<{ content: string; signature?: string }>
+  /**
+   * Optional stable message id. Providers ignore it; it exists so a persisted
+   * transcript can retain the streaming `messageId` and survive the
+   * persist → hydrate round-trip. When present, `modelMessagesToUIMessages`
+   * reuses it instead of generating a fresh id, so a hydrated message keeps the
+   * same identity as its live stream — which is what lets a mid-stream reload
+   * resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
+   */
+  id?: string
 }
 
 /**
@@ -352,6 +392,15 @@ export interface ToolCallPart<TMetadata = unknown> {
   id: string
   name: string
   arguments: string // JSON string (may be incomplete)
+  /**
+   * Parsed tool input. Set from the parsed arguments once they are complete
+   * (`state: 'input-complete'` and later). `undefined` while the raw
+   * `arguments` string is still streaming, and may stay `undefined` for a call
+   * that terminates in an error state — the raw `arguments` string is always
+   * available as a fallback. Typed per-tool on the client `ToolCallPart` (see
+   * `@tanstack/ai-client`); `unknown` on this base type.
+   */
+  input?: unknown
   state: ToolCallState
   /** Approval metadata if tool requires user approval */
   approval?: {
@@ -362,7 +411,9 @@ export interface ToolCallPart<TMetadata = unknown> {
   /** Tool execution output (for client tools or after approval) */
   output?: any
   /** Provider-specific metadata that round-trips with the tool call.
-   * Typed per-adapter via `TToolCallMetadata`. */
+   * Typed per-adapter via `TToolCallMetadata`. May follow the
+   * {@link ProviderExecutedToolMetadata} convention to mark provider-executed
+   * server tools (e.g. Anthropic `web_search`). */
   metadata?: TMetadata
 }
 
@@ -538,8 +589,8 @@ export type ToolExecutionContext<TContext = unknown> =
   }
 
 export type ToolExecuteFunction<
-  TInput extends SchemaInput = SchemaInput,
-  TOutput extends SchemaInput = SchemaInput,
+  TInput extends SchemaInput | undefined = SchemaInput,
+  TOutput extends SchemaInput | undefined = SchemaInput,
   TContext = unknown,
 > = undefined extends TContext
   ? (
@@ -565,8 +616,8 @@ export type ToolExecuteFunction<
  * @see https://standardschema.dev/json-schema
  */
 export interface Tool<
-  TInput extends SchemaInput = SchemaInput,
-  TOutput extends SchemaInput = SchemaInput,
+  TInput extends SchemaInput | undefined = SchemaInput,
+  TOutput extends SchemaInput | undefined = SchemaInput,
   TName extends string = string,
   TContext = unknown,
 > {
@@ -800,12 +851,24 @@ export interface ResponseFormat<TData = any> {
  * State passed to agent loop strategy for determining whether to continue
  */
 export interface AgentLoopState {
-  /** Current iteration count (0-indexed) */
+  /** Current iteration count (0-indexed). One iteration = one model turn. */
   iterationCount: number
   /** Current messages array */
   messages: Array<ModelMessage>
   /** Finish reason from the last response */
   finishReason: string | null
+  /**
+   * Cumulative tool calls counted so far in this run (model-emitted during the
+   * agent loop, including ones skipped by middleware, and pending tools from
+   * the inbound message list when resumed). Not a recount of full message
+   * history; not model turns.
+   */
+  toolCallCount: number
+  /**
+   * Tool calls in the most recent batch — a live model turn or a
+   * pending/resume batch (0 when the last phase produced no tool calls).
+   */
+  lastTurnToolCallCount: number
 }
 
 /**
@@ -816,8 +879,10 @@ export interface AgentLoopState {
  *
  * @example
  * ```typescript
- * // Continue for up to 5 iterations
+ * // Continue for up to 5 iterations (model turns, not tool calls)
  * const strategy: AgentLoopStrategy = ({ iterationCount }) => iterationCount < 5;
+ * // Cap total tool calls across the run (or use middleware onShouldContinue)
+ * const byTools: AgentLoopStrategy = ({ toolCallCount }) => toolCallCount < 20;
  * ```
  */
 export type AgentLoopStrategy = (state: AgentLoopState) => boolean
@@ -948,6 +1013,16 @@ export interface TextOptions<
    */
   parentRunId?: string
 
+  /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
+  state?: unknown
+
+  /**
+   * AG-UI interrupt resume responses supplied by the client on a follow-up run.
+   * Threaded through request parsing now so later runtime behavior can resolve
+   * upstream-native interrupts.
+   */
+  resume?: Array<RunAgentResumeItem>
+
   /**
    * Middleware capability context for this run. The engine populates it with
    * the live middleware context so harness adapters that declare
@@ -1037,6 +1112,12 @@ export type {
  */
 export type UsageTotals = TokenUsage
 
+export type Interrupt = AGUIInterrupt
+
+export type RunFinishedOutcome = AGUIRunFinishedOutcome
+
+export type RunAgentResumeItem = AGUIResumeEntry
+
 /**
  * Emitted when a run completes successfully.
  *
@@ -1061,6 +1142,8 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
 export interface RunErrorEvent extends AGUIRunErrorEvent {
   /** Model identifier for multi-model support */
   model?: string
+  /** Exhaustive TanStack interrupt submission failures for this run. */
+  'tanstack:interruptErrors'?: ReadonlyArray<InterruptSubmissionError>
   /**
    * @deprecated Use top-level `message` and `code` fields instead.
    * Kept for backward compatibility.
@@ -1113,15 +1196,32 @@ export interface TextMessageEndEvent extends AGUITextMessageEndEvent {
  *
  * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
  * TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
+ *
+ * Field shapes are taken from AG-UI via `Pick` (not `extends`) so Zod
+ * `.passthrough()` index signatures do not pollute the StreamChunk
+ * discriminated union — required for {@link TypedStreamChunk} narrowing.
+ *
+ * @typeParam TToolName - Constrained tool name type. Defaults to `string` (untyped).
+ *   When the stream is returned from `chat()` with typed tools, `TypedStreamChunk`
+ *   intersects a literal onto `toolCallName` and `toolName` for discrimination.
  */
-export interface ToolCallStartEvent extends AGUIToolCallStartEvent {
+export interface ToolCallStartEvent<
+  TToolName extends string = string,
+> extends Pick<
+  AGUIToolCallStartEvent,
+  'toolCallId' | 'toolCallName' | 'parentMessageId' | 'timestamp' | 'rawEvent'
+> {
+  type: 'TOOL_CALL_START'
   /** Model identifier for multi-model support */
   model?: string
   /**
    * @deprecated Use `toolCallName` instead (from @ag-ui/core spec).
    * Kept for backward compatibility.
+   *
+   * Carries `TToolName` on the base interface; for `toolCallName` narrowing use
+   * {@link TypedStreamChunk} (distributed variants intersect the AG-UI field).
    */
-  toolName: string
+  toolName: TToolName
   /** Index for parallel tool calls */
   index?: number
   /** Provider-specific metadata to carry into the ToolCall.
@@ -1148,21 +1248,39 @@ export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {
  * Emitted when a tool call completes.
  *
  * @ag-ui/core provides: `toolCallId`
- * TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `result?`
+ * TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `output?`, `result?`
+ *
+ * Same `Pick` (not `extends`) rationale as {@link ToolCallStartEvent}.
+ *
+ * @typeParam TToolName - Constrained tool name type. Defaults to `string` (untyped).
+ * @typeParam TInput - Constrained input arguments type. Defaults to `unknown`.
+ * @typeParam TOutput - Constrained output type from the tool's `outputSchema`. Defaults to `unknown`.
  */
-export interface ToolCallEndEvent extends AGUIToolCallEndEvent {
+export interface ToolCallEndEvent<
+  TToolName extends string = string,
+  TInput = unknown,
+  TOutput = unknown,
+> extends Pick<AGUIToolCallEndEvent, 'toolCallId' | 'timestamp' | 'rawEvent'> {
+  type: 'TOOL_CALL_END'
   /** Model identifier for multi-model support */
   model?: string
-  /** Name of the tool that completed */
-  toolCallName?: string
+  /** Name of the tool that completed (AG-UI-compatible optional field) */
+  toolCallName?: TToolName
   /**
    * @deprecated Use `toolCallName` instead.
    * Kept for backward compatibility.
    */
-  toolName?: string
+  toolName?: TToolName
   /** Final parsed input arguments (TanStack AI internal) */
-  input?: unknown
-  /** Tool execution result (TanStack AI internal) */
+  input?: TInput
+  /**
+   * Tool execution output, validated against the tool's `outputSchema` when
+   * one is declared. Prefer this over parsing `result` when present.
+   * Undefined for tools without execute, client tools pending approval, or
+   * when execution throws.
+   */
+  output?: TOutput
+  /** Tool execution result (TanStack AI internal / wire form) */
   result?: string | Array<ContentPart>
   /** Tool execution output state (TanStack AI internal) */
   state?: ToolOutputState
@@ -1270,10 +1388,26 @@ export interface StateDeltaEvent extends AGUIStateDeltaEvent {
  *
  * @ag-ui/core provides: `name`, `value`
  * TanStack AI adds: `model?`
+ *
+ * Uses `Pick` (not `extends`) so the Zod passthrough index signature does not
+ * erase discriminant property access on {@link KnownCustomEvent} /
+ * {@link TypedStreamChunk} unions.
  */
-export interface CustomEvent extends AGUICustomEvent {
+export interface CustomEvent extends Pick<
+  AGUICustomEvent,
+  'name' | 'value' | 'timestamp' | 'rawEvent'
+> {
+  type: 'CUSTOM'
   /** Model identifier for multi-model support */
   model?: string
+  /**
+   * Routing metadata the TanStack engine attaches when emitting CUSTOM
+   * events that need to be correlated with a specific thread/run.
+   * Stripped by `strip-to-spec-middleware` before going on the wire so
+   * the AG-UI consumer never sees them (when that middleware is enabled).
+   */
+  threadId?: string
+  runId?: string
 }
 
 /**
@@ -1321,6 +1455,10 @@ export interface StructuredOutputStartEvent extends CustomEvent {
  * (the agent-loop branch of `runStreamingStructuredOutputImpl` in
  * `activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
  */
+/**
+ * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
+ * compatibility event remains readable until 1.0.
+ */
 export interface ApprovalRequestedEvent extends CustomEvent {
   name: 'approval-requested'
   value: {
@@ -1336,6 +1474,10 @@ export interface ApprovalRequestedEvent extends CustomEvent {
  * pauses to let the caller run the tool client-side — `structured-output.complete`
  * will not fire for that run. Shape fixed by the agent-loop forwarding in
  * `runStreamingStructuredOutputImpl` in `activities/chat/index.ts`.
+ */
+/**
+ * @deprecated Native interrupts use RUN_FINISHED interrupt outcomes. This
+ * compatibility event remains readable until 1.0.
  */
 export interface ToolInputAvailableEvent extends CustomEvent {
   name: 'tool-input-available'
@@ -1359,14 +1501,117 @@ export interface UIResourceEvent extends CustomEvent {
   }
 }
 
+// ── Sandbox events ──────────────────────────────────────────────────────────
+export interface SandboxFileCustomEvent extends CustomEvent {
+  name: 'sandbox.file'
+  value: {
+    type: 'create' | 'change' | 'delete'
+    path: string
+    timestamp: number
+  }
+}
+export interface SandboxFileDiffEvent extends CustomEvent {
+  name: 'sandbox.file.diff'
+  value: { path: string; diff: string }
+}
+
+// ── Harness events ──────────────────────────────────────────────────────────
+export interface FileChangedEvent extends CustomEvent {
+  name: 'file.changed'
+  value: { path: string; diff: string }
+}
+export interface SessionIdEvent extends CustomEvent {
+  name: `${string}.session-id`
+  value: { sessionId: string }
+}
+
+// ── Code-mode events ────────────────────────────────────────────────────────
+export interface CodeModeExecutionStartedEvent extends CustomEvent {
+  name: 'code_mode:execution_started'
+  value: { timestamp: number; codeLength: number }
+}
+export interface CodeModeConsoleEvent extends CustomEvent {
+  name: 'code_mode:console'
+  value: {
+    level: 'log' | 'warn' | 'error' | 'info'
+    message: string
+    timestamp: number
+  }
+}
+export interface CodeModeExternalCallEvent extends CustomEvent {
+  name: 'code_mode:external_call'
+  value: { function: string; args: unknown; timestamp: number }
+}
+export interface CodeModeExternalResultEvent extends CustomEvent {
+  name: 'code_mode:external_result'
+  value: { function: string; result: unknown; duration: number }
+}
+export interface CodeModeExternalErrorEvent extends CustomEvent {
+  name: 'code_mode:external_error'
+  value: { function: string; error: string; duration: number }
+}
+export interface CodeModeSkillCallEvent extends CustomEvent {
+  name: 'code_mode:skill_call'
+  value: { skill: string; input: unknown; timestamp: number }
+}
+export interface CodeModeSkillResultEvent extends CustomEvent {
+  name: 'code_mode:skill_result'
+  value: { skill: string; result: unknown; duration: number; timestamp: number }
+}
+export interface CodeModeSkillErrorEvent extends CustomEvent {
+  name: 'code_mode:skill_error'
+  value: { skill: string; error: string; duration: number; timestamp: number }
+}
+export interface SkillRegisteredEvent extends CustomEvent {
+  name: 'skill:registered'
+  value: { id: string; name: string; description: string; timestamp: number }
+}
+
+/**
+ * Every CUSTOM event TanStack AI itself emits, as a discriminated union on
+ * `name`. User-emitted custom events (via `emitCustomEvent` with a custom name)
+ * are intentionally absent — they still flow at runtime.
+ */
+export type KnownCustomEvent =
+  | SandboxFileCustomEvent
+  | SandboxFileDiffEvent
+  | FileChangedEvent
+  | SessionIdEvent
+  | CodeModeExecutionStartedEvent
+  | CodeModeConsoleEvent
+  | CodeModeExternalCallEvent
+  | CodeModeExternalResultEvent
+  | CodeModeExternalErrorEvent
+  | CodeModeSkillCallEvent
+  | CodeModeSkillResultEvent
+  | CodeModeSkillErrorEvent
+  | SkillRegisteredEvent
+  | StructuredOutputStartEvent
+  | StructuredOutputCompleteEvent
+  | ApprovalRequestedEvent
+  | ToolInputAvailableEvent
+  | UIResourceEvent
+
+/** The default chat streaming result: standard chunks plus every typed
+ *  framework CUSTOM event, with the `value: any` catch-all excluded so
+ *  literal-`name` narrowing types `value`. User-emitted custom names are typed
+ *  out (still flow at runtime — branch outside the name narrows or cast). */
+export type ChatStream = AsyncIterable<
+  Exclude<StreamChunk, CustomEvent> | KnownCustomEvent
+>
+
 /**
  * Public type for streams returned by `chat({ outputSchema, stream: true })`.
  *
- * Yields all standard `StreamChunk` lifecycle events plus the three tagged
- * `CUSTOM` events the orchestrator can emit through this path:
+ * Yields all standard `StreamChunk` lifecycle events plus the typed
+ * structured-output `CUSTOM` event emitted through this path:
  * - `structured-output.complete` — terminal event with typed `value.object: T`
- * - `approval-requested` — server tool needs approval (pauses the run)
- * - `tool-input-available` — client tool invocation (pauses the run)
+ *
+ * User-actionable waits, such as tool approval and client tool input, are
+ * represented by `RUN_FINISHED.outcome.type === 'interrupt'` in current core
+ * streams. Legacy `approval-requested` and `tool-input-available` custom
+ * events may still be consumed for replay and backward compatibility, but
+ * they are not the current source of truth for waits.
  *
  * Each variant has a literal `name`, so a single discriminated narrow gives
  * you a typed `value` with no helper or cast:
@@ -1375,8 +1620,6 @@ export interface UIResourceEvent extends CustomEvent {
  * for await (const chunk of stream) {
  *   if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
  *     chunk.value.object // typed as T
- *   } else if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
- *     chunk.value.toolCallId // typed as string
  *   }
  * }
  * ```
@@ -1504,6 +1747,215 @@ export type AGUIEvent =
  */
 export type StreamChunk = AGUIEvent
 
+// ============================================================================
+// Typed Stream Chunks (tool-aware)
+// ============================================================================
+
+/**
+ * Detect the `any` type. Returns `true` for `any`, `false` for everything else.
+ * @internal
+ */
+type IsAny<T> = 0 extends 1 & T ? true : false
+
+/**
+ * Partition out provider-specific tools from a tools array. `ProviderTool`
+ * carries opaque provider metadata (e.g. `webSearchTool` from
+ * `@tanstack/ai-anthropic`) and intentionally has a generic `string` name —
+ * if we included it in the discriminated union, it would widen `toolName`
+ * back to `string` and defeat the entire typing exercise.
+ *
+ * @internal
+ */
+type NonProviderTools<TTools extends ReadonlyArray<AnyTool>> = Exclude<
+  TTools[number],
+  ProviderTool<string, string>
+>
+
+/**
+ * Check whether the tools array carries typed tool definitions.
+ * Returns `false` for empty arrays or arrays whose only entries are
+ * `ProviderTool`s (which have generic `string` names).
+ *
+ * The partitioning step matters: a user who passes
+ * `[webSearchTool, myTypedTool]` should still get typed narrowing for
+ * `myTypedTool`. Evaluating `string extends TTools[number]['name']` without
+ * filtering provider tools first would always return `false` (because
+ * `ProviderTool`'s `name` is `string`) and silently fall through to the
+ * untyped branch.
+ *
+ * @internal
+ */
+type HasTypedTools<TTools extends ReadonlyArray<AnyTool>> = [
+  NonProviderTools<TTools>,
+] extends [never]
+  ? false
+  : string extends NonProviderTools<TTools>['name']
+    ? false
+    : true
+
+/**
+ * Safely infer input type for a single tool, guarding against `any` leaks.
+ * Returns `unknown` when the tool has no inputSchema, when the schema
+ * parameter defaults to `undefined` (no-schema tool definitions), or when
+ * InferSchemaType produces `any` (e.g. for plain JSON Schema tools).
+ * @internal
+ */
+type SafeToolInput<T> = T extends {
+  inputSchema?: infer TInput
+}
+  ? [TInput] extends [undefined]
+    ? unknown
+    : IsAny<InferSchemaType<NonNullable<TInput>>> extends true
+      ? unknown
+      : InferSchemaType<NonNullable<TInput>>
+  : unknown
+
+/**
+ * Safely infer output type for a single tool. Mirrors `SafeToolInput`,
+ * picking `outputSchema` instead. Returns `unknown` when the tool has no
+ * `outputSchema` declared, when the schema parameter defaults to `undefined`,
+ * or when `InferSchemaType` produces `any`.
+ * @internal
+ */
+type SafeToolOutput<T> = T extends {
+  outputSchema?: infer TOutput
+}
+  ? [TOutput] extends [undefined]
+    ? unknown
+    : IsAny<InferSchemaType<NonNullable<TOutput>>> extends true
+      ? unknown
+      : InferSchemaType<NonNullable<TOutput>>
+  : unknown
+
+/**
+ * Distribute over each non-provider tool to create a per-tool
+ * `ToolCallStartEvent`.
+ *
+ * This produces a discriminated union — one variant per tool name literal.
+ * We distribute over `NonProviderTools<TTools>` (not `TTools[number]`) so
+ * that provider tools with generic `string` names do not leak into the
+ * union and widen `toolCallName` / `toolName` back to `string`.
+ *
+ * The trailing `& { toolCallName: TName; toolName: TName }` intersection
+ * narrows the base `AGUIToolCallStartEvent['toolCallName']` (declared as
+ * `string`) to the literal name — TypeScript intersects `string & TName`
+ * down to `TName` for literal `TName`.
+ *
+ * The `name` parameter constraint on the inner `extends` picks up any
+ * tool-like shape — including `ServerTool`, `ClientTool`, and the bare
+ * `Tool` definition — because all three expose `name: TName`.
+ * @internal
+ */
+type DistributedToolCallStart<TTools extends ReadonlyArray<AnyTool>> =
+  NonProviderTools<TTools> extends infer T
+    ? T extends { name: infer TName extends string }
+      ? ToolCallStartEvent<TName> & { toolCallName: TName; toolName: TName }
+      : never
+    : never
+
+/**
+ * Distribute over each non-provider tool to create a per-tool
+ * `ToolCallEndEvent`.
+ *
+ * Each variant pairs the tool's name literal with its specific input type,
+ * enabling discriminated narrowing: checking `toolName === 'x'` narrows
+ * `input`.
+ *
+ * `toolName`/`toolCallName` are intersected as required in the distributed
+ * variants so that `Extract<..., { toolName: 'x' }>` works for consumers
+ * relying on the discriminated-union pattern, even though the base
+ * interface keeps them optional for compatibility with the broader AG-UI
+ * surface.
+ *
+ * Distribution happens over `NonProviderTools<TTools>` for the same
+ * reason as in `DistributedToolCallStart`.
+ * @internal
+ */
+type DistributedToolCallEnd<TTools extends ReadonlyArray<AnyTool>> =
+  NonProviderTools<TTools> extends infer T
+    ? T extends { name: infer TName extends string }
+      ? ToolCallEndEvent<TName, SafeToolInput<T>, SafeToolOutput<T>> & {
+          toolCallName: TName
+          toolName: TName
+        }
+      : never
+    : never
+
+/**
+ * Discriminated union of the orchestrator-tagged `CUSTOM` events. Each variant
+ * has a literal `name`, so a single narrow on `chunk.name` yields a typed
+ * `value` with no helper or cast:
+ *
+ * ```ts
+ * if (chunk.type === 'CUSTOM' && chunk.name === 'approval-requested') {
+ *   chunk.value.toolCallId // typed as string
+ * }
+ * ```
+ *
+ * The `StructuredOutputCompleteEvent` value is parameterized by `T`, which
+ * the chat orchestrator narrows to the schema's inferred type after Standard
+ * Schema validation. Adapters always emit it with `T = unknown`.
+ *
+ * Caveat: tools can emit arbitrary user-defined custom events via the
+ * `emitCustomEvent(name, value)` context API. Those flow through the stream
+ * at runtime but are intentionally absent from this union — including a bare
+ * `CustomEvent` (whose `value: any` would poison the union) would collapse
+ * `chunk.value` back to `any` after the narrow. If you rely on
+ * `emitCustomEvent`, branch on `CUSTOM` outside the literal-`name` narrows
+ * or cast the chunk to `StreamChunk` to recover the wider shape.
+ */
+export type TaggedCustomEvent<T = unknown> =
+  | StructuredOutputStartEvent
+  | StructuredOutputCompleteEvent<T>
+  | ApprovalRequestedEvent
+  | ToolInputAvailableEvent
+
+/**
+ * Stream chunk type parameterized by the tools array for type-safe tool call events.
+ *
+ * When specific tool types are provided (e.g. from `chat({ tools: [myTool] })`):
+ * - `TOOL_CALL_START` and `TOOL_CALL_END` events form a **discriminated union**
+ *   over tool names — checking `toolName === 'x'` narrows `input` to that tool's type.
+ * - `TOOL_CALL_END` events have `input` typed per-tool via Standard Schema inference.
+ *
+ * `CUSTOM` events are narrowed to the discriminated {@link KnownCustomEvent}
+ * union (sandbox, code-mode, structured-output, approvals, UI resources, etc.).
+ * Free-form user-emitted custom events (via `emitCustomEvent`) still flow at
+ * runtime but are excluded from the type to avoid `any` poisoning the union;
+ * cast to `StreamChunk` if you need to read those.
+ *
+ * When tools are untyped or absent, the tool-call events stay as plain
+ * `ToolCallStartEvent` / `ToolCallEndEvent` (no per-tool name narrowing) and
+ * the type is equivalent to the element type of {@link ChatStream}.
+ */
+/**
+ * Replace tool-call and bare CUSTOM variants; keep every other StreamChunk
+ * arm. Matches on the string-literal `type` discriminant that TanStack tool
+ * events declare (see ToolCallStartEvent / ToolCallEndEvent). AG-UI events
+ * that still use the EventType enum are kept as-is via the final branch.
+ *
+ * Do **not** use `Exclude<StreamChunk, { type: 'TOOL_CALL_*' }>` — under
+ * @ag-ui/core passthrough index signatures that form removes *every* arm.
+ * @internal
+ */
+type RemapStreamChunkForTools<
+  TChunk,
+  TTools extends ReadonlyArray<AnyTool>,
+> = TChunk extends { type: 'TOOL_CALL_START' }
+  ? DistributedToolCallStart<TTools>
+  : TChunk extends { type: 'TOOL_CALL_END' }
+    ? DistributedToolCallEnd<TTools>
+    : TChunk extends { type: 'CUSTOM' }
+      ? never
+      : TChunk
+
+export type TypedStreamChunk<
+  TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
+> =
+  HasTypedTools<TTools> extends true
+    ? RemapStreamChunkForTools<StreamChunk, TTools> | KnownCustomEvent
+    : Exclude<StreamChunk, CustomEvent> | KnownCustomEvent
+
 // Simple streaming format for basic text completions
 // Converted to StreamChunk format by convertTextCompletionStream()
 export interface TextCompletionChunk {
@@ -1525,6 +1977,16 @@ export interface SummarizationOptions<
   focus?: Array<string>
   /** Provider-specific options forwarded by the summarize() activity. */
   modelOptions?: TProviderOptions
+  /**
+   * Run identity forwarded from the summarize() activity. When set, the
+   * streaming adapter stamps it onto the emitted `RUN_STARTED` (via the wrapped
+   * chat), so a delivery-durable route keys the run's log by the same id the
+   * client rejoins with — making a mid-run reload resumable, like the media
+   * activities. Optional and non-breaking: adapters that ignore it just mint
+   * their own.
+   */
+  runId?: string
+  threadId?: string
   /**
    * Internal logger threaded from the summarize() entry point. Adapters must
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -1687,6 +2149,50 @@ export type GeneratedMediaSource =
       url?: never
     }
 
+export type PersistedArtifactRole = 'input' | 'output'
+
+export type PersistedArtifactActivity =
+  | 'image'
+  | 'audio'
+  | 'tts'
+  | 'video'
+  | 'transcription'
+
+export interface PersistedArtifactRef {
+  role: PersistedArtifactRole
+  artifactId: string
+  threadId: string
+  runId: string
+  name: string
+  mimeType: string
+  size: number
+  createdAt: string
+  /**
+   * Where these bytes were fetched FROM — the provider's original result URL,
+   * or a caller-supplied prompt URL when `allowInputUrl` opted that in. Usually
+   * expiring, and provenance only: serve from {@link PersistedArtifactRef.url}
+   * instead.
+   */
+  sourceUrl?: string
+  /**
+   * Durable app-origin URL that serves this artifact's persisted bytes (your
+   * `GET` route around `retrieveArtifact` / `retrieveBlob`). Stamped by
+   * `withGenerationPersistence`'s `artifactUrl` option, so clients render and
+   * restore durable media from your own origin rather than the provider's
+   * expiring link.
+   */
+  url?: string
+  source: {
+    activity: PersistedArtifactActivity
+    path: string
+    provider: string
+    model: string
+    mediaType?: 'image' | 'audio' | 'video' | 'document' | 'json'
+    jobId?: string
+    expiresAt?: string
+  }
+}
+
 /**
  * A single generated image
  */
@@ -1707,6 +2213,8 @@ export interface ImageGenerationResult {
   images: Array<GeneratedImage>
   /** Token usage information (if available) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -1758,6 +2266,8 @@ export interface AudioGenerationResult {
   audio: GeneratedAudio
   /** Token usage information (if available) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -1813,6 +2323,12 @@ export interface VideoJobResult {
   jobId: string
   /** Model used for generation */
   model: string
+  /**
+   * Durable artifact references, when generation persistence with an artifact +
+   * blob store is wired. A submission has no video yet, so this only carries
+   * refs for persisted prompt INPUTS (e.g. a start frame).
+   */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 /**
@@ -1849,6 +2365,8 @@ export interface VideoUrlResult {
    * real billed quantity — so consumers can compute exact cost.
    */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -1898,6 +2416,8 @@ export interface TTSResult {
   contentType?: string
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 // ============================================================================
@@ -1908,6 +2428,13 @@ export interface TTSResult {
  * Options for audio transcription.
  * These are the common options supported across providers.
  */
+export type TranscriptionResponseFormat =
+  | 'json'
+  | 'text'
+  | 'srt'
+  | 'verbose_json'
+  | 'vtt'
+
 export interface TranscriptionOptions<
   TProviderOptions extends object = object,
 > {
@@ -1920,7 +2447,7 @@ export interface TranscriptionOptions<
   /** An optional prompt to guide the transcription */
   prompt?: string
   /** The format of the transcription output */
-  responseFormat?: 'json' | 'text' | 'srt' | 'verbose_json' | 'vtt'
+  responseFormat?: TranscriptionResponseFormat
   /** Model-specific options for transcription */
   modelOptions?: TProviderOptions
   /**
@@ -1981,6 +2508,8 @@ export interface TranscriptionResult {
   words?: Array<TranscriptionWord>
   /** Token usage information (if provided by the adapter) */
   usage?: TokenUsage
+  /** Persisted artifact references for generated assets, when available */
+  artifacts?: Array<PersistedArtifactRef>
 }
 
 /**

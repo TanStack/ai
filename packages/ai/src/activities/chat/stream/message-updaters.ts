@@ -58,6 +58,8 @@ export function updateToolCallPart(
     name: string
     arguments: string
     state: ToolCallState
+    /** Parsed input — set when the arguments are complete. */
+    input?: unknown
     metadata?: Record<string, unknown>
   },
 ): Array<UIMessage> {
@@ -76,6 +78,9 @@ export function updateToolCallPart(
     // Gemini's thoughtSignature on TOOL_CALL_START) we must not lose it on
     // subsequent updates that don't re-supply it.
     const metadata = toolCall.metadata ?? existing?.metadata
+    // Same for the parsed input: it's supplied once at completion, so
+    // subsequent arg-less updates (approval, etc.) must not drop it.
+    const input = toolCall.input ?? existing?.input
 
     const toolCallPart: ToolCallPart = {
       type: 'tool-call',
@@ -83,9 +88,10 @@ export function updateToolCallPart(
       name: toolCall.name,
       arguments: toolCall.arguments,
       state: toolCall.state,
-      // Carry forward approval and output from the existing part
+      // Carry forward approval, output and parsed input from the existing part
       ...(existing?.approval && { approval: { ...existing.approval } }),
       ...(existing?.output !== undefined && { output: existing.output }),
+      ...(input !== undefined && { input }),
       ...(metadata !== undefined && { metadata }),
     }
 

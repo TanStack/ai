@@ -8,6 +8,7 @@ export type Provider =
   | 'groq'
   | 'openrouter'
   | 'bedrock'
+  | 'byteplus'
 
 export interface ModelOption {
   provider: Provider
@@ -217,6 +218,52 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
     model: 'openai.gpt-oss-120b-1:0',
     label: 'Bedrock - GPT-OSS 120B (Converse)',
   },
+
+  // BytePlus ModelArk (ARK_API_KEY) — Seed models plus third-party models
+  // (GLM, DeepSeek, gpt-oss) served from the same Ark endpoint.
+  {
+    provider: 'byteplus',
+    model: 'dola-seed-2-1-turbo-260628',
+    label: 'BytePlus - Seed 2.1 Turbo',
+  },
+  {
+    provider: 'byteplus',
+    model: 'seed-2-0-pro-260328',
+    label: 'BytePlus - Seed 2.0 Pro',
+  },
+  {
+    provider: 'byteplus',
+    model: 'seed-2-0-lite-260428',
+    label: 'BytePlus - Seed 2.0 Lite',
+  },
+  {
+    provider: 'byteplus',
+    model: 'seed-2-0-mini-260428',
+    label: 'BytePlus - Seed 2.0 Mini',
+  },
+  {
+    provider: 'byteplus',
+    model: 'seed-2-0-code-preview-260328',
+    label: 'BytePlus - Seed 2.0 Code Preview',
+  },
+  {
+    provider: 'byteplus',
+    model: 'seed-1-6-flash-250715',
+    label: 'BytePlus - Seed 1.6 Flash',
+  },
+  {
+    provider: 'byteplus',
+    model: 'glm-5-2-260617',
+    label: 'BytePlus - GLM 5.2',
+  },
+  {
+    provider: 'byteplus',
+    model: 'deepseek-v4-pro-260425',
+    label: 'BytePlus - DeepSeek V4 Pro',
+  },
+  // gpt-oss-120b-250805 is deliberately absent: this route always merges the
+  // server tool set into the request, and that model's tool support is
+  // undeclared in model-meta and unverified against the live API.
 ]
 
 export const DEFAULT_MODEL_OPTION = MODEL_OPTIONS[0]

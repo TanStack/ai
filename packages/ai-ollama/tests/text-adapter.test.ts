@@ -590,3 +590,24 @@ describe('OllamaTextAdapter system prompts', () => {
     expect(roles).not.toContain('system')
   })
 })
+
+describe('Ollama adapter error handling', () => {
+  it('emits RUN_ERROR on pre-stream client.chat rejection without throwing', async () => {
+    chatMock.mockRejectedValueOnce(new Error('connection refused'))
+    const adapter = createOllamaChat('llama3.2')
+    const chunks = await collectStream(
+      adapter.chatStream({
+        logger: testLogger,
+        model: 'llama3.2',
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+    )
+
+    expect(chunks).toHaveLength(1)
+    expect(chunks[0]?.type).toBe('RUN_ERROR')
+    if (chunks[0]?.type === 'RUN_ERROR') {
+      expect(chunks[0].message).toBe('connection refused')
+      expect(chunks[0].error?.message).toBe('connection refused')
+    }
+  })
+})

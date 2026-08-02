@@ -1,0 +1,28 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[batch] run test", "sequenceIndex": 0 },
+      "response": {
+        "content": "I need approval to admit these three rescues.",
+        "toolCalls": [
+          {
+            "name": "admitRescue",
+            "arguments": "{\"species\":\"red fox\",\"name\":\"Rusty\"}"
+          },
+          {
+            "name": "admitRescue",
+            "arguments": "{\"species\":\"barn owl\",\"name\":\"Luna\"}"
+          },
+          {
+            "name": "admitRescue",
+            "arguments": "{\"species\":\"hedgehog\",\"name\":\"Pip\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "[batch] run test", "sequenceIndex": 1 },
+      "response": { "content": "Done — all three requests were processed." }
+    }
+  ]
+}

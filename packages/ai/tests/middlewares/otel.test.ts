@@ -37,6 +37,7 @@ function makeGenCtx(
     source: 'server',
     context: undefined,
     createId: (prefix: string) => `${prefix}-1`,
+    resultTransforms: [],
     ...overrides,
   }
 }

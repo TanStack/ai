@@ -1,5 +1,5 @@
 import { aiEventClient } from '@tanstack/ai-event-client'
-import type { StreamChunk } from '../../../types'
+import type { AgentLoopState, StreamChunk } from '../../../types'
 import type { InternalLogger } from '../../../logger/internal-logger'
 import type {
   AbortInfo,
@@ -11,7 +11,7 @@ import type {
   ErrorInfo,
   FinishInfo,
   IterationInfo,
-  SandboxFileEvent,
+  SandboxFileHookEvent,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   ToolPhaseCompleteInfo,
@@ -352,7 +352,7 @@ export class MiddlewareRunner<TContext = unknown> {
    */
   async runSandboxFile(
     ctx: ChatMiddlewareContext<TContext>,
-    event: SandboxFileEvent,
+    event: SandboxFileHookEvent,
   ): Promise<void> {
     const typed = (
       {
@@ -593,6 +593,46 @@ export class MiddlewareRunner<TContext = unknown> {
         }
       }
     }
+  }
+
+  /**
+   * Run onShouldContinue through middleware in order (AND semantics).
+   * Any explicit `false` stops further iterations; `true` / void / undefined pass.
+   * Called after `agentLoopStrategy` has already approved continuation.
+   */
+  async runOnShouldContinue(
+    ctx: ChatMiddlewareContext<TContext>,
+    state: AgentLoopState,
+  ): Promise<boolean> {
+    for (const mw of this.middlewares) {
+      if (mw.onShouldContinue) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        const result = await mw.onShouldContinue(ctx, state)
+        if (!skip) {
+          this.logger.middleware(
+            `hook=onShouldContinue middleware=${mw.name ?? 'unnamed'}`,
+            {
+              middleware: mw.name ?? 'unnamed',
+              hook: 'onShouldContinue',
+              result,
+            },
+          )
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onShouldContinue',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: result === false,
+          })
+        }
+        if (result === false) {
+          return false
+        }
+      }
+    }
+    return true
   }
 
   /**

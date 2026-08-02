@@ -14,6 +14,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test:types": "tsc --noEmit",
     "smoke:imports": "tsx scripts/assert-import-surface.ts",
     "smoke:expo": "expo export --platform ios --no-bytecode --output-dir .expo-smoke-dist --max-workers 0 && tsx scripts/assert-bundle-output.ts .expo-smoke-dist",
     "smoke:metro": "pnpm smoke:expo",

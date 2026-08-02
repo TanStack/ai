@@ -1,12 +1,10 @@
-import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
-import {
-  modelMessagesToUIMessages,
-  toolDefinition,
-  type ModelMessage,
-} from '@tanstack/ai'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { modelMessagesToUIMessages, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
+import type { ModelMessage, ToolCallPart } from '@tanstack/ai'
+import type { UIMessage } from '@tanstack/ai-react'
 import { SCENARIO_LIST } from '@/lib/tools-test-tools'
 
 /**
@@ -140,7 +138,26 @@ function createTrackedTools(
     }
   })
 
-  return [readClientContextTool, showNotificationTool, displayChartTool]
+  // Client-side stub for the server `delete_file` approval tool. Must be
+  // registered with `needsApproval: true` so InterruptManager hydrates the
+  // pause as `kind: 'tool-approval'` (matching schema hashes) instead of
+  // falling through to generic — otherwise Approve/Deny look up
+  // `kind === 'tool-approval'` and silently no-op.
+  const deleteFileApprovalTool = toolDefinition({
+    name: 'delete_file',
+    description: 'Delete a file (requires approval)',
+    inputSchema: z.object({
+      path: z.string(),
+    }),
+    needsApproval: true,
+  }).client()
+
+  return [
+    readClientContextTool,
+    showNotificationTool,
+    displayChartTool,
+    deleteFileApprovalTool,
+  ]
 }
 
 function createHistoryFixtureMessages(historyFixture?: string) {
@@ -195,44 +212,47 @@ function ToolsTestPage() {
 
   // Create tracked tools (memoized since addEvent is stable)
   const clientTools = useRef(createTrackedTools(addEvent)).current
+  // The fixture intentionally carries a `getWeather` tool call that isn't part
+  // of `clientTools`, so the generic message type can't be narrowed to the
+  // client-tool union — cast to the message type `useChat` infers from `tools`.
   const initialMessages = useMemo(
-    () => createHistoryFixtureMessages(historyFixture),
+    () =>
+      createHistoryFixtureMessages(historyFixture) as Array<
+        UIMessage<typeof clientTools>
+      >,
     [historyFixture],
   )
 
-  const {
-    messages,
-    sendMessage,
-    isLoading,
-    stop,
-    addToolApprovalResponse,
-    error,
-  } = useChat({
-    // Include scenario in ID so client is recreated when scenario changes
-    id: `tools-test-${scenario}-${historyFixture || 'empty'}`,
-    connection: fetchServerSentEvents('/api/tools-test'),
-    initialMessages,
-    forwardedProps: {
-      scenario,
-      testId,
-      aimockPort,
-      ...(scenario === 'client-server-context'
-        ? { runtimeUserId: 'client-forwarded-user-context' }
-        : {}),
+  const { messages, sendMessage, isLoading, stop, interrupts, error } = useChat(
+    {
+      // Include scenario in ID so client is recreated when scenario changes
+      threadId: `tools-test-${scenario}-${historyFixture || 'empty'}`,
+      connection: fetchServerSentEvents('/api/tools-test'),
+      // History fixtures are untyped model-message replays; cast to the typed
+      // message shape so they don't fight the concrete `tools` tuple inference.
+      initialMessages: initialMessages,
+      forwardedProps: {
+        scenario,
+        testId,
+        aimockPort,
+        ...(scenario === 'client-server-context'
+          ? { runtimeUserId: 'client-forwarded-user-context' }
+          : {}),
+      },
+      context: clientRuntimeContext,
+      tools: clientTools,
+      onFinish: () => {
+        setTestComplete(true)
+      },
+      onCustomEvent: (eventType: string, data: unknown) => {
+        addEvent({
+          type: 'custom-event',
+          toolName: eventType,
+          details: JSON.stringify(data),
+        })
+      },
     },
-    context: clientRuntimeContext,
-    tools: clientTools,
-    onFinish: () => {
-      setTestComplete(true)
-    },
-    onCustomEvent: (eventType: string, data: unknown) => {
-      addEvent({
-        type: 'custom-event',
-        toolName: eventType,
-        details: JSON.stringify(data),
-      })
-    },
-  })
+  )
 
   // Track when test completes (all tool calls are complete and not loading)
   useEffect(() => {
@@ -271,15 +291,22 @@ function ToolsTestPage() {
     sendMessage(`[${scenario}] run test`)
   }, [sendMessage])
 
-  // Extract tool call parts from messages for display
-  const toolCalls = messages.flatMap((msg) =>
-    msg.parts
-      .filter((p) => p.type === 'tool-call')
-      .map((p) => ({
-        messageId: msg.id,
-        ...p,
-      })),
-  )
+  // Extract tool call parts from messages for display. This harness inspects
+  // `approval` across a mixed tool set, so it uses the generic (untyped)
+  // `ToolCallPart` view — the typed per-tool parts gate `approval` behind
+  // `needsApproval`, which is exactly what we don't want to narrow on here.
+  const toolCalls: Array<ToolCallPart & { messageId: string }> =
+    messages.flatMap((msg) =>
+      msg.parts
+        .filter(
+          (p): p is Extract<typeof p, { type: 'tool-call' }> =>
+            p.type === 'tool-call',
+        )
+        .map((p) => ({
+          messageId: msg.id,
+          ...p,
+        })),
+    )
 
   // Extract tool result parts (for server tools)
   const toolResultIds = new Set(
@@ -448,20 +475,35 @@ function ToolsTestPage() {
                 onClick={() => {
                   const approvalId = tc.approval?.id
                   if (
-                    approvalId &&
-                    !respondedApprovals.current.has(approvalId)
+                    !approvalId ||
+                    respondedApprovals.current.has(approvalId)
                   ) {
-                    respondedApprovals.current.add(approvalId)
-                    addEvent({
-                      type: 'approval-granted',
-                      toolName: tc.name,
-                      toolCallId: tc.id,
-                    })
-                    addToolApprovalResponse({
-                      id: approvalId,
-                      approved: true,
-                    })
+                    return
                   }
+                  const interrupt = (
+                    interrupts as ReadonlyArray<{
+                      kind: string
+                      id?: string
+                      interruptId?: string
+                      toolCallId?: string
+                      status?: string
+                      resolveInterrupt: (approved: boolean) => void
+                    }>
+                  ).find(
+                    (item) =>
+                      item.status === 'pending' &&
+                      (item.toolCallId === tc.id ||
+                        item.id === approvalId ||
+                        item.interruptId === approvalId),
+                  )
+                  if (!interrupt) return
+                  respondedApprovals.current.add(approvalId)
+                  addEvent({
+                    type: 'approval-granted',
+                    toolName: tc.name,
+                    toolCallId: tc.id,
+                  })
+                  interrupt.resolveInterrupt(true)
                 }}
                 style={{
                   padding: '5px 15px',
@@ -480,20 +522,35 @@ function ToolsTestPage() {
                 onClick={() => {
                   const approvalId = tc.approval?.id
                   if (
-                    approvalId &&
-                    !respondedApprovals.current.has(approvalId)
+                    !approvalId ||
+                    respondedApprovals.current.has(approvalId)
                   ) {
-                    respondedApprovals.current.add(approvalId)
-                    addEvent({
-                      type: 'approval-denied',
-                      toolName: tc.name,
-                      toolCallId: tc.id,
-                    })
-                    addToolApprovalResponse({
-                      id: approvalId,
-                      approved: false,
-                    })
+                    return
                   }
+                  const interrupt = (
+                    interrupts as ReadonlyArray<{
+                      kind: string
+                      id?: string
+                      interruptId?: string
+                      toolCallId?: string
+                      status?: string
+                      resolveInterrupt: (approved: boolean) => void
+                    }>
+                  ).find(
+                    (item) =>
+                      item.status === 'pending' &&
+                      (item.toolCallId === tc.id ||
+                        item.id === approvalId ||
+                        item.interruptId === approvalId),
+                  )
+                  if (!interrupt) return
+                  respondedApprovals.current.add(approvalId)
+                  addEvent({
+                    type: 'approval-denied',
+                    toolName: tc.name,
+                    toolCallId: tc.id,
+                  })
+                  interrupt.resolveInterrupt(false)
                 }}
                 style={{
                   padding: '5px 15px',

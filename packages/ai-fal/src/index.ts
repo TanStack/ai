@@ -56,4 +56,4 @@ export {
   configureFalClient,
   generateId,
   type FalClientConfig,
-} from './utils'
+} from './utils/client'

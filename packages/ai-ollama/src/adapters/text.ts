@@ -1,4 +1,8 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  toRunErrorPayload,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { buildOllamaUsage } from '../usage'
 import { createOllamaClient, generateId, getOllamaHostFromEnv } from '../utils'
@@ -112,11 +116,27 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
       })
       yield* this.processOllamaStreamChunks(response, options, logger)
     } catch (error: unknown) {
+      const errorPayload = toRunErrorPayload(
+        error,
+        'An unknown error occurred during the chat stream.',
+      )
+      const rawEvent = toRunErrorRawEvent(error)
       logger.errors('ollama.chatStream fatal', {
         error,
         source: 'ollama.chatStream',
       })
-      throw error
+      yield {
+        type: EventType.RUN_ERROR,
+        model: options.model,
+        timestamp: Date.now(),
+        message: errorPayload.message,
+        code: errorPayload.code,
+        ...(rawEvent !== undefined && { rawEvent }),
+        error: {
+          message: errorPayload.message,
+          code: errorPayload.code,
+        },
+      }
     }
   }
 

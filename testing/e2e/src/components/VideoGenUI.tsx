@@ -6,7 +6,7 @@ import {
 } from '@tanstack/ai-react'
 import { generateVideoFn } from '@/lib/server-functions'
 import type { MediaPrompt } from '@tanstack/ai'
-import type { Mode, Provider } from '@/lib/types'
+import type { Feature, Mode, Provider } from '@/lib/types'
 import type { VideoGenerateResult } from '@tanstack/ai-client'
 
 interface VideoGenUIProps {
@@ -16,6 +16,8 @@ interface VideoGenUIProps {
   aimockPort?: number
   /** Show a file input and send the prompt as multimodal parts (image-to-video). */
   withImageInput?: boolean
+  /** Video feature variant — selects the adapter server-side (e.g. 'interactions-video' → Gemini Omni Flash). */
+  feature?: Feature
 }
 
 function fileToBase64(file: File): Promise<string> {
@@ -45,12 +47,13 @@ export function VideoGenUI({
   testId,
   aimockPort,
   withImageInput,
+  feature,
 }: VideoGenUIProps) {
   const [prompt, setPrompt] = useState('')
   const [imageFile, setImageFile] = useState<File | null>(null)
 
   const connectionOptions = () => {
-    const body = { provider, testId, aimockPort }
+    const body = { provider, testId, aimockPort, feature }
 
     if (mode === 'sse') {
       return { connection: fetchServerSentEvents('/api/video'), body }
@@ -61,7 +64,7 @@ export function VideoGenUI({
     return {
       fetcher: async (input: { prompt: MediaPrompt }) => {
         return generateVideoFn({
-          data: { prompt: input.prompt, provider, aimockPort, testId },
+          data: { prompt: input.prompt, provider, aimockPort, testId, feature },
         }) as Promise<VideoGenerateResult>
       },
     }

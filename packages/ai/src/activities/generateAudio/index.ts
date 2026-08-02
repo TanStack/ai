@@ -9,15 +9,16 @@ import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
+  applyGenerationResultTransforms,
   createGenerationContext,
   runGenerationError,
   runGenerationFinish,
   runGenerationStart,
   runGenerationUsage,
-} from '../middleware'
+} from '../middleware/run'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type { GenerationMiddleware } from '../middleware'
+import type { GenerationMiddleware } from '../middleware/types'
 import type { AudioAdapter } from './adapter'
 import type { AudioGenerationResult, StreamChunk } from '../../types'
 
@@ -84,6 +85,10 @@ export interface AudioActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
+  /** Stable conversation/thread id for correlating this run when persisted. */
+  threadId?: string
+  /** Stable run id for correlating this run when persisted. */
+  runId?: string
 }
 
 // ===========================
@@ -134,8 +139,14 @@ export function generateAudio<
   options: AudioActivityOptions<TAdapter, TStream>,
 ): AudioActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(() =>
-      runGenerateAudio(options),
+    return streamGenerationResult(
+      // Only `runId` is taken from the resolved wire identity. `threadId` stays
+      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
+      // when none was passed, and spreading that over the options would hand
+      // middleware a thread id known to nobody, which persistence would then
+      // file the run under. Matches `generateVideo`.
+      (resolved) => runGenerateAudio({ ...options, runId: resolved.runId }),
+      options,
     ) as AudioActivityResult<TStream>
   }
   return runGenerateAudio(options) as AudioActivityResult<TStream>
@@ -154,6 +165,8 @@ async function runGenerateAudio<
     stream: _stream,
     debug: _debug,
     middleware,
+    threadId,
+    runId,
     ...rest
   } = options
   const model = adapter.model
@@ -171,6 +184,9 @@ async function runGenerateAudio<
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
+    threadId,
+    runId,
+    artifactInputs: { prompt: rest.prompt, duration: rest.duration },
     createId,
   })
 
@@ -192,7 +208,8 @@ async function runGenerateAudio<
   })
 
   try {
-    const result = await adapter.generateAudio({ ...rest, model, logger })
+    const rawResult = await adapter.generateAudio({ ...rest, model, logger })
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const elapsedMs = Date.now() - startTime
 
     aiEventClient.emit('audio:request:completed', {

@@ -37,7 +37,7 @@ function createLocalCaptureTracer(): {
       const id = `span-${spanSeq++}`
       const attributes: Record<string, AttributeValue> = {}
       for (const [k, v] of Object.entries(options.attributes ?? {})) {
-        if (v !== undefined) attributes[k] = v as AttributeValue
+        if (v !== undefined) attributes[k] = v
       }
       const captured: CapturedSpan = {
         name,
@@ -51,7 +51,7 @@ function createLocalCaptureTracer(): {
           return { traceId: 'otel-usage-trace', spanId: id, traceFlags: 1 }
         },
         setAttribute(key, value) {
-          captured.attributes[key] = value as AttributeValue
+          captured.attributes[key] = value
           return span
         },
         setAttributes(next) {
@@ -87,7 +87,7 @@ function createLocalCaptureTracer(): {
       return span
     },
     // Minimal implementation — otelMiddleware never calls startActiveSpan.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+
     startActiveSpan(...args: Array<any>) {
       const fn = args[args.length - 1] as (span: Span) => unknown
       const name = args[0] as string
@@ -130,7 +130,7 @@ export const Route = createFileRoute('/api/otel-usage')({
 
         const adapter =
           provider === 'openrouter'
-            ? createOpenRouterText('openai/gpt-4o' as never, DUMMY_KEY, {
+            ? createOpenRouterText('openai/gpt-4o', DUMMY_KEY, {
                 serverURL: `${LLMOCK_DEFAULT_BASE}/openrouter-cost/v1`,
               })
             : createOpenaiChatCompletions('gpt-4o', DUMMY_KEY, {

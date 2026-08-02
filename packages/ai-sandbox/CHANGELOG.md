@@ -1,5 +1,52 @@
 # @tanstack/ai-sandbox
 
+## 0.2.4
+
+### Patch Changes
+
+- Updated dependencies [[`3e1b510`](https://github.com/TanStack/ai/commit/3e1b510e4fdd2334af468c47b7c37b572805200e)]:
+  - @tanstack/ai@0.42.0
+
+## 0.2.3
+
+### Patch Changes
+
+- [#917](https://github.com/TanStack/ai/pull/917) [`1deaa29`](https://github.com/TanStack/ai/commit/1deaa299b560ad1599b9d96cda1d7b7415f9fc4a) - Make sandbox file-diff correct and observable (follow-up to [#892](https://github.com/TanStack/ai/issues/892)):
+  - `diff()` now synthesizes an add-patch for any file git isn't tracking (a file the agent created **and every later edit to it**), keyed on tracked-ness at the baseline rather than on the event being a `create` — so agent-created files no longer stream empty diffs. A tracked file identical to the baseline still diffs empty, and a transient git-show probe failure no longer fabricates a bogus add-patch.
+  - The synthesized patch now matches `git diff`'s add-file shape (`diff --git` header, `new file mode`, repo-relative paths).
+  - **git-ignored files are withheld from the diff feed**: the file event still fires (you're notified it changed) but `diff()` returns `''`, so a secret like a `.env` never has its contents surfaced.
+  - The native `fs.watch` watcher re-seeds lazily if its initial workspace listing fails, so a pre-existing file is correctly reported as a `change` (not a `create`) on first edit.
+  - The exec-poll watcher no longer fabricates phantom `create`/`delete` storms: a failed poll (thrown exec, or non-zero exit with no output) preserves the previous snapshot, a failed initial poll seeds without diffing, and a partial (`find` permission-denied) poll is merged rather than diffed so transiently-unreadable files aren't reported as deleted.
+  - Every swallowed git/exec/fs failure — in the diff accessors, both watcher paths (exec-poll and native `fs.watch`), the git-baseline capture, and per-hook dispatch — is now logged (real anomalies under `errors`, expected-empty conditions under the `sandbox` debug category) instead of silently becoming empty data.
+
+- Updated dependencies [[`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5), [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1), [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`de5fbb5`](https://github.com/TanStack/ai/commit/de5fbb52a916826cdc0ef31d18df402cd611b9d4)]:
+  - @tanstack/ai@0.41.0
+
+## 0.2.2
+
+### Patch Changes
+
+- Updated dependencies [[`5deda27`](https://github.com/TanStack/ai/commit/5deda27085c8785894a28feb5bb3655dbd8f7e0a)]:
+  - @tanstack/ai@0.40.0
+
+## 0.2.1
+
+### Patch Changes
+
+- [#889](https://github.com/TanStack/ai/pull/889) [`9b58c08`](https://github.com/TanStack/ai/commit/9b58c08258dfb8dc261a0dd1954216cc5a75cc3e) - Give providers a deterministic sandbox id on create.
+
+  `SandboxCreateInput` now carries an optional `id`, and `ensure()` passes the
+  compound sandbox key into `provider.create()`. Providers whose native id is
+  addressable by name **and** expose a preview URL keyed by that id — Cloudflare
+  (DO id) and Sprites (sprite name) — honor it (`input.id ?? <random>`), so
+  out-of-band consumers (e.g. attaching a preview iframe) can reconstruct the
+  exact sandbox an agent is editing from run context instead of the random id
+  previously recoverable only from the sandbox store. Providers that mint their
+  own opaque id (Daytona, Vercel) ignore it, so behavior is unchanged for them.
+
+- Updated dependencies [[`afba322`](https://github.com/TanStack/ai/commit/afba32236022589afce4d5a165fd4a8a884ae57d), [`e7ad181`](https://github.com/TanStack/ai/commit/e7ad181cad20c5d6560f480835c99ff1142b40af)]:
+  - @tanstack/ai@0.39.1
+
 ## 0.2.0
 
 ### Minor Changes

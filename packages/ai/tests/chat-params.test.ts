@@ -22,6 +22,17 @@ describe('chatParamsFromRequestBody', () => {
     tools: [],
     context: [],
     forwardedProps: { temperature: 0.7 },
+    resume: [
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved',
+        payload: { approved: true },
+      },
+      {
+        interruptId: 'interrupt-2',
+        status: 'cancelled',
+      },
+    ],
   }
 
   it('returns parsed fields verbatim on a valid body', async () => {
@@ -33,6 +44,17 @@ describe('chatParamsFromRequestBody', () => {
     expect(result.forwardedProps).toEqual({ temperature: 0.7 })
     expect(result.aguiContext).toEqual([])
     expect(result.context).toBe(result.aguiContext)
+    // Delivery cursor is gone — request parsing never surfaces a `cursor`.
+    expect('cursor' in result).toBe(false)
+    expect(result.resume).toEqual(validBody.resume)
+  })
+
+  it('ignores any `cursor` field on the body (delivery cursor removed)', async () => {
+    const result = await chatParamsFromRequestBody({
+      ...validBody,
+      cursor: 'cursor-1',
+    })
+    expect('cursor' in result).toBe(false)
   })
 
   it('preserves the `parts` field on messages (AG-UI strip mode tolerates extras in raw JSON)', async () => {
@@ -168,7 +190,9 @@ describe('mergeAgentTools', () => {
     const result = mergeAgentTools(server, client)
     expect(result).toHaveLength(1)
     expect(result[0]!.name).toBe('showToast')
-    expect(result[0]!.execute).toBeUndefined()
+    expect(
+      'execute' in result[0]! ? result[0]!.execute : undefined,
+    ).toBeUndefined()
     expect(result[0]!.inputSchema).toEqual({ type: 'object', properties: {} })
     expect(result[0]!.description).toBe('render a toast')
   })
@@ -185,7 +209,7 @@ describe('mergeAgentTools', () => {
     const result = mergeAgentTools(server, client)
     expect(result).toHaveLength(1)
     expect(result[0]!.description).toBe('server greet')
-    expect(result[0]!.execute).toBeDefined()
+    expect('execute' in result[0]! && result[0]!.execute).toBeTruthy()
   })
 
   it('preserves the order: server tools first, then unique client tools', () => {

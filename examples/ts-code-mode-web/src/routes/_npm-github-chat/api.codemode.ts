@@ -8,6 +8,7 @@ import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import { allTools } from '@/lib/tools'
 import { CODE_MODE_SYSTEM_PROMPT } from '@/lib/prompts'
 import { exportConversationToPdfTool } from '@/lib/tools/export-pdf-tool'
+import { maxTokensModelOptions } from '@/lib/max-tokens-model-options'
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
 
@@ -121,7 +122,7 @@ export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
             agentLoopStrategy: maxIterations(15),
             abortController,
             // Increase max tokens to allow for complex code generation
-            maxTokens: 8192,
+            modelOptions: maxTokensModelOptions(adapter, 8192),
           })
 
           const requestStartTimeMs = Date.now()

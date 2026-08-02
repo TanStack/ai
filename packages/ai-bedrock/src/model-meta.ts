@@ -1,4 +1,4 @@
-import { GENERATED_BEDROCK_MODELS } from './model-catalog.generated'
+import { GENERATED_BEDROCK_MODELS } from './model-catalog.generated.js'
 import type { BedrockTextProviderOptions } from './text/text-provider-options'
 import type { BedrockConverseProviderOptions } from './converse/provider-options'
 

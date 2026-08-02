@@ -10,7 +10,7 @@ import type {
 } from '../model-meta'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type { GrokMessageMetadataByModality } from '../message-types'
-import type { GrokClientConfig } from '../utils'
+import type { GrokClientConfig } from '../utils/client'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
 
 /**

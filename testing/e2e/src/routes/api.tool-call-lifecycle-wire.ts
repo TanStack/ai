@@ -121,6 +121,7 @@ function createServerToolAdapter(): AnyTextAdapter {
         timestamp: Date.now(),
       }
     },
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
   }
 }
 

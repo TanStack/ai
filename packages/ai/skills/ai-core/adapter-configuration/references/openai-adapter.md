@@ -64,9 +64,7 @@ chat({
     parallel_tool_calls: true,
     tool_choice: 'auto', // 'auto' | 'none' | 'required'
     // Structured output
-    text: {
-      /* ResponseTextConfig */
-    },
+    text: {/* ResponseTextConfig */},
     // Metadata (max 16 key-value pairs)
     metadata: { session_id: 'abc' },
     // Streaming

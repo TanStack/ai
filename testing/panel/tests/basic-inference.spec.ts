@@ -7,11 +7,7 @@
  */
 
 import { test, expect } from '@playwright/test'
-import {
-  PROVIDERS,
-  isProviderAvailable,
-  getInferenceCapableProviders,
-} from './vendor-config'
+import { PROVIDERS, isProviderAvailable } from './vendor-config'
 import {
   goToChatPage,
   selectProvider,

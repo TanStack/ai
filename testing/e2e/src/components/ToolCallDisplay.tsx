@@ -8,6 +8,16 @@ export function ToolCallDisplay({ part }: { part: any }) {
       <div className="text-gray-400 mt-1">
         Args: <code>{part.arguments}</code>
       </div>
+      {/* Parsed, typed input — populated once the arguments are complete. */}
+      <div
+        data-testid={`tool-call-input-${part.name}`}
+        className="text-gray-400 mt-1"
+      >
+        Input:{' '}
+        <code>
+          {part.input === undefined ? '' : JSON.stringify(part.input)}
+        </code>
+      </div>
     </div>
   )
 }

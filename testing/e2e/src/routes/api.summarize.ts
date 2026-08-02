@@ -6,6 +6,7 @@ import { createGeminiSummarize } from '@tanstack/ai-gemini'
 import { createOllamaSummarize } from '@tanstack/ai-ollama'
 import { createGrokSummarize } from '@tanstack/ai-grok'
 import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
+import { HTTPClient } from '@openrouter/sdk'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -22,6 +23,26 @@ function openaiUrl(aimockPort?: number): string {
 
 function testHeaders(testId?: string): Record<string, string> | undefined {
   return testId ? { 'X-Test-Id': testId } : undefined
+}
+
+/**
+ * The OpenRouter SDK exposes no raw `headers` option, so test-bucket headers
+ * (`X-Test-Id`) are injected via an `HTTPClient` `beforeRequest` hook — the
+ * same pattern the OpenRouter wire-format routes use.
+ */
+function openRouterHttpClient(
+  headers?: Record<string, string>,
+): HTTPClient | undefined {
+  if (!headers) return undefined
+  const httpClient = new HTTPClient()
+  httpClient.addHook('beforeRequest', (req) => {
+    const next = new Request(req)
+    for (const [key, value] of Object.entries(headers)) {
+      next.headers.set(key, value)
+    }
+    return next
+  })
+  return httpClient
 }
 
 function createSummarizeAdapter(
@@ -59,12 +80,12 @@ function createSummarizeAdapter(
     openrouter: () =>
       createOpenRouterSummarize('openai/gpt-4o', DUMMY_KEY, {
         serverURL: openaiUrl(aimockPort),
-        headers,
+        httpClient: openRouterHttpClient(headers),
       }),
     'openrouter-responses': () =>
       createOpenRouterSummarize('openai/gpt-4o', DUMMY_KEY, {
         serverURL: openaiUrl(aimockPort),
-        headers,
+        httpClient: openRouterHttpClient(headers),
       }),
   }
   return factories[provider]?.()

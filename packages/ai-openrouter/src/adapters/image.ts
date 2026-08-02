@@ -4,10 +4,10 @@ import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import {
   getOpenRouterApiKeyFromEnv,
   generateId as utilGenerateId,
-} from '../utils'
+} from '../utils/client'
 import { buildOpenRouterUsage } from '../usage'
 import { extractUsageCost } from './cost'
-import type { OpenRouterClientConfig } from '../utils'
+import type { OpenRouterClientConfig } from '../utils/client'
 import type {
   OpenRouterImageModelInputModalitiesByName,
   OpenRouterImageModelProviderOptionsByName,

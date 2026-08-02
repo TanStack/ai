@@ -45,6 +45,47 @@ const stream = chat({
 })
 ```
 
+## Multi-turn persistence
+
+Provider tools run on the provider's own infrastructure, so their results
+(e.g. Anthropic `web_search` sources, `web_fetch` page contents) come back
+embedded in the assistant turn rather than as a separate tool message. TanStack
+AI preserves those results on the assistant message, so when you feed the prior
+conversation back into the next `chat()` call the model still sees the earlier
+evidence — no special handling required:
+
+```typescript
+import { chat, StreamProcessor } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { webSearchTool } from '@tanstack/ai-anthropic/tools'
+
+const adapter = anthropicText('claude-opus-4-6')
+const tools = [webSearchTool({ name: 'web_search', type: 'web_search_20250305' })]
+
+const processor = new StreamProcessor()
+for await (const chunk of chat({
+  adapter,
+  tools,
+  messages: [{ role: 'user', content: 'Find two sources on the drone market.' }],
+})) {
+  processor.processChunk(chunk)
+}
+processor.finalizeStream()
+
+// The follow-up turn can still cite the previous search results.
+const followUp = chat({
+  adapter,
+  tools,
+  messages: [
+    ...processor.getMessages(),
+    { role: 'user', content: 'List the exact sources you used.' },
+  ],
+})
+```
+
+The search/fetch call surfaces as a provider-executed `tool-call` part on the
+assistant message; the agent loop never tries to run it client-side.
+
 ## Type-level guard
 
 Every provider-specific tool factory (e.g. `webSearchTool`, `computerUseTool`)
@@ -75,8 +116,8 @@ therefore universally accepted by any chat model, just like `toolDefinition()`.
 Each adapter's `supports.tools` array is the source of truth. The comparison
 matrix is maintained alongside `model-meta.ts` and reflected here:
 
-- **Anthropic**: every current model except `claude-3-haiku` (web_search only)
-  and `claude-3-5-haiku` (web tools only).
+- **Anthropic**: every registered model supports the full tool superset
+  (the retired Claude 3.x models with narrower support were removed).
 - **OpenAI**: GPT-5 family and reasoning models (O-series) support the full
   superset. GPT-4-series supports web/file/image/code/mcp but not
   preview/shell variants. GPT-3.5 and audio-focused models: none.

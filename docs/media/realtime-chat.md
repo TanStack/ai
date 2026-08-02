@@ -187,7 +187,7 @@ import { useRealtimeChat } from '@tanstack/ai-react'
 import { openaiRealtime } from '@tanstack/ai-openai'
 import { getToken } from './token'
 
-const { startListening, stopListening, vadMode, setVADMode } = useRealtimeChat({
+const { startListening, stopListening, updateSession } = useRealtimeChat({
   getToken,
   adapter: openaiRealtime(),
   vadMode: 'manual', // or 'server' or 'semantic'
@@ -202,10 +202,10 @@ With `manual` VAD mode, use push-to-talk style interactions:
 </button>
 ```
 
-You can switch VAD mode at runtime without reconnecting:
+You can switch VAD mode at runtime without reconnecting, via `updateSession`:
 
 ```typescript ignore
-setVADMode('semantic')
+updateSession({ vadMode: 'semantic' })
 ```
 
 For semantic VAD, configure eagerness to control how long the model waits before deciding you've finished speaking:

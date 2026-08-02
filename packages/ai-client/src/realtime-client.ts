@@ -4,6 +4,7 @@ import type {
   AudioVisualization,
   RealtimeMessage,
   RealtimeMode,
+  RealtimeSessionConfig,
   RealtimeStatus,
   RealtimeToken,
 } from '@tanstack/ai/client'
@@ -101,6 +102,7 @@ export class RealtimeClient {
         this.clientTools.size > 0
           ? Array.from(this.clientTools.values())
           : undefined
+
       this.connection = await this.options.adapter.connect(
         this.token,
         toolsList,
@@ -282,6 +284,38 @@ export class RealtimeClient {
     return this.connection?.getAudioVisualization() ?? null
   }
 
+  /**
+   * Update the session configuration.
+   * This applies changes to the active connection and persists them for future reconnections.
+   */
+  updateSession(config: Partial<RealtimeSessionConfig>): void {
+    // Persist type-compatible fields so future (re)connections use the updated
+    // config. `tools` is intentionally excluded: a session's tool configs are
+    // serialized descriptors, whereas `options.tools` holds executable client
+    // tools tracked separately via `clientTools`.
+    const o = this.options
+    if (config.instructions !== undefined) o.instructions = config.instructions
+    if (config.voice !== undefined) o.voice = config.voice
+    if (config.vadMode !== undefined) o.vadMode = config.vadMode
+    if (config.outputModalities !== undefined) {
+      o.outputModalities = config.outputModalities
+    }
+    if (config.temperature !== undefined) o.temperature = config.temperature
+    if (config.maxOutputTokens !== undefined) {
+      o.maxOutputTokens = config.maxOutputTokens
+    }
+    if (config.semanticEagerness !== undefined) {
+      o.semanticEagerness = config.semanticEagerness
+    }
+    if (config.providerOptions !== undefined) {
+      o.providerOptions = config.providerOptions
+    }
+
+    if (this.connection) {
+      this.applySessionConfig()
+    }
+  }
+
   // ============================================================================
   // State Subscription
   // ============================================================================
@@ -353,6 +387,7 @@ export class RealtimeClient {
     try {
       this.token = await this.options.getToken()
       this.scheduleTokenRefresh()
+      this.connection?.updateToken?.(this.token)
       // Note: Some providers may require reconnection with new token
       // This is handled by the adapter implementation
     } catch (error) {
@@ -487,6 +522,18 @@ export class RealtimeClient {
         this.options.onError?.(error)
       }),
     )
+
+    this.unsubscribers.push(
+      this.connection.on('go_away', ({ timeLeft }) => {
+        this.options.onGoAway?.(timeLeft)
+      }),
+    )
+
+    this.unsubscribers.push(
+      this.connection.on('usage', (usage) => {
+        this.options.onUsage?.(usage)
+      }),
+    )
   }
 
   private applySessionConfig(): void {
@@ -513,18 +560,22 @@ export class RealtimeClient {
       semanticEagerness
     if (!hasConfig) return
 
-    // `RealtimeToolConfig.inputSchema` is `Record<string, any>` (no
-    // `undefined` under `exactOptionalPropertyTypes`). Conditionally spread
-    // it so we don't pass `undefined` when the tool has no input schema.
+    // `RealtimeToolConfig.inputSchema`/`outputSchema` are `Record<string, any>`
+    // (no `undefined` under `exactOptionalPropertyTypes`). Conditionally spread
+    // each so we don't pass `undefined` when the tool has no such schema.
     const toolsConfig = tools
       ? Array.from(this.clientTools.values()).map((t) => {
           const inputSchema = t.inputSchema
             ? convertSchemaToJsonSchema(t.inputSchema)
             : undefined
+          const outputSchema = t.outputSchema
+            ? convertSchemaToJsonSchema(t.outputSchema)
+            : undefined
           return {
             name: t.name,
             description: t.description,
             ...(inputSchema ? { inputSchema } : {}),
+            ...(outputSchema ? { outputSchema } : {}),
           }
         })
       : undefined

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox",
-  "version": "0.2.0",
+  "version": "0.2.4",
   "description": "Provider-agnostic sandbox layer for TanStack AI — run harness adapters inside isolated sandboxes (defineSandbox, defineWorkspace, withSandbox) with a uniform SandboxHandle, workspace bootstrap, policy, and resumable lifecycle.",
   "author": "",
   "license": "MIT",
@@ -19,7 +19,8 @@
     "agent",
     "coding-agent",
     "isolation",
-    "workspace"
+    "workspace",
+    "tanstack-intent"
   ],
   "type": "module",
   "module": "./dist/esm/index.js",
@@ -32,6 +33,10 @@
     "./ngrok": {
       "types": "./dist/esm/ngrok.d.ts",
       "import": "./dist/esm/ngrok.js"
+    },
+    "./testkit": {
+      "types": "./dist/esm/testkit/conformance.d.ts",
+      "import": "./dist/esm/testkit/conformance.js"
     }
   },
   "files": [
@@ -42,9 +47,9 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -54,16 +59,21 @@
   },
   "peerDependencies": {
     "@ngrok/ngrok": "^1.0.0",
-    "@tanstack/ai": "workspace:^"
+    "@tanstack/ai": "workspace:^",
+    "vitest": "^4.1.10"
   },
   "peerDependenciesMeta": {
     "@ngrok/ngrok": {
+      "optional": true
+    },
+    "vitest": {
       "optional": true
     }
   },
   "devDependencies": {
     "@ngrok/ngrok": "^1.7.0",
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.0.14",
+    "vitest": "^4.1.10"
   }
 }

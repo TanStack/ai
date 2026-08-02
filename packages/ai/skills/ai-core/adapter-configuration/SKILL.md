@@ -3,13 +3,16 @@ name: ai-core/adapter-configuration
 description: >
   Provider adapter selection and configuration: openaiText, anthropicText,
   geminiText, ollamaText, grokText, groqText, openRouterText, bedrockText,
-  openaiCompatible. Per-model type safety with modelOptions, reasoning/thinking configuration,
+  byteplusText, openaiCompatible. Per-model type safety with modelOptions,
+  reasoning/thinking configuration,
   runtime adapter switching, extendAdapter() for custom models, createModel().
   Generic OpenAI-compatible providers (DeepSeek, Together, Fireworks, etc.) via
   openaiCompatible({ baseURL, apiKey, models }) from @tanstack/ai-openai/compatible.
   API key env vars: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY/GEMINI_API_KEY,
   XAI_API_KEY, GROQ_API_KEY, OPENROUTER_API_KEY, OLLAMA_HOST,
-  BEDROCK_API_KEY (or AWS_BEARER_TOKEN_BEDROCK).
+  BEDROCK_API_KEY (or AWS_BEARER_TOKEN_BEDROCK). BytePlus needs TWO keys:
+  ARK_API_KEY (ModelArk — chat/video/image) and BYTEPLUS_VOICE_API_KEY
+  (Seed Speech — TTS/transcription); neither is a fallback for the other.
 type: sub-skill
 library: tanstack-ai
 library_version: '0.10.0'
@@ -80,7 +83,14 @@ The text adapter is the primary one for chat/completions:
 | OpenRouter        | `@tanstack/ai-openrouter`        | `openRouterText`                            | `OPENROUTER_API_KEY`                              |
 | Ollama            | `@tanstack/ai-ollama`            | `ollamaText`                                | `OLLAMA_HOST` (default: `http://localhost:11434`) |
 | Bedrock           | `@tanstack/ai-bedrock`           | `bedrockText`                               | `BEDROCK_API_KEY` or `AWS_BEARER_TOKEN_BEDROCK`   |
+| BytePlus          | `@tanstack/ai-byteplus`          | `byteplusText`                              | `ARK_API_KEY` (falls back to `BYTEPLUS_API_KEY`)  |
 | OpenAI-compatible | `@tanstack/ai-openai/compatible` | `openaiCompatible` / `openaiCompatibleText` | provider-specific (passed via `apiKey`)           |
+
+> **BytePlus uses two keys.** `byteplusText` / `byteplusVideo` /
+> `byteplusImage` read `ARK_API_KEY` (ModelArk, `Authorization: Bearer`), but
+> `byteplusSpeech` / `byteplusTranscription` are a separate product and read
+> **`BYTEPLUS_VOICE_API_KEY`** (Seed Speech, `X-Api-Key`). Ark keys are also
+> region-isolated — the default base URL is the ap-southeast endpoint.
 
 ```typescript
 // Each factory takes model as first arg, optional config as second
@@ -92,6 +102,7 @@ import { groqText } from '@tanstack/ai-groq'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { bedrockText } from '@tanstack/ai-bedrock'
+import { byteplusText } from '@tanstack/ai-byteplus'
 
 // Model string is passed to the factory, NOT to chat()
 const adapter = openaiText('gpt-5.2')
@@ -102,6 +113,7 @@ const adapter5 = groqText('llama-3.3-70b-versatile')
 const adapter6 = openRouterText('anthropic/claude-sonnet-4')
 const adapter7 = ollamaText('llama3.3')
 const adapter8 = bedrockText('us.anthropic.claude-3-7-sonnet-20250219-v1:0')
+const adapter9 = byteplusText('seed-2-0-lite-260428')
 
 // Optional: pass explicit API key
 const adapterWithKey = openaiText('gpt-5.2', {
@@ -283,19 +295,30 @@ chat({
 
 Per-provider sampling keys (all live inside `modelOptions`):
 
-| Provider          | Temperature   | Nucleus | Max output tokens                   |
-| ----------------- | ------------- | ------- | ----------------------------------- |
-| OpenAI            | `temperature` | `top_p` | `max_output_tokens`                 |
-| Anthropic         | `temperature` | `top_p` | `max_tokens`                        |
-| Gemini            | `temperature` | `topP`  | `maxOutputTokens`                   |
-| Grok (xAI)        | `temperature` | `top_p` | `max_tokens`                        |
-| Groq              | `temperature` | `top_p` | `max_completion_tokens`             |
-| OpenRouter (chat) | `temperature` | `topP`  | `maxCompletionTokens`               |
-| Ollama            | `temperature` | `top_p` | `num_predict` (nested in `options`) |
+| Provider          | Temperature   | Nucleus | Max output tokens                         |
+| ----------------- | ------------- | ------- | ----------------------------------------- |
+| OpenAI            | `temperature` | `top_p` | `max_output_tokens`                       |
+| Anthropic         | `temperature` | `top_p` | `max_tokens`                              |
+| Gemini            | `temperature` | `topP`  | `maxOutputTokens`                         |
+| Grok (xAI)        | `temperature` | `top_p` | `max_tokens`                              |
+| Groq              | `temperature` | `top_p` | `max_completion_tokens`                   |
+| OpenRouter (chat) | `temperature` | `topP`  | `maxCompletionTokens`                     |
+| Ollama            | `temperature` | `top_p` | `num_predict` (nested in `options`)       |
+| BytePlus          | `temperature` | `top_p` | `max_tokens` (or `max_completion_tokens`) |
 
 `temperature` is the one key every provider names identically; token limits and
 some sampling options use provider-native names. Ollama nests all sampling under
 `modelOptions.options`.
+
+> **Anthropic `max_tokens` default:** Anthropic's API _requires_ `max_tokens`,
+> so the adapter always sends one. When you omit `modelOptions.max_tokens`, it
+> defaults to the selected model's full output ceiling (its `max_output_tokens`
+> from model metadata — e.g. 64K for Sonnet, 128K for Opus), not a low constant.
+> `max_tokens` is a ceiling, not a reservation (billing is per token generated),
+> so leaving it unset is the right default for codegen / agentic / long-form
+> output and avoids silent `stop_reason: "max_tokens"` truncation. Set it only to
+> cap output below the model ceiling. Other providers treat token limits as
+> optional and don't apply this flooring.
 
 ### 6. Capability Flag: `supportsCombinedToolsAndSchema`
 
@@ -314,19 +337,28 @@ runs.
 
 Current per-adapter status (#605):
 
-| Adapter                                      | Returns                                                                                           |
-| -------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `openaiText` / `openaiChatCompletions`       | `true` (all supported models)                                                                     |
-| `anthropicText`                              | `true` for Claude 4.5+ (gated by `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS`), `false` otherwise |
-| `geminiText`                                 | `true` for Gemini 3.x (gated by `GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS`), `false` otherwise     |
-| `grokText`                                   | `true` for Grok 4 family (gated by `GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS`), `false` otherwise    |
-| `groqText`                                   | `false` (Groq API rejects schema + tools + stream)                                                |
-| `openRouterText` / `openRouterResponsesText` | `false` (per-call resolution is a follow-up)                                                      |
-| `ollamaText`                                 | `false` (constrained-decoding vs tool-call grammar conflict)                                      |
+| Adapter                                      | Returns                                                                                               |
+| -------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| `openaiText` / `openaiChatCompletions`       | `true` (all supported models)                                                                         |
+| `anthropicText`                              | `true` for Claude 4.5+ (gated by `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS`), `false` otherwise     |
+| `geminiText`                                 | `true` for Gemini 3.x (gated by `GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS`), `false` otherwise         |
+| `grokText`                                   | `true` for Grok 4 family (gated by `GROK_COMBINED_TOOLS_AND_SCHEMA_MODELS`), `false` otherwise        |
+| `groqText`                                   | `false` (Groq API rejects schema + tools + stream)                                                    |
+| `openRouterText` / `openRouterResponsesText` | `false` (per-call resolution is a follow-up)                                                          |
+| `ollamaText`                                 | `false` (constrained-decoding vs tool-call grammar conflict)                                          |
+| `byteplusText`                               | Per model — `true` only for the 10 ids in `BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS`, `false` otherwise |
 
 Subclasses can override to narrow the capability. When extending an
 adapter for a custom model that doesn't support the combination, return
 `false` explicitly.
+
+> **BytePlus has no JSON-mode fallback.** On the 8 chat models outside
+> `BYTEPLUS_STRUCTURED_OUTPUT_CHAT_MODELS`, Ark rejects `json_schema` _and_
+> `json_object`, so `false` here does not buy a degraded path — it only keeps
+> `response_format` out of the streaming chat request. `structuredOutput()`
+> throws and `structuredOutputStream()` emits `RUN_ERROR` on those models.
+> Note `seed-2-0-lite-260428` (the obvious default) is one of them; use
+> `seed-2-0-lite-260228` or `dola-seed-2-1-turbo-260628` for typed output.
 
 ### 6. OpenAI-Compatible Providers
 
@@ -433,6 +465,7 @@ Detailed per-adapter reference files:
 - [Grok Adapter](references/grok-adapter.md)
 - [Groq Adapter](references/groq-adapter.md)
 - [OpenRouter Adapter](references/openrouter-adapter.md)
+- [BytePlus Adapter](references/byteplus-adapter.md)
 
 ## Tension
 

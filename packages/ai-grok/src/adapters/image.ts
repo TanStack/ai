@@ -28,7 +28,7 @@ import type {
   GrokImageModelSizeByName,
   GrokImageProviderOptions,
 } from '../image/image-provider-options'
-import type { GrokClientConfig } from '../utils'
+import type { GrokClientConfig } from '../utils/client'
 
 /**
  * Configuration for Grok image adapter

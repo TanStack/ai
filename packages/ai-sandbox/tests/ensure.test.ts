@@ -1,14 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import { defineSandbox } from '../src/sandbox'
 import { defineWorkspace, githubRepo } from '../src/workspace'
-import { InMemoryLockStore, InMemorySandboxStore } from '../src/store'
+import { InMemoryLockStore } from '@tanstack/ai/locks'
+import { InMemorySandboxInstanceStore } from '../src/instance-store'
 import { FULL_CAPS, makeFakeProvider } from './fakes'
 import type { SandboxCapabilities } from '../src/contracts'
 
 const baseCtx = () => ({
   threadId: 'thread-1',
   runId: 'run-1',
-  store: new InMemorySandboxStore(),
+  store: new InMemorySandboxInstanceStore(),
   locks: new InMemoryLockStore(),
 })
 
@@ -34,6 +35,20 @@ describe('ensureSandbox algorithm', () => {
     const rec = await ctx.store.get(def.key(ctx))
     expect(rec?.providerSandboxId).toBe(handle.id)
     expect(rec?.threadId).toBe('thread-1')
+  })
+
+  it('creates with the deterministic compound key as the provider id', async () => {
+    const provider = makeFakeProvider()
+    const def = defineSandbox({ id: 'repo', provider, workspace })
+    const ctx = baseCtx()
+
+    const handle = await def.ensure(ctx)
+
+    // The provider-assigned id equals the reconstructable compound key, so a
+    // consumer that recomputes def.key(ctx) addresses the same sandbox.
+    expect(handle.id).toBe(def.key(ctx))
+    const rec = await ctx.store.get(def.key(ctx))
+    expect(rec?.providerSandboxId).toBe(def.key(ctx))
   })
 
   it('resumes the same provider sandbox on a second run (reuse: thread)', async () => {

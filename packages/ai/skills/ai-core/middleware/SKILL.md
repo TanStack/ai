@@ -11,6 +11,8 @@ library: tanstack-ai
 library_version: '0.10.0'
 sources:
   - 'TanStack/ai:docs/advanced/middleware.md'
+  - 'TanStack/ai:docs/sandbox/observability.md'
+  - 'TanStack/ai:docs/persistence/overview.md'
 ---
 
 # Middleware
@@ -56,6 +58,7 @@ Every hook receives a `ChatMiddlewareContext` as its first argument, which provi
 | `onStructuredOutputConfig` | Once at the structured-output boundary (only when `chat({ outputSchema })`)                        | `StructuredOutputMiddlewareConfig` (return partial) |
 | `onStart`                  | Once after initial `onConfig`                                                                      | none                                                |
 | `onIteration`              | Start of each agent loop iteration                                                                 | `IterationInfo`                                     |
+| `onShouldContinue`         | Whether to start another agent-loop iteration (AND with strategy; `false` stops)                   | `AgentLoopState`                                    |
 | `onChunk`                  | Every streamed chunk                                                                               | `StreamChunk` (return void/chunk/chunk[]/null)      |
 | `onBeforeToolCall`         | Before each tool executes                                                                          | `ToolCallHookContext` (return decision or void)     |
 | `onAfterToolCall`          | After each tool executes                                                                           | `AfterToolCallInfo`                                 |
@@ -345,6 +348,52 @@ const stream = chat({
 | `onUsage`                  | Sequential                                    | All run in order                           |
 | `onFinish/onAbort/onError` | Sequential                                    | All run in order                           |
 
+## Pattern: tool-call budget (app-owned)
+
+Not a built-in. Cap fan-out with `onBeforeToolCall` skip + `onShouldContinue`.
+See `docs/chat/agentic-cycle.md` ("Tool-call budgets").
+
+```typescript
+import { chat, maxIterations, type ChatMiddleware } from '@tanstack/ai'
+
+function toolCallBudget(opts: {
+  max?: number
+  maxPerTurn?: number
+}): ChatMiddleware {
+  let perTurn = 0
+  return {
+    onIteration: () => {
+      perTurn = 0
+    },
+    onToolPhaseComplete: () => {
+      perTurn = 0
+    },
+    onBeforeToolCall: () => {
+      if (opts.maxPerTurn == null) return undefined
+      if (++perTurn > opts.maxPerTurn) {
+        return {
+          type: 'skip',
+          result: {
+            error: `Skipped: exceeded maxToolCallsPerTurn (${opts.maxPerTurn})`,
+          },
+        }
+      }
+      return undefined
+    },
+    onShouldContinue: (_ctx, state) =>
+      opts.max != null && state.toolCallCount >= opts.max ? false : undefined,
+  }
+}
+
+chat({
+  adapter,
+  messages,
+  tools: [weatherTool],
+  agentLoopStrategy: maxIterations(20),
+  middleware: [toolCallBudget({ maxPerTurn: 10, max: 20 })],
+})
+```
+
 ## Built-in: toolCacheMiddleware
 
 Caches tool call results by name + arguments. Import from `@tanstack/ai/middlewares`:
@@ -370,6 +419,201 @@ const stream = chat({
 Options: `maxSize` (default 100), `ttl` (default Infinity), `toolNames` (default all),
 `keyFn` (custom cache key), `storage` (custom backend like Redis). See
 `docs/advanced/middleware.md` for custom storage examples.
+
+## Server State Persistence: withPersistence
+
+`withPersistence(persistence)` (from `@tanstack/ai-persistence`) is a
+`ChatMiddleware` that persists **state** for `chat()` — thread messages, run
+records (status/timing/usage/errors), and interrupt state — to a backend store.
+Add it to the `middleware` array like any other middleware. It never mutates the
+chunk stream; replaying a dropped/reloaded _stream_ is a separate transport-layer
+concern (see ai-core/chat-experience/SKILL.md resumability, not this middleware).
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { withPersistence, memoryPersistence } from '@tanstack/ai-persistence'
+
+// memoryPersistence() is the in-process reference backend (dev/tests). For a
+// durable one, implement the store contracts against your database — see the
+// @tanstack/ai-persistence skills.
+const persistence = memoryPersistence()
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request)
+
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    ...(params.resume ? { resume: params.resume } : {}),
+    middleware: [withPersistence(persistence)],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+### Authoritative-history contract
+
+The middleware treats each request's `messages` as the source of truth for the
+thread:
+
+- **Non-empty `messages`** → on a successful finish (and at an interrupt
+  boundary) the middleware **overwrites** the entire stored thread with that
+  array. Post the **complete** transcript, never just the newest message(s) — a
+  delta would replace and destroy the stored history.
+- **Empty `messages`** → the middleware **loads** the stored thread and runs the
+  turn from the server's copy. This is how you continue a conversation without
+  resending history from the client.
+
+### Backends
+
+`@tanstack/ai-persistence` ships **contracts, not a database backend**. It
+provides the four store interfaces (`messages`, `runs`, `interrupts`,
+`metadata`), the middleware that drives them, `memoryPersistence()` for
+dev/tests, and a conformance testkit. For anything durable you implement the
+stores against your own database and pass the result to `withPersistence`.
+
+Annotate your factory with a named shape (`ChatPersistence` /
+`ChatTranscriptPersistence`) — bare `AIPersistence` is the all-optional bag and
+`withPersistence` rejects it.
+
+Locks are separate from state and are **not** a `stores` key: wire a
+`LockStore` with `withLocks(lockStore)`.
+
+**Full guidance lives in the package's own skills** — start at
+`node_modules/@tanstack/ai-persistence/skills/ai-persistence/SKILL.md`,
+which routes to the server, client, stores, locks, and adapter-recipe
+(Drizzle / Prisma / Cloudflare) sub-skills.
+
+### Resume reconstruction is the middleware's job (server-authoritative path)
+
+When a thread has pending interrupts, the middleware **records** them and
+**gates** new input: a request that carries pending interrupts must include a
+`resume` batch that references them, or `onConfig` throws. On a valid resume
+batch the middleware also **builds `ChatResumeToolState`** (approvals /
+client-tool results) and **clears `config.resume`** so the chat engine skips
+its ephemeral reconstruction — that path needs client message history the
+persistence flow deliberately omits when the server owns the transcript.
+Resumes accepted in `onConfig` are committed (marked resolved/cancelled) only
+once the run reaches a successful boundary, so a provider failure between
+accepting a resume and finishing leaves the interrupt pending and a retry with
+the same resume succeeds.
+
+> A companion `withGenerationPersistence(persistence)` tracks run records for
+> non-chat generation activities (image, audio, TTS, video, transcription).
+
+Source: docs/persistence/overview.md
+
+## Sandbox File-Event Hooks (`sandbox` group)
+
+Declare a `sandbox: ChatSandboxHooks` group on `defineChatMiddleware` to react
+to every file created/changed/deleted inside a sandbox provided by
+`withSandbox` (from `@tanstack/ai-sandbox`). These fire **per-run**,
+server-side, and each handler receives the run's `ChatMiddlewareContext` as
+the first argument:
+
+```typescript
+import { defineChatMiddleware } from '@tanstack/ai'
+import { db } from './db'
+
+const auditMiddleware = defineChatMiddleware({
+  name: 'audit',
+  sandbox: {
+    onFile: (ctx, e) => console.log(ctx.runId, e.type, e.path),
+    onFileCreate: (ctx, e) => db.log({ run: ctx.runId, event: e }),
+  },
+})
+```
+
+| Hook           | Fires for                  |
+| -------------- | -------------------------- |
+| `onFile`       | Every create/change/delete |
+| `onFileCreate` | File creates only          |
+| `onFileChange` | File changes only          |
+| `onFileDelete` | File deletes only          |
+
+These are independent of the stream: the engine also emits a `sandbox.file`
+`CUSTOM` chunk per change regardless of whether any `sandbox` hooks are
+registered, so a client can react to the same edits without middleware. See
+`ai-core/ag-ui-protocol/SKILL.md` for reading that chunk (and the opt-in
+`sandbox.file.diff` chunk) off `ChatStream`.
+
+### `before()` / `after()` / `diff()` — lazy, git-backed content accessors
+
+Each hook receives a `SandboxFileHookEvent`: the serializable
+`{ type, path, timestamp }` plus three lazy accessors for the file's content:
+
+```ts
+interface SandboxFileHookEvent {
+  type: 'create' | 'change' | 'delete'
+  path: string
+  timestamp: number
+  before(): Promise<string> // content at the session baseline ('' if new / non-git)
+  after(): Promise<string> // current content ('' if deleted)
+  diff(): Promise<string> // unified patch vs the baseline
+}
+```
+
+```typescript
+import { defineChatMiddleware } from '@tanstack/ai'
+import { db } from './db'
+
+const auditMiddleware = defineChatMiddleware({
+  name: 'audit',
+  sandbox: {
+    onFileChange: async (ctx, e) => {
+      const [before, after] = await Promise.all([e.before(), e.after()])
+      db.log({ run: ctx.runId, path: e.path, before, after })
+    },
+  },
+})
+```
+
+**Lazy — path-only hooks pay nothing.** `before()`, `after()`, and `diff()`
+are methods, not fields: each only reads the file or shells out to `git` when
+called. A hook that only reads `e.path`/`e.type` (like the `onFile` logger
+above) never touches the filesystem or spawns a process.
+
+**Git session baseline.** The sandbox snapshots `git rev-parse HEAD` once at
+setup as the session baseline (empty string if the workspace isn't a git repo
+or has no commits). `before()` and `diff()` always diff against that same
+fixed baseline for the rest of the run, so `onFileChange` reports the file's
+**cumulative** change since the run started, not just the delta since the
+last poll. `after()` always reads current on-disk content. None of the three
+accessors throw: a deleted file resolves `after()` to `''` (it still has
+`before()`); a new file resolves `before()` to `''` (it still has `after()`);
+a non-git workspace resolves **both** `before()` and `after()` to `''` and
+makes `diff()` fall back to a synthesized add-patch built from `after()` —
+except for a `delete` event in a non-git workspace, where there's nothing to
+synthesize and `diff()` resolves to `''`. In a git workspace a file git
+**isn't tracking yet** (a file the agent created, and every later edit to it)
+diffs empty because `git diff` ignores untracked files, so `diff()` falls
+back to the same synthesized add-patch whenever the file is absent at the
+baseline — a create-or-edit of an untracked file never streams an empty diff.
+An empty diff for a **tracked** file (identical to the baseline) stays empty,
+as it should. A **git-ignored** file is withheld: the file event still fires
+(you're notified it changed) but `diff()` returns `''`, so a secret like a
+`.env` never has its contents surfaced in the diff feed.
+
+**Failures are logged, not silent.** Every git/exec/fs failure behind these
+accessors (and behind the `find`-poll watcher) still falls back to `''`/an
+empty snapshot, but logs first: real anomalies (a failed `git diff`, an
+unreadable file, a lost `find` poll) under the `errors` category (on by
+default); expected-empty conditions (a new file's `before()`, a non-git
+baseline) under the `sandbox` debug category.
+
+**Hook errors are swallowed per hook.** A throwing `sandbox` hook is caught
+and logged under the `errors` category (on by default) — it cannot break the
+run or stop other hooks (or the `sandbox.file` chunk) from continuing.
+
+Source: docs/sandbox/observability.md
 
 ## Common Mistakes
 
@@ -451,3 +695,5 @@ Source: docs/advanced/middleware.md
 
 - See also: **ai-core/chat-experience/SKILL.md** -- Middleware hooks into the chat lifecycle
 - See also: **ai-core/structured-outputs/SKILL.md** -- Middleware now wraps the final structured-output call; use `onStructuredOutputConfig` for JSON-Schema transforms
+- See also: **ai-core/ag-ui-protocol/SKILL.md** -- Reading the `sandbox.file` / `sandbox.file.diff` `CUSTOM` chunks the sandbox runtime emits alongside these `sandbox` hooks, via `ChatStream`'s typed `KnownCustomEvent` narrowing
+- See also: **`@tanstack/ai-persistence` skills** (`skills/ai-persistence/SKILL.md` in that package) -- Full persistence suite (`withPersistence`, client storage, store contracts, adapter recipes, locks). This file only sketches server `withPersistence`.

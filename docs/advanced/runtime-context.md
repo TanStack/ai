@@ -79,7 +79,6 @@ This inference also works when reusable tools or middleware are declared outside
 The same rule applies on the client:
 
 ```typescript
-import { clientTools } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { toolDefinition } from "@tanstack/ai";
 
@@ -99,7 +98,7 @@ const inspectClientContext = toolDefinition({
 
 useChat({
   connection: fetchServerSentEvents("/api/chat"),
-  tools: clientTools(inspectClientContext),
+  tools: [inspectClientContext],
   context: {
     currentTabId: "settings",
     mode: "debug",
@@ -184,7 +183,7 @@ When any tool or middleware in a `chat()` call declares a concrete context type,
 Client runtime context is local to `ChatClient` and framework hooks. It is passed to client tool implementations and is not serialized to the server.
 
 ```typescript
-import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
+import { createChatClientOptions } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { toolDefinition } from "@tanstack/ai";
 
@@ -203,7 +202,7 @@ const notifyUser = toolDefinition({
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
-  tools: clientTools(notifyUser),
+  tools: [notifyUser],
   context: {
     currentTabId: "settings",
     toast: (message) => window.alert(message),
@@ -221,7 +220,6 @@ To send serializable client data to the server, use `forwardedProps`, validate i
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { clientTools } from "@tanstack/ai-client";
 import { toolDefinition } from "@tanstack/ai";
 
 type ClientContext = {
@@ -240,7 +238,7 @@ const notifyUser = toolDefinition({
 // Client
 useChat({
   connection: fetchServerSentEvents("/api/chat"),
-  tools: clientTools(notifyUser),
+  tools: [notifyUser],
   forwardedProps: {
     tenantId: "tenant_456",
   },

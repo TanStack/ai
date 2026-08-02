@@ -13,6 +13,7 @@ sources:
   - 'TanStack/ai:docs/protocol/chunk-definitions.md'
   - 'TanStack/ai:docs/protocol/sse-protocol.md'
   - 'TanStack/ai:docs/protocol/http-stream-protocol.md'
+  - 'TanStack/ai:docs/protocol/custom-events.md'
 ---
 
 # AG-UI Protocol
@@ -218,6 +219,62 @@ RUN_STARTED -> TEXT_MESSAGE_START -> TEXT_MESSAGE_CONTENT* -> TEXT_MESSAGE_END
 union of all event interfaces). `StreamChunkType` is an alias for `AGUIEventType`
 (the string union of all event type literals).
 
+### 4. Typed CUSTOM Events — `ChatStream` and `KnownCustomEvent`
+
+The `CUSTOM` row above describes the raw `StreamChunk` union, where the single
+generic `CustomEvent` member types `value` as `any` -- once merged into a
+union, that `any` poisons every other member too, so narrowing on `name`
+still leaves `value: any`. `chat()` doesn't return raw `StreamChunk`; by
+default (no `outputSchema`, `stream` not explicitly `false`) it returns
+`ChatStream`, which swaps that generic member for `KnownCustomEvent` -- a
+discriminated union of every `CUSTOM` event TanStack AI itself emits, each
+with a literal `name` and a concrete `value`. Narrow with a plain `if` --
+no helper, no cast:
+
+```typescript
+import { chat } from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+
+const stream = chat({
+  adapter: openaiText('gpt-5.2'),
+  messages,
+})
+
+for await (const chunk of stream) {
+  if (chunk.type === 'CUSTOM' && chunk.name === 'sandbox.file.diff') {
+    console.log(chunk.value.path, chunk.value.diff) // typed, no helper, no cast
+  } else if (
+    chunk.type === 'CUSTOM' &&
+    chunk.name === 'structured-output.complete'
+  ) {
+    console.log(chunk.value.object) // typed, no helper, no cast
+  }
+}
+```
+
+**Caveat -- `.endsWith()` (or any non-literal check) does not narrow.**
+`SessionIdEvent['name']` is the template-literal type
+`` `${string}.session-id` ``. TypeScript's control-flow narrowing only
+understands exact comparisons (`===`) and `in`/type-predicate checks against
+a discriminant -- a runtime `chunk.name.endsWith('.session-id')` check
+doesn't inform the type system, so `chunk.value` stays the union of every
+`KnownCustomEvent`'s `value`, not `{ sessionId: string }`. Compare against
+the exact literal you expect, or write a user-defined type predicate
+(`(c): c is SessionIdEvent => c.name.endsWith('.session-id')`) and call that
+in the `if` instead.
+
+**User-emitted `emitCustomEvent` names are typed out of `ChatStream`.** Tools
+that call `context.emitCustomEvent('my-app:progress', ...)` still stream a
+`CUSTOM` chunk at runtime, but `'my-app:progress'` isn't one of
+`KnownCustomEvent`'s literal names, so it's intentionally absent from
+`ChatStream`'s type -- including a generic fallback member would reintroduce
+the `value: any` poison for every other event on the stream. To read your own
+event with a type, annotate the stream as the wider `StreamChunk` instead of
+`ChatStream` for that branch; its generic `CUSTOM` member already types
+`value` as `any`, so no cast is needed there either.
+
+Source: docs/protocol/custom-events.md
+
 ## Common Mistakes
 
 ### MEDIUM: Proxy buffering breaks SSE streaming
@@ -273,3 +330,5 @@ without transformation. See `docs/migration/ag-ui-compliance.md` for details.
 ## Cross-References
 
 - See also: `ai-core/custom-backend-integration/SKILL.md` -- Custom backends must implement SSE or HTTP stream format to work with TanStack AI client connection adapters.
+- See also: `ai-core/middleware/SKILL.md` -- `sandbox.file.diff`'s `{ path, diff }` value (one of `KnownCustomEvent`'s members) is populated from the same lazy `before()`/`after()`/`diff()` accessors documented there for `onFile*` middleware hooks.
+- Full CUSTOM event taxonomy: `docs/protocol/custom-events.md`.

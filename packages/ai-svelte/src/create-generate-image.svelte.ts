@@ -1,10 +1,16 @@
 import { createGeneration } from './create-generation.svelte'
+import { reconstructImageResult } from '@tanstack/ai-client'
+import type {
+  CreateGenerationOptions,
+  CreateGenerationReturn,
+} from './create-generation.svelte'
 import type { ImageGenerationResult, StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
   ImageGenerateInput,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
@@ -14,12 +20,19 @@ import type {
  *
  * @template TOutput - The output type after optional transform (defaults to ImageGenerationResult)
  */
-export interface CreateGenerateImageOptions<TOutput = ImageGenerationResult> {
+export interface CreateGenerateImageOptions<
+  TOutput = ImageGenerationResult,
+> extends Pick<
+  CreateGenerationOptions<ImageGenerateInput, ImageGenerationResult, TOutput>,
+  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for image generation */
   fetcher?: GenerationFetcher<ImageGenerateInput, ImageGenerationResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
@@ -46,7 +59,9 @@ export interface CreateGenerateImageOptions<TOutput = ImageGenerationResult> {
  *
  * @template TOutput - The output type (after optional transform)
  */
-export interface CreateGenerateImageReturn<TOutput = ImageGenerationResult> {
+export interface CreateGenerateImageReturn<
+  TOutput = ImageGenerationResult,
+> extends Omit<CreateGenerationReturn<TOutput>, 'generate'> {
   /** The generation result containing images, or null */
   readonly result: TOutput | null
   /** Whether generation is in progress */
@@ -57,12 +72,6 @@ export interface CreateGenerateImageReturn<TOutput = ImageGenerationResult> {
   readonly status: GenerationClientState
   /** Trigger image generation */
   generate: (input: ImageGenerateInput) => Promise<void>
-  /** Abort the current generation */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
-  /** Update additional body parameters */
-  updateBody: (body: Record<string, any>) => void
 }
 
 /**
@@ -101,9 +110,12 @@ export interface CreateGenerateImageReturn<TOutput = ImageGenerationResult> {
  * ```
  */
 export function createGenerateImage<TTransformed = void>(
-  options: Omit<CreateGenerateImageOptions, 'onResult'> & {
+  options: Omit<
+    CreateGenerateImageOptions,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
     onResult?: (result: ImageGenerationResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): CreateGenerateImageReturn<
   InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {
@@ -120,6 +132,7 @@ export function createGenerateImage<TTransformed = void>(
   >({
     ...options,
     devtools,
+    reconstructResult: reconstructImageResult,
   })
 
   return {
@@ -135,9 +148,13 @@ export function createGenerateImage<TTransformed = void>(
     get status() {
       return gen.status
     },
-    generate: gen.generate as (input: ImageGenerateInput) => Promise<void>,
+    generate: gen.generate,
     stop: gen.stop,
     reset: gen.reset,
     updateBody: gen.updateBody,
+    dispose: gen.dispose,
+    get runId() {
+      return gen.runId
+    },
   }
 }

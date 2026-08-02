@@ -5,7 +5,7 @@ import {
   createGeminiClient,
   generateId,
   getGeminiApiKeyFromEnv,
-} from '../../utils'
+} from '../../utils/client'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   GeminiChatModelToolCapabilitiesByName,
@@ -33,7 +33,7 @@ import type {
 } from './events'
 import type { ExternalTextInteractionsProviderOptions } from './provider-options'
 import type { GeminiMessageMetadataByModality } from '../../message-types'
-import type { GeminiClientConfig } from '../../utils'
+import type { GeminiClientConfig } from '../../utils/client'
 
 type Interaction = Interactions.Interaction
 type InteractionSSEEvent = Interactions.InteractionSSEEvent

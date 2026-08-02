@@ -3,7 +3,7 @@
  */
 
 import type { Page, APIRequestContext } from '@playwright/test'
-import type { ProviderId, ProviderConfig } from './vendor-config'
+import type { ProviderId } from './vendor-config'
 
 /**
  * Select a provider/model from the model dropdown on the chat page
@@ -126,10 +126,6 @@ export async function waitForResponse(
   } else {
     // Loading might have been too fast or there's an error
     // Wait for either an assistant message or an error to appear
-    const messagesJson = page
-      .locator('pre')
-      .filter({ hasText: '"role"' })
-      .first()
     try {
       // Wait for the messages JSON to contain an assistant message
       await page.waitForFunction(

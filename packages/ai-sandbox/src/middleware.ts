@@ -1,12 +1,14 @@
 /**
- * `withSandbox(definition)` — the middleware that PROVIDES the
+ * `withSandbox(definition, options?)` — the middleware that PROVIDES the
  * {@link SandboxCapability} a harness adapter requires.
  *
  * - `setup`: resume-or-create the sandbox (via the definition's ensure
- *   algorithm), provide the handle, using the optional SandboxStore/Locks
- *   capabilities when a persistence middleware supplied them (in-memory
- *   fallback otherwise). If `fileEvents` is not false, starts a watcher
- *   that dispatches to sandbox-scoped hooks and forwards to the runtime sink.
+ *   algorithm), provide the handle, using the durability seams from
+ *   {@link SandboxMiddlewareOptions} (or, failing that, a bus-provided
+ *   SandboxInstanceStoreCapability / LocksCapability, then an in-memory
+ *   fallback). If `fileEvents` is not false, starts a
+ *   watcher that dispatches to sandbox-scoped hooks and forwards to the runtime
+ *   sink.
  * - `onFinish`/`onAbort`/`onError`: stop the watcher, snapshot (`after-run`)
  *   and/or destroy per lifecycle.
  *
@@ -15,25 +17,30 @@
  * chunks), not from here — middleware setup runs before streaming begins.
  */
 import { defineChatMiddleware } from '@tanstack/ai'
+import { LocksCapability } from '@tanstack/ai/locks'
 import { getSandboxRuntime } from '@tanstack/ai/adapter-internals'
 import {
-  LocksCapability,
   SandboxCapability,
-  SandboxStoreCapability,
   provideSandbox,
   provideSandboxPolicy,
 } from './capabilities'
+import { SandboxInstanceStoreCapability } from './instance-store'
 import { computeWorkspaceHash } from './key'
+import { buildFileHookEvent, resolveFileEvents } from './file-diff'
 import { ProjectionCapability, provideWorkspaceProjection } from './projection'
 import { resolveSecret } from './secrets'
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
+import type { InternalLogger } from '@tanstack/ai/adapter-internals'
+import type { LockStore } from '@tanstack/ai/locks'
 import type {
   AbortInfo,
   ChatMiddlewareContext,
   DefinedChatMiddleware,
   SandboxFileEvent,
+  SandboxFileHookEvent,
 } from '@tanstack/ai'
+import type { SandboxInstanceStore } from './instance-store'
 import type { SandboxHandle } from './contracts'
 import type {
   SandboxDefinition,
@@ -47,9 +54,37 @@ interface SandboxRunState {
   handle: SandboxHandle
   ensureCtx: SandboxEnsureContext
   watcher?: SandboxWatchHandle
+  /** In-flight `enriched.diff()` promises queued by the `fileEvents.diff`
+   * watcher callback, awaited before teardown so a pending diff isn't
+   * dropped when the run finishes/aborts/errors mid-computation. */
+  pendingDiffs: Array<Promise<void>>
+  /** Logger captured at setup, so terminal hooks can log watcher teardown. */
+  logger?: InternalLogger
 }
 
 const runState = new WeakMap<object, SandboxRunState>()
+
+/**
+ * Stop the watcher and drain any in-flight `diff()` promises before teardown,
+ * so the final file's diff isn't dropped when a run finishes/aborts/errors
+ * mid-computation. The `pendingDiffs` await is the load-bearing line — without
+ * it a deferred diff resolves after the run is gone and its chunk is lost.
+ */
+async function drainWatcher(
+  state: SandboxRunState,
+  phase: 'finish' | 'abort' | 'error',
+): Promise<void> {
+  // Guard `stop()`: a rejecting watcher teardown must NOT propagate out of
+  // here, or the caller skips the `definition.destroy(...)` that follows —
+  // leaking the sandbox on exactly the abort path that must ALWAYS tear down.
+  try {
+    await state.watcher?.stop()
+  } catch (error) {
+    state.logger?.warn('sandbox watcher stop failed', { phase, error })
+  }
+  await Promise.allSettled(state.pendingDiffs)
+  if (state.watcher) state.logger?.sandbox('sandbox watcher stopped', { phase })
+}
 
 /** Defensively pull tenant scoping out of the runtime context, if present. */
 function tenantFrom(
@@ -63,12 +98,46 @@ function tenantFrom(
   return { userId, orgId }
 }
 
-function buildEnsureCtx(ctx: ChatMiddlewareContext): SandboxEnsureContext {
+/**
+ * Durability seams for a sandboxed run. Both are optional; each independently
+ * falls back to a process-lifetime in-memory default, which is correct for a
+ * single process but NOT across replicas.
+ */
+export interface SandboxMiddlewareOptions {
+  /**
+   * Durable instance map (which provider sandbox to resume for a key). Pass
+   * your own store to make resume survive across processes/replicas.
+   *
+   * Takes precedence over a store provided on the capability bus (see
+   * `provideSandboxInstanceStore`), so the call site wins over ambient wiring.
+   */
+  instances?: SandboxInstanceStore
+  /**
+   * Distributed lock serializing resume-or-create for one key. Needed for
+   * multi-replica correctness so two concurrent runs don't both create.
+   *
+   * Prefer `withLocks` from `@tanstack/ai/locks` when other middleware also
+   * needs the lock; use this option to scope one to this sandbox. Takes
+   * precedence over a bus-provided lock.
+   */
+  locks?: LockStore
+}
+
+/**
+ * Resolve the ensure seams. Precedence is explicit option → capability bus →
+ * (in `ensure`) the in-memory fallback. The option wins because it is visible
+ * at the call site; the bus remains for platform/framework injection.
+ */
+function buildEnsureCtx(
+  ctx: ChatMiddlewareContext,
+  options: SandboxMiddlewareOptions | undefined,
+): SandboxEnsureContext {
   return {
     threadId: ctx.threadId,
     runId: ctx.runId,
-    store: ctx.getOptional(SandboxStoreCapability),
-    locks: ctx.getOptional(LocksCapability),
+    store:
+      options?.instances ?? ctx.getOptional(SandboxInstanceStoreCapability),
+    locks: options?.locks ?? ctx.getOptional(LocksCapability),
     tenant: tenantFrom(ctx.context),
     signal: ctx.signal,
   }
@@ -77,11 +146,14 @@ function buildEnsureCtx(ctx: ChatMiddlewareContext): SandboxEnsureContext {
 /**
  * Dispatch a sandbox file event to the per-type hooks declared on the
  * definition. Errors in individual hooks are swallowed so one bad hook
- * cannot break the run.
+ * cannot break the run — but are logged under the `errors` category first, so
+ * a throwing hook is observable (matching the run-scoped path in the engine
+ * and the behavior the observability docs promise).
  */
 async function dispatchDefinitionHooks(
   hooks: SandboxHooks | undefined,
-  event: SandboxFileEvent,
+  event: SandboxFileHookEvent,
+  logger?: InternalLogger,
 ): Promise<void> {
   if (!hooks) return
   const typed = (
@@ -95,14 +167,21 @@ async function dispatchDefinitionHooks(
     if (!fn) continue
     try {
       await fn(event)
-    } catch {
-      // swallowed — one bad hook must not break the run
+    } catch (error) {
+      // swallowed — one bad hook must not break the run — but logged so the
+      // failure isn't invisible.
+      logger?.errors('sandbox file hook failed', {
+        path: event.path,
+        type: event.type,
+        error,
+      })
     }
   }
 }
 
 export function withSandbox(
   definition: SandboxDefinition,
+  options?: SandboxMiddlewareOptions,
 ): DefinedChatMiddleware<
   unknown,
   readonly [],
@@ -114,13 +193,52 @@ export function withSandbox(
     // SandboxPolicyCapability is provided conditionally (only when the
     // definition has a policy), so it is intentionally NOT declared here —
     // consumers read it via `getOptional`.
-    optionalRequires: [SandboxStoreCapability, LocksCapability],
+    optionalRequires: [SandboxInstanceStoreCapability, LocksCapability],
 
     async setup(ctx) {
-      const ensureCtx = buildEnsureCtx(ctx)
+      const ensureCtx = buildEnsureCtx(ctx, options)
       const handle = await definition.ensure(ensureCtx)
       provideSandbox(ctx, handle)
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
+
+      // Pull the runtime (and its logger) up front so `baseSha` capture and
+      // hook dispatch below can log through the same `sandbox`/`errors`
+      // categories the engine uses.
+      const runtime = getSandboxRuntime(ctx, { optional: true })
+      const logger = runtime?.logger
+
+      const watchRoot = definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
+      let baseSha = ''
+      try {
+        const shaRes = await handle.process.exec('git rev-parse HEAD', {
+          cwd: watchRoot,
+        })
+        if (shaRes.exitCode === 0) {
+          baseSha = shaRes.stdout.trim()
+          logger?.sandbox('sandbox git baseline captured', {
+            root: watchRoot,
+            baseSha,
+          })
+        } else {
+          // Non-zero exit: either not a git repository (non-git workspace) or a
+          // repo with no commits (no HEAD). Expected, but it silently degrades
+          // every subsequent diff to a full-file add-patch, so surface it
+          // under `sandbox` (with stderr) rather than leaving nothing to grep.
+          logger?.sandbox('sandbox git baseline unavailable (non-zero exit)', {
+            root: watchRoot,
+            exitCode: shaRes.exitCode,
+            stderr: shaRes.stderr,
+          })
+        }
+      } catch (error) {
+        // exec rejected (git not on PATH, exec seam broken) → baseSha stays ''
+        // and accessors fall back, but this is a real anomaly, not a plain
+        // non-git workspace, so warn.
+        logger?.warn('sandbox git baseline capture failed', {
+          root: watchRoot,
+          error,
+        })
+      }
 
       const workspace = definition.workspace
       if (workspace !== undefined) {
@@ -149,19 +267,59 @@ export function withSandbox(
       const hooks = definition.hooks
       await hooks?.onReady?.(handle)
 
+      const fe = resolveFileEvents(definition.fileEvents)
+      const pendingDiffs: Array<Promise<void>> = []
       let watcher: SandboxWatchHandle | undefined
-      if (definition.fileEvents !== false) {
-        const runtime = getSandboxRuntime(ctx, { optional: true })
+      if (fe.enabled) {
         watcher = await watchWorkspace(handle, {
           onEvent: (event: SandboxFileEvent) => {
-            void dispatchDefinitionHooks(hooks, event)
-            runtime?.emit(event)
+            const enriched = buildFileHookEvent(
+              handle,
+              watchRoot,
+              baseSha,
+              event,
+              logger,
+            )
+            void dispatchDefinitionHooks(hooks, enriched, logger)
+            runtime?.emit(enriched)
+            if (fe.diff) {
+              pendingDiffs.push(
+                enriched
+                  .diff()
+                  .then((diff) => {
+                    runtime?.emitFileDiff({ path: event.path, diff })
+                  })
+                  .catch((error: unknown) => {
+                    logger?.warn('sandbox file diff emit failed', {
+                      path: event.path,
+                      error,
+                    })
+                  }),
+              )
+            }
           },
+          // Watch the SAME root the enrichment layer relativizes against
+          // (`buildFileHookEvent(handle, watchRoot, …)` and the `baseSha`
+          // capture). Without this the watcher defaults to `/workspace` while
+          // enrichment uses `watchRoot`, so a custom `workspace.root` makes the
+          // two look at different directories and git pathspecs break.
+          root: watchRoot,
           ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+          ...(logger !== undefined ? { logger } : {}),
+        })
+        logger?.sandbox('sandbox watcher started', {
+          root: watchRoot,
+          diff: fe.diff,
         })
       }
 
-      runState.set(ctx, { handle, ensureCtx, ...(watcher ? { watcher } : {}) })
+      runState.set(ctx, {
+        handle,
+        ensureCtx,
+        pendingDiffs,
+        ...(watcher ? { watcher } : {}),
+        ...(logger !== undefined ? { logger } : {}),
+      })
     },
 
     async onFinish(ctx) {
@@ -169,7 +327,7 @@ export function withSandbox(
       if (!state) return
       const { handle, ensureCtx } = state
 
-      await state.watcher?.stop()
+      await drainWatcher(state, 'finish')
 
       const lifecycle = definition.lifecycle
 
@@ -203,7 +361,7 @@ export function withSandbox(
       const state = runState.get(ctx)
       if (!state) return
 
-      await state.watcher?.stop()
+      await drainWatcher(state, 'abort')
 
       // ALWAYS tear down on an explicit abort, regardless of `destroyOnComplete`.
       // The in-sandbox agent process is not killed by closing its IO stream
@@ -219,7 +377,7 @@ export function withSandbox(
       const state = runState.get(ctx)
       if (!state) return
 
-      await state.watcher?.stop()
+      await drainWatcher(state, 'error')
       await definition.hooks?.onError?.(info.error)
 
       // On failure, only tear down when the lifecycle says so; otherwise leave

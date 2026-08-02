@@ -182,7 +182,7 @@ stateDiagram-v2
 
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { clientTools, createChatClientOptions } from "@tanstack/ai-client";
+import { createChatClientOptions } from "@tanstack/ai-client";
 import { getWeather, sendEmail } from "./tools";
 import { ApprovalUI } from "./approval-ui";
 
@@ -190,7 +190,7 @@ import { ApprovalUI } from "./approval-ui";
 // narrow to each tool's types below.
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
-  tools: clientTools(getWeather, sendEmail),
+  tools: [getWeather, sendEmail],
 });
 
 function ChatComponent() {

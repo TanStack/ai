@@ -1,0 +1,28 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[batch-mixed] run test", "sequenceIndex": 0 },
+      "response": {
+        "content": "I need approval for these three actions.",
+        "toolCalls": [
+          {
+            "name": "admitRescue",
+            "arguments": "{\"species\":\"red fox\",\"name\":\"Rusty\"}"
+          },
+          {
+            "name": "scheduleVetCheck",
+            "arguments": "{\"animal\":\"Rusty\",\"urgency\":\"routine\"}"
+          },
+          {
+            "name": "printIntakeTag",
+            "arguments": "{\"animal\":\"Rusty\"}"
+          }
+        ]
+      }
+    },
+    {
+      "match": { "userMessage": "[batch-mixed] run test", "sequenceIndex": 1 },
+      "response": { "content": "Done — all three actions were processed." }
+    }
+  ]
+}

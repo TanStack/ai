@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { createFileRoute } from '@tanstack/react-router'
-import { Film, ImageIcon } from 'lucide-react'
+import { Link, createFileRoute } from '@tanstack/react-router'
+import { Clapperboard, Film, ImageIcon, Sparkles } from 'lucide-react'
 import ImageGenerator from '@/components/ImageGenerator'
 import VideoGenerator from '@/components/VideoGenerator'
+import OmniStudio from '@/components/OmniStudio'
 
-type Tab = 'image' | 'video'
+type Tab = 'image' | 'video' | 'omni'
 
 function VisualPage() {
   const [activeTab, setActiveTab] = useState<Tab>('image')
@@ -47,13 +48,33 @@ function VisualPage() {
             <Film className="w-5 h-5" />
             Video
           </button>
+          <button
+            onClick={() => setActiveTab('omni')}
+            className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors ${
+              activeTab === 'omni'
+                ? 'bg-purple-600 text-white'
+                : 'bg-gray-800 text-gray-300 hover:bg-gray-700'
+            }`}
+          >
+            <Sparkles className="w-5 h-5" />
+            Omni Studio
+          </button>
+          <Link
+            to="/seedance"
+            className="flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-colors bg-gray-800 text-gray-300 hover:bg-gray-700"
+          >
+            <Clapperboard className="w-5 h-5" />
+            Seedance Studio
+          </Link>
         </div>
 
         <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6">
           {activeTab === 'image' ? (
             <ImageGenerator onImageGenerated={setLastGeneratedImage} />
-          ) : (
+          ) : activeTab === 'video' ? (
             <VideoGenerator initialImageUrl={lastGeneratedImage} />
+          ) : (
+            <OmniStudio />
           )}
         </div>
       </div>

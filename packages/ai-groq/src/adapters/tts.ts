@@ -8,7 +8,7 @@ import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
 import type { GroqTTSModel } from '../model-meta'
 import type { GroqTTSProviderOptions } from '../audio/tts-provider-options'
-import type { GroqClientConfig } from '../utils'
+import type { GroqClientConfig } from '../utils/client'
 
 /**
  * Configuration for Groq TTS adapter

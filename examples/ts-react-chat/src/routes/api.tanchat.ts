@@ -16,6 +16,7 @@ import { openRouterText } from '@tanstack/ai-openrouter'
 import { grokText } from '@tanstack/ai-grok'
 import { groqText } from '@tanstack/ai-groq'
 import { bedrockText } from '@tanstack/ai-bedrock'
+import { byteplusText } from '@tanstack/ai-byteplus'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import {
   addToCartToolDef,
@@ -42,6 +43,7 @@ type Provider =
   | 'groq'
   | 'openrouter'
   | 'bedrock'
+  | 'byteplus'
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -323,6 +325,15 @@ export const Route = createFileRoute('/api/tanchat')({
                 },
               ),
             }),
+          byteplus: () =>
+            createChatOptions({
+              // BytePlus ModelArk (ARK_API_KEY, falling back to
+              // BYTEPLUS_API_KEY). Keys are region-isolated — an EU key will
+              // not work against the Asia-Pacific host.
+              adapter: byteplusText(
+                (model || 'seed-2-0-lite-260428') as 'seed-2-0-lite-260428',
+              ),
+            }),
           ollama: () =>
             createChatOptions({
               adapter: ollamaText((model || 'gpt-oss:20b') as 'gpt-oss:20b'),
@@ -358,7 +369,7 @@ export const Route = createFileRoute('/api/tanchat')({
 
           const stream = chat({
             ...options,
-            tools: Object.values(mergedTools),
+            tools: mergedTools,
             middleware: [loggingMiddleware, runtimeContextMiddleware],
             context: runtimeContext,
             systemPrompts: [SYSTEM_PROMPT],

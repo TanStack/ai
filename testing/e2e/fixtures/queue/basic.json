@@ -1,0 +1,22 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[queue] first message"
+      },
+      "response": {
+        "content": "This is the first response and it keeps streaming for a good while so that the follow-up messages sent during this in-flight run land in the client queue instead of starting a second concurrent request right away, giving the test plenty of time to send more messages and cancel one before this run settles."
+      },
+      "chunkSize": 2,
+      "streamingProfile": { "tps": 6 }
+    },
+    {
+      "match": {
+        "userMessage": "[queue] third message"
+      },
+      "response": {
+        "content": "This is the third response, delivered after the queue drained."
+      }
+    }
+  ]
+}

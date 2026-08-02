@@ -16,13 +16,9 @@ export const Route = createFileRoute('/api/openrouter-cost')({
   server: {
     handlers: {
       POST: async () => {
-        const adapter = createOpenRouterText(
-          'openai/gpt-4o' as never,
-          DUMMY_KEY,
-          {
-            serverURL: `${LLMOCK_DEFAULT_BASE}/openrouter-cost/v1`,
-          },
-        )
+        const adapter = createOpenRouterText('openai/gpt-4o', DUMMY_KEY, {
+          serverURL: `${LLMOCK_DEFAULT_BASE}/openrouter-cost/v1`,
+        })
 
         let usage: Record<string, unknown> | undefined
         try {

@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, createFileRoute } from '@tanstack/react-router'
 import {
   Braces,
+  Code2,
+  Database,
   FileAudio,
   FileText,
   Github,
@@ -9,6 +11,7 @@ import {
   ImagePlus,
   Mic,
   Music,
+  PauseCircle,
   Send,
   Square,
   Video,
@@ -27,8 +30,9 @@ import {
 } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
+import type { BoundInterrupts } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
-import type { ContentPart, TranscriptionResult } from '@tanstack/ai'
+import type { ContentPart } from '@tanstack/ai'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { ModelOption } from '@/lib/model-selection'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
@@ -80,6 +84,8 @@ const tools = clientTools(
   recommendGuitarToolClient,
 )
 
+type ChatTools = typeof tools
+
 function ChatInputArea({ children }: { children: React.ReactNode }) {
   return (
     <div className="border-t border-orange-500/10 bg-gray-900/80 backdrop-blur-sm">
@@ -90,13 +96,10 @@ function ChatInputArea({ children }: { children: React.ReactNode }) {
 
 function Messages({
   messages,
-  addToolApprovalResponse,
+  interrupts,
 }: {
   messages: Array<UIMessage>
-  addToolApprovalResponse: (response: {
-    id: string
-    approved: boolean
-  }) => Promise<void>
+  interrupts: BoundInterrupts<ChatTools>
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
   const hasRenderablePart = (message: UIMessage): boolean => {
@@ -104,13 +107,6 @@ function Messages({
       if (part.type === 'thinking') return true
       if (part.type === 'image') return true
       if (part.type === 'text' && part.content.trim()) return true
-      if (
-        part.type === 'tool-call' &&
-        part.state === 'approval-requested' &&
-        part.approval
-      ) {
-        return true
-      }
       if (
         part.type === 'tool-call' &&
         part.name === 'recommendGuitar' &&
@@ -128,9 +124,9 @@ function Messages({
       messagesContainerRef.current.scrollTop =
         messagesContainerRef.current.scrollHeight
     }
-  }, [visibleMessages])
+  }, [visibleMessages, interrupts.length])
 
-  if (!visibleMessages.length) {
+  if (!visibleMessages.length && interrupts.length === 0) {
     return (
       <div className="flex-1 overflow-y-auto px-4 py-8">
         <div className="max-w-2xl mx-auto space-y-6">
@@ -186,6 +182,13 @@ function Messages({
               <span className="text-sm text-gray-300">Video</span>
             </Link>
             <Link
+              to="/generations/persistent-generation"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Database size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Persistence</span>
+            </Link>
+            <Link
               to="/generations/structured-output"
               className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
             >
@@ -198,6 +201,20 @@ function Messages({
             >
               <Braces size={24} className="text-orange-400" />
               <span className="text-sm text-gray-300">Structured Chat</span>
+            </Link>
+            <Link
+              to="/typesafe-tools"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Code2 size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Type-Safe Tools</span>
+            </Link>
+            <Link
+              to="/interrupts"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <PauseCircle size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Interrupts Lab</span>
             </Link>
             <Link
               to="/sandboxes"
@@ -217,6 +234,47 @@ function Messages({
       ref={messagesContainerRef}
       className="flex-1 overflow-y-auto px-4 py-4"
     >
+      {interrupts.map((interrupt) => {
+        if (interrupt.kind !== 'tool-approval') return null
+        return (
+          <div
+            key={interrupt.id}
+            className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mb-3"
+          >
+            <p className="text-white font-medium mb-2">
+              Approval required: {interrupt.toolName}
+            </p>
+            <div className="text-gray-300 text-sm mb-3">
+              <pre className="bg-gray-800 p-2 rounded text-xs overflow-x-auto">
+                {JSON.stringify(interrupt.originalArgs, null, 2)}
+              </pre>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => interrupt.resolveInterrupt(true)}
+                className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Approve
+              </button>
+              <button
+                type="button"
+                onClick={() => interrupt.resolveInterrupt(false)}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Deny
+              </button>
+              <button
+                type="button"
+                onClick={() => interrupt.cancel()}
+                className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )
+      })}
       {visibleMessages.map((message) => {
         return (
           <div
@@ -293,55 +351,13 @@ function Messages({
                     )
                   }
 
-                  // Approval UI
+                  // Tool approvals render from bound `interrupts` above
+                  // (resolveInterrupt). Skip legacy part.approval UI.
                   if (
                     part.type === 'tool-call' &&
-                    part.state === 'approval-requested' &&
-                    part.approval
+                    part.state === 'approval-requested'
                   ) {
-                    return (
-                      <div
-                        key={part.id}
-                        className="p-4 bg-yellow-500/10 border border-yellow-500/20 rounded-lg mt-2"
-                      >
-                        <p className="text-white font-medium mb-2">
-                          🔒 Approval Required: {part.name}
-                        </p>
-                        <div className="text-gray-300 text-sm mb-3">
-                          <pre className="bg-gray-800 p-2 rounded text-xs overflow-x-auto">
-                            {JSON.stringify(
-                              JSON.parse(part.arguments),
-                              null,
-                              2,
-                            )}
-                          </pre>
-                        </div>
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() =>
-                              addToolApprovalResponse({
-                                id: part.approval!.id,
-                                approved: true,
-                              })
-                            }
-                            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors"
-                          >
-                            ✓ Approve
-                          </button>
-                          <button
-                            onClick={() =>
-                              addToolApprovalResponse({
-                                id: part.approval!.id,
-                                approved: false,
-                              })
-                            }
-                            className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium transition-colors"
-                          >
-                            ✗ Deny
-                          </button>
-                        </div>
-                      </div>
-                    )
+                    return null
                   }
 
                   // Guitar recommendation card
@@ -411,7 +427,7 @@ function ChatPage() {
     sendMessage,
     isLoading,
     error,
-    addToolApprovalResponse,
+    interrupts,
     stop,
   } = useChat({
     connection: fetchServerSentEvents('/api/tanchat'),
@@ -436,18 +452,14 @@ function ChatPage() {
   // Voice input: record from the mic, transcribe via /api/transcribe, then drop
   // the text into the composer for the user to review/edit/send. (Text chat
   // models don't accept raw audio; transcription is the path that works.)
-  // NOTE: the explicit type arg works around an inference bug in the generation
-  // hooks' `onResult` (same root cause as the recorder's `onComplete`, now
-  // fixed there) — without it, `r` is implicitly `any` and the call won't
-  // typecheck under strict mode.
+  // `onResult`'s `r` infers as `TranscriptionResult` from the hook (no explicit
+  // type arg needed — the generation hooks' result-type inference handles it).
   // Surface voice-input failures (permission denied, recorder error,
   // transcription error) to the user rather than only logging them — a silent
   // mic button is the worst outcome.
   const [recordError, setRecordError] = useState<string | null>(null)
 
-  const { generate: transcribe, isLoading: isTranscribing } = useTranscription<
-    (r: TranscriptionResult) => void
-  >({
+  const { generate: transcribe, isLoading: isTranscribing } = useTranscription({
     connection: fetchServerSentEvents('/api/transcribe'),
     onResult: (r) => setInput((prev) => (prev ? `${prev} ${r.text}` : r.text)),
     // A failed transcription (network/provider) is just as silent as a mic
@@ -616,6 +628,13 @@ function ChatPage() {
               </select>
             </div>
             <Link
+              to="/interrupts"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
+            >
+              <PauseCircle className="w-4 h-4" />
+              Interrupts Lab
+            </Link>
+            <Link
               to="/generations/image"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
             >
@@ -625,10 +644,7 @@ function ChatPage() {
           </div>
         </div>
 
-        <Messages
-          messages={messages}
-          addToolApprovalResponse={addToolApprovalResponse}
-        />
+        <Messages messages={messages} interrupts={interrupts} />
 
         {error && (
           <div className="mx-4 mt-2 p-3 bg-red-500/10 border border-red-500/30 rounded-lg text-red-400 text-sm">

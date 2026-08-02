@@ -48,7 +48,17 @@ function warnIfLargeMediaBuffer(byteLength: number, source: string): void {
  *
  * @experimental Video generation is an experimental feature and may change.
  */
-export interface OpenAIVideoConfig extends OpenAIClientConfig {}
+export interface OpenAIVideoConfig extends OpenAIClientConfig {
+  /**
+   * Opt into fetching HTTP(S) image URL inputs for Sora's `input_reference`.
+   * The endpoint requires uploaded file bytes (no URL passthrough), so an
+   * HTTP(S) URL has to be downloaded and buffered in memory — which can OOM
+   * constrained runtimes (e.g. Cloudflare Workers). When `false` (the
+   * default), HTTP(S) URL image inputs throw; pass a `data:` URI, or set this
+   * to `true` to opt into buffering.
+   */
+  allowUrlFetch?: boolean
+}
 
 /**
  * OpenAI Video Generation Adapter
@@ -84,7 +94,8 @@ export class OpenAIVideoAdapter<
     // We hold our own typed copy on `clientConfig` and pass an empty object up.
     super({}, model)
     this.clientConfig = config
-    this.client = new OpenAI(config)
+    const { allowUrlFetch: _allowUrlFetch, ...clientOptions } = config
+    this.client = new OpenAI(clientOptions)
   }
 
   async createVideoJob(
@@ -126,6 +137,7 @@ export class OpenAIVideoAdapter<
       request.input_reference = await imagePartToFile(
         inputReference,
         'input-reference',
+        this.clientConfig.allowUrlFetch ?? false,
       )
     }
     // `VideoCreateParams.size` is `size?: VideoSize` (no `| undefined`), so we

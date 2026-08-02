@@ -1,9 +1,9 @@
 import { ChatStreamSummarizeAdapter } from '@tanstack/ai/adapters'
-import { getGrokApiKeyFromEnv } from '../utils'
+import { getGrokApiKeyFromEnv } from '../utils/client'
 import { GrokTextAdapter } from './text'
 import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { GROK_CHAT_MODELS } from '../model-meta'
-import type { GrokClientConfig } from '../utils'
+import type { GrokClientConfig } from '../utils/client'
 
 /**
  * Configuration for Grok summarize adapter

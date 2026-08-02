@@ -2,15 +2,14 @@ import { fal } from '@fal-ai/client'
 import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import {
-  buildFalUsage,
   configureFalClient,
-  takeBillableUnits,
   generateId as utilGenerateId,
-} from '../utils'
+} from '../utils/client'
+import { buildFalUsage, takeBillableUnits } from '../utils/billing'
 import { mapSizeToFalFormat } from '../image/image-provider-options'
 import { mapImageInputsToFalFields } from '../image/image-inputs'
 import type { OutputType, Result } from '@fal-ai/client'
-import type { FalClientConfig } from '../utils'
+import type { FalClientConfig } from '../utils/client'
 import type {
   GeneratedImage,
   ImageGenerationOptions,

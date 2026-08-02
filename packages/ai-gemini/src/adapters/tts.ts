@@ -9,7 +9,7 @@ import { buildGeminiUsage } from '../usage'
 import type { GEMINI_TTS_MODELS, GeminiTTSVoice } from '../model-meta'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type { GoogleGenAI, SpeechConfig } from '@google/genai'
-import type { GeminiClientConfig } from '../utils'
+import type { GeminiClientConfig } from '../utils/client'
 
 /**
  * Configuration for a single speaker in a multi-speaker dialogue.

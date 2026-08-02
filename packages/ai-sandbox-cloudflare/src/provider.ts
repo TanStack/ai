@@ -56,7 +56,11 @@ class CloudflareProvider implements SandboxProvider {
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
-    const id = crypto.randomUUID()
+    // Honor the deterministic id `ensure()` supplies so reconnecting consumers
+    // (e.g. a preview iframe) address the same DO the agent edits. The DO id is
+    // `idFromName(id)`, so any stable string works; fall back to a random id
+    // when created outside `defineSandbox` (advanced direct use).
+    const id = input.id ?? crypto.randomUUID()
     const sandbox = getSandbox(this.config.binding, id, this.sandboxOptions)
     if (input.env && Object.keys(input.env).length > 0) {
       await sandbox.setEnvVars(input.env)

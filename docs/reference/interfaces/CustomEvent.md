@@ -5,7 +5,7 @@ title: CustomEvent
 
 # Interface: CustomEvent
 
-Defined in: [packages/ai/src/types.ts:1274](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1274)
+Defined in: [packages/ai/src/types.ts:1337](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1337)
 
 Custom event for extensibility.
 
@@ -23,6 +23,19 @@ TanStack AI adds: `model?`
 - [`ApprovalRequestedEvent`](ApprovalRequestedEvent.md)
 - [`ToolInputAvailableEvent`](ToolInputAvailableEvent.md)
 - [`UIResourceEvent`](UIResourceEvent.md)
+- [`SandboxFileCustomEvent`](SandboxFileCustomEvent.md)
+- [`SandboxFileDiffEvent`](SandboxFileDiffEvent.md)
+- [`FileChangedEvent`](FileChangedEvent.md)
+- [`SessionIdEvent`](SessionIdEvent.md)
+- [`CodeModeExecutionStartedEvent`](CodeModeExecutionStartedEvent.md)
+- [`CodeModeConsoleEvent`](CodeModeConsoleEvent.md)
+- [`CodeModeExternalCallEvent`](CodeModeExternalCallEvent.md)
+- [`CodeModeExternalResultEvent`](CodeModeExternalResultEvent.md)
+- [`CodeModeExternalErrorEvent`](CodeModeExternalErrorEvent.md)
+- [`CodeModeSkillCallEvent`](CodeModeSkillCallEvent.md)
+- [`CodeModeSkillResultEvent`](CodeModeSkillResultEvent.md)
+- [`CodeModeSkillErrorEvent`](CodeModeSkillErrorEvent.md)
+- [`SkillRegisteredEvent`](SkillRegisteredEvent.md)
 
 ## Indexable
 
@@ -38,6 +51,6 @@ TanStack AI adds: `model?`
 optional model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1276)
+Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
 
 Model identifier for multi-model support

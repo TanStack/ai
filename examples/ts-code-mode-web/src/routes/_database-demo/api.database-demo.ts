@@ -13,10 +13,11 @@ import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
-import type { AnyTextAdapter, ServerTool, StreamChunk } from '@tanstack/ai'
+import type { AnyServerTool, AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 import type { IsolateDriver } from '@tanstack/ai-code-mode'
 
 import { databaseTools, getSchemaInfoTool } from '@/lib/tools/database-tools'
+import { maxTokensModelOptions } from '@/lib/max-tokens-model-options'
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
 
@@ -114,7 +115,7 @@ Rules:
 This is not optional — skill registration is a core part of your workflow.`
 
 async function getSkillToolsAndPrompt(driver: IsolateDriver): Promise<{
-  skillTools: Array<ServerTool<any, any, any>>
+  skillTools: Array<AnyServerTool>
   skillsPrompt: string
 }> {
   const allSkills = await skillStorage.loadAll()
@@ -249,7 +250,7 @@ export const Route = createFileRoute(
         const { adapter: instrumentedAdapter } = instrumentAdapter(rawAdapter)
 
         try {
-          let tools: Array<ServerTool<any, any, any>>
+          let tools: Array<AnyServerTool>
           let systemPrompts: Array<string>
 
           if (useCodeMode) {
@@ -284,7 +285,7 @@ export const Route = createFileRoute(
             systemPrompts,
             agentLoopStrategy: maxIterations(15),
             abortController,
-            maxTokens: 8192,
+            modelOptions: maxTokensModelOptions(rawAdapter, 8192),
           })
 
           const instrumentedStream = wrapWithTimingEvents(stream, rawAdapter)

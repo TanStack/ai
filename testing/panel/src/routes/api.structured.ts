@@ -1,5 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, createChatOptions } from '@tanstack/ai'
+import { chat } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { grokText } from '@tanstack/ai-grok'
@@ -7,6 +7,7 @@ import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { z } from 'zod'
+import type { AnyTextAdapter } from '@tanstack/ai'
 
 type Provider =
   | 'openai'
@@ -75,37 +76,20 @@ export const Route = createFileRoute('/api/structured')({
           // Determine the actual model being used
           const actualModel = model || defaultModels[provider]
 
-          // Pre-define typed adapter configurations with full type inference
-          // Model is passed to the adapter factory function for type-safe autocomplete
-          const adapterConfig = {
-            anthropic: () =>
-              createChatOptions({
-                adapter: anthropicText(actualModel as any),
-              }),
-            gemini: () =>
-              createChatOptions({
-                adapter: geminiText(actualModel as any),
-              }),
-            grok: () =>
-              createChatOptions({
-                adapter: grokText(actualModel as any),
-              }),
-            ollama: () =>
-              createChatOptions({
-                adapter: ollamaText(actualModel as any),
-              }),
-            openai: () =>
-              createChatOptions({
-                adapter: openaiText(actualModel as any),
-              }),
-            openrouter: () =>
-              createChatOptions({
-                adapter: openRouterText(actualModel as any),
-              }),
+          // Pre-define adapter factories per provider. The map is typed as the
+          // text-adapter union so each provider's adapter unifies cleanly when
+          // handed to chat() below.
+          const adapterConfig: Record<Provider, () => AnyTextAdapter> = {
+            anthropic: () => anthropicText(actualModel as any),
+            gemini: () => geminiText(actualModel as any),
+            grok: () => grokText(actualModel as any),
+            ollama: () => ollamaText(actualModel as any),
+            openai: () => openaiText(actualModel as any),
+            openrouter: () => openRouterText(actualModel as any),
           }
 
-          // Get typed adapter options using createChatOptions pattern
-          const options = adapterConfig[provider]()
+          // Select the provider's text adapter
+          const adapter = adapterConfig[provider]()
 
           console.log(
             `>> ${mode} output with model: ${actualModel} on provider: ${provider}`,
@@ -114,7 +98,7 @@ export const Route = createFileRoute('/api/structured')({
           if (mode === 'structured') {
             // Structured output mode - returns validated object
             const result = await chat({
-              ...options,
+              adapter,
               messages: [
                 {
                   role: 'user',
@@ -139,7 +123,7 @@ export const Route = createFileRoute('/api/structured')({
           } else {
             // One-shot markdown mode - returns streamed text
             const markdown = await chat({
-              ...options,
+              adapter,
               stream: false,
               messages: [
                 {

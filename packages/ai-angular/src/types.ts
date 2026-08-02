@@ -2,24 +2,45 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
 } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
+  BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
+  ChatInterrupt,
+  ChatInterruptState,
   ChatRequestBody,
+  ChatResumeState,
   ClientContextOptionFromTools,
   ConnectionStatus,
   DistributedOmit,
   InferredClientContext,
   MultimodalContent,
+  QueueConfig,
+  QueueOption,
+  QueueStrategy,
+  QueuedMessage,
+  SendMessageOptions,
   UIMessage,
+  WhenBusy,
 } from '@tanstack/ai-client'
 import type { Signal } from '@angular/core'
 import type { ReactiveOption } from './internal/to-reactive'
 
-export type { ChatRequestBody, MultimodalContent, UIMessage }
+export type {
+  ChatRequestBody,
+  MultimodalContent,
+  QueueConfig,
+  QueuedMessage,
+  QueueOption,
+  QueueStrategy,
+  SendMessageOptions,
+  UIMessage,
+  WhenBusy,
+}
 export type { ReactiveOption }
 
 /**
@@ -55,6 +76,9 @@ export type InjectChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onQueueChange'
+  | 'onResumeStateChange'
+  | 'onRunIdChange'
   | 'context'
   | 'devtools'
   | 'body'
@@ -102,7 +126,14 @@ interface BaseInjectChatResult<
   /** Current messages in the conversation. */
   messages: Signal<Array<UIMessage<TTools, TData>>>
   /** Send a message (string or multimodal content). */
-  sendMessage: (content: string | MultimodalContent) => Promise<void>
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: SendMessageOptions,
+  ) => Promise<void>
+  /** Pending messages queued while a stream is in flight. */
+  queue: Signal<ReadonlyArray<QueuedMessage>>
+  /** Cancel a queued message before it drains. */
+  cancelQueued: (id: string) => void
   /** Append a message to the conversation. */
   append: (message: ModelMessage | UIMessage<TTools, TData>) => Promise<void>
   /** Add the result of a client-side tool execution. */
@@ -118,6 +149,36 @@ interface BaseInjectChatResult<
     id: string
     approved: boolean
   }) => Promise<void>
+  /**
+   * The id of the run this client has in flight — one it started or rejoined —
+   * or `null` when there is none (including while a run sits paused on an
+   * interrupt, waiting on approval).
+   *
+   * A run is one turn of the conversation, so this changes from turn to turn. A
+   * whole tool loop stays inside one run, while resuming after an interrupt
+   * continues the turn under a new id — so one user message can produce several
+   * run ids. Use it to talk to your own server about that run (cancel it, poll
+   * it, correlate a log line).
+   */
+  runId: Signal<string | null>
+  /** Immutable bound interrupts for the current interrupted run. */
+  interrupts: Signal<BoundInterrupts<TTools>>
+  /** @deprecated Use `interrupts`. */
+  pendingInterrupts: Signal<BoundInterrupts<TTools>>
+  /** Batch-level interrupt errors. */
+  interruptErrors: Signal<ChatInterruptState<TTools>['interruptErrors']>
+  /** Whether the client is submitting an interrupt batch. */
+  resuming: Signal<boolean>
+  resolveInterrupts: {
+    (approved: boolean): void
+    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+  }
+  cancelInterrupts: () => void
+  retryInterrupts: () => void
+  resumeInterruptsUnsafe: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
   /** Reload the last assistant message. */
   reload: () => Promise<void>
   /** Stop the current response generation. */

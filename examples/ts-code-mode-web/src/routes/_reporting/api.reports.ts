@@ -10,6 +10,7 @@ import { allTools } from '@/lib/tools'
 import { CODE_MODE_SYSTEM_PROMPT, REPORTS_SYSTEM_PROMPT } from '@/lib/prompts'
 import { reportTools } from '@/lib/reports/tools'
 import { createReportBindings } from '@/lib/reports/create-report-bindings'
+import { maxTokensModelOptions } from '@/lib/max-tokens-model-options'
 
 type Provider = 'anthropic' | 'openai' | 'gemini'
 
@@ -79,7 +80,7 @@ export const Route = createFileRoute('/_reporting/api/reports' as any)({
             ],
             agentLoopStrategy: maxIterations(20),
             abortController,
-            maxTokens: 8192,
+            modelOptions: maxTokensModelOptions(adapter, 8192),
           })
 
           const sseStream = toServerSentEventsStream(stream, abortController)

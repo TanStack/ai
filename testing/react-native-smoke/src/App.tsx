@@ -46,7 +46,7 @@ export default function App() {
   const connection = useConnection(transport)
 
   const { messages, sendMessage, isLoading, error, stop } = useChat({
-    id: `rn-smoke-${transport}`,
+    threadId: `rn-smoke-${transport}`,
     connection,
   })
 

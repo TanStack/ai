@@ -3,6 +3,8 @@ export type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
   ChatMiddlewareConfig,
+  ChatResumeToolState,
+  ChatResumeGenericResolution,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
@@ -14,6 +16,7 @@ export type {
   AbortInfo,
   ErrorInfo,
   SandboxFileEvent,
+  SandboxFileHookEvent,
   ChatSandboxHooks,
 } from './types'
 
@@ -38,3 +41,13 @@ export type {
 } from './builder'
 export { validateCapabilities } from './validate'
 export type { AnyChatMiddleware } from './types'
+
+export {
+  LocksCapability,
+  getLocks,
+  provideLocks,
+  InMemoryLockStore,
+  withLocks,
+  defineLock,
+} from './locks'
+export type { LockStore } from './locks'

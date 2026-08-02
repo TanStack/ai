@@ -799,42 +799,66 @@ describe('Gemini Image Adapter', () => {
       })
     })
 
-    it('fetches arbitrary URL sources and inlines them as base64', async () => {
+    it('passes arbitrary HTTPS URL sources through as fileData without fetching (#907)', async () => {
+      // Matches the chat adapter: Gemini fetches URL inputs server-side.
+      // Fetching locally and inlining as base64 OOMs on memory-constrained
+      // runtimes (e.g. Cloudflare Workers).
       const { adapter, mockGenerateContent } = mockedNativeAdapter()
-      // 'hi' → base64 'aGk='
-      const fetchMock = vi.fn().mockResolvedValue(
-        new Response(new Uint8Array([104, 105]), {
-          headers: { 'content-type': 'image/jpeg' },
-        }),
-      )
-      vi.stubGlobal('fetch', fetchMock)
 
-      try {
-        await generateImage({
-          adapter,
-          prompt: [
-            { type: 'text', content: 'Edit this' },
-            {
-              type: 'image',
-              source: { type: 'url', value: 'https://example.com/photo.jpg' },
-            },
-          ],
-        })
-      } finally {
-        vi.unstubAllGlobals()
-      }
+      await generateImage({
+        adapter,
+        prompt: [
+          { type: 'text', content: 'Edit this' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/photo.jpg' },
+          },
+        ],
+      })
 
-      expect(fetchMock).toHaveBeenCalledWith('https://example.com/photo.jpg')
       const args = mockGenerateContent.mock.calls[0]![0]
       expect(args.contents).toEqual([
         {
           role: 'user',
           parts: [
             { text: 'Edit this' },
-            { inlineData: { mimeType: 'image/jpeg', data: 'aGk=' } },
+            {
+              fileData: {
+                fileUri: 'https://example.com/photo.jpg',
+                // No source mimeType → same image/jpeg default as chat.
+                mimeType: 'image/jpeg',
+              },
+            },
           ],
         },
       ])
+    })
+
+    it('uses the provided mimeType for URL sources', async () => {
+      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+
+      await generateImage({
+        adapter,
+        prompt: [
+          { type: 'text', content: 'Edit this' },
+          {
+            type: 'image',
+            source: {
+              type: 'url',
+              value: 'https://example.com/photo.png',
+              mimeType: 'image/png',
+            },
+          },
+        ],
+      })
+
+      const args = mockGenerateContent.mock.calls[0]![0]
+      expect(args.contents[0].parts[1]).toEqual({
+        fileData: {
+          fileUri: 'https://example.com/photo.png',
+          mimeType: 'image/png',
+        },
+      })
     })
 
     it('rejects image prompt parts for Imagen models', async () => {

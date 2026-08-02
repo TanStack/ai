@@ -13,6 +13,8 @@ describe('Agent Loop Strategies', () => {
     iterationCount: 0,
     messages: [],
     finishReason: null,
+    toolCallCount: 0,
+    lastTurnToolCallCount: 0,
     ...overrides,
   })
 

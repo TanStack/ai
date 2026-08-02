@@ -9,7 +9,7 @@ title: InputModalitiesTypes
 type InputModalitiesTypes = object;
 ```
 
-Defined in: [packages/ai/src/types.ts:463](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L463)
+Defined in: [packages/ai/src/types.ts:494](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L494)
 
 ## Properties
 
@@ -19,7 +19,7 @@ Defined in: [packages/ai/src/types.ts:463](https://github.com/TanStack/ai/blob/m
 inputModalities: ReadonlyArray<Modality>;
 ```
 
-Defined in: [packages/ai/src/types.ts:464](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L464)
+Defined in: [packages/ai/src/types.ts:495](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L495)
 
 ***
 
@@ -29,4 +29,4 @@ Defined in: [packages/ai/src/types.ts:464](https://github.com/TanStack/ai/blob/m
 messageMetadataByModality: DefaultMessageMetadataByModality;
 ```
 
-Defined in: [packages/ai/src/types.ts:465](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L465)
+Defined in: [packages/ai/src/types.ts:496](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L496)

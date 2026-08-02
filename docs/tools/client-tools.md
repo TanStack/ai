@@ -27,7 +27,7 @@ sequenceDiagram
     
     Note over Server: No execute function<br/>= client tool
     
-    Server->>Browser: Forward tool-input-available<br/>chunk via SSE/HTTP
+    Server->>Browser: RUN_FINISHED client-tool<br/>interrupt via SSE/HTTP
     Browser->>Browser: Find registered<br/>client tool
     Browser->>ClientTool: execute(args)
     ClientTool->>ClientTool: Update UI,<br/>localStorage, etc.
@@ -53,11 +53,50 @@ sequenceDiagram
 
 1. **Tool Call from LLM**: LLM decides to call a client tool
 2. **Server Detection**: Server sees the tool has no `execute` function
-3. **Client Notification**: Server sends a `tool-input-available` chunk to the browser
-4. **Client Execution**: The browser finds the registered `.client()` implementation by tool name and runs it with the parsed input
-5. **Result Return**: Client executes the tool and returns the result
-6. **Server Update**: Result is sent back to the server and added to the conversation
+3. **Client Notification**: Server emits an internal `client-tool-execution`
+   pause on the interrupt wire (not a public item in `interrupts`)
+4. **Client Execution**: The browser finds the registered `.client()`
+   implementation by tool name and runs it with the parsed input
+5. **Result Return**: Client auto-submits the result via the resume batch
+6. **Server Update**: Result is validated and added to the conversation
 7. **LLM Continuation**: LLM receives the result and continues the conversation
+
+Native client-tool execution shares the atomic interrupt **batch** lifecycle
+(it can gate multi-item submits) but is **auto-resolved** — you do not call
+`resolveInterrupt` for it. See [Interrupts](../interrupts/overview) for the
+ephemeral lifecycle, batches, and migration from the historical
+`tool-input-available` custom event. Durable recovery is optional and not part
+of the default client-tool path.
+
+## Approval is a separate axis
+
+A client tool can also require approval, and approval is separate from the
+browser result. Add `needsApproval: true` and the tool pauses on a
+`tool-approval` interrupt first. You resolve **that decision only** — once
+approved, the client runs the `.client()` implementation automatically and
+returns its result:
+
+```ts ignore
+const approval = interrupts.find(
+  (interrupt) =>
+    interrupt.kind === 'tool-approval' &&
+    interrupt.toolName === 'delete_local_data',
+)
+
+if (
+  approval?.kind === 'tool-approval' &&
+  approval.toolName === 'delete_local_data'
+) {
+  approval.resolveInterrupt(true)
+}
+```
+
+You never resolve the execution by hand — that is what the `.client()`
+implementation is for. If you register a tool **without** a `.client()`
+implementation and want to supply the result yourself, use `addToolResult`
+(validated against the tool's output schema); it also preserves the historical
+path for legacy streams. See [Tool approval flow](./tool-approval) for approval
+forms and [Interrupts](../interrupts/overview) for the approval lifecycle.
 
 ## Defining Client Tools
 
@@ -118,6 +157,13 @@ export async function POST(request: Request) {
 }
 ```
 
+> **Security:** registering the definitions statically (as above) is the safe
+> default — the server alone decides which tools the model sees, so a client
+> can't advertise tools you didn't sanction. If you'd instead like the client
+> to declare its tools per request via AG-UI `RunAgentInput.tools`, use
+> [`mergeAgentTools`](../migration/ag-ui-compliance#tier-3--optional-let-the-client-advertise-its-tools) —
+> read its security note first, since `params.tools` is client-controlled.
+
 ### Client-Side
 
 Create client implementations with automatic execution and full type safety:
@@ -126,7 +172,6 @@ Create client implementations with automatic execution and full type safety:
 // app/chat.tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { 
-  clientTools, 
   createChatClientOptions, 
   type InferChatMessages,
   type ToolCallPart,
@@ -167,8 +212,9 @@ const saveToLocalStorage = saveToLocalStorageDef.client((input) => {
   return { saved: true };
 });
 
-// Step 2: Create typed tools array (no 'as const' needed!)
-const tools = clientTools(updateUI, saveToLocalStorage);
+// Step 2: A plain array is all you need — literal tool names, inputs and
+// outputs are inferred without any wrapper or `as const`.
+const tools = [updateUI, saveToLocalStorage];
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
@@ -225,7 +271,7 @@ function MessageComponent({ message }: { message: ChatMessages[number] }) {
 Client tools are **automatically executed** when the model calls them. The flow is:
 
 1. LLM calls a client tool
-2. Server sends `tool-input-available` chunk to browser
+2. Server sends a `client-tool-execution` interrupt to the browser
 3. Client automatically executes the matching tool implementation
 4. Result is sent back to server
 5. Conversation continues with the result
@@ -235,7 +281,7 @@ Client tools are **automatically executed** when the model calls them. The flow 
 Client tools can receive typed runtime context as their second argument. This context is local to the `ChatClient` or framework hook instance and is not serialized to the server.
 
 ```typescript
-import { createChatClientOptions, clientTools } from "@tanstack/ai-client";
+import { createChatClientOptions } from "@tanstack/ai-client";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 import { toolDefinition } from "@tanstack/ai";
 import { toast } from "./toast";
@@ -257,7 +303,7 @@ const showToast = toolDefinition({
 
 const chatOptions = createChatClientOptions({
   connection: fetchServerSentEvents("/api/chat"),
-  tools: clientTools(showToast),
+  tools: [showToast],
   context: {
     activeProjectId,
     toast: (message) => toast(message),
@@ -268,6 +314,23 @@ const chat = useChat(chatOptions);
 ```
 
 Use `context` for local browser dependencies. If the server also needs a value from the client, send it with `forwardedProps`, validate it in your route, and map it into server `chat({ context })` explicitly. See [Runtime Context](../advanced/runtime-context) for the full pattern.
+
+## The `clientTools()` helper (optional)
+
+Passing a plain array — `tools: [toolA, toolB]` — is all you need: tool names, inputs and outputs are inferred without any wrapper and without `as const`. `clientTools()` is an optional identity helper that performs the same capture explicitly. Reach for it only when you want to build a shared, reusable tools tuple **outside** the hook/options call:
+
+```ts
+import { clientTools } from "@tanstack/ai-client";
+import { toolDefinition } from "@tanstack/ai";
+
+const notify = toolDefinition({
+  name: "notify",
+  description: "Show a notification",
+}).client(() => ({ ok: true }));
+
+// Equivalent to `const tools = [notify]` — just captured explicitly.
+const tools = clientTools(notify);
+```
 
 ## Type Safety Benefits
 

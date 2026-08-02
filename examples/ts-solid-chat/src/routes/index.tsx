@@ -88,10 +88,13 @@ function Messages(props: {
                       )
                     }
 
-                    // Approval UI
+                    // Approval UI. `'approval' in part` narrows the typed
+                    // tool-call union to the tools declared `needsApproval: true`,
+                    // which is where the `approval` field exists.
                     if (
                       part.type === 'tool-call' &&
                       part.state === 'approval-requested' &&
+                      'approval' in part &&
                       part.approval
                     ) {
                       return (
@@ -310,8 +313,7 @@ function ChatPage() {
 
   const { messages, sendMessage, isLoading, addToolApprovalResponse, stop } =
     useChat({
-      connection: chatOptions.connection,
-      tools: clientTools,
+      ...chatOptions,
       onChunk: (chunk: any) => {
         setChunks((prev) => [...prev, chunk])
       },

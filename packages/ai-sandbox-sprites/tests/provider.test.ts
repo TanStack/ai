@@ -98,6 +98,17 @@ describe('spritesSandbox provider', () => {
     void mkdirWs
   })
 
+  it('create() uses the deterministic id as the sprite name when provided', async () => {
+    installFetch({ auth: 'public' })
+    const provider = spritesSandbox({ apiKey: 'k', apiUrl: 'https://api.test' })
+    const handle = await provider.create({ id: 'deadbeefdeadbeef' })
+    expect(handle.id).toBe('deadbeefdeadbeef')
+    const post = calls.find(
+      (c) => c.method === 'POST' && c.url.endsWith('/v1/sprites'),
+    )
+    expect(post?.body).toContain('"name":"deadbeefdeadbeef"')
+  })
+
   it('create() forces configured urlAuth when the sprite differs', async () => {
     installFetch({ auth: 'public' })
     const provider = spritesSandbox({

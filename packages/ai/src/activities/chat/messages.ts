@@ -211,6 +211,7 @@ function isToolCallIncluded(part: ToolCallPart): boolean {
   return (
     part.state === 'input-complete' ||
     part.state === 'complete' ||
+    part.state === 'approval-requested' ||
     part.state === 'approval-responded' ||
     part.state === 'error' ||
     part.output !== undefined
@@ -444,12 +445,21 @@ export function modelMessageToUIMessage(
   // Handle tool calls
   if (modelMessage.toolCalls && modelMessage.toolCalls.length > 0) {
     for (const toolCall of modelMessage.toolCalls) {
+      // Model-message arguments are complete, so surface the parsed input.
+      // A malformed arguments string just leaves `input` undefined.
+      let input: unknown
+      try {
+        input = JSON.parse(toolCall.function.arguments)
+      } catch {
+        input = undefined
+      }
       parts.push({
         type: 'tool-call',
         id: toolCall.id,
         name: toolCall.function.name,
         arguments: toolCall.function.arguments,
         state: 'input-complete', // Model messages have complete arguments
+        ...(input !== undefined && { input }),
         ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
       })
     }
@@ -605,12 +615,13 @@ export function modelMessagesToUIMessages(
         })
       } else {
         // No assistant message to merge into, create a standalone one
-        const toolResultUIMessage = modelMessageToUIMessage(msg)
+        const toolResultUIMessage = modelMessageToUIMessage(msg, msg.id)
         uiMessages.push(toolResultUIMessage)
       }
     } else {
-      // Regular message
-      const uiMessage = modelMessageToUIMessage(msg)
+      // Regular message. Preserve a persisted stable id so a hydrated message
+      // keeps the same identity as its live stream (enables in-place resume).
+      const uiMessage = modelMessageToUIMessage(msg, msg.id)
       uiMessages.push(uiMessage)
 
       // Track assistant messages for potential tool result merging

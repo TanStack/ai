@@ -1,21 +1,31 @@
-// Capability tokens + accessors
+// Capability tokens + accessors (sandbox-owned only).
+// LockStore / withLocks / defineLock: import from @tanstack/ai/locks.
 export {
   SandboxCapability,
-  SandboxStoreCapability,
-  LocksCapability,
   SandboxPolicyCapability,
   ToolBridgeProvisionerCapability,
   getSandbox,
   provideSandbox,
-  getSandboxStore,
-  provideSandboxStore,
-  getLocks,
-  provideLocks,
   getSandboxPolicy,
   provideSandboxPolicy,
   getToolBridgeProvisioner,
   provideToolBridgeProvisioner,
 } from './capabilities'
+
+// Durable instance map (resume-or-create across processes).
+// Pass a store to `withSandbox(sandbox, { instances })`; the capability is the
+// ambient alternative for platform-level wiring.
+export {
+  SandboxInstanceStoreCapability,
+  getSandboxInstanceStore,
+  provideSandboxInstanceStore,
+  InMemorySandboxInstanceStore,
+  defineSandboxInstanceStore,
+} from './instance-store'
+export type {
+  SandboxInstanceStore,
+  SandboxInstanceRecord,
+} from './instance-store'
 
 // Workspace projection capability (provided by withSandbox, consumed by harness adapters)
 export {
@@ -27,6 +37,7 @@ export type { WorkspaceProjection } from './projection'
 
 // Middleware
 export { withSandbox } from './middleware'
+export type { SandboxMiddlewareOptions } from './middleware'
 
 // Sandbox definition + lifecycle
 export { defineSandbox } from './sandbox'
@@ -99,10 +110,6 @@ export type {
   SandboxRestoreInput,
   SandboxDestroyInput,
 } from './contracts'
-
-// Stores (interfaces + in-memory defaults)
-export { InMemorySandboxStore, InMemoryLockStore } from './store'
-export type { SandboxStore, LockStore, SandboxRecord } from './store'
 
 // Bootstrap engine (exported for provider/adapter authors + tests)
 export {
