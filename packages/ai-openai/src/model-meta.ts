@@ -2410,16 +2410,16 @@ export const OPENAI_CHAT_MODELS = [
   O1.name,
   O1_PRO.name,
 
-  GPT_5_4_MINI.name,
-  GPT_5_4_NANO.name,
-
-  GPT_5_4_IMAGE_2.name,
+  // GPT-5.6 / 5.5 / 5.4 extended family
   GPT_5_6.name,
   GPT_5_6_SOL.name,
   GPT_5_6_TERRA.name,
   GPT_5_6_LUNA.name,
   GPT_5_5.name,
   GPT_5_5_PRO.name,
+  GPT_5_4_MINI.name,
+  GPT_5_4_NANO.name,
+  GPT_5_4_IMAGE_2.name,
   GPT_CHAT_LATEST.name,
 ] as const
 
@@ -2800,6 +2800,14 @@ export type OpenAIChatModelToolCapabilitiesByName = {
   [O1_PRO.name]: typeof O1_PRO.supports.tools
   [GPT_5_4_MINI.name]: typeof GPT_5_4_MINI.supports.tools
   [GPT_5_4_NANO.name]: typeof GPT_5_4_NANO.supports.tools
+  [GPT_5_4_IMAGE_2.name]: typeof GPT_5_4_IMAGE_2.supports.tools
+  [GPT_5_6.name]: typeof GPT_5_6.supports.tools
+  [GPT_5_6_SOL.name]: typeof GPT_5_6_SOL.supports.tools
+  [GPT_5_6_TERRA.name]: typeof GPT_5_6_TERRA.supports.tools
+  [GPT_5_6_LUNA.name]: typeof GPT_5_6_LUNA.supports.tools
+  [GPT_5_5.name]: typeof GPT_5_5.supports.tools
+  [GPT_5_5_PRO.name]: typeof GPT_5_5_PRO.supports.tools
+  [GPT_CHAT_LATEST.name]: typeof GPT_CHAT_LATEST.supports.tools
 }
 
 /**
