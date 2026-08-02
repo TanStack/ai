@@ -799,7 +799,14 @@ const GEMINI_3_5_FLASH = {
       'structured_output',
       'thinking',
     ],
-    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],
+    tools: [
+      'code_execution',
+      'file_search',
+      'google_search',
+      'google_maps',
+      'url_context',
+      'computer_use',
+    ],
   },
   pricing: {
     input: {
@@ -840,7 +847,6 @@ const GEMINI_3_5_FLASH_LITE = {
       'google_search',
       'google_maps',
       'url_context',
-      'computer_use',
     ],
   },
   pricing: {
