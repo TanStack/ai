@@ -26,4 +26,6 @@ Compared to the WASM driver:
 
 The driver requires Bun `>= 1.3.14` and throws an error when used on Node.js.
 
+It pins `quickjs-bun` to an exact version (`0.1.2`) rather than a range, because that package is still pre-1.0 and compiles QuickJS through TinyCC/`bun:ffi` — its API and platform support may shift between patch releases (see the package README for the compatibility note and the Windows `QUICKJS_BUN_NATIVE_LIBRARY` requirement).
+
 The `@tanstack/ai-code-mode` README and bundled skill are updated to document the new driver.

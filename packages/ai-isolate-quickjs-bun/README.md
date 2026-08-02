@@ -7,6 +7,8 @@ Native QuickJS driver for TanStack AI Code Mode on the [Bun](https://bun.sh) run
 - Bun `>= 1.3.14` — the driver throws a descriptive error when used on Node.js (use `@tanstack/ai-isolate-node` or `@tanstack/ai-isolate-quickjs` there).
 - macOS or Linux on `x86_64`/`aarch64` work out of the box ([`quickjs-bun`](https://github.com/superpowerdotcom/quickjs-bun) compiles the vendored QuickJS sources on the fly with Bun's embedded TinyCC — no build tools needed). On Windows, point the `QUICKJS_BUN_NATIVE_LIBRARY` environment variable at a prebuilt QuickJS dynamic library.
 
+> **Dependency note:** this driver is built against [`quickjs-bun`](https://github.com/superpowerdotcom/quickjs-bun) `0.1.2` and pins it exactly, because `quickjs-bun` is an early-stage package (pre-1.0) that compiles QuickJS through TinyCC/`bun:ffi` — its API and platform support may change between patch releases. The version is intentionally not widened to a `^`/`~` range until the upstream API stabilizes. Consumers inherit `quickjs-bun`'s supply-chain and platform-support surface (notably the Windows `QUICKJS_BUN_NATIVE_LIBRARY` requirement above).
+
 ## Installation
 
 ```bash
@@ -84,6 +86,16 @@ Representative numbers (Apple M-series, darwin/arm64; Bun 1.3.14 for this driver
 | `return 1 + 1` (reused context)  |     0.04 ms |                   — |
 
 ¹ In our benchmark runs, the WASM driver's asyncified host tool calls repeatedly crashed the shared WASM module (`memory access out of bounds`) and hung subsequent executions, on both Node 22 and Bun 1.3.14 — e.g. deterministically after running executions with 1, 2, 3, then 4 sequential awaited tool calls in one process. Sync-only workloads were unaffected.
+
+## Testing
+
+The full behavioral suite (`tests/*.test.ts` — escape attempts, timeouts, memory/stack limits, `maxToolCalls`, concurrency) exercises a live QuickJS runtime and therefore **only runs under Bun**:
+
+```bash
+bun test ./tests   # or: pnpm --filter @tanstack/ai-isolate-quickjs-bun test:bun
+```
+
+The tests are guarded with `describe.skipIf(typeof Bun === 'undefined')`, so the repo's default Node/Vitest gate (`test:lib`) runs only the "rejects `createContext` on Node.js" case and skips the rest rather than failing. Run `test:bun` locally (or in a Bun-provisioned CI job) to cover the full matrix.
 
 ## License
 

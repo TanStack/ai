@@ -20,9 +20,23 @@ export async function createIsolateDriver(
       break
     }
     case 'quickjs-bun': {
-      const { createQuickJSBunIsolateDriver } =
-        await import('@tanstack/ai-isolate-quickjs-bun')
-      driver = createQuickJSBunIsolateDriver()
+      // The native bun:ffi driver only loads under Bun. On a Node server (the
+      // default `pnpm dev` workflow) fall back to the WASM QuickJS driver with
+      // a warning instead of throwing an opaque createContext error, so the
+      // sidebar option degrades gracefully rather than breaking the request.
+      const isBun = typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined'
+      if (isBun) {
+        const { createQuickJSBunIsolateDriver } =
+          await import('@tanstack/ai-isolate-quickjs-bun')
+        driver = createQuickJSBunIsolateDriver()
+      } else {
+        console.warn(
+          '[createIsolateDriver] QuickJS Bun driver requires running the server under Bun; falling back to QuickJS (WASM).',
+        )
+        const { createQuickJSIsolateDriver } =
+          await import('@tanstack/ai-isolate-quickjs')
+        driver = createQuickJSIsolateDriver()
+      }
       break
     }
     case 'cloudflare': {

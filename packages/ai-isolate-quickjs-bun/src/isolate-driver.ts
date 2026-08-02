@@ -92,9 +92,17 @@ export interface QuickJSBunIsolateDriverConfig {
  * Create a QuickJS isolate driver for the Bun runtime
  *
  * This driver runs QuickJS natively through `bun:ffi` (via `quickjs-bun`)
- * instead of WebAssembly. Each context gets its own QuickJS runtime with
- * dedicated memory and stack limits, so sandboxes are fully isolated from
- * each other and from the host. It requires Bun >= 1.3.14 — on Node.js use
+ * instead of WebAssembly. Each context gets its own QuickJS runtime with a
+ * dedicated heap, stack limit, and interrupt-based timeout, so sandboxes are
+ * isolated from each other at the language level and each enforces its own
+ * resource limits.
+ *
+ * Note this is *not* an OS/VM sandbox: QuickJS is compiled by TinyCC and called
+ * through `bun:ffi`, so it executes in the host process's address space. The
+ * memory "limit" is QuickJS's internal accounting (`JS_SetMemoryLimit`), not a
+ * hardware/OS boundary. For a stronger boundary use `@tanstack/ai-isolate-node`
+ * (a separate V8 isolate) or the WASM driver (WebAssembly linear-memory
+ * sandbox). It requires Bun >= 1.3.14 — on Node.js use
  * `@tanstack/ai-isolate-node` or `@tanstack/ai-isolate-quickjs` instead.
  *
  * Tools are injected as async functions that bridge back to the host.

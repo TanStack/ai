@@ -106,7 +106,8 @@ export const DEFAULT_ISOLATE_VM_OPTIONS: Array<IsolateVMOption> = [
   {
     id: 'quickjs-bun',
     name: 'QuickJS Bun',
-    description: 'Native QuickJS engine (requires running the server with Bun)',
+    description:
+      'Native QuickJS via bun:ffi — requires running the server with Bun; falls back to QuickJS (WASM) on a Node server',
     available: true,
   },
   {

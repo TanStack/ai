@@ -15,6 +15,7 @@ keywords:
   - cloudflare workers
   - sandbox
   - secure execution
+---
 
 Isolate drivers provide the secure sandbox runtimes that [Code Mode](./code-mode.md) uses to execute generated TypeScript. All drivers implement the same `IsolateDriver` interface, so you can swap them without changing any other code.
 
@@ -108,7 +109,7 @@ const driver = createQuickJSIsolateDriver({
 
 QuickJS WASM uses an asyncified execution model — the WASM module can pause while awaiting host async functions (your tools). Executions are serialized through a global queue to prevent concurrent WASM calls, which the asyncify model does not support. Fatal errors (memory exhaustion, stack overflow) are detected, the VM is disposed, and a structured error is returned. Console output is captured and returned with the result.
 
-> **Performance note:** QuickJS interprets JavaScript rather than JIT-compiling it, so compute-heavy scripts run slower than with the Node driver. For typical LLM-generated scripts that are mostly waiting on `external_`* tool calls, this difference is not significant.
+> **Performance note:** QuickJS interprets JavaScript rather than JIT-compiling it, so compute-heavy scripts run slower than with the Node driver. For typical LLM-generated scripts that are mostly waiting on `external_*` tool calls, this difference is not significant.
 
 ---
 
@@ -144,11 +145,12 @@ const driver = createQuickJSBunIsolateDriver({
 | `memoryLimit`  | `number` | `128`    | Maximum heap memory for the QuickJS runtime, in megabytes.                                                                           |
 | `timeout`      | `number` | `30000`  | Maximum wall-clock time per execution, in milliseconds.                                                                              |
 | `maxStackSize` | `number` | `524288` | Maximum call stack size in bytes (default: 512 KiB). Increase for deeply recursive code; decrease to catch runaway recursion sooner. |
+| `maxToolCalls` | `number` | `1000`   | Maximum host tool calls per execution. Bounds output and memory growth from untrusted sandbox code that fans out (e.g. `Promise.all` over a huge array); exceeding it throws a catchable error inside the sandbox. |
 
 
 ### How it works
 
-Each context gets a dedicated native QuickJS runtime with its own memory limit, stack size, and interrupt-based timeout, so contexts execute independently — unlike the WASM driver, which serializes all executions through one shared asyncified WASM module. Fatal errors (memory exhaustion, stack overflow) are detected, the VM is disposed, and a structured error is returned; create a fresh context afterwards. Console output is captured and returned with the result.
+Each context gets a dedicated native QuickJS runtime with its own memory limit, stack size, and interrupt-based timeout, so contexts execute independently — unlike the WASM driver, which serializes all executions through one shared asyncified WASM module. Fatal errors (memory exhaustion, stack overflow) are detected, the VM is disposed, and a structured error is returned; create a fresh context afterwards. A per-execution `maxToolCalls` budget bounds host tool-call fan-out. Console output is captured and returned with the result.
 
 > **Bun only:** This driver requires Bun 1.3.14 or later and throws a descriptive error when creating a context on Node.js — use the Node or QuickJS WASM driver there. On Bun, prefer this driver over the WASM one: it runs QuickJS natively, and quickjs-emscripten's asyncify bridge is unreliable for async host tool calls under Bun.
 

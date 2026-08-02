@@ -49,10 +49,20 @@ interface ToolResultEnvelope {
  * dropped for the rest of the execution.
  */
 const MAX_LOG_ENTRIES = 10_000
-const MAX_LOG_BYTES = 1_000_000
+// Measured in UTF-16 code units (`String.length`), not bytes: a cheap, bounded
+// proxy for output size. Worst-case multi-byte content can reach ~3-4x this in
+// real bytes, which is still safely bounded.
+const MAX_LOG_CHARS = 1_000_000
 
 /** Default ceiling on host tool-call invocations per execution. */
 export const DEFAULT_MAX_TOOL_CALLS = 1000
+
+/**
+ * Safety cap on how many stale promise reactions to flush before a run. A
+ * bounded loop guards against a pathological job that perpetually reschedules
+ * itself; a healthy queue drains in far fewer iterations.
+ */
+const MAX_STALE_JOB_DRAIN = 10_000
 
 /** Placeholder used when a console argument cannot be coerced to a string. */
 const UNPRINTABLE_LOG_VALUE = '[unprintable]'
@@ -97,7 +107,7 @@ export class QuickJSBunIsolateContext implements IsolateContext {
   private readonly timeout: number
   private readonly maxToolCalls: number
   private readonly logs: Array<string> = []
-  private logBytes = 0
+  private logChars = 0
   private logTruncated = false
   private readonly tasks = new Set<HostTask>()
   private toolCallsUsed = 0
@@ -168,8 +178,16 @@ export class QuickJSBunIsolateContext implements IsolateContext {
       return this.disposedResult()
     }
 
+    // A prior aborted or timed-out execution can leave promise reactions queued
+    // in the VM. Left in place, the loop in runToCompletion would run them
+    // first and attribute their console output, tool-call budget, and
+    // wall-clock to this run. Flush them now — and abandon any host tool calls
+    // a flushed reaction kicked off — before installing this run's state.
+    this.drainStaleJobs()
+    this.abortTasks()
+
     this.logs.length = 0
-    this.logBytes = 0
+    this.logChars = 0
     this.logTruncated = false
     this.toolCallsUsed = 0
     this.hostSettleError = undefined
@@ -376,14 +394,14 @@ export class QuickJSBunIsolateContext implements IsolateContext {
     if (this.logTruncated) return
     if (
       this.logs.length >= MAX_LOG_ENTRIES ||
-      this.logBytes + msg.length > MAX_LOG_BYTES
+      this.logChars + msg.length > MAX_LOG_CHARS
     ) {
       this.logTruncated = true
       this.logs.push('[log output truncated]')
       return
     }
     this.logs.push(msg)
-    this.logBytes += msg.length
+    this.logChars += msg.length
   }
 
   /**
@@ -492,7 +510,9 @@ export class QuickJSBunIsolateContext implements IsolateContext {
     }
 
     // The wrapper always passes a JSON string, but degrade gracefully if
-    // the handle dumps to something else.
+    // the handle dumps to something else. A non-string dump is harmless — the
+    // tool just sees empty args — but a *thrown* dump is not: it means the
+    // sandbox heap was exhausted while materializing the args string.
     let argsJson = '{}'
     try {
       const dumped = vm.dump(argsHandle ?? vm.undefined)
@@ -500,10 +520,17 @@ export class QuickJSBunIsolateContext implements IsolateContext {
         argsJson = dumped
       }
     } catch (error) {
-      // Fall through with empty args (JSON.parse below cannot fail on '{}').
-      // dump() rethrows VM failures as a JSException whose owned value must
-      // be released.
-      if (error instanceof this.quickjs.JSException) error.dispose()
+      // Running the tool now would invoke a real host side effect (e.g.
+      // `readFile`/`deleteRecords`) with empty `{}` args instead of the
+      // caller's real inputs, and the underlying OOM would go unclassified.
+      // Record it for the execution loop to surface (and release the VM if
+      // fatal), and abandon this tool call instead of executing it.
+      // `toNormalizedError` disposes the owned JSException value.
+      this.hostSettleError ??= this.toNormalizedError(error)
+      this.tasks.delete(task)
+      deferred.dispose()
+      task.settle()
+      return promise
     }
 
     void (async () => {
@@ -522,6 +549,23 @@ export class QuickJSBunIsolateContext implements IsolateContext {
     })()
 
     return promise
+  }
+
+  /**
+   * Flush promise reactions left queued by a prior aborted/timed-out execution
+   * so they cannot bleed into the next run. Runs the queue to completion and
+   * discards the effects (the caller resets per-run state and re-aborts tasks
+   * immediately after). Bounded, and swallows a throwing reaction so a single
+   * bad job cannot abort the whole drain.
+   */
+  private drainStaleJobs(): void {
+    for (let i = 0; i < MAX_STALE_JOB_DRAIN; i++) {
+      try {
+        if (!this.runtime.executePendingJob(1)) return
+      } catch {
+        // A stale reaction threw; discard it and keep draining the rest.
+      }
+    }
   }
 
   /** Abandon all in-flight host tool calls and release their VM handles. */
@@ -576,11 +620,17 @@ export class QuickJSBunIsolateContext implements IsolateContext {
         if (value.type === 'object' || value.type === 'array') {
           const message = this.readValueProp(value, 'message')
           if (message !== undefined) {
-            return {
-              name: this.readValueProp(value, 'name') ?? error.name,
-              message,
-              ...(error.stack !== undefined && { stack: error.stack }),
-            }
+            // Route the recovered name/message back through normalizeError so a
+            // fatal limit thrown as an Error *object* (with some heap headroom
+            // QuickJS throws `InternalError: out of memory`, and stack overflow
+            // surfaces as an `InternalError`/`RangeError` object rather than a
+            // bare `null`) is still classified as MemoryLimit/StackOverflow and
+            // releases the VM, instead of being returned verbatim and letting
+            // an exhausted VM be reused.
+            const recovered = new Error(message)
+            recovered.name = this.readValueProp(value, 'name') ?? error.name
+            if (error.stack !== undefined) recovered.stack = error.stack
+            return normalizeError(recovered)
           }
         }
         return normalizeError(error)

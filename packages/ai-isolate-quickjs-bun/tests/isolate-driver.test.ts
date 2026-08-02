@@ -299,6 +299,37 @@ describe.skipIf(typeof Bun === 'undefined')(
         expect(elapsed).toBeLessThan(1000)
         await context.dispose()
       })
+
+      it('does not leak a timed-out run’s queued jobs into the next execution', async () => {
+        const driver = createQuickJSBunIsolateDriver({ timeout: 50 })
+        const context = await driver.createContext({
+          bindings: {},
+          timeout: 50,
+        })
+
+        // Queue a microtask, then busy-loop past the deadline so the interrupt
+        // fires before the reaction can drain. Its console.log stays queued on
+        // the runtime's job queue.
+        const first = await context.execute(`
+          Promise.resolve().then(() => console.log('STALE_FROM_FIRST_RUN'));
+          const start = Date.now();
+          while (Date.now() - start < 500) { /* spin */ }
+          return 1;
+        `)
+        expect(first.success).toBe(false)
+        expect(first.error?.name).toBe('TimeoutError')
+
+        // Reusing the context must not run the previous run's stale reaction as
+        // part of — nor attribute its output to — this execution.
+        const second = await context.execute(
+          `console.log('SECOND_RUN'); return 2;`,
+        )
+        expect(second.success).toBe(true)
+        expect(second.value).toBe(2)
+        expect(second.logs).toContain('SECOND_RUN')
+        expect(second.logs ?? []).not.toContain('STALE_FROM_FIRST_RUN')
+        await context.dispose()
+      })
     })
 
     describe('execute - error handling', () => {
