@@ -9,9 +9,17 @@
  *
  * Mirrors {@link InMemoryRunEventLog} exactly.
  * Storage layout (keys scoped by `runId` so one DO can host many runs):
- * - `rec:<runId>`        → the {@link RunRecord}
+ * - `rec:<runId>`        → the {@link RunLogRecord}
  * - `evt:<runId>:<seq8>` → the chunk for that seq (seq zero-padded to 8 digits
  *                          so `list({ prefix })` returns events in seq order).
+ *
+ * LIVE-DATA MIGRATION: `rec:` values written before the run vocabulary
+ * converged on core's (see the module header in `./run-log`) are converted by
+ * {@link migrateStoredRunRecord} on first read and written back immediately, so
+ * each record pays the conversion exactly once and every read path — `get`,
+ * `append`'s precondition check, the watchdog's {@link list} — observes only
+ * the converged layout. Event values (`evt:`) are raw chunks and need no
+ * migration.
  *
  * The live-tail wake-up (the in-memory waiter set) is per-INSTANCE; if the
  * instance is evicted mid-run, a reader re-reads the persisted backlog and the
@@ -19,19 +27,26 @@
  *
  * NOTE: Workers-runtime code — compiles against `@cloudflare/workers-types`.
  */
-import { isTerminalRunStatus } from './run-log'
+import { isTerminalRunStatus } from '@tanstack/ai'
+import { migrateStoredRunRecord } from './run-log'
 import type {
-  RunError,
   RunEvent,
   RunEventLog,
   RunEventLogReadOptions,
-  RunRecord,
-  TerminalRunStatus,
+  RunLogRecord,
+  RunRecordPatch,
 } from './run-log'
-import type { StreamChunk } from '@tanstack/ai'
+import type { RunError, StreamChunk, TerminalRunStatus } from '@tanstack/ai'
 
 /** How long a post-eviction reader waits before re-polling storage (ms). */
 const TAIL_POLL_MS = 250
+
+/**
+ * What a `rec:` key may hold: the converged layout, or the pre-convergence one
+ * `migrateStoredRunRecord` still reads. Typed as the migration function's input
+ * so a read is forced through it.
+ */
+type StoredRunRecord = Parameters<typeof migrateStoredRunRecord>[0]
 
 const recKey = (runId: string): string => `rec:${runId}`
 const evtKey = (runId: string, seq: number): string =>
@@ -44,8 +59,21 @@ export class DurableObjectRunEventLog implements RunEventLog {
 
   constructor(private readonly storage: DurableObjectStorage) {}
 
-  private async require(runId: string): Promise<RunRecord> {
-    const record = await this.storage.get<RunRecord>(recKey(runId))
+  /**
+   * Read (and, when needed, migrate + write back) the record under `rec:<runId>`.
+   * The single storage read path — everything else goes through here so no
+   * caller can observe the legacy layout.
+   */
+  private async getRecord(runId: string): Promise<RunLogRecord | null> {
+    const stored = await this.storage.get<StoredRunRecord>(recKey(runId))
+    if (!stored) return null
+    const { record, migrated } = migrateStoredRunRecord(stored)
+    if (migrated) await this.storage.put(recKey(runId), record)
+    return record
+  }
+
+  private async require(runId: string): Promise<RunLogRecord> {
+    const record = await this.getRecord(runId)
     if (!record) throw new Error(`run-log: unknown runId "${runId}"`)
     return record
   }
@@ -59,16 +87,20 @@ export class DurableObjectRunEventLog implements RunEventLog {
     for (const resolve of pending) resolve()
   }
 
-  async open(input: { runId: string; threadId?: string }): Promise<RunRecord> {
-    const existing = await this.storage.get<RunRecord>(recKey(input.runId))
+  async open(input: {
+    runId: string
+    threadId: string
+    startedAt?: number
+  }): Promise<RunLogRecord> {
+    const existing = await this.getRecord(input.runId)
     if (existing) return existing
     const now = Date.now()
-    const record: RunRecord = {
+    const record: RunLogRecord = {
       runId: input.runId,
-      ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
+      threadId: input.threadId,
       status: 'running',
       lastSeq: -1,
-      createdAt: now,
+      startedAt: input.startedAt ?? now,
       updatedAt: now,
     }
     await this.storage.put(recKey(input.runId), record)
@@ -83,7 +115,11 @@ export class DurableObjectRunEventLog implements RunEventLog {
       )
     }
     const seq = record.lastSeq + 1
-    const next: RunRecord = { ...record, lastSeq: seq, updatedAt: Date.now() }
+    const next: RunLogRecord = {
+      ...record,
+      lastSeq: seq,
+      updatedAt: Date.now(),
+    }
     // One transaction so the appended event and its bumped record commit
     // together — a reader never sees a lastSeq pointing at a missing event.
     await this.storage.transaction(async (txn) => {
@@ -101,18 +137,47 @@ export class DurableObjectRunEventLog implements RunEventLog {
   ): Promise<void> {
     const record = await this.require(runId)
     if (isTerminalRunStatus(record.status)) return
-    const next: RunRecord = {
+    const now = Date.now()
+    const next: RunLogRecord = {
       ...record,
       status,
       ...(error !== undefined ? { error } : {}),
-      updatedAt: Date.now(),
+      finishedAt: now,
+      updatedAt: now,
     }
     await this.storage.put(recKey(runId), next)
     this.wake(runId)
   }
 
-  async get(runId: string): Promise<RunRecord | null> {
-    return (await this.storage.get<RunRecord>(recKey(runId))) ?? null
+  async update(runId: string, patch: RunRecordPatch): Promise<void> {
+    const record = await this.getRecord(runId)
+    if (!record) return // unknown runId is a no-op
+    const next: RunLogRecord = { ...record, ...patch, updatedAt: Date.now() }
+    await this.storage.put(recKey(runId), next)
+    // A patch may terminalize the shared status field (core's driver writes its
+    // terminal status through `RunStore.update`) — parked readers must see it
+    // now, not a TAIL_POLL_MS later.
+    this.wake(runId)
+  }
+
+  async get(runId: string): Promise<RunLogRecord | null> {
+    return this.getRecord(runId)
+  }
+
+  /**
+   * Every run record this log holds, migrated. The coordinator's stall
+   * watchdog iterates this instead of listing `rec:` keys itself, so the
+   * storage layout (and its migration) stays this module's private concern.
+   */
+  async list(): Promise<Array<RunLogRecord>> {
+    const stored = await this.storage.list<StoredRunRecord>({ prefix: 'rec:' })
+    const records: Array<RunLogRecord> = []
+    for (const [key, value] of stored) {
+      const { record, migrated } = migrateStoredRunRecord(value)
+      if (migrated) await this.storage.put(key, record)
+      records.push(record)
+    }
+    return records
   }
 
   async *read(

@@ -371,6 +371,13 @@ export class RunReaper {
 }
 ```
 
+One thing this is **not** interchangeable with: the coordinator from
+`@tanstack/ai-sandbox-cloudflare` ships a *stall watchdog* — an alarm that
+fails run records whose log has gone quiet for too long. That is log hygiene,
+not reaping: it never probes a journal for the exit sentinel and never
+reclaims a sandbox. On Cloudflare you still schedule `sweepDetachedRuns`, and
+a DO alarm like the one above is the natural place for it.
+
 ## `pruneJournals`: bounding the journal directory
 
 The reaper terminalizes runs and reclaims sandboxes. It does not tidy the

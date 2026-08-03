@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { InMemoryRunEventLog, isTerminalRunStatus } from '../src/run-log'
+import { InMemoryRunEventLog } from '../src/run-log'
 import type { StreamChunk } from '@tanstack/ai'
 
 const chunk = (text: string): StreamChunk =>
@@ -14,7 +14,7 @@ async function collect<T>(it: AsyncIterable<T>): Promise<Array<T>> {
 describe('InMemoryRunEventLog', () => {
   it('assigns gap-free monotonic seqs from 0', async () => {
     const log = new InMemoryRunEventLog()
-    await log.open({ runId: 'r1' })
+    await log.open({ runId: 'r1', threadId: 't1' })
     expect(await log.append('r1', chunk('a'))).toBe(0)
     expect(await log.append('r1', chunk('b'))).toBe(1)
     expect(await log.append('r1', chunk('c'))).toBe(2)
@@ -25,10 +25,10 @@ describe('InMemoryRunEventLog', () => {
 
   it('replays the full backlog then returns once terminal', async () => {
     const log = new InMemoryRunEventLog()
-    await log.open({ runId: 'r1' })
+    await log.open({ runId: 'r1', threadId: 't1' })
     await log.append('r1', chunk('a'))
     await log.append('r1', chunk('b'))
-    await log.finish('r1', 'done')
+    await log.finish('r1', 'completed')
 
     const events = await collect(log.read('r1'))
     expect(events.map((e) => e.seq)).toEqual([0, 1])
@@ -40,9 +40,9 @@ describe('InMemoryRunEventLog', () => {
 
   it('resumes from a cursor (fromSeq is exclusive)', async () => {
     const log = new InMemoryRunEventLog()
-    await log.open({ runId: 'r1' })
+    await log.open({ runId: 'r1', threadId: 't1' })
     for (const t of ['a', 'b', 'c', 'd']) await log.append('r1', chunk(t))
-    await log.finish('r1', 'done')
+    await log.finish('r1', 'completed')
 
     const events = await collect(log.read('r1', { fromSeq: 1 }))
     expect(events.map((e) => e.seq)).toEqual([2, 3])
@@ -50,7 +50,7 @@ describe('InMemoryRunEventLog', () => {
 
   it('live-tails: a blocked reader wakes on append and on finish', async () => {
     const log = new InMemoryRunEventLog()
-    await log.open({ runId: 'r1' })
+    await log.open({ runId: 'r1', threadId: 't1' })
 
     const seen: Array<number> = []
     const reader = (async () => {
@@ -62,7 +62,7 @@ describe('InMemoryRunEventLog', () => {
     await new Promise((r) => setTimeout(r, 0))
     await log.append('r1', chunk('b'))
     await new Promise((r) => setTimeout(r, 0))
-    await log.finish('r1', 'done')
+    await log.finish('r1', 'completed')
 
     await reader
     expect(seen).toEqual([0, 1])
@@ -70,7 +70,7 @@ describe('InMemoryRunEventLog', () => {
 
   it('a reader that joins mid-run gets backlog + live tail, resumably', async () => {
     const log = new InMemoryRunEventLog()
-    await log.open({ runId: 'r1' })
+    await log.open({ runId: 'r1', threadId: 't1' })
     await log.append('r1', chunk('a')) // seq 0 — before the reader joins
 
     const seen: Array<number> = []
@@ -80,7 +80,7 @@ describe('InMemoryRunEventLog', () => {
 
     await new Promise((r) => setTimeout(r, 0))
     await log.append('r1', chunk('b')) // seq 1 — live
-    await log.finish('r1', 'done')
+    await log.finish('r1', 'completed')
     await reader
 
     expect(seen).toEqual([0, 1])
@@ -88,7 +88,7 @@ describe('InMemoryRunEventLog', () => {
 
   it('stops tailing when the read signal aborts (client disconnect)', async () => {
     const log = new InMemoryRunEventLog()
-    await log.open({ runId: 'r1' })
+    await log.open({ runId: 'r1', threadId: 't1' })
     await log.append('r1', chunk('a'))
 
     const ac = new AbortController()
@@ -108,13 +108,15 @@ describe('InMemoryRunEventLog', () => {
   it('open is idempotent and rejects appends after terminal', async () => {
     const log = new InMemoryRunEventLog()
     const a = await log.open({ runId: 'r1', threadId: 't1' })
-    const b = await log.open({ runId: 'r1' })
-    expect(b.createdAt).toBe(a.createdAt) // same record
+    // Idempotent open returns the EXISTING record unchanged — the second
+    // call's threadId is ignored, matching core's createOrResume invariant.
+    const b = await log.open({ runId: 'r1', threadId: 't2' })
+    expect(b.startedAt).toBe(a.startedAt) // same record
     expect(b.threadId).toBe('t1')
 
-    await log.finish('r1', 'error', { message: 'boom', code: 'E' })
+    await log.finish('r1', 'failed', { message: 'boom', code: 'E' })
     const rec = await log.get('r1')
-    expect(rec?.status).toBe('error')
+    expect(rec?.status).toBe('failed')
     expect(rec?.error).toEqual({ message: 'boom', code: 'E' })
     await expect(log.append('r1', chunk('x'))).rejects.toThrow(/terminal/)
   })
@@ -123,12 +125,5 @@ describe('InMemoryRunEventLog', () => {
     const log = new InMemoryRunEventLog()
     expect(await log.get('nope')).toBeNull()
     await expect(collect(log.read('nope'))).rejects.toThrow(/unknown runId/)
-  })
-
-  it('isTerminalRunStatus classifies terminal states', () => {
-    expect(isTerminalRunStatus('done')).toBe(true)
-    expect(isTerminalRunStatus('error')).toBe(true)
-    expect(isTerminalRunStatus('aborted')).toBe(true)
-    expect(isTerminalRunStatus('running')).toBe(false)
   })
 })

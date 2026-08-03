@@ -264,7 +264,10 @@ merely slower while a wrong `follow` is a leak.
 Each of the remote providers registers the shared journal conformance suite, so
 the claim is falsifiable rather than asserted: with credentials present the suite
 runs against a real sandbox, and without them it reports a **named skip** carrying
-the reason instead of a silent pass.
+the reason instead of a silent pass. Cloudflare's gate is the runtime rather than
+credentials — its provider can only create a sandbox through a `Sandbox` Durable
+Object binding, which no Node test process has — so its registration is a named
+skip saying exactly that, until a Workers-runtime harness can measure it.
 
 This flag is required on every provider, including a bring-your-own one. A
 provider that omitted it would be treated as killable, which is the dangerous
@@ -274,3 +277,8 @@ keep running inside the sandbox for as long as the sandbox lives.
 It is the flag the [run journal](./journal) reads to decide how to tail a run's
 output: a killable provider gets a streaming `tail -f`, and a provider like
 Cloudflare gets a loop of bounded reads, each of which terminates on its own.
+
+The flag also bounds what *cancel* can mean. On a `false` provider there is no
+signal path to the agent process, so the only cancel that actually stops the
+agent is destroying the sandbox — which is what the cancel path does. See
+[what cancel means on a provider that cannot kill](./takeover#what-cancel-means-on-a-provider-that-cannot-kill).

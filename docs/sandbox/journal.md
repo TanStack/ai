@@ -336,6 +336,10 @@ async function gateAttach(runId: string) {
 
 ## Replaying a journal against a log you already delivered
 
+The rule, in one sentence: **the log wins for clients, the journal wins for the
+driver's resume position.** Everything in this section is that rule made
+mechanical.
+
 A host that translated journal bytes 0 to 1000 and appended the resulting chunks
 to a [resumable-stream](../resumable-streams/overview) log, then went away, left
 the client holding those chunks. A host reading the same journal from byte 0 will
@@ -436,6 +440,14 @@ journal would survive until the sandbox does not. `pruneJournals` from
 only the journals whose runs the `RunStore` reports terminal, and keeps
 everything else. Like the run reaper, it is a function your application
 schedules — see [Reaping & Retention](./reaping).
+
+"Until the sandbox does not" is doing real work in that sentence. On a provider
+whose capabilities declare `durableFilesystem: false` — Cloudflare is the
+bundled one — the filesystem holding the journal lives exactly as long as the
+container instance, so the journal's durability is bounded by the container's,
+not by the run's. That is the tier boundary from
+[Durable Runs Explained](./durable-runs): journal-only durability equals
+sandbox lifetime, and outliving the sandbox requires the log-first tier.
 
 ## What you can build on this today
 

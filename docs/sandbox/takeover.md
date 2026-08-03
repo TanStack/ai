@@ -488,6 +488,19 @@ calls `chat.stop()` leaks running sandboxes that keep spending tokens with nobod
 watching, and treating every disconnect as a cancel kills a user's ten-minute
 refactor on a wifi blip.
 
+### What cancel means on a provider that cannot kill
+
+On a provider whose capabilities declare `killableProcesses: false` — Daytona,
+Vercel, and Cloudflare among the bundled ones (see
+[the measured table](./providers#killableprocesses-across-the-bundled-providers))
+— no signal reaches the agent process: `kill()` does not stop it, and no
+`AbortSignal` crosses the provider boundary. There, **the sandbox destroy the
+cancel path performs is not cleanup, it is the cancel** — the only mechanism
+that actually stops the agent. Wire a cancel to anything less (mark the record
+`'aborted'`, close the log, skip the destroy) and what you have built is
+"marked cancelled, still running": the UI says stopped while the agent keeps
+working and the sandbox keeps billing.
+
 ## Single-writer safety
 
 Only one host may write a run. This is not a nicety — the client has no safety
@@ -592,7 +605,8 @@ chunks the client already has. Alignment is what makes that safe: the stored log
 is read once, the replay is verified against it by fingerprint, the matching
 prefix is suppressed, and only the remainder is appended and delivered. The log
 *is* the checkpoint, so there is no window in which a checkpoint and the log can
-disagree.
+disagree. The precedence rule this implements: **the log wins for what clients
+see; the journal wins for where the taking-over driver resumes.**
 
 Two properties make the comparison possible, and both are already true on the
 journaled path:

@@ -500,7 +500,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-03"
         },
         {
           "label": "Harnesses",
@@ -575,7 +575,8 @@
         {
           "label": "Cloudflare (Edge)",
           "to": "sandbox/cloudflare",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-03"
         }
       ]
     },

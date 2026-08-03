@@ -17,78 +17,60 @@
  *
  * ---
  *
- * SETTLED DECISION — do NOT re-open:
+ * CONVERGED VOCABULARY (v1) + LIVE-DATA MIGRATION:
  *
- * This module keeps its OWN legacy vocabulary verbatim —
- * `TerminalRunStatus = 'done' | 'error' | 'aborted'`,
- * `RunStatus = 'running' | TerminalRunStatus`,
- * `RunRecord { runId; threadId?; status; lastSeq; error?; createdAt; updatedAt }`.
- * It does **NOT** import run types from `@tanstack/ai`.
+ * This module used to keep a legacy vocabulary distinct from core's
+ * (`TerminalRunStatus = 'done' | 'error' | 'aborted'`, a `RunRecord` with
+ * `lastSeq`/`createdAt`/`updatedAt` and an optional `threadId`), deferred
+ * because adopting core's shape meant migrating the Durable Object's persisted
+ * record layout. That migration is now done: run statuses, `RunError`, and the
+ * record's lifecycle fields come from `@tanstack/ai` (`'completed' | 'failed'
+ * | 'aborted'` terminal set, `startedAt`/`finishedAt`, required `threadId`),
+ * and {@link RunLogRecord} is core's {@link RunRecord} plus the two fields only
+ * an event log needs: the `lastSeq` cursor and the `updatedAt` activity clock.
  *
- * Rationale: adopting core's shape would require migrating the Durable Object's
- * persisted record layout (`lastSeq`/`createdAt`/`updatedAt` →
- * `startedAt`/`finishedAt`/`usage`), and core's `threadId` is **required** where
- * the legacy one is optional. That is a live-data migration — incompatible with
- * Phase 1's "zero observable behavior change" — and is deferred to a later phase.
+ * Records persisted under the legacy layout are migrated **in place, on first
+ * read**, by {@link migrateStoredRunRecord}:
  *
- * (a) This vocabulary is deliberately DISTINCT from core's `@tanstack/ai` run
- *     types, and the two must NEVER be mixed.
- * (b) {@link isTerminalRunStatus} here is intentionally NOT part of this
- *     package's public surface, precisely because `@tanstack/ai` exports a
- *     same-named helper with different semantics (its terminal set is
- *     `'completed' | 'failed' | 'aborted'`). The two `RunStatus` unions are
- *     disjoint apart from the shared `'aborted'` literal, so TypeScript DOES
- *     catch a mix-up at the call site: passing a value of this module's
- *     `RunStatus` to core's helper, or assigning core's helper to a
- *     `(status: RunStatus) => boolean` typed after this module's shape, is a
- *     compile error in both directions (the latter under
- *     `strictFunctionTypes`). The only value that crosses silently is one
- *     already narrowed to `'aborted'`, and both helpers agree it is terminal,
- *     so that overlap is harmless. Keeping the helper module-internal is
- *     defence in depth on top of that compile-time guard, not the thing that
- *     prevents the mix-up: it just means an app outside this package can
- *     never import the wrong helper by name, since this one is not exported
- *     to import at all.
+ * - `status` `'done'` → `'completed'`, `'error'` → `'failed'`
+ *   (`'running'`/`'aborted'` are unchanged);
+ * - `createdAt` → `startedAt`; a terminal record gains
+ *   `finishedAt = updatedAt` (the closest stored approximation);
+ * - a record persisted without `threadId` gets `threadId = runId`. The log
+ *   performs no thread-scoped queries, so this self-reference can never leak
+ *   into thread history; it exists only to satisfy the converged shape.
  *
- *     This does NOT eliminate every collision: `RunStatus`,
- *     `TerminalRunStatus`, and `RunRecord` are still exported as public
- *     *types* from this package (via `./agent`), and core exports the same
- *     three names with different meanings. See the `Legacy`-prefixed
- *     re-export in `agent.ts` for how that is resolved.
+ * `DurableObjectRunEventLog` writes the migrated record back on the read that
+ * migrated it, so each record pays the conversion exactly once. The migration
+ * is client-visible where the record is: `GET /runs/:id` and the WebSocket
+ * terminal `status` frame now carry core's status strings and field names.
  */
-import type { StreamChunk } from '@tanstack/ai'
+import { isTerminalRunStatus } from '@tanstack/ai'
+import type {
+  RunError,
+  RunRecord,
+  RunStore,
+  StreamChunk,
+  TerminalRunStatus,
+} from '@tanstack/ai'
 
-/** A terminal run status: no further events will be appended. */
-export type TerminalRunStatus = 'done' | 'error' | 'aborted'
+/**
+ * The mutable-field patch a {@link RunStore.update} accepts, reused verbatim so
+ * the log can back a `RunStore` without restating (and drifting from) the pick.
+ */
+export type RunRecordPatch = Parameters<RunStore['update']>[1]
 
-/** Lifecycle status of a run. `done`/`error`/`aborted` are terminal. */
-export type RunStatus = 'running' | TerminalRunStatus
-
-const TERMINAL: ReadonlySet<RunStatus> = new Set<RunStatus>([
-  'done',
-  'error',
-  'aborted',
-])
-
-/** Whether a run status is terminal (no further events will be appended). */
-export function isTerminalRunStatus(status: RunStatus): boolean {
-  return TERMINAL.has(status)
-}
-
-export interface RunError {
-  message: string
-  code?: string
-}
-
-/** Durable bookkeeping for a single run. */
-export interface RunRecord {
-  runId: string
-  threadId?: string
-  status: RunStatus
+/**
+ * Durable bookkeeping for one run in the event log: core's {@link RunRecord}
+ * plus the two fields only an event log needs.
+ */
+export interface RunLogRecord extends RunRecord {
   /** Seq of the last appended event, or `-1` when no events yet. */
   lastSeq: number
-  error?: RunError
-  createdAt: number
+  /**
+   * Epoch ms of the last append or status change — the activity clock a stall
+   * watchdog reads. Distinct from `finishedAt`, which is set once, at terminal.
+   */
   updatedAt: number
 }
 
@@ -118,8 +100,17 @@ export interface RunEventLogReadOptions {
  * - All methods reject for an unknown `runId` except `get`, which resolves null.
  */
 export interface RunEventLog {
-  /** Idempotently create (or return) the run record. */
-  open: (input: { runId: string; threadId?: string }) => Promise<RunRecord>
+  /**
+   * Idempotently create (or return) the run record. An existing record is
+   * returned unchanged; `startedAt` (default `Date.now()`) applies only on
+   * first creation — matching core's `RunStore.createOrResume` invariant, which
+   * `runLogStore` maps directly onto this method.
+   */
+  open: (input: {
+    runId: string
+    threadId: string
+    startedAt?: number
+  }) => Promise<RunLogRecord>
   /** Append one chunk; resolves with its assigned `seq`. */
   append: (runId: string, chunk: StreamChunk) => Promise<number>
   /** Move the run to a terminal status. Idempotent for the same status. */
@@ -128,8 +119,21 @@ export interface RunEventLog {
     status: TerminalRunStatus,
     error?: RunError,
   ) => Promise<void>
+  /**
+   * Patch the record's mutable fields ({@link RunRecordPatch}). Unknown `runId`
+   * is a NO-OP (never a throw, never a create) — core's `RunStore.update`
+   * invariant, which `runLogStore` maps onto this method.
+   *
+   * MUST wake blocked readers, exactly like `append`/`finish`: the record and
+   * the event log share one status field here, so a driver that terminalizes
+   * through its `RunStore` — core's `pipeToRunLog` writes its terminal status
+   * via `runs.update`, not `finish` — is ending the log with this call.
+   */
+  update: (runId: string, patch: RunRecordPatch) => Promise<void>
   /** Current record, or null if the run is unknown. */
-  get: (runId: string) => Promise<RunRecord | null>
+  get: (runId: string) => Promise<RunLogRecord | null>
+  /** Every run record this log holds. Backs `RunStore.findActiveRun`. */
+  list: () => Promise<Array<RunLogRecord>>
   /** Replay-then-tail events with `seq > fromSeq` until the run is terminal. */
   read: (
     runId: string,
@@ -137,9 +141,69 @@ export interface RunEventLog {
   ) => AsyncIterable<RunEvent>
 }
 
+/**
+ * The record layout this log persisted before converging on core's run
+ * vocabulary. Never constructed by current code — it exists so
+ * {@link migrateStoredRunRecord} can name what it reads out of old storage.
+ */
+interface LegacyStoredRunRecord {
+  runId: string
+  threadId?: string
+  status: 'running' | 'done' | 'error' | 'aborted'
+  lastSeq: number
+  error?: RunError
+  createdAt: number
+  updatedAt: number
+}
+
+const LEGACY_STATUS_MAP = {
+  done: 'completed',
+  error: 'failed',
+} as const
+
+function isLegacyStoredRunRecord(
+  value: RunLogRecord | LegacyStoredRunRecord,
+): value is LegacyStoredRunRecord {
+  // `createdAt` is the discriminant: it exists on every legacy record and on no
+  // converged one. Status alone would miss legacy `running`/`aborted` records.
+  return 'createdAt' in value
+}
+
+/**
+ * Convert a stored record to the converged {@link RunLogRecord} layout.
+ *
+ * Total over both layouts: a converged record passes through unchanged
+ * (`migrated: false`), a legacy one is mapped as documented in the module
+ * header (`migrated: true`) so a durable backend can write the result back and
+ * pay the conversion exactly once.
+ */
+export function migrateStoredRunRecord(
+  stored: RunLogRecord | LegacyStoredRunRecord,
+): { record: RunLogRecord; migrated: boolean } {
+  if (!isLegacyStoredRunRecord(stored))
+    return { record: stored, migrated: false }
+  const status =
+    stored.status === 'done' || stored.status === 'error'
+      ? LEGACY_STATUS_MAP[stored.status]
+      : stored.status
+  const record: RunLogRecord = {
+    runId: stored.runId,
+    // See the module header: the log runs no thread-scoped queries, so a
+    // legacy record without a thread gets a self-reference, never a fake one.
+    threadId: stored.threadId ?? stored.runId,
+    status,
+    lastSeq: stored.lastSeq,
+    startedAt: stored.createdAt,
+    updatedAt: stored.updatedAt,
+    ...(isTerminalRunStatus(status) ? { finishedAt: stored.updatedAt } : {}),
+    ...(stored.error !== undefined ? { error: stored.error } : {}),
+  }
+  return { record, migrated: true }
+}
+
 /** Per-run state for the in-memory log. */
 interface RunState {
-  record: RunRecord
+  record: RunLogRecord
   chunks: Array<StreamChunk>
   /** Resolved (and cleared) whenever an event is appended or status changes. */
   waiters: Set<() => void>
@@ -173,16 +237,20 @@ export class InMemoryRunEventLog implements RunEventLog {
   // Mutators return a Promise without `async` so contract violations REJECT
   // (rather than throwing synchronously from a Promise-typed method — a
   // `.catch()` footgun) without an `await`-less async body.
-  open(input: { runId: string; threadId?: string }): Promise<RunRecord> {
+  open(input: {
+    runId: string
+    threadId: string
+    startedAt?: number
+  }): Promise<RunLogRecord> {
     const existing = this.runs.get(input.runId)
     if (existing) return Promise.resolve({ ...existing.record })
     const now = this.now()
-    const record: RunRecord = {
+    const record: RunLogRecord = {
       runId: input.runId,
-      ...(input.threadId !== undefined ? { threadId: input.threadId } : {}),
+      threadId: input.threadId,
       status: 'running',
       lastSeq: -1,
-      createdAt: now,
+      startedAt: input.startedAt ?? now,
       updatedAt: now,
     }
     this.runs.set(input.runId, { record, chunks: [], waiters: new Set() })
@@ -222,16 +290,34 @@ export class InMemoryRunEventLog implements RunEventLog {
       return Promise.reject(new Error(`run-log: unknown runId "${runId}"`))
     }
     if (isTerminalRunStatus(state.record.status)) return Promise.resolve()
+    const now = this.now()
     state.record.status = status
     if (error !== undefined) state.record.error = error
-    state.record.updatedAt = this.now()
+    state.record.finishedAt = now
+    state.record.updatedAt = now
     this.wake(state)
     return Promise.resolve()
   }
 
-  get(runId: string): Promise<RunRecord | null> {
+  update(runId: string, patch: RunRecordPatch): Promise<void> {
+    const state = this.runs.get(runId)
+    if (!state) return Promise.resolve() // unknown runId is a no-op
+    state.record = { ...state.record, ...patch, updatedAt: this.now() }
+    // A patch may terminalize the shared status field (core's driver writes its
+    // terminal status through `RunStore.update`) — parked readers must see it.
+    this.wake(state)
+    return Promise.resolve()
+  }
+
+  get(runId: string): Promise<RunLogRecord | null> {
     const state = this.runs.get(runId)
     return Promise.resolve(state ? { ...state.record } : null)
+  }
+
+  list(): Promise<Array<RunLogRecord>> {
+    return Promise.resolve(
+      [...this.runs.values()].map((state) => ({ ...state.record })),
+    )
   }
 
   async *read(
