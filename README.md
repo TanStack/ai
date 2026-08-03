@@ -22,6 +22,12 @@
   </a>
 </div>
 
+<div align="center">
+  <a href="https://tanstack.com/blog/tanstack-open-source-awards-2026">
+    <img src="https://raw.githubusercontent.com/TanStack/ai/main/media/js-open-source-award-2026-ai-project-of-the-year.svg" alt="Winner of the 2026 JavaScript Open Source Award for AI Project of the Year" width="360" />
+  </a>
+</div>
+
 # TanStack AI
 
 Type-safe, provider-agnostic TypeScript SDK for building streaming chat,
