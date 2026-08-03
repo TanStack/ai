@@ -267,9 +267,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@tanstack/ai-grok-build':
+      '@tanstack/ai-claude-code':
         specifier: workspace:*
-        version: link:../../packages/ai-grok-build
+        version: link:../../packages/ai-claude-code
       '@tanstack/ai-persistence':
         specifier: workspace:*
         version: link:../../packages/ai-persistence

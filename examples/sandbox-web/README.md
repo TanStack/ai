@@ -4,8 +4,8 @@ A web chat where an AI coding agent builds and runs a real app **inside a
 sandbox**, then hands back a live preview URL — and the run is **durable**: it
 survives a refresh, a closed tab, and a lost connection.
 
-The stack is deliberately fixed — **Grok Build** (the `grok` CLI, model
-`grok-4.5`) in a **Docker** sandbox — because this app is the runnable demo of
+The stack is deliberately fixed — **Claude Code** (the `claude` CLI, model
+`claude-opus-4-8`) in a **Docker** sandbox — because this app is the runnable demo of
 the [durable runs](../../docs/sandbox/durable-runs.md) journal-only tier, and
 durability's one hard requirement is that a run be reconstructible from its
 `runId` alone (the takeover route and the reaper have nothing else). One
@@ -21,7 +21,7 @@ Durable-Object sibling, running Claude Code, Codex, or Grok Build).
 2. The route runs `chat({ adapter, middleware: [withPersistence, withLocks,
 withSandbox(sandbox, { runs, durability })], … })` — see
    [`src/run-durable.ts`](./src/run-durable.ts) for the one shared assembly.
-3. `withSandbox` resumes-or-creates the thread's sandbox; the `grok` CLI runs
+3. `withSandbox` resumes-or-creates the thread's sandbox; the `claude` CLI runs
    inside it and streams its events back out through the journal.
 4. The agent scaffolds a self-contained TanStack Start app, runs its dev server
    on port **5173**, and mints the preview URL via the bridged `exposePreview`
@@ -62,7 +62,7 @@ Object) plus durable `RunStore`/`LockStore` backends.
 ## Prerequisites
 
 - a running **Docker daemon**
-- `XAI_API_KEY` (or `GROK_API_KEY`) — see [`.env.example`](./.env.example)
+- `ANTHROPIC_API_KEY` — see [`.env.example`](./.env.example)
 
 ## Run
 
@@ -72,7 +72,7 @@ pnpm install
 pnpm build
 
 cd examples/sandbox-web
-cp .env.example .env   # set XAI_API_KEY
+cp .env.example .env   # set ANTHROPIC_API_KEY
 pnpm dev               # http://localhost:3002
 ```
 
@@ -81,15 +81,15 @@ drag-and-drop and localStorage, then give me the preview URL."_ — and refresh
 the page mid-build.
 
 > The first message per thread is slow: it pulls `node:22` (once) and installs
-> the `grok` CLI in the fresh container. Pre-bake an image with the CLI and set
-> `SANDBOX_IMAGE=<your-image>` to skip that.
+> the `claude` CLI in the fresh container. Pre-bake an image with the CLI and
+> set `SANDBOX_IMAGE=<your-image>` to skip that.
 
 ## Swapping the stack
 
 The fixed choices live in one file, [`src/sandbox-agent.ts`](./src/sandbox-agent.ts):
 `buildAdapter()` (the harness), `buildSandbox()` (the provider + CLI install +
-secrets), and `missingEnv()` (the auth check). Swap `grokBuildText` for
-`claudeCodeText` / `codexText` and `dockerSandbox` for another provider and the
+secrets), and `missingEnv()` (the auth check). Swap `claudeCodeText` for
+`codexText` / `grokBuildText` and `dockerSandbox` for another provider and the
 durable wiring is unchanged — it only ever sees the definitions. If you make
 the stack a **per-request browser choice** instead, every route that arrives
 with only a `runId` (takeover, reaper) needs that choice stored server-side —

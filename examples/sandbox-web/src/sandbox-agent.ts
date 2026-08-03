@@ -1,8 +1,8 @@
 /**
- * The sandbox agent — ONE fixed stack: **Grok Build** (the `grok` CLI) running
- * in a **Docker** sandbox. Ask it to build a self-contained TanStack Start app;
- * it scaffolds inside the sandbox, runs the dev server, and hands back a live
- * preview URL.
+ * The sandbox agent — ONE fixed stack: **Claude Code** (the `claude` CLI)
+ * running in a **Docker** sandbox. Ask it to build a self-contained TanStack
+ * Start app; it scaffolds inside the sandbox, runs the dev server, and hands
+ * back a live preview URL.
  *
  * The stack is deliberately not configurable. This app is the runnable demo of
  * [durable runs](../../../docs/sandbox/durable-runs.md), and durability's one
@@ -16,10 +16,7 @@
  * URL on demand once its dev server is up.
  */
 import { toolDefinition } from '@tanstack/ai'
-import {
-  GROK_CLI_INSTALL_COMMAND,
-  grokBuildText,
-} from '@tanstack/ai-grok-build'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
 import {
   createSecrets,
   defineSandbox,
@@ -36,11 +33,16 @@ import type {
 /** Docker base image override (`node:22` ships node + npm + git). */
 const SANDBOX_IMAGE = process.env.SANDBOX_IMAGE ?? 'node:22'
 
-/** The model the in-sandbox `grok` CLI runs. */
-export const GROK_MODEL = 'grok-4.5'
+/** The model the in-sandbox `claude` CLI runs. */
+export const CLAUDE_MODEL = 'claude-opus-4-8'
 
-/** `grok agent serve` listens here for WebSocket ACP when stdin isn't wired. */
-const GROK_ACP_PORT = 2419
+/**
+ * Installs the Claude Code CLI in the fresh container. `--include=optional`
+ * matters: without it npm may skip the platform-specific native binary,
+ * leaving a `claude` that errors "native binary not installed".
+ */
+const CLAUDE_CLI_INSTALL_COMMAND =
+  'npm install -g @anthropic-ai/claude-code --include=optional'
 
 /**
  * The ONE dev-server port the agent's app must bind. The preview is wired to
@@ -50,26 +52,21 @@ const GROK_ACP_PORT = 2419
 export const PREVIEW_PORT = 5173
 
 /**
- * The harness adapter `chat()` runs.
- *
- * `streaming-json`, NOT the default `acp`: durable runs capture the agent's
- * output through the journal, and only the journaling spawn path writes one.
- * ACP drives the CLI over a bidirectional connection that never journals, so
- * with it a detached run has nothing to take over — the adapter refuses the
- * attach with `DurableAttachNotSupportedError`.
+ * The harness adapter `chat()` runs. Claude Code's one spawn path is the
+ * journaling NDJSON stream (`claude -p --output-format stream-json`), so
+ * durable runs need no protocol override — a detached run's journal is always
+ * there to take over.
  */
 export function buildAdapter(): AnyTextAdapter {
-  return grokBuildText(GROK_MODEL, { protocol: 'streaming-json' })
+  return claudeCodeText(CLAUDE_MODEL)
 }
 
 /**
- * Required env vars that are not set. The `grok` CLI authenticates headlessly
- * via `XAI_API_KEY` (`GROK_API_KEY` accepted as an alias).
+ * Required env vars that are not set. The `claude` CLI authenticates
+ * headlessly via `ANTHROPIC_API_KEY`.
  */
 export function missingEnv(): Array<string> {
-  return process.env.XAI_API_KEY || process.env.GROK_API_KEY
-    ? []
-    : ['XAI_API_KEY (or GROK_API_KEY)']
+  return process.env.ANTHROPIC_API_KEY ? [] : ['ANTHROPIC_API_KEY']
 }
 
 // ---------------------------------------------------------------------------
@@ -124,20 +121,19 @@ export const PREVIEW_GUIDANCE: string = [
 
 /** One sandbox per thread (`reuse: 'thread'`), rebuildable from the threadId. */
 export function buildSandbox(threadId: string): SandboxDefinition {
-  const key = process.env.XAI_API_KEY ?? process.env.GROK_API_KEY
+  const key = process.env.ANTHROPIC_API_KEY
   return defineSandbox({
     id: `sandbox-web-${threadId}`,
     provider: dockerSandbox({
       image: SANDBOX_IMAGE,
-      // Preview + the grok CLI's ACP port, published at create.
-      publishPorts: [PREVIEW_PORT, GROK_ACP_PORT],
+      // The preview port, published at create.
+      publishPorts: [PREVIEW_PORT],
     }),
     workspace: defineWorkspace({
       // No source to clone — the agent scaffolds a fresh app.
       source: { type: 'none' },
-      // Grok Build ships its own installer (not npm) — see https://x.ai/cli.
-      setup: ({ serial }) => serial(GROK_CLI_INSTALL_COMMAND),
-      secrets: createSecrets(key ? { XAI_API_KEY: key } : {}),
+      setup: ({ serial }) => serial(CLAUDE_CLI_INSTALL_COMMAND),
+      secrets: createSecrets(key ? { ANTHROPIC_API_KEY: key } : {}),
     }),
     lifecycle: { reuse: 'thread' },
   })

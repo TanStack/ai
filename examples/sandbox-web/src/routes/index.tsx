@@ -22,12 +22,12 @@ import {
 import type { StreamChunk } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
 
-/** CUSTOM event Grok Build emits so follow-up runs can resume its session. */
-const GROK_SESSION_ID_EVENT = 'grok-build.session-id'
+/** CUSTOM event Claude Code emits so follow-up runs can resume its session. */
+const CLAUDE_CODE_SESSION_ID_EVENT = 'claude-code.session-id'
 
 function readSessionId(chunk: StreamChunk): string | undefined {
   if (chunk.type !== EventType.CUSTOM) return undefined
-  if (chunk.name !== GROK_SESSION_ID_EVENT) return undefined
+  if (chunk.name !== CLAUDE_CODE_SESSION_ID_EVENT) return undefined
   const value = chunk.value
   if (value === null || typeof value !== 'object' || !('sessionId' in value)) {
     return undefined
@@ -405,7 +405,7 @@ function SandboxAgentChat({ initialThreadId }: { initialThreadId: string }) {
           </span>
         </div>
         <div className="ml-auto flex items-center gap-2 text-sm">
-          <span className="text-xs text-gray-500">grok-4.5 on docker</span>
+          <span className="text-xs text-gray-500">opus-4.8 on docker</span>
           <button
             onClick={newThread}
             disabled={isLoading}

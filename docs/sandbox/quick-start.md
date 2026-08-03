@@ -156,11 +156,11 @@ Because local-process inherits your host environment, you can drop the
 
 A complete, runnable app ships at
 [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web)
-— a "build me an app" agent where you pick the harness (Claude Code, Codex,
-OpenCode, Grok Build) and provider (Docker, local-process, Vercel, Daytona) per
-run from the UI; it scaffolds an app in the sandbox, runs the dev server, and
-streams back a live preview URL and the diff. For a coding agent running at the
-edge, see
+— a "build me an app" agent (Claude Code on a Docker sandbox) with durable,
+refresh-surviving runs; it scaffolds an app in the sandbox, runs the dev
+server, and streams back a live preview URL. For a coding agent running at the
+edge — with the harness (Claude Code, Codex, Grok Build) picked per run from
+the UI — see
 [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare).
 
 From here:

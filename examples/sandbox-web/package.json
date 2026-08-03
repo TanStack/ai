@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-grok-build": "workspace:*",
+    "@tanstack/ai-claude-code": "workspace:*",
     "@tanstack/ai-persistence": "workspace:*",
     "@tanstack/ai-react": "workspace:*",
     "@tanstack/ai-sandbox": "workspace:*",

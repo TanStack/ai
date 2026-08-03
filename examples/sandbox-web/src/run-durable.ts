@@ -12,7 +12,7 @@
  * - `ensureReaper`, the scheduled sweep durable runs require (a detached run
  *   nobody rejoins must not keep its sandbox alive forever).
  *
- * The whole module is small because the stack is FIXED (Grok Build on Docker):
+ * The whole module is small because the stack is FIXED (Claude Code on Docker):
  * takeover requires rebuilding a run's chat() from its `runId` alone, and with
  * one adapter and one provider the rebuild is just `threadId` → sandbox +
  * transcript. Make the stack a per-request browser choice and every route that
@@ -109,7 +109,7 @@ export function buildRunStream(input: {
   abortController: AbortController
   attach: boolean
   durability: StreamDurability
-  /** Grok session to resume for a follow-up turn (fresh runs only). */
+  /** Claude Code session to resume for a follow-up turn (fresh runs only). */
   sessionId?: string
 }): AsyncIterable<StreamChunk> {
   const { threadId, runId, abortController, attach, durability, sessionId } =

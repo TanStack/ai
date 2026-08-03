@@ -133,7 +133,7 @@ from the UI — see
 
 For a **web** chat where the agent builds and runs an app inside a sandbox and
 hands back a live preview URL — with durable, refresh-surviving runs — see
-`examples/sandbox-web` (Grok Build on Docker; the stack is fixed in one file
+`examples/sandbox-web` (Claude Code on Docker; the stack is fixed in one file
 and swappable).
 
 > **Durable instance resume:** bookkeeping defaults to in-memory (single-process).
