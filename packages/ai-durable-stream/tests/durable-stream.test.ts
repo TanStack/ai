@@ -376,19 +376,23 @@ describe('durableStream official HTTP protocol', () => {
         request.method === 'POST' &&
         request.headers.get('Stream-Closed') !== 'true',
     )
+    // Tuple 0 is the run-accepted marker's append (lost once, retried with the
+    // SAME producer seq), then the text chunk, then the terminal RUN_ERROR.
     expect(
       appendRequests.map((request) => request.headers.get('Producer-Seq')),
-    ).toEqual(['0', '0', '1'])
+    ).toEqual(['0', '0', '1', '2'])
     expect(
       new Set(
         appendRequests.map((request) => request.headers.get('Producer-Id')),
       ).size,
     ).toBe(1)
-    expect(server.batches).toHaveLength(2)
+    // Marker batch + text batch + terminal batch.
+    expect(server.batches).toHaveLength(3)
 
     const replayed: Array<StreamChunk> = []
     for await (const { chunk } of durability.read('-1')) replayed.push(chunk)
     expect(replayed.map((chunk) => chunk.type)).toEqual([
+      EventType.CUSTOM,
       EventType.TEXT_MESSAGE_CONTENT,
       EventType.RUN_ERROR,
     ])
@@ -1625,9 +1629,12 @@ describe('durableStream exact-once resume', () => {
       ),
     )
 
-    expect(server.batches).toHaveLength(1)
+    // Two batches: the run-accepted marker flushes alone, then the six text
+    // chunks coalesce into one batch.
+    expect(server.batches).toHaveLength(2)
     expect(produced.every((event) => event.id !== undefined)).toBe(true)
-    const beforeDrop = produced.slice(0, 2)
+    // produced[0] is the run-accepted marker; drop after the second TEXT chunk.
+    const beforeDrop = produced.slice(1, 3)
     const resumeOffset = beforeDrop.at(-1)?.id
     if (!resumeOffset) throw new Error('Expected a resume offset')
     expect(decodeURIComponent(resumeOffset)).not.toContain('runId')
@@ -1658,10 +1665,12 @@ describe('durableStream exact-once resume', () => {
       [...beforeDrop, ...afterDrop].map((event) => deltaFrom(event.data)),
     ).toEqual(full)
     // The producer created the stream, so it issues no read at all; the only GET
-    // is the replay the reconnecting instance issues from the resume cursor.
+    // is the replay the reconnecting instance issues from the resume cursor. The
+    // cursor sits mid-way through the TEXT batch, whose start offset is the end
+    // offset of the run-accepted marker's batch (appendOffsets[0]).
     const reads = server.requests.filter((request) => request.method === 'GET')
     expect(reads.map((read) => read.url.searchParams.get('offset'))).toEqual([
-      server.createOffset,
+      'opaque::batch-end/Z?token=%3D',
     ])
     expect(server.closeCount()).toBe(1)
   })

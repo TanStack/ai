@@ -678,7 +678,9 @@ test.describe('durable runs — takeover', () => {
     const runId = uniqueRunId('disconnect-takeover')
     const run = await SseStream.open(routeUrl({ runId, total: '6' }))
     await tick(runId, 2)
-    const before = await run.take(4)
+    // Five events now lead with the run-accepted marker: CUSTOM, RUN_STARTED,
+    // TEXT_MESSAGE_START, '1', '2'.
+    const before = await run.take(5)
     expect(contentDeltas(before)).toEqual(['1', '2'])
     await drop(runId, run)
 
@@ -699,7 +701,9 @@ test.describe('durable runs — takeover', () => {
     await tick(runId, 4)
     const delivered = await attach.drain()
 
-    expect(delivered.map(eventType)).toEqual(FULL_SEQUENCE)
+    // The from-start attach replays the run-accepted marker the producer
+    // appended, then the full run.
+    expect(delivered.map(eventType)).toEqual(['CUSTOM', ...FULL_SEQUENCE])
     expect(contentDeltas(delivered)).toEqual(['1', '2', '3', '4', '5', '6'])
 
     // The run completed for real — NOT recorded as failed by a diverged replay.
@@ -711,8 +715,12 @@ test.describe('durable runs — takeover', () => {
     expect(after.record?.status).not.toBe('failed')
     expect(after.record?.error).toBeUndefined()
     expect(after.record?.detachedSince).toBeUndefined()
-    // And the log holds each chunk exactly once, with no stored RUN_ERROR.
-    expect(after.log.map((entry) => entry.type)).toEqual(FULL_SEQUENCE)
+    // And the log holds each chunk exactly once (marker included), with no
+    // stored RUN_ERROR.
+    expect(after.log.map((entry) => entry.type)).toEqual([
+      'CUSTOM',
+      ...FULL_SEQUENCE,
+    ])
   })
 })
 
@@ -725,7 +733,7 @@ test.describe('durable runs — disconnect', () => {
     const runId = uniqueRunId('detach')
     const run = await SseStream.open(routeUrl({ runId, total: '6' }))
     await tick(runId, 2)
-    expect(contentDeltas(await run.take(4))).toEqual(['1', '2'])
+    expect(contentDeltas(await run.take(5))).toEqual(['1', '2'])
 
     await drop(runId, run)
 
@@ -763,7 +771,7 @@ test.describe('durable runs — cancel', () => {
       const runId = uniqueRunId(`cancel-${band}`)
       const run = await SseStream.open(routeUrl({ runId, total: '6' }))
       await tick(runId, 2)
-      expect(contentDeltas(await run.take(4))).toEqual(['1', '2'])
+      expect(contentDeltas(await run.take(5))).toEqual(['1', '2'])
 
       await cancel(runId, band)
       if (band === 'durable') {

@@ -1487,6 +1487,10 @@ export class ChatClient<
     void (async () => {
       let rebuilt = false
       let attached = false
+      // Whether the join FAILED (a thrown non-abort error before any chunk), as
+      // opposed to merely not delivering in time. Only a failure proves the
+      // pointer dead — see the `finally`.
+      let refused = false
       const connectTimer = setTimeout(() => {
         if (!attached) controller.abort()
       }, REJOIN_CONNECT_DEADLINE_MS)
@@ -1505,12 +1509,13 @@ export class ChatClient<
         }
       } catch (error) {
         // Pre-attach failures (unknown/evicted run, connect deadline abort)
-        // stay soft: keep the restored transcript and clear the dead pointer
-        // in `finally`. Post-attach transport/parser failures are real stream
-        // errors and must surface so the UI is not left truncated and silent.
+        // stay soft: keep the restored transcript. Post-attach transport/parser
+        // failures are real stream errors and must surface so the UI is not
+        // left truncated and silent.
         const isAbort =
           error instanceof Error &&
           (error.name === 'AbortError' || error.name === 'TimeoutError')
+        if (!attached && !isAbort) refused = true
         if (attached && !isAbort) {
           this.reportStreamError(
             error instanceof Error ? error : new Error(String(error)),
@@ -1518,10 +1523,17 @@ export class ChatClient<
         }
       } finally {
         clearTimeout(connectTimer)
-        if (!attached) {
-          // Never reached the run (unknown / evicted / unreachable in time): the
-          // pointer is dead. Clear it so it does not retry and re-pin the UI on
-          // the next load. The server's persisted transcript is still loaded.
+        if (!attached && refused) {
+          // The server REFUSED the join (unknown / evicted run): the pointer is
+          // dead. Clear it so it does not retry and re-pin the UI on the next
+          // load. The server's persisted transcript is still loaded.
+          //
+          // A connect-deadline abort (or an external abort) deliberately does
+          // NOT clear it: the run may simply not have produced yet — a durable
+          // run whose middleware is still booting a sandbox emits nothing for
+          // a while — and clearing on a timeout would permanently orphan a run
+          // that is still going. The pointer survives for the next load, which
+          // costs that load one more bounded connect attempt.
           this.lastResume = null
           this.persistor?.persistResumeSnapshot(null)
         }

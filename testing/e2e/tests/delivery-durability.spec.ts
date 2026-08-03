@@ -64,13 +64,15 @@ test.describe('delivery durability', () => {
     expect(produce.ok()).toBeTruthy()
     const produced = parseSse(await produce.text())
 
-    // Sequence: RUN_STARTED(1), content 1..5 (seq 2..6), RUN_FINISHED(7).
+    // Sequence: run-accepted marker(1), RUN_STARTED(2), content 1..5 (seq
+    // 3..7), RUN_FINISHED(8). The marker is what a fresh durable producer
+    // appends so a joiner never sees an empty log.
     expect(contentDeltas(produced)).toEqual(['1', '2', '3', '4', '5'])
     expect(produced.every((e) => e.id !== undefined)).toBeTruthy()
 
-    // Client received through seq 3 (RUN_STARTED, content "1", content "2")
-    // then dropped. Reconnect from that offset via native Last-Event-ID.
-    const resumeFrom = produced[2]!.id!
+    // Client received through content "2" (marker, RUN_STARTED, "1", "2") then
+    // dropped. Reconnect from that offset via native Last-Event-ID.
+    const resumeFrom = produced[3]!.id!
     const reconnect = await request.post('/api/durable-delivery', {
       headers: { 'Last-Event-ID': resumeFrom },
       data: {},
@@ -102,7 +104,9 @@ test.describe('delivery durability', () => {
     const joined = parseSse(await join.text())
 
     expect(contentDeltas(joined)).toEqual(['1', '2', '3', '4', '5'])
-    expect(eventType(joined[0]!)).toBe('RUN_STARTED')
+    // The from-start join replays the run-accepted marker first, then the run.
+    expect(eventType(joined[0]!)).toBe('CUSTOM')
+    expect(eventType(joined[1]!)).toBe('RUN_STARTED')
     expect(eventType(joined[joined.length - 1]!)).toBe('RUN_FINISHED')
   })
 })
@@ -201,7 +205,8 @@ test.describe('delivery durability (ndjson)', () => {
     expect(contentDeltas(produced)).toEqual(['1', '2', '3', '4', '5'])
     expect(produced.every((e) => e.id !== undefined)).toBeTruthy()
 
-    const resumeFrom = produced[2]!.id!
+    // Index 3: marker, RUN_STARTED, "1", "2" — dropped after content "2".
+    const resumeFrom = produced[3]!.id!
     const reconnect = await request.post(
       '/api/durable-delivery?transport=ndjson',
       {
@@ -238,7 +243,9 @@ test.describe('delivery durability (ndjson)', () => {
     const joined = parseNdjson(await join.text())
 
     expect(contentDeltas(joined)).toEqual(['1', '2', '3', '4', '5'])
-    expect(eventType(joined[0]!)).toBe('RUN_STARTED')
+    // The from-start join replays the run-accepted marker first, then the run.
+    expect(eventType(joined[0]!)).toBe('CUSTOM')
+    expect(eventType(joined[1]!)).toBe('RUN_STARTED')
     expect(eventType(joined[joined.length - 1]!)).toBe('RUN_FINISHED')
   })
 })

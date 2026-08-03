@@ -83,8 +83,11 @@ describe('delivery durability contract', () => {
     const close = vi.fn(() => closing.promise)
     const durability = {
       resumeFrom: () => null,
-      append: async (chunks: Array<StreamChunk>) =>
-        chunks.map((_, index) => `backend:normal:${index}`),
+      append: (() => {
+        let seq = 0
+        return async (chunks: Array<StreamChunk>) =>
+          chunks.map(() => `backend:normal:${seq++}`)
+      })(),
       read: async function* () {},
       close,
       // This fake synthesizes offsets from the batch index and never stores
@@ -244,6 +247,7 @@ describe('delivery durability contract', () => {
     const providerError = new Error('provider exploded')
     const closeError = new Error('close exploded')
     const appended: Array<StreamChunk> = []
+    let seq = 0
     const close = vi.fn(async () => {
       throw closeError
     })
@@ -251,7 +255,7 @@ describe('delivery durability contract', () => {
       resumeFrom: () => null,
       append: async (chunks: Array<StreamChunk>) => {
         appended.push(...chunks)
-        return chunks.map((_, index) => `backend:error:${index}`)
+        return chunks.map(() => `backend:error:${seq++}`)
       },
       read: async function* () {},
       close,
@@ -297,6 +301,7 @@ describe('delivery durability contract', () => {
 
   it('aggregates provider, terminal persistence, and close failures', async () => {
     const appended: Array<StreamChunk> = []
+    let seq = 0
     const durability = {
       resumeFrom: () => null,
       append: async (chunks: Array<StreamChunk>) => {
@@ -304,7 +309,7 @@ describe('delivery durability contract', () => {
         if (chunks.some((chunk) => chunk.type === 'RUN_ERROR')) {
           throw new Error('terminal persistence exploded')
         }
-        return chunks.map((_, index) => `backend:aggregate:${index}`)
+        return chunks.map(() => `backend:aggregate:${seq++}`)
       },
       read: async function* () {},
       close: async () => {

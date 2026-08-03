@@ -112,6 +112,7 @@ export {
   toHttpResponse,
   resumeHttpResponse,
   resolveResumeRunId,
+  RUN_ACCEPTED_EVENT,
 } from './stream-to-response'
 // `ResumeResponseOptions` is deliberately not exported (it is a local type
 // alias), so the driver block reaches consumers as its own named type.

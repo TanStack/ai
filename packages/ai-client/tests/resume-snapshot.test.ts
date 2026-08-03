@@ -538,14 +538,18 @@ describe('ChatClient auto-rejoin after reload', () => {
     void client
   })
 
-  it('clears a dead resume pointer when joinRun never attaches', async () => {
+  it('KEEPS the resume pointer when joinRun times out before attaching', async () => {
     const { adapter, read } = memoryAdapter({
       messages: [createUIMessage('user-1', 'hi', 'user')],
       resume: {
-        resumeState: { threadId: 't1', runId: 'gone-run' },
+        resumeState: { threadId: 't1', runId: 'quiet-run' },
       },
     })
-    // joinRun hangs until aborted by the connect deadline — never yields.
+    // joinRun hangs until aborted by the connect deadline — never yields. A
+    // timeout does NOT prove the run gone: a durable run whose middleware is
+    // still booting a sandbox legitimately produces nothing for a while, and
+    // clearing on it would permanently orphan a run that is still going. The
+    // UI must still free up, but the pointer survives for the next load.
     const joinRun = vi.fn(async function* (
       _runId: string,
       signal?: AbortSignal,
@@ -557,6 +561,53 @@ describe('ChatClient auto-rejoin after reload', () => {
         }
         signal?.addEventListener('abort', () => resolve(), { once: true })
       })
+    })
+    const connection: ResumableConnectConnectionAdapter = {
+      connect: async function* () {},
+      joinRun,
+    }
+    let status: string | undefined
+    const client = new ChatClient({
+      id: 'chat-quiet',
+      threadId: 't1',
+      connection,
+      persistence: adapter,
+      onStatusChange: (s) => {
+        status = s
+      },
+    })
+
+    await vi.waitFor(
+      () => {
+        expect(joinRun).toHaveBeenCalled()
+        expect(status).toBe('ready')
+        expect(client.getIsLoading()).toBe(false)
+      },
+      { timeout: 5_000 },
+    )
+
+    const stored = read()
+    if (!stored || Array.isArray(stored)) {
+      throw new Error('expected a persisted record with a resume pointer')
+    }
+    expect(stored.resume?.resumeState?.runId).toBe('quiet-run')
+    void client
+  })
+
+  it('clears a dead resume pointer when joinRun is REFUSED before attaching', async () => {
+    const { adapter, read } = memoryAdapter({
+      messages: [createUIMessage('user-1', 'hi', 'user')],
+      resume: {
+        resumeState: { threadId: 't1', runId: 'gone-run' },
+      },
+    })
+    // The server answers the join with a hard error (unknown / evicted run)
+    // before any chunk — the one signal that PROVES the pointer dead.
+    // An async generator that throws before its first yield — TS infers
+    // AsyncGenerator<never>, which is assignable to the joinRun contract.
+    const joinRun = vi.fn(async function* () {
+      await Promise.resolve()
+      throw new Error('Unknown or expired memory stream run: "gone-run"')
     })
     const connection: ResumableConnectConnectionAdapter = {
       connect: async function* () {},

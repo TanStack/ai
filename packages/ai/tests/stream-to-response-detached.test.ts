@@ -264,8 +264,10 @@ describe('durable delivery on a DETACHED disconnect', () => {
       middleware: fakeSandbox({ detachable: true }),
     })
 
-    // Exactly the delivered prefix, with nothing terminal appended after it.
+    // Exactly the delivered prefix (led by the run-accepted marker every
+    // fresh durable producer appends), with nothing terminal appended after.
     expect(types).toEqual([
+      EventType.CUSTOM,
       EventType.RUN_STARTED,
       EventType.TEXT_MESSAGE_START,
       EventType.TEXT_MESSAGE_CONTENT,

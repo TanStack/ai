@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { memoryStream } from '../src/stream-durability'
 import {
+  RUN_ACCEPTED_EVENT,
   resumeHttpResponse,
   resumeServerSentEventsResponse,
   toHttpResponse,
@@ -78,7 +79,10 @@ function fixedOffsetDurability(
 ): StreamDurability<string> {
   return {
     resumeFrom: () => null,
-    append: async () => offsets,
+    // Hand out `offsets` across calls, one per appended chunk, so the batch
+    // shape (the run-accepted marker flushes alone) cannot cause a
+    // count-mismatch error before the offset under test is ever validated.
+    append: async (chunks) => offsets.splice(0, chunks.length),
     close: async () => undefined,
     async *read() {
       // No replay is needed by these validation tests.
@@ -108,9 +112,14 @@ describe('toServerSentEventsResponse with durability', () => {
     const eventOffsets = events.map((event) => event.id)
 
     expect(iterated()).toBe(true)
-    expect(events).toHaveLength(5)
+    // Six, not five: a fresh durable producer appends (and forwards) the
+    // synthetic run-accepted marker before the first real chunk, so a joiner
+    // never observes an empty log for an accepted run.
+    expect(events).toHaveLength(6)
+    expect(field(events[0]!, 'type')).toBe(EventType.CUSTOM)
+    expect(field(events[0]!, 'name')).toBe(RUN_ACCEPTED_EVENT)
     expect(eventOffsets.every((offset) => offset !== undefined)).toBe(true)
-    expect(new Set(eventOffsets).size).toBe(5)
+    expect(new Set(eventOffsets).size).toBe(6)
 
     const loggedOffsets: Array<string> = []
     const loggedLabels: Array<string> = []
@@ -119,7 +128,7 @@ describe('toServerSentEventsResponse with durability', () => {
       loggedLabels.push(label(entry.chunk))
     }
     expect(loggedOffsets).toEqual(eventOffsets)
-    expect(loggedLabels).toEqual(['1', '2', '3', '4', '5'])
+    expect(loggedLabels).toEqual(['[CUSTOM]', '1', '2', '3', '4', '5'])
   })
 
   it('logs a durability close failure server-side when debug is enabled', async () => {
@@ -211,7 +220,10 @@ describe('toServerSentEventsResponse with durability', () => {
     expect(replayed.map((event) => event.id)).toEqual(
       produced.slice(2).map((event) => event.id),
     )
+    // produced[0] is the run-accepted marker, so produced[1] is chunk '1' and
+    // the replay strictly after it is '2'..'5'.
     expect(replayed.map((event) => field(event, 'delta'))).toEqual([
+      '2',
       '3',
       '4',
       '5',
@@ -235,7 +247,8 @@ describe('toServerSentEventsResponse with durability', () => {
 
     const batchSizes = appendSpy.mock.calls.map(([chunks]) => chunks.length)
     expect(batchSizes.every((size) => size <= 2)).toBe(true)
-    expect(batchSizes.reduce((sum, size) => sum + size, 0)).toBe(5)
+    // 5 stream chunks + the run-accepted marker.
+    expect(batchSizes.reduce((sum, size) => sum + size, 0)).toBe(6)
   })
 
   it('rejects a non-positive-integer batch size', () => {
@@ -258,15 +271,16 @@ describe('toServerSentEventsResponse with durability', () => {
     const { stream } = fiveChunkStream()
     const response = toServerSentEventsResponse(stream, {
       durability: {
-        adapter: fixedOffsetDurability(Array.from({ length: 5 }, () => 'same')),
+        adapter: fixedOffsetDurability(Array.from({ length: 6 }, () => 'same')),
       },
     })
 
     const events = parseSseEvents(await readBody(response))
-    expect(events).toHaveLength(1)
-    expect(events[0]?.id).toBeUndefined()
-    expect(field(events[0]!, 'type')).toBe(EventType.RUN_ERROR)
-    expect(field(events[0]!, 'message')).toMatch(/unique.*offset/i)
+    // The run-accepted marker took the first 'same' offset and was forwarded;
+    // the first REAL chunk's duplicate offset is what fails.
+    expect(events).toHaveLength(2)
+    expect(field(events[1]!, 'type')).toBe(EventType.RUN_ERROR)
+    expect(field(events[1]!, 'message')).toMatch(/unique.*offset/i)
   })
 
   it('rejects SSE offsets containing U+0000', async () => {
@@ -308,6 +322,7 @@ describe('toServerSentEventsResponse with durability', () => {
     const logged: Array<StreamChunk> = []
     for await (const { chunk } of durability.read('-1')) logged.push(chunk)
     expect(logged.map((chunk) => chunk.type)).toEqual([
+      'CUSTOM',
       'TEXT_MESSAGE_CONTENT',
       'RUN_ERROR',
     ])
@@ -359,10 +374,11 @@ describe('toHttpResponse with durability', () => {
     const eventOffsets = events.map((event) => event.id)
 
     expect(iterated()).toBe(true)
-    expect(events).toHaveLength(5)
+    expect(events).toHaveLength(6)
+    expect(field(events[0]!, 'name')).toBe(RUN_ACCEPTED_EVENT)
     expect(eventOffsets.every((offset) => offset !== undefined)).toBe(true)
-    expect(new Set(eventOffsets).size).toBe(5)
-    expect(events.map((event) => field(event, 'delta'))).toEqual([
+    expect(new Set(eventOffsets).size).toBe(6)
+    expect(events.slice(1).map((event) => field(event, 'delta'))).toEqual([
       '1',
       '2',
       '3',
@@ -422,7 +438,9 @@ describe('toHttpResponse with durability', () => {
     expect(replayed.map((event) => event.id)).toEqual(
       produced.slice(2).map((event) => event.id),
     )
+    // produced[0] is the run-accepted marker, so produced[1] is chunk '1'.
     expect(replayed.map((event) => field(event, 'delta'))).toEqual([
+      '2',
       '3',
       '4',
       '5',
@@ -454,6 +472,7 @@ describe('toHttpResponse with durability', () => {
     const logged: Array<StreamChunk> = []
     for await (const { chunk } of durability.read('-1')) logged.push(chunk)
     expect(logged.map((chunk) => chunk.type)).toEqual([
+      'CUSTOM',
       'TEXT_MESSAGE_CONTENT',
       'RUN_ERROR',
     ])
@@ -670,7 +689,10 @@ describe('resume response helpers', () => {
       await readBody(resumeServerSentEventsResponse({ adapter: join })),
     )
 
-    expect(events.map((event) => field(event, 'delta'))).toEqual([
+    // A from-start join replays the run-accepted marker first — the chunk that
+    // makes a boot-window join attach instead of fast-failing on an empty log.
+    expect(field(events[0]!, 'name')).toBe(RUN_ACCEPTED_EVENT)
+    expect(events.slice(1).map((event) => field(event, 'delta'))).toEqual([
       '1',
       '2',
       '3',
@@ -692,7 +714,8 @@ describe('resume response helpers', () => {
       await readBody(resumeHttpResponse({ adapter: join })),
     )
 
-    expect(events.map((event) => field(event, 'delta'))).toEqual([
+    expect(field(events[0]!, 'name')).toBe(RUN_ACCEPTED_EVENT)
+    expect(events.slice(1).map((event) => field(event, 'delta'))).toEqual([
       '1',
       '2',
       '3',
