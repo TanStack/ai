@@ -206,16 +206,28 @@ export function createChat<
         // connection adapter reattaches via the browser's native
         // Last-Event-ID on reconnect. We only seed interrupt (state) resume.
         syncResumeState()
+        client.attach()
+        // ONLY THE VIEW ON SCREEN HOLDS A STREAM. `onMount`'s returned function
+        // runs when the component is destroyed, which is the one automatic
+        // teardown Svelte gives us here — and it is enough, because a connection
+        // is all that must go. A page can own many chats and a browser allows
+        // only ~6 connections per origin, so one long-lived stream per chat
+        // starves every other request once a few views have been open.
+        //
+        // `detach` keeps the transcript and the resume pointer, so re-entering
+        // the view picks the run back up from the durable log.
+        return () => {
+          client.detach()
+        }
       })
     } catch {
       // Svelte lifecycle hooks are only valid during component initialization.
     }
   }
 
-  // Note: Cleanup is handled by calling stop() directly when needed.
-  // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
-  // during component initialization, so we don't add automatic cleanup here.
-  // Users should call chat.stop() in their component's cleanup if needed.
+  // Note: `dispose()` remains manual — it releases devtools and marks the client
+  // dead, which only the owner can decide. The CONNECTION is released
+  // automatically by the `onMount` teardown above.
 
   // Define methods
   const sendMessage = async (

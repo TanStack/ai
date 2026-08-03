@@ -372,6 +372,13 @@ export class ChatClient<
   private draining = false
   private sessionGenerating = false
   private readonly activeRunIds = new Set<string>()
+  /** Latched by `dispose()`; stops any late async callback starting new work. */
+  private disposed = false
+  /** Whether a view is currently watching. See `attach` / `detach`. */
+  private tailing = false
+  /** Constructor inputs `attach()` needs on every re-attach, not just the first. */
+  private readonly rejoinRunId: string | null | undefined
+  private readonly cachesMessages: boolean
   private devtoolsMounted = false
 
   private readonly callbacksRef: {
@@ -753,12 +760,52 @@ export class ChatClient<
 
     this.persistor?.hydrateAsync(persistedState)
 
+    this.rejoinRunId = rejoinRunId
+    this.cachesMessages = cachesMessages
+    // NO TAILING HERE, deliberately. Constructing a client must not open a
+    // connection.
+    //
+    // A UI framework may build a client and then throw it away — React does it on
+    // every double-invoked render, and the discarded instance is never mounted, so
+    // nothing ever calls `detach()` or `dispose()` on it. When the constructor
+    // opened a stream, that stream became unreachable and held one of the browser's
+    // ~6 connections per origin until the page reloaded. Traced with CDP: connection
+    // ids 1374/1396/1428/1437 were still held after eight thread switches, and a
+    // later request waited 210 SECONDS for a free slot (`stallMs: 210752`).
+    //
+    // Guarding inside the client cannot fix that, because the leaking instance is
+    // the one the framework discarded — every guard runs on the instance it kept.
+    // Only "idle until a view attaches" makes a thrown-away client harmless.
+    //
+    // Callers therefore drive the lifecycle: `attach()` when a view mounts,
+    // `detach()` when it unmounts. Every framework wrapper in this repo does.
+  }
+
+  /**
+   * START TAILING: re-attach to an in-flight run so its chunks arrive here.
+   *
+   * Called by the constructor, and again by a UI wrapper every time its view
+   * mounts. Idempotent — attaching while already attached does nothing — so the
+   * constructor call and a wrapper's first mount cost one attach between them.
+   *
+   * Pairs with {@link detach}. The pair exists because tailing used to begin ONLY
+   * in the constructor, which meant a view could never stop tailing and then
+   * resume: unmount had to either keep the connection open or lose it for good.
+   * Keeping it open is what starved the page — a browser allows ~6 connections per
+   * origin, and one long-lived stream per view reaches that after a handful of
+   * views, after which every other request queues (measured: an in-page fetch took
+   * over two minutes while the same request from outside the browser took 17ms).
+   */
+  attach(): void {
+    if (this.disposed || this.tailing) return
+    this.tailing = true
+
     // Full page reload with an in-flight run persisted (synchronous store):
     // re-attach to it off the server's delivery-durability log so the stream
     // finishes here. Async stores rejoin from `applyPersistedResume` once the
     // hydrate resolves. Best-effort and non-blocking.
-    if (rejoinRunId) {
-      this.maybeRejoinInFlight(rejoinRunId)
+    if (this.rejoinRunId) {
+      this.maybeRejoinInFlight(this.rejoinRunId)
     }
 
     // Server-authoritative (`persistence: true`): the client caches no transcript
@@ -766,9 +813,36 @@ export class ChatClient<
     // stable threadId. `hydrate` returns the stored transcript plus a cursor to
     // any in-flight run, which is tailed via the same joinRun path. This is what
     // makes reload AND a fresh device work with zero app glue (no loader/prop).
-    if (!cachesMessages && this.connection.hydrate) {
+    if (!this.cachesMessages && this.connection.hydrate) {
       this.hydrateFromServer()
     }
+  }
+
+  /**
+   * STOP TAILING: drop the connection, keep everything else.
+   *
+   * Called by a UI wrapper when its view unmounts. The transcript, the resume
+   * pointer and the run id all stay, so a later {@link attach} repaints instantly
+   * and re-tails from the durable log — nothing is lost, because the run keeps
+   * going server-side and its log holds every chunk.
+   *
+   * Deliberately NOT `dispose()`: this client is expected back. And deliberately
+   * not `stop()`, which means "the user ended this run" — detaching says only that
+   * nobody is watching right now.
+   *
+   * `rejoinedRunId` is cleared so the next `attach` can re-join the same run;
+   * without that reset the guard in {@link maybeRejoinInFlight} would treat the
+   * run as already joined and the view would come back silent.
+   */
+  detach(): void {
+    if (!this.tailing) return
+    // BEFORE the abort, because `resumeInFlightRun`'s cleanup reads it: a join
+    // aborted before its first chunk normally means "this run is unreachable" and
+    // clears the resume pointer. A detach is not that — the run is fine and we
+    // intend to come back — so the pointer must survive.
+    this.tailing = false
+    this.cancelInFlightStream({ setReadyStatus: true })
+    this.rejoinedRunId = null
   }
 
   private applyResumeSnapshot(snapshot: ChatResumeSnapshot): void {
@@ -823,6 +897,14 @@ export class ChatClient<
    */
   private maybeRejoinInFlight(runId: string): void {
     if (!this.connection.joinRun) return
+    // A client with no view attached must never open a connection. `tailing` is
+    // the load-bearing half: a view switch calls `detach()`, NOT `dispose()`, and
+    // an in-flight hydration resolves a moment later and lands right here — so
+    // guarding only on `disposed` let every switch open a fresh tail that nothing
+    // would ever abort. Measured with CDP: connection ids 1366/1397/1429/1460 were
+    // still held after eight switches, and a later request waited 97 SECONDS for a
+    // slot (`stallMs: 97691`).
+    if (this.disposed || !this.tailing) return
     if (this.rejoinedRunId === runId) return
     // A fresh send (or an already-running rejoin) owns the client; don't stomp it.
     if (this.isLoading || this.abortController) return
@@ -843,6 +925,7 @@ export class ChatClient<
     const hydrate = this.connection.hydrate
     if (!hydrate) return
     if (this.isLoading || this.abortController) return
+    if (this.disposed) return
     void (async () => {
       let result: ChatHydrationResult
       try {
@@ -850,6 +933,16 @@ export class ChatClient<
       } catch {
         return
       }
+      // NO VIEW IS WATCHING ANY MORE (it unmounted while this fetch was in
+      // flight). Applying anything now is pointless, and one thing is actively
+      // harmful: the branch below calls `maybeRejoinInFlight`, which opens a TAIL.
+      // A tail started here belongs to a view that has gone, so nothing will ever
+      // abort it, and a browser allows only ~6 connections per origin — so a
+      // handful of switches starve the page and every later request queues.
+      //
+      // `!this.tailing` is the case that actually bites: a switch calls `detach()`,
+      // not `dispose()`, so a `disposed`-only check let the leak straight through.
+      if (this.disposed || !this.tailing) return
       // A send may have started while the fetch was in flight — don't stomp it.
       if (this.isLoading || this.abortController) return
       if (result.messages.length > 0) {
@@ -1523,7 +1616,7 @@ export class ChatClient<
         }
       } finally {
         clearTimeout(connectTimer)
-        if (!attached && refused) {
+        if (!attached && refused && this.tailing && !this.disposed) {
           // The server REFUSED the join (unknown / evicted run): the pointer is
           // dead. Clear it so it does not retry and re-pin the UI on the next
           // load. The server's persisted transcript is still loaded.
@@ -1534,6 +1627,13 @@ export class ChatClient<
           // a while — and clearing on a timeout would permanently orphan a run
           // that is still going. The pointer survives for the next load, which
           // costs that load one more bounded connect attempt.
+          //
+          // `tailing`/`disposed` guard the same pointer from the other side: a
+          // DETACH aborts before the first chunk exactly like an unreachable run
+          // does, and a refusal that lands after the view is gone belongs to
+          // nobody. `refused` already spares the timeout case; these two spare
+          // the "no view is watching any more" case, so the pointer only ever
+          // dies for a client that is still looking at the run.
           this.lastResume = null
           this.persistor?.persistResumeSnapshot(null)
         }
@@ -2818,6 +2918,14 @@ export class ChatClient<
   }
 
   dispose(): void {
+    // FIRST, and latched: everything below is teardown, and an async callback that
+    // lands mid-teardown must not start new work. In particular a hydration fetch
+    // that resolves after this point must not open a tail — see `hydrateFromServer`.
+    this.disposed = true
+    // `unsubscribe()` below already aborts the in-flight stream (it calls
+    // `cancelInFlightStream({ abortSubscription: true })`), so disposal does drop
+    // an open tail. Verified by mutation: removing an extra abort here changes
+    // nothing, because unsubscribe covers it.
     this.unsubscribe()
     this.devtoolsBridge.dispose()
     this.devtoolsMounted = false

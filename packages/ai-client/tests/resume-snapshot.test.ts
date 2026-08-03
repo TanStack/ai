@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+﻿import { describe, expect, it, vi } from 'vitest'
 import { INTERRUPT_BINDING_VERSION } from '@tanstack/ai/client'
 import { ChatPersistor } from '../src/client-persistor'
 import { normalizeConnectionAdapter } from '../src/connection-adapters'
@@ -35,6 +35,23 @@ function memoryAdapter(initial?: ChatPersistedState | Array<UIMessage>): {
     },
     read: () => value,
   }
+}
+
+/**
+ * Construct a client and ATTACH it — what a framework wrapper does when its view
+ * mounts.
+ *
+ * Tailing deliberately no longer starts in the constructor. A UI framework may
+ * build a client and throw it away (React does on a double-invoked render), and a
+ * discarded instance is never mounted, so nothing would ever close a connection it
+ * had opened. See `ChatClient.attach`.
+ */
+function mountedChatClient(
+  options: ConstructorParameters<typeof ChatClient>[0],
+): ChatClient {
+  const client = new ChatClient(options)
+  client.attach()
+  return client
 }
 
 describe('ChatPersistor combined record', () => {
@@ -202,7 +219,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     }
 
     let latest: Array<UIMessage> = []
-    const client = new ChatClient({
+    const client = mountedChatClient({
       id: 'chat-1',
       threadId: 't1',
       connection,
@@ -228,7 +245,7 @@ describe('ChatClient auto-rejoin after reload', () => {
   it('persistence:true hydrates history AND tails a live run from the server on mount', async () => {
     // Server-authoritative: the client caches no transcript and no run pointer.
     // On mount it calls connection.hydrate(threadId), which returns the stored
-    // transcript plus a cursor to the in-flight run — the client paints the
+    // transcript plus a cursor to the in-flight run â€” the client paints the
     // history and tails the run via joinRun. No loader, no seeded pointer.
 
     const joinRun = vi.fn(async function* (_runId: string) {
@@ -248,7 +265,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     }
 
     let latest: Array<UIMessage> = []
-    const client = new ChatClient({
+    const client = mountedChatClient({
       threadId: 't1',
       connection,
       persistence: true,
@@ -287,7 +304,7 @@ describe('ChatClient auto-rejoin after reload', () => {
         }),
     }
     let latest: Array<UIMessage> = []
-    const client = new ChatClient({
+    const client = mountedChatClient({
       threadId: 't1',
       connection,
       persistence: true,
@@ -298,14 +315,14 @@ describe('ChatClient auto-rejoin after reload', () => {
     await vi.waitFor(() => {
       expect(latest.some((m) => m.id === 'a1')).toBe(true)
     })
-    // No active run → the transcript is painted and nothing is tailed.
+    // No active run â†’ the transcript is painted and nothing is tailed.
     expect(joinRun).not.toHaveBeenCalled()
     void client
   })
 
   it('persistence:true restores a pending interrupt from the server on mount', async () => {
     // Regression: a run paused on an interrupt is not "running", so there is no
-    // tail — but a reload must still re-prompt the approval. The client restores
+    // tail â€” but a reload must still re-prompt the approval. The client restores
     // it from the server hydrate result (not client storage), so a fresh client
     // (or another device) shows a resolvable interrupt keyed to the run it paused.
     const joinRun = vi.fn(async function* () {})
@@ -337,7 +354,7 @@ describe('ChatClient auto-rejoin after reload', () => {
           },
         }),
     }
-    const client = new ChatClient({
+    const client = mountedChatClient({
       threadId: 't1',
       connection,
       persistence: true,
@@ -347,7 +364,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     })
     const [item] = client.getInterrupts()
     expect(item?.kind).toBe('generic')
-    // Restored bound and resolvable, keyed to the run it paused — not tailed.
+    // Restored bound and resolvable, keyed to the run it paused â€” not tailed.
     expect(item?.canResolve).toBe(true)
     expect(item?.interruptedRunId).toBe('run-paused')
     expect(joinRun).not.toHaveBeenCalled()
@@ -391,7 +408,7 @@ describe('ChatClient auto-rejoin after reload', () => {
           },
         }),
     }
-    const client = new ChatClient({
+    const client = mountedChatClient({
       threadId: 't1',
       connection,
       persistence: true,
@@ -407,7 +424,7 @@ describe('ChatClient auto-rejoin after reload', () => {
   it('rebuilds a hydrated in-flight partial in place (no duplicate) when tailing on mount', async () => {
     // The hydrated transcript includes a PARTIAL assistant reply (a streaming
     // snapshot) carrying the same messageId the live run uses. Tailing it on
-    // mount must rebuild that bubble from the log into ONE clean message — not
+    // mount must rebuild that bubble from the log into ONE clean message â€” not
     // seed+append into "worworld", and not leave a second bubble.
 
     const joinRun = vi.fn(async function* (_runId: string) {
@@ -433,7 +450,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     }
 
     let latest: Array<UIMessage> = []
-    const client = new ChatClient({
+    const client = mountedChatClient({
       threadId: 't1',
       connection,
       persistence: true,
@@ -470,7 +487,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     }
 
     let latest: Array<UIMessage> = []
-    const client = new ChatClient({
+    const client = mountedChatClient({
       threadId: 't1',
       connection,
       // History the app fetched from the server (reconstructChat) and seeded.
@@ -520,7 +537,7 @@ describe('ChatClient auto-rejoin after reload', () => {
     }
 
     let latest: Array<UIMessage> = []
-    const client = new ChatClient({
+    const client = mountedChatClient({
       threadId: 't1',
       connection,
       persistence: asyncAdapter,
@@ -567,7 +584,7 @@ describe('ChatClient auto-rejoin after reload', () => {
       joinRun,
     }
     let status: string | undefined
-    const client = new ChatClient({
+    const client = mountedChatClient({
       id: 'chat-quiet',
       threadId: 't1',
       connection,
@@ -614,7 +631,7 @@ describe('ChatClient auto-rejoin after reload', () => {
       joinRun,
     }
     let status: string | undefined
-    const client = new ChatClient({
+    const client = mountedChatClient({
       id: 'chat-dead',
       threadId: 't1',
       connection,
@@ -640,7 +657,7 @@ describe('ChatClient auto-rejoin after reload', () => {
         expect(stored.resume).toBeUndefined()
       } else {
         // A bare message array (or a removed key) carries no resume pointer by
-        // construction — nothing further to assert on the record shape.
+        // construction â€” nothing further to assert on the record shape.
         expect(stored === undefined || Array.isArray(stored)).toBe(true)
       }
     })
@@ -673,7 +690,7 @@ describe('ChatClient auto-rejoin after reload', () => {
           interrupts: null,
         }),
     }
-    const client = new ChatClient({
+    const client = mountedChatClient({
       threadId: 't1',
       connection,
       persistence: true,
@@ -716,7 +733,7 @@ describe('ChatClient auto-rejoin after reload', () => {
       joinRun,
     }
     const onError = vi.fn()
-    const client = new ChatClient({
+    const client = mountedChatClient({
       id: 'chat-err',
       threadId: 't1',
       connection,
