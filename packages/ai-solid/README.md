@@ -1,3 +1,20 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?framework=solid&theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png?framework=solid"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png?framework=solid"
+      alt="TanStack Solid AI"
+      width="900"
+    />
+  </picture>
+</div>
 # @tanstack/ai-react
 
 React hooks for building AI chat interfaces with TanStack AI.
