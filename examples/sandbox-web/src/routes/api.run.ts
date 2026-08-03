@@ -7,14 +7,12 @@ import {
   resumeServerSentEventsResponse,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { sandboxRunDriver } from '@tanstack/ai-sandbox'
 import {
   buildRunStream,
-  driveRun,
   driving,
   ensureReaper,
-  locks,
   runs,
+  takeoverDriver,
 } from '../run-durable'
 import { missingEnv } from '../sandbox-agent'
 import type { ModelMessage } from '@tanstack/ai'
@@ -126,7 +124,7 @@ export const Route = createFileRoute('/api/run')({
       createHandlers({
         POST: {
           middleware: [runBodyMiddleware],
-          handler: ({ request, context }) => {
+          handler: async ({ request, context }) => {
             ensureReaper()
             const {
               messages,
@@ -160,6 +158,19 @@ export const Route = createFileRoute('/api/run')({
 
             try {
               driving.set(runId, abortController)
+
+              // Create the run record at ACCEPT time, for the same reason the
+              // durable producer appends its run-accepted marker: the record
+              // otherwise appears only when the stream starts — AFTER sandbox
+              // boot — and a takeover GET that lands in that window finds no
+              // record, declines to drive (by design), and nobody ever
+              // retries. `withPersistence`'s own createOrResume later is
+              // idempotent against this one.
+              await runs.createOrResume({
+                runId,
+                threadId,
+                startedAt: Date.now(),
+              })
 
               // ONE durability adapter instance for the middleware and the
               // response, so the journal path and the delivery log describe
@@ -212,13 +223,9 @@ export const Route = createFileRoute('/api/run')({
               // gone" (the default 100ms is tuned for plain chat, where an
               // empty log really does mean the run is gone).
               adapter: memoryStream(request, { firstChunkDeadlineMs: 10_000 }),
-              driver: sandboxRunDriver({
-                request,
-                runs,
-                locks,
-                durability: () => memoryStream(request),
-                drive: driveRun,
-              }),
+              // `sandboxRunDriver` with a retrying claim — see run-durable.ts
+              // for why one attempt is not enough on a refresh-during-boot.
+              driver: takeoverDriver(request),
             })
           },
         },

@@ -28,7 +28,10 @@ import {
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { z } from 'zod'
 import type { AnyTextAdapter } from '@tanstack/ai'
-import type { SandboxDefinition } from '@tanstack/ai-sandbox'
+import type {
+  SandboxDefinition,
+  SandboxEnsureContext,
+} from '@tanstack/ai-sandbox'
 
 /** Docker base image override (`node:22` ships node + npm + git). */
 const SANDBOX_IMAGE = process.env.SANDBOX_IMAGE ?? 'node:22'
@@ -46,9 +49,17 @@ const GROK_ACP_PORT = 2419
  */
 export const PREVIEW_PORT = 5173
 
-/** The harness adapter `chat()` runs. */
+/**
+ * The harness adapter `chat()` runs.
+ *
+ * `streaming-json`, NOT the default `acp`: durable runs capture the agent's
+ * output through the journal, and only the journaling spawn path writes one.
+ * ACP drives the CLI over a bidirectional connection that never journals, so
+ * with it a detached run has nothing to take over — the adapter refuses the
+ * attach with `DurableAttachNotSupportedError`.
+ */
 export function buildAdapter(): AnyTextAdapter {
-  return grokBuildText(GROK_MODEL)
+  return grokBuildText(GROK_MODEL, { protocol: 'streaming-json' })
 }
 
 /**
@@ -142,6 +153,10 @@ export function buildSandbox(threadId: string): SandboxDefinition {
 export function makeExposePreviewTool(
   definition: SandboxDefinition,
   threadId: string,
+  // The caller's shared instance bookkeeping, so this resolves the run's REAL
+  // sandbox instead of minting a fresh one (a definition's fallback store is
+  // per-definition, and definitions are rebuilt per request).
+  bookkeeping?: Pick<SandboxEnsureContext, 'store' | 'locks'>,
 ) {
   return toolDefinition({
     name: 'exposePreview',
@@ -160,6 +175,7 @@ export function makeExposePreviewTool(
     const handle = await definition.ensure({
       threadId,
       runId: 'expose-preview',
+      ...bookkeeping,
     })
     const channel = await handle.ports.connect(port)
     return { url: channel.url }
