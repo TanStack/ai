@@ -33,6 +33,7 @@ import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
@@ -195,6 +196,11 @@ const ApiToolCallLifecycleWireRoute =
 const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   id: '/api/summarize',
   path: '/api/summarize',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSandboxToolHistoryRoute = ApiSandboxToolHistoryRouteImport.update({
+  id: '/api/sandbox-tool-history',
+  path: '/api/sandbox-tool-history',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSandboxDurabilityRoute = ApiSandboxDurabilityRouteImport.update({
@@ -458,6 +464,7 @@ export interface FileRoutesByFullPath {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
+  '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -524,6 +531,7 @@ export interface FileRoutesByTo {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
+  '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -591,6 +599,7 @@ export interface FileRoutesById {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
+  '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -659,6 +668,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/sandbox-durability'
+    | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -725,6 +735,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/sandbox-durability'
+    | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -791,6 +802,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/sandbox-durability'
+    | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -858,6 +870,7 @@ export interface RootRouteChildren {
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
+  ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
@@ -1035,6 +1048,13 @@ declare module '@tanstack/react-router' {
       path: '/api/summarize'
       fullPath: '/api/summarize'
       preLoaderRoute: typeof ApiSummarizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sandbox-tool-history': {
+      id: '/api/sandbox-tool-history'
+      path: '/api/sandbox-tool-history'
+      fullPath: '/api/sandbox-tool-history'
+      preLoaderRoute: typeof ApiSandboxToolHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/sandbox-durability': {
@@ -1431,6 +1451,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
+  ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,

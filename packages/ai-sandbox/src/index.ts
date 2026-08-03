@@ -39,6 +39,12 @@ export type { WorkspaceProjection } from './projection'
 export { withSandbox } from './middleware'
 export type { SandboxMiddlewareOptions } from './middleware'
 
+// Harness tool history: `withSandbox` records the tool calls a harness ran INSIDE the
+// sandbox into the transcript, so a finished run restores its tool cards. This is how
+// an app recognises them — e.g. in its own `MessageStore.saveThread`, to cap or drop
+// what it does not want to store.
+export { isSandboxToolCall } from './tool-history'
+
 // Sandbox definition + lifecycle
 export { defineSandbox } from './sandbox'
 export type {

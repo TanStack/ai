@@ -142,6 +142,122 @@ See [Custom Events Reference](../protocol/custom-events) for the full typed
 event taxonomy, the `ChatStream` type this narrowing relies on, and the
 tradeoff for your own `emitCustomEvent` calls.
 
+## What gets stored, and what does not
+
+The stream is one thing; the transcript your app keeps is another. With
+[chat persistence](../persistence/chat-persistence) wired next to `withSandbox`, a finished
+run leaves this in the message store:
+
+| What the harness produced | Stored? |
+| --- | --- |
+| Text | Yes — as the assistant message. |
+| Tool calls (name + arguments) | Yes — as `toolCalls` on an assistant message. |
+| Tool results | Yes — as a `role: 'tool'` message. |
+| Reasoning / thinking | No. |
+| `CUSTOM` events (all of them: file events, code-mode console, session ids) | No. |
+
+Every recorded call is marked, and `isSandboxToolCall` from `@tanstack/ai-sandbox`
+reads that mark — see [Trimming what you keep](#trimming-what-you-keep).
+
+Tool calls are stored because a harness runs its tools **inside** the sandbox, so
+`chat()` only relays their chunks — it never executes them and so never wrote a
+message for them. Without that record, a reload after the run finished restored the
+prompt and the final text and nothing else, because the only other copy of the tool
+history is the run's delivery log, and a finished run has nothing left to rejoin.
+Reopening the thread now rebuilds the tool cards, results included, on any device.
+
+`CUSTOM` events are not messages and are not stored. If your UI keeps state from them
+(a file-event list, a console panel), that state is per-visit. Store it yourself if
+you need it back.
+
+### Trimming what you keep
+
+A single run's tool output can be hundreds of kilobytes, and the results are handed
+to your store whole — nothing is truncated for you. Your own `MessageStore` decides
+what to keep, and `isSandboxToolCall` tells you which calls came from the harness:
+
+```ts
+import { isSandboxToolCall } from "@tanstack/ai-sandbox";
+import type { ModelMessage } from "@tanstack/ai";
+
+export function isSandboxHistory(message: ModelMessage): boolean {
+  const calls = message.toolCalls;
+  return calls !== undefined && calls.length > 0 && calls.every(isSandboxToolCall);
+}
+```
+
+It reads the marker the recorder writes, so you never have to know the key. It also
+accepts a rendered `tool-call` part, whose `metadata` is copied from the message — so
+the same helper filters a client-side view.
+
+Capping each result keeps the cards and bounds the size:
+
+```ts
+import type { ModelMessage } from "@tanstack/ai";
+import type { MessageStore } from "@tanstack/ai-persistence";
+import { db } from "./db";
+
+const MAX_RESULT = 8_000;
+
+const store: MessageStore = {
+  async saveThread(threadId, messages) {
+    const capped = messages.map((message: ModelMessage) =>
+      message.role === "tool" && typeof message.content === "string"
+        ? { ...message, content: message.content.slice(0, MAX_RESULT) }
+        : message,
+    );
+    await db.saveThread(threadId, capped);
+  },
+  loadThread: (threadId) => db.loadThread(threadId),
+};
+```
+
+Dropping the history altogether takes one more step: a tool result whose call is
+gone is worse than either — providers reject an orphan — so remove the results with
+their calls.
+
+```ts
+import { isSandboxToolCall } from "@tanstack/ai-sandbox";
+import type { ModelMessage } from "@tanstack/ai";
+import type { MessageStore } from "@tanstack/ai-persistence";
+import { db } from "./db";
+
+const store: MessageStore = {
+  async saveThread(threadId, messages) {
+    const dropped = new Set<string>();
+    const kept: Array<ModelMessage> = [];
+    for (const message of messages) {
+      const calls = message.toolCalls;
+      if (calls && calls.length > 0 && calls.every(isSandboxToolCall)) {
+        for (const call of calls) dropped.add(call.id);
+        continue;
+      }
+      if (
+        message.role === "tool" &&
+        message.toolCallId !== undefined &&
+        dropped.has(message.toolCallId)
+      ) {
+        continue;
+      }
+      kept.push(message);
+    }
+    await db.saveThread(threadId, kept);
+  },
+  loadThread: (threadId) => db.loadThread(threadId),
+};
+```
+
+Dropping them is safe: they are display history. Nothing resumes from them — they are
+stripped from the request to the model on the next turn anyway, precisely because they
+name tools the provider was never given, and one run of them is far too many tokens to
+replay.
+
+Two smaller things worth knowing. Intermediate narration is not restored as separate
+bubbles: all of the harness's text arrives as one final assistant message, so a
+restored thread reads as the tool cards in the order they ran, then the full text.
+And a stored tool result is the string the harness reported — the same bytes the live
+card showed, not a re-run of the tool.
+
 ## Related
 
 - [Observability](./observability) — server-side file-event hooks (with `before()`/`after()`/`diff()`), debug logging, and the low-level watcher.

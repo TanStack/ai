@@ -23,7 +23,11 @@ import {
   wasCancelRequested,
 } from '@tanstack/ai'
 import { InMemoryLockStore, LocksCapability } from '@tanstack/ai/locks'
-import { getSandboxRuntime } from '@tanstack/ai/adapter-internals'
+import {
+  getPendingTurn,
+  getRunDisconnect,
+  getSandboxRuntime,
+} from '@tanstack/ai/adapter-internals'
 import {
   SandboxCapability,
   provideSandbox,
@@ -38,6 +42,10 @@ import { computeWorkspaceHash } from './key'
 import { buildFileHookEvent, resolveFileEvents } from './file-diff'
 import { ProjectionCapability, provideWorkspaceProjection } from './projection'
 import { resolveSecret } from './secrets'
+import {
+  createToolHistoryRecorder,
+  stripObservedToolCalls,
+} from './tool-history'
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
@@ -55,6 +63,7 @@ import type {
   SandboxRunDurability,
 } from './durability'
 import type { SandboxInstanceStore } from './instance-store'
+import type { ToolHistoryRecorder } from './tool-history'
 import type { SandboxHandle } from './contracts'
 import type {
   SandboxDefinition,
@@ -65,7 +74,21 @@ import type { SandboxWatchHandle } from './watch'
 
 /** Per-request state we need to carry from `setup` to the terminal hooks. */
 interface SandboxRunState {
-  handle: SandboxHandle
+  /**
+   * OPTIONAL because the state is registered BEFORE `definition.ensure()` is
+   * awaited, and `ensure` is the slowest thing in the whole run — cloning a repo
+   * into a fresh sandbox is minutes wide. That window is where the most common
+   * disconnect of all lands (a user starts a run and switches away while the UI
+   * still says "starting the sandbox"), so it is the one window the teardown and
+   * disconnect hooks most need to be able to act in. Registering only after the
+   * handle exists left exactly that window uncovered.
+   *
+   * Nothing the disconnect path does needs the handle: `detachedSince` and
+   * `sandboxKey` come from `ensureCtx`, which is built before `ensure` is called.
+   * Only `onFinish`'s snapshot needs it, and that cannot run before `setup` has
+   * completed.
+   */
+  handle?: SandboxHandle
   ensureCtx: SandboxEnsureContext
   watcher?: SandboxWatchHandle
   /** In-flight `enriched.diff()` promises queued by the `fileEvents.diff`
@@ -80,6 +103,12 @@ interface SandboxRunState {
    * on the capability bus.
    */
   durability?: SandboxRunDurability
+  /**
+   * Records the harness's own tool calls into the transcript, so a finished run
+   * restores its tool cards from the message store instead of only from the (live,
+   * rejoin-only) delivery log. See `./tool-history`.
+   */
+  toolHistory: ToolHistoryRecorder
 }
 
 const runState = new WeakMap<object, SandboxRunState>()
@@ -104,6 +133,79 @@ async function drainWatcher(
   }
   await Promise.allSettled(state.pendingDiffs)
   if (state.watcher) state.logger?.sandbox('sandbox watcher stopped', { phase })
+}
+
+/**
+ * Record the two facts a later attach and the reaper both need, then publish the
+ * detach verdict core reads.
+ *
+ * Shared by the DISCONNECT subscriber registered in `setup` (the run is still
+ * going — the normal case) and `onAbort`'s detach branch (the run is being torn
+ * down while detachable), so the two can never write a different shape of detach.
+ *
+ * GUARDED, and reports failure rather than throwing. `update` is a documented
+ * no-op for an unknown runId, so a vanished record does not turn teardown into a
+ * throw; a genuinely rejecting store is the caller's to react to — `onAbort` falls
+ * through to destroying the sandbox, because a DESTROYED sandbox beats an
+ * unreachable one, while the disconnect subscriber has nothing to fall back to
+ * (the run is alive and still using the sandbox) and simply leaves the verdict
+ * unpublished.
+ *
+ * The verdict is published ONLY on success. Publishing it after a failed record
+ * write would leave core holding the log open for a takeover that can never be
+ * found, since nothing in the store points at the run.
+ */
+async function recordDetach(
+  definition: SandboxDefinition,
+  state: SandboxRunState,
+  durability: SandboxRunDurability,
+  ctx: ChatMiddlewareContext,
+  phase: 'disconnect' | 'abort',
+): Promise<boolean> {
+  try {
+    // The record already exists: `setup` pre-creates it for every durable run
+    // BEFORE `ensure`, precisely so this stamp cannot land on a runId the store has
+    // never heard of — `RunStore.update` is a documented no-op for an unknown
+    // runId, which is how the detach used to be lost silently (measured against the
+    // browser repro: `detached_since` and `sandbox_key` both stayed NULL for a run
+    // that had genuinely detached). If it has since vanished, that no-op is the
+    // correct outcome and this must not throw.
+    await durability.runs.update(ctx.runId, {
+      detachedSince: Date.now(),
+      sandboxKey: definition.key(state.ensureCtx),
+    })
+  } catch (error) {
+    state.logger?.warn('sandbox detach record write failed', {
+      runId: ctx.runId,
+      phase,
+      error,
+    })
+    return false
+  }
+  // Core's durable delivery sink reads this (see `RunDetachedCapability`) and
+  // leaves the run's log OPEN instead of appending a synthetic terminal
+  // `RUN_ERROR` and closing it — a terminalized log ends a later attach's replay
+  // at the prefix and diverges the takeover's journal replay, which recorded a
+  // healthy detached run as `'failed'`.
+  provideRunDetached(ctx, true)
+  return true
+}
+
+/**
+ * Whether an out-of-band cancel has been recorded for this run, in EITHER band.
+ * A user pressing Stop and a user closing the tab produce the IDENTICAL
+ * connection close, so intent is never inferred from the disconnect itself: it
+ * arrives in-process (the abort reason carried the cancel sentinel) or durably
+ * (another host recorded it on the run record).
+ */
+async function cancelIntent(
+  durability: SandboxRunDurability | undefined,
+  runId: string,
+  inProcess: boolean,
+): Promise<boolean> {
+  if (inProcess) return true
+  if (durability === undefined) return false
+  return wasCancelRequested(durability.runs, runId)
 }
 
 /** Defensively pull tenant scoping out of the runtime context, if present. */
@@ -246,9 +348,6 @@ export function withSandbox<TOffset extends string = string>(
 
     async setup(ctx) {
       const ensureCtx = buildEnsureCtx(ctx, options)
-      const handle = await definition.ensure(ensureCtx)
-      provideSandbox(ctx, handle)
-      if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
 
       // Resolving here (not lazily on the abort path) is what keeps `setup` and
       // `onAbort` on one verdict: the payload the bus carries is the same object
@@ -271,35 +370,143 @@ export function withSandbox<TOffset extends string = string>(
       const runtime = getSandboxRuntime(ctx, { optional: true })
       const logger = runtime?.logger
 
-      // REGISTER THE RUN STATE NOW, not at the end of `setup`.
+      // REGISTER THE RUN STATE NOW — before `definition.ensure()`, not merely
+      // before the end of `setup`.
       //
-      // `onAbort` opens with `if (!state) return`, so until this map is populated
-      // an abort is a silent no-op — and everything below (git baseline capture,
-      // workspace projection, watcher start) is slow enough to be a real window.
-      // The most common disconnect of all lands inside it: a user starts a run
-      // and switches away while the UI still says "starting the sandbox".
+      // `onAbort` and the disconnect subscriber both need this state, so until
+      // this map is populated they are silent no-ops. `ensure` is the LONGEST
+      // await in the entire run (create a sandbox, clone a repo — minutes), and it
+      // is where the most common disconnect of all lands: a user starts a run and
+      // switches away while the UI still says "starting the sandbox". Registering
+      // after `ensure` returned still left that whole window uncovered.
       //
-      // Leaving that window uncovered loses all three teardown behaviors at once:
-      // no `detachedSince`/`sandboxKey`, so `listReclaimable` can never surface
-      // the run and the reaper can never reclaim it; no `definition.destroy`, so
-      // the sandbox leaks; and no detach verdict, so core takes its `!detached`
-      // branch and CLOSES the delivery log — after which no attach can ever tail
-      // the run, which presents as "durability does nothing" while the agent is
-      // still working.
+      // Leaving it uncovered loses every teardown behavior at once: no
+      // `detachedSince`/`sandboxKey`, so `listReclaimable` can never surface the
+      // run and the reaper can never reclaim it; no `definition.destroy`, so the
+      // sandbox leaks; and no detach verdict for core to read.
       //
-      // Everything `onAbort` actually reads is already resolved above: the
-      // handle, the ensure context (for `definition.key`), the durability verdict,
-      // and the logger. The fields discovered later (`watcher`) are ASSIGNED onto
-      // this same object as they become available, so the abort path always sees
-      // the most complete state that exists at the moment it runs.
+      // Everything those hooks read is already resolved above: the ensure context
+      // (which is all `definition.key` needs), the durability verdict, and the
+      // logger. The fields discovered later (`handle`, `watcher`) are ASSIGNED onto
+      // this same object as they become available, so the teardown path always
+      // sees the most complete state that exists at the moment it runs.
       const state: SandboxRunState = {
-        handle,
         ensureCtx,
         pendingDiffs: [],
+        toolHistory: createToolHistoryRecorder(),
         ...(logger ? { logger } : {}),
         ...(durability ? { durability } : {}),
       }
       runState.set(ctx, state)
+
+      // MAKE THE RUN FINDABLE BEFORE `ensure`, not after the run finally streams.
+      //
+      // Chat persistence creates the run record from `onConfig`, which runs after
+      // EVERY middleware `setup` — so for the whole of `definition.ensure` (create a
+      // sandbox, clone a repo: minutes) the run has no record at all, and
+      // `findActiveRun` answers "no active run" for a run that is demonstrably
+      // starting. Measured: a status sidebar read straight off `findActiveRun`
+      // reported `idle` for 6.5 minutes while the sandbox was being built, and a
+      // client returning to the thread in that window had nothing to tell it a run
+      // was in flight — so it rendered an empty pane instead of "starting sandbox".
+      //
+      // A crash in the same window is worse: no record means `listReclaimable` can
+      // never surface the run, so the sandbox leaks with no recovery path.
+      //
+      // `createOrResume` is idempotent and never resurrects a finished run, so
+      // persistence's own later call stays correct and simply finds this record.
+      if (durability !== undefined) {
+        try {
+          await durability.runs.createOrResume({
+            runId: ctx.runId,
+            threadId: ctx.threadId,
+            startedAt: Date.now(),
+          })
+        } catch (error) {
+          // Best-effort: a store blip must not stop a run that is otherwise fine.
+          // The run is simply invisible until persistence's own `onConfig` call.
+          logger?.warn('sandbox run record pre-create failed', {
+            runId: ctx.runId,
+            error,
+          })
+        }
+
+        // NO ATTACH MARKER HERE. A joiner does need a chunk in the log before the
+        // harness has emitted anything — an empty log fails every joiner's
+        // fast-fail (`memoryStream`'s first-chunk deadline, the client's rejoin
+        // connect deadline) and flushes no HTTP headers, so a reload during
+        // `ensure` reads a live run as gone. Core does it: a fresh durable producer
+        // appends `RUN_ACCEPTED_EVENT` before the producer stream is first pulled,
+        // for EVERY durable run rather than only sandboxed ones, and never on an
+        // attach. A second marker from here would only land mid-stream in a run
+        // that is already producing.
+
+        // STORE THE USER'S TURN NOW, before `ensure` takes minutes.
+        //
+        // Chat persistence stores it from `onStart`, which runs after every
+        // middleware `setup` — so without this the thread holds NOTHING for the
+        // whole sandbox build. Measured: a reload during the build asked the server
+        // for the conversation and got `{"messages":[],…}`, so the user saw no sign
+        // of the message they had just sent, and a second device saw an empty
+        // thread.
+        //
+        // The persistence layer owns WHAT gets stored (see `PendingTurnCapability`):
+        // `saveThread` replaces the thread, so deciding the list here would risk
+        // deleting the history. Absent when the app wires no persistence, which is
+        // simply a run with no transcript to store.
+        try {
+          await getPendingTurn(ctx, { optional: true })?.snapshot()
+        } catch (error) {
+          // Best-effort: the run is still worth doing, and `onStart` stores the
+          // turn again once setup completes.
+          logger?.warn('sandbox pending-turn snapshot failed', {
+            runId: ctx.runId,
+            error,
+          })
+        }
+      }
+
+      // SUBSCRIBE BEFORE `ensure`, for the same reason the state is registered
+      // before it: `ensure` is the minutes-wide await a disconnect actually lands
+      // in. Core calls back immediately if the socket has already closed, so
+      // subscribing here cannot miss a disconnect that beat us to it.
+      //
+      // This is what makes a durable run SURVIVE losing its viewer. The only route
+      // a disconnect previously had into this middleware was the application
+      // mirroring `request.signal` into `chat()`'s `abortController` — which aborts
+      // the run, so `chat()` returned right after this `setup` and the harness
+      // adapter's `chatStream` was never called: the agent in the sandbox we just
+      // spent minutes creating was NEVER LAUNCHED, and no takeover could recover it
+      // because an agent that never ran wrote no journal to replay.
+      if (durability !== undefined && durability.detachOnDisconnect) {
+        getRunDisconnect(ctx, { optional: true })?.subscribe(async () => {
+          // BOOKKEEPING ONLY — the run is still executing. Deliberately absent:
+          // `drainWatcher` (would blind a live agent's file events for the whole
+          // remainder) and `definition.destroy` (the run is still using the
+          // sandbox). Both belong to the terminal hooks, which still run exactly
+          // once afterwards.
+          //
+          // A run with a cancel already recorded is left alone: that is `onAbort`'s
+          // path, and stamping `detachedSince` on a deliberately-stopped run would
+          // hand it to the reaper as reclaimable work.
+          if (await cancelIntent(durability, ctx.runId, false)) return
+          if (
+            await recordDetach(definition, state, durability, ctx, 'disconnect')
+          ) {
+            state.logger?.sandbox(
+              'sandbox run detached on disconnect; the run continues',
+              { runId: ctx.runId },
+            )
+          }
+        })
+      }
+
+      const handle = await definition.ensure(ensureCtx)
+      // MUTATE, don't re-`set`: a disconnect that landed during `ensure` already
+      // captured this object.
+      state.handle = handle
+      provideSandbox(ctx, handle)
+      if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
 
       // Deliberately placed AFTER `logger` is in scope rather than next to the
       // `provideSandboxDurability` call above — there is no logger to warn
@@ -441,18 +648,51 @@ export function withSandbox<TOffset extends string = string>(
       if (watcher) state.watcher = watcher
     },
 
+    // Keep the recorded tool history OUT of the request to the model. It is stored
+    // history for the next turn, it names tools the provider was never given, and one
+    // triage-sized run is hundreds of kilobytes — so replaying it is wasteful at best
+    // and rejected at worst. `ctx.messages` keeps it (that is what gets stored and
+    // rendered); only `config.messages` loses it.
+    onConfig(_ctx, config) {
+      const messages = stripObservedToolCalls(config.messages)
+      if (messages.length === config.messages.length) return
+      return { messages }
+    },
+
+    // The engine re-syncs `middlewareCtx.messages` from its own array once per agent
+    // iteration, which drops whatever the recorder appended during the previous
+    // iteration's stream. Restoring it here — AFTER that sync — is what makes a
+    // multi-iteration run keep its full history without depending on where this
+    // middleware sits relative to persistence in the middleware array.
+    onIteration(ctx) {
+      runState.get(ctx)?.toolHistory.reconcile(ctx)
+    },
+
+    // Record the harness's own tool calls as transcript messages. Observe only:
+    // returning nothing passes every chunk through untouched.
+    onChunk(ctx, chunk) {
+      runState.get(ctx)?.toolHistory.observe(chunk, ctx)
+    },
+
     async onFinish(ctx) {
       const state = runState.get(ctx)
       if (!state) return
       const { handle, ensureCtx } = state
 
+      // Last chance before persistence writes the transcript. Only matters if a
+      // config sync landed after the final tool chunk; the recorder is idempotent, so
+      // in the normal case this changes nothing.
+      state.toolHistory.reconcile(ctx)
+
       await drainWatcher(state, 'finish')
 
       const lifecycle = definition.lifecycle
 
+      // `handle` is absent only if `setup` never got past `definition.ensure`, in
+      // which case there is no sandbox to snapshot.
       if (
         lifecycle?.snapshot === 'after-run' &&
-        handle.capabilities.snapshots &&
+        handle?.capabilities.snapshots &&
         handle.snapshot
       ) {
         const snapshot = await handle.snapshot(`after-run-${ctx.runId}`)
@@ -486,67 +726,36 @@ export function withSandbox<TOffset extends string = string>(
       await drainWatcher(state, 'abort')
 
       const durability = state.durability
-      // A user pressing Stop and a user closing the tab produce the IDENTICAL
-      // connection close, so intent is never inferred from the disconnect. It
-      // arrives out of band, and either band is authoritative: in-process (the
-      // abort reason carried the cancel sentinel) or durable (another host
-      // recorded it on the run record).
-      const cancelled =
-        info.cancelRequested === true ||
-        (durability !== undefined &&
-          (await wasCancelRequested(durability.runs, ctx.runId)))
+      const cancelled = await cancelIntent(
+        durability,
+        ctx.runId,
+        info.cancelRequested === true,
+      )
 
       if (
         durability !== undefined &&
         !cancelled &&
         durability.detachOnDisconnect
       ) {
-        // DETACH: the agent keeps running and the sandbox stays up, so record
-        // the two facts a later attach and the reaper both need. `update` is a
-        // documented no-op for an unknown runId, so a vanished record does not
-        // turn teardown into a throw.
+        // DETACH on the teardown path. Reached when the run is aborted for a
+        // reason that is NOT an out-of-band cancel while detachable — a genuine
+        // stop from elsewhere, or a host going down. The ordinary disconnect is
+        // handled by the disconnect subscriber in `setup`, which does not end the
+        // run at all.
         //
-        // GUARDED, and on failure this branch is ABANDONED for the destroy one
-        // below. This was the only unguarded await left on the abort path, and a
-        // rejection here was the worst shape available: `provideRunDetached`
-        // never ran, so core terminalized the log with a synthetic `RUN_ERROR`
-        // and recorded a healthy detached run as failed — the exact harm this
-        // branch exists to prevent; `detachedSince`/`sandboxKey` were never
-        // written, so `listReclaimable` could never surface the run and
-        // `reapDetachedRuns` could never reclaim it; and `definition.destroy`
-        // was not reached either, so the sandbox ran forever with no recovery
-        // path at all. A DESTROYED sandbox beats an unreachable one. This is the
-        // same reasoning `drainWatcher` already applies to its own `stop()` — a
-        // rejection there "leaks the sandbox on exactly the abort path that must
-        // ALWAYS tear down" — carried across to the write that decides whether
-        // the run is reachable at all.
-        try {
-          await durability.runs.update(ctx.runId, {
-            detachedSince: Date.now(),
-            sandboxKey: definition.key(state.ensureCtx),
-          })
-        } catch (error) {
-          state.logger?.warn(
-            'sandbox detach record write failed; destroying instead of detaching',
-            { runId: ctx.runId, error },
-          )
-          await definition.destroy(state.ensureCtx)
-          await definition.hooks?.onDestroy?.()
+        // On a failed record write this branch is ABANDONED for the destroy one
+        // below, because a rejection here is the worst shape available: the
+        // verdict is unpublished, so core terminalizes the log and records a
+        // healthy detached run as failed; `detachedSince`/`sandboxKey` are
+        // unwritten, so `listReclaimable` can never surface the run and
+        // `reapDetachedRuns` can never reclaim it. A DESTROYED sandbox beats an
+        // unreachable one — the same reasoning `drainWatcher` applies to its own
+        // guarded `stop()`.
+        if (await recordDetach(definition, state, durability, ctx, 'abort')) {
           return
         }
-        // Publish the VERDICT, not just the record fields. Core's durable
-        // delivery sink reads it (see `RunDetachedCapability`) and leaves the
-        // run's log OPEN instead of appending a synthetic terminal `RUN_ERROR`
-        // and closing it — a terminalized log ends a later attach's replay at
-        // the prefix and diverges the takeover's journal replay, which recorded
-        // a healthy detached run as `'failed'`.
-        //
-        // This hook is the only place that can answer it: the detach-vs-destroy
-        // call needs BOTH out-of-band cancel bands and `detachOnDisconnect`,
-        // resolved just above. Set on the DETACH branch only, so an explicit
-        // cancel, a non-detachable disconnect, an error, and a normal finish all
-        // leave it unpublished and core terminalizes exactly as it always has.
-        provideRunDetached(ctx, true)
+        await definition.destroy(state.ensureCtx)
+        await definition.hooks?.onDestroy?.()
         return
       }
 

@@ -5,6 +5,7 @@ import {
   isTerminalRunStatus,
 } from './activities/chat/middleware/run-store'
 import { wasRunDetached } from './delivery-detach'
+import { notifyRunDisconnected } from './delivery-disconnect'
 import { resolveResumeRunId } from './stream-durability'
 import { EventType } from './types'
 import { resolveDebugOption } from './logger/resolve'
@@ -123,6 +124,12 @@ function toEncodedStream(
   encodeChunk: (chunk: StreamChunk, index: number) => Uint8Array,
   encodeError: (error: unknown) => Uint8Array,
   detachOnCancel = false,
+  /**
+   * Called once when the response body is cancelled on the detach path, BEFORE
+   * returning. The durability branch uses it to tell the run its viewer is gone
+   * (see `./delivery-disconnect`) without aborting it.
+   */
+  onDetachedCancel?: () => void,
 ): ReadableStream<Uint8Array> {
   const cancellation = abortController ?? new AbortController()
   let iterator: AsyncIterator<StreamChunk> | undefined
@@ -201,7 +208,18 @@ function toEncodedStream(
       // keeps draining `stream` → the log in the background and terminates
       // normally on its own. A genuine caller-driven stop aborts the producer's
       // own AbortController instead, which this path never touches.
-      if (detachOnCancel) return
+      //
+      // Notify the run FIRST, and synchronously. This is the only moment the
+      // socket-closed fact exists anywhere, and the run cannot observe it on its
+      // own: it holds no handle on this response. That notification is what lets a
+      // durable run record itself as detached while it KEEPS RUNNING — the
+      // alternative applications were driven to (mirroring `request.signal` into
+      // `chat()`'s abortController) reaches the middleware only by killing the run,
+      // which for a sandboxed run means the agent is never even launched.
+      if (detachOnCancel) {
+        onDetachedCancel?.()
+        return
+      }
 
       if (!isAborted(cancellation.signal)) cancellation.abort(reason)
 
@@ -491,6 +509,12 @@ function durableStreamSource<TOffset extends string>(
         }
       }
     } finally {
+      // The PRODUCER was stopped, which is deliberately not the same question as
+      // "did the delivery socket go away". A disconnect alone must leave this
+      // false: the run survives it and terminalizes this log itself on its way
+      // out, and treating the disconnect as a cancel here would make `detached`
+      // true for a run that had already finished — skipping `close()` and parking
+      // every later tailer forever on a log nobody will ever continue.
       const cancelled = isAborted(abortController.signal)
 
       // Persist any buffered-but-unflushed chunks before terminalizing, so a
@@ -730,6 +754,9 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
       encodeChunk,
       encodeError,
       isFresh,
+      // Fresh runs only: a resume response IS a reader, so its cancel is an
+      // ordinary read being stopped, not a producer losing its viewer.
+      isFresh ? () => notifyRunDisconnected(stream) : undefined,
     )
   } else {
     body = toServerSentEventsStream(stream, abortController)
@@ -1133,6 +1160,8 @@ export function toHttpResponse<TOffset extends string = string>(
       encodeChunk,
       encodeError,
       isFresh,
+      // See the SSE helper: fresh runs only.
+      isFresh ? () => notifyRunDisconnected(stream) : undefined,
     )
   } else {
     body = toHttpStream(stream, abortController)

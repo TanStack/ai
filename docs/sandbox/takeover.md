@@ -166,6 +166,69 @@ is load bearing:
   it is keyed by that same `runId` — which is what makes the attach route below
   address this very stream.
 
+And one thing that must **not** be there: no `abortController` mirroring
+`request.signal`.
+
+A plain sandboxed endpoint mirrors it, because there a disconnect should end the
+run. On a durable run it is actively harmful. Aborting the run makes `chat()`
+return at its cancellation check immediately after middleware `setup`, so the
+harness adapter's `chatStream` is never called and **the agent inside the sandbox
+you just spent minutes building is never launched**. Switch tabs while the UI
+still says "starting the sandbox" and you return to an empty log for a run that
+did nothing — and no takeover can recover it, because an agent that never started
+wrote no journal to replay.
+
+The disconnect still reaches `withSandbox`: the durable transport notifies the run
+the moment the response body is cancelled, **without** aborting it. `withSandbox`
+stamps `detachedSince`/`sandboxKey` and publishes the detach verdict, the run keeps
+draining into its still-open delivery log, and a rejoining client tails that log.
+You do not wire any of that — it is what passing `runs` + `durability` buys.
+
+A genuine stop is unaffected: it arrives out of band (see
+[Detach vs cancel](#detach-vs-cancel)), which is the only channel that can
+tell "the user wants this stopped" apart from "the user closed a tab" — they are
+the identical socket close on the wire.
+
+### On `memoryStream`, raise the first-chunk deadline
+
+`memoryStream` fails a from-start rejoin if the run produces no chunk within
+`firstChunkDeadlineMs` (default **100ms**). That default assumes an in-flight run's
+log already holds chunks — true for chat, false for a sandboxed run, which emits
+nothing until `ensure` has built the sandbox and cloned the repo. Rejoin in that
+window and the join fails with `Memory stream run produced no data within 100ms`,
+reporting a perfectly healthy run as gone.
+
+Raise it on **every** handle for the run, and especially on the `GET` that serves
+the rejoin — that is the call which actually applies it:
+
+```ts
+import { memoryStream } from "@tanstack/ai";
+
+// Longer than your slowest `ensure`.
+const FIRST_CHUNK_DEADLINE_MS = 15 * 60_000;
+
+// POST (the producer) and GET (the rejoin) alike.
+export function adapterFor(request: Request) {
+  return memoryStream(request, {
+    firstChunkDeadlineMs: FIRST_CHUNK_DEADLINE_MS,
+  });
+}
+```
+
+Failing fast buys nothing once you gate the rejoin on `findActiveRun`: "the run is
+gone" is already excluded before the join is attempted.
+
+`durableStream` needs none of this — its `read` parks for a live reader rather than
+running a first-chunk deadline, so an empty in-flight log simply waits.
+
+In practice the log is never empty for long: a fresh durable producer appends one
+`CUSTOM` `run.accepted` chunk (`RUN_ACCEPTED_EVENT`) before the producer stream is
+first pulled, so a rejoin attaches in milliseconds instead of waiting on the harness.
+That marker is also what stops a client from abandoning the join — `ai-client` gives
+up on a rejoin that receives no chunk within 2s, which a sandbox build would
+otherwise always exceed. Raising `firstChunkDeadlineMs` remains worthwhile as a
+backstop.
+
 ## Server: take the run over
 
 The takeover happens in the `GET` handler that already serves resumes. Add a

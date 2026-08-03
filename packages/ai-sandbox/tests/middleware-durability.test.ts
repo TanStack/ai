@@ -20,7 +20,11 @@ import {
   memoryStream,
 } from '@tanstack/ai'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
-import { provideSandboxRuntime } from '@tanstack/ai/adapter-internals'
+import {
+  providePendingTurn,
+  provideRunDisconnect,
+  provideSandboxRuntime,
+} from '@tanstack/ai/adapter-internals'
 import { defineSandbox } from '../src/sandbox'
 import { withSandbox } from '../src/middleware'
 import { SandboxDurabilityCapability } from '../src/durability'
@@ -47,6 +51,13 @@ interface Harness {
   ctx: ChatMiddlewareContext
   logged: Array<{ level: string; msg: string }>
   abort: (info?: Partial<AbortInfo>) => Promise<void>
+  /**
+   * Fire the disconnect core would deliver when the delivery socket closes, by
+   * invoking whatever `setup` subscribed through `RunDisconnectCapability`. Drives
+   * the real subscription rather than calling a hook directly, so a `setup` that
+   * forgot to subscribe fails these tests.
+   */
+  disconnect: () => Promise<void>
 }
 
 /**
@@ -130,6 +141,10 @@ async function harness(
     emit: () => undefined,
     emitFileDiff: () => undefined,
   })
+  const disconnectListeners: Array<() => void | Promise<void>> = []
+  provideRunDisconnect(ctx, {
+    subscribe: (listener) => disconnectListeners.push(listener),
+  })
 
   const mw = withSandbox(sandbox, {
     instances: new InMemorySandboxInstanceStore(),
@@ -148,6 +163,9 @@ async function harness(
     logged: calls,
     abort: (info?: Partial<AbortInfo>) =>
       Promise.resolve(mw.onAbort!(ctx, { reason: 'x', duration: 0, ...info })),
+    disconnect: async () => {
+      for (const listener of disconnectListeners) await listener()
+    },
   }
 }
 
@@ -257,20 +275,24 @@ describe('withSandbox — detach vs destroy', () => {
     expect(destroying.watcherStops()).toBe(1)
   })
 
-  it('detaching a run whose record is missing does not throw', async () => {
-    // `update` on an unknown runId is a documented no-op. The abort path must
-    // not turn a vanished record into a thrown teardown.
+  it('detaching a run whose record has VANISHED does not throw', async () => {
+    // `update` on an unknown runId is a documented no-op. The abort path must not
+    // turn a vanished record into a thrown teardown.
+    //
+    // The record has to be removed explicitly now: `setup` pre-creates one for
+    // every durable run, so "never existed" is no longer reachable through the
+    // middleware — which is the point of the pre-create. What remains worth pinning
+    // is the store losing it afterwards (a wipe, a TTL, a different replica).
     const runs = new InMemoryRunStore()
     const h = await harness(
       { adapter: adapterFor('gone') },
-      {
-        runs,
-        runId: 'gone',
-      },
+      { runs, runId: 'gone' },
     )
+    vi.spyOn(runs, 'get').mockResolvedValue(null)
+    vi.spyOn(runs, 'update').mockResolvedValue(undefined)
+
     await expect(h.abort()).resolves.toBeUndefined()
     expect(h.destroys()).toBe(0)
-    expect(await runs.get('gone')).toBeNull()
   })
 
   it('falls through to DESTROY when the detach record write fails', async () => {
@@ -401,6 +423,416 @@ describe('withSandbox detach — the persistence-side effect', () => {
     expect(typeof record?.detachedSince).toBe('number')
     expect(record?.sandboxKey).toBeTruthy()
     expect(h.destroys()).toBe(0)
+  })
+
+  /**
+   * A DISCONNECT — the socket closing while the run is still going — must detach
+   * the run WITHOUT tearing anything down.
+   *
+   * This is the behavior that makes a durable sandboxed run worth having, and it
+   * did not exist. The only route a disconnect had into this middleware was the
+   * application mirroring `request.signal` into `chat()`'s `abortController`, which
+   * ABORTS THE RUN: `chat()` returns at its `isCancelled()` check right after this
+   * `setup`, so the harness adapter's `chatStream` is never called and the agent in
+   * the sandbox `setup` just spent minutes creating is NEVER LAUNCHED. The user
+   * switched away during "starting the sandbox", came back, and found an empty log
+   * for a run that had done nothing — unrecoverable even by takeover, because an
+   * agent that never started wrote no journal to replay.
+   *
+   * So the run now hears about the disconnect through core's internal
+   * `RunDisconnectCapability` and does BOOKKEEPING ONLY. The two negative
+   * assertions are the load-bearing ones: a watcher stopped or a sandbox destroyed
+   * here would break the very run this is supposed to keep alive.
+   */
+  it('DETACHES on a disconnect without stopping the watcher or destroying', async () => {
+    const runs = await seededRuns()
+    const h = await harness({ adapter: adapterFor('r1') }, { runs })
+
+    await h.disconnect()
+
+    // Recorded, so a later attach and the reaper can both find the run.
+    const record = await runs.get('r1')
+    expect(record?.status).toBe('running')
+    expect(record?.finishedAt).toBeUndefined()
+    expect(typeof record?.detachedSince).toBe('number')
+    expect(record?.sandboxKey).toBeTruthy()
+    // And the verdict core reads to keep the delivery log open.
+    expect(h.ctx.getOptional(RunDetachedCapability)).toBe(true)
+
+    // NOTHING was torn down: the run is still executing.
+    expect(h.destroys()).toBe(0)
+    expect(h.onDestroys()).toBe(0)
+    expect(h.watcherStops()).toBe(0)
+  })
+
+  it('makes the run findable DURING ensure, not only once it streams', async () => {
+    // A sandboxed run emits nothing for its first minutes (create a sandbox, clone
+    // a repo). Chat persistence creates the run record from `onConfig`, i.e. after
+    // every `setup`, so for that whole window `findActiveRun` answered "nothing
+    // running" for a run that was demonstrably starting — a status sidebar read off
+    // it showed `idle` for 6.5 minutes, and a client returning to the thread had
+    // nothing to tell it a run was in flight, so it rendered an empty pane.
+    const runs = new InMemoryRunStore() // no record yet, as in a real run
+    let activeDuringEnsure: string | undefined
+    const handle = makeFakeHandle('during-ensure-sbx', 'fake', FULL_CAPS)
+
+    const provider: SandboxProvider = {
+      name: 'fake',
+      capabilities: () => FULL_CAPS,
+      // Observed from INSIDE ensure — the window that used to be invisible.
+      create: async () => {
+        activeDuringEnsure = (await runs.findActiveRun('t1'))?.runId
+        return handle
+      },
+      resume: () => Promise.resolve(handle),
+      destroy: () => Promise.resolve(),
+    }
+
+    const sandbox = defineSandbox({
+      id: 's',
+      provider,
+      lifecycle: { snapshot: 'none' },
+    })
+    const ctx = makeMiddlewareCtx({ threadId: 't1', runId: 'r1' })
+    const { logger } = captureLogger()
+    provideSandboxRuntime(ctx, {
+      logger,
+      emit: () => undefined,
+      emitFileDiff: () => undefined,
+    })
+
+    await withSandbox(sandbox, {
+      instances: new InMemorySandboxInstanceStore(),
+      locks: new InMemoryLockStore(),
+      runs,
+      durability: { adapter: adapterFor('r1') },
+    }).setup!(ctx)
+
+    expect(activeDuringEnsure).toBe('r1')
+    expect((await runs.get('r1'))?.status).toBe('running')
+  })
+
+  it("stores the user's turn BEFORE ensure, and only when durable", async () => {
+    // Chat persistence stores the turn from `onStart`, which runs after every
+    // middleware `setup`. So without this the thread holds nothing for the whole
+    // sandbox build: a reload during the build asked the server for the
+    // conversation and got `{"messages":[]}`, and a second device saw an empty
+    // thread even though the user had just sent a message.
+    const runs = await seededRuns()
+    const snapshots: Array<string> = []
+    const handle = makeFakeHandle('turn', 'fake', FULL_CAPS)
+
+    const build = async (durable: boolean) => {
+      snapshots.length = 0
+      const provider: SandboxProvider = {
+        name: 'fake',
+        capabilities: () => FULL_CAPS,
+        // Observed from INSIDE ensure: the turn must already be stored.
+        create: async () => {
+          snapshots.push('ensure')
+          return handle
+        },
+        resume: () => Promise.resolve(handle),
+        destroy: () => Promise.resolve(),
+      }
+      const ctx = makeMiddlewareCtx({ threadId: 't1', runId: 'r1' })
+      const { logger } = captureLogger()
+      provideSandboxRuntime(ctx, {
+        logger,
+        emit: () => undefined,
+        emitFileDiff: () => undefined,
+      })
+      providePendingTurn(ctx, {
+        snapshot: async () => {
+          snapshots.push('snapshot')
+          await Promise.resolve()
+        },
+      })
+      await withSandbox(
+        defineSandbox({ id: 's', provider, lifecycle: { snapshot: 'none' } }),
+        {
+          instances: new InMemorySandboxInstanceStore(),
+          locks: new InMemoryLockStore(),
+          ...(durable
+            ? { runs, durability: { adapter: adapterFor('r1') } }
+            : {}),
+        },
+      ).setup!(ctx)
+      return [...snapshots]
+    }
+
+    // Durable: stored, and stored BEFORE the sandbox is created.
+    expect(await build(true)).toEqual(['snapshot', 'ensure'])
+    // Not durable: nothing changes — the seam is offered but never called.
+    expect(await build(false)).toEqual(['ensure'])
+  })
+
+  it('a failing pending-turn snapshot does not stop the run', async () => {
+    // Best-effort: `onStart` stores the turn again once setup completes, so a store
+    // blip must not cost the run.
+    const runs = await seededRuns()
+    const handle = makeFakeHandle('turn-fail', 'fake', FULL_CAPS)
+    const ctx = makeMiddlewareCtx({ threadId: 't1', runId: 'r1' })
+    const { logger, calls } = captureLogger()
+    provideSandboxRuntime(ctx, {
+      logger,
+      emit: () => undefined,
+      emitFileDiff: () => undefined,
+    })
+    providePendingTurn(ctx, {
+      snapshot: () => Promise.reject(new Error('store down')),
+    })
+
+    await expect(
+      withSandbox(
+        defineSandbox({
+          id: 's',
+          provider: {
+            name: 'fake',
+            capabilities: () => FULL_CAPS,
+            create: () => Promise.resolve(handle),
+            resume: () => Promise.resolve(handle),
+            destroy: () => Promise.resolve(),
+          },
+          lifecycle: { snapshot: 'none' },
+        }),
+        {
+          instances: new InMemorySandboxInstanceStore(),
+          locks: new InMemoryLockStore(),
+          runs,
+          durability: { adapter: adapterFor('r1') },
+        },
+      ).setup!(ctx),
+    ).resolves.toBeUndefined()
+
+    expect(
+      calls.some((c) => c.level === 'warn' && c.msg.includes('pending-turn')),
+    ).toBe(true)
+  })
+
+  it('a NON-DURABLE run is untouched by the disconnect seam', async () => {
+    // The blast radius of the durability work, stated as a test. Nothing about a
+    // run without `runs` + `durability` may change: no detach verdict, no record,
+    // and a disconnect notification (which core only ever delivers on the durable
+    // transport path anyway) must do nothing even if one arrives.
+    const runs = new InMemoryRunStore()
+    const h = await harness(undefined, { runs })
+
+    await h.disconnect()
+
+    expect(await runs.get('r1')).toBeNull()
+    expect(h.ctx.getOptional(RunDetachedCapability)).toBeUndefined()
+    expect(h.destroys()).toBe(0)
+    expect(h.watcherStops()).toBe(0)
+
+    // And its abort still destroys, exactly as before.
+    await h.abort()
+    expect(h.destroys()).toBe(1)
+  })
+
+  it('a non-durable abort landing DURING ensure still destroys nothing', async () => {
+    // The blast-radius question for the earlier run-state registration: `setup` now
+    // registers state BEFORE `ensure`, so an abort arriving mid-`ensure` reaches
+    // `onAbort`'s body where it previously returned at `if (!state) return`.
+    //
+    // The OUTCOME is nevertheless unchanged, which is what this pins. `onAbort`
+    // calls `definition.destroy(ensureCtx)`, and that resolves the sandbox through
+    // the instance store — which has no record until `ensure` finishes — so it is a
+    // no-op and `provider.destroy` is never reached. `drainWatcher` is likewise a
+    // no-op with no watcher started yet.
+    //
+    // So a non-durable run is observably identical to before, and the half-built
+    // sandbox is still abandoned in this window: registering state earlier is what
+    // lets the DURABLE path record a detach there, and it does not silently change
+    // teardown for anyone else. (Reclaiming a sandbox abandoned mid-`ensure` needs
+    // the instance record to exist before creation, which is a separate concern.)
+    const handle = makeFakeHandle('mid-ensure', 'fake', FULL_CAPS)
+    let destroys = 0
+    const provider: SandboxProvider = {
+      name: 'fake',
+      capabilities: () => FULL_CAPS,
+      create: async () => {
+        // Dispatched from inside `ensure`: deterministically in the old dead zone.
+        await mw.onAbort!(ctx, { reason: 'client went away', duration: 0 })
+        return handle
+      },
+      resume: () => Promise.resolve(handle),
+      destroy: () => {
+        destroys += 1
+        return Promise.resolve()
+      },
+    }
+    const sandbox = defineSandbox({
+      id: 's',
+      provider,
+      lifecycle: { snapshot: 'none' },
+    })
+    const ctx = makeMiddlewareCtx({ threadId: 't1', runId: 'r1' })
+    const { logger } = captureLogger()
+    provideSandboxRuntime(ctx, {
+      logger,
+      emit: () => undefined,
+      emitFileDiff: () => undefined,
+    })
+    // No `runs`, no `durability` — the ordinary sandboxed chat endpoint.
+    const mw = withSandbox(sandbox, {
+      instances: new InMemorySandboxInstanceStore(),
+    })
+
+    await mw.setup!(ctx)
+
+    expect(destroys).toBe(0)
+  })
+
+  it('does not pre-create a record when the run is not durable', async () => {
+    // The record is persistence's to own for a non-durable run; `withSandbox` has
+    // no business inventing one when nothing will ever detach or reclaim it.
+    const runs = new InMemoryRunStore()
+    await harness(undefined, { runs })
+    expect(await runs.get('r1')).toBeNull()
+  })
+
+  it('stamps the detach on a store that was never seeded', async () => {
+    // The ORDINARY case, not an edge one: chat persistence has not created the
+    // record yet at this point in the run (it does so from `onConfig`, after every
+    // `setup`). `setup`'s pre-create is what makes the stamp land at all —
+    // `RunStore.update` is a documented no-op for an unknown runId, so without it
+    // the detach vanished silently and `listReclaimable` could never surface the run.
+    const runs = new InMemoryRunStore() // deliberately NOT seeded
+    const h = await harness({ adapter: adapterFor('r1') }, { runs })
+
+    await h.disconnect()
+
+    const record = await runs.get('r1')
+    expect(record?.status).toBe('running')
+    expect(typeof record?.detachedSince).toBe('number')
+    expect(record?.sandboxKey).toBeTruthy()
+    expect(h.ctx.getOptional(RunDetachedCapability)).toBe(true)
+    expect(h.destroys()).toBe(0)
+  })
+
+  it('does not detach on a disconnect when the run is not durable', async () => {
+    // No `runs` + `durability`, so there is nothing to detach INTO. The run still
+    // must not be torn down by a mere disconnect — its terminal hooks own that.
+    const h = await harness()
+    await h.disconnect()
+    expect(h.destroys()).toBe(0)
+    expect(h.ctx.getOptional(RunDetachedCapability)).toBeUndefined()
+  })
+
+  it('does not detach on a disconnect when a cancel is already recorded', async () => {
+    // Intent is never inferred FROM a disconnect, but an intent already recorded is
+    // authoritative. Stamping `detachedSince` on a deliberately-stopped run would
+    // hand it to the reaper as reclaimable work.
+    const runs = await seededRuns()
+    await runs.update('r1', { cancelRequested: true })
+    const h = await harness({ adapter: adapterFor('r1') }, { runs })
+
+    await h.disconnect()
+
+    expect((await runs.get('r1'))?.detachedSince).toBeUndefined()
+    expect(h.ctx.getOptional(RunDetachedCapability)).toBeUndefined()
+  })
+
+  it('does not detach on a disconnect when detachOnDisconnect is false', async () => {
+    const runs = await seededRuns()
+    const h = await harness(
+      { adapter: adapterFor('r1'), detachOnDisconnect: false },
+      { runs },
+    )
+    await h.disconnect()
+    expect((await runs.get('r1'))?.detachedSince).toBeUndefined()
+    expect(h.destroys()).toBe(0)
+  })
+
+  it('withholds the verdict when the disconnect record write fails', async () => {
+    // Publishing the verdict after a failed write would leave core holding the log
+    // open for a takeover that can never be found, since nothing in the store
+    // points at the run. Unlike the abort path there is no destroy fallback — the
+    // run is still alive and using the sandbox — so the failure is logged and the
+    // run simply stays attached-looking.
+    const runs = await seededRuns()
+    const h = await harness({ adapter: adapterFor('r1') }, { runs })
+    vi.spyOn(runs, 'update').mockRejectedValue(new Error('run store down'))
+
+    await h.disconnect()
+
+    expect(h.ctx.getOptional(RunDetachedCapability)).toBeUndefined()
+    expect(h.destroys()).toBe(0)
+    expect(
+      h.logged.some(
+        (c) => c.level === 'warn' && c.msg.includes('detach record write'),
+      ),
+    ).toBe(true)
+  })
+
+  it('detaches a disconnect that lands DURING ensure, the widest window there is', async () => {
+    // `ensure` is the longest await in the run — create a sandbox, clone a repo,
+    // minutes — and it is where the common disconnect lands: a user starts a run
+    // and switches away while the UI still says "starting the sandbox". Registering
+    // the run state (and subscribing) only after `ensure` returned left exactly
+    // that window uncovered, so the disconnect was a silent no-op.
+    const runs = await seededRuns('during-ensure')
+    const handle = makeFakeHandle('during-ensure-sbx', 'fake', FULL_CAPS)
+    let destroys = 0
+    let fireDisconnect: (() => void) | undefined
+
+    const provider: SandboxProvider = {
+      name: 'fake',
+      capabilities: () => FULL_CAPS,
+      // The disconnect is dispatched from inside `create`, i.e. part-way through
+      // `definition.ensure` — deterministically inside the window rather than by
+      // racing a timer.
+      create: async () => {
+        fireDisconnect?.()
+        // Let the subscriber's async bookkeeping run before `ensure` resolves.
+        await Promise.resolve()
+        return handle
+      },
+      resume: () => Promise.resolve(handle),
+      destroy: () => {
+        destroys += 1
+        return Promise.resolve()
+      },
+    }
+
+    const sandbox = defineSandbox({
+      id: 's',
+      provider,
+      lifecycle: { snapshot: 'none' },
+    })
+
+    const ctx = makeMiddlewareCtx({ threadId: 't1', runId: 'during-ensure' })
+    const { logger } = captureLogger()
+    provideSandboxRuntime(ctx, {
+      logger,
+      emit: () => undefined,
+      emitFileDiff: () => undefined,
+    })
+    const listeners: Array<() => void | Promise<void>> = []
+    provideRunDisconnect(ctx, {
+      subscribe: (listener) => listeners.push(listener),
+    })
+    fireDisconnect = () => {
+      for (const listener of listeners) void listener()
+    }
+
+    const mw = withSandbox(sandbox, {
+      instances: new InMemorySandboxInstanceStore(),
+      locks: new InMemoryLockStore(),
+      runs,
+      durability: { adapter: adapterFor('during-ensure') },
+    })
+
+    await mw.setup!(ctx)
+    // Settle the subscriber's writes.
+    await new Promise((resolve) => setTimeout(resolve, 0))
+
+    const record = await runs.get('during-ensure')
+    expect(typeof record?.detachedSince).toBe('number')
+    expect(record?.sandboxKey).toBeTruthy()
+    expect(ctx.getOptional(RunDetachedCapability)).toBe(true)
+    expect(destroys).toBe(0)
   })
 
   // An abort that lands while `setup` is STILL RUNNING — the most common

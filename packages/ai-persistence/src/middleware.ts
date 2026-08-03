@@ -3,6 +3,7 @@ import {
   defineChatMiddleware,
   wasCancelRequested,
 } from '@tanstack/ai'
+import { providePendingTurn } from '@tanstack/ai/adapter-internals'
 import { base64ToUint8Array } from '@tanstack/ai-utils'
 import {
   InterruptsCapability,
@@ -1434,6 +1435,26 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (wantsInterrupts && persistence.stores.interrupts) {
         provideInterrupts(ctx, persistence.stores.interrupts)
       }
+
+      // Offer the pending-turn seam so a middleware that is about to be SLOW can
+      // have the user's turn stored before it starts. Only `onStart` stores the
+      // turn otherwise, and `onStart` runs after every middleware `setup` — which
+      // is milliseconds for a normal run and MINUTES for one that builds a sandbox.
+      // For that whole window the thread reads as empty, so a reload or a second
+      // device shows no sign of the message the user just sent.
+      //
+      // Offering it changes nothing on its own: a run whose middleware never calls
+      // it behaves exactly as before. See `PendingTurnCapability`.
+      providePendingTurn(ctx, {
+        snapshot: async () => {
+          const stored = await messageStore.loadThread(ctx.threadId)
+          // The SAME rule `onConfig` applies when it merges. Kept here, in the
+          // owner, because `saveThread` REPLACES the thread: a caller that stored
+          // only the newly-sent list would delete the history.
+          const list = ctx.messages.length > 0 ? [...ctx.messages] : stored
+          await messageStore.saveThread(ctx.threadId, list)
+        },
+      })
     },
 
     async onConfig(ctx: ChatMiddlewareContext, config: ChatMiddlewareConfig) {
