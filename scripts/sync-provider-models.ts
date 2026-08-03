@@ -475,7 +475,16 @@ function insertConstants(content: string, constants: Array<string>): string {
 
 /**
  * Add entries to an array like: export const ARRAY_NAME = [ ... ] as const
- * Uses a regex with the `s` flag (dotAll) to match across newlines.
+ *
+ * New entries are inserted immediately AFTER the opening bracket, so this
+ * only ever writes separators it owns: each inserted line carries its own
+ * trailing comma, and the existing body — multi-line with trailing commas, a
+ * short single-line array, comment lines, or nothing at all — follows
+ * unchanged. Inserting before the CLOSING bracket instead means guessing
+ * whether the last existing entry already has a comma, which is how a
+ * single-line `GROK_CHAT_MODELS` produced a syntax error (and a dead daily
+ * sync) the day grok-4.5 arrived. `pnpm format` reflows the result, so the
+ * inserted lines only need to parse, not to be pretty.
  */
 function addToArray(
   content: string,
@@ -483,13 +492,9 @@ function addToArray(
   entries: Array<string>,
   arrayRef: string,
 ): string {
-  // Match the array declaration: export const ARRAY_NAME = [...] as const
-  // Uses [\s\S]*? (non-greedy) instead of [^\]]* to handle ] inside comments
-  const pattern = new RegExp(
-    `(export const ${arrayName} = \\[\\s*[\\s\\S]*?)(\\] as const)`,
-  )
-  const match = pattern.exec(content)
-  if (!match) {
+  const open = `export const ${arrayName} = [`
+  const openIndex = content.indexOf(open)
+  if (openIndex === -1) {
     console.warn(`  Warning: Could not find array '${arrayName}' in file`)
     return content
   }
@@ -497,11 +502,8 @@ function addToArray(
   const newEntries = entries
     .map((constName) => `  ${constName}${arrayRef},`)
     .join('\n')
-  // Use replacer function to prevent $-character interpretation in replacement string
-  return content.replace(
-    pattern,
-    () => `${match[1]}\n${newEntries}\n${match[2]}`,
-  )
+  const insertAt = openIndex + open.length
+  return `${content.slice(0, insertAt)}\n${newEntries}${content.slice(insertAt)}`
 }
 
 /**
