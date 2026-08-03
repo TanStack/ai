@@ -264,42 +264,24 @@ importers:
 
   examples/sandbox-web:
     dependencies:
-      '@ngrok/ngrok':
-        specifier: ^1.7.0
-        version: 1.7.0
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../packages/ai
-      '@tanstack/ai-claude-code':
-        specifier: workspace:*
-        version: link:../../packages/ai-claude-code
-      '@tanstack/ai-codex':
-        specifier: workspace:*
-        version: link:../../packages/ai-codex
       '@tanstack/ai-grok-build':
         specifier: workspace:*
         version: link:../../packages/ai-grok-build
-      '@tanstack/ai-opencode':
+      '@tanstack/ai-persistence':
         specifier: workspace:*
-        version: link:../../packages/ai-opencode
+        version: link:../../packages/ai-persistence
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/ai-react
       '@tanstack/ai-sandbox':
         specifier: workspace:*
         version: link:../../packages/ai-sandbox
-      '@tanstack/ai-sandbox-daytona':
-        specifier: workspace:*
-        version: link:../../packages/ai-sandbox-daytona
       '@tanstack/ai-sandbox-docker':
         specifier: workspace:*
         version: link:../../packages/ai-sandbox-docker
-      '@tanstack/ai-sandbox-local-process':
-        specifier: workspace:*
-        version: link:../../packages/ai-sandbox-local-process
-      '@tanstack/ai-sandbox-vercel':
-        specifier: workspace:*
-        version: link:../../packages/ai-sandbox-vercel
       '@tanstack/react-router':
         specifier: ^1.158.4
         version: 1.159.5(react-dom@19.2.3(react@19.2.3))(react@19.2.3)

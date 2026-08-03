@@ -123,17 +123,18 @@ sandbox on your laptop. Then dive into the piece you need:
 
 A runnable end-to-end demo lives at
 [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web):
-a "build me an app" agent you can point at any harness (Claude Code, Codex,
-OpenCode, Grok Build) and any provider (Docker, local-process, Vercel, Daytona)
-per run from the UI — it scaffolds an app inside the sandbox, runs the dev server,
-and hands back a live preview URL, streaming the agent's output and the resulting
-diff. For a coding agent running at the edge, see
+a "build me an app" agent (Grok Build in a Docker sandbox) with **durable
+runs** wired — it scaffolds an app inside the sandbox, runs the dev server,
+and hands back a live preview URL, and the run survives a page refresh, a
+closed tab, and an explicit Stop is a real cancel. For a coding agent running
+at the edge — with the harness (Claude Code, Codex, Grok Build) picked per run
+from the UI — see
 [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare).
 
 For a **web** chat where the agent builds and runs an app inside a sandbox and
-hands back a live preview URL, see `examples/sandbox-web` — one app with harness
-(Claude Code / Codex / OpenCode / Grok) and provider (Docker / local / Vercel /
-Daytona) pickers.
+hands back a live preview URL — with durable, refresh-surviving runs — see
+`examples/sandbox-web` (Grok Build on Docker; the stack is fixed in one file
+and swappable).
 
 > **Durable instance resume:** bookkeeping defaults to in-memory (single-process).
 > For cross-process / multi-instance reuse, see

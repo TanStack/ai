@@ -1,50 +1,40 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { createMiddleware } from '@tanstack/react-start'
 import { z } from 'zod'
-import { chat, toServerSentEventsStream } from '@tanstack/ai'
-import { withSandbox } from '@tanstack/ai-sandbox'
-import { withNgrokBridge } from '@tanstack/ai-sandbox/ngrok'
 import {
-  PREVIEW_GUIDANCE,
-  RECIPE_GUIDANCE,
-  buildAdapter,
-  buildSandbox,
-  isBridgeReachable,
-  localWorkspaceGuidance,
-  makeExposePreviewTool,
-  missingEnv,
-  needsNgrokBridge,
-  previewGuidance,
-  resolvePreviewUrl,
-  tanstackStartRecipe,
-} from '../sandbox-agent'
+  memoryStream,
+  resolveResumeRunId,
+  resumeServerSentEventsResponse,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { sandboxRunDriver } from '@tanstack/ai-sandbox'
 import {
-  isGrokModel,
-  isGrokProtocol,
-  isGrokTransport,
-  isHarness,
-  isProvider,
-} from '../sandbox-options'
-import type {
-  GrokBuildModel,
-  GrokBuildProtocol,
-  GrokTransport,
-  HarnessName,
-  ProviderName,
-} from '../sandbox-options'
-import type { AnyTool, ModelMessage, StreamChunk } from '@tanstack/ai'
+  buildRunStream,
+  driveRun,
+  driving,
+  ensureReaper,
+  locks,
+  runs,
+} from '../run-durable'
+import { missingEnv } from '../sandbox-agent'
+import type { ModelMessage } from '@tanstack/ai'
 
 /**
- * The run route: the browser's `useChat` POSTs `{ messages, data: { threadId,
- * harness, provider } }` and reads back an SSE stream of `StreamChunk`s.
+ * The run route, DURABLE (the journal-only tier — see
+ * docs/sandbox/durable-runs):
  *
- * Unlike the Cloudflare example (which proxies to a Durable Object over a
- * WebSocket), this runs the agent loop right here: `chat()` with the chosen
- * harness adapter and `withSandbox(...)` middleware. The middleware
- * resumes-or-creates the thread's sandbox; the adapter spawns the coding-agent CLI
- * inside it and streams its events back out. The preview wiring depends on the
- * provider — bridge host tools (same-machine or ngrok-tunneled) or pre-mint the
- * URL when the bridge is unreachable; see `sandbox-agent.ts`.
+ * - `POST` starts a run. `withSandbox` gets `runs` + `durability`, so a
+ *   dropped connection DETACHES the run (agent keeps working, sandbox stays
+ *   up) instead of destroying it. Stop is an explicit cancel via
+ *   `/api/run/cancel`.
+ * - `GET` is the resume/attach handler `joinRun` calls after a reload: it
+ *   replays the delivery log from the requested offset AND (via
+ *   `sandboxRunDriver`) takes the detached run over — claims it, re-tails the
+ *   journal, aligns against what was already delivered, and streams the rest.
+ *
+ * Unlike the Cloudflare example (which proxies to a Durable Object), the agent
+ * loop runs right here, and every store is in-process memory: zero infra, at
+ * the documented cost that log durability equals this process's lifetime.
  */
 
 /** The layers `useChat` may nest forwarded props in, depending on the adapter. */
@@ -76,33 +66,18 @@ function readForwarded(value: object, key: string): string | undefined {
   return undefined
 }
 
-const FORWARDED_KEYS = [
-  'threadId',
-  'harness',
-  'provider',
-  'sessionId',
-  'grokModel',
-  'grokProtocol',
-  'grokTransport',
-] as const
-
 /** Flatten the nested `data`/`forwardedProps` layers into one object to validate. */
 function flattenRunBody(value: unknown): unknown {
   if (value === null || typeof value !== 'object') return value
   const flat: Record<string, unknown> = {}
   if ('messages' in value) flat.messages = value.messages
-  for (const key of FORWARDED_KEYS) {
+  for (const key of ['threadId', 'sessionId'] as const) {
     const found = readForwarded(value, key)
     if (found !== undefined) flat[key] = found
   }
   return flat
 }
 
-/**
- * Validates the run body. harness/provider/grok fields reuse the same type
- * guards as the picker UI (single source of truth in `sandbox-options`), so a
- * successful parse yields fully-typed values with no casts downstream.
- */
 const runBodySchema = z.preprocess(
   flattenRunBody,
   z.object({
@@ -110,18 +85,7 @@ const runBodySchema = z.preprocess(
       .array(z.custom<ModelMessage>())
       .min(1, 'body.messages must be a non-empty array'),
     threadId: z.string().optional(),
-    harness: z.custom<HarnessName>(isHarness, 'Unknown harness'),
-    provider: z.custom<ProviderName>(isProvider, 'Unknown provider'),
     sessionId: z.string().optional(),
-    grokModel: z
-      .custom<GrokBuildModel>(isGrokModel, 'Unknown grokModel')
-      .optional(),
-    grokProtocol: z
-      .custom<GrokBuildProtocol>(isGrokProtocol, 'Unknown grokProtocol')
-      .optional(),
-    grokTransport: z
-      .custom<GrokTransport>(isGrokTransport, 'Unknown grokTransport')
-      .optional(),
   }),
 )
 
@@ -162,106 +126,66 @@ export const Route = createFileRoute('/api/run')({
       createHandlers({
         POST: {
           middleware: [runBodyMiddleware],
-          handler: async ({ request, context }) => {
+          handler: ({ request, context }) => {
+            ensureReaper()
             const {
               messages,
               threadId: threadIdInput,
-              harness,
-              provider,
               sessionId,
-              grokModel,
-              grokProtocol,
-              grokTransport,
             } = context.runBody
 
-            const missing = missingEnv(harness, provider)
+            const missing = missingEnv()
             if (missing.length > 0) {
               return jsonError(
                 500,
-                `Missing required env for ${harness} on ${provider}: ${missing.join(
-                  ', ',
-                )}. Set it and restart the dev server.`,
+                `Missing required env: ${missing.join(', ')}. Set it and restart the dev server.`,
               )
             }
 
             const threadId = threadIdInput ?? crypto.randomUUID()
+            // Forwarded from the client (`X-Run-Id`), not generated, whenever
+            // possible: the journal path, the deterministic message ids, and
+            // the delivery-log stream are all keyed by it, and the client can
+            // only rejoin a run whose id it knows.
+            const runId = resolveResumeRunId(request) ?? crypto.randomUUID()
 
             const abortController = new AbortController()
+            // A dropped request ABORTS the stream — with `runs` + `durability`
+            // wired below, `withSandbox` treats that abort as a DETACH (keeps
+            // the sandbox and the agent), not a cancel. Explicit cancel is
+            // /api/run/cancel, which aborts with `RUN_CANCEL_REASON`.
             request.signal.addEventListener('abort', () =>
               abortController.abort(),
             )
 
             try {
-              const sandbox = buildSandbox({ harness, provider, threadId })
-              const handle = await sandbox.ensure({ threadId, runId: 'run' })
-              const adapter = buildAdapter(
-                harness,
-                harness === 'grok'
-                  ? {
-                      model: grokModel ?? 'composer-2.5',
-                      protocol: grokProtocol ?? 'acp',
-                      transport: grokTransport ?? 'auto',
-                    }
-                  : undefined,
-              )
+              driving.set(runId, abortController)
 
-              // Bridge host tools when the sandbox can reach the orchestrator
-              // (same-machine, or remote via ngrok). Otherwise inline the recipe
-              // and pre-mint the provider's public preview URL.
-              let systemPrompts: Array<string>
-              let tools: Array<AnyTool>
-              const localWorkspaceHint =
-                provider === 'local' ? [localWorkspaceGuidance(handle.id)] : []
-              if (isBridgeReachable(provider)) {
-                systemPrompts = [...localWorkspaceHint, PREVIEW_GUIDANCE]
-                tools = [
-                  tanstackStartRecipe,
-                  makeExposePreviewTool(sandbox, threadId),
-                ]
-              } else {
-                let previewUrl: string | undefined
-                try {
-                  previewUrl = await resolvePreviewUrl(sandbox, threadId)
-                } catch (error) {
-                  console.warn(
-                    '[api/run] could not pre-resolve preview URL:',
-                    error,
-                  )
-                }
-                systemPrompts = [
-                  ...localWorkspaceHint,
-                  RECIPE_GUIDANCE,
-                  previewGuidance(previewUrl),
-                ]
-                tools = []
-              }
+              // ONE durability adapter instance for the middleware and the
+              // response, so the journal path and the delivery log describe
+              // the same run. `Last-Event-ID` makes a mid-stream SSE reconnect
+              // to this route resume instead of restarting.
+              const adapter = memoryStream({
+                runId,
+                offset: request.headers.get('Last-Event-ID'),
+              })
 
-              const stream = chat({
+              const stream = buildRunStream({
                 threadId,
-                adapter,
                 messages,
-                systemPrompts,
-                tools,
-                ...(sessionId !== undefined
-                  ? { modelOptions: { sessionId } }
-                  : {}),
-                middleware: needsNgrokBridge(provider)
-                  ? [withSandbox(sandbox), withNgrokBridge]
-                  : [withSandbox(sandbox)],
+                runId,
                 abortController,
-              }) as AsyncIterable<StreamChunk>
+                attach: false,
+                durability: adapter,
+                ...(sessionId !== undefined ? { sessionId } : {}),
+              })
 
-              return new Response(
-                toServerSentEventsStream(stream, abortController),
-                {
-                  headers: {
-                    'Content-Type': 'text/event-stream',
-                    'Cache-Control': 'no-cache',
-                    Connection: 'keep-alive',
-                  },
-                },
-              )
+              return toServerSentEventsResponse(stream, {
+                abortController,
+                durability: { adapter },
+              })
             } catch (error) {
+              driving.delete(runId)
               if (abortController.signal.aborted) {
                 return new Response(null, { status: 499 })
               }
@@ -271,6 +195,31 @@ export const Route = createFileRoute('/api/run')({
                 error instanceof Error ? error.message : 'run error',
               )
             }
+          },
+        },
+        // The resume/attach handler `joinRun` GETs (`?offset=-1&runId=…`) after
+        // a reload, and an SSE reconnect falls back to. The response replays
+        // the delivery log either way; `driver` additionally claims a detached
+        // run and keeps driving it (serving the log untouched when the run is
+        // unknown, terminal, or claimed by another request).
+        GET: {
+          handler: ({ request }) => {
+            ensureReaper()
+            return resumeServerSentEventsResponse({
+              // The raised deadline covers the sliver between a run being
+              // accepted and its `run.accepted` marker landing in the log — a
+              // join in that sliver parks briefly instead of failing as "run
+              // gone" (the default 100ms is tuned for plain chat, where an
+              // empty log really does mean the run is gone).
+              adapter: memoryStream(request, { firstChunkDeadlineMs: 10_000 }),
+              driver: sandboxRunDriver({
+                request,
+                runs,
+                locks,
+                durability: () => memoryStream(request),
+                drive: driveRun,
+              }),
+            })
           },
         },
       }),
