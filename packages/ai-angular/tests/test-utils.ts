@@ -6,7 +6,6 @@ import {
 } from '@angular/platform-browser-dynamic/testing'
 import { injectChat } from '../src/inject-chat'
 import type { InjectChatOptions, InjectChatResult } from '../src/types'
-import type { ChatResumeSnapshotV2 } from '@tanstack/ai-client'
 
 export {
   createMockConnectionAdapter,
@@ -14,7 +13,7 @@ export {
   createToolCallChunks,
 } from '../../ai-client/tests/test-utils'
 
-export function createInterruptResumeSnapshot(): ChatResumeSnapshotV2 {
+export function createInterruptResumeSnapshot() {
   const pendingInterrupts = [
     {
       id: 'staged-interrupt',
@@ -45,7 +44,6 @@ export function createInterruptResumeSnapshot(): ChatResumeSnapshotV2 {
   ]
 
   return {
-    schemaVersion: 2,
     resumeState: { threadId: 'thread-1', runId: 'run-1' },
     pendingInterrupts,
   }

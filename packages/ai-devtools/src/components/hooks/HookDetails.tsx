@@ -12,6 +12,8 @@ import { ToolFixtureForm } from './ToolFixtureForm'
 import {
   createHookDashboardSummary,
   getHookDisplayName,
+  getHookIdentityLabel,
+  getHookIdentitySubtitle,
   groupHooksByCategory,
   isHookRunning,
   visibleHooks,
@@ -446,9 +448,7 @@ const HookOverview: Component<{
                             {getHookDisplayName(hook)}
                           </span>
                           <span class={styles().hookDetails.overviewHookId}>
-                            <Show when={hook.displayName} fallback={hook.id}>
-                              {hook.hookName} - {hook.id}
-                            </Show>
+                            {getHookIdentitySubtitle(hook)}
                           </span>
                         </div>
                         <div class={styles().hookDetails.overviewHookMeta}>
@@ -530,9 +530,21 @@ const HookHeader: Component<{
               {props.hook.hookName}
             </span>
           </Show>
-          <span>{props.hook.id}</span>
-          <Show when={props.hook.threadId}>
-            <span>thread {props.hook.threadId}</span>
+          {/* Prefer threadId as the user-facing identity (generation scope /
+              chat thread). Only show the raw registry id when it differs —
+              after the client prefers threadId over deprecated `id`, the two
+              often match and duplicating them is noise. */}
+          <span data-testid="ai-devtools-hook-identity">
+            {props.hook.threadId
+              ? `thread ${props.hook.threadId}`
+              : getHookIdentityLabel(props.hook)}
+          </span>
+          <Show
+            when={props.hook.threadId && props.hook.threadId !== props.hook.id}
+          >
+            <span data-testid="ai-devtools-hook-registry-id">
+              id {props.hook.id}
+            </span>
           </Show>
           <Show when={props.hook.framework}>
             <span>{props.hook.framework}</span>

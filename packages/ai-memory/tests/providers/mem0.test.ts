@@ -61,7 +61,7 @@ describe('mem0 save', () => {
     const calls = stubFetch(() => ({ data: { id: 'mem-1' } }))
     const adapter = mem0({ baseUrl: 'http://mem0.test', user: 'u1' })
     const receipts = await adapter.save(
-      { sessionId: 's1', userId: 'u1' },
+      { threadId: 's1', userId: 'u1' },
       { user: 'I live in Berlin', assistant: 'noted' },
     )
     expect(receipts).toHaveLength(1)
@@ -70,11 +70,27 @@ describe('mem0 save', () => {
     expect(calls[0]?.method).toBe('POST')
     expect(calls[0]?.body).toMatchObject({
       user_id: 'u1',
+      run_id: 's1',
       messages: [
         { role: 'user', content: 'I live in Berlin' },
         { role: 'assistant', content: 'noted' },
       ],
     })
+  })
+
+  it('scopes save by threadId (run_id) so same-user threads stay separate', async () => {
+    const calls = stubFetch(() => ({ data: { id: 'mem-1' } }))
+    const adapter = mem0({ baseUrl: 'http://mem0.test', user: 'u1' })
+    await adapter.save(
+      { threadId: 'thread-a', userId: 'u1' },
+      { user: 'secret for thread A', assistant: 'ok' },
+    )
+    await adapter.save(
+      { threadId: 'thread-b', userId: 'u1' },
+      { user: 'secret for thread B', assistant: 'ok' },
+    )
+    expect(calls[0]?.body).toMatchObject({ user_id: 'u1', run_id: 'thread-a' })
+    expect(calls[1]?.body).toMatchObject({ user_id: 'u1', run_id: 'thread-b' })
   })
 })
 
@@ -90,13 +106,14 @@ describe('mem0 recall', () => {
     }))
     const adapter = mem0({ baseUrl: 'http://mem0.test', user: 'u1' })
     const result = await adapter.recall(
-      { sessionId: 's1', userId: 'u1' },
+      { threadId: 's1', userId: 'u1' },
       'where do I live',
     )
     expect(calls[0]?.url).toBe('http://mem0.test/search')
     expect(calls[0]?.body).toMatchObject({
       query: 'where do I live',
       user_id: 'u1',
+      run_id: 's1',
     })
     expect(result.fragments).toHaveLength(2)
     expect(result.fragments?.[0]).toMatchObject({
@@ -110,7 +127,7 @@ describe('mem0 recall', () => {
   it('returns an empty result when the server finds nothing', async () => {
     stubFetch(() => ({ data: { results: [] } }))
     const adapter = mem0({ baseUrl: 'http://mem0.test' })
-    const result = await adapter.recall({ sessionId: 's1' }, 'anything')
+    const result = await adapter.recall({ threadId: 's1' }, 'anything')
     expect(result.systemPrompt).toBe('')
     expect(result.fragments).toHaveLength(0)
   })
@@ -118,7 +135,7 @@ describe('mem0 recall', () => {
   it('degrades to an empty result on an HTTP error', async () => {
     stubFetch(() => ({ ok: false, status: 500, data: 'boom' }))
     const adapter = mem0({ baseUrl: 'http://mem0.test' })
-    const result = await adapter.recall({ sessionId: 's1' }, 'anything')
+    const result = await adapter.recall({ threadId: 's1' }, 'anything')
     expect(result.systemPrompt).toBe('')
     expect(result.fragments).toHaveLength(0)
     expect(result.raw).toBeDefined()

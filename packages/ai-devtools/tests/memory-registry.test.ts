@@ -5,10 +5,11 @@ import {
   clearMemoryRegistry,
   createMemoryRegistryState,
   memoryScopeKey,
+  memoryScopeLabel,
 } from '../src/store/memory-registry'
 import type { MemorySnapshotEvent } from '@tanstack/ai-event-client'
 
-const SCOPE = { sessionId: 'session-1' }
+const SCOPE = { threadId: 'thread-1' }
 
 describe('memory registry', () => {
   it('accumulates the operation timeline per scope', () => {
@@ -106,23 +107,106 @@ describe('memory registry', () => {
     expect(state.scopes[memoryScopeKey(SCOPE)]!.lastActivity).toBe(40)
   })
 
-  it('isolates scopes and buckets missing sessionId to (unknown)', () => {
+  it('isolates scopes and buckets omitted error scope to (unknown)', () => {
     const state = createMemoryRegistryState()
     applyMemoryEvent(state, {
       type: 'persist:started',
-      scope: { sessionId: 'a' },
+      scope: { threadId: 'a' },
       adapter: 'in-memory',
       timestamp: 1,
     })
     applyMemoryEvent(state, {
       type: 'error',
-      scope: { sessionId: '' },
+      // Resolver never produced a scope — omit entirely (no empty-string fake).
       adapter: 'in-memory',
       phase: 'save',
       error: { name: 'Error', message: 'x' },
       timestamp: 2,
     })
-    expect(Object.keys(state.scopes).sort()).toEqual(['(unknown)', 'a'])
+    expect(Object.keys(state.scopes).sort()).toEqual([
+      '(unknown)',
+      memoryScopeKey({ threadId: 'a' }),
+    ])
+    expect(state.scopes['(unknown)']!.events[0]).toMatchObject({
+      type: 'error',
+      phase: 'save',
+    })
+    // Errors that resolved a scope stay in that scope's timeline.
+    applyMemoryEvent(state, {
+      type: 'error',
+      scope: { threadId: 'a' },
+      adapter: 'in-memory',
+      phase: 'recall',
+      error: { name: 'Error', message: 'adapter failed' },
+      timestamp: 3,
+    })
+    expect(
+      state.scopes[memoryScopeKey({ threadId: 'a' })]!.events,
+    ).toHaveLength(2)
+  })
+
+  it('stores full Scope identity and isolates composite scopes', () => {
+    const state = createMemoryRegistryState()
+    const tenantA = {
+      threadId: 'shared',
+      userId: 'u',
+      tenantId: 'tenant-a',
+      namespace: 'bank-a',
+    }
+    const tenantB = {
+      threadId: 'shared',
+      userId: 'u',
+      tenantId: 'tenant-b',
+      namespace: 'bank-a',
+    }
+    const sameThreadOtherUser = {
+      threadId: 'shared',
+      userId: 'other',
+      tenantId: 'tenant-a',
+    }
+    applyMemoryEvent(state, {
+      type: 'persist:started',
+      scope: tenantA,
+      adapter: 'in-memory',
+      timestamp: 1,
+    })
+    applyMemoryEvent(state, {
+      type: 'persist:started',
+      scope: tenantB,
+      adapter: 'redis',
+      timestamp: 2,
+    })
+    applyMemoryEvent(state, {
+      type: 'persist:started',
+      scope: sameThreadOtherUser,
+      adapter: 'in-memory',
+      timestamp: 3,
+    })
+
+    const keyA = memoryScopeKey(tenantA)
+    const keyB = memoryScopeKey(tenantB)
+    const keyOtherUser = memoryScopeKey(sameThreadOtherUser)
+    expect(new Set([keyA, keyB, keyOtherUser]).size).toBe(3)
+    expect(state.scopes[keyA]).toMatchObject({
+      threadId: 'shared',
+      userId: 'u',
+      tenantId: 'tenant-a',
+      namespace: 'bank-a',
+      adapter: 'in-memory',
+    })
+    expect(state.scopes[keyB]).toMatchObject({
+      threadId: 'shared',
+      userId: 'u',
+      tenantId: 'tenant-b',
+      adapter: 'redis',
+    })
+    // Literal `_` must not collide with the unset sentinel.
+    expect(memoryScopeKey({ threadId: 't', userId: '_' })).not.toBe(
+      memoryScopeKey({ threadId: 't' }),
+    )
+    expect(memoryScopeLabel(state.scopes[keyA]!)).toBe(
+      'tenant-a · u · shared · bank-a',
+    )
   })
 
   it('clears the registry', () => {

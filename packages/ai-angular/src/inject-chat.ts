@@ -73,6 +73,7 @@ export function injectChat<
   const connectionStatus = signal<ConnectionStatus>('disconnected')
   const sessionGenerating = signal(false)
   const queue = signal<Array<QueuedMessage>>([])
+  const runId = signal<string | null>(null)
   const interruptState = signal<ChatInterruptState<TTools>>({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
@@ -125,9 +126,11 @@ export function injectChat<
     onChunk: (chunk: StreamChunk) => options.onChunk?.(chunk),
     onFinish: (message) => options.onFinish?.(message),
     onError: (err) => options.onError?.(err),
-    onResumeStateChange: (resumeState, pendingInterrupts) => {
-      options.onResumeStateChange?.(resumeState, pendingInterrupts)
-    },
+    onRunIdChange: (nextRunId) => runId.set(nextRunId),
+    // No `onResumeStateChange`: the run identity is surfaced as the `runId`
+    // signal (via `onRunIdChange`) and pending interrupts arrive through
+    // `onInterruptStateChange`, so there is nothing left for it to do — and it
+    // is not a public option here, matching the other framework packages.
     onInterruptStateChange: (nextInterruptState) => {
       interruptState.set(nextInterruptState)
       options.onInterruptStateChange?.(nextInterruptState)
@@ -311,6 +314,7 @@ export function injectChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    runId: runId.asReadonly(),
     interrupts,
     pendingInterrupts,
     interruptErrors,

@@ -351,6 +351,12 @@ OPENAI_API_KEY=sk-... pnpm --filter @tanstack/ai-e2e record
     links, code-fence languages, formatting, factual fixes — must **not**
     touch `addedAt` or `updatedAt`. Only genuinely new or changed content
     moves these dates.
+- **Docs nav: use `"tab"` for reserved words.** The site sorts sidebar entries
+  into tabs by keyword-matching `"<sectionLabel> <pageLabel> <to>"` — `overview`,
+  `introduction`, `installation`, `quick start`, `tutorial`, `example`,
+  `community` — which yanks a page out of its own section. Don't rename around
+  it; set `"tab"` on the section or entry in `docs/config.json`
+  (`home | get-started | tutorial | guides | api | examples`).
 
 ## Key Dependencies
 

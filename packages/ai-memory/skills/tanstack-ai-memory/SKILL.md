@@ -39,7 +39,7 @@ const stream = chat({
       // Derive scope server-side from trusted session state.
       scope: (ctx) => {
         const session = getSession(ctx)
-        return { sessionId: session.threadId, userId: session.userId }
+        return { threadId: session.threadId, userId: session.userId }
       },
     }),
   ],
@@ -68,16 +68,20 @@ interface MemoryAdapter {
 
 ## Scope security
 
-`MemoryScope` is `{ sessionId, userId? }` and is the isolation boundary. **Never trust a
-client-supplied `userId`/`sessionId`.** Resolve scope server-side from session/auth and
-pass the validated session through `chat({ context: { session } })`. If you accept a
-thread id from the request body, validate it belongs to the session user BEFORE using it.
+`MemoryScope` is an alias of the shared `Scope` type from `@tanstack/ai`:
+`{ threadId, userId?, tenantId?, namespace? }`. It is the isolation boundary. **Never
+trust a client-supplied `userId`/`threadId`.** Resolve scope server-side from
+session/auth and pass the validated session through `chat({ context: { session } })`. If
+you accept a thread id from the request body, validate it belongs to the session user
+BEFORE using it.
 
 ## Adapters
 
-- `inMemory()` from `@tanstack/ai-memory/in-memory` — dev, tests, single-process demos.
-- `redis({ redis })` from `@tanstack/ai-memory/redis` — production, plain Redis.
-- `hindsight()` / `mem0()` / `honcho()` — hosted memory services (optional peer SDKs).
+- `inMemory()` / `redis()` — exact match on `threadId` + optional `userId`/`tenantId`
+  (`namespace` ignored). Redis index keys include all three segments.
+- `hindsight()` — bank `{tenant|_}__{user}__{threadId}`.
+- `mem0()` — `user_id` + `run_id` (`threadId`); no `tenantId`.
+- `honcho()` — session `{tenant|_}__{threadId}`; peer tenant-prefixed when set.
 - Custom — implement `recall`/`save` and run `@tanstack/ai-memory/tests/contract`.
 
 ## Failure modes
@@ -91,4 +95,5 @@ fails the turn.
 Five events on `aiEventClient` (from `@tanstack/ai-event-client`):
 `memory:retrieve:started` / `:completed`, `memory:persist:started` / `:completed`,
 `memory:error` (`phase: 'recall' | 'save'`). Payloads carry the adapter id and
-fragment/receipt counts, not full memory text.
+fragment/receipt counts, not full memory text. Error events include `scope` only
+when it was already resolved; if the resolver threw, `scope` is omitted.

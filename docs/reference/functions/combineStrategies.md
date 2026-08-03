@@ -38,7 +38,6 @@ const stream = chat({
   tools: [weatherTool],
   agentLoopStrategy: combineStrategies([
     maxIterations(10),
-    maxToolCalls(20),
     ({ messages }) => messages.length < 100,
   ]),
 });

@@ -9,6 +9,28 @@
  *
  * Usage:
  *   pnpm tsx scripts/sync-provider-models.ts
+ *
+ * ## Providers deliberately NOT synced
+ *
+ * The sync is only safe when the provider's own model ids can be derived from
+ * OpenRouter's. Adding an entry to `PROVIDER_MAP` for a provider where that
+ * doesn't hold generates ids that 404 at request time, which is worse than no
+ * automation. These are excluded on purpose:
+ *
+ * - **byteplus** (`@tanstack/ai-byteplus`) — OpenRouter lists the same models
+ *   under undated slugs (`bytedance-seed/seed-1.6`), but BytePlus Ark
+ *   addresses them by *date-suffixed* id (`seed-1-6-250615`), and the suffix
+ *   is not derivable from anything OpenRouter publishes. Ark's own `GET
+ *   /models` is the catalog, and it is not exhaustive. On top of that the
+ *   package's capability tables are live-probe-verified specifically because
+ *   the published metadata is wrong in both directions, so a metadata-driven
+ *   sync would overwrite probed facts with worse ones. Use `/gap-analysis
+ *   byteplus` instead; the probe recipe is in that package's `model-meta.ts`.
+ * - **fal**, **elevenlabs** — media-only providers whose endpoint ids are not
+ *   OpenRouter models at all. fal image fields have their own generator
+ *   (`scripts/generate-fal-image-field-map.ts`).
+ * - **bedrock** — ids are AWS-region-qualified; see
+ *   `scripts/fetch-bedrock-models.ts`.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -453,7 +475,16 @@ function insertConstants(content: string, constants: Array<string>): string {
 
 /**
  * Add entries to an array like: export const ARRAY_NAME = [ ... ] as const
- * Uses a regex with the `s` flag (dotAll) to match across newlines.
+ *
+ * New entries are inserted immediately AFTER the opening bracket, so this
+ * only ever writes separators it owns: each inserted line carries its own
+ * trailing comma, and the existing body — multi-line with trailing commas, a
+ * short single-line array, comment lines, or nothing at all — follows
+ * unchanged. Inserting before the CLOSING bracket instead means guessing
+ * whether the last existing entry already has a comma, which is how a
+ * single-line `GROK_CHAT_MODELS` produced a syntax error (and a dead daily
+ * sync) the day grok-4.5 arrived. `pnpm format` reflows the result, so the
+ * inserted lines only need to parse, not to be pretty.
  */
 function addToArray(
   content: string,
@@ -461,13 +492,9 @@ function addToArray(
   entries: Array<string>,
   arrayRef: string,
 ): string {
-  // Match the array declaration: export const ARRAY_NAME = [...] as const
-  // Uses [\s\S]*? (non-greedy) instead of [^\]]* to handle ] inside comments
-  const pattern = new RegExp(
-    `(export const ${arrayName} = \\[\\s*[\\s\\S]*?)(\\] as const)`,
-  )
-  const match = pattern.exec(content)
-  if (!match) {
+  const open = `export const ${arrayName} = [`
+  const openIndex = content.indexOf(open)
+  if (openIndex === -1) {
     console.warn(`  Warning: Could not find array '${arrayName}' in file`)
     return content
   }
@@ -475,11 +502,8 @@ function addToArray(
   const newEntries = entries
     .map((constName) => `  ${constName}${arrayRef},`)
     .join('\n')
-  // Use replacer function to prevent $-character interpretation in replacement string
-  return content.replace(
-    pattern,
-    () => `${match[1]}\n${newEntries}\n${match[2]}`,
-  )
+  const insertAt = openIndex + open.length
+  return `${content.slice(0, insertAt)}\n${newEntries}${content.slice(insertAt)}`
 }
 
 /**

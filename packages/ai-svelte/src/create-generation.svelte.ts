@@ -7,6 +7,8 @@ import type {
   GenerationClientOptions,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
+  GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
 
@@ -24,12 +26,51 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /**
+   * How this generation persists across reloads.
+   * - Omit / `false`: ephemeral, in-memory only.
+   * - `true`: server-driven — on mount the client hydrates the last generation
+   *   for its `threadId` from the server (needs a connection with a
+   *   `hydrateGeneration` handler) and repaints it; it never auto-starts a run.
+   */
+  persistence?: boolean
+  /**
+   * The **scope** this generation belongs to: a stable, app-chosen name for the
+   * slot successive runs fill — not a link to a chat conversation.
+   *
+   * The hook starts empty and produces many runs over its life; each gets its
+   * own `runId`, but all belong to one scope. Persistence keys on this, so
+   * derive it from your own domain and keep it identical across reloads (e.g.
+   * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
+   * id on the wire, which the protocol requires.
+   *
+   * **Required whenever `persistence` is set** — an app that cannot name the
+   * scope has nothing to restore to. Optional for ephemeral generations, where
+   * it falls back to `id` purely to satisfy the wire.
+   */
+  threadId?: string
+  /**
+   * Server-driven hydration handler for `persistence: true` when the
+   * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
+   * `rpcStream()` adapter built without handlers) — typically a one-line
+   * server-function call. The connection's own handler takes precedence.
+   */
+  hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
+  /**
+   * Re-attach handler that replays a run still generating to completion on
+   * mount, when the connection doesn't carry one. Without it, a restored
+   * `running` snapshot surfaces as an (interrupted) error. The connection's
+   * own handler takes precedence.
+   */
+  joinRun?: ConnectConnectionAdapter['joinRun']
   /**
    * Callback when a result is received. Can optionally return a transformed value.
    *
@@ -44,14 +85,24 @@ export interface CreateGenerationOptions<TInput, TResult, TOutput = TResult> {
   onProgress?: (progress: number, message?: string) => void
   /** Callback for each stream chunk (connect-based adapter mode only) */
   onChunk?: (chunk: StreamChunk) => void
+  /**
+   * @internal Rebuild a typed result from a restored snapshot, injected by each
+   * specialized function (image / speech / audio / transcription / summarize).
+   * Forwarded to the client so a server-hydrate restore repaints `result`.
+   */
+  reconstructResult?: (restored: GenerationRestoredResult) => TResult | null
 }
 
 /**
  * Return type for the createGeneration function.
  *
  * @template TOutput - The output type (after optional transform)
+ * @template TInput - The input type accepted by `generate` (defaults to any object)
  */
-export interface CreateGenerationReturn<TOutput> {
+export interface CreateGenerationReturn<
+  TOutput,
+  TInput extends Record<string, any> = Record<string, any>,
+> {
   /** The generation result, or null if not yet generated */
   readonly result: TOutput | null
   /** Whether a generation is currently in progress */
@@ -61,7 +112,7 @@ export interface CreateGenerationReturn<TOutput> {
   /** Current state of the generation client */
   readonly status: GenerationClientState
   /** Trigger a generation request */
-  generate: (input: Record<string, any>) => Promise<void>
+  generate: (input: TInput) => Promise<void>
   /** Abort the current generation */
   stop: () => void
   /** Clear result, error, and return to idle */
@@ -70,6 +121,13 @@ export interface CreateGenerationReturn<TOutput> {
   dispose: () => void
   /** Update additional body parameters */
   updateBody: (body: Record<string, any>) => void
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
+  readonly runId: string | null
 }
 
 /**
@@ -114,30 +172,48 @@ export function createGeneration<
   TResult,
   TTransformed = void,
 >(
-  options: Omit<CreateGenerationOptions<TInput, TResult>, 'onResult'> & {
+  options: Omit<
+    CreateGenerationOptions<TInput, TResult>,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
     onResult?: (result: TResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): CreateGenerationReturn<
-  InferGenerationOutputFromReturn<TResult, TTransformed>
+  InferGenerationOutputFromReturn<TResult, TTransformed>,
+  TInput
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
-  const clientId =
-    options.id || `gen-${Date.now()}-${Math.random().toString(36).substring(7)}`
+  const fallbackId = `gen-${Date.now()}-${Math.random().toString(36).substring(7)}`
 
   // Create reactive state using Svelte 5 runes
   let result = $state<TOutput | null>(null)
   let isLoading = $state(false)
   let error = $state<Error | undefined>(undefined)
   let status = $state<GenerationClientState>('idle')
+  let runId = $state<string | null>(null)
+  let disposed = false
 
   // `body` uses a conditional spread because `GenerationClientOptions.body`
   // is declared `body?: Record<string, any>` (absent vs. present) under
   // `exactOptionalPropertyTypes`. Assigning `undefined` directly would be
   // rejected — the optional caller `options.body` may be undefined, in which
   // case we want the key to be absent.
+  // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
   const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
-    id: clientId,
     body: options.body,
+    ...(options.threadId !== undefined
+      ? { threadId: options.threadId }
+      : { id: options.id ?? fallbackId }),
+    ...(options.persistence !== undefined && {
+      persistence: options.persistence,
+    }),
+    ...(options.hydrateGeneration !== undefined && {
+      hydrateGeneration: options.hydrateGeneration,
+    }),
+    ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
+    ...(options.reconstructResult
+      ? { reconstructResult: options.reconstructResult }
+      : {}),
     devtoolsBridgeFactory: createGenerationDevtoolsBridge,
     devtools: {
       ...options.devtools,
@@ -150,20 +226,34 @@ export function createGeneration<
     onResult: ((r: TResult) => options.onResult?.(r)) as (
       result: TResult,
     ) => TOutput | null | void,
-    onError: (e: Error) => options.onError?.(e),
-    onProgress: (p: number, m?: string) => options.onProgress?.(p, m),
-    onChunk: (c: StreamChunk) => options.onChunk?.(c),
+    onError: (e: Error) => {
+      if (!disposed) options.onError?.(e)
+    },
+    onProgress: (p: number, m?: string) => {
+      if (!disposed) options.onProgress?.(p, m)
+    },
+    onChunk: (c: StreamChunk) => {
+      if (!disposed) options.onChunk?.(c)
+    },
     onResultChange: (r: TOutput | null) => {
+      if (disposed) return
       result = r
     },
     onLoadingChange: (l: boolean) => {
+      if (disposed) return
       isLoading = l
     },
     onErrorChange: (e: Error | undefined) => {
+      if (disposed) return
       error = e
     },
     onStatusChange: (s: GenerationClientState) => {
+      if (disposed) return
       status = s
+    },
+    onResumeStateChange: (rs) => {
+      if (disposed) return
+      runId = rs?.runId ?? null
     },
   }
 
@@ -185,6 +275,8 @@ export function createGeneration<
     )
   }
 
+  // Mount devtools only. Generation runs are never auto-started on setup —
+  // persisted state is read-only for display.
   client.mountDevtools()
 
   // Note: Cleanup is handled by calling dispose() directly when needed.
@@ -193,6 +285,12 @@ export function createGeneration<
   // Users should call gen.dispose() in their component's cleanup if needed.
 
   const generate = async (input: TInput) => {
+    // Svelte has no remount effect to revive a disposed client (the other
+    // frameworks revive via mountDevtools() in their mount effects), so an
+    // explicit generate() after dispose() is the Svelte revive path: bring
+    // the client and the reactive bindings back together.
+    disposed = false
+    client.mountDevtools()
     await client.generate(input)
   }
 
@@ -205,6 +303,7 @@ export function createGeneration<
   }
 
   const dispose = () => {
+    disposed = true
     client.dispose()
   }
 
@@ -225,10 +324,13 @@ export function createGeneration<
     get status() {
       return status
     },
-    generate: generate as (input: Record<string, any>) => Promise<void>,
+    generate,
     stop,
     reset,
     dispose,
     updateBody,
+    get runId() {
+      return runId
+    },
   }
 }

@@ -14,26 +14,25 @@
  * behind `recall`/`save`; vendor adapters map these two verbs onto their APIs.
  */
 
-import type { Tool } from '@tanstack/ai'
+import type { Scope, Tool } from '@tanstack/ai'
 
 // ===========================
 // Scope & turn primitives
 // ===========================
 
 /**
- * Isolation scope for memory reads and writes. Opaque to the middleware —
- * each adapter interprets it (vendors map it to bank/user ids; the built-in
- * stores key their internal record space by it).
+ * Isolation scope for memory reads and writes. Alias of the shared {@link Scope}
+ * identity type from `@tanstack/ai` so memory and persistence share one
+ * vocabulary (`threadId`, optional `userId` / `tenantId` / `namespace`).
  *
- * Derive scope server-side from trusted session state — never from client
- * input, or one user's request can read or write another user's memory.
+ * Opaque to the middleware — each adapter interprets it (vendors map it to
+ * bank/user ids; the built-in stores key their internal record space by it).
+ *
+ * Resolve every field server-side from trusted session/auth state. A client-
+ * originated `threadId` is only safe after you validate it belongs to the
+ * session user; never accept bare `userId`/`tenantId` from the request body.
  */
-export interface MemoryScope {
-  /** Conversation/session identifier. Required — the minimal isolation key. */
-  sessionId: string
-  /** Optional durable end-user identity, for cross-session recall. */
-  userId?: string
-}
+export type MemoryScope = Scope
 
 /** A completed conversation turn handed to {@link MemoryAdapter.save}. */
 export interface MemoryTurn {

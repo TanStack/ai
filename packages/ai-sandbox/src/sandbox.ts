@@ -9,11 +9,13 @@
 import { bootstrapWorkspace } from './bootstrap'
 import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'
-import { InMemoryLockStore, InMemorySandboxStore } from './store'
+import { InMemoryLockStore } from '@tanstack/ai/locks'
+import type { LockStore } from '@tanstack/ai/locks'
 import type { SandboxFileHookEvent } from '@tanstack/ai'
+import { InMemorySandboxInstanceStore } from './instance-store'
+import type { SandboxInstanceStore } from './instance-store'
 import type { SandboxHandle, SandboxProvider } from './contracts'
 import type { SandboxKeyInput } from './key'
-import type { LockStore, SandboxStore } from './store'
 import type { SandboxPolicy } from './policy'
 import type { WorkspaceDefinition } from './workspace'
 
@@ -69,7 +71,7 @@ export interface SandboxEnsureContext {
   threadId: string
   runId: string
   /** Persistence seam; falls back to an in-memory store when absent. */
-  store?: SandboxStore
+  store?: SandboxInstanceStore
   /** Lock seam; falls back to an in-memory lock when absent. */
   locks?: LockStore
   tenant?: { userId?: string; orgId?: string }
@@ -111,7 +113,7 @@ function parseMaxAgeMs(value: string | undefined): number | undefined {
 
 // Process-lifetime fallbacks shared across all definitions so concurrent
 // ensures for the same key serialize even without an injected store/lock.
-const fallbackStore = new InMemorySandboxStore()
+const fallbackStore = new InMemorySandboxInstanceStore()
 const fallbackLocks = new InMemoryLockStore()
 
 export function defineSandbox(config: SandboxConfig): SandboxDefinition {

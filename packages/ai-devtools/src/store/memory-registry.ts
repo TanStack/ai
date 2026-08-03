@@ -13,9 +13,9 @@ import type {
  * pure reducers (mirroring `hook-registry.ts`) so the mapping from events →
  * view state is unit-testable in isolation, without a Solid store.
  *
- * Memory is keyed by scope (sessionId), NOT by hook — several hooks can share
- * one session. The `MemoryPanel` reads a single `MemoryScopeState` by key; the
- * per-hook tab just resolves which key to show.
+ * Memory is keyed by composite scope (`tenantId`/`userId`/`threadId`), NOT by
+ * hook — several hooks can share one scope. The `MemoryPanel` reads a single
+ * `MemoryScopeState` by key; the per-hook tab just resolves which key to show.
  */
 
 /** One row in a scope's operations timeline. */
@@ -60,11 +60,13 @@ export interface MemorySnapshotRecord {
   facts: Array<MemoryFactRecord>
 }
 
-/** Everything known about memory for a single scope (sessionId). */
+/** Everything known about memory for a single composite scope. */
 export interface MemoryScopeState {
   key: string
-  sessionId: string
+  threadId: string
   userId?: string
+  tenantId?: string
+  namespace?: string
   /** Most recent adapter id seen for this scope. */
   adapter?: string
   events: Array<MemoryEventRecord>
@@ -80,10 +82,39 @@ export function createMemoryRegistryState(): MemoryRegistryState {
   return { scopes: {} }
 }
 
-/** Stable scope key. Empty/absent sessionId (e.g. error scope) buckets to `(unknown)`. */
+/**
+ * Escape `:` / `\` / `_` so composite keys cannot collide when a dim contains
+ * the separator or the unset sentinel (mirrors redis scope-key hardening).
+ */
+function escapeScopeDim(value: string): string {
+  return value.replace(/[\\:_]/g, '\\$&')
+}
+
+/** Unset optional dims serialize as `_` (same convention as the redis adapter). */
+function scopeDim(value: string | undefined): string {
+  return value != null && value.length > 0 ? escapeScopeDim(value) : '_'
+}
+
+/**
+ * Stable scope key:
+ * `{tenantId|_}:{userId|_}:{threadId}:{namespace|_}`.
+ * Absent scope (e.g. `memory:error` before resolve) buckets to `(unknown)`.
+ */
 export function memoryScopeKey(scope: MemoryScopeLite | undefined): string {
-  const sessionId = scope?.sessionId
-  return sessionId && sessionId.length > 0 ? sessionId : '(unknown)'
+  if (!scope) return '(unknown)'
+  return `${scopeDim(scope.tenantId)}:${scopeDim(scope.userId)}:${escapeScopeDim(scope.threadId)}:${scopeDim(scope.namespace)}`
+}
+
+/** Human-readable label for the Memory panel scope picker. */
+export function memoryScopeLabel(entry: MemoryScopeState): string {
+  if (entry.key === '(unknown)' || !entry.threadId) return '(unknown)'
+  const parts = [
+    entry.tenantId,
+    entry.userId,
+    entry.threadId,
+    entry.namespace,
+  ].filter((p): p is string => p != null && p.length > 0)
+  return parts.join(' · ')
 }
 
 const MAX_EVENTS_PER_SCOPE = 200
@@ -97,14 +128,21 @@ function ensureScope(
   if (!entry) {
     entry = {
       key,
-      sessionId: scope?.sessionId ?? '',
+      threadId: scope?.threadId ?? '',
       userId: scope?.userId,
+      tenantId: scope?.tenantId,
+      namespace: scope?.namespace,
       events: [],
       lastActivity: 0,
     }
     state.scopes[key] = entry
   }
-  if (scope?.userId) entry.userId = scope.userId
+  // Only merge metadata when we have a real scope (not the unscoped error bucket).
+  if (scope) {
+    if (scope.userId) entry.userId = scope.userId
+    if (scope.tenantId) entry.tenantId = scope.tenantId
+    if (scope.namespace) entry.namespace = scope.namespace
+  }
   return entry
 }
 

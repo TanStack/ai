@@ -40,7 +40,7 @@ const mw = memoryMiddleware({
   adapter: inMemory(),
   // Function form derives scope per request. `ctx.threadId` is the stable
   // per-conversation id; add `userId` from your server-validated session.
-  scope: (ctx) => ({ sessionId: ctx.threadId }),
+  scope: (ctx) => ({ threadId: ctx.threadId }),
   role: 'recall+save', // or 'save-only' to persist without injecting
   onRecall: ({ query, result }) => {
     console.log('recalled', result.fragments?.length ?? 0, 'hits for', query)
@@ -84,7 +84,7 @@ Under the hood the middleware emits these events on `aiEventClient` (from
 | `memory:retrieve:completed` | Recall returns (fragment count, whether tools were injected) |
 | `memory:persist:started` | A deferred save begins |
 | `memory:persist:completed` | A save completes (receipt count) |
-| `memory:error` | A `recall` or `save` threw (`phase: 'recall'` or `'save'`) |
+| `memory:error` | A `recall` or `save` threw (`phase: 'recall'` or `'save'`). Carries `scope` only when it was already resolved; omitted if the resolver failed or never ran. |
 
 ## Failures are non-fatal
 

@@ -13,6 +13,8 @@ import type { TranscriptionGenerateInput } from '@tanstack/ai-client'
 
 type Mode = 'streaming' | 'direct' | 'server-fn'
 
+// Persist each variant's lightweight resume snapshot across reloads.
+
 function TranscriptionForm({
   mode,
   config,
@@ -23,12 +25,15 @@ function TranscriptionForm({
   const hookOptions = useMemo(() => {
     if (mode === 'streaming') {
       return {
+        threadId: `transcription:${mode}:${config.id}`,
         connection: fetchServerSentEvents('/api/transcribe'),
         body: { provider: config.id },
+        persistence: true,
       }
     }
     if (mode === 'direct') {
       return {
+        threadId: `transcription:${mode}:${config.id}`,
         fetcher: (input: TranscriptionGenerateInput) =>
           transcribeFn({
             data: {
@@ -39,9 +44,11 @@ function TranscriptionForm({
               provider: config.id,
             },
           }),
+        persistence: true,
       }
     }
     return {
+      threadId: `transcription:${mode}:${config.id}`,
       fetcher: (input: TranscriptionGenerateInput) =>
         transcribeStreamFn({
           data: {
@@ -52,6 +59,7 @@ function TranscriptionForm({
             provider: config.id,
           },
         }),
+      persistence: true,
     }
   }, [mode, config.id])
 

@@ -3,7 +3,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import { uiMessagesToWire } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
-import type { ChatClientPersistence, UIMessage } from '@tanstack/ai-client'
+import type {
+  ChatClientPersistence,
+  ChatPersistedState,
+  UIMessage,
+} from '@tanstack/ai-client'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { Feature, Mode, Provider } from '@/lib/types'
 import { ALL_FEATURES, ALL_PROVIDERS } from '@/lib/types'
@@ -99,8 +103,7 @@ function isStoredUIMessage(value: unknown): value is StoredUIMessage {
   )
 }
 
-function deserializeMessages(raw: string): Array<UIMessage> {
-  const parsed: unknown = JSON.parse(raw)
+function deserializeMessages(parsed: unknown): Array<UIMessage> {
   if (!Array.isArray(parsed) || !parsed.every(isStoredUIMessage)) {
     throw new TypeError('Stored messages are invalid')
   }
@@ -115,18 +118,37 @@ function deserializeMessages(raw: string): Array<UIMessage> {
   }))
 }
 
-/** Simple localStorage message adapter (no @tanstack/ai-client storage helpers). */
+/**
+ * `setItem` receives the combined `{ messages, resume? }` record, so `getItem`
+ * has to read that shape back — reading it as a bare array throws, the catch
+ * below swallows it, and the conversation silently fails to restore. A bare
+ * array is still accepted because the contract allows the legacy format.
+ *
+ * Only the transcript is returned: this page exercises message-list
+ * persistence, and the resume snapshot has its own harness in
+ * `persistence-durability.tsx` (which uses the real `localStoragePersistence`).
+ */
+function deserializePersistedState(raw: string): ChatPersistedState {
+  const parsed: unknown = JSON.parse(raw)
+  if (Array.isArray(parsed)) return { messages: deserializeMessages(parsed) }
+  if (!isRecord(parsed)) {
+    throw new TypeError('Stored chat state is invalid')
+  }
+  return { messages: deserializeMessages(parsed.messages) }
+}
+
+/** Simple localStorage adapter (no @tanstack/ai-client storage helpers). */
 const messagePersistence: ChatClientPersistence = {
   getItem(id) {
     try {
       const raw = localStorage.getItem(id)
-      return raw === null ? null : deserializeMessages(raw)
+      return raw === null ? null : deserializePersistedState(raw)
     } catch {
       return null
     }
   },
-  setItem(id, messages) {
-    localStorage.setItem(id, serializeJson(messages))
+  setItem(id, state) {
+    localStorage.setItem(id, serializeJson(state))
   },
   removeItem(id) {
     localStorage.removeItem(id)
@@ -344,14 +366,13 @@ function ChatFeature({
     messages,
     sendMessage,
     isLoading,
-    resumeState,
+    runId,
     interrupts,
     stop,
     clear,
     queue,
     cancelQueued,
   } = useChat({
-    id: chatId,
     threadId: chatId,
     ...transport,
     tools,
@@ -386,14 +407,7 @@ function ChatFeature({
 
   return (
     <>
-      {resumeState && (
-        <div
-          data-testid="resume-state"
-          data-thread-id={resumeState.threadId}
-          data-run-id={resumeState.runId}
-          hidden
-        />
-      )}
+      {runId && <div data-testid="run-id" data-run-id={runId} hidden />}
       <div
         data-testid="pending-interrupt-count"
         data-count={String(interrupts.length)}

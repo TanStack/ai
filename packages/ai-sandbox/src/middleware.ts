@@ -1,12 +1,14 @@
 /**
- * `withSandbox(definition)` — the middleware that PROVIDES the
+ * `withSandbox(definition, options?)` — the middleware that PROVIDES the
  * {@link SandboxCapability} a harness adapter requires.
  *
  * - `setup`: resume-or-create the sandbox (via the definition's ensure
- *   algorithm), provide the handle, using the optional SandboxStore/Locks
- *   capabilities when a persistence middleware supplied them (in-memory
- *   fallback otherwise). If `fileEvents` is not false, starts a watcher
- *   that dispatches to sandbox-scoped hooks and forwards to the runtime sink.
+ *   algorithm), provide the handle, using the durability seams from
+ *   {@link SandboxMiddlewareOptions} (or, failing that, a bus-provided
+ *   SandboxInstanceStoreCapability / LocksCapability, then an in-memory
+ *   fallback). If `fileEvents` is not false, starts a
+ *   watcher that dispatches to sandbox-scoped hooks and forwards to the runtime
+ *   sink.
  * - `onFinish`/`onAbort`/`onError`: stop the watcher, snapshot (`after-run`)
  *   and/or destroy per lifecycle.
  *
@@ -15,14 +17,14 @@
  * chunks), not from here — middleware setup runs before streaming begins.
  */
 import { defineChatMiddleware } from '@tanstack/ai'
+import { LocksCapability } from '@tanstack/ai/locks'
 import { getSandboxRuntime } from '@tanstack/ai/adapter-internals'
 import {
-  LocksCapability,
   SandboxCapability,
-  SandboxStoreCapability,
   provideSandbox,
   provideSandboxPolicy,
 } from './capabilities'
+import { SandboxInstanceStoreCapability } from './instance-store'
 import { computeWorkspaceHash } from './key'
 import { buildFileHookEvent, resolveFileEvents } from './file-diff'
 import { ProjectionCapability, provideWorkspaceProjection } from './projection'
@@ -30,6 +32,7 @@ import { resolveSecret } from './secrets'
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
+import type { LockStore } from '@tanstack/ai/locks'
 import type {
   AbortInfo,
   ChatMiddlewareContext,
@@ -37,6 +40,7 @@ import type {
   SandboxFileEvent,
   SandboxFileHookEvent,
 } from '@tanstack/ai'
+import type { SandboxInstanceStore } from './instance-store'
 import type { SandboxHandle } from './contracts'
 import type {
   SandboxDefinition,
@@ -94,12 +98,46 @@ function tenantFrom(
   return { userId, orgId }
 }
 
-function buildEnsureCtx(ctx: ChatMiddlewareContext): SandboxEnsureContext {
+/**
+ * Durability seams for a sandboxed run. Both are optional; each independently
+ * falls back to a process-lifetime in-memory default, which is correct for a
+ * single process but NOT across replicas.
+ */
+export interface SandboxMiddlewareOptions {
+  /**
+   * Durable instance map (which provider sandbox to resume for a key). Pass
+   * your own store to make resume survive across processes/replicas.
+   *
+   * Takes precedence over a store provided on the capability bus (see
+   * `provideSandboxInstanceStore`), so the call site wins over ambient wiring.
+   */
+  instances?: SandboxInstanceStore
+  /**
+   * Distributed lock serializing resume-or-create for one key. Needed for
+   * multi-replica correctness so two concurrent runs don't both create.
+   *
+   * Prefer `withLocks` from `@tanstack/ai/locks` when other middleware also
+   * needs the lock; use this option to scope one to this sandbox. Takes
+   * precedence over a bus-provided lock.
+   */
+  locks?: LockStore
+}
+
+/**
+ * Resolve the ensure seams. Precedence is explicit option → capability bus →
+ * (in `ensure`) the in-memory fallback. The option wins because it is visible
+ * at the call site; the bus remains for platform/framework injection.
+ */
+function buildEnsureCtx(
+  ctx: ChatMiddlewareContext,
+  options: SandboxMiddlewareOptions | undefined,
+): SandboxEnsureContext {
   return {
     threadId: ctx.threadId,
     runId: ctx.runId,
-    store: ctx.getOptional(SandboxStoreCapability),
-    locks: ctx.getOptional(LocksCapability),
+    store:
+      options?.instances ?? ctx.getOptional(SandboxInstanceStoreCapability),
+    locks: options?.locks ?? ctx.getOptional(LocksCapability),
     tenant: tenantFrom(ctx.context),
     signal: ctx.signal,
   }
@@ -143,6 +181,7 @@ async function dispatchDefinitionHooks(
 
 export function withSandbox(
   definition: SandboxDefinition,
+  options?: SandboxMiddlewareOptions,
 ): DefinedChatMiddleware<
   unknown,
   readonly [],
@@ -154,10 +193,10 @@ export function withSandbox(
     // SandboxPolicyCapability is provided conditionally (only when the
     // definition has a policy), so it is intentionally NOT declared here —
     // consumers read it via `getOptional`.
-    optionalRequires: [SandboxStoreCapability, LocksCapability],
+    optionalRequires: [SandboxInstanceStoreCapability, LocksCapability],
 
     async setup(ctx) {
-      const ensureCtx = buildEnsureCtx(ctx)
+      const ensureCtx = buildEnsureCtx(ctx, options)
       const handle = await definition.ensure(ensureCtx)
       provideSandbox(ctx, handle)
       if (definition.policy) provideSandboxPolicy(ctx, definition.policy)

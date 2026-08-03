@@ -71,7 +71,7 @@ describe('honcho factory', () => {
   it('save appends the turn and returns an ok receipt', async () => {
     const adapter = honcho({ user: 'u1' })
     const receipts = await adapter.save(
-      { sessionId: 's1', userId: 'u1' },
+      { threadId: 's1', userId: 'u1' },
       { user: 'I live in Berlin', assistant: 'noted' },
     )
     expect(receipts).toHaveLength(1)
@@ -82,7 +82,7 @@ describe('honcho factory', () => {
   it('recall returns the dialectic answer as the systemPrompt', async () => {
     const adapter = honcho({ user: 'u1' })
     const result = await adapter.recall(
-      { sessionId: 's1', userId: 'u1' },
+      { threadId: 's1', userId: 'u1' },
       'where do I live',
     )
     expect(result.systemPrompt).toBe('dialectic answer about: where do I live')
@@ -90,7 +90,7 @@ describe('honcho factory', () => {
 
   it('listFacts parses the peer representation into rows', async () => {
     const adapter = honcho({ user: 'u1' })
-    const facts = await adapter.listFacts?.({ sessionId: 's1', userId: 'u1' })
+    const facts = await adapter.listFacts?.({ threadId: 's1', userId: 'u1' })
     expect(facts?.map((f) => f.text)).toEqual([
       'user lives in Berlin',
       'user likes hiking',

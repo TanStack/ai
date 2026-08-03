@@ -1,14 +1,28 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
+import {
+  generateTranscription,
+  generationParamsFromBody,
+  memoryStream,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import {
+  reconstructGeneration,
+  withGenerationPersistence,
+} from '@tanstack/ai-persistence'
 import { z } from 'zod'
 import {
   InvalidModelOverrideError,
   UnknownProviderError,
   buildTranscriptionAdapter,
 } from '../lib/server-audio-adapters'
+import { replayGenerationIfResuming } from '../lib/generation-durability'
+import {
+  artifactServeUrl,
+  generationServerPersistence,
+} from '../lib/generation-server-store'
 
 const TRANSCRIPTION_PROVIDER_SCHEMA = z
-  .enum(['openai', 'openai-diarize', 'fal', 'grok', 'elevenlabs'])
+  .enum(['openai', 'openai-diarize', 'fal', 'grok', 'elevenlabs', 'byteplus'])
   .optional()
 
 const TRANSCRIPTION_RESPONSE_FORMAT_SCHEMA = z
@@ -64,6 +78,34 @@ export const Route = createFileRoute('/api/transcribe')({
         const { audio, language, responseFormat, modelOptions, provider } =
           parsed.data
 
+        // The AG-UI envelope also carries the generation's identity. Persistence
+        // files the run under it, so a reload hydrates the same slot.
+        let threadId: string | undefined
+        let runId: string | undefined
+        try {
+          ;({ threadId, runId } = generationParamsFromBody(
+            'transcription',
+            body,
+          ))
+        } catch (err) {
+          return jsonError(400, {
+            error: 'invalid_envelope',
+            message:
+              err instanceof Error ? err.message : 'Invalid request envelope',
+          })
+        }
+
+        // Persistence needs the scope named. It is a type error to wire the
+        // middleware without one, so reject the request rather than inventing
+        // an id the client could never hydrate by.
+        if (!threadId) {
+          return jsonError(400, {
+            error: 'missing_thread_id',
+            message:
+              '`threadId` is required — it is the scope this generation is filed under.',
+          })
+        }
+
         try {
           const adapter = buildTranscriptionAdapter(provider ?? 'openai')
 
@@ -74,9 +116,26 @@ export const Route = createFileRoute('/api/transcribe')({
             responseFormat,
             modelOptions,
             stream: true,
+            ...(threadId ? { threadId } : {}),
+            ...(runId ? { runId } : {}),
+            // Transcription produces text, not media — what gets persisted here
+            // is the run record plus the INPUT audio as an artifact, so a
+            // restored run still shows what was transcribed.
+            middleware: [
+              withGenerationPersistence(generationServerPersistence(), {
+                threadId,
+                artifactUrl: (ref) => artifactServeUrl(ref.artifactId),
+              }),
+            ],
           })
 
-          return toServerSentEventsResponse(stream)
+          // Delivery durability: chunks are logged and id-tagged, so a
+          // reconnect or a mount-time `joinRun` replays instead of re-running
+          // the model. The run still ends with the request — this activity is
+          // short enough to simply re-run.
+          return toServerSentEventsResponse(stream, {
+            durability: { adapter: memoryStream(request) },
+          })
         } catch (err) {
           if (err instanceof InvalidModelOverrideError) {
             return jsonError(400, {
@@ -105,6 +164,15 @@ export const Route = createFileRoute('/api/transcribe')({
           })
         }
       },
+
+      // Two independent jobs, resolved in order (like the image route):
+      // 1. `joinRun` delivery replay, when the request carries a resume offset.
+      // 2. Mount hydration for `persistence: true`: the latest run for
+      //    `?threadId=`, as `{ resumeSnapshot, activeRun }`, so a completed
+      //    transcription still restores after a reload once its log ages out.
+      GET: async ({ request }) =>
+        replayGenerationIfResuming(request) ??
+        (await reconstructGeneration(generationServerPersistence(), request)),
     },
   },
 })

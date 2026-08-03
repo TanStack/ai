@@ -95,9 +95,16 @@ export function pgvectorMemory(options: { pool: Pool; embed: Embed }): MemoryAda
       for (const row of rows) {
         const vector = await embed(row.text)
         await pool.query(
-          `INSERT INTO memory (session_id, user_id, role, text, embedding)
-           VALUES ($1, $2, $3, $4, $5)`,
-          [scope.sessionId, scope.userId ?? null, row.role, row.text, JSON.stringify(vector)],
+          `INSERT INTO memory (thread_id, user_id, tenant_id, role, text, embedding)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [
+            scope.threadId,
+            scope.userId ?? null,
+            scope.tenantId ?? null,
+            row.role,
+            row.text,
+            JSON.stringify(vector),
+          ],
         )
       }
       return [{ ok: true }]
@@ -105,13 +112,22 @@ export function pgvectorMemory(options: { pool: Pool; embed: Embed }): MemoryAda
 
     async recall(scope: MemoryScope, query: string): Promise<RecallResult> {
       const q = await embed(query)
+      // Match every isolation dim exactly (including NULL). Omitted tenant/user
+      // must not match rows written with a tenant/user set.
       const { rows } = await pool.query(
         `SELECT text, 1 - (embedding <=> $1::vector) AS score
            FROM memory
-          WHERE session_id = $2 AND ($3::text IS NULL OR user_id = $3)
+          WHERE thread_id = $2
+            AND user_id IS NOT DISTINCT FROM $3::text
+            AND tenant_id IS NOT DISTINCT FROM $4::text
           ORDER BY score DESC
           LIMIT 6`,
-        [JSON.stringify(q), scope.sessionId, scope.userId ?? null],
+        [
+          JSON.stringify(q),
+          scope.threadId,
+          scope.userId ?? null,
+          scope.tenantId ?? null,
+        ],
       )
       const fragments = rows.map((r) => ({ text: r.text, source: 'pgvector' }))
       const systemPrompt = fragments.length
@@ -179,7 +195,8 @@ recalled prompt. Return `tools: []` (or omit it) when your adapter exposes none.
 ## Pitfalls
 
 - **Keep scopes isolated.** If you serialize scope into a composite key, escape your
-  delimiter so a `sessionId`/`userId` containing it can't collide with another scope.
+  delimiter so a `threadId`/`userId`/`tenantId` containing it can't collide with another
+  scope.
 - **`recall` must not throw for an empty scope.** Return `{ systemPrompt: '' }`.
 - **Extraction lives in `save`.** Don't expect the middleware to derive facts. The raw
   turn is handed to you; store or summarize it however you like.

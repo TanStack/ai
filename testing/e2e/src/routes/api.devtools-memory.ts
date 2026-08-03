@@ -41,7 +41,7 @@ export const Route = createFileRoute('/api/devtools-memory')({
         const testId = typeof fp.testId === 'string' ? fp.testId : undefined
         const aimockPort =
           fp.aimockPort != null ? Number(fp.aimockPort) : undefined
-        const sessionId = testId ?? 'devtools-memory'
+        const threadId = testId ?? 'devtools-memory'
 
         const adapterOptions = createTextAdapter(
           'openai',
@@ -54,7 +54,7 @@ export const Route = createFileRoute('/api/devtools-memory')({
         try {
           const memory = memoryMiddleware({
             adapter: devtoolsMemoryAdapter,
-            scope: { sessionId },
+            scope: { threadId },
           })
 
           const stream = chat({

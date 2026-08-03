@@ -68,11 +68,6 @@ export function createChat<
 >(
   options: CreateChatOptions<TTools, TSchema, TContext>,
 ): CreateChatReturn<TTools, TSchema, TContext> {
-  // Generate a unique ID for this chat instance
-  const clientId =
-    options.id ||
-    `chat-${Date.now()}-${Math.random().toString(36).substring(7)}`
-
   // Create reactive state using Svelte 5 runes
   let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
   let isLoading = $state(false)
@@ -82,9 +77,7 @@ export function createChat<
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
   let queue = $state<Array<QueuedMessage>>([])
-  let resumeState = $state<ChatResumeState | null>(
-    options.initialResumeSnapshot?.resumeState ?? null,
-  )
+  let runId = $state<string | null>(null)
   let interruptState = $state.raw<ChatInterruptState<TTools>>({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
@@ -113,10 +106,12 @@ export function createChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
+  // The hook's identity is its `threadId`, which ChatClient also uses as the
+  // persistence key — no separate `id`. When no `threadId` is given the client
+  // generates one, so an ephemeral chat still works but is not restored on reload.
   const client = new ChatClient<TTools, TContext>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
-    id: clientId,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
@@ -181,8 +176,8 @@ export function createChat<
     onQueueChange: (nextQueue: Array<QueuedMessage>) => {
       queue = nextQueue
     },
-    onResumeStateChange: (nextResumeState) => {
-      resumeState = nextResumeState
+    onRunIdChange: (nextRunId) => {
+      runId = nextRunId
     },
     onInterruptStateChange: (nextInterruptState) => {
       interruptState = nextInterruptState
@@ -191,7 +186,7 @@ export function createChat<
   })
 
   function syncResumeState() {
-    resumeState = client.getResumeState()
+    runId = client.getCurrentRunId()
     interruptState = client.getInterruptState()
   }
 
@@ -401,8 +396,8 @@ export function createChat<
     get queue() {
       return queue
     },
-    get resumeState() {
-      return resumeState
+    get runId() {
+      return runId
     },
     get interrupts() {
       return interruptState.interrupts

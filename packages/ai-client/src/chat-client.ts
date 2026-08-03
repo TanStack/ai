@@ -24,6 +24,7 @@ import type {
   StreamChunk,
 } from '@tanstack/ai/client'
 import type {
+  ChatHydrationResult,
   ConnectionAdapter,
   SubscribeConnectionAdapter,
 } from './connection-adapters'
@@ -87,6 +88,11 @@ type ChatClientUpdateOptionsWithoutContext<
     resumeState: ChatResumeState | null,
     pendingInterrupts: BoundInterrupts<TTools>,
   ) => void
+  /**
+   * Fires whenever the id of the run in flight changes: the new id when a run
+   * starts (including a rejoin), `null` when it settles.
+   */
+  onRunIdChange?: (runId: string | null) => void
   onInterruptStateChange?: (state: ChatInterruptState<TTools>) => void
   onCustomEvent?: (
     eventType: string,
@@ -240,6 +246,28 @@ function readResumeState(
   return { threadId: resumeState.threadId, runId: resumeState.runId }
 }
 
+/**
+ * How long a reload rejoin waits for its first chunk before giving up. A durable
+ * backend keeps a from-start join open waiting for a producer; without this
+ * bound a stale pointer to an unknown/evicted run would pin the UI loading for
+ * the backend's full first-chunk deadline (tens of seconds). Kept short so the
+ * client decides "reachable or not" quickly.
+ */
+const REJOIN_CONNECT_DEADLINE_MS = 2000
+
+/**
+ * Chunk types that (re)build the assistant message on a rejoin. The hydrated
+ * in-flight partial is dropped only when one of these arrives — never on
+ * `RUN_STARTED` alone — so a rejoin that connects but delivers no content cannot
+ * leave an empty assistant bubble.
+ */
+const REJOIN_REBUILD_TRIGGERS = new Set<string>([
+  'TEXT_MESSAGE_START',
+  'TEXT_MESSAGE_CONTENT',
+  'TOOL_CALL_START',
+  'MESSAGES_SNAPSHOT',
+])
+
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
@@ -248,9 +276,11 @@ export class ChatClient<
   private connection: SubscribeConnectionAdapter
   private readonly uniqueId: string
   private readonly threadId: string
-  // Message persistence (optional). Clear-during-stream suppression is always
-  // on via ClearedStreamTracker so `clear()` works without a storage adapter.
-  // Durable resume-snapshot storage is not wired here (feat/persistence).
+  // Durable chat persistence (optional): messages + resume snapshot as one
+  // combined record, so a full page reload restores the transcript, rehydrates
+  // pending interrupts, and rejoins an in-flight run. Clear-during-stream
+  // suppression is always on via ClearedStreamTracker so `clear()` works
+  // without a storage adapter.
   private readonly persistor?: ChatPersistor
   private readonly clearedStreamTracker = new ClearedStreamTracker()
   private currentRunId: string | null = null
@@ -258,6 +288,10 @@ export class ChatClient<
   // run, so approvals/client-tool results can be sent back. Cleared when the
   // run terminates. This is STATE (interrupt) resume, not delivery/cursor.
   private lastResume: ChatResumeState | null = null
+  // The in-flight run id already handed to `resumeInFlightRun`, so a persisted
+  // run is rejoined at most once even when both the sync read and the async
+  // hydrate surface the same resume pointer.
+  private rejoinedRunId: string | null = null
   private readonly interruptManager: InterruptManager<TTools>
   private activeInterruptSubmission: InterruptManagerSubmission | undefined
   private interruptSubmissionFailure:
@@ -358,6 +392,7 @@ export class ChatClient<
         resumeState: ChatResumeState | null,
         pendingInterrupts: BoundInterrupts<TTools>,
       ) => void
+      onRunIdChange: (runId: string | null) => void
       onInterruptStateChange: (state: ChatInterruptState<TTools>) => void
       onCustomEvent: (
         eventType: string,
@@ -368,13 +403,33 @@ export class ChatClient<
   }
 
   constructor(options: ChatClientOptions<TTools, TContext>) {
-    this.uniqueId = options.id || this.generateUniqueId('chat')
     this.threadId = options.threadId || this.generateUniqueId('thread')
-    if (options.persistence) {
+    // The instance/devtools id defaults to the threadId (the chat's identity),
+    // falling back to a generated id only when neither is set. `id` overrides it
+    // only for direct ChatClient users who key storage separately from the wire
+    // thread; the framework hooks never pass it.
+    this.uniqueId = options.id || this.threadId
+    // `persistence` is `false`/omitted (ephemeral, in-memory), `true`
+    // (server-authoritative: cache nothing client-side, hydrate the thread from
+    // the server by `threadId` on mount), or a storage adapter
+    // (client-authoritative: cache the transcript plus resume pointer). Only the
+    // server-authoritative mode turns transcript caching off; that is what gates
+    // the mount hydration and keeps a client record from shadowing server history.
+    let cachesMessages = true
+    if (options.persistence === true) {
+      cachesMessages = false
+    } else if (options.persistence) {
+      // A storage adapter: keep the combined record (transcript + resume pointer)
+      // in the browser. Persistence keys on `threadId` (the conversation
+      // identity) so a reload with the same `threadId` finds the same record;
+      // `id` overrides it only when set, for apps that key storage separately
+      // from the wire thread.
+      const persistenceKey = options.id ?? this.threadId
       this.persistor = new ChatPersistor(
         options.persistence,
-        this.uniqueId,
+        persistenceKey,
         (messages) => this.processor.setMessages(messages),
+        (snapshot) => this.applyPersistedResume(snapshot),
       )
     }
     // Both `body` (deprecated) and `forwardedProps` populate the AG-UI
@@ -418,6 +473,7 @@ export class ChatClient<
           options.onSessionGeneratingChange || (() => {}),
         onQueueChange: options.onQueueChange || (() => {}),
         onResumeStateChange: options.onResumeStateChange || (() => {}),
+        onRunIdChange: options.onRunIdChange || (() => {}),
         onInterruptStateChange: options.onInterruptStateChange || (() => {}),
         onCustomEvent: options.onCustomEvent || (() => {}),
       },
@@ -439,10 +495,49 @@ export class ChatClient<
     // Create StreamProcessor with event handlers.
     // Use conditional spreads so we don't pass `undefined` into
     // `StreamProcessorOptions` fields under `exactOptionalPropertyTypes`.
-    const persistedMessages = this.persistor?.readInitial()
-    const initialMessages = Array.isArray(persistedMessages)
-      ? persistedMessages
+    const persistedState = this.persistor?.readInitial()
+    const syncPersistedState =
+      persistedState instanceof Promise ? undefined : persistedState
+    // A persistor exists only in client-authoritative mode, so a synchronously
+    // read record's transcript is the conversation; adopt it over host
+    // `initialMessages`. (Server-authoritative mode has no persistor and instead
+    // hydrates from the server on mount, keyed by threadId.)
+    const initialMessages = syncPersistedState
+      ? syncPersistedState.messages
       : options.initialMessages
+    // A durable snapshot read synchronously from storage wins over the
+    // in-memory `initialResumeSnapshot` fallback applied above. A snapshot with
+    // pending interrupts rehydrates the interrupt UI; a bare in-flight run is
+    // rejoined after the processor is ready (see `rejoinRunId` below).
+    let rejoinRunId: string | null = null
+    if (syncPersistedState?.resume) {
+      const snapshot = syncPersistedState.resume
+      const hasPendingInterrupts =
+        Array.isArray(snapshot.pendingInterrupts) &&
+        snapshot.pendingInterrupts.length > 0
+      if (hasPendingInterrupts) {
+        // Interrupts are run-scoped state, restored from the cached snapshot.
+        this.applyResumeSnapshot(snapshot)
+      } else if (snapshot.resumeState.runId) {
+        // A bare in-flight run pointer drives a client-authoritative rejoin.
+        rejoinRunId = snapshot.resumeState.runId
+      }
+    }
+    // A host-supplied `initialResumeSnapshot` carrying a bare in-flight run is
+    // rejoined too, not just its interrupts (which `applyResumeSnapshot` above
+    // already restored). This is how a server-authoritative app hands a FRESH
+    // client an in-flight run to tail — e.g. opening the thread on a second
+    // device / browser, where hydration reports the active run id but no local
+    // resume pointer exists. A run named by the persisted store wins.
+    if (!rejoinRunId && options.initialResumeSnapshot) {
+      const snapshot = options.initialResumeSnapshot
+      const hasPendingInterrupts =
+        Array.isArray(snapshot.pendingInterrupts) &&
+        snapshot.pendingInterrupts.length > 0
+      if (!hasPendingInterrupts && snapshot.resumeState.runId) {
+        rejoinRunId = snapshot.resumeState.runId
+      }
+    }
 
     this.processor = new StreamProcessor({
       ...(options.streamProcessor?.chunkStrategy
@@ -656,7 +751,24 @@ export class ChatClient<
       },
     })
 
-    this.persistor?.hydrateAsync(persistedMessages)
+    this.persistor?.hydrateAsync(persistedState)
+
+    // Full page reload with an in-flight run persisted (synchronous store):
+    // re-attach to it off the server's delivery-durability log so the stream
+    // finishes here. Async stores rejoin from `applyPersistedResume` once the
+    // hydrate resolves. Best-effort and non-blocking.
+    if (rejoinRunId) {
+      this.maybeRejoinInFlight(rejoinRunId)
+    }
+
+    // Server-authoritative (`persistence: true`): the client caches no transcript
+    // and no run pointer — it re-hydrates from the server on mount, keyed by the
+    // stable threadId. `hydrate` returns the stored transcript plus a cursor to
+    // any in-flight run, which is tailed via the same joinRun path. This is what
+    // makes reload AND a fresh device work with zero app glue (no loader/prop).
+    if (!cachesMessages && this.connection.hydrate) {
+      this.hydrateFromServer()
+    }
   }
 
   private applyResumeSnapshot(snapshot: ChatResumeSnapshot): void {
@@ -680,6 +792,91 @@ export class ChatClient<
       generation,
       interrupts: pendingInterrupts,
     })
+  }
+
+  /**
+   * Apply a resume snapshot read from durable storage. Restores interrupt state,
+   * and for a bare in-flight run (no pending interrupts) also rejoins it. This is
+   * the async-store counterpart to the synchronous rejoin in the constructor:
+   * `applyResumeSnapshot` alone only handles interrupts, so an async store
+   * (`indexedDBPersistence`) would otherwise never rejoin a mid-stream run.
+   */
+  private applyPersistedResume(snapshot: ChatResumeSnapshot): void {
+    this.applyResumeSnapshot(snapshot)
+    const hasInterrupts =
+      Array.isArray(snapshot.pendingInterrupts) &&
+      snapshot.pendingInterrupts.length > 0
+    const runId = snapshot.resumeState?.runId
+    // A cached run pointer only reaches here through the persistor, which exists
+    // only in client-authoritative mode, so a bare in-flight run rejoins here.
+    // (Server-authoritative reconnect is resolved from the server by threadId in
+    // `hydrateFromServer`.)
+    if (!hasInterrupts && runId) {
+      this.maybeRejoinInFlight(runId)
+    }
+  }
+
+  /**
+   * Rejoin a persisted in-flight run, guarded so it fires at most once and never
+   * while another run is already active. Skipped when the connection is not
+   * resumable (`joinRun` absent), so a non-durable transport is a no-op.
+   */
+  private maybeRejoinInFlight(runId: string): void {
+    if (!this.connection.joinRun) return
+    if (this.rejoinedRunId === runId) return
+    // A fresh send (or an already-running rejoin) owns the client; don't stomp it.
+    if (this.isLoading || this.abortController) return
+    this.rejoinedRunId = runId
+    this.resumeInFlightRun(runId)
+  }
+
+  /**
+   * Server-authoritative mount hydration (`persistence: true`). The client holds
+   * no transcript and no run pointer; on mount it asks the server — keyed by the
+   * stable threadId — for the stored transcript and whether a run is still
+   * generating. The transcript repaints immediately; an in-flight run is tailed
+   * through the same durability rejoin as a reload. Best-effort and
+   * non-blocking: a failure leaves the client empty rather than throwing, and a
+   * send that starts first owns the client (hydration then backs off).
+   */
+  private hydrateFromServer(): void {
+    const hydrate = this.connection.hydrate
+    if (!hydrate) return
+    if (this.isLoading || this.abortController) return
+    void (async () => {
+      let result: ChatHydrationResult
+      try {
+        result = await hydrate(this.threadId)
+      } catch {
+        return
+      }
+      // A send may have started while the fetch was in flight — don't stomp it.
+      if (this.isLoading || this.abortController) return
+      if (result.messages.length > 0) {
+        this.processor.setMessages(result.messages)
+      }
+      if (result.interrupts && result.interrupts.pending.length > 0) {
+        // Pending interrupt = the thread is paused awaiting a human decision, so
+        // there is nothing to tail (no chunks stream until it resolves). Restore
+        // the approval/wait from the SERVER — identical to reconstructing it from
+        // a resume snapshot — so the reload re-prompts the decision and the resume
+        // targets the run it paused. This is checked BEFORE `activeRun` on
+        // purpose: a run that just paused can momentarily still read as `running`
+        // on the server, so a racing hydrate reports both an `activeRun` cursor
+        // AND the pending interrupt. Tailing that "active" run would drop the
+        // approval card (and hang on a stream that never comes), so the interrupt
+        // always wins.
+        this.applyResumeSnapshot({
+          resumeState: {
+            threadId: this.threadId,
+            runId: result.interrupts.runId,
+          },
+          pendingInterrupts: result.interrupts.pending,
+        })
+      } else if (result.activeRun?.runId) {
+        this.maybeRejoinInFlight(result.activeRun.runId)
+      }
+    })()
   }
 
   mountDevtools(): void {
@@ -731,6 +928,19 @@ export class ChatClient<
       this.activeRunIds.add(chunkRunId)
       this.clearedStreamTracker.onRunStarted(chunkRunId)
       this.setSessionGenerating(true)
+      // Persist a live-run resume snapshot so a full page reload can rejoin this
+      // in-flight run via joinRun. Only a persistor writes it, and a persistor
+      // exists only in client-authoritative mode; server-authoritative reconnect
+      // is resolved from the server by threadId in `hydrateFromServer`, so no
+      // client-cached run pointer (which goes stale the moment a turn spans a
+      // second run) is ever written. Interrupt/terminal handling overwrites or
+      // clears it in observeInterruptState.
+      if (this.persistor && this.connection.joinRun && !this.lastResume) {
+        this.persistResumeSnapshot({
+          threadId: this.activeResumeThreadId ?? this.threadId,
+          runId: chunkRunId,
+        })
+      }
       return
     }
 
@@ -828,6 +1038,9 @@ export class ChatClient<
       isActiveInterruptSubmissionTerminal
     ) {
       this.lastResume = null
+      // Run settled without an interrupt: drop the durable resume snapshot so a
+      // later reload does not try to rejoin a finished run.
+      this.persistor?.persistResumeSnapshot(null)
       this.interruptManager.reset()
       return
     }
@@ -841,6 +1054,23 @@ export class ChatClient<
    */
   getResumeState(): ChatResumeState | null {
     return this.lastResume ? { ...this.lastResume } : null
+  }
+
+  /**
+   * The id of the run this client has in flight — one it started via a send or
+   * rejoined via `joinRun` — or null when there is none. Unlike
+   * {@link getResumeState}, this tracks ordinary runs too, not only one that is
+   * interrupted or being resumed. A run another client started and that arrives
+   * over a live subscription is not this client's run and is not reported here.
+   */
+  getCurrentRunId(): string | null {
+    return this.currentRunId
+  }
+
+  private setCurrentRunId(runId: string | null): void {
+    if (this.currentRunId === runId) return
+    this.currentRunId = runId
+    this.callbacksRef.current.onRunIdChange(runId)
   }
 
   getInterruptState(): ChatInterruptState<TTools> {
@@ -1024,6 +1254,10 @@ export class ChatClient<
 
   private notifyResumeStateChange(): void {
     const resumeState = this.getResumeState()
+    // Persist (or clear) the durable resume snapshot so a full page reload can
+    // rehydrate pending interrupts and rejoin the run. Folded into the same
+    // persistence adapter that stores messages (one record per chat).
+    this.persistResumeSnapshot(resumeState)
     this.callbacksRef.current.onResumeStateChange(
       resumeState,
       this.interruptManager.getInterrupts(),
@@ -1031,6 +1265,25 @@ export class ChatClient<
     this.callbacksRef.current.onInterruptStateChange(
       this.interruptManager.getState(),
     )
+  }
+
+  /**
+   * Build the durable resume snapshot from the current resume state + pending
+   * interrupt descriptors and hand it to the persistor (null clears it).
+   */
+  private persistResumeSnapshot(resumeState: ChatResumeState | null): void {
+    if (!this.persistor) return
+    if (!resumeState) {
+      this.persistor.persistResumeSnapshot(null)
+      return
+    }
+    const descriptors = this.interruptManager.getDescriptors()
+    this.persistor.persistResumeSnapshot({
+      resumeState,
+      ...(descriptors.length > 0
+        ? { pendingInterrupts: [...descriptors] }
+        : {}),
+    })
   }
 
   private resetSessionGenerating(options?: {
@@ -1193,7 +1446,112 @@ export class ChatClient<
     }
   }
 
-  private async processIncomingChunk(chunk: StreamChunk): Promise<void> {
+  /**
+   * Re-attach to an in-flight run after a full page reload, replaying its stream
+   * from the server's delivery-durability log via `joinRun` (which returns the
+   * whole run so far, then tails live to completion).
+   *
+   * The log is the single source of truth for the run, so we rebuild the
+   * in-flight assistant bubble from it rather than trying to reconcile the
+   * server-hydrated partial with the replay: on the first chunk that actually
+   * (re)builds a message we drop the hydrated in-flight assistant, and the
+   * replay reconstructs one clean bubble. Dropping only on real content (not on
+   * `RUN_STARTED`) means a rejoin that connects but delivers nothing can never
+   * leave an empty bubble behind.
+   *
+   * Bounded connect: a durable backend keeps a from-start join open waiting for
+   * a producer, so a stale pointer to an unknown/evicted run would otherwise pin
+   * the UI in a loading state for the backend's full first-chunk deadline. We
+   * give up after {@link REJOIN_CONNECT_DEADLINE_MS} if no chunk arrives and
+   * clear the dead pointer so it does not retry on the next load.
+   *
+   * Replay chunks are processed WITHOUT the per-chunk yield the live path uses,
+   * so the buffered prefix snaps in and only the genuinely-live tail streams at
+   * network speed — a reload looks like the run continued, not like it re-typed.
+   */
+  private resumeInFlightRun(runId: string): void {
+    const joinRun = this.connection.joinRun
+    if (!joinRun) return
+    const controller = new AbortController()
+    this.abortController = controller
+    this.setCurrentRunId(runId)
+    // Record the resume state in-memory BEFORE replaying. Otherwise the
+    // replayed `RUN_STARTED` (which carries the PROVIDER run id, not the
+    // client/durability-log run id the pointer is keyed by) trips the
+    // `!this.lastResume` guard in `updateRunLifecycle` and rewrites the
+    // persisted pointer with the provider id — so a SECOND reload would
+    // `joinRun` an id the log isn't keyed by and never re-attach.
+    this.lastResume = { threadId: this.threadId, runId }
+    this.setIsLoading(true)
+    this.setStatus('streaming')
+    void (async () => {
+      let rebuilt = false
+      let attached = false
+      const connectTimer = setTimeout(() => {
+        if (!attached) controller.abort()
+      }, REJOIN_CONNECT_DEADLINE_MS)
+      try {
+        for await (const chunk of joinRun(runId, controller.signal)) {
+          if (controller.signal.aborted) break
+          if (!attached) {
+            attached = true
+            clearTimeout(connectTimer)
+          }
+          if (!rebuilt && REJOIN_REBUILD_TRIGGERS.has(chunk.type)) {
+            rebuilt = true
+            this.dropTrailingInFlightAssistant()
+          }
+          await this.processIncomingChunk(chunk, { defer: false })
+        }
+      } catch (error) {
+        // Pre-attach failures (unknown/evicted run, connect deadline abort)
+        // stay soft: keep the restored transcript and clear the dead pointer
+        // in `finally`. Post-attach transport/parser failures are real stream
+        // errors and must surface so the UI is not left truncated and silent.
+        const isAbort =
+          error instanceof Error &&
+          (error.name === 'AbortError' || error.name === 'TimeoutError')
+        if (attached && !isAbort) {
+          this.reportStreamError(
+            error instanceof Error ? error : new Error(String(error)),
+          )
+        }
+      } finally {
+        clearTimeout(connectTimer)
+        if (!attached) {
+          // Never reached the run (unknown / evicted / unreachable in time): the
+          // pointer is dead. Clear it so it does not retry and re-pin the UI on
+          // the next load. The server's persisted transcript is still loaded.
+          this.lastResume = null
+          this.persistor?.persistResumeSnapshot(null)
+        }
+        if (this.abortController === controller) {
+          this.abortController = null
+          this.setIsLoading(false)
+          if (this.status === 'streaming') this.setStatus('ready')
+        }
+      }
+    })()
+  }
+
+  /**
+   * Drop a hydrated, still-in-flight assistant turn so a resume replay can
+   * rebuild it cleanly. Only touches a trailing assistant message (the shape a
+   * reload-mid-stream leaves); a thread whose last turn is a user message (run
+   * never produced, or already settled) is left untouched.
+   */
+  private dropTrailingInFlightAssistant(): void {
+    const messages = this.processor.getMessages()
+    const last = messages[messages.length - 1]
+    if (last && last.role === 'assistant') {
+      this.processor.setMessages(messages.slice(0, -1))
+    }
+  }
+
+  private async processIncomingChunk(
+    chunk: StreamChunk,
+    options?: { defer?: boolean },
+  ): Promise<void> {
     if (
       chunk.type === 'RUN_ERROR' &&
       this.isActiveInterruptSubmissionFailure(chunk)
@@ -1223,7 +1581,13 @@ export class ChatClient<
     this.processor.processChunk(chunk)
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)
-    await new Promise((resolve) => setTimeout(resolve, 0))
+    // The live path yields a macrotask between chunks so React can paint each
+    // delta progressively. A resume replay passes `defer: false` to skip it, so
+    // the buffered backlog applies in one batch (instant catch-up) instead of
+    // re-typing the whole reply.
+    if (options?.defer !== false) {
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    }
     this.resolveJoinedRun(chunk)
   }
 
@@ -1565,7 +1929,7 @@ export class ChatClient<
     this.pendingResumeParentRunId = null
     this.pendingResumeItems = null
     const runId = `run-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
-    this.currentRunId = runId
+    this.setCurrentRunId(runId)
     this.activeResumeThreadId = resumeThreadId ?? this.threadId
     this.activeResumeRunId = runId
 
@@ -1754,7 +2118,7 @@ export class ChatClient<
         this.currentStreamId = null
         this.devtoolsBridge.setCurrentStreamId(null)
         this.currentMessageId = null
-        this.currentRunId = null
+        this.setCurrentRunId(null)
         this.activeClientTools = null
         this.activeContext = undefined
         this.abortController = null
@@ -2428,6 +2792,9 @@ export class ChatClient<
     if (options.onResumeStateChange !== undefined) {
       this.callbacksRef.current.onResumeStateChange =
         options.onResumeStateChange
+    }
+    if (options.onRunIdChange !== undefined) {
+      this.callbacksRef.current.onRunIdChange = options.onRunIdChange
     }
     if (options.onInterruptStateChange !== undefined) {
       this.callbacksRef.current.onInterruptStateChange =

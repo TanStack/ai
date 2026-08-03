@@ -6,7 +6,10 @@ import {
 import { convertSchemaToJsonSchema } from '@tanstack/ai/client'
 import { DefaultChatClientEventEmitter } from './events'
 import type { AnyClientTool, StreamChunk } from '@tanstack/ai/client'
-import type { AIDevtoolsEventVisibility } from '@tanstack/ai-event-client'
+import type {
+  AIDevtoolsEventVisibility,
+  MemoryScopeLite,
+} from '@tanstack/ai-event-client'
 import type {
   ChatClientEventContext,
   ChatClientEventEmitter,
@@ -31,7 +34,7 @@ export interface AIDevtoolsDisplayOptions {
  * depend on `ai-memory`; the memory middleware is the producer.
  */
 interface MemoryStateEventValue {
-  scope: { sessionId?: string; userId?: string }
+  scope: MemoryScopeLite
   adapter: string
   query?: string
   recall?: {
@@ -679,6 +682,9 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       return false
     }
 
+    // Fixture routing: `hookId` wins when present (latest bridge for that
+    // registry key). `threadId` is the fallback for fixtures scoped only to a
+    // conversation / generation slot without a hook id.
     if (fixture.hookId) {
       return fixture.hookId === this.options.hookId
     }

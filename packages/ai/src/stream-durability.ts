@@ -117,10 +117,6 @@ function memoryThreshold(offset: string, runId: string, tail: number): number {
   return decoded.seq
 }
 
-function isTerminalChunk(chunk: StreamChunk): boolean {
-  return chunk.type === 'RUN_FINISHED' || chunk.type === 'RUN_ERROR'
-}
-
 interface MemoryEntry {
   seq: number
   offset: string
@@ -150,14 +146,22 @@ const COMPLETED_LOG_TTL_MS = 5 * 60_000
  * How long a from-start join (`-1` / `now`) waits for a run's first chunk before
  * failing. Bounds the "joined a run that never produces" case so a consumer
  * gets a surfaced error instead of an indefinitely-open, event-less connection.
+ *
+ * Defaults short: the common from-start join is a reload rejoining a run whose
+ * producer ran in a PRIOR request, so an in-flight run's log already holds
+ * chunks (it streams immediately, deadline never applies) and an empty log means
+ * the run is gone — failing fast lets the client re-enable input near-instantly
+ * instead of hanging. Raise `firstChunkDeadlineMs` for backends where a producer
+ * legitimately starts well after a joiner attaches (a queued/deferred job).
  */
-const DEFAULT_FIRST_CHUNK_DEADLINE_MS = 30_000
+const DEFAULT_FIRST_CHUNK_DEADLINE_MS = 100
 
 /** Options for the in-process delivery-durability backend. */
 export interface MemoryStreamOptions {
   /**
    * Milliseconds a from-start join waits for the run's first chunk before
-   * throwing. Defaults to {@link DEFAULT_FIRST_CHUNK_DEADLINE_MS}.
+   * throwing. Defaults to {@link DEFAULT_FIRST_CHUNK_DEADLINE_MS} (100ms) —
+   * raise it if a producer can legitimately start long after a joiner attaches.
    */
   firstChunkDeadlineMs?: number
 }
@@ -210,8 +214,32 @@ function wakeWaiters(log: MemoryLog): void {
 }
 
 /**
+ * Explicit construction for {@link memoryStream}, for callers that don't have
+ * the incoming `Request` — e.g. a TanStack Start server function implementing
+ * a `joinRun` replay for a run id it received as call data:
+ *
+ * ```ts
+ * const durability = memoryStream({ runId })
+ * for await (const chunk of replayRunStream(durability)) yield chunk
+ * ```
+ */
+export interface MemoryStreamInit {
+  /** The run this durability adapter attaches to. */
+  runId: string
+  /**
+   * Resume offset captured by the consumer (`resumeFrom()` returns it).
+   * Defaults to `null` (a producer / from-start reader).
+   */
+  offset?: string | null
+}
+
+/**
  * The zero-infrastructure delivery-durability backend. Its versioned cursor is
  * deliberately private: callers and core only pass the returned string back.
+ *
+ * Construct from the incoming `Request` (HTTP transports) or from an explicit
+ * {@link MemoryStreamInit} (server functions / direct calls that already know
+ * the run id).
  *
  * Logs live in a process-global map, so this backend is for development, tests,
  * and single-process deployments only. Completed runs are evicted after a grace
@@ -219,11 +247,17 @@ function wakeWaiters(log: MemoryLog): void {
  * run fails loudly rather than hanging.
  */
 export function memoryStream(
-  request: Request,
+  source: Request | MemoryStreamInit,
   options: MemoryStreamOptions = {},
 ): StreamDurability {
-  const resumeOffset = readResumeOffset(request)
-  const runId = resolveMemoryRunId(request, resumeOffset)
+  const resumeOffset =
+    source instanceof Request
+      ? readResumeOffset(source)
+      : (source.offset ?? null)
+  const runId =
+    source instanceof Request
+      ? resolveMemoryRunId(source, resumeOffset)
+      : assertValidRunId(source.runId)
   const firstChunkDeadlineMs =
     options.firstChunkDeadlineMs ?? DEFAULT_FIRST_CHUNK_DEADLINE_MS
 
@@ -236,7 +270,6 @@ export function memoryStream(
         const seq = firstSeq + index
         const offset = encodeMemoryOffset(runId, seq)
         log.entries.push({ seq, offset, chunk })
-        if (isTerminalChunk(chunk)) markComplete(log)
         return offset
       })
       wakeWaiters(log)
@@ -284,9 +317,14 @@ export function memoryStream(
           index += 1
           if (entry && entry.seq > threshold) {
             yield { offset: entry.offset, chunk: entry.chunk }
-            if (isTerminalChunk(entry.chunk)) return
           }
         }
+        // A terminal chunk (RUN_FINISHED / RUN_ERROR) does NOT end the read: an
+        // agent-loop run emits one per iteration (finishReason "tool_calls" then
+        // "stop"), so stopping on the first would truncate a tool-calling run at
+        // its first tool call. The producer signals true completion by calling
+        // `close()` (it does so on every exit — see StreamDurability.close), which
+        // sets `log.complete`. Read tails until then, or until the caller aborts.
         if (log.complete || signal?.aborted) return
 
         // Bound only the wait for the very first chunk: once a run has produced
@@ -336,5 +374,43 @@ export function memoryStream(
         })
       }
     },
+  }
+}
+
+/**
+ * Replay a run's delivery-durability log as a bare stream of chunks, for
+ * callers that serve a `joinRun` handler without an HTTP `Response` — e.g. a
+ * TanStack Start server function returning an async iterable:
+ *
+ * ```ts
+ * async function* joinImageRun({ data: runId }: { data: string }) {
+ *   yield* replayRunStream(memoryStream({ runId }))
+ * }
+ *
+ * // Serve it from a server function whose handler is the generator above
+ * // (`createServerFn({ method: 'GET' }).inputValidator(...)`).
+ * ```
+ *
+ * NOTE: the example deliberately declares the generator separately instead of
+ * inlining it into the server-fn builder chain. TanStack Start's server-fn
+ * Vite plugin decides whether a module needs compiling by regex-matching the
+ * SOURCE for a dotted `handler(` call, and JSDoc survives into `dist` — an
+ * inlined chain here would make every Start app treat this package as a
+ * server-fn module and try to resolve its framework's `@tanstack/*-start`
+ * package, failing the build wherever that framework is not the one installed.
+ *
+ * Reads from `offset` (default `'-1'` — from the start) and tails until the
+ * producer closes the log or `signal` aborts, exactly like the HTTP
+ * `resumeServerSentEventsResponse` path.
+ */
+export async function* replayRunStream<TOffset extends string>(
+  durability: StreamDurability<TOffset>,
+  offset?: TOffset,
+  signal?: AbortSignal,
+): AsyncGenerator<StreamChunk> {
+  // '-1' is the from-start replay sentinel every shipped backend honors.
+  const from = offset ?? ('-1' as TOffset)
+  for await (const { chunk } of durability.read(from, signal)) {
+    yield chunk
   }
 }

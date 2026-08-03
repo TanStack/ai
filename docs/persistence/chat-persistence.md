@@ -1,0 +1,188 @@
+---
+title: Chat Persistence
+id: chat-persistence
+---
+
+# Chat Persistence
+
+You want a conversation to outlive a single request: the transcript, whether
+each run finished or is still waiting on an interrupt, all still there after the
+process restarts. `withPersistence` is a chat middleware that writes that
+state to a store you choose, so the server owns an authoritative copy of every
+thread.
+
+```bash
+pnpm add @tanstack/ai-persistence
+npx @tanstack/intent@latest install
+```
+
+The second command wires this package's [Agent Skills](../getting-started/agent-skills)
+into your coding assistant. Run it before you start, because the recipes read your
+existing database setup and write the adapter to match, and they encode the
+invariants (full-overwrite `saveThread`, insert-if-absent run and interrupt
+creates) that are easy to get wrong and expensive to debug.
+
+## Persist state on the server
+
+Add the middleware to `chat()` and point it at a backend. Here `persistence` is a
+local `./persistence` module: an adapter you build on the core over the database
+you already run. [Build your own adapter](./build-your-own-adapter) walks through
+a complete SQLite version end to end.
+
+```ts group=chat-persistence
+import {
+  chat,
+  chatParamsFromRequestBody,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { withPersistence } from '@tanstack/ai-persistence'
+import { persistence } from './persistence'
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequestBody(await request.json())
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    // Forward the resume batch so a thread with pending interrupts continues.
+    ...(params.resume ? { resume: params.resume } : {}),
+    middleware: [withPersistence(persistence)],
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+The middleware uses whichever **state** stores the backend provides, no feature
+flags. `messages` is required; the rest are optional:
+
+- `messages` (required) loads and saves the full model-message thread.
+- `runs` records running, completed, failed, or interrupted status.
+- `interrupts` records pending tool-approval / client-tool / generic waits, and
+  requires `runs`.
+
+Need a mutex across workers? Add `withLocks` when other middleware needs
+multi-instance coordination; see [Locks](../advanced/locks).
+
+Creating tables on open is convenient for local development. In production, apply
+schema changes through your deployment workflow instead. See
+[Migrations](./migrations).
+
+## Threads, runs, and turns
+
+Threads and runs are protocol concepts, not persistence ones. A **thread**
+(`threadId`) is the stable conversation, a **run** (`runId`) one
+`RUN_STARTED` → `RUN_FINISHED` execution, and one user-visible turn can span
+several runs. [Threads and runs](../chat/streaming#threads-and-runs)
+in the streaming guide covers the anatomy. What persistence adds is the durable
+record of them, anchored on the thread:
+
+- The transcript is stored per `threadId` (the `messages` store).
+- Each run gets a `runs` record with status, timings, and usage. The id is
+  ephemeral, the record is not.
+- A reconnecting client (a reload, or the same thread on another device) never
+  has to present a run id it may no longer know: the store resolves the
+  thread's live run (`findActiveRun(threadId)`) and the client tails that.
+- Interrupt records carry both ids: the `runId` of the execution they paused
+  and the `threadId` of the conversation they live in.
+
+[Id map](./id-map) is the practical companion to this: how to choose a thread
+id, why both client and server must file under the same one, when to read
+`useChat`'s `runId`, and what the same two ids mean on the generation hooks.
+
+## Send the full transcript, or none of it
+
+`withPersistence` follows one rule, the authoritative-history contract:
+
+- A request with a **non-empty** `messages` array is the full conversation. On
+  finish it **overwrites** the stored thread. Post the complete transcript, not
+  a delta, or you replace the stored thread with just the newest message.
+- A request with an **empty** `messages` array continues a stored thread. The
+  middleware loads the stored transcript and the run picks up from there, so the
+  client does not have to re-send history.
+
+## What gets persisted, and when
+
+`withPersistence` writes at **four** moments so a reload never loses a turn:
+
+| Moment | What is written | Best-effort? |
+| --- | --- | --- |
+| **Start of a run** (`onStart`) | Pending turn (just-submitted user message + prior history) so a reload mid-generation still shows the question | Yes. Failure does not abort the run; finish is authoritative |
+| **Interrupt boundary** | New interrupt records, run status `interrupted`, and a thread snapshot of current messages | No. Store failures propagate |
+| **Finish** (`onFinish`) | Complete transcript (including the terminal assistant reply with its stream `messageId` for in-place reload identity), run status `completed`, and commit of consumed resumes | No. The transcript is saved **before** the run is marked completed |
+| **Optionally while streaming** | Throttled partial assistant text when `snapshotStreaming: true` | Yes |
+
+```ts group=chat-persistence
+const streamingMiddleware = [
+  withPersistence(persistence, { snapshotStreaming: true }),
+]
+```
+
+Streaming snapshots default off (finish is the authoritative save); enable
+them to trade extra writes for partial-output durability. Tune the interval
+with `snapshotIntervalMs` (default `1000`).
+
+How a run that does not finish cleanly is recorded:
+
+- On **error**, the run is marked `failed`.
+- On **abort**, the run is marked `interrupted`.
+
+Resumes accepted in `onConfig` are **not** consumed until a success boundary (an
+interrupt or a finish), so a failed run leaves pending interrupts retryable with
+the same resume batch.
+
+Every run record moves through this lifecycle. All three end states are
+terminal for that record, because a continuation after an interrupt is a new run
+with a fresh `runId`:
+
+```mermaid
+stateDiagram-v2
+    [*] --> running : run starts (idempotent createOrResume)
+    running --> completed : finish, transcript saved first
+    running --> failed : error
+    running --> interrupted : interrupt boundary, or abort
+    completed --> [*]
+    failed --> [*]
+    interrupted --> [*] : continuation runs under a new runId
+```
+
+## Interrupts survive a restart
+
+When a run pauses on an interrupt (a tool approval, a client-side tool, a
+generic wait), the middleware records it. A later request on that thread must
+carry a `resume` batch that answers the pending interrupts before new input is
+accepted, otherwise it is rejected, which is why the example above forwards
+`params.resume`.
+
+Persistence is the **server-authoritative resume path**: the middleware
+validates the resume batch against pending interrupts, builds
+`ChatResumeToolState` (approvals / client-tool results), and **clears**
+`config.resume` so the chat engine skips its ephemeral reconstruction (which
+needs client message history the persistence flow deliberately omits). Resumes
+are committed (resolved/cancelled in the store) only once the run reaches a
+successful interrupt or finish boundary.
+
+An interrupt record is born `pending` and only a commit moves it, which is why
+a failed continuation leaves it answerable again:
+
+```mermaid
+stateDiagram-v2
+    [*] --> pending : run pauses, interrupt recorded
+    pending --> resolved : resume answers it, committed at a success boundary
+    pending --> cancelled : resume cancels it
+    resolved --> [*]
+    cancelled --> [*]
+```
+
+## Where to go next
+
+- Bring durability to the browser too, so a full page reload restores the
+  conversation and rejoins an in-flight run: [Client persistence](./client-persistence).
+- Build the backend on the core, and look up the store contracts:
+  [Build your own adapter](./build-your-own-adapter). Whatever you already run
+  (Drizzle, Prisma, Cloudflare D1, raw SQL), install the shipped
+  [Agent Skills](../getting-started/agent-skills) with
+  `npx @tanstack/intent@latest install` and have your assistant write the
+  `chat-persistence.ts` against your existing schema.
+- Choose which stores to run: [Controls](./controls).

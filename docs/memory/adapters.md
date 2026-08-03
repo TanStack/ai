@@ -114,6 +114,25 @@ const memory = redis({ redis: fromNodeRedis(client) })
 
 `ioredis` and `redis` are both optional peer dependencies. Install whichever you use.
 
+**Scope fields:** index keys are `{prefix}:index:{tenantId|_}:{userId|_}:{threadId}`
+(each segment escaped so `:`, `\`, and `_` in values cannot collide). Missing optional
+dims become `_`, so a write with `tenantId` and a read without it hit **different** keys
+— always pass the same dims you wrote with. There is no dual-read of older layouts; if
+you previously wrote under a different index shape, reindex or wipe.
+
+## Which `Scope` fields each adapter honors
+
+| Adapter | `threadId` | `userId` | `tenantId` | `namespace` |
+|---------|------------|----------|------------|-------------|
+| `inMemory()` | yes (exact) | yes (exact) | yes (exact) | ignored |
+| `redis()` | yes (key segment) | yes (key segment) | yes (key segment) | ignored |
+| `hindsight()` | yes (bank id) | yes (bank id / `user` option) | yes (bank prefix; unset → `_`) | ignored |
+| `mem0()` | yes (`run_id`) | yes (`user_id` / `user` option) | **no** | ignored |
+| `honcho()` | yes (session key) | yes (peer id / `user` option) | yes (session/peer prefix) | ignored |
+
+Optional dims are exact-match (omit ≠ match any). mem0 does not model tenants —
+encode multi-tenant isolation into `user` if needed.
+
 ## `hindsight()`
 
 Hosted adapter backed by Hindsight. Owns extraction/ranking server-side and exposes
@@ -122,7 +141,7 @@ is an optional peer, loaded lazily.
 
 | Option | Type | Default | Purpose |
 |--------|------|---------|---------|
-| `user` | `string` | `scope.userId` | Durable user id used in the bank key (`{user}__{sessionId}`). |
+| `user` | `string` | `scope.userId` | Durable user id used in the bank key (`{tenant\|_}__{user}__{threadId}`). |
 | `baseUrl` | `string` | `HINDSIGHT_URL` / `http://localhost:8888` | Server URL. |
 | `budget` | `'low' \| 'mid' \| 'high'` | `'mid'` | Recall budget. |
 | `onToolRetain` | `(receipt) => void` | none | Fired when the model calls `hindsight_retain`. |
@@ -132,7 +151,7 @@ is an optional peer, loaded lazily.
 import { hindsight } from '@tanstack/ai-memory/hindsight'
 
 const memory = hindsight({
-  user: 'alice', // bank = alice__{sessionId}
+  user: 'alice', // bank = {_}__alice__{threadId} (or tenant__alice__{threadId})
   baseUrl: 'https://hindsight.internal', // default: HINDSIGHT_URL
   budget: 'high', // deeper recall
   onToolRetain: (receipt) => console.log('model retained', receipt.ok),
@@ -140,6 +159,8 @@ const memory = hindsight({
     console.log('model recalled', query, result.fragments?.length),
 })
 ```
+
+Bank id is `{tenantId|_}__{user}__{threadId}`.
 
 ## `mem0()`
 
@@ -166,6 +187,8 @@ const memory = mem0({
 })
 ```
 
+mem0 requests send `user_id` and `run_id` (`threadId`). `tenantId` is not sent.
+
 ## `honcho()`
 
 Hosted adapter backed by Honcho. `recall` returns a synthesized dialectic answer over the
@@ -191,6 +214,9 @@ const memory = honcho({
   assistantId: 'support-bot', // default: 'assistant'
 })
 ```
+
+Honcho session key is `{tenantId|_}__{threadId}`; peers are `{tenantId}__{user}` when
+`tenantId` is set, otherwise the bare user id.
 
 ## Where to go next
 

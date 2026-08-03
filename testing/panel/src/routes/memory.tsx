@@ -6,7 +6,7 @@ import type { UIMessage } from '@tanstack/ai-react'
 import { MODEL_OPTIONS, getDefaultModelOption } from '@/lib/model-selection'
 import type { ModelOption } from '@/lib/model-selection'
 
-const SESSION_STORAGE_KEY = 'panel-memory-session'
+const THREAD_STORAGE_KEY = 'panel-memory-thread'
 
 // Shapes returned by /api/memory-inspect. These mirror the `inMemory()`
 // snapshot payload + the RecallResult contract; kept local so the page has no
@@ -58,27 +58,27 @@ function MemoryPage() {
   const [selectedModel, setSelectedModel] = useState<ModelOption>(
     getDefaultModelOption(),
   )
-  const [sessionId, setSessionId] = useState('')
+  const [threadId, setThreadId] = useState('')
   const [inspect, setInspect] = useState<InspectResponse | null>(null)
   const [input, setInput] = useState('')
 
-  // Resolve (or create) a stable session id, persisted so memory survives reloads.
+  // Resolve (or create) a stable thread id, persisted so memory survives reloads.
   useEffect(() => {
-    let existing = localStorage.getItem(SESSION_STORAGE_KEY)
+    let existing = localStorage.getItem(THREAD_STORAGE_KEY)
     if (!existing) {
       existing = crypto.randomUUID()
-      localStorage.setItem(SESSION_STORAGE_KEY, existing)
+      localStorage.setItem(THREAD_STORAGE_KEY, existing)
     }
-    setSessionId(existing)
+    setThreadId(existing)
   }, [])
 
   const body = useMemo(
     () => ({
       provider: selectedModel.provider,
       model: selectedModel.model,
-      sessionId,
+      threadId,
     }),
-    [selectedModel.provider, selectedModel.model, sessionId],
+    [selectedModel.provider, selectedModel.model, threadId],
   )
 
   const { messages, sendMessage, isLoading } = useChat({
@@ -88,18 +88,18 @@ function MemoryPage() {
   })
 
   const refreshInspect = useCallback(async () => {
-    if (!sessionId) return
+    if (!threadId) return
     try {
       const res = await fetch(
-        `/api/memory-inspect?sessionId=${encodeURIComponent(sessionId)}`,
+        `/api/memory-inspect?threadId=${encodeURIComponent(threadId)}`,
       )
       if (res.ok) setInspect(await res.json())
     } catch {
       // Non-fatal: the inspector is a read-only view; leave the last snapshot.
     }
-  }, [sessionId])
+  }, [threadId])
 
-  // Refresh the inspector whenever the session changes and each time a turn
+  // Refresh the inspector whenever the thread changes and each time a turn
   // finishes (isLoading falls back to false).
   const wasLoading = useRef(false)
   useEffect(() => {
@@ -110,10 +110,10 @@ function MemoryPage() {
     refreshInspect()
   }, [refreshInspect])
 
-  const startNewSession = () => {
+  const startNewThread = () => {
     const next = crypto.randomUUID()
-    localStorage.setItem(SESSION_STORAGE_KEY, next)
-    setSessionId(next)
+    localStorage.setItem(THREAD_STORAGE_KEY, next)
+    setThreadId(next)
     setInspect(null)
   }
 
@@ -215,7 +215,7 @@ function MemoryPage() {
           <div>
             <h2 className="text-sm font-semibold">What's in memory</h2>
             <p className="font-mono text-xs text-gray-500">
-              session: {sessionId ? sessionId.slice(0, 8) : '…'}
+              thread: {threadId ? threadId.slice(0, 8) : '…'}
             </p>
           </div>
           <div className="flex gap-2">
@@ -227,11 +227,11 @@ function MemoryPage() {
               Refresh
             </button>
             <button
-              onClick={startNewSession}
+              onClick={startNewThread}
               className="flex items-center gap-1.5 rounded-lg border border-cyan-500/20 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-gray-800"
             >
               <RotateCcw size={14} />
-              New session
+              New thread
             </button>
           </div>
         </div>

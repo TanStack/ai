@@ -6,6 +6,7 @@ import {
   BadgeCheck,
   Braces,
   Code2,
+  Database,
   FileAudio,
   FileText,
   Guitar,
@@ -178,6 +179,19 @@ export default function Header() {
           </Link>
 
           <Link
+            to="/generations/persistent-generation"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Database size={20} />
+            <span className="font-medium">Persistent Generation</span>
+          </Link>
+
+          <Link
             to="/generations/structured-output"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
@@ -311,6 +325,19 @@ export default function Header() {
           >
             <RefreshCw size={20} />
             <span className="font-medium">Resumable Streams</span>
+          </Link>
+
+          <Link
+            to="/persistent-chat"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Database size={20} />
+            <span className="font-medium">Persistent Chat</span>
           </Link>
 
           <Link

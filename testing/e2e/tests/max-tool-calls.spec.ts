@@ -2,9 +2,13 @@ import { expect, test } from '@playwright/test'
 
 /**
  * Regression for issue #964: maxIterations counts model turns, not tool calls.
- * maxToolCalls + maxToolCallsPerTurn must bound fan-out from a single fat turn.
+ * App-owned tool-budget middleware (onBeforeToolCall + onShouldContinue) must
+ * bound fan-out from a single fat turn.
+ *
+ * Uses a synthetic in-process adapter (no real provider HTTP call), so aimock
+ * wiring is not applicable here.
  */
-test.describe('chat() maxToolCalls / maxToolCallsPerTurn (#964)', () => {
+test.describe('chat() tool-call budget middleware (#964)', () => {
   test('caps parallel fan-out and cumulative tool calls', async ({
     request,
   }) => {
@@ -19,7 +23,7 @@ test.describe('chat() maxToolCalls / maxToolCallsPerTurn (#964)', () => {
 
     expect(body.error).toBeNull()
 
-    // 8 parallel calls emitted; maxToolCallsPerTurn=3 → only 3 execute
+    // 8 parallel calls emitted; maxPerTurn=3 → only 3 execute
     expect(body.executeCount).toBe(3)
 
     const toolResults = body.chunks.filter((c) => c.type === 'TOOL_CALL_RESULT')
@@ -35,7 +39,7 @@ test.describe('chat() maxToolCalls / maxToolCallsPerTurn (#964)', () => {
     })
     expect(skipped.length).toBe(5)
 
-    // maxToolCalls(5): after the fat turn toolCallCount=8 (>= 5), so no further
+    // max: 5 — after the fat turn toolCallCount=8 (>= 5), so no further
     // model turn runs. executeCount stays at 3 either way.
     const runFinished = body.chunks.filter((c) => c.type === 'RUN_FINISHED')
     expect(runFinished.length).toBe(1)

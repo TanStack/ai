@@ -88,6 +88,48 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 
 > **Tip:** Some models expose their internal reasoning as thinking content that streams before the response. See [Thinking & Reasoning](./thinking-content).
 
+### Threads and runs
+
+Two ids frame every stream, and they come from the AG-UI protocol itself — not
+from any storage layer:
+
+- A **thread** (`threadId`) is the conversation: the stable identity across
+  every exchange, reload, and device.
+- A **run** (`runId`) is one execution inside it: everything between one
+  `RUN_STARTED` and its `RUN_FINISHED` (or `RUN_ERROR`). Every start mints a
+  fresh run id, so a thread accumulates many runs over its life.
+
+A run is not limited to a single model response. Tool calls and their
+follow-up responses stream inside the same run — the whole
+[agentic cycle](./agentic-cycle), however many loops it takes, is one run:
+
+```mermaid
+flowchart LR
+    subgraph thread ["Thread — threadId (stable)"]
+        direction LR
+        subgraph r1 ["Run r1 — finished"]
+            direction TB
+            e1["RUN_STARTED → text → tool call → tool result → final text → RUN_FINISHED"]
+        end
+        subgraph r2 ["Run r2 — finished"]
+            direction TB
+            e2["RUN_STARTED → text → RUN_FINISHED"]
+        end
+        subgraph r3 ["Run r3 — running"]
+            direction TB
+            e3["RUN_STARTED → text"]
+        end
+        r1 --> r2 --> r3
+    end
+```
+
+Because run ids are ephemeral, anything long-lived anchors on the thread:
+[resumable streams](../resumable-streams/overview) log delivery per `runId`,
+while [server persistence](../persistence/chat-persistence#threads-runs-and-turns)
+stores the transcript per `threadId`. The media generation hooks take a
+`threadId` too, where it names a slot rather than a conversation. See
+[Id map](../persistence/id-map).
+
 ### Type-Safe Tool Call Events
 
 When you pass typed tools (defined with `toolDefinition()` and Zod schemas) to `chat()`, the stream chunks automatically carry type information for tool call events. Prefer the AG-UI field `toolCallName` (or the deprecated `toolName` alias) — both narrow to the union of your tool name literals. The `input` field on `TOOL_CALL_END` is typed as the union of your tool input schemas (typically set on the adapter-emitted END once arguments are complete):
@@ -294,7 +336,11 @@ export async function POST(request: Request) {
 
 ## Queueing Messages
 
-By default, calling `sendMessage` while a stream is already in flight **queues** the message instead of dropping it — it sends automatically once the current run settles **successfully**. Configure this with the `queue` option, which accepts a `QueueConfig` object, a plain shorthand string, or a strategy function:
+By default, calling `sendMessage` while a stream is already in flight **queues** the message instead of dropping it. It sends automatically once the current run settles **successfully**. Configure this with the `queue` option, which accepts any of three forms:
+
+- a `QueueConfig` object
+- a plain shorthand string
+- a strategy function
 
 ```tsx group=queueing-messages
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";

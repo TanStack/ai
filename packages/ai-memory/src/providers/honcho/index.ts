@@ -133,14 +133,29 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
     }
     return assistantPeerPromise
   }
-  function getSession(sessionId: string): Promise<Session> {
-    return cached(sessionCache, sessionId, async () =>
-      (await getClient()).session(sessionId),
+  function getSession(sessionKey: string): Promise<Session> {
+    return cached(sessionCache, sessionKey, async () =>
+      (await getClient()).session(sessionKey),
     )
   }
 
+  /** Honcho session id — tenant-qualified so tenants cannot share sessions. */
+  function sessionKeyFor(scope: MemoryScope): string {
+    const tenant =
+      scope.tenantId != null && scope.tenantId !== '' ? scope.tenantId : '_'
+    return `${tenant}__${scope.threadId}`
+  }
+
+  /**
+   * Honcho peer id. When `tenantId` is set, prefix the durable user so peers
+   * cannot collide across tenants.
+   */
   function userIdFor(scope: MemoryScope): string {
-    return options.user ?? scope.userId ?? 'demo-user'
+    const user = options.user ?? scope.userId ?? 'demo-user'
+    if (scope.tenantId != null && scope.tenantId !== '') {
+      return `${scope.tenantId}__${user}`
+    }
+    return user
   }
 
   return {
@@ -151,7 +166,7 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
         const [userPeer, assistantPeer, session] = await Promise.all([
           getUserPeer(userIdFor(scope)),
           getAssistantPeer(),
-          getSession(scope.sessionId),
+          getSession(sessionKeyFor(scope)),
         ])
         return session.addMessages([
           userPeer.message(turn.user),
@@ -172,7 +187,7 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
       const result = await timed(async () => {
         const [userPeer, session] = await Promise.all([
           getUserPeer(userIdFor(scope)),
-          getSession(scope.sessionId),
+          getSession(sessionKeyFor(scope)),
         ])
         return userPeer.chat(query, { session })
       })
@@ -184,7 +199,7 @@ export function honcho(options: HonchoOptions = {}): MemoryAdapter {
     },
 
     async inspect(scope): Promise<MemorySnapshot> {
-      const session = await getSession(scope.sessionId).catch(() => null)
+      const session = await getSession(sessionKeyFor(scope)).catch(() => null)
       if (!session) {
         return {
           takenAt: new Date().toISOString(),

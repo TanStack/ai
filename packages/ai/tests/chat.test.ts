@@ -13,7 +13,48 @@ import {
   serverTool,
 } from './test-utils'
 import type { StreamChunk, Tool, UIMessage } from '../src/types'
-import type { ChatResumeToolState } from '../src/activities/chat/middleware/types'
+import type {
+  ChatMiddleware,
+  ChatResumeToolState,
+} from '../src/activities/chat/middleware/types'
+
+/**
+ * App-owned tool budget middleware (docs recipe). Not a library export —
+ * used here to lock hook behavior for #964 fan-out budgets.
+ */
+function toolCallBudget(options: {
+  max?: number
+  maxPerTurn?: number
+}): ChatMiddleware {
+  const { max, maxPerTurn } = options
+  let perTurn = 0
+  return {
+    name: 'tool-call-budget',
+    onIteration() {
+      perTurn = 0
+    },
+    onToolPhaseComplete() {
+      perTurn = 0
+    },
+    onBeforeToolCall() {
+      if (maxPerTurn == null) return undefined
+      perTurn += 1
+      if (perTurn > maxPerTurn) {
+        return {
+          type: 'skip' as const,
+          result: {
+            error: `Skipped: exceeded maxToolCallsPerTurn (${maxPerTurn})`,
+          },
+        }
+      }
+      return undefined
+    },
+    onShouldContinue(_ctx, state) {
+      if (max != null && state.toolCallCount >= max) return false
+      return undefined
+    },
+  }
+}
 
 /** Lazy server tool (has execute, lazy: true). */
 function lazyServerTool(name: string, executeFn: (args: any) => any): Tool {
@@ -2420,7 +2461,7 @@ describe('chat()', () => {
       expect(calls.length).toBe(2)
     })
 
-    it('should respect maxToolCalls strategy (counts tools, not turns)', async () => {
+    it('should respect toolCallCount on strategy state (counts tools, not turns)', async () => {
       const executeSpy = vi.fn().mockReturnValue({ data: 'result' })
 
       let callCount = 0
@@ -2500,7 +2541,7 @@ describe('chat()', () => {
       expect(seenLastTurn[seenLastTurn.length - 1]).toBe(0)
     })
 
-    it('should cap parallel fan-out with maxToolCallsPerTurn', async () => {
+    it('should cap parallel fan-out with onBeforeToolCall budget middleware', async () => {
       const executeSpy = vi.fn().mockReturnValue({ data: 'result' })
 
       const { adapter, calls } = createMockAdapter({
@@ -2527,7 +2568,7 @@ describe('chat()', () => {
         adapter,
         messages: [{ role: 'user', content: 'Fan out' }],
         tools: [serverTool('repeater', executeSpy)],
-        maxToolCallsPerTurn: 2,
+        middleware: [toolCallBudget({ maxPerTurn: 2 })],
         // Allow a follow-up turn so we can inspect tool results on the adapter
         agentLoopStrategy: (state) => state.iterationCount < 2,
       })
@@ -2559,14 +2600,14 @@ describe('chat()', () => {
       expect(toolMessages).toHaveLength(5)
     })
 
-    it('counts skipped emissions toward maxToolCalls and stops further turns', async () => {
+    it('counts skipped emissions toward max and stops further turns via onShouldContinue', async () => {
       const executeSpy = vi.fn().mockReturnValue({ data: 'result' })
       const seenCounts: Array<number> = []
 
       const { adapter, calls } = createMockAdapter({
         chatStreamFn: () => {
           // Fat turn: 8 parallel tools. If we only counted executed (3),
-          // maxToolCalls(5) would allow another model turn.
+          // max: 5 would allow another model turn.
           return (async function* () {
             yield ev.runStarted()
             for (let i = 0; i < 8; i++) {
@@ -2582,10 +2623,11 @@ describe('chat()', () => {
         adapter,
         messages: [{ role: 'user', content: 'Fan out' }],
         tools: [serverTool('repeater', executeSpy)],
-        maxToolCallsPerTurn: 3,
+        middleware: [toolCallBudget({ maxPerTurn: 3, max: 5 })],
         agentLoopStrategy: (state) => {
           seenCounts.push(state.toolCallCount)
-          return state.toolCallCount < 5
+          // Strategy alone would continue (high iteration budget); middleware stops
+          return state.iterationCount < 10
         },
       })
 
@@ -2594,11 +2636,11 @@ describe('chat()', () => {
       expect(executeSpy).toHaveBeenCalledTimes(3)
       // All 8 emissions counted (not just 3 executed)
       expect(seenCounts).toContain(8)
-      // Strategy stops further model turns once count >= 5
+      // Middleware onShouldContinue stops further model turns once count >= 5
       expect(calls.length).toBe(1)
     })
 
-    it('maxToolCallsPerTurn: 0 skips all tool execution', async () => {
+    it('maxPerTurn: 0 skips all tool execution', async () => {
       const executeSpy = vi.fn().mockReturnValue({ data: 'result' })
 
       const { adapter, calls } = createMockAdapter({
@@ -2619,7 +2661,7 @@ describe('chat()', () => {
         adapter,
         messages: [{ role: 'user', content: 'None' }],
         tools: [serverTool('repeater', executeSpy)],
-        maxToolCallsPerTurn: 0,
+        middleware: [toolCallBudget({ maxPerTurn: 0 })],
         agentLoopStrategy: (state) => state.iterationCount < 2,
       })
 
@@ -2639,26 +2681,7 @@ describe('chat()', () => {
       expect(calls.length).toBe(2)
     })
 
-    it('rejects negative maxToolCallsPerTurn', async () => {
-      const { adapter } = createMockAdapter({
-        iterations: [[ev.runStarted(), ev.textContent('x'), ev.runFinished()]],
-      })
-
-      // TextEngine is constructed when the stream is consumed, not at chat() call.
-      const stream = chat({
-        adapter,
-        messages: [{ role: 'user', content: 'Hi' }],
-        maxToolCallsPerTurn: -1,
-      })
-
-      await expect(
-        collectChunks(stream as AsyncIterable<StreamChunk>),
-      ).rejects.toThrow(
-        /maxToolCallsPerTurn must be a non-negative finite number/,
-      )
-    })
-
-    it('applies maxToolCallsPerTurn to pending tool calls on resume', async () => {
+    it('applies maxPerTurn to pending tool calls on resume', async () => {
       const executeSpy = vi.fn().mockReturnValue({ ok: true })
       let strategyToolCount = 0
 
@@ -2706,7 +2729,7 @@ describe('chat()', () => {
           },
         ],
         tools: [serverTool('repeater', executeSpy)],
-        maxToolCallsPerTurn: 2,
+        middleware: [toolCallBudget({ maxPerTurn: 2 })],
         agentLoopStrategy: (state) => {
           strategyToolCount = state.toolCallCount
           return state.iterationCount < 1

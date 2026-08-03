@@ -382,7 +382,7 @@ export class CustomGenerationComponent {
 
 **Options:** `connection?`, `fetcher?`, `id?`, `body?` (reactive), `devtools?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset` — all reactive state is a read-only `Signal<T>`.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId`. All reactive state is a read-only `Signal<T>`.
 
 ### `injectGenerateImage(options)`
 

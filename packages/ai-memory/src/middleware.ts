@@ -146,9 +146,10 @@ export function memoryMiddleware(
         })
         result = await options.adapter.recall(scope, state.lastUserText)
       } catch (error) {
-        const errScope = state.resolvedScope ?? emptyScope()
         safeEmit('memory:error', {
-          scope: errScope,
+          // Only attach scope when resolve already succeeded; otherwise omit
+          // (no empty-string / partial fake identity).
+          ...(state.resolvedScope ? { scope: state.resolvedScope } : {}),
           adapter: options.adapter.id,
           phase: 'recall',
           error: errorInfo(error),
@@ -232,7 +233,6 @@ export function memoryMiddleware(
               scope ?? (await resolveScope(ctx, { lastUserText: userText }))
           } catch (error) {
             safeEmit('memory:error', {
-              scope: emptyScope(),
               adapter: options.adapter.id,
               phase: 'save',
               error: errorInfo(error),
@@ -280,10 +280,6 @@ export function memoryMiddleware(
 // ===========================
 // Internals
 // ===========================
-
-function emptyScope(): MemoryScope {
-  return { sessionId: '' }
-}
 
 /**
  * Read the adapter's current stored state via the optional `inspect`/`listFacts`

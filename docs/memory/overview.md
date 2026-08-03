@@ -89,19 +89,23 @@ failures, see [Operating memory](./operating).
 
 ## Scope and security
 
-`MemoryScope` is the isolation boundary. It is session-centric, with an optional durable
-user id:
+`MemoryScope` is the isolation boundary. It is an alias of the shared `Scope` identity
+type from `@tanstack/ai` — the same vocabulary used by persistence — so memory and chat
+center on one conversation key:
 
 ```ts
-// The MemoryScope type, from `@tanstack/ai-memory`:
+// MemoryScope is an alias of Scope from `@tanstack/ai`, exported by `@tanstack/ai-memory`:
 type MemoryScope = {
-  sessionId: string
+  threadId: string // required — same as ChatMiddlewareContext.threadId
   userId?: string
+  tenantId?: string
+  namespace?: string // reserved — no adapter keys on it yet
 }
 ```
 
-Always derive scope on the server from trusted state. Accepting `userId` from the request
-body is how one user reads another user's memory. The function form of `scope` runs per
+Always resolve scope on the server from trusted session/auth state. A client-originated
+`threadId` is fine only after you validate it belongs to the session user; never accept
+`userId`/`tenantId` from the request body alone. The function form of `scope` runs per
 request and only sees what your server attached to the chat context:
 
 ```ts
@@ -115,7 +119,7 @@ memoryMiddleware({
   adapter,
   scope: (ctx) => {
     const session = getSession(ctx) // your server-validated session
-    return { sessionId: session.threadId, userId: session.userId }
+    return { threadId: session.threadId, userId: session.userId }
   },
 })
 ```

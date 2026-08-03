@@ -12,7 +12,7 @@ export const Route = createFileRoute('/devtools-memory')({
 function DevtoolsMemoryRoute() {
   const { testId, aimockPort } = Route.useSearch()
   const chat = useChat({
-    id: 'devtools-memory:primary',
+    threadId: 'devtools-memory:primary',
     connection: fetchServerSentEvents('/api/devtools-memory'),
     body: { feature: 'chat', testId, aimockPort },
     devtools: { name: 'Memory Chat' },

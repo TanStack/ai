@@ -1,4 +1,4 @@
-﻿{
+{
   "$schema": "https://raw.githubusercontent.com/TanStack/tanstack.com/main/tanstack-docs-config.schema.json",
   "docSearch": {
     "appId": "FQ0DQ6MA3C",
@@ -12,7 +12,8 @@
         {
           "label": "Overview",
           "to": "getting-started/overview",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Quick Start: React",
@@ -53,7 +54,8 @@
         {
           "label": "Agent Skills (TanStack Intent)",
           "to": "getting-started/agent-skills",
-          "addedAt": "2026-04-17"
+          "addedAt": "2026-04-17",
+          "updatedAt": "2026-07-26"
         }
       ]
     },
@@ -109,7 +111,7 @@
           "label": "Tool Approval Flow",
           "to": "tools/tool-approval",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Lazy Tool Discovery",
@@ -157,41 +159,36 @@
           "label": "Agentic Cycle",
           "to": "chat/agentic-cycle",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-20"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-17"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Connection Adapters",
           "to": "chat/connection-adapters",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-17"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
           "addedAt": "2026-04-15"
-        },
-        {
-          "label": "Persistence",
-          "to": "chat/persistence",
-          "addedAt": "2026-06-02",
-          "updatedAt": "2026-07-14"
         }
       ]
     },
     {
       "label": "Interrupts",
+      "tab": "guides",
       "children": [
         {
           "label": "Overview",
           "to": "interrupts/overview",
           "addedAt": "2026-07-16",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-07-29"
         },
         {
           "label": "Tool Approval",
@@ -221,21 +218,104 @@
     },
     {
       "label": "Resumable Streams",
+      "tab": "guides",
       "children": [
         {
           "label": "Overview",
           "to": "resumable-streams/overview",
-          "addedAt": "2026-07-17"
+          "addedAt": "2026-07-17",
+          "updatedAt": "2026-07-29"
         },
         {
           "label": "Advanced",
           "to": "resumable-streams/advanced",
-          "addedAt": "2026-07-17"
+          "addedAt": "2026-07-17",
+          "updatedAt": "2026-07-29"
         },
         {
           "label": "Custom Durability Adapter",
           "to": "resumable-streams/custom-adapter",
           "addedAt": "2026-07-17"
+        }
+      ]
+    },
+    {
+      "label": "Persistence",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "persistence/overview",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-30"
+        },
+        {
+          "label": "Id Map",
+          "to": "persistence/id-map",
+          "addedAt": "2026-07-30"
+        },
+        {
+          "label": "Chat Persistence",
+          "to": "persistence/chat-persistence",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-30"
+        },
+        {
+          "label": "Client Persistence",
+          "to": "persistence/client-persistence",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-30"
+        },
+        {
+          "label": "Generation Persistence",
+          "to": "persistence/generation-persistence",
+          "addedAt": "2026-07-28",
+          "updatedAt": "2026-07-31"
+        },
+        {
+          "label": "Keep Generated Files",
+          "to": "persistence/keep-generated-files",
+          "addedAt": "2026-07-28",
+          "updatedAt": "2026-07-31"
+        },
+        {
+          "label": "Controls",
+          "to": "persistence/controls",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-25"
+        },
+        {
+          "label": "Build Your Own Adapter",
+          "to": "persistence/build-your-own-adapter",
+          "addedAt": "2026-07-24",
+          "updatedAt": "2026-07-31"
+        },
+        {
+          "label": "Build a Chat Adapter",
+          "to": "persistence/build-your-own-chat-adapter",
+          "addedAt": "2026-07-31"
+        },
+        {
+          "label": "Build a Generation Adapter",
+          "to": "persistence/build-your-own-generation-adapter",
+          "addedAt": "2026-07-31"
+        },
+        {
+          "label": "Store Reference",
+          "to": "persistence/store-reference",
+          "addedAt": "2026-07-31"
+        },
+        {
+          "label": "Migrations",
+          "to": "persistence/migrations",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-25"
+        },
+        {
+          "label": "Internals",
+          "to": "persistence/internals",
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-31"
         }
       ]
     },
@@ -251,6 +331,7 @@
     },
     {
       "label": "Structured Outputs",
+      "tab": "guides",
       "children": [
         {
           "label": "Overview",
@@ -328,13 +409,14 @@
         {
           "label": "Text-to-Speech",
           "to": "media/text-to-speech",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Audio Recording",
@@ -346,25 +428,25 @@
           "label": "Audio Generation",
           "to": "media/audio-generation",
           "addedAt": "2026-04-23",
-          "updatedAt": "2026-06-08"
+          "updatedAt": "2026-07-28"
         },
         {
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-07"
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-02"
+          "updatedAt": "2026-08-02"
         },
         {
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-10"
+          "updatedAt": "2026-07-30"
         }
       ]
     },
@@ -375,23 +457,31 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-15"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Built-in Middleware",
           "to": "advanced/built-in-middleware",
-          "addedAt": "2026-06-03"
+          "addedAt": "2026-06-03",
+          "updatedAt": "2026-07-21"
+        },
+        {
+          "label": "Locks",
+          "to": "advanced/locks",
+          "addedAt": "2026-07-27",
+          "updatedAt": "2026-07-28"
         },
         {
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-06-17"
+          "updatedAt": "2026-07-31"
         }
       ]
     },
     {
       "label": "Sandboxes",
+      "tab": "guides",
       "children": [
         {
           "label": "Overview",
@@ -443,6 +533,11 @@
           "updatedAt": "2026-07-09"
         },
         {
+          "label": "Instance Durability",
+          "to": "sandbox/durability",
+          "addedAt": "2026-07-27"
+        },
+        {
           "label": "Events",
           "to": "sandbox/events",
           "addedAt": "2026-06-29",
@@ -463,35 +558,37 @@
     },
     {
       "label": "Memory",
+      "tab": "guides",
       "children": [
         {
           "label": "Overview",
           "to": "memory/overview",
           "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Quickstart",
           "to": "memory/quickstart",
           "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Adapters",
           "to": "memory/adapters",
           "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Custom Adapter",
           "to": "memory/custom-adapter",
           "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-07-24"
         },
         {
           "label": "Operating",
           "to": "memory/operating",
-          "addedAt": "2026-07-22"
+          "addedAt": "2026-07-22",
+          "updatedAt": "2026-07-24"
         }
       ]
     },
@@ -568,7 +665,7 @@
           "updatedAt": "2026-07-08"
         },
         {
-          "label": "Sampling \u2192 modelOptions",
+          "label": "Sampling → modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
         }
@@ -581,7 +678,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-20"
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "@tanstack/ai-client",
@@ -611,19 +708,19 @@
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-30"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-30"
         }
       ]
     },
@@ -722,11 +819,17 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25"
+        },
+        {
+          "label": "BytePlus",
+          "to": "adapters/byteplus",
+          "addedAt": "2026-07-31"
         }
       ]
     },
     {
       "label": "Community Adapters",
+      "tab": "guides",
       "children": [
         {
           "label": "Community Adapters Guide",

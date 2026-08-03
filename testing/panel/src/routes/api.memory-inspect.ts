@@ -1,23 +1,28 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { lastRecallBySession, memoryAdapter } from '@/lib/memory-store'
+import {
+  lastRecallByThread,
+  memoryAdapter,
+  panelMemoryScope,
+  panelScopeKey,
+} from '@/lib/memory-store'
 
 /**
  * Read side of the `/memory` demo. Returns everything the panel needs to show
- * "what's in memory" for a session, straight off the shared singleton adapter:
+ * "what's in memory" for a scope, straight off the shared singleton adapter:
  * the full record snapshot, the flat fact list, and what the most recent
- * `recall` injected into the prompt.
+ * `recall` injected into the prompt. User/tenant dims are server constants —
+ * only `threadId` is taken from the query string (demo multi-thread UX).
  */
 export const Route = createFileRoute('/api/memory-inspect')({
   server: {
     handlers: {
       GET: async ({ request }) => {
-        const sessionId =
-          new URL(request.url).searchParams.get('sessionId') ?? ''
-        const scope = { sessionId }
+        const threadId = new URL(request.url).searchParams.get('threadId') ?? ''
+        const scope = panelMemoryScope(threadId)
 
         const snapshot = await memoryAdapter.inspect?.(scope)
         const facts = await memoryAdapter.listFacts?.(scope)
-        const lastRecall = lastRecallBySession.get(sessionId) ?? null
+        const lastRecall = lastRecallByThread.get(panelScopeKey(scope)) ?? null
 
         return new Response(
           JSON.stringify({

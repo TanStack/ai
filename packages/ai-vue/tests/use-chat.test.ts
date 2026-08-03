@@ -153,7 +153,7 @@ describe('useChat', () => {
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'persisted-chat',
+        threadId: 'persisted-chat',
         persistence: persistence,
       })
       await flushPromises()
@@ -180,7 +180,7 @@ describe('useChat', () => {
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'persisted-chat',
+        threadId: 'persisted-chat',
         initialMessages,
         persistence: persistence,
       })
@@ -190,13 +190,13 @@ describe('useChat', () => {
       expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
     })
 
-    it('should use provided id', async () => {
+    it('should use provided threadId', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'custom-id',
+        threadId: 'custom-id',
       })
 
       await result.current.sendMessage('Test')
@@ -1106,11 +1106,11 @@ describe('useChat', () => {
 
         const { result: result1 } = renderUseChat({
           connection: adapter1,
-          id: 'chat-1',
+          threadId: 'chat-1',
         })
         const { result: result2 } = renderUseChat({
           connection: adapter2,
-          id: 'chat-2',
+          threadId: 'chat-2',
         })
 
         await result1.current.sendMessage('Hello 1')
@@ -1133,11 +1133,11 @@ describe('useChat', () => {
         const adapter = createMockConnectionAdapter()
         const { result: result1 } = renderUseChat({
           connection: adapter,
-          id: 'chat-1',
+          threadId: 'chat-1',
         })
         const { result: result2 } = renderUseChat({
           connection: adapter,
-          id: 'chat-2',
+          threadId: 'chat-2',
         })
 
         // Should not interfere with each other

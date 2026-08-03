@@ -72,6 +72,14 @@ export function mem0(options: Mem0Options = {}): MemoryAdapter {
     return options.user ?? scope.userId ?? 'demo-user'
   }
 
+  /**
+   * mem0 `run_id` — conversation/run isolation. Maps 1:1 to `scope.threadId` so
+   * same-user memories do not leak across threads.
+   */
+  function runId(scope: MemoryScope): string {
+    return scope.threadId
+  }
+
   async function safeJson(fn: () => Promise<Response>): Promise<JsonResult> {
     const start = Date.now()
     try {
@@ -97,7 +105,11 @@ export function mem0(options: Mem0Options = {}): MemoryAdapter {
   }
 
   async function loadMemories(scope: MemoryScope): Promise<JsonResult> {
-    const url = `${baseUrl}/memories?user_id=${encodeURIComponent(userId(scope))}`
+    const params = new URLSearchParams({
+      user_id: userId(scope),
+      run_id: runId(scope),
+    })
+    const url = `${baseUrl}/memories?${params.toString()}`
     return safeJson(() => fetch(url, { method: 'GET', headers: headers() }))
   }
 
@@ -115,6 +127,7 @@ export function mem0(options: Mem0Options = {}): MemoryAdapter {
               { role: 'assistant', content: turn.assistant },
             ],
             user_id: userId(scope),
+            run_id: runId(scope),
           }),
         }),
       )
@@ -136,6 +149,7 @@ export function mem0(options: Mem0Options = {}): MemoryAdapter {
           body: JSON.stringify({
             query,
             user_id: userId(scope),
+            run_id: runId(scope),
             rerank,
             threshold,
           }),

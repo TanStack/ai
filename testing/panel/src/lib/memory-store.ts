@@ -1,5 +1,5 @@
 import { inMemory } from '@tanstack/ai-memory/in-memory'
-import type { RecallResult } from '@tanstack/ai-memory'
+import type { MemoryScope, RecallResult } from '@tanstack/ai-memory'
 
 /**
  * Process-local memory backing the `/memory` demo page.
@@ -17,8 +17,35 @@ import type { RecallResult } from '@tanstack/ai-memory'
 export const memoryAdapter = inMemory()
 
 /**
- * Records what the last `recall` injected for each session, so the page can
- * show "what memory fed into this turn". Populated from the middleware's
- * `onRecall` callback in the chat route; read by the inspect route.
+ * Server-trusted demo identity. Never accept `userId` / `tenantId` from the
+ * client — the panel is a local demo without real auth, so these constants are
+ * the isolation dims. Production apps must derive every Scope field from a
+ * validated session.
  */
-export const lastRecallBySession = new Map<string, RecallResult>()
+export const PANEL_MEMORY_USER = 'panel-demo-user'
+export const PANEL_MEMORY_TENANT = 'panel-demo'
+
+/**
+ * Build the middleware/inspect scope for a client-chosen thread. User and
+ * tenant come only from the server constants above.
+ */
+export function panelMemoryScope(threadId: string): MemoryScope {
+  return {
+    threadId,
+    userId: PANEL_MEMORY_USER,
+    tenantId: PANEL_MEMORY_TENANT,
+  }
+}
+
+/** Composite key matching built-in adapter isolation dims (not threadId alone). */
+export function panelScopeKey(scope: MemoryScope): string {
+  return `${scope.tenantId ?? '_'}|${scope.userId ?? '_'}|${scope.threadId}`
+}
+
+/**
+ * Records what the last `recall` injected for each composite scope, so the
+ * page can show "what memory fed into this turn". Populated from the
+ * middleware's `onRecall` callback in the chat route; read by the inspect
+ * route.
+ */
+export const lastRecallByThread = new Map<string, RecallResult>()

@@ -50,8 +50,12 @@ export function useChat<
     TContext
   >,
 ): UseChatReturn<TTools, TSchema> {
+  // The hook's identity is its `threadId` — also the persistence key, so a
+  // reload with the same `threadId` restores the same conversation. `hookId` is
+  // only a stable fallback for client-recreation keying when no `threadId` is
+  // given (an ephemeral chat), never a persistence key.
   const hookId = createUniqueId()
-  const clientId = options.id || hookId
+  const clientId = options.threadId ?? hookId
 
   const [messages, setMessages] = createSignal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
@@ -64,9 +68,7 @@ export function useChat<
     createSignal<ConnectionStatus>('disconnected')
   const [sessionGenerating, setSessionGenerating] = createSignal(false)
   const [queue, setQueue] = createSignal<Array<QueuedMessage>>([])
-  const [resumeState, setResumeState] = createSignal<ChatResumeState | null>(
-    options.initialResumeSnapshot?.resumeState ?? null,
-  )
+  const [runId, setRunId] = createSignal<string | null>(null)
   const [interruptState, setInterruptState] = createSignal<
     ChatInterruptState<TTools>
   >({
@@ -77,7 +79,7 @@ export function useChat<
   })
 
   const syncResumeState = () => {
-    setResumeState(client().getResumeState())
+    setRunId(client().getCurrentRunId())
     setInterruptState(client().getInterruptState())
   }
 
@@ -105,7 +107,6 @@ export function useChat<
     return new ChatClient<TTools, TContext>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
-      id: clientId,
       ...(options.initialMessages !== undefined && {
         initialMessages: options.initialMessages,
       }),
@@ -169,8 +170,10 @@ export function useChat<
       onQueueChange: (nextQueue: Array<QueuedMessage>) => {
         setQueue(nextQueue)
       },
-      onResumeStateChange: (nextResumeState, nextPendingInterrupts) => {
-        setResumeState(nextResumeState)
+      onRunIdChange: (nextRunId) => {
+        setRunId(nextRunId)
+      },
+      onResumeStateChange: (_nextResumeState, nextPendingInterrupts) => {
         setInterruptState((current) => ({
           ...current,
           interrupts: nextPendingInterrupts,
@@ -397,7 +400,7 @@ export function useChat<
     addToolResult,
     addToolApprovalResponse,
     cancelQueued,
-    resumeState,
+    runId,
     interrupts,
     pendingInterrupts,
     interruptErrors,

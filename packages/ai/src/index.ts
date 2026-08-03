@@ -114,8 +114,12 @@ export {
 } from './stream-to-response'
 
 // Delivery durability (transport layer)
-export { memoryStream } from './stream-durability'
-export type { MemoryStreamOptions, StreamDurability } from './stream-durability'
+export { memoryStream, replayRunStream } from './stream-durability'
+export type {
+  MemoryStreamInit,
+  MemoryStreamOptions,
+  StreamDurability,
+} from './stream-durability'
 
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
@@ -131,7 +135,6 @@ export { brandProviderTool } from './tools/provider-tool'
 // Agent loop strategies
 export {
   maxIterations,
-  maxToolCalls,
   untilFinishReason,
   combineStrategies,
 } from './activities/chat/agent-loop-strategies'
@@ -202,6 +205,8 @@ export type {
   GenerationAbortInfo,
   GenerationErrorInfo,
   AnyGenerationMiddleware,
+  GenerationResultTransform,
+  GenerationResultTransformContext,
 } from './activities/middleware/index'
 // Capability primitives + middleware builder
 export {
@@ -218,6 +223,8 @@ export type {
   DefinedChatMiddleware,
   AnyChatMiddleware,
 } from './activities/chat/middleware/index'
+// Locks are a distributed-mutex primitive — coordination, not chat state — and
+// live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).
 
 // Well-known AG-UI CUSTOM event catalog (agent activity rides on CUSTOM events)
 export { CUSTOM_EVENT, isCustomEvent } from './custom-events'

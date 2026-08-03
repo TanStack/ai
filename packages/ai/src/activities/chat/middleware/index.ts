@@ -41,3 +41,13 @@ export type {
 } from './builder'
 export { validateCapabilities } from './validate'
 export type { AnyChatMiddleware } from './types'
+
+export {
+  LocksCapability,
+  getLocks,
+  provideLocks,
+  InMemoryLockStore,
+  withLocks,
+  defineLock,
+} from './locks'
+export type { LockStore } from './locks'

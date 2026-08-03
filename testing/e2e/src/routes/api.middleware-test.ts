@@ -424,7 +424,7 @@ export const Route = createFileRoute('/api/middleware-test')({
             middleware.push(
               memoryMiddleware({
                 adapter: createFakeMemoryAdapter(testId),
-                scope: { sessionId: testId },
+                scope: { threadId: testId },
               }),
               createMemoryConfigRecorder(testId),
             )

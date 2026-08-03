@@ -92,15 +92,25 @@ export interface RecordStore {
 // ===========================
 
 /**
- * Exact scope match. In the recall/save model the scope is always fully
- * specified at both write and read (same middleware, same resolver), so a
- * record is in-scope iff its `sessionId` matches and — when the query carries a
- * `userId` — its `userId` matches too.
+ * Normalize an optional scope dimension: empty string is treated as unset so
+ * `''` and `undefined` compare equal.
+ */
+function scopeDimValue(value: string | undefined): string | undefined {
+  return value != null && value !== '' ? value : undefined
+}
+
+/**
+ * Exact scope match for built-in stores. `threadId` must match, and optional
+ * `userId` / `tenantId` must match exactly on both sides (including both
+ * unset). A query that omits `tenantId` does **not** match a record written
+ * with a tenant — same isolation model as Redis composite index keys.
+ * `namespace` is reserved and ignored until a subsystem keys on it.
  */
 export function sameScope(record: MemoryScope, query: MemoryScope): boolean {
-  if (record.sessionId !== query.sessionId) return false
-  if (query.userId != null && query.userId !== '') {
-    return record.userId === query.userId
+  if (record.threadId !== query.threadId) return false
+  if (scopeDimValue(record.userId) !== scopeDimValue(query.userId)) return false
+  if (scopeDimValue(record.tenantId) !== scopeDimValue(query.tenantId)) {
+    return false
   }
   return true
 }

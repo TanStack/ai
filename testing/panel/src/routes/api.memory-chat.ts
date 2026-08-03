@@ -12,7 +12,12 @@ import { grokText } from '@tanstack/ai-grok'
 import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { openRouterText } from '@tanstack/ai-openrouter'
-import { lastRecallBySession, memoryAdapter } from '@/lib/memory-store'
+import {
+  lastRecallByThread,
+  memoryAdapter,
+  panelMemoryScope,
+  panelScopeKey,
+} from '@/lib/memory-store'
 import type { Provider } from '@/lib/model-selection'
 
 const SYSTEM_PROMPT = `You are a helpful, friendly assistant with long-term memory.
@@ -27,7 +32,9 @@ memory rather than saying you don't know.`
  * minus the guitar tools and trace recording, plus a `memoryMiddleware` wired
  * to the shared {@link memoryAdapter} singleton so recall/save persist across
  * requests. The middleware is built per request with a static scope derived
- * from the client-supplied `sessionId`.
+ * from a client-supplied `threadId` plus server-trusted user/tenant constants
+ * (demo-only — production must derive every Scope field from validated session
+ * state, never from the request body alone).
  */
 export const Route = createFileRoute('/api/memory-chat')({
   server: {
@@ -45,7 +52,13 @@ export const Route = createFileRoute('/api/memory-chat')({
 
         const provider: Provider = data.provider || 'openai'
         const model: string | undefined = data.model
-        const sessionId: string = data.sessionId || 'panel-default-session'
+        // threadId may come from the client for multi-thread demo UX; user and
+        // tenant are always server-side constants (see panelMemoryScope).
+        const threadId: string =
+          typeof data.threadId === 'string' && data.threadId.length > 0
+            ? data.threadId
+            : 'panel-default-thread'
+        const scope = panelMemoryScope(threadId)
 
         try {
           const adapterConfig = {
@@ -79,14 +92,14 @@ export const Route = createFileRoute('/api/memory-chat')({
           const { adapter } = options
 
           console.log(
-            `>> memory chat: model ${model} on ${provider} (session ${sessionId})`,
+            `>> memory chat: model ${model} on ${provider} (thread ${threadId})`,
           )
 
           const memory = memoryMiddleware({
             adapter: memoryAdapter,
-            scope: { sessionId },
+            scope,
             onRecall: (info) => {
-              lastRecallBySession.set(sessionId, info.result)
+              lastRecallByThread.set(panelScopeKey(scope), info.result)
             },
           })
 
