@@ -1,8 +1,8 @@
 ---
-title: Durable Runs Explained
+title: Durable Runs
 id: sandbox-durable-runs
 order: 11
-description: "Why a sandboxed agent run needs to survive a page refresh, and how detach, the journal, takeover, and the reaper fit together. No code, read this before the wiring pages."
+description: "Turn durable sandbox runs on, then understand them: why a run needs to survive a page refresh, and how detach, the journal, takeover and the reaper fit together."
 keywords:
   - durable runs
   - detach on disconnect
@@ -13,10 +13,73 @@ keywords:
 
 # Durable Runs Explained
 
-This page is the mental model, in plain language, with no code. Read it before
-[The Run Journal](./journal), [Takeover & Detached Runs](./takeover), and
-[Reaping & Retention](./reaping). Those three are the wiring, and they make far
-more sense once you know why each exists.
+Turn it on with the snippet below. The rest of the page is the mental model, in plain
+language, and it is worth reading before [The Run Journal](./journal),
+[Takeover & Detached Runs](./takeover) and [Reaping & Retention](./reaping), which go
+deeper into each piece.
+
+## Turn it on
+
+Two options on `withSandbox` and you have durable runs. Passing only one of them
+leaves you with the default destroy-on-disconnect behavior, silently, because you have
+not asked for durability:
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  memoryStream,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { withLocks } from '@tanstack/ai/locks'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { withPersistence } from '@tanstack/ai-persistence'
+import { withSandbox } from '@tanstack/ai-sandbox'
+// Your stores, your `defineSandbox(...)` result, your distributed LockStore.
+import { locks } from './locks'
+import { persistence } from './persistence'
+import { sandbox } from './sandbox'
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+  // ONE adapter, handed to both the middleware and the response, so the journal
+  // and the delivery log describe the same run.
+  const adapter = memoryStream(request)
+
+  const stream = chat({
+    adapter: claudeCodeText('claude-opus-4-8'),
+    messages,
+    threadId,
+    // Required: the journal path and the log name are both derived from it.
+    runId,
+    middleware: [
+      withPersistence(persistence),
+      withLocks(locks),
+      withSandbox(sandbox, {
+        runs: persistence.stores.runs,
+        durability: { adapter },
+      }),
+    ],
+  })
+
+  return toServerSentEventsResponse(stream, { durability: { adapter } })
+}
+```
+
+That is the producing half. A returning client needs a `GET` that replays the log and
+adopts the run, which is [Takeover & Detached Runs](./takeover).
+
+Then two things people forget, both of which look fine until they are not:
+
+1. **Schedule the sweeper.** A cron route, a queue consumer, a Durable Object
+   `alarm()`, whatever your platform gives you. Skip it and sandboxes bill
+   indefinitely while disconnected readers wait forever on logs nothing will close.
+   Nothing warns you. See [Reaping & Retention](./reaping).
+2. **Use a real distributed lock.** The in-memory `LockStore` cannot coordinate across
+   hosts, so it cannot stop two replicas racing. `withSandbox` warns when it sees that
+   combination.
+
+The rest of this page is why it works that way, and what it costs.
 
 ## The problem
 
@@ -162,67 +225,6 @@ owns the run and persists its event log, and clients tail the DO), not a paralle
 architecture. See [Cloudflare (Edge)](./cloudflare). The cost worth
 knowing before choosing it: log-first double-writes every chunk (journal +
 log), which is why journal-only stays the default.
-
-## Turn it on
-
-Two options on `withSandbox` and you have durable runs. Passing only one of them
-leaves you with the default destroy-on-disconnect behavior, silently, because you have
-not asked for durability:
-
-```ts
-import {
-  chat,
-  chatParamsFromRequest,
-  memoryStream,
-  toServerSentEventsResponse,
-} from '@tanstack/ai'
-import { withLocks } from '@tanstack/ai/locks'
-import { claudeCodeText } from '@tanstack/ai-claude-code'
-import { withPersistence } from '@tanstack/ai-persistence'
-import { withSandbox } from '@tanstack/ai-sandbox'
-// Your stores, your `defineSandbox(...)` result, your distributed LockStore.
-import { locks } from './locks'
-import { persistence } from './persistence'
-import { sandbox } from './sandbox'
-
-export async function POST(request: Request) {
-  const { messages, threadId, runId } = await chatParamsFromRequest(request)
-  // ONE adapter, handed to both the middleware and the response, so the journal
-  // and the delivery log describe the same run.
-  const adapter = memoryStream(request)
-
-  const stream = chat({
-    adapter: claudeCodeText('claude-opus-4-8'),
-    messages,
-    threadId,
-    // Required: the journal path and the log name are both derived from it.
-    runId,
-    middleware: [
-      withPersistence(persistence),
-      withLocks(locks),
-      withSandbox(sandbox, {
-        runs: persistence.stores.runs,
-        durability: { adapter },
-      }),
-    ],
-  })
-
-  return toServerSentEventsResponse(stream, { durability: { adapter } })
-}
-```
-
-That is the producing half. A returning client needs a `GET` that replays the log and
-adopts the run, which is [Takeover & Detached Runs](./takeover).
-
-Then two things people forget, both of which look fine until they are not:
-
-1. **Schedule the sweeper.** A cron route, a queue consumer, a Durable Object
-   `alarm()`, whatever your platform gives you. Skip it and sandboxes bill
-   indefinitely while disconnected readers wait forever on logs nothing will close.
-   Nothing warns you. See [Reaping & Retention](./reaping).
-2. **Use a real distributed lock.** The in-memory `LockStore` cannot coordinate across
-   hosts, so it cannot stop two replicas racing. `withSandbox` warns when it sees that
-   combination.
 
 ## See also
 
