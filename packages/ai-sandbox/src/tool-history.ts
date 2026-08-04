@@ -35,7 +35,7 @@ export const SANDBOX_OBSERVED = 'sandboxObserved'
  * `ReadonlyArray`, so the transcript grows by REPLACING the array — the same way the
  * engine itself syncs `middlewareCtx.messages`.
  */
-export interface TranscriptTarget {
+interface TranscriptTarget {
   messages: ReadonlyArray<ModelMessage>
 }
 

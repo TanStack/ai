@@ -20,7 +20,10 @@ consume those fields, and takes the same `runs` store:
 import { runDurableRunFieldsConformance } from '@tanstack/ai-sandbox/testkit'
 import { persistence } from './persistence'
 
-runDurableRunFieldsConformance('my postgres runs', () => persistence.stores.runs)
+runDurableRunFieldsConformance(
+  'my postgres runs',
+  () => persistence.stores.runs,
+)
 ```
 
 So a chat-only backend leaves those columns out of its schema and passes, and an app

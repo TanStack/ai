@@ -1,6 +1,6 @@
 import {
-  DetachableRunCapability,
   defineChatMiddleware,
+  getDetachableRun,
   wasCancelRequested,
 } from '@tanstack/ai'
 import { providePendingTurn } from '@tanstack/ai/adapter-internals'
@@ -1351,7 +1351,7 @@ export async function abortRun(
  * would invert the layering.
  */
 function detachableRun(ctx: ChatMiddlewareContext): boolean {
-  return ctx.getOptional(DetachableRunCapability) === true
+  return getDetachableRun(ctx, { optional: true }) === true
 }
 
 // ---------------------------------------------------------------------------
