@@ -19,6 +19,13 @@ import {
   runGenerationStart,
   runGenerationUsage,
 } from '../middleware/run'
+import {
+  abortReasonMessage,
+  createActivityAbortControls,
+  isActivityAbortError,
+  raceWithAbort,
+  toAbortError,
+} from '../../utilities/activity-abort'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type {
@@ -235,6 +242,24 @@ export type VideoCreateOptions<
    * job to resume.
    */
   middleware?: Array<GenerationMiddleware>
+  /**
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default — choose a value suitable for the provider and job.
+   * Composed with {@link abortSignal}; the first abort wins.
+   *
+   * In stream mode this bounds the full create→poll→complete lifecycle and
+   * complements {@link maxDuration} (which defaults to 10 minutes). When both
+   * are set, the shorter limit wins via signal composition against the
+   * polling deadline.
+   */
+  timeout?: number
+  /**
+   * Caller cancellation signal (request disconnects, job/runtime cancellation).
+   * Composed with {@link timeout} into an effective signal forwarded to the
+   * adapter on job submission. Request-specific — not stored on global
+   * provider client config.
+   */
+  abortSignal?: AbortSignal
 } & ({} extends VideoProviderOptions<TAdapter>
     ? {
         /** Provider-specific options for video generation */ modelOptions?: VideoProviderOptions<TAdapter>
@@ -413,11 +438,24 @@ function videoRunIdForJob(provider: string, jobId: string): string {
 async function runCreateVideoJob<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, boolean>): Promise<VideoJobResult> {
-  const { adapter, prompt, size, duration, modelOptions, middleware } = options
+  const {
+    adapter,
+    prompt,
+    size,
+    duration,
+    modelOptions,
+    middleware,
+    timeout,
+    abortSignal: callerAbortSignal,
+  } = options
   const model = adapter.model
   const requestId = createId('video')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
+  const abortControls = createActivityAbortControls({
+    timeout,
+    abortSignal: callerAbortSignal,
+  })
   const providerName =
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
@@ -451,24 +489,40 @@ async function runCreateVideoJob<
 
   let jobResult: VideoJobResult
   try {
-    jobResult = await adapter.createVideoJob({
-      model,
-      prompt,
-      size,
-      duration,
-      modelOptions,
-      logger,
-    })
+    jobResult = await raceWithAbort(
+      adapter.createVideoJob({
+        model,
+        prompt,
+        size,
+        duration,
+        modelOptions,
+        logger,
+        ...(abortControls.signal
+          ? { abortSignal: abortControls.signal }
+          : {}),
+      }),
+      abortControls.signal,
+    )
+    abortControls.clear()
   } catch (error) {
+    abortControls.clear()
     // No jobId exists, so this run can only be keyed on the request. Start it
     // just to fail it: `generationRuns.update` on an unknown run id is a no-op
     // by contract, so without the `onStart` the failure would persist nowhere.
     const failedCtx = contextFor()
     await runGenerationStart(middleware, failedCtx)
-    await runGenerationError(middleware, failedCtx, {
-      error,
-      duration: Date.now() - startTime,
-    })
+    const elapsed = Date.now() - startTime
+    if (isActivityAbortError(error, abortControls.signal)) {
+      await runGenerationAbort(middleware, failedCtx, {
+        reason: abortReasonMessage(error, abortControls.signal),
+        duration: elapsed,
+      })
+    } else {
+      await runGenerationError(middleware, failedCtx, {
+        error,
+        duration: elapsed,
+      })
+    }
     logger.errors('generateVideo activity failed', {
       error,
       source: 'generateVideo',
@@ -489,8 +543,25 @@ async function runCreateVideoJob<
   return await applyGenerationResultTransforms(mwCtx, jobResult)
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+  if (!signal) {
+    return new Promise((resolve) => setTimeout(resolve, ms))
+  }
+  if (signal.aborted) {
+    return Promise.reject(toAbortError(signal.reason))
+  }
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener('abort', onAbort)
+      resolve()
+    }, ms)
+    const onAbort = () => {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', onAbort)
+      reject(toAbortError(signal.reason))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+  })
 }
 
 /**
@@ -500,7 +571,16 @@ function sleep(ms: number): Promise<void> {
 async function* runStreamingVideoGeneration<
   TAdapter extends VideoAdapter<string, any, any, any, any, any>,
 >(options: VideoCreateOptions<TAdapter, true>): AsyncIterable<StreamChunk> {
-  const { adapter, prompt, size, duration, modelOptions, middleware } = options
+  const {
+    adapter,
+    prompt,
+    size,
+    duration,
+    modelOptions,
+    middleware,
+    timeout,
+    abortSignal: callerAbortSignal,
+  } = options
   const model = adapter.model
   const runId = options.runId ?? createId('run')
   const requestId = createId('video')
@@ -508,6 +588,10 @@ async function* runStreamingVideoGeneration<
   const pollingInterval = options.pollingInterval ?? 2000
   const maxDuration = options.maxDuration ?? 600_000
   const logger: InternalLogger = resolveDebugOption(options.debug)
+  const abortControls = createActivityAbortControls({
+    timeout,
+    abortSignal: callerAbortSignal,
+  })
   const providerName =
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
@@ -555,19 +639,26 @@ async function* runStreamingVideoGeneration<
     },
   )
 
-  // Tracks whether a terminal observer event (finish/error) has already fired,
-  // so the `finally` below can fire one on abandonment without double-firing.
+  // Tracks whether a terminal observer event (finish/error/abort) has already
+  // fired, so the `finally` below can fire one on abandonment without
+  // double-firing.
   let settled = false
   try {
     // Create the video generation job
-    const jobResult = await adapter.createVideoJob({
-      model,
-      prompt,
-      size,
-      duration,
-      modelOptions,
-      logger,
-    })
+    const jobResult = await raceWithAbort(
+      adapter.createVideoJob({
+        model,
+        prompt,
+        size,
+        duration,
+        modelOptions,
+        logger,
+        ...(abortControls.signal
+          ? { abortSignal: abortControls.signal }
+          : {}),
+      }),
+      abortControls.signal,
+    )
 
     yield {
       type: 'CUSTOM',
@@ -579,7 +670,7 @@ async function* runStreamingVideoGeneration<
     // Poll for completion
     const startTime = Date.now()
     while (Date.now() - startTime < maxDuration) {
-      await sleep(pollingInterval)
+      await sleep(pollingInterval, abortControls.signal)
 
       const statusResult = await adapter.getVideoStatus(jobResult.jobId)
 
@@ -632,6 +723,7 @@ async function* runStreamingVideoGeneration<
           usage: urlResult.usage,
         })
         settled = true
+        abortControls.clear()
 
         yield {
           type: 'CUSTOM',
@@ -657,15 +749,24 @@ async function* runStreamingVideoGeneration<
 
     throw new Error('Video generation timed out')
   } catch (error: unknown) {
+    abortControls.clear()
     const payload = toRunErrorPayload(error, 'Video generation failed')
-    // Mark settled before firing onError: if a user error-hook throws, the
-    // `finally` below must still not double-fire onAbort over the same op
+    // Mark settled before firing terminal hooks: if a user error-hook throws,
+    // the `finally` below must still not double-fire onAbort over the same op
     // (which would mask the original error and end the span twice).
     settled = true
-    await runGenerationError(middleware, mwCtx, {
-      error,
-      duration: Date.now() - obsStartTime,
-    })
+    const elapsed = Date.now() - obsStartTime
+    if (isActivityAbortError(error, abortControls.signal)) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: abortReasonMessage(error, abortControls.signal),
+        duration: elapsed,
+      })
+    } else {
+      await runGenerationError(middleware, mwCtx, {
+        error,
+        duration: elapsed,
+      })
+    }
     logger.errors('generateVideo activity failed', {
       message: payload.message,
       code: payload.code,
@@ -681,6 +782,7 @@ async function* runStreamingVideoGeneration<
       timestamp: Date.now(),
     } as StreamChunk
   } finally {
+    abortControls.clear()
     if (!settled) {
       // The consumer abandoned the stream (broke the `for await` loop or
       // disconnected) before completion, so the generator is being unwound at

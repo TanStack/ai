@@ -84,7 +84,13 @@ export class FalAudioAdapter<TModel extends FalModel> extends BaseAudioAdapter<
     })
     try {
       const input = this.buildInput(options)
-      const result = await fal.subscribe(this.model, { input })
+      // Request-specific abortSignal only — not fal.config() (global).
+      const result = await fal.subscribe(this.model, {
+        input,
+        ...(options.abortSignal
+          ? { abortSignal: options.abortSignal }
+          : {}),
+      })
       return this.transformResponse(result)
     } catch (error) {
       logger.errors('fal.generateAudio fatal', {
