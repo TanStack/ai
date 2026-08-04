@@ -2,7 +2,7 @@
 title: Durable Runs Explained
 id: sandbox-durable-runs
 order: 11
-description: "Why a sandboxed agent run needs to survive a page refresh, and how detach, the journal, takeover, and the reaper fit together. No code — read this before the wiring pages."
+description: "Why a sandboxed agent run needs to survive a page refresh, and how detach, the journal, takeover, and the reaper fit together. No code, read this before the wiring pages."
 keywords:
   - durable runs
   - detach on disconnect
@@ -15,7 +15,7 @@ keywords:
 
 This page is the mental model, in plain language, with no code. Read it before
 [The Run Journal](./journal), [Takeover & Detached Runs](./takeover), and
-[Reaping & Retention](./reaping) — those three are the wiring, and they make far
+[Reaping & Retention](./reaping). Those three are the wiring, and they make far
 more sense once you know why each exists.
 
 ## The problem
@@ -32,7 +32,7 @@ one running the job.
 The connection dropping kills everything. The sandbox is destroyed, the work is
 thrown away, and the user comes back to nothing.
 
-That is not a bug — it is the least-bad option available by default. When you
+That is not a bug. It is the least-bad option available by default. When you
 close the pipe to an agent running in a sandbox, **the agent does not stop.** It
 keeps working and keeps spending money on tokens. So destroying the sandbox is
 the only reliable way to be sure a disconnected job stops burning cash.
@@ -59,7 +59,7 @@ the words are still sitting there when someone comes back. That file is the
 
 ### 3. Someone comes back, and we pick up mid-sentence
 
-A new request — possibly on a different replica — reads that file, works out how
+A new request, possibly on a different replica, reads that file, works out how
 much the user already saw, and streams only the part they missed. No repeated
 paragraphs, no gaps. That is [takeover](./takeover).
 
@@ -75,11 +75,11 @@ and either wraps them up or shuts them down. That is the
 ### Making sure two replicas never both drive one run
 
 If a user opens the same thread in two tabs, or a load balancer sends a retry
-elsewhere, two replicas could both try to continue one run — and the user would
+elsewhere, two replicas could both try to continue one run, and the user would
 see doubled text and contradictory "finished" messages.
 
 So a replica has to take a numbered ticket to drive a run. If a newer replica
-takes a higher number, the older one is locked out of writing anything at all —
+takes a higher number, the older one is locked out of writing anything at all,
 not merely discouraged, but unable to append to the log or mark the run
 finished.
 
@@ -112,7 +112,7 @@ it pumps, and a returning client tails the log from where it left off. That is
 this half.
 
 **Capture** (agent → host) breaks when the _host_ dies mid-run. The agent
-keeps emitting — into a pipe whose other end is gone — and no durability on
+keeps emitting, into a pipe whose other end is gone, and no durability on
 the delivery log helps, because the problem is upstream of the log's writer.
 The [journal](./journal) fixes it by moving the write inside the sandbox: the
 agent writes to a file, so the producer of the bytes and their storage share
@@ -123,16 +123,16 @@ agent at the same durable log, and the answer starts with: **the agent cannot
 speak the protocol.** It is somebody else's CLI printing raw text; the chunks,
 offsets, and cursors in the delivery log only exist after the host translates
 that output. Teaching the sandbox to write the log would mean shipping a
-translator, a network client, and credentials into the container — and the log
+translator, a network client, and credentials into the container, and the log
 is what clients render, so that hands a model-driven process write access to
 client-facing truth and bypasses the numbered-ticket fencing above (the same
 concern that makes the exit sentinel unforgeable). A file needs none of it: no
-network, no credentials, nothing the agent can corrupt but its own output —
+network, no credentials, nothing the agent can corrupt but its own output,
 which the host verifies on the way back out anyway.
 
 Normal persistence is neither pipe: the message store holds the _finalized_
 conversation, written after the fact, and it restores thread history across
-runs — not a run in flight.
+runs, not a run in flight.
 
 ## The two tiers
 
@@ -142,51 +142,92 @@ difference between them is where the durable copy of the output lives.
 **Journal-only** is the zero-infrastructure default. The only durable copy of
 the run's output is the journal file inside the sandbox, so the log's
 durability equals the sandbox's lifetime: as long as the sandbox is up, any
-host can reconstruct the whole run from the file. You deploy nothing extra —
+host can reconstruct the whole run from the file. You deploy nothing extra,
 this is what you get from the wiring pages as written.
 
 **Log-first** adds a durable delivery log _outside_ the sandbox, and every
 chunk is written to both. Clients only ever tail the log; a reconnect never
-touches the sandbox at all. The journal does not go away — it is demoted to
+touches the sandbox at all. The journal does not go away. It is demoted to
 driver recovery: warm reattach, and working out where a resuming driver picks
 the run back up.
 
 When both copies exist, precedence is one sentence: **the log wins for what
 clients see; the journal wins for where the driver resumes.** That is exactly
-what alignment implements — the stored log is treated as already-delivered
+what alignment implements: the stored log is treated as already-delivered
 truth, and the journal replay is only used to derive the position to append
 from.
 
-Cloudflare is the log-first tier with Durable-Object-backed implementations —
-a DO owns the run and persists its event log, clients tail the DO — not a
-parallel architecture. See [Cloudflare (Edge)](./cloudflare). The cost worth
+Cloudflare is the log-first tier with Durable-Object-backed implementations (a DO
+owns the run and persists its event log, and clients tail the DO), not a parallel
+architecture. See [Cloudflare (Edge)](./cloudflare). The cost worth
 knowing before choosing it: log-first double-writes every chunk (journal +
 log), which is why journal-only stays the default.
 
-## What you have to do to use it
+## Turn it on
 
-Two things, and the second is easy to forget:
+Two options on `withSandbox` and you have durable runs. Passing only one of them
+leaves you with the default destroy-on-disconnect behavior, silently, because you have
+not asked for durability:
 
-1. **Turn it on** — give `withSandbox` both a run store and a durability
-   backend. Passing only one leaves you with exactly the default
-   destroy-on-disconnect behavior, silently, because you have not asked for
-   durability. See [Takeover & Detached Runs](./takeover).
-2. **Actually schedule the sweeper** — a cron job, a queue, a Durable Object
-   `alarm()`, whatever your platform offers. See
-   [Reaping & Retention](./reaping).
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  memoryStream,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { withLocks } from '@tanstack/ai/locks'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { withPersistence } from '@tanstack/ai-persistence'
+import { withSandbox } from '@tanstack/ai-sandbox'
+// Your stores, your `defineSandbox(...)` result, your distributed LockStore.
+import { locks } from './locks'
+import { persistence } from './persistence'
+import { sandbox } from './sandbox'
 
-Do the first and not the second and everything _looks_ fine, then sandboxes bill
-indefinitely and disconnected readers wait forever on logs nothing will ever
-close. Nothing warns you, which is why the reaping page leads with that warning.
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+  // ONE adapter, handed to both the middleware and the response, so the journal
+  // and the delivery log describe the same run.
+  const adapter = memoryStream(request)
 
-You also need a real distributed lock (`LockStore`). The in-memory one cannot
-coordinate across hosts, so it cannot stop two replicas racing — `withSandbox`
-warns when it sees that combination.
+  const stream = chat({
+    adapter: claudeCodeText('claude-opus-4-8'),
+    messages,
+    threadId,
+    // Required: the journal path and the log name are both derived from it.
+    runId,
+    middleware: [
+      withPersistence(persistence),
+      withLocks(locks),
+      withSandbox(sandbox, {
+        runs: persistence.stores.runs,
+        durability: { adapter },
+      }),
+    ],
+  })
+
+  return toServerSentEventsResponse(stream, { durability: { adapter } })
+}
+```
+
+That is the producing half. A returning client needs a `GET` that replays the log and
+adopts the run, which is [Takeover & Detached Runs](./takeover).
+
+Then two things people forget, both of which look fine until they are not:
+
+1. **Schedule the sweeper.** A cron route, a queue consumer, a Durable Object
+   `alarm()`, whatever your platform gives you. Skip it and sandboxes bill
+   indefinitely while disconnected readers wait forever on logs nothing will close.
+   Nothing warns you. See [Reaping & Retention](./reaping).
+2. **Use a real distributed lock.** The in-memory `LockStore` cannot coordinate across
+   hosts, so it cannot stop two replicas racing. `withSandbox` warns when it sees that
+   combination.
 
 ## See also
 
-- [The Run Journal](./journal) — the file, and why it is a file
-- [Takeover & Detached Runs](./takeover) — the wiring, both routes
-- [Reaping & Retention](./reaping) — the sweeper, and how to schedule it
-- [Instance Durability](./durability) — keeping the _sandbox_ findable across
+- [The Run Journal](./journal): the file, and why it is a file
+- [Takeover & Detached Runs](./takeover): the wiring, both routes
+- [Reaping & Retention](./reaping): the sweeper, and how to schedule it
+- [Instance Durability](./durability): keeping the _sandbox_ findable across
   replicas, which is a separate concern from keeping its _output_ readable

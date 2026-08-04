@@ -1,5 +1,5 @@
 ---
-title: Takeover & Detached Runs
+title: Takeover & Detached Runs (Advanced)
 id: sandbox-takeover
 order: 13
 description: "Let a sandboxed agent run outlive the browser tab: detach on disconnect, then take the run over from another host and resume streaming where the log left off."

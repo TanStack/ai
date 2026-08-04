@@ -498,71 +498,91 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Quick Start",
           "to": "sandbox/quick-start",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-03"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Harnesses",
           "to": "sandbox/harnesses",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Workspace",
           "to": "sandbox/workspace",
-          "addedAt": "2026-06-29"
-        },
-        {
-          "label": "Provisioning",
-          "to": "sandbox/provisioning",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Tools",
           "to": "sandbox/tools",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Policy",
           "to": "sandbox/policy",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Lifecycle & Snapshots",
           "to": "sandbox/lifecycle",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Instance Durability",
           "to": "sandbox/durability",
           "addedAt": "2026-07-27",
-          "updatedAt": "2026-07-29"
+          "updatedAt": "2026-08-04"
         },
         {
-          "label": "Durable Runs Explained",
+          "label": "Durable Runs",
           "to": "sandbox/durable-runs",
-          "addedAt": "2026-07-31"
+          "addedAt": "2026-07-31",
+          "updatedAt": "2026-08-04"
         },
+        {
+          "label": "Events",
+          "to": "sandbox/events",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-04"
+        }
+      ]
+    },
+    {
+      "label": "Sandboxes (Advanced)",
+      "tab": "guides",
+      "collapsible": true,
+      "defaultCollapsed": true,
+      "children": [
         {
           "label": "The Run Journal",
           "to": "sandbox/journal",
-          "addedAt": "2026-07-29"
+          "addedAt": "2026-07-29",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Takeover & Detached Runs",
           "to": "sandbox/takeover",
+          "addedAt": "2026-07-29",
+          "updatedAt": "2026-08-04"
+        },
+        {
+          "label": "Reaping & Retention",
+          "to": "sandbox/reaping",
           "addedAt": "2026-07-29",
           "updatedAt": "2026-08-04"
         },
@@ -572,13 +592,8 @@
           "addedAt": "2026-08-04"
         },
         {
-          "label": "Reaping & Retention",
-          "to": "sandbox/reaping",
-          "addedAt": "2026-07-29"
-        },
-        {
-          "label": "Events",
-          "to": "sandbox/events",
+          "label": "Provisioning",
+          "to": "sandbox/provisioning",
           "addedAt": "2026-06-29",
           "updatedAt": "2026-08-04"
         },
@@ -586,13 +601,13 @@
           "label": "Observability",
           "to": "sandbox/observability",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Cloudflare (Edge)",
           "to": "sandbox/cloudflare",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-03"
+          "updatedAt": "2026-08-04"
         }
       ]
     },

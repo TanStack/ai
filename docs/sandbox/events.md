@@ -2,7 +2,7 @@
 title: Events
 id: events
 order: 9
-description: "Everything a harness agent does inside a sandbox — text, tool calls, reasoning, session ids, and file edits — streams back as AG-UI chunks plus namespaced CUSTOM events."
+description: "Everything a harness agent does inside a sandbox (text, tool calls, reasoning, session ids, and file edits) streams back as AG-UI chunks plus namespaced CUSTOM events."
 ---
 
 When a harness adapter runs inside a [sandbox](./overview), everything it does is
@@ -16,11 +16,11 @@ on file changes, or to log sandbox internals, see [Observability](./observabilit
 
 A harness run produces standard AG-UI `StreamChunk`s:
 
-- **Text** — incremental assistant output.
-- **Tool calls** — including bridged [tools](./tools), which surface as ordinary
+- **Text**: incremental assistant output.
+- **Tool calls**, including bridged [tools](./tools), which surface as ordinary
   tool-call chunks the moment the in-sandbox agent invokes them.
-- **Reasoning** — the agent's thinking, where the harness exposes it.
-- **Run lifecycle** — run started / finished and related boundaries.
+- **Reasoning**: the agent's thinking, where the harness exposes it.
+- **Run lifecycle**: run started, run finished, and related boundaries.
 
 ## Custom events
 
@@ -33,13 +33,13 @@ events (`chunk.type === 'CUSTOM'`), each with a `name` and a `value`:
 | `claude-code.session-id` | Claude Code adapter | once, when the in-sandbox session is created or resumed | the resumable harness session id |
 | `codex.session-id` | Codex adapter | once, when the session is created or resumed | the resumable harness session id |
 | `opencode.session-id` | OpenCode adapter | once, when the session is created or resumed | the resumable harness session id |
-| `file.changed` | harness adapter (e.g. Grok Build, Claude Code) | after the run completes | `{ path: string; diff: string }` — the whole working-tree `git diff` (`path` is always `'.'`, the tree root) |
+| `file.changed` | harness adapter (e.g. Grok Build, Claude Code) | after the run completes | `{ path: string; diff: string }`: the whole working-tree `git diff` (`path` is always `'.'`, the tree root) |
 | `sandbox.file` | the engine, automatically | per file create / change / delete while a sandbox is active | `{ type: 'create' \| 'change' \| 'delete'; path: string; timestamp: number }` |
-| `sandbox.file.diff` | the engine, opt-in via `fileEvents: { diff: true }` | per file create / change / delete, after the matching `sandbox.file` | `{ path: string; diff: string }` — a unified patch of that one file vs the session's git baseline |
+| `sandbox.file.diff` | the engine, opt-in via `fileEvents: { diff: true }` | per file create / change / delete, after the matching `sandbox.file` | `{ path: string; diff: string }`: a unified patch of that one file vs the session's git baseline |
 
 The `*.session-id` event lets you resume a harness session on a follow-up run
 (pass it back via the adapter's `modelOptions.sessionId`). `sandbox.file` is
-emitted automatically whenever a sandbox is active and file watching is on —
+emitted automatically whenever a sandbox is active and file watching is on, with
 no hooks required. `sandbox.file.diff` is off by default (computing a diff on
 every change has a cost); turn it on with `fileEvents: { diff: true }` on
 `defineSandbox` when the client needs to render the change itself, not just
@@ -68,11 +68,11 @@ the watcher off entirely.
 
 ## Reading CUSTOM events on the client
 
-Every `CUSTOM` event TanStack AI itself emits — `sandbox.file`,
-`sandbox.file.diff`, `file.changed`, the `*.session-id` events, and more — has
+Every `CUSTOM` event TanStack AI itself emits, `sandbox.file`,
+`sandbox.file.diff`, `file.changed`, the `*.session-id` events, and more, has
 a fixed `name` and a concrete `value` shape, unified as `KnownCustomEvent`.
 `chat()`'s return type narrows accordingly: check `chunk.type === 'CUSTOM'`
-and then compare `chunk.name` to a literal string. No helper, no cast — the
+and then compare `chunk.name` to a literal string. No helper, no cast, the
 plain `if` types `chunk.value` for you:
 
 ```ts
@@ -95,7 +95,7 @@ for await (const chunk of stream) {
 `codex.session-id`, `grok-build.session-id`, `opencode.session-id`), so its
 type is the template-literal name `` `${string}.session-id` ``, not a single
 string. If you know which adapter you're running, compare the exact literal
-— it narrows `chunk.value` the same as any other event:
+it narrows `chunk.value` the same as any other event:
 
 ```ts
 import { resumeSession } from "./session";
@@ -109,7 +109,7 @@ for await (const chunk of stream) {
 ```
 
 > **`chunk.name.endsWith('.session-id')` does *not* narrow.** It's a plain
-> boolean expression, not something TypeScript can attach to a type — so
+> boolean expression, not something TypeScript can attach to a type, so
 > `chunk.value` stays whatever it was before the check (effectively
 > `unknown`), even though the check happens to be correct at runtime. If you
 > need to handle *any* adapter's session id without listing every adapter's
@@ -133,7 +133,7 @@ for await (const chunk of stream) {
 > }
 > ```
 >
-> This predicate is something you write yourself when you need it — TanStack
+> This predicate is something you write yourself when you need it, TanStack
 > AI doesn't ship a guard API. Plain literal-`name` narrowing (as above) is
 > the primary, no-helper pattern; reach for a predicate only for this
 > "any adapter" case.
@@ -246,7 +246,7 @@ the provider was never given.
 
 ## Related
 
-- [Observability](./observability) — server-side file-event hooks (with `before()`/`after()`/`diff()`), debug logging, and the low-level watcher.
-- [Custom Events Reference](../protocol/custom-events) — the full `KnownCustomEvent` taxonomy and the `ChatStream` type.
-- [Tools](./tools) — bridged host tools that surface as tool-call (and CUSTOM) chunks.
-- [Quick Start](./quick-start) — read the `file.changed` diff end to end.
+- [Observability](./observability), server-side file-event hooks (with `before()`/`after()`/`diff()`), debug logging, and the low-level watcher.
+- [Custom Events Reference](../protocol/custom-events), the full `KnownCustomEvent` taxonomy and the `ChatStream` type.
+- [Tools](./tools), bridged host tools that surface as tool-call (and CUSTOM) chunks.
+- [Quick Start](./quick-start), read the `file.changed` diff end to end.

@@ -1,5 +1,5 @@
 ---
-title: Cloudflare (Edge)
+title: Cloudflare (Edge, Advanced)
 id: cloudflare
 order: 11
 description: "Run a coding-agent harness and a live preview at the edge with @tanstack/ai-sandbox-cloudflare — Workers, Containers, and Durable Objects in one deploy."

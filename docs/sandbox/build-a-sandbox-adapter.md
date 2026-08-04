@@ -1,5 +1,5 @@
 ---
-title: Build a Sandbox Adapter
+title: Build a Sandbox Adapter (Advanced)
 id: sandbox-build-an-adapter
 order: 15
 description: "Choose what a sandboxed run leaves behind: everything, only the sandbox side, or only the conversation. Then implement the sandbox store and prove it with the conformance suite."

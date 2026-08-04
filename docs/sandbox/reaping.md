@@ -1,5 +1,5 @@
 ---
-title: Reaping & Retention
+title: Reaping & Retention (Advanced)
 id: sandbox-reaping
 order: 14
 description: "Schedule the sweep that finalizes detached runs, prunes journals, and reclaims sandboxes — and understand why a durable run that nothing reaps never lands its transcript."

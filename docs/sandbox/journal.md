@@ -1,5 +1,5 @@
 ---
-title: The Run Journal
+title: The Run Journal (Advanced)
 id: sandbox-journal
 order: 12
 description: "Every sandboxed agent run writes its NDJSON output to an append-only journal inside the sandbox, so the host reads a file instead of holding a pipe."

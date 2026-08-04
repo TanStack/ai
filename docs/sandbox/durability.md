@@ -15,7 +15,7 @@ bookkeeping is in-memory, so it only holds within one process. The moment a run
 lands on a different replica (or a fresh isolate), that instance has never seen
 the sandbox and re-creates it.
 
-**Sandbox instance durability** is runtime placement — not chat history. It is
+**Sandbox instance durability** is runtime placement, not chat history. It is
 owned by `@tanstack/ai-sandbox`, independent of `@tanstack/ai-persistence`
 (transcript / runs / interrupts). You may share a database with chat stores, but
 you compose a separate middleware.
@@ -24,7 +24,7 @@ It is also not the agent's *output*. This page keeps a sandbox findable across
 processes; keeping the run's event stream readable across processes is
 [The Run Journal](./journal). The two compose: a resumed sandbox still holds the
 journal of every **durable** run that executed in it, under `/tmp/tanstack-runs`.
-(Durable meaning `withSandbox` was given both `runs` and `durability` — journaling
+(Durable meaning `withSandbox` was given both `runs` and `durability`. Journaling
 is opt-in, and a run without it leaves no file there.)
 
 Two pieces:
@@ -74,7 +74,7 @@ const sandbox = defineSandbox({
       fork: false,
     }),
     create: () => {
-      throw new Error('example provider — wire a real SandboxProvider')
+      throw new Error('example provider: wire a real SandboxProvider')
     },
     resume: () => Promise.resolve(null),
     destroy: () => Promise.resolve(),
@@ -148,11 +148,11 @@ create. Pair the store with a lock, either `withLocks` from
 ## See also
 
 - [The Run Journal](./journal): durability of a run's output, as opposed to its sandbox
-- [Takeover & Detached Runs](./takeover): surviving a client disconnect — a
+- [Takeover & Detached Runs](./takeover): surviving a client disconnect. A
   detached run keeps its sandbox up, and `RunStore.sandboxKey` /
   `RunStore.detachedSince` is how a later host finds it again
 - [Build a Sandbox Adapter](./build-a-sandbox-adapter): implement this store, and
   choose how much a sandboxed run leaves behind
 - [Locks](../advanced/locks)
 - [Lifecycle](./lifecycle)
-- [Persistence overview](../persistence/overview) — chat state only
+- [Persistence overview](../persistence/overview): chat state only
