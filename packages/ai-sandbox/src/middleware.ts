@@ -205,6 +205,11 @@ async function cancelIntent(
 ): Promise<boolean> {
   if (inProcess) return true
   if (durability === undefined) return false
+  // No guard needed here, and one would be dead code: `wasCancelRequested` already
+  // answers `false` for a store read that rejects. That matters on this path,
+  // because a rejection escaping into `onAbort` would skip BOTH of its branches at
+  // once, leaving a sandbox that is neither reclaimable nor destroyed. The test
+  // 'DETACHES when the cancel probe REJECTS' pins the composition.
   return wasCancelRequested(durability.runs, runId)
 }
 

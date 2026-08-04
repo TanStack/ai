@@ -247,6 +247,31 @@ describe('withSandbox — detach vs destroy', () => {
     expect((await runs.get('r1'))?.detachedSince).toBeUndefined()
   })
 
+  it('DETACHES when the cancel probe REJECTS, instead of tearing down neither way', async () => {
+    // The probe reads the run store, and a store read can fail. A rejection that
+    // escaped `onAbort` would skip BOTH branches at once: nothing writes
+    // `detachedSince`/`sandboxKey` (so `listReclaimable` can never surface the run
+    // and the reaper can never reclaim it) and `definition.destroy` never runs (so
+    // the sandbox leaks). `wasCancelRequested` answers `false` for an unreadable
+    // store, which is what keeps that from happening; this pins the composition,
+    // because the guard lives in core and the consequence lives here.
+    const runs = await seededRuns()
+    const readRecord = runs.get.bind(runs)
+    runs.get = () => Promise.reject(new Error('store unreachable'))
+    const h = await harness({ adapter: adapterFor('r1') }, { runs })
+
+    await h.abort({ cancelRequested: false })
+
+    // Restored only to READ the outcome; the probe above ran against the failing
+    // store, which is the condition under test.
+    runs.get = readRecord
+
+    // Detached, not destroyed, and `update` still works, so the run stays
+    // reclaimable by the reaper.
+    expect(h.destroys()).toBe(0)
+    expect(typeof (await runs.get('r1'))?.detachedSince).toBe('number')
+  })
+
   it('DESTROYS when detachOnDisconnect is false, keeping the old cost profile', async () => {
     const runs = await seededRuns()
     const h = await harness(
