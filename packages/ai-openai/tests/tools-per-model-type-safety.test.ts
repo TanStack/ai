@@ -47,9 +47,9 @@ const userTool = toolDefinition({
 describe('OpenAI per-model tool gating', () => {
   // One literal `it` per model so `openaiText('<id>')` is checked against that
   // model's tool capabilities alone — not a union of every row in a table.
-  function assertFullToolSuperset<TAdapter extends ReturnType<typeof openaiText>>(
-    adapter: TAdapter,
-  ) {
+  function assertFullToolSuperset<
+    TAdapter extends ReturnType<typeof openaiText>,
+  >(adapter: TAdapter) {
     typedTools(adapter, [
       userTool,
       webSearchTool({ type: 'web_search' }),
