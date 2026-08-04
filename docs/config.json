@@ -187,32 +187,27 @@
         {
           "label": "Overview",
           "to": "interrupts/overview",
-          "addedAt": "2026-07-16",
-          "updatedAt": "2026-07-29"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Tool Approval",
           "to": "interrupts/tool-approval",
-          "addedAt": "2026-07-16",
-          "updatedAt": "2026-07-21"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Multiple Interrupts",
           "to": "interrupts/multiple",
-          "addedAt": "2026-07-16",
-          "updatedAt": "2026-07-21"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Generic Interrupts",
           "to": "interrupts/generic",
-          "addedAt": "2026-07-16",
-          "updatedAt": "2026-07-21"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Migration",
           "to": "interrupts/migration",
-          "addedAt": "2026-07-14",
-          "updatedAt": "2026-07-21"
+          "addedAt": "2026-08-04"
         }
       ]
     },
@@ -223,20 +218,17 @@
         {
           "label": "Overview",
           "to": "resumable-streams/overview",
-          "addedAt": "2026-07-17",
-          "updatedAt": "2026-07-29"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Advanced",
           "to": "resumable-streams/advanced",
-          "addedAt": "2026-07-17",
-          "updatedAt": "2026-07-29"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Custom Durability Adapter",
           "to": "resumable-streams/custom-adapter",
-          "addedAt": "2026-07-17",
-          "updatedAt": "2026-07-29"
+          "addedAt": "2026-08-04"
         }
       ]
     },
@@ -247,44 +239,37 @@
         {
           "label": "Overview",
           "to": "persistence/overview",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-31"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-30"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Generation Persistence",
           "to": "persistence/generation-persistence",
-          "addedAt": "2026-07-28",
-          "updatedAt": "2026-07-31"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Controls",
           "to": "persistence/controls",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-25"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
-          "addedAt": "2026-07-24",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Migrations",
           "to": "persistence/migrations",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-25"
+          "addedAt": "2026-08-04"
         }
       ]
     },
@@ -297,26 +282,22 @@
         {
           "label": "Id Map",
           "to": "persistence/id-map",
-          "addedAt": "2026-07-30",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Keep Generated Files",
           "to": "persistence/keep-generated-files",
-          "addedAt": "2026-07-28",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Build a Chat Adapter",
           "to": "persistence/build-your-own-chat-adapter",
-          "addedAt": "2026-07-31",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Build a Generation Adapter",
           "to": "persistence/build-your-own-generation-adapter",
-          "addedAt": "2026-07-31",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Build a Sandbox Adapter",
@@ -326,14 +307,12 @@
         {
           "label": "Store Reference",
           "to": "persistence/store-reference",
-          "addedAt": "2026-07-31",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "How Persistence Works",
           "to": "persistence/internals",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         }
       ]
     },
@@ -488,8 +467,7 @@
         {
           "label": "Locks",
           "to": "advanced/locks",
-          "addedAt": "2026-07-27",
-          "updatedAt": "2026-07-28"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "OpenTelemetry",
@@ -554,14 +532,12 @@
         {
           "label": "Instance Durability",
           "to": "sandbox/durability",
-          "addedAt": "2026-07-27",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Durable Runs",
           "to": "sandbox/durable-runs",
-          "addedAt": "2026-07-31",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Events",
@@ -580,20 +556,17 @@
         {
           "label": "The Run Journal",
           "to": "sandbox/journal",
-          "addedAt": "2026-07-29",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Takeover & Detached Runs",
           "to": "sandbox/takeover",
-          "addedAt": "2026-07-29",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Reaping & Retention",
           "to": "sandbox/reaping",
-          "addedAt": "2026-07-29",
-          "updatedAt": "2026-08-04"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Provisioning",
@@ -622,32 +595,27 @@
         {
           "label": "Overview",
           "to": "memory/overview",
-          "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-24"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Quickstart",
           "to": "memory/quickstart",
-          "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-24"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Adapters",
           "to": "memory/adapters",
-          "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-24"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Custom Adapter",
           "to": "memory/custom-adapter",
-          "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-24"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Operating",
           "to": "memory/operating",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-24"
+          "addedAt": "2026-08-04"
         }
       ]
     },
@@ -882,7 +850,7 @@
         {
           "label": "BytePlus",
           "to": "adapters/byteplus",
-          "addedAt": "2026-07-31"
+          "addedAt": "2026-08-04"
         }
       ]
     },
