@@ -91,9 +91,7 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
       // is global and would cancel concurrent generations from other calls.
       const result = await fal.subscribe(this.model, {
         input,
-        ...(options.abortSignal
-          ? { abortSignal: options.abortSignal }
-          : {}),
+        ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
       })
       return this.transformResponse(result)
     } catch (error) {

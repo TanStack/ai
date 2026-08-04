@@ -238,9 +238,7 @@ async function runGenerateAudio<
         ...rest,
         model,
         logger,
-        ...(abortControls.signal
-          ? { abortSignal: abortControls.signal }
-          : {}),
+        ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
       }),
       abortControls.signal,
     )

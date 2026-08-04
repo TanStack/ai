@@ -29,15 +29,17 @@ describe('generateImage abortSignal + timeout', () => {
   })
 
   it('forwards the composed abortSignal to the media adapter', async () => {
-    const generateImages = vi.fn(async (opts: { abortSignal?: AbortSignal }) => {
-      expect(opts.abortSignal).toBeInstanceOf(AbortSignal)
-      expect(opts.abortSignal?.aborted).toBe(false)
-      return {
-        id: 'img-1',
-        model: 'test-model',
-        images: [{ url: 'https://example.com/image.png' }],
-      }
-    })
+    const generateImages = vi.fn(
+      async (opts: { abortSignal?: AbortSignal }) => {
+        expect(opts.abortSignal).toBeInstanceOf(AbortSignal)
+        expect(opts.abortSignal?.aborted).toBe(false)
+        return {
+          id: 'img-1',
+          model: 'test-model',
+          images: [{ url: 'https://example.com/image.png' }],
+        }
+      },
+    )
     const adapter = createMockImageAdapter({ generateImages })
     const controller = new AbortController()
 

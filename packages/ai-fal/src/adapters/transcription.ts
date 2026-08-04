@@ -73,9 +73,7 @@ export class FalTranscriptionAdapter<
       // Request-specific abortSignal only — not fal.config() (global).
       const result = await fal.subscribe(this.model, {
         input,
-        ...(options.abortSignal
-          ? { abortSignal: options.abortSignal }
-          : {}),
+        ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
       })
       return this.transformResponse(result)
     } catch (error) {

@@ -497,9 +497,7 @@ async function runCreateVideoJob<
         duration,
         modelOptions,
         logger,
-        ...(abortControls.signal
-          ? { abortSignal: abortControls.signal }
-          : {}),
+        ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
       }),
       abortControls.signal,
     )
@@ -653,9 +651,7 @@ async function* runStreamingVideoGeneration<
         duration,
         modelOptions,
         logger,
-        ...(abortControls.signal
-          ? { abortSignal: abortControls.signal }
-          : {}),
+        ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
       }),
       abortControls.signal,
     )
