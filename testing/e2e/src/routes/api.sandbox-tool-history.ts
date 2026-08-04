@@ -112,7 +112,12 @@ function harnessRun(
   const base = { threadId, runId, timestamp: 1 }
   return (async function* () {
     yield { type: EventType.RUN_STARTED, ...base }
-    yield { type: EventType.TEXT_MESSAGE_START, messageId: 'm1', ...base }
+    yield {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: 'm1',
+      role: 'assistant',
+      ...base,
+    }
     yield {
       type: EventType.TEXT_MESSAGE_CONTENT,
       messageId: 'm1',
@@ -141,7 +146,12 @@ function harnessRun(
       content: 'ai\nai-client\nai-sandbox',
       ...base,
     }
-    yield { type: EventType.TEXT_MESSAGE_START, messageId: 'm2', ...base }
+    yield {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: 'm2',
+      role: 'assistant',
+      ...base,
+    }
     yield {
       type: EventType.TEXT_MESSAGE_CONTENT,
       messageId: 'm2',
