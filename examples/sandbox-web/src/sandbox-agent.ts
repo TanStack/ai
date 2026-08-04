@@ -37,12 +37,20 @@ const SANDBOX_IMAGE = process.env.SANDBOX_IMAGE ?? 'node:22'
 export const CLAUDE_MODEL = 'claude-opus-4-8'
 
 /**
- * Installs the Claude Code CLI in the fresh container. `--include=optional`
- * matters: without it npm may skip the platform-specific native binary,
- * leaving a `claude` that errors "native binary not installed".
+ * Installs the Claude Code CLI in the fresh container.
+ *
+ * `--include=optional` matters: without it npm may skip the platform-specific
+ * native binary, leaving a `claude` that errors "native binary not installed".
+ * But npm treats optional deps as BEST-EFFORT even so — a transient failure
+ * fetching that binary is not an install error, so npm exits 0 and the break
+ * only surfaces later, mid-run. Running `claude --version` here turns it into a
+ * loud setup failure, and retrying the install once absorbs the transient case.
  */
-const CLAUDE_CLI_INSTALL_COMMAND =
-  'npm install -g @anthropic-ai/claude-code --include=optional'
+const CLAUDE_CLI_INSTALL_COMMAND = (() => {
+  const attempt =
+    'npm install -g @anthropic-ai/claude-code --include=optional && claude --version'
+  return `${attempt} || { ${attempt} ; }`
+})()
 
 /**
  * The ONE dev-server port the agent's app must bind. The preview is wired to

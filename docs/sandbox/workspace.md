@@ -141,6 +141,35 @@ defineWorkspace({
 > `setup` so subsequent runs skip it. See
 > [Lifecycle &amp; snapshots](./lifecycle).
 
+### Installing an agent CLI
+
+Every step runs through `sh -c`, and a step fails the bootstrap when its exit
+code is non-zero. When a step installs a harness CLI globally, make it verify the
+CLI before it returns. The agent CLIs (`@openai/codex`,
+`@anthropic-ai/claude-code`, …) ship their native binary as a platform-specific
+**optional** dependency, and npm treats optional dependencies as best-effort: a
+failed download is not an install error, so `npm install -g` exits `0` and leaves
+a CLI that dies later with `Missing optional dependency`. Running the CLI turns
+that into a loud bootstrap failure instead of a broken run:
+
+```ts
+import { defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
+
+const install = 'npm install -g @openai/codex --include=optional && codex --version'
+
+defineWorkspace({
+  source: githubRepo({ repo: 'owner/app' }),
+  // Retry once: the failure above is usually a transient download.
+  setup: [`${install} || { ${install} ; }`],
+})
+```
+
+Keep each command self-contained. Do not build a step by splicing one command
+into another (`` `${cmd} || sudo ${cmd}` ``): a command that starts with a
+subshell — like the Grok CLI installer, `(curl … || curl …) | bash` — is not a
+valid argument to another command, and `sh` then fails at parse time with
+`syntax error: unexpected "("` (exit `2`) without running anything.
+
 ## Scripts
 
 `scripts` is a map of named commands the agent and user can invoke by name,
