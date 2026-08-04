@@ -69,21 +69,17 @@ interface RunRecord {
   finishedAt?: number // epoch ms, set once the run reaches a terminal status
   error?: RunError
   usage?: TokenUsage // token counts, from @tanstack/ai
-  // Compound sandbox key this run is bound to, if it ran in one. Written by
-  // `withSandbox` when a run detaches, so a later host can find the sandbox to
-  // take over or tear down without re-deriving the key.
-  sandboxKey?: string
-  // Epoch ms since the last viewer detached; absent while someone is attached.
-  // Written by `withSandbox`'s detach path on a durable run.
-  detachedSince?: number
-  // Set by an out-of-band cancel (`requestRunCancel`), and read on teardown to
-  // tell a real cancel apart from a client that merely disconnected. It is
-  // deliberately not a status: recording intent is not the run having stopped.
-  cancelRequested?: boolean
-  // Monotonic fencing token, bumped by each host that claims the run. A
-  // superseded host compares the stored value against the one it holds and
-  // stops writing. Round-trip it or takeover has no fence.
-  driverEpoch?: number
+  // ---------------------------------------------------------------------------
+  // DURABLE SANDBOXED RUNS ONLY. A chat app never writes these four and nothing
+  // in `@tanstack/ai-persistence` reads them. Leave the columns out until you
+  // wire `withSandbox(sandbox, { runs, durability })`, and see
+  // [Build a Sandbox Adapter](./build-a-sandbox-adapter#the-four-run-fields)
+  // for what each one does and how to prove them.
+  // ---------------------------------------------------------------------------
+  sandboxKey?: string // which sandbox this run is bound to
+  detachedSince?: number // epoch ms since the last viewer left
+  cancelRequested?: boolean // an out-of-band cancel was recorded
+  driverEpoch?: number // fencing token, bumped by each host that claims the run
 }
 
 interface RunStore {
@@ -162,13 +158,14 @@ the omission in `skipMethods`. Implement the ones your app needs:
   and [Reaping & Retention](../sandbox/reaping) for the sweep itself and the
   schedules that drive it.
 
-The three fields a durable, reclaimable run depends on (`detachedSince`,
-`cancelRequested`, and `driverEpoch`) are the ones a hand-written backend tends
-to drop, and each omission breaks one mechanism silently rather than loudly: no
-`driverEpoch` means takeover has no fence, no `cancelRequested` means a Stop
-button cannot reach a run driven by another replica, and no `detachedSince` (or
-`sandboxKey`) means nothing can find the detached sandbox again. `update` must
-accept and round-trip all of them.
+The four durable-run fields are a sandbox concern, so they are documented and
+proven on the sandbox side:
+[Build a Sandbox Adapter](./build-a-sandbox-adapter#the-four-run-fields).
+`runPersistenceConformance` does not assert them, and a chat-only backend can leave
+the columns out entirely. If you do wire durable sandboxed runs, run
+`runDurableRunFieldsConformance` from `@tanstack/ai-sandbox/testkit` against the same
+`runs` store: each field breaks one mechanism silently when dropped, which is why it
+gets its own suite rather than a paragraph of warnings.
 
 Two helpers travel with the contract, and both exist so a caller does not have
 to reach for a cast:

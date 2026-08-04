@@ -133,7 +133,7 @@ const middleware = [
 
 The store is three methods (`get`, `upsert`, `delete`), each with an invariant that
 a conformance suite checks for you.
-[Build a Sandbox Adapter](./build-a-sandbox-adapter) walks through the
+[Build a Sandbox Adapter](../persistence/build-a-sandbox-adapter) walks through the
 implementation, the table, and the suite, alongside the choice of how much a
 sandboxed run should leave behind at all.
 
@@ -151,7 +151,7 @@ create. Pair the store with a lock, either `withLocks` from
 - [Takeover & Detached Runs](./takeover): surviving a client disconnect. A
   detached run keeps its sandbox up, and `RunStore.sandboxKey` /
   `RunStore.detachedSince` is how a later host finds it again
-- [Build a Sandbox Adapter](./build-a-sandbox-adapter): implement this store, and
+- [Build a Sandbox Adapter](../persistence/build-a-sandbox-adapter): implement this store, and
   choose how much a sandboxed run leaves behind
 - [Locks](../advanced/locks)
 - [Lifecycle](./lifecycle)

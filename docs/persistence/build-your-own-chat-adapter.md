@@ -230,13 +230,13 @@ function createRunStore(db: DatabaseSync) {
         sets.push('usage_json = ?')
         params.push(JSON.stringify(patch.usage))
       }
-      // `sandboxKey`, `detachedSince`, `cancelRequested`, and `driverEpoch`
-      // are the four fields callers CLEAR by writing `undefined` explicitly
-      // (a takeover clears `detachedSince` this way when a viewer re-attaches).
-      // So these branches key off key presence (`'field' in patch`), not
-      // `!== undefined`. Filter `undefined` out here and a re-attached run
-      // reads as permanently detached, so a TTL sweep reclaims a sandbox
-      // someone is actively watching.
+      // SANDBOX ONLY, skip these four unless you run durable sandboxed runs:
+      // https://tanstack.com/ai/latest/docs/persistence/build-a-sandbox-adapter
+      // A chat app never writes them and nothing here reads them.
+      //
+      // They are the fields a caller CLEARS by writing `undefined` explicitly, so
+      // these branches key off key presence (`'field' in patch`), not
+      // `!== undefined`.
       if ('sandboxKey' in patch) {
         sets.push('sandbox_key = ?')
         params.push(patch.sandboxKey ?? null)

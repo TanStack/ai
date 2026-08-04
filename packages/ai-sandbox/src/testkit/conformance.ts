@@ -26,6 +26,8 @@ export { runTakeoverConformance } from './takeover-conformance'
 export type { TakeoverConformanceConfig } from './takeover-conformance'
 export { runReaperConformance } from './reaper-conformance'
 export type { ReaperConformanceConfig } from './reaper-conformance'
+export { runDurableRunFieldsConformance } from './durable-run-fields-conformance'
+export type { MakeRunStore } from './durable-run-fields-conformance'
 export { makeFakeShellSpawn } from './shell-spawn'
 
 function makeRecord(

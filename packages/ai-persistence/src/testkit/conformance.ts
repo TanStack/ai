@@ -21,6 +21,14 @@
  * adapter therefore passes `skip: ['generationRuns', 'artifacts', 'blobs']`,
  * and a generation-only one skips the four state stores.
  *
+ * NOT COVERED HERE: the four durable-run fields on `RunRecord` (`sandboxKey`,
+ * `detachedSince`, `cancelRequested`, `driverEpoch`). They exist for durable
+ * sandboxed runs, a chat app never writes them, and requiring them here made every
+ * backend implement four columns and an omitted-vs-explicit-undefined rule it had no
+ * use for. They are proven by `runDurableRunFieldsConformance` from
+ * `@tanstack/ai-sandbox/testkit`, next to the takeover and reaper suites that consume
+ * them. A backend that never runs sandboxes can leave the columns out.
+ *
  * RESERVED RUN-ID PREFIX: `rc-` belongs to the `listReclaimable` case, which
  * filters the method's (not thread-scoped) result down to `rc-` ids before an
  * exact-set assertion. A new case in `describe('runs')` must NOT seed a run id
@@ -349,120 +357,6 @@ export function runPersistenceConformance(
         })
       })
 
-      // `sandboxKey`, `detachedSince`, `cancelRequested`, `driverEpoch` are the
-      // durable-agent-runs fields: nothing before this suite ever wrote them,
-      // so a backend can pass every other case while silently dropping one of
-      // these on `update`. The reaper and takeover both depend on them
-      // surviving a round-trip through the REQUIRED `update`/`get` pair, so
-      // this case cannot be declared optional via `skipMethods`.
-      it('round-trips the durable run fields, overwrites driverEpoch, and clears every one of them on explicit undefined', async (ctx) => {
-        const store = resolveStore('runs')
-        if (!store) return ctx.skip('store not provided')
-
-        await store.createOrResume({
-          runId: 'fc-1',
-          threadId: 'fc-t',
-          startedAt: 1,
-        })
-
-        // 0. A fresh run that was never patched with these fields must read
-        // back as undefined -- not null, not false, not 0. A backend that
-        // coerces a NULL/absent column to a falsy default (e.g.
-        // `cancelRequested: false`) is claiming knowledge ("explicitly not
-        // cancelled") it does not have, and `toBeFalsy()` would not catch
-        // it since `false` is falsy too.
-        const fresh = await store.get('fc-1')
-        expect(fresh?.cancelRequested).toBeUndefined()
-        expect(fresh?.detachedSince).toBeUndefined()
-        expect(fresh?.sandboxKey).toBeUndefined()
-        expect(fresh?.driverEpoch).toBeUndefined()
-
-        // 1. All four fields round-trip through update -> get.
-        await store.update('fc-1', {
-          sandboxKey: 'sandbox-abc',
-          detachedSince: 500,
-          cancelRequested: true,
-          driverEpoch: 1,
-        })
-        const afterFirstUpdate = await store.get('fc-1')
-        expect(afterFirstUpdate?.sandboxKey).toBe('sandbox-abc')
-        expect(afterFirstUpdate?.detachedSince).toBe(500)
-        expect(afterFirstUpdate?.cancelRequested).toBe(true)
-        expect(afterFirstUpdate?.driverEpoch).toBe(1)
-
-        // 2. A monotonic driverEpoch bump overwrites, it is not ignored (a
-        // takeover host bumping the fencing token must actually stick).
-        await store.update('fc-1', { driverEpoch: 2 })
-        const afterEpochBump = await store.get('fc-1')
-        expect(afterEpochBump?.driverEpoch).toBe(2)
-        // Sibling fields untouched by an update that only names driverEpoch.
-        expect(afterEpochBump?.sandboxKey).toBe('sandbox-abc')
-        expect(afterEpochBump?.cancelRequested).toBe(true)
-
-        // 3. update({ detachedSince: undefined }) actually CLEARS the field.
-        // A backend whose SQL adapter filters `undefined` out of its `SET`
-        // clause leaves the old value, and every re-attached run then looks
-        // permanently detached to the reaper.
-        await store.update('fc-1', { detachedSince: undefined })
-        const afterClear = await store.get('fc-1')
-        expect(afterClear?.detachedSince).toBeUndefined()
-        // Clearing detachedSince must not clobber the other durable fields.
-        expect(afterClear?.sandboxKey).toBe('sandbox-abc')
-        expect(afterClear?.cancelRequested).toBe(true)
-        expect(afterClear?.driverEpoch).toBe(2)
-
-        // 4. cancelRequested: false written EXPLICITLY must round-trip as
-        // `false`, distinct from the fresh-run `undefined` checked in step 0.
-        // A backend storing this boolean in an integer/NULL-able column has
-        // to preserve the false/undefined distinction in both directions,
-        // not just collapse both to falsy.
-        await store.update('fc-1', { cancelRequested: false })
-        const afterExplicitFalse = await store.get('fc-1')
-        expect(afterExplicitFalse?.cancelRequested).toBe(false)
-        expect(afterExplicitFalse?.cancelRequested).not.toBeUndefined()
-
-        // 5. An explicit `undefined` clears EVERY durable field, not just
-        // `detachedSince`. Step 3 only exercised one of the four, so a backend
-        // half-converted to `'field' in patch` -- `in` for `detachedSince`,
-        // still `patch.field !== undefined` for the rest -- passed the whole
-        // suite while its clears silently no-opped. Step 4's explicit `false`
-        // also survives a `!== undefined` guard, so nothing else here bites
-        // either. Re-populate first, so each clear has a value to remove and
-        // an assertion that fails when the clear is dropped.
-        await store.update('fc-1', {
-          sandboxKey: 'sandbox-xyz',
-          detachedSince: 900,
-          cancelRequested: true,
-          driverEpoch: 3,
-        })
-        const beforeFullClear = await store.get('fc-1')
-        expect(beforeFullClear?.sandboxKey).toBe('sandbox-xyz')
-        expect(beforeFullClear?.detachedSince).toBe(900)
-        expect(beforeFullClear?.cancelRequested).toBe(true)
-        expect(beforeFullClear?.driverEpoch).toBe(3)
-
-        await store.update('fc-1', {
-          sandboxKey: undefined,
-          detachedSince: undefined,
-          cancelRequested: undefined,
-          driverEpoch: undefined,
-        })
-        const afterFullClear = await store.get('fc-1')
-        expect(afterFullClear?.sandboxKey).toBeUndefined()
-        expect(afterFullClear?.detachedSince).toBeUndefined()
-        expect(afterFullClear?.cancelRequested).toBeUndefined()
-        expect(afterFullClear?.driverEpoch).toBeUndefined()
-        // Clearing the durable fields is not a delete: the run row survives,
-        // and the fields the patch never named keep their values.
-        expect(afterFullClear?.status).toBe('running')
-        expect(afterFullClear?.startedAt).toBe(1)
-      })
-
-      // `findActiveRun` is REQUIRED on the RunStore contract — every backend that
-      // provides a `runs` store must satisfy these invariants (most-recent-running
-      // wins, thread-scoped, null when idle). Reconnect is built on it, and a
-      // backend that always answers `null` disables reconnect indistinguishably
-      // from one that is merely idle, so this must never degrade to a skip.
       it('findActiveRun returns the most recent running run for a thread', async (ctx) => {
         const store = resolveStore('runs')
         if (!store) return ctx.skip('store not provided')

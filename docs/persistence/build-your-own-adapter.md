@@ -156,6 +156,8 @@ for `withPersistence`, and with the generation stores for
   for all four chat stores, method by method.
 - [Build a generation adapter](./build-your-own-generation-adapter): generation runs,
   artifacts and blobs.
+- [Build a sandbox adapter](./build-a-sandbox-adapter): the sandbox instance store, and
+  what a durable sandboxed run adds to `runs`. Only if you run sandboxes.
 - [Store reference](./store-reference): every signature and invariant, and how the
   records relate.
 - [Controls](./controls): compose stores from different systems.

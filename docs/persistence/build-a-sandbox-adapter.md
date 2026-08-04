@@ -21,8 +21,11 @@ A sandboxed run has two halves that persist separately:
   is still going, and the run's event log.
 - **The conversation.** The messages your UI paints when someone reopens a thread.
 
-You can keep both, either one, or neither. This page is the sandbox side, plus the
-one place the two meet. Nothing here needs the chat or generation store contracts.
+You can keep both, either one, or neither. This page is the sandbox side, plus the one
+place the two meet. It is the third of the adapter walkthroughs, next to
+[chat](./build-your-own-chat-adapter) and
+[generation](./build-your-own-generation-adapter), and it needs neither of their store
+contracts.
 
 ## Decide what you store
 
@@ -39,7 +42,7 @@ records and the instance map hold ids and timestamps, not what anyone typed.
 There is a finer knob inside a stored transcript, because the harness's tool calls
 are stored as messages: keep them and reopening a thread rebuilds the tool cards,
 or drop them and keep the conversation alone. See
-[Trim what you keep](./events#trim-what-you-keep).
+[Trim what you keep](../sandbox/events#trim-what-you-keep).
 
 ## Keep everything
 
@@ -84,7 +87,7 @@ export function agentRun(input: {
 ```
 
 Add `durability` to make the run detachable and replayable; that is
-[Takeover & Detached Runs](./takeover).
+[Takeover & Detached Runs](../sandbox/takeover).
 
 ## Keep only the sandbox side
 
@@ -181,7 +184,7 @@ Put it in the same database as your chat tables if you like. That is your choice
 a requirement: the sandbox never reads a chat table and chat never reads this one.
 
 `updated_at` is yours to sweep on. The library never deletes rows on a schedule, so
-old placements are garbage you collect (see [Reaping & Retention](./reaping)).
+old placements are garbage you collect (see [Reaping & Retention](../sandbox/reaping)).
 
 Hand it to the middleware, or provide it ambiently when a platform layer owns the
 wiring:
@@ -193,6 +196,55 @@ import { sandbox } from './sandbox'
 
 export const middleware = [withSandbox(sandbox, { instances })]
 ```
+
+## The four run fields
+
+Durable runs add four optional fields to the `RunStore` record you already use for
+chat. Nothing outside the sandbox packages writes them, and a chat-only app can leave
+the columns out of its schema entirely.
+
+| Field | Written by | Dropping it breaks |
+| --- | --- | --- |
+| `sandboxKey` | `withSandbox` on detach | Nothing can find the detached sandbox again, so it is never reclaimed |
+| `detachedSince` | `withSandbox` on detach, cleared on re-attach | The reaper cannot tell a run nobody watches from a live one |
+| `cancelRequested` | `requestRunCancel`, out of band | A Stop button cannot reach a run driven by another replica |
+| `driverEpoch` | each host that claims the run | Takeover has no fence, so two hosts can drive one run |
+
+One rule matters more than the four names: `update` must treat an **omitted** key and
+a key carrying **`undefined`** differently. Omitted means "leave the column alone".
+Explicit `undefined` means "clear it", which is how a re-attaching viewer clears
+`detachedSince`. A backend that filters `undefined` out of its `SET` clause passes
+every other test and then reports healthy runs as permanently detached.
+
+```ts
+import type { RunRecord } from '@tanstack/ai'
+
+// One branch of your own `update(runId, patch)`. Key presence, not a value check.
+export function detachedSinceColumn(
+  patch: Partial<RunRecord>,
+  sets: Array<string>,
+  params: Array<unknown>,
+): void {
+  if ('detachedSince' in patch) {
+    sets.push('detached_since = ?')
+    params.push(patch.detachedSince ?? null)
+  }
+}
+```
+
+Prove it rather than reading the table twice. This suite is separate from
+`runPersistenceConformance` precisely because most apps never need it:
+
+```ts
+import { runDurableRunFieldsConformance } from '@tanstack/ai-sandbox/testkit'
+import { persistence } from './persistence'
+
+runDurableRunFieldsConformance('my postgres runs', () => persistence.stores.runs)
+```
+
+`listReclaimable` on the same store is also sandbox-only and also optional. Skip it
+and `reapDetachedRuns` feature-detects the gap, logs one line and sweeps nothing. See
+[Reaping & Retention](../sandbox/reaping).
 
 ## Prove it with the conformance suite
 
@@ -214,16 +266,16 @@ Three more suites cover the durable-run path, each aimed at one failure that is
 painful to find by hand:
 
 - `runJournalConformance`: the agent's output survives as a file a successor can
-  replay. See [The Run Journal](./journal).
+  replay. See [The Run Journal](../sandbox/journal).
 - `runTakeoverConformance`: a second host adopts a detached run and delivers the
-  remainder exactly once. See [Takeover & Detached Runs](./takeover).
+  remainder exactly once. See [Takeover & Detached Runs](../sandbox/takeover).
 - `runReaperConformance`: a run nobody came back for is finalized or expired, and a
-  still-producing one is left alone. See [Reaping & Retention](./reaping).
+  still-producing one is left alone. See [Reaping & Retention](../sandbox/reaping).
 
 ## Where to go next
 
-- [Sandbox Instance Durability](./durability) has the wiring and the locking rules
-  for the store you just built.
-- [Events](./events) covers what a stored transcript holds, and how to trim it.
-- [Durable Runs Explained](./durable-runs) is the same subject in plain language with
+- [Sandbox Instance Durability](../sandbox/durability) has the wiring and the locking
+  rules for the store you just built.
+- [Events](../sandbox/events) covers what a stored transcript holds, and how to trim it.
+- [Durable Runs Explained](../sandbox/durable-runs) is the same subject in plain language with
   no code, if the postures above felt abrupt.

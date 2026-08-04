@@ -152,7 +152,7 @@ To make the `POST` resumable too, hand the same adapter to the response:
   [Keep generated files](./keep-generated-files) to hold the bytes after the
   provider's URLs expire.
 - **Sandboxed agents**: a run can outlive the tab and be adopted by another host.
-  See [Build a Sandbox Adapter](../sandbox/build-a-sandbox-adapter) for what to
+  See [Build a Sandbox Adapter](./build-a-sandbox-adapter) for what to
   store, and [Durable Runs](../sandbox/durable-runs) for why.
 
 ## Which setup do I want?

@@ -319,6 +319,11 @@
           "updatedAt": "2026-08-04"
         },
         {
+          "label": "Build a Sandbox Adapter",
+          "to": "persistence/build-a-sandbox-adapter",
+          "addedAt": "2026-08-04"
+        },
+        {
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-07-31",
@@ -589,11 +594,6 @@
           "to": "sandbox/reaping",
           "addedAt": "2026-07-29",
           "updatedAt": "2026-08-04"
-        },
-        {
-          "label": "Build a Sandbox Adapter",
-          "to": "sandbox/build-a-sandbox-adapter",
-          "addedAt": "2026-08-04"
         },
         {
           "label": "Provisioning",
