@@ -1,5 +1,11 @@
 # @tanstack/ai-openai
 
+## 0.18.0
+
+### Minor Changes
+
+- [#1040](https://github.com/TanStack/ai/pull/1040) [`421439d`](https://github.com/TanStack/ai/commit/421439da5026b453307030a73451a9c41f69ec31) - Add OpenAI GPT-5.6 family models: `gpt-5.6` (alias → Sol), `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna`.
+
 ## 0.17.2
 
 ### Patch Changes
