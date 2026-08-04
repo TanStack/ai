@@ -247,12 +247,7 @@
           "label": "Overview",
           "to": "persistence/overview",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-31"
-        },
-        {
-          "label": "Id Map",
-          "to": "persistence/id-map",
-          "addedAt": "2026-07-30"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Chat Persistence",
@@ -273,12 +268,6 @@
           "updatedAt": "2026-07-31"
         },
         {
-          "label": "Keep Generated Files",
-          "to": "persistence/keep-generated-files",
-          "addedAt": "2026-07-28",
-          "updatedAt": "2026-07-31"
-        },
-        {
           "label": "Controls",
           "to": "persistence/controls",
           "addedAt": "2026-07-22",
@@ -288,36 +277,57 @@
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
           "addedAt": "2026-07-24",
-          "updatedAt": "2026-07-31"
-        },
-        {
-          "label": "Build a Chat Adapter",
-          "to": "persistence/build-your-own-chat-adapter",
-          "addedAt": "2026-07-31",
-          "updatedAt": "2026-08-01"
-        },
-        {
-          "label": "Build a Generation Adapter",
-          "to": "persistence/build-your-own-generation-adapter",
-          "addedAt": "2026-07-31"
-        },
-        {
-          "label": "Store Reference",
-          "to": "persistence/store-reference",
-          "addedAt": "2026-07-31",
-          "updatedAt": "2026-08-01"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Migrations",
           "to": "persistence/migrations",
           "addedAt": "2026-07-22",
           "updatedAt": "2026-07-25"
+        }
+      ]
+    },
+    {
+      "label": "Persistence (Advanced)",
+      "tab": "guides",
+      "collapsible": true,
+      "defaultCollapsed": true,
+      "children": [
+        {
+          "label": "Id Map",
+          "to": "persistence/id-map",
+          "addedAt": "2026-07-30",
+          "updatedAt": "2026-08-04"
         },
         {
-          "label": "Internals",
+          "label": "Keep Generated Files",
+          "to": "persistence/keep-generated-files",
+          "addedAt": "2026-07-28",
+          "updatedAt": "2026-08-04"
+        },
+        {
+          "label": "Build a Chat Adapter",
+          "to": "persistence/build-your-own-chat-adapter",
+          "addedAt": "2026-07-31",
+          "updatedAt": "2026-08-04"
+        },
+        {
+          "label": "Build a Generation Adapter",
+          "to": "persistence/build-your-own-generation-adapter",
+          "addedAt": "2026-07-31",
+          "updatedAt": "2026-08-04"
+        },
+        {
+          "label": "Store Reference",
+          "to": "persistence/store-reference",
+          "addedAt": "2026-07-31",
+          "updatedAt": "2026-08-04"
+        },
+        {
+          "label": "How Persistence Works",
           "to": "persistence/internals",
           "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-31"
+          "updatedAt": "2026-08-04"
         }
       ]
     },

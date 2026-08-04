@@ -71,25 +71,14 @@ schema changes through your deployment workflow instead. See
 
 ## Threads, runs, and turns
 
-Threads and runs are protocol concepts, not persistence ones. A **thread**
-(`threadId`) is the stable conversation, a **run** (`runId`) one
-`RUN_STARTED` → `RUN_FINISHED` execution, and one user-visible turn can span
-several runs. [Threads and runs](../chat/streaming#threads-and-runs)
-in the streaming guide covers the anatomy. What persistence adds is the durable
-record of them, anchored on the thread:
+The transcript is stored per `threadId`, and each run gets a `runs` record with its
+status, timings and usage. One thing follows from that and matters when you wire a
+client: a reconnecting client never has to present a run id it may no longer know.
+The store resolves the thread's live run with `findActiveRun(threadId)` and the client
+tails that.
 
-- The transcript is stored per `threadId` (the `messages` store).
-- Each run gets a `runs` record with status, timings, and usage. The id is
-  ephemeral, the record is not.
-- A reconnecting client (a reload, or the same thread on another device) never
-  has to present a run id it may no longer know: the store resolves the
-  thread's live run (`findActiveRun(threadId)`) and the client tails that.
-- Interrupt records carry both ids: the `runId` of the execution they paused
-  and the `threadId` of the conversation they live in.
-
-[Id map](./id-map) is the practical companion to this: how to choose a thread
-id, why both client and server must file under the same one, when to read
-`useChat`'s `runId`, and what the same two ids mean on the generation hooks.
+[Id map](./id-map) covers how to choose a thread id and what both ids mean on the
+generation hooks. [How persistence works](./internals) has the rest.
 
 ## Send the full transcript, or none of it
 

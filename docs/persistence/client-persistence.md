@@ -75,14 +75,8 @@ pointer. On the next load `useChat` reads it and:
 - **`true`** is server-authoritative.
 - **`false`** (or omitted) is off: messages live in memory only and a reload starts empty.
 
-The generation hooks (`useGenerateImage` / `useGenerateVideo` / …) take a
-`persistence` option too, but theirs is **boolean only**: the record lives on the
-server and the browser caches nothing. They key on `threadId` as well, where it
-names a slot successive runs fill rather than a conversation
-([Id map](./id-map)). A reload restores the last known `status` / `result` /
-`error` for that slot's newest run. It does not restart provider work; only a run
-still streaming against a server-side durable stream is re-attached and finished
-in place. See [Generation persistence](./generation-persistence) for the setup.
+The generation hooks take the same option, boolean only. See
+[Generation persistence](./generation-persistence).
 
 ### An adapter: client-authoritative
 

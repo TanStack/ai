@@ -1,12 +1,153 @@
 ---
-title: Persistence Internals
+title: How Persistence Works (Advanced)
 id: internals
+description: "The two durability layers and how they differ, thread and run identity, who owns history when both sides persist, what a reload restores, and the middleware lifecycle behind every backend."
+keywords:
+  - persistence internals
+  - delivery durability vs state persistence
+  - threadId runId
+  - server authoritative
+  - middleware lifecycle
 ---
 
-# Persistence Internals
+# How Persistence Works
 
-This page describes the server-side contracts between the persistence
-middleware and the state stores.
+Read this when something surprised you, or before you write a backend. To simply set
+persistence up, [the overview](./overview) is three snippets.
+
+## Two layers, not one
+
+| Layer | Answers | Lives | Docs |
+| --- | --- | --- | --- |
+| **Delivery durability** | "how do I reconnect to a stream that is still running?" | a per-run log, keyed by `runId` | [Resumable Streams](../resumable-streams/overview) |
+| **State persistence** | "what is the conversation, and is it still there later?" | a durable store (client and/or server) | this section |
+
+They share no code. Delivery durability replays a live byte stream so a dropped
+connection resumes exactly where it stopped. State persistence stores the
+conversation itself, so it survives a reload or exists on another device. A replayable
+stream is not a saved conversation, and a saved conversation is not a live stream.
+Most real apps want both.
+
+## Identity: threads and runs
+
+A **thread** (`threadId`) is the conversation: stable, survives reloads, exists on
+every device. A **run** (`runId`) is one execution inside it, minted fresh for each
+streamed answer. A thread accumulates many runs; delivery durability logs one run,
+state persistence stores the whole thread.
+
+```mermaid
+flowchart TB
+    subgraph thread ["One thread, threadId (stable, the conversation)"]
+        direction LR
+        run1["run r1
+completed"] --> run2["run r2
+completed"] --> run3["run r3
+running"]
+    end
+
+    subgraph delivery ["Delivery durability, one byte log per run"]
+        log["log for r3
+replays the live stream to a reconnecting client"]
+    end
+
+    subgraph state ["State persistence, durable store per thread"]
+        store["transcript, run records, interrupts"]
+    end
+
+    run3 -. "a dropped connection tails" .-> log
+    thread -- "saved on finish, loaded on mount" --> store
+```
+
+Run ids are too ephemeral to reconnect by, since a reloading client may not know the
+current one. Reconnection resolves from the stable `threadId` instead: the store
+answers "does this thread have a live run?" (`findActiveRun`), and only then does the
+client tail that run's log. [Id map](./id-map) is the short version of both ids.
+
+### Isolation is yours to enforce
+
+Store APIs take a bare `threadId` string, which keeps adapters simple and makes
+multi-user isolation your job:
+
+- Derive `Scope.userId` / `Scope.tenantId` **server-side** from session state.
+- Authorize before `loadThread` / `saveThread` / `reconstructChat`, with
+  `reconstructChat({ authorize })`.
+- Never treat a client-supplied thread id as ownership. Thread ids are guessable.
+
+`Scope` is re-exported from `@tanstack/ai-persistence`, so the identity type sits next
+to the store contracts.
+
+## Who owns history when both sides persist
+
+One rule decides which copy wins, and you pick it per turn by what the client sends
+as `messages`:
+
+- **Non-empty `messages`** means "this is the full history". On finish the server
+  overwrites its stored thread with it. The client stays authoritative and the server
+  mirrors.
+- **Empty `messages`** means "continue from your own copy". The server loads its
+  stored transcript and runs from there. The server is authoritative and the client is
+  a cache.
+
+That single rule lets both copies coexist with no merge. Two postures fall out of it:
+client-authoritative, closest to a pure SPA, and server-authoritative, which is what
+makes the same thread open identically on another device.
+
+## What a reload restores
+
+With a client store adapter, `useChat` reads the client record on load and acts on
+what it finds:
+
+1. **The run had finished.** The record has the transcript and no resume pointer. The
+   conversation paints instantly from storage, with no network.
+2. **The run was paused on an interrupt.** The resume pointer carries the pending
+   interrupts, so the transcript paints and the approval UI comes back as it was.
+3. **The run was still streaming.** The transcript paints from storage, then the
+   client rejoins the live run through the durability log and the reply finishes in
+   place. This is the one case that needs both layers.
+
+A dropped connection while the page is still open is simpler: delivery durability
+reconnects on its own. Persistence matters once the page itself is gone.
+
+Server-authoritative mode paints from a server read instead of `localStorage`. The
+delivery log cannot supply that history, because it holds one run, not the thread.
+
+Both layers assume the work itself is over by the time the client comes back:
+replaying a log and reading a transcript are both reads of something already
+produced. A long-running **sandboxed agent** is the case where neither is enough,
+because the run is still going and its producer was the host that disappeared. That
+needs a third thing, a later request that adopts the run and keeps driving it. See
+[Takeover & Detached Runs](../sandbox/takeover).
+
+## Why server-authoritative is the recommended default
+
+- **One source of truth.** History lives on the server, so no two copies can drift.
+  The same conversation opens on any device and survives a restart.
+- **A cheap client.** The browser never parses or stores a long transcript, so there
+  is no storage quota or startup-parse cost, even for huge threads.
+- **Reload durability anyway.** The mount `GET` re-paints the transcript and reports
+  any `activeRun`, so the client rejoins it and restores pending interrupts.
+- **No wasted work.** That `GET` shares the route with the durable-stream resume, and
+  `loadThread` returns ready-made messages instead of replaying a stream to rebuild
+  them.
+
+```mermaid
+sequenceDiagram
+    participant Hook as useChat (persistence: true)
+    participant Route as GET /api/chat
+    participant Store as Durable store
+    participant Log as Delivery log
+
+    Note over Hook: page reloads while a run is streaming
+    Hook->>Route: ?threadId=support-chat
+    Route->>Store: reconstructChat, loadThread + findActiveRun
+    Store-->>Route: messages + activeRun (runId)
+    Route-->>Hook: transcript + activeRun cursor
+    Note over Hook: transcript paints
+    Hook->>Route: ?runId=…&offset=-1
+    Route->>Log: resumeServerSentEventsResponse
+    Log-->>Hook: replay + live tail of the run
+    Note over Hook: reply finishes in place
+```
 
 ## Separate boundaries
 
@@ -195,9 +336,9 @@ stores use different systems, adapter authors must define retry,
 idempotency, and consistency behavior.
 
 Two `RunStore` details bind an adapter author beyond the obvious mapping, and
-both exist for durable runs. `update` must round-trip `driverEpoch` — the fencing
+both exist for durable runs. `update` must round-trip `driverEpoch` (the fencing
 token a takeover bumps, and the only way a superseded host can discover it lost
-the run — and it must distinguish an **omitted** patch key (leave the column
+the run), and it must distinguish an **omitted** patch key (leave the column
 alone) from a key carrying `undefined` (clear the column). The takeover path
 clears `detachedSince` exactly that way. See
 [Build your own adapter](./build-your-own-adapter) and

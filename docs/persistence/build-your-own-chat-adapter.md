@@ -1,5 +1,5 @@
 ---
-title: Build a Chat Adapter
+title: Build a Chat Adapter (Advanced)
 id: build-your-own-chat-adapter
 ---
 
