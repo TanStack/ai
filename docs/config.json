@@ -557,6 +557,11 @@
           "updatedAt": "2026-08-04"
         },
         {
+          "label": "Build a Sandbox Adapter",
+          "to": "sandbox/build-a-sandbox-adapter",
+          "addedAt": "2026-08-04"
+        },
+        {
           "label": "Reaping & Retention",
           "to": "sandbox/reaping",
           "addedAt": "2026-07-29"

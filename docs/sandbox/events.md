@@ -174,6 +174,10 @@ Two limits to know about:
 
 ### Trim what you keep
 
+To decide whether to store a transcript at all, see
+[Build a Sandbox Adapter](./build-a-sandbox-adapter). This section is the finer knob:
+you are storing one, and you want it smaller.
+
 One run's tool output can be hundreds of kilobytes, and results reach your store
 whole. Your `MessageStore` decides what to keep. `isSandboxToolCall` tells you which
 calls the harness ran inside the sandbox, so you never have to know how they are
