@@ -1387,8 +1387,8 @@ importers:
   packages/ai:
     dependencies:
       '@ag-ui/core':
-        specifier: ^0.0.57
-        version: 0.0.57
+        specifier: 0.1.1-canary.beta.0
+        version: 0.1.1-canary.beta.0(zod@4.2.1)
       '@standard-schema/spec':
         specifier: ^1.1.0
         version: 1.1.0
@@ -2929,8 +2929,13 @@ packages:
   '@acemir/cssom@0.9.29':
     resolution: {integrity: sha512-G90x0VW+9nW4dFajtjCoT+NM0scAfH9Mb08IcjgFHYbfiL/lU04dTF9JuVOi3/OH+DJCQdcIseSXkdCB9Ky6JA==}
 
-  '@ag-ui/core@0.0.57':
-    resolution: {integrity: sha512-gho1OWjNE6E3Rl7ZEZ1wr2CEpUHjLFU0FqzCZZk439TicLu+BfLCMkMokB07bMGlRmbJ60hM6LW60iOVauCx+Q==}
+  '@ag-ui/core@0.1.1-canary.beta.0':
+    resolution: {integrity: sha512-zcP3RH5p3HJTZ0kyQxNOL1blnVFTDpaShitR7UMS/thwFdl48V6CAG+WQBcYEu/dfa8mKonRez88N0Ok+nEI+w==}
+    peerDependencies:
+      zod: ^3.25.18 || ^4.0.0
+    peerDependenciesMeta:
+      zod:
+        optional: true
 
   '@agentclientprotocol/sdk@0.25.1':
     resolution: {integrity: sha512-jx2rF3bdpGwZ75Q/meyEDLLbYmbtxk82Uh9hDCdxDvcEedBnNSF5hZAnL/kJR5VNz56JqwOmqnAqasC84MwwkQ==}
@@ -16759,9 +16764,9 @@ snapshots:
 
   '@acemir/cssom@0.9.29': {}
 
-  '@ag-ui/core@0.0.57':
-    dependencies:
-      zod: 3.25.76
+  '@ag-ui/core@0.1.1-canary.beta.0(zod@4.2.1)':
+    optionalDependencies:
+      zod: 4.2.1
 
   '@agentclientprotocol/sdk@0.25.1(zod@4.3.6)':
     dependencies:

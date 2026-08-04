@@ -379,9 +379,10 @@ const logger: ChatMiddleware = {
     console.log(`[${ctx.requestId}] Chat started`)
   },
   onChunk: (ctx, chunk) => {
-    // Transform, expand, or drop chunks
-    if ('delta' in chunk && 'messageId' in chunk) {
-      return { ...chunk, delta: chunk.delta!.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED]') }
+    // Transform, expand, or drop chunks. `type` is the discriminant, so it
+    // narrows `chunk` to the matching event and types `delta` as `string`.
+    if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+      return { ...chunk, delta: chunk.delta.replace(/\b\d{3}-\d{2}-\d{4}\b/g, '[REDACTED]') }
     }
   },
   onBeforeToolCall: (ctx, hookCtx) => {

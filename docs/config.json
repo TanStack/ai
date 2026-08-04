@@ -662,7 +662,7 @@
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
           "addedAt": "2026-05-16",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Sampling → modelOptions",
