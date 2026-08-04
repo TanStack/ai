@@ -22,13 +22,11 @@ import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 /**
  * Metadata key set on every tool call recorded here.
  *
- * Load-bearing in two places: {@link stripObservedToolCalls} reads it to keep this
- * history out of the next model request, and an app's own `MessageStore` can read it
- * in `saveThread` to trim or drop the history it does not want to keep — through the
- * exported {@link isSandboxToolCall}, so no app has to know this key. Documented in
- * `docs/sandbox/events.md`.
+ * INTERNAL, and deliberately not exported: an app asks {@link isSandboxToolCall}
+ * instead of knowing the key. Renaming it is a storage-visible change, because it ends
+ * up inside stored `toolCalls[].metadata`, so the recorder test pins the literal.
  */
-export const SANDBOX_OBSERVED = 'sandboxObserved'
+const SANDBOX_OBSERVED = 'sandboxObserved'
 
 /**
  * What the recorder writes into. `ChatMiddlewareContext.messages` is a

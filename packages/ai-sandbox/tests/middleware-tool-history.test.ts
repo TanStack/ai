@@ -16,7 +16,6 @@ import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
 import { defineSandbox } from '../src/sandbox'
 import { withSandbox } from '../src/middleware'
-import { SANDBOX_OBSERVED } from '../src/tool-history'
 // Through the PUBLIC entry point, because that is how an app reaches it.
 import { isSandboxToolCall } from '../src/index'
 import { InMemorySandboxInstanceStore } from '../src/instance-store'
@@ -152,7 +151,9 @@ describe('withSandbox: harness tool history in the transcript', () => {
     await h.chunk(end('t1'))
 
     const call = pairOf(h.ctx.messages, 't1').call?.toolCalls?.[0]
-    expect(call?.metadata).toEqual({ [SANDBOX_OBSERVED]: true })
+    // The literal, not the constant: this key lands in stored metadata, so a rename
+    // is a data change and must fail here.
+    expect(call?.metadata).toEqual({ sandboxObserved: true })
     // The marker is an implementation detail; `isSandboxToolCall` is the contract an
     // app writes against, so it must agree with what the recorder actually writes.
     expect(isSandboxToolCall(call)).toBe(true)
@@ -367,7 +368,7 @@ describe('withSandbox: recorded history is kept out of the model request', () =>
           id: 'harness-1',
           type: 'function',
           function: { name: 'bash', arguments: '{}' },
-          metadata: { [SANDBOX_OBSERVED]: true },
+          metadata: { sandboxObserved: true },
         },
       ],
     }
