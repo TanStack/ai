@@ -2,7 +2,7 @@
 title: Transcription
 id: transcription
 order: 4
-description: "Transcribe audio to text with OpenAI Whisper and GPT-4o transcription models (including speaker diarization), Groq Whisper, and fal.ai STT models via TanStack AI's generateTranscription() API."
+description: "Transcribe audio to text with OpenAI Whisper and GPT-4o transcription models (including speaker diarization), Groq Whisper, BytePlus Seed Speech, and fal.ai STT models via TanStack AI's generateTranscription() API."
 keywords:
   - tanstack ai
   - transcription
@@ -26,6 +26,7 @@ Audio transcription is handled by transcription adapters that follow the same tr
 Currently supported:
 - **OpenAI**: Whisper-1, GPT-4o-transcribe, GPT-4o-mini-transcribe, GPT-4o-transcribe-diarize
 - **Groq**: whisper-large-v3-turbo, whisper-large-v3
+- **BytePlus**: Seed Speech ASR (`seed-asr`)
 - **fal.ai**: Whisper, Wizper, speech-to-text turbo, ElevenLabs speech-to-text
 
 ## Basic Usage
@@ -107,6 +108,31 @@ for (const segment of result.segments ?? []) {
 ```
 
 > **Note:** Groq supports `responseFormat` values `json`, `text`, and `verbose_json` (default). `srt` and `vtt` are not supported — passing them throws. Provider-specific `modelOptions` are `temperature` and `timestamp_granularities` (`['word']`, `['segment']`, or both).
+
+### BytePlus Transcription
+
+BytePlus Seed Speech ASR is synchronous — audio in, transcript out, no polling. It belongs to the Seed Speech product, so it reads `BYTEPLUS_VOICE_API_KEY` rather than the `ARK_API_KEY` used by the BytePlus chat, image and video adapters. Audio can be a `File`, base64, a data URL or a public URL, up to two hours and 100 MB.
+
+```typescript
+import { generateTranscription } from '@tanstack/ai'
+import { byteplusTranscription } from '@tanstack/ai-byteplus'
+
+const result = await generateTranscription({
+  adapter: byteplusTranscription('seed-asr'),
+  audio: 'https://example.com/recording.mp3',
+  language: 'en',
+  modelOptions: { enable_punc: true, enable_speaker_info: true },
+})
+
+console.log(result.text)
+
+// Speaker labels land on the segment when enable_speaker_info is set
+for (const segment of result.segments ?? []) {
+  console.log(`[${segment.speaker ?? 'unknown'}] ${segment.text}`)
+}
+```
+
+> **Note:** Provider-specific `modelOptions` are `enable_itn` (spoken numbers and dates as digits), `enable_punc` (punctuation), `enable_ddc` (drop fillers and stutters), `enable_speaker_info` (speaker labels) and `show_utterances` (per-utterance breakdown, on by default).
 
 ### fal.ai Transcription
 
@@ -625,6 +651,7 @@ try {
 The transcription adapter uses:
 
 - `OPENAI_API_KEY`: Your OpenAI API key
+- `BYTEPLUS_VOICE_API_KEY`: Your BytePlus Seed Speech key (not the ModelArk key)
 
 ### Explicit API Keys
 

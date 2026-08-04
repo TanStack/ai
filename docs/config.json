@@ -12,7 +12,8 @@
         {
           "label": "Overview",
           "to": "getting-started/overview",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Quick Start: React",
@@ -720,7 +721,7 @@
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
           "addedAt": "2026-05-16",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Sampling → modelOptions",
@@ -877,6 +878,11 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25"
+        },
+        {
+          "label": "BytePlus",
+          "to": "adapters/byteplus",
+          "addedAt": "2026-07-31"
         }
       ]
     },

@@ -2,7 +2,7 @@
 title: Image Generation
 id: image-generation
 order: 5
-description: "Generate images with OpenAI DALL-E, Gemini NanoBanana and Imagen, and fal.ai models via TanStack AI's unified generateImage() API."
+description: "Generate images with OpenAI DALL-E, Gemini NanoBanana and Imagen, BytePlus Seedream, and fal.ai models via TanStack AI's unified generateImage() API."
 keywords:
   - tanstack ai
   - image generation
@@ -24,6 +24,7 @@ Image generation is handled by image adapters that follow the same tree-shakeabl
 
 - **OpenAI**: DALL-E 2, DALL-E 3, GPT-Image-1, GPT-Image-1-Mini, and GPT-Image-2 models
 - **Gemini**: Gemini native image models (NanoBanana) and Imagen 3/4 models
+- **BytePlus**: Seedream 5.0, 4.5, and 4.0 models
 - **fal.ai**: 600+ models including Nano Banana Pro, FLUX, and more
 
 ## Basic Usage
@@ -66,6 +67,31 @@ const result2 = await generateImage({
 
 console.log(result.images[0]?.b64Json) // Base64 encoded image
 ```
+
+### BytePlus Image Generation
+
+Seedream sizes take either a token (`1K`, `2K`, `4K`) or explicit pixels (`2048x2048`) — never a mix of the two.
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { byteplusImage } from '@tanstack/ai-byteplus'
+
+const result = await generateImage({
+  adapter: byteplusImage('dola-seedream-5-0-pro-260628'),
+  prompt: 'A futuristic cityscape at night',
+  size: '2K',
+  modelOptions: { watermark: false },
+})
+
+console.log(result.images[0]?.url)
+```
+
+Two Seedream behaviours differ from the other providers:
+
+- **`watermark` defaults to `true`** — BytePlus stamps "AI generated" into the corner unless you turn it off.
+- **`numberOfImages` is an upper bound, not a count.** Seedream has no `n` parameter, so more than one image maps onto its group-image mode and the model decides how many the prompt warrants. A request for four can return two.
+
+Image URLs expire after 24 hours; pass `response_format: 'b64_json'` in `modelOptions` for inline bytes. See the [BytePlus adapter](../adapters/byteplus#image-generation-seedream) for details.
 
 ## Options
 
@@ -328,6 +354,7 @@ await generateImage({
 | **fal.ai**   | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types (e.g. nano-banana edit gets `image_urls`, Fooocus masks get `mask_image_url`). Defaults for unknown endpoints: 1 input → `image_url`; multiple → `image_urls`; `role: 'mask'` → `mask_url`; `role: 'control'` → `control_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override with `modelOptions` for endpoint-specific fields. |
 | **Grok**     | grok-imagine models → xAI's `/v1/images/edits` (up to 3 source images, addressed by xAI in request order; prompt sent verbatim). `role: 'mask'` / `'control'` throw (no Imagine API equivalent). `grok-2-image-1212` throws (text-to-image only). |
 | **OpenRouter** | Prompt parts map 1:1 onto multimodal `image_url` / `text` content parts, preserving interleaved order, and are forwarded to the underlying image model.                                                                                    |
+| **BytePlus** | Seedream models → every input image is a plain reference on the `image` field (up to 14, or 10 on `dola-seedream-5-0-pro-260628`). There is no mask, control or frame channel, so any role other than `'reference'` / `'character'` throws rather than being silently flattened. |
 | **Anthropic** | n/a — no image generation API.                                                                                                                                                                          |
 
 Adapters that don't support image-conditioned generation throw a clear
@@ -718,6 +745,7 @@ The image adapters use the same environment variables as the text adapters:
 
 - **OpenAI**: `OPENAI_API_KEY`
 - **Gemini** (including NanoBanana): `GOOGLE_API_KEY` or `GEMINI_API_KEY`
+- **BytePlus** (Seedream): `ARK_API_KEY` or `BYTEPLUS_API_KEY`
 
 ### Explicit API Keys
 

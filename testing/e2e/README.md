@@ -4,7 +4,7 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 **Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. All scenarios (including tool execution flows) use aimock fixtures. Tests run in parallel with per-test `X-Test-Id` isolation.
 
-**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter, bedrock, bedrock-responses
+**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter, openrouter-responses, bedrock, bedrock-responses, openai-compatible, mistral, byteplus, elevenlabs
 
 > **Claude Code (`@tanstack/ai-claude-code`) is excluded from the standard matrix.** It's a harness adapter that spawns the Claude Code runtime as a subprocess, so aimock's per-test `X-Test-Id` header isolation can't be injected into its requests. It's covered by unit tests in the package plus a gated live smoke test in `tests/claude-code.spec.ts` — run it with `CLAUDE_CODE_E2E=1` and an `ANTHROPIC_API_KEY` (or a local `claude login`).
 
@@ -269,6 +269,23 @@ The default `bedrock-converse` adapter (introduced later) uses `@aws-sdk/client-
 
 **Follow-up:** a Bedrock/Converse provider will be added to aimock to close this gap and enable full E2E coverage of the Converse path.
 
+### BytePlus (Ark) path handling and record-mode gap
+
+BytePlus splits across two products, and the E2E wiring reflects that split:
+
+- **Ark** (chat, Seedream image, Seedance video) serves everything under `/api/v3`, so the chat, image and video adapters get `baseURL: <mock>/api/v3`.
+- **Seed Speech** (TTS, ASR) is a separate host with a separate key, and its adapters append `/api/v3/...` themselves — so they get the bare `<mock>` base.
+
+Chat and image need **no mock changes**. aimock's compat-path normalizer rewrites any non-`/v1/`, non-`/v2/` path ending in a known OpenAI suffix to `/v1/<suffix>`, so `/api/v3/chat/completions` and `/api/v3/images/generations` land on the native handlers and the provider-agnostic fixtures apply unchanged. Seedream's request body differs from OpenAI's (`size` as a `1K`/`2K` token, no `n`, `watermark`), but aimock's image handler only reads `model` and `prompt` and answers with the `{ created, data: [...] }` envelope Seedream also returns.
+
+Three endpoints have no aimock equivalent and are mounted in `global-setup.ts`, all on the `/api/v3` prefix — each returns `false` for paths it doesn't own so chat and image still fall through:
+
+- `byteplusSeedanceMount()` — `POST`/`GET /contents/generations/tasks[/{id}]`
+- `byteplusTTSMount()` — `POST /tts/create`
+- `byteplusASRMount()` — `POST /auc/bigmodel/recognize/flash`
+
+**Record-mode gap:** aimock's `RecordProviderKey` union has no `byteplus` entry, so `pnpm record` can't proxy `ark.ap-southeast.bytepluses.com` or the Seed Speech host to capture real fixtures — the same situation as the Bedrock Converse gap above. Chat features reuse the existing provider-agnostic fixtures (aimock matches on message content, not provider); the media endpoints are served by the hand-written mounts listed above. Update those mounts by hand if the wire shapes change, and cross-check against the adapter unit tests in `packages/ai-byteplus/tests/`.
+
 **SDK baseURL notes:**
 
 - OpenAI, Grok: `LLMOCK_OPENAI` (with `/v1`) + `defaultHeaders`
@@ -277,6 +294,7 @@ The default `bedrock-converse` adapter (introduced later) uses `@aws-sdk/client-
 - Gemini: `httpOptions: { baseUrl: LLMOCK_BASE, headers }`
 - Ollama: `{ host: LLMOCK_BASE, headers }` (config object)
 - OpenRouter: `serverURL` with `?testId=` query param (SDK doesn't support headers)
+- BytePlus: `LLMOCK_BASE + /api/v3` + `defaultHeaders` for Ark (chat, image, video); bare `LLMOCK_BASE` + `defaultHeaders` for Seed Speech (TTS, ASR)
 
 ## 7. Adding a Tool Test Scenario
 

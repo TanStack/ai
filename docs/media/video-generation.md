@@ -2,7 +2,7 @@
 title: Video Generation
 id: video-generation
 order: 6
-description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, or fal.ai using TanStack AI's experimental generateVideo() jobs/polling API."
+description: "Generate video from text prompts with OpenAI Sora, Google Veo, Gemini Omni Flash, xAI Grok Imagine, BytePlus Seedance, or fal.ai using TanStack AI's experimental generateVideo() jobs/polling API."
 keywords:
   - tanstack ai
   - video generation
@@ -12,6 +12,8 @@ keywords:
   - interactions api
   - gemini
   - grok imagine
+  - seedance
+  - byteplus
   - fal
   - generateVideo
   - jobs api
@@ -44,6 +46,7 @@ Currently supported:
 - **OpenAI**: Sora-2 and Sora-2-Pro models (when available)
 - **Google Gemini**: Veo 3.1 models (via the long-running operations API), and Gemini Omni Flash (via the Interactions API)
 - **Grok (xAI)**: grok-imagine-video (text-to-video + image-to-video) and grok-imagine-video-1.5 (image-to-video only) models
+- **BytePlus**: Seedance 2.0, 1.5-pro and 1.0-pro models (text-to-video, first/last frame, and multimodal references on 2.0)
 - **fal.ai**: MiniMax, Luma, Kling, Hunyuan, and other hosted video models
 
 > **Video runs take minutes — don't lose them to a reload.** This is the
@@ -358,9 +361,9 @@ adapter uses to route the input to the provider-specific field:
 
 | Role            | Maps to                                                       |
 | --------------- | ------------------------------------------------------------- |
-| `'start_frame'` | fal `start_image_url`, Veo input `image` (positional default for the first input) |
-| `'end_frame'`   | fal `end_image_url`, Veo `lastFrame`                          |
-| `'reference'`   | fal `reference_image_urls`, Veo `referenceImages`             |
+| `'start_frame'` | fal `start_image_url`, Veo input `image` (positional default for the first input), Seedance `first_frame` |
+| `'end_frame'`   | fal `end_image_url`, Veo `lastFrame`, Seedance `last_frame`   |
+| `'reference'`   | fal `reference_image_urls`, Veo `referenceImages`, Seedance `reference_image` |
 | `'character'`   | Same as `'reference'` — character consistency images                    |
 
 ```typescript
@@ -389,6 +392,7 @@ await generateVideo({
 | **OpenAI**   | Sora-2 / Sora-2-Pro → the image part goes to `input_reference`; flattened text is the prompt. Single image only — throws if more than one. |
 | **fal.ai**   | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types — e.g. `role: 'start_frame'` lands on `image_url` for Kling/Veo image-to-video, `first_frame_url` for first-last-frame endpoints, and `start_image_url` otherwise. Defaults: single input → `image_url` (start frame); `role: 'end_frame'` → `end_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override per-endpoint via `modelOptions` — the media-conditioning fields are typed optional there (even when the endpoint requires them) since they usually arrive as prompt parts. |
 | **Gemini**   | Veo → the first un-roled / `'start_frame'` image becomes the input image; `'end_frame'` → `lastFrame`; `'reference'` / `'character'` → `referenceImages` (asset references, Veo 3.1). Throws on multiple starting images. |
+| **BytePlus** | Seedance → a single un-roled or `'start_frame'` image becomes `first_frame`; `'end_frame'` → `last_frame` (needs a first frame alongside it, and is rejected by `seedance-1-0-pro-fast-251015`); `'reference'` / `'character'` → `reference_image`, video parts → `reference_video`, audio parts → `reference_audio` (Seedance 2.0 family only). Frame roles and reference roles are mutually exclusive modes — mixing them throws. |
 
 Adapters whose underlying API can't accept image inputs throw a clear
 runtime error so calls fail fast.
@@ -733,6 +737,44 @@ adapter.snapDuration(99) // 15
 
 Generated clips include an audio track. When the job completes, the adapter reports `usage.unitsBilled` (billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
 
+#### BytePlus (Seedance) Model Options
+
+Seedance is aspect-ratio sized like Grok Imagine — `size` takes a `ratio` or `ratio_resolution` template. Ratios are `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, `21:9` and `adaptive`; resolutions are `480p`, `720p`, `1080p` and (on `dreamina-seedance-2-0-260128` only) `4k`. There is no 2K tier on any Seedance model:
+
+```typescript
+import { generateVideo } from '@tanstack/ai'
+import { byteplusVideo } from '@tanstack/ai-byteplus'
+
+const { jobId } = await generateVideo({
+  adapter: byteplusVideo('dreamina-seedance-2-0-260128'),
+  prompt: 'A beautiful sunset over the ocean',
+  size: '16:9_720p',
+  duration: 5,
+  modelOptions: {
+    seed: 42,
+    generate_audio: true,
+    priority: 5, // Seedance 2.0 family only — queue priority, 0-9
+  },
+})
+```
+
+Options are **model-specific and validated server-side**: Ark rejects an inapplicable field with a `400` instead of ignoring it. `service_tier` and `camera_fixed` are Seedance 1.x only, `frames` works on the 1.0-pro models, `draft` on 1.5-pro, `priority` on the 2.0 family, and `duration: -1` (let the model choose) on 2.0 and 1.5-pro. Durations are 4–15s on the 2.0 family, 4–12s on 1.5-pro and 2–12s on the 1.0-pro models.
+
+**Seedance video URLs expire 24 hours after the task completes** (the task record is kept for seven days), so persist the bytes rather than the link. See the [BytePlus adapter](../adapters/byteplus#video-generation-seedance) for the full option table.
+
+##### Porting a Seedance call between providers
+
+Seedance is reachable through more than one adapter — this package is the direct-to-BytePlus path, and the [fal adapter](../adapters/fal) proxies the same models. The `metadata.role` vocabulary is identical across them (see the role table above), but **`size` is not**, because each provider sizes its endpoints differently:
+
+| Adapter                | `size` shape                             | Example        |
+| ---------------------- | ---------------------------------------- | -------------- |
+| `@tanstack/ai-byteplus` | `ratio` or `ratio_resolution` (required ratio) | `'16:9_720p'`, `'16:9'` |
+| `@tanstack/ai-fal`      | `ratio_resolution`, `ratio`, **or** a bare resolution | `'16:9_720p'`, `'16:9'`, `'720p'` |
+
+A bare `size: '720p'` is valid on fal and throws on BytePlus, which follows the [Grok Imagine](#grok-xai-imagine-model-options) template and always wants the ratio. Pass the ratio explicitly (`'16:9_720p'`) and the same string works on both.
+
+The mode also moves: fal encodes it in the endpoint id (`fal-ai/bytedance/seedance/v1/pro/image-to-video` vs `.../reference-to-video`), while BytePlus takes one model id and infers the mode from the prompt parts you attach. Neither is configurable — it follows each provider's own API.
+
 ### Response Types
 
 > **Note:** The interfaces below are the underlying adapter-level types. The `getVideoJobStatus()` helper returns a single merged object, `{ status, progress?, url?, error?, usage? }` — it does not return `jobId` or `expiresAt`.
@@ -843,6 +885,7 @@ for their provider:
 
 - `OPENAI_API_KEY`: Your OpenAI API key (Sora)
 - `GOOGLE_API_KEY` or `GEMINI_API_KEY`: Your Google API key (Veo)
+- `ARK_API_KEY` (or `BYTEPLUS_API_KEY`): Your BytePlus ModelArk key (Seedance)
 
 ### Explicit API Keys
 

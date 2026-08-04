@@ -86,10 +86,13 @@ markdown report under `.agent/gap-analysis/`. **Do not edit source files.**
 `bedrock` (`@tanstack/ai-bedrock`; three-API surface — Converse default
 (adapter name `bedrock-converse`), Chat Completions opt-in (`api: 'chat'`,
 adapter name `bedrock`), Responses opt-in (`api: 'responses'`, adapter name
-`bedrock-responses`)), `fal` (media-only), `elevenlabs` (TTS-only). The
+`bedrock-responses`)), `byteplus` (`@tanstack/ai-byteplus`; text, video, tts,
+transcription, image — two products/keys: ModelArk `ARK_API_KEY` for
+text/video/image, Seed Speech `BYTEPLUS_VOICE_API_KEY` for tts/transcription),
+`fal` (media-only), `elevenlabs` (TTS-only). The
 feature matrix tracks `openai`, `anthropic`, `gemini`, `ollama`, `grok`,
-`groq`, `openrouter`, `bedrock`, `bedrock-converse`, and `bedrock-responses`;
-`fal` and `elevenlabs` only appear in model/media audits.
+`groq`, `openrouter`, `bedrock`, `bedrock-converse`, `bedrock-responses`, and
+`byteplus`; `fal` and `elevenlabs` only appear in model/media audits.
 
 ## Known features (19)
 
