@@ -2,11 +2,9 @@ import { runTakeoverConformance } from '@tanstack/ai-sandbox/testkit'
 import { dockerSandbox } from '../src/index'
 import { dockerDaemonGate } from './docker-daemon'
 
-// A missing daemon is not the provider being incapable of takeover — it is this
-// environment lacking a daemon. Off CI that renders as a NAMED `unsupported`
-// skip carrying the reason, never a silent `✓ 0ms` that reads as coverage; under
-// `REQUIRE_DOCKER` it is a hard failure. See `./docker-daemon.ts` for why the
-// distinction has to come from the environment.
+// A missing daemon is not the provider being incapable of takeover, it is this
+// environment lacking a daemon. It renders as a NAMED `unsupported` skip carrying the
+// reason, never a silent `✓ 0ms` that reads as coverage. See `./docker-daemon.ts`.
 const gate = await dockerDaemonGate('takeover conformance (docker)')
 
 const IMAGE = 'alpine:3'

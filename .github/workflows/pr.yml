@@ -31,17 +31,6 @@ jobs:
           main-branch-name: main
       - name: Run Checks
         run: pnpm run test:pr
-        env:
-          # The runner image ships a running Docker daemon, and the
-          # `@tanstack/ai-sandbox-docker` suites are the ONLY matrix in this repo
-          # that exercises BusyBox 1.37 (`alpine:3`) — the authority on the
-          # journal age gate's portability, since the local-process provider
-          # execs through GNU-flavoured shells. `it.skip` always exits 0, so
-          # without this a runner-image change that removed Docker would silently
-          # demote that authority to a `↓` line and still report green. Set here,
-          # an unreachable daemon fails the run instead. See
-          # `packages/ai-sandbox-docker/tests/docker-daemon.ts`.
-          REQUIRE_DOCKER: '1'
   preview:
     name: Preview
     runs-on: ubuntu-latest

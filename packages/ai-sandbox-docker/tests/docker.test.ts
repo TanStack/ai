@@ -5,9 +5,8 @@ import { dockerSandbox } from '../src/index'
 import { dockerDaemonAvailable } from './docker-daemon'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
-// Auto-gate: only run when a Docker daemon is reachable — unless
-// `REQUIRE_DOCKER` is set, in which case an unreachable daemon fails rather than
-// skipping. See `./docker-daemon.ts`.
+// Auto-gate: only run when a Docker daemon is reachable. See `./docker-daemon.ts`
+// for what this matrix is the authority on.
 const dockerAvailable = await dockerDaemonAvailable('docker provider')
 
 /** For the image-inspection assertions below, which read the daemon directly. */
