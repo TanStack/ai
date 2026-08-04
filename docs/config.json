@@ -411,47 +411,50 @@
         {
           "label": "Generations",
           "to": "media/generations",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Realtime Voice Chat",
           "to": "media/realtime-chat",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Text-to-Speech",
           "to": "media/text-to-speech",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Audio Recording",
           "to": "media/audio-recording",
           "addedAt": "2026-06-23",
-          "updatedAt": "2026-06-26"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Audio Generation",
           "to": "media/audio-generation",
           "addedAt": "2026-04-23",
-          "updatedAt": "2026-07-28"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Generation Hooks",

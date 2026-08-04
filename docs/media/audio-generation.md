@@ -114,45 +114,6 @@ If a request doesn't return the audio you expected — a model silently truncate
 | `modelOptions` | `object` | Provider-specific options (fully typed when the model ID is passed as a string literal) |
 | `debug` | `DebugOption` | Enable per-category debug logging (`true`, `false`, or a `DebugConfig` — see [Debug Logging](../advanced/debug-logging)) |
 
-## Result Shape
-
-```typescript
-import type { TokenUsage } from '@tanstack/ai'
-
-interface AudioGenerationResult {
-  id: string
-  model: string
-  audio: {
-    url?: string
-    b64Json?: string
-    contentType?: string
-    duration?: number
-  }
-  // Canonical TokenUsage (same shape as chat), present when the provider
-  // reports it (e.g. Gemini Lyria via generateContent). Usage-billed providers
-  // (fal) instead surface `usage.unitsBilled` — the real billed quantity read
-  // from fal's `x-fal-billable-units` result header. Multiply by the endpoint's
-  // unit price (fal pricing API) for the exact cost.
-  usage?: TokenUsage
-}
-```
-
-Gemini returns base64-encoded bytes in `result.audio.b64Json`. The fal adapter returns a URL in `result.audio.url` — if you need raw bytes, `fetch()` the URL yourself:
-
-```typescript
-import { generateAudio } from '@tanstack/ai'
-import { falAudio } from '@tanstack/ai-fal'
-
-const result = await generateAudio({
-  adapter: falAudio('fal-ai/diffrhythm'),
-  prompt: 'An upbeat electronic track',
-})
-
-const bytes = new Uint8Array(
-  await (await fetch(result.audio.url!)).arrayBuffer()
-)
-```
-
 ## Client Hook (`useGenerateAudio`)
 
 For client-side usage, framework integrations expose a `useGenerateAudio`
@@ -218,7 +179,50 @@ function AudioGenerator() {
 Use the `fetcher` option instead of `connection` when calling a TanStack
 Start server function directly.
 
-## Differences vs Text-to-Speech
+## Advanced
+
+Reference detail you do not need to get this working.
+
+### Result Shape
+
+```typescript
+import type { TokenUsage } from '@tanstack/ai'
+
+interface AudioGenerationResult {
+  id: string
+  model: string
+  audio: {
+    url?: string
+    b64Json?: string
+    contentType?: string
+    duration?: number
+  }
+  // Canonical TokenUsage (same shape as chat), present when the provider
+  // reports it (e.g. Gemini Lyria via generateContent). Usage-billed providers
+  // (fal) instead surface `usage.unitsBilled` — the real billed quantity read
+  // from fal's `x-fal-billable-units` result header. Multiply by the endpoint's
+  // unit price (fal pricing API) for the exact cost.
+  usage?: TokenUsage
+}
+```
+
+Gemini returns base64-encoded bytes in `result.audio.b64Json`. The fal adapter returns a URL in `result.audio.url` — if you need raw bytes, `fetch()` the URL yourself:
+
+```typescript
+import { generateAudio } from '@tanstack/ai'
+import { falAudio } from '@tanstack/ai-fal'
+
+const result = await generateAudio({
+  adapter: falAudio('fal-ai/diffrhythm'),
+  prompt: 'An upbeat electronic track',
+})
+
+const bytes = new Uint8Array(
+  await (await fetch(result.audio.url!)).arrayBuffer()
+)
+```
+
+### Differences vs Text-to-Speech
 
 | | `generateAudio()` | `generateSpeech()` |
 |---|---|---|
@@ -229,7 +233,7 @@ Start server function directly.
 
 Use `generateSpeech()` when you want a spoken voice, and `generateAudio()` when you want non-speech audio.
 
-## Environment Variables
+### Environment Variables
 
 Each provider reads its own API key from the environment by default:
 
