@@ -1,5 +1,5 @@
 ---
-"@tanstack/ai": patch
+'@tanstack/ai': patch
 ---
 
 fix(otelMiddleware): open an iteration span for structured-output finalization (#1054)
