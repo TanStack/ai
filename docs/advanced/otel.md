@@ -14,7 +14,9 @@ keywords:
   - semantic conventions
 ---
 
-The `otelMiddleware` factory wires TanStack AI into your existing OpenTelemetry setup. Every `chat()` call produces a root span, one child span per agent-loop iteration, and one grandchild span per tool call — all with [GenAI semantic-convention attributes](https://opentelemetry.io/docs/specs/semconv/gen-ai/). It also records GenAI token and duration histograms when a `Meter` is provided.
+The `otelMiddleware` factory wires TanStack AI into your existing OpenTelemetry setup. Every `chat()` call produces a root span, one child span per provider model call (agent-loop turn **or** structured-output finalization), and one grandchild span per tool call — all with [GenAI semantic-convention attributes](https://opentelemetry.io/docs/specs/semconv/gen-ai/). It also records GenAI token and duration histograms when a `Meter` is provided.
+
+Structured-output calls with no tools skip the agent loop and only run the finalization request. That path still opens an iteration span (via the `structuredOutput` middleware phase) so backends that key off generation spans (e.g. PostHog `$ai_generation`) and `captureContent` both work. Native combined mode (`supportsCombinedToolsAndSchema`) does not fire that phase — the single `beforeModel` span covers the combined call.
 
 ## Setup
 
@@ -57,7 +59,7 @@ chat gpt-5.5              (root, kind: INTERNAL)
 └── chat gpt-5.5 #1       (iteration, kind: CLIENT)
 ```
 
-Iteration spans are numbered (`#0`, `#1`, ...) so distinct iterations of the same chat are easy to pick apart in trace viewers.
+Iteration spans are numbered (`#0`, `#1`, ...) in the order model calls are observed, so distinct provider round-trips of the same chat are easy to pick apart in trace viewers.
 
 ### Attribute reference
 
