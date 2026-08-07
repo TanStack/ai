@@ -59,9 +59,7 @@ export async function createIsolateDriver(
 ): Promise<IsolateDriver> {
   const cached = driverCache.get(vm)
   if (cached) {
-    console.info(
-      `[createIsolateDriver] reusing cached driver for vm=${vm}`,
-    )
+    console.info(`[createIsolateDriver] reusing cached driver for vm=${vm}`)
     return cached
   }
 
@@ -94,7 +92,8 @@ export async function createIsolateDriver(
         const { createQuickJSIsolateDriver } =
           await import('@tanstack/ai-isolate-quickjs')
         driver = createQuickJSIsolateDriver()
-        resolved = 'quickjs-wasm-fallback (requested quickjs-bun, no global Bun)'
+        resolved =
+          'quickjs-wasm-fallback (requested quickjs-bun, no global Bun)'
       }
       break
     }
@@ -130,7 +129,9 @@ export async function createIsolateDriver(
   }
 
   const runtime =
-    typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined' ? 'bun' : 'node'
+    typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined'
+      ? 'bun'
+      : 'node'
   console.info(
     `[createIsolateDriver] vm=${vm} resolved=${resolved} serverRuntime=${runtime}`,
   )

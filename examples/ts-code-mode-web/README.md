@@ -90,10 +90,10 @@ When set (or when the process is Bun), this example:
 
 Optional overrides:
 
-| Env | Effect |
-|---|---|
-| `CODE_MODE_BUN=1` | Bun defaults + Nitro bun preset (also set by `pnpm dev:bun`) |
-| `CODE_MODE_DEFAULT_VM=node\|quickjs\|quickjs-bun\|cloudflare` | Force default isolate regardless of Bun |
+| Env                                                           | Effect                                                       |
+| ------------------------------------------------------------- | ------------------------------------------------------------ |
+| `CODE_MODE_BUN=1`                                             | Bun defaults + Nitro bun preset (also set by `pnpm dev:bun`) |
+| `CODE_MODE_DEFAULT_VM=node\|quickjs\|quickjs-bun\|cloudflare` | Force default isolate regardless of Bun                      |
 
 ## Build
 

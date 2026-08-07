@@ -83,10 +83,9 @@ function resolveQuickjsBunEntry(): string {
  * Bun-only syntax / strict-mode edge cases. Building the importer via
  * `Function` keeps a true host `import()` (Bun loads the .ts entry + bun:ffi).
  */
-const nativeImport = new Function(
-  'specifier',
-  'return import(specifier)',
-) as (specifier: string) => Promise<QuickJSBunModule>
+const nativeImport = new Function('specifier', 'return import(specifier)') as (
+  specifier: string,
+) => Promise<QuickJSBunModule>
 
 /**
  * Dynamically import the `quickjs-bun` module namespace. Never a static import:

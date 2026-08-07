@@ -210,8 +210,7 @@ export function createCodeModeTool(
             {
               success: false,
               error: {
-                message:
-                  error instanceof Error ? error.message : String(error),
+                message: error instanceof Error ? error.message : String(error),
                 name: 'TypeScriptError',
                 ...(error instanceof Error &&
                   error.stack !== undefined && { stack: error.stack }),
@@ -254,8 +253,7 @@ export function createCodeModeTool(
             {
               success: false,
               error: {
-                message:
-                  error instanceof Error ? error.message : String(error),
+                message: error instanceof Error ? error.message : String(error),
                 name:
                   error instanceof Error ? error.name : 'CreateContextError',
                 ...(error instanceof Error &&
