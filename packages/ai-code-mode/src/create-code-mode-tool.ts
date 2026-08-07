@@ -45,6 +45,7 @@ const executeTypescriptOutputSchema = z.object({
       message: z.string(),
       name: z.string().optional(),
       line: z.number().optional(),
+      stack: z.string().optional(),
     })
     .optional()
     .describe('Error details if execution failed'),
@@ -130,18 +131,62 @@ export function createCodeModeTool(
       toolContext?: ToolExecutionContext,
     ): Promise<CodeModeToolResult> => {
       const { typescriptCode } = input
+      const startedAt = Date.now()
 
       // Get emitCustomEvent from context or use no-op
       const emitCustomEvent = toolContext?.emitCustomEvent || (() => {})
 
-      if (!typescriptCode || typeof typescriptCode !== 'string') {
-        return {
-          success: false,
-          error: {
-            message: 'typescriptCode must be a non-empty string',
-            name: 'ValidationError',
-          },
+      const finish = (
+        result: CodeModeToolResult,
+        phase: string,
+      ): CodeModeToolResult => {
+        const durationMs = Date.now() - startedAt
+        const payload = {
+          timestamp: Date.now(),
+          durationMs,
+          phase,
+          success: result.success,
+          logCount: result.logs?.length ?? 0,
+          error: result.error
+            ? {
+                name: result.error.name,
+                message: result.error.message,
+                ...(result.error.stack !== undefined && {
+                  stack: result.error.stack,
+                }),
+                ...(result.error.line !== undefined && {
+                  line: result.error.line,
+                }),
+              }
+            : undefined,
         }
+        emitCustomEvent('code_mode:execution_finished', payload)
+        if (!result.success) {
+          console.error('[code-mode] execute_typescript failed', payload)
+        } else if (
+          typeof process !== 'undefined' &&
+          process.env?.CODE_MODE_DEBUG === '1'
+        ) {
+          console.info('[code-mode] execute_typescript ok', {
+            durationMs,
+            phase,
+            logCount: payload.logCount,
+          })
+        }
+        return result
+      }
+
+      if (!typescriptCode || typeof typescriptCode !== 'string') {
+        return finish(
+          {
+            success: false,
+            error: {
+              message: 'typescriptCode must be a non-empty string',
+              name: 'ValidationError',
+            },
+          },
+          'validate-input',
+        )
       }
 
       // Create a fresh sandbox context for this execution
@@ -161,13 +206,19 @@ export function createCodeModeTool(
           strippedCode = await transpile(typescriptCode)
         } catch (error) {
           // Type/syntax error from the transpiler
-          return {
-            success: false,
-            error: {
-              message: error instanceof Error ? error.message : String(error),
-              name: 'TypeScriptError',
+          return finish(
+            {
+              success: false,
+              error: {
+                message:
+                  error instanceof Error ? error.message : String(error),
+                name: 'TypeScriptError',
+                ...(error instanceof Error &&
+                  error.stack !== undefined && { stack: error.stack }),
+              },
             },
-          }
+            'transpile',
+          )
         }
 
         // Step 2: Get dynamic skill bindings if available
@@ -192,11 +243,28 @@ export function createCodeModeTool(
         )
 
         // Step 4: Create sandbox context with event-aware bindings
-        isolateContext = await driver.createContext({
-          bindings: eventAwareBindings,
-          timeout,
-          memoryLimit,
-        })
+        try {
+          isolateContext = await driver.createContext({
+            bindings: eventAwareBindings,
+            timeout,
+            memoryLimit,
+          })
+        } catch (error) {
+          return finish(
+            {
+              success: false,
+              error: {
+                message:
+                  error instanceof Error ? error.message : String(error),
+                name:
+                  error instanceof Error ? error.name : 'CreateContextError',
+                ...(error instanceof Error &&
+                  error.stack !== undefined && { stack: error.stack }),
+              },
+            },
+            'create-context',
+          )
+        }
 
         // Step 5: Execute the code in the sandbox
         const executionResult = await isolateContext.execute(strippedCode)
@@ -228,31 +296,45 @@ export function createCodeModeTool(
         }
 
         if (executionResult.success) {
-          return {
-            success: true,
-            result: executionResult.value,
-            logs: executionResult.logs,
-          }
-        } else {
-          return {
+          return finish(
+            {
+              success: true,
+              result: executionResult.value,
+              logs: executionResult.logs,
+            },
+            'execute',
+          )
+        }
+
+        return finish(
+          {
             success: false,
             error: executionResult.error
               ? {
                   message: executionResult.error.message,
                   name: executionResult.error.name,
+                  ...(executionResult.error.stack !== undefined && {
+                    stack: executionResult.error.stack,
+                  }),
                 }
-              : { message: 'Unknown execution error' },
+              : { message: 'Unknown execution error', name: 'UnknownError' },
             logs: executionResult.logs,
-          }
-        }
-      } catch (error) {
-        return {
-          success: false,
-          error: {
-            message: error instanceof Error ? error.message : String(error),
-            name: error instanceof Error ? error.name : 'Error',
           },
-        }
+          'execute',
+        )
+      } catch (error) {
+        return finish(
+          {
+            success: false,
+            error: {
+              message: error instanceof Error ? error.message : String(error),
+              name: error instanceof Error ? error.name : 'Error',
+              ...(error instanceof Error &&
+                error.stack !== undefined && { stack: error.stack }),
+            },
+          },
+          'unhandled',
+        )
       } finally {
         // Always clean up the sandbox context
         if (isolateContext) {

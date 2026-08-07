@@ -4,7 +4,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev --port 3001",
+    "dev:bun": "CODE_MODE_BUN=1 bun --bun vite dev --port 3001",
     "build": "vite build",
+    "build:bun": "CODE_MODE_BUN=1 bun --bun vite build",
+    "start:bun": "bun run .output/server/index.mjs",
     "serve": "vite preview",
     "test": "exit 0",
     "test:types": "tsc --noEmit"
@@ -40,6 +43,7 @@
     "marked": "^15.0.6",
     "nitro": "3.0.260610-beta",
     "puppeteer": "^24.34.0",
+    "quickjs-bun": "0.1.2",
     "quickjs-emscripten": "^0.31.0",
     "quickjs-emscripten-core": "^0.31.0",
     "react": "^19.2.3",

@@ -1,3 +1,6 @@
+import { existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   DEFAULT_MAX_TOOL_CALLS,
   QuickJSBunIsolateContext,
@@ -20,21 +23,84 @@ const DEFAULT_MEMORY_LIMIT_MB = 128
 const DEFAULT_MAX_STACK_SIZE_BYTES = 512 * 1024
 
 /**
- * quickjs-bun's exports map only declares a `bun` condition, so build- and
- * test-time resolvers running on Node.js cannot resolve it. The non-literal
- * specifier keeps the import out of Vite's static analysis; it only ever
- * executes under the Bun runtime.
+ * quickjs-bun's exports map only declares a `bun` condition (no import/default).
+ * Bun's resolver understands that; Vite/Node package resolution does not —
+ * even with `conditions: ['bun']` under Nitro's Vite module runner, which
+ * still goes through resolvePackageEntry and fails with:
+ *   "No known conditions for \".\" specifier in \"quickjs-bun\" package"
+ *
+ * Prefer Bun.resolveSync, then fall back to locating `index.ts` on disk so
+ * tools that ignore the bun export condition can still load the entry.
  */
 const QUICKJS_BUN_SPECIFIER = 'quickjs-bun'
 
+type BunResolveSync = {
+  resolveSync?: (specifier: string, from: string) => string
+}
+
+function moduleDir(): string {
+  // import.meta.dirname is Node 20.11+ / Bun; fall back for older runtimes.
+  if (typeof import.meta.dirname === 'string') return import.meta.dirname
+  return dirname(fileURLToPath(import.meta.url))
+}
+
+function findQuickjsBunEntryOnDisk(): string | undefined {
+  const starts = [moduleDir(), process.cwd()]
+  for (const start of starts) {
+    let dir = start
+    for (let i = 0; i < 14; i++) {
+      const candidate = join(dir, 'node_modules', 'quickjs-bun', 'index.ts')
+      if (existsSync(candidate)) return candidate
+      const parent = dirname(dir)
+      if (parent === dir) break
+      dir = parent
+    }
+  }
+  return undefined
+}
+
+function resolveQuickjsBunEntry(): string {
+  const bun = (globalThis as { Bun?: BunResolveSync }).Bun
+  if (typeof bun?.resolveSync === 'function') {
+    try {
+      return bun.resolveSync(QUICKJS_BUN_SPECIFIER, moduleDir())
+    } catch {
+      // Fall through — e.g. package not visible from this module path.
+    }
+  }
+
+  const onDisk = findQuickjsBunEntryOnDisk()
+  if (onDisk !== undefined) return onDisk
+
+  // Last resort: bare specifier (works only under a bun-aware resolver).
+  return QUICKJS_BUN_SPECIFIER
+}
+
 /**
- * Dynamically import the `quickjs-bun` module namespace. Kept as a function
- * (not a static import) because the package only resolves under the Bun
- * runtime; see `QUICKJS_BUN_SPECIFIER` for why the specifier is non-literal and
- * hidden from Vite's static analysis.
+ * Runtime-native dynamic import that Vite/Nitro cannot rewrite into the
+ * module runner. A plain `import()` in source is often transformed to
+ * `runInlinedModule`, which then parses quickjs-bun as ESM and dies on
+ * Bun-only syntax / strict-mode edge cases. Building the importer via
+ * `Function` keeps a true host `import()` (Bun loads the .ts entry + bun:ffi).
+ */
+const nativeImport = new Function(
+  'specifier',
+  'return import(specifier)',
+) as (specifier: string) => Promise<QuickJSBunModule>
+
+/**
+ * Dynamically import the `quickjs-bun` module namespace. Never a static import:
+ * the package only resolves under Bun (or via the absolute-path fallbacks
+ * above). Prefer an absolute file: URL so package.json `exports` (bun-only)
+ * is never consulted by Node/Vite resolvers.
  */
 function importQuickJSBun(): Promise<QuickJSBunModule> {
-  return import(/* @vite-ignore */ QUICKJS_BUN_SPECIFIER)
+  const entry = resolveQuickjsBunEntry()
+  const specifier =
+    entry === QUICKJS_BUN_SPECIFIER || entry.startsWith('file:')
+      ? entry
+      : pathToFileURL(entry).href
+  return nativeImport(specifier)
 }
 
 let libraryPromise: Promise<QuickJS> | undefined
