@@ -12,9 +12,10 @@ export interface LLMGatewayClientConfig extends Omit<ClientOptions, 'apiKey'> {
 export function getLLMGatewayApiKeyFromEnv(): string {
   try {
     return getApiKeyFromEnv('LLM_GATEWAY_API_KEY')
-  } catch {
+  } catch (cause) {
     throw new Error(
       'LLM_GATEWAY_API_KEY is required. Please set it in your environment variables or use the factory function with an explicit API key.',
+      { cause },
     )
   }
 }

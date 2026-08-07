@@ -91,6 +91,16 @@ const createLLMGatewayText: typeof _realCreateLLMGatewayText = (
 const llmGatewayText: typeof _realLLMGatewayText = (model, config) =>
   applyPendingMock(_realLLMGatewayText(model, config))
 
+// `createLLMGatewaySummarize` builds its own `LLMGatewayTextAdapter` internally,
+// so the wrapped text factories above can't reach it. Apply the pending mock to
+// the wrapper's private `textAdapter` instead, so summarize tests can assert on
+// the request that actually goes out on the wire.
+function applyPendingMockToSummarize<T extends object>(adapter: T): T {
+  const inner = (adapter as any).textAdapter
+  if (inner) applyPendingMock(inner)
+  return adapter
+}
+
 describe('LLM Gateway adapters', () => {
   // Reset the module-level `pendingMockCreate` between tests so a previous
   // test's setupMockSdkClient call can't leak into a later test that
@@ -209,6 +219,38 @@ describe('LLM Gateway adapters', () => {
 
       expect(adapter).toBeDefined()
       expect(adapter.model).toBe('gpt-5.6-terra')
+    })
+
+    // Regression: the summarize wrapper resolves `maxLength` to a token cap via
+    // its own adapter `name`. LLM Gateway's OpenAI-compatible Chat Completions
+    // surface reads `max_tokens`, so an unregistered name would silently drop
+    // the cap and bill an unbounded completion.
+    it('forwards maxLength to the wire as max_tokens', async () => {
+      const mockCreate = setupMockSdkClient([
+        {
+          id: 'chatcmpl-summary',
+          model: 'gpt-5.6-terra',
+          choices: [
+            {
+              delta: { content: 'A short summary.' },
+              finish_reason: 'stop',
+            },
+          ],
+        },
+      ])
+      const adapter = applyPendingMockToSummarize(
+        createLLMGatewaySummarize('gpt-5.6-terra', 'test-api-key'),
+      )
+
+      await adapter.summarize({
+        model: 'gpt-5.6-terra',
+        text: 'Some long article text that needs summarizing.',
+        maxLength: 100,
+        logger: testLogger,
+      })
+
+      expect(mockCreate).toHaveBeenCalledTimes(1)
+      expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({ max_tokens: 100 })
     })
   })
 })

@@ -40,11 +40,19 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'byteplus',
     'llmgateway',
   ]),
-  // BytePlus streams its reasoning trace as `delta.reasoning_content`, which is
-  // exactly the field aimock's OpenAI-compatible chunk builder emits for a
-  // fixture's `reasoning` channel — so the adapter's `extractReasoning`
-  // override is exercised end-to-end against the shared fixture.
-  reasoning: new Set(['openai', 'anthropic', 'gemini', 'mistral', 'byteplus']),
+  // BytePlus and LLM Gateway both stream their reasoning trace as
+  // `delta.reasoning_content`, which is exactly the field aimock's
+  // OpenAI-compatible chunk builder emits for a fixture's `reasoning` channel —
+  // so each adapter's `extractReasoning` override is exercised end-to-end
+  // against the shared fixture.
+  reasoning: new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'mistral',
+    'byteplus',
+    'llmgateway',
+  ]),
   'multi-turn': new Set([
     'openai',
     'anthropic',
