@@ -157,6 +157,16 @@ const stream = chat({
 
 > If you previously passed `temperature` / `topP` / `maxTokens` at the root of `chat()`, see [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options).
 
+### Reasoning
+
+Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`, `qwen/qwen3-32b`). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
+
+```typescript ignore
+modelOptions: {
+  reasoning_effort: "medium", // "none" | "default" | "low" | "medium" | "high"
+}
+```
+
 ## Summarization
 
 Summarize long text content:
@@ -173,16 +183,6 @@ const result = await summarize({
 });
 
 console.log(result.summary);
-```
-
-### Reasoning
-
-Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`, `qwen/qwen3-32b`). This allows the model to show its reasoning process, which is streamed as `thinking` chunks:
-
-```typescript ignore
-modelOptions: {
-  reasoning_effort: "medium", // "none" | "default" | "low" | "medium" | "high"
-}
 ```
 
 ## Supported Models
@@ -248,7 +248,6 @@ Creates a Groq chat adapter with an explicit API key.
 
 **Returns:** A Groq chat adapter instance.
 
-
 ### `groqSummarize(model, config?)`
 
 Creates a Groq summarization adapter using environment variables.
@@ -264,7 +263,6 @@ Creates a Groq summarization adapter with an explicit API key.
 ### `groqTranscription(model, config?)` / `createGroqTranscription(model, apiKey, config?)`
 
 Creates a Groq transcription (speech-to-text) adapter. The short form reads `GROQ_API_KEY` from the environment; the `create*` form takes an explicit API key. Supported models: `whisper-large-v3-turbo`, `whisper-large-v3`.
-
 
 ## Limitations
 

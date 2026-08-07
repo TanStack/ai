@@ -695,7 +695,7 @@
           "updatedAt": "2026-07-31"
         },
         {
-          "label": "Sampling → modelOptions",
+          "label": "Sampling â†’ modelOptions",
           "to": "migration/sampling-options-to-model-options",
           "addedAt": "2026-06-03"
         }
@@ -790,7 +790,7 @@
           "label": "Groq",
           "to": "adapters/groq",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-01"
+          "updatedAt": "2026-08-07"
         },
         {
           "label": "Mistral",
