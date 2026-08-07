@@ -252,7 +252,7 @@ async function createWebRTCConnection(
     // doesn't end up as "[object Event]".
     // `onerror` always fires with an Event (often an RTCErrorEvent), so we
     // can read it via the untyped helpers without first proving object-ness.
-    // eslint-disable-next-line no-restricted-syntax -- RTCErrorEvent is a typed DOM class that does not structurally overlap Record<string, unknown>; we duck-type it via readObject/readString
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- RTCErrorEvent is a typed DOM class that does not structurally overlap Record<string, unknown>; we duck-type it via readObject/readString
     const errorRecord = error as unknown as Record<string, unknown>
     const rtcError = readObject(errorRecord, 'error')
     const msg =

@@ -2,7 +2,7 @@
 title: Image Generation
 id: image-generation
 order: 5
-description: "Generate images with OpenAI DALL-E, Gemini NanoBanana and Imagen, and fal.ai models via TanStack AI's unified generateImage() API."
+description: "Generate images with OpenAI DALL-E, Gemini NanoBanana and Imagen, BytePlus Seedream, and fal.ai models via TanStack AI's unified generateImage() API."
 keywords:
   - tanstack ai
   - image generation
@@ -24,6 +24,7 @@ Image generation is handled by image adapters that follow the same tree-shakeabl
 
 - **OpenAI**: DALL-E 2, DALL-E 3, GPT-Image-1, GPT-Image-1-Mini, and GPT-Image-2 models
 - **Gemini**: Gemini native image models (NanoBanana) and Imagen 3/4 models
+- **BytePlus**: Seedream 5.0, 4.5, and 4.0 models
 - **fal.ai**: 600+ models including Nano Banana Pro, FLUX, and more
 
 ## Basic Usage
@@ -66,6 +67,31 @@ const result2 = await generateImage({
 
 console.log(result.images[0]?.b64Json) // Base64 encoded image
 ```
+
+### BytePlus Image Generation
+
+Seedream sizes take either a token (`1K`, `2K`, `4K`) or explicit pixels (`2048x2048`) — never a mix of the two.
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { byteplusImage } from '@tanstack/ai-byteplus'
+
+const result = await generateImage({
+  adapter: byteplusImage('dola-seedream-5-0-pro-260628'),
+  prompt: 'A futuristic cityscape at night',
+  size: '2K',
+  modelOptions: { watermark: false },
+})
+
+console.log(result.images[0]?.url)
+```
+
+Two Seedream behaviours differ from the other providers:
+
+- **`watermark` defaults to `true`** — BytePlus stamps "AI generated" into the corner unless you turn it off.
+- **`numberOfImages` is an upper bound, not a count.** Seedream has no `n` parameter, so more than one image maps onto its group-image mode and the model decides how many the prompt warrants. A request for four can return two.
+
+Image URLs expire after 24 hours; pass `response_format: 'b64_json'` in `modelOptions` for inline bytes. See the [BytePlus adapter](../adapters/byteplus#image-generation-seedream) for details.
 
 ## Options
 
@@ -230,20 +256,24 @@ HTTPS URLs, [Files API](https://ai.google.dev/gemini-api/docs/files) URIs, and
 `gs://` references all work without buffering the image in your runtime's
 memory.
 
-Two paths have no URL passthrough and must upload real bytes — OpenAI's
-`/images/edits` (and Sora `input_reference`), and Gemini **Veo** (its predict
-API accepts only inline bytes or a `gs://` reference). For these, an HTTP(S)
-URL input would have to be downloaded and buffered in memory, which can OOM
-memory-constrained runtimes (e.g. Cloudflare Workers). So by default they
-**throw** on an HTTP(S) URL image input rather than fetch it. Pass a `data:`
-URI (or a `gs://` reference for Veo), or opt into fetching with `allowUrlFetch`:
+Two paths have no URL passthrough and must upload real bytes:
+
+- OpenAI's `/images/edits`, and Sora `input_reference`.
+- Gemini **Veo**: its predict API accepts only inline bytes or a `gs://`
+  reference.
+
+For these, an HTTP(S) URL input would have to be downloaded and buffered in
+memory, which can OOM memory-constrained runtimes (e.g. Cloudflare Workers). So
+by default they **throw** on an HTTP(S) URL image input rather than fetch it.
+Pass a `data:` URI (or a `gs://` reference for Veo), or opt into fetching with
+`allowUrlFetch`:
 
 ```typescript ignore
 import { createOpenaiImage } from '@tanstack/ai-openai/adapters'
 
 // Opt into downloading + buffering HTTP(S) URL image inputs (server runtimes
 // with headroom). data: URIs always work without this flag.
-const adapter = createOpenaiImage('gpt-image-1', apiKey, { allowUrlFetch: true })
+const adapter = createOpenaiImage('gpt-image-2', apiKey, { allowUrlFetch: true })
 ```
 
 The same `allowUrlFetch` option exists on `createOpenaiVideo` and
@@ -324,189 +354,18 @@ await generateImage({
 | **fal.ai**   | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types (e.g. nano-banana edit gets `image_urls`, Fooocus masks get `mask_image_url`). Defaults for unknown endpoints: 1 input → `image_url`; multiple → `image_urls`; `role: 'mask'` → `mask_url`; `role: 'control'` → `control_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override with `modelOptions` for endpoint-specific fields. |
 | **Grok**     | grok-imagine models → xAI's `/v1/images/edits` (up to 3 source images, addressed by xAI in request order; prompt sent verbatim). `role: 'mask'` / `'control'` throw (no Imagine API equivalent). `grok-2-image-1212` throws (text-to-image only). |
 | **OpenRouter** | Prompt parts map 1:1 onto multimodal `image_url` / `text` content parts, preserving interleaved order, and are forwarded to the underlying image model.                                                                                    |
+| **BytePlus** | Seedream models → every input image is a plain reference on the `image` field (up to 14, or 10 on `dola-seedream-5-0-pro-260628`). There is no mask, control or frame channel, so any role other than `'reference'` / `'character'` throws rather than being silently flattened. |
 | **Anthropic** | n/a — no image generation API.                                                                                                                                                                          |
 
 Adapters that don't support image-conditioned generation throw a clear
 runtime error so calls fail fast rather than silently dropping the inputs.
 
-## Model Options
-
-### OpenAI Model Options
-
-OpenAI models support model-specific Model Options:
-
-#### GPT-Image-2 / GPT-Image-1 / GPT-Image-1-Mini
-
-```typescript
-import { generateImage } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
-
-const result = await generateImage({
-  adapter: openaiImage('gpt-image-2'),
-  prompt: 'A cat wearing a hat',
-  modelOptions: {
-    quality: 'high', // 'high' | 'medium' | 'low' | 'auto'
-    background: 'transparent', // 'transparent' | 'opaque' | 'auto'
-    output_format: 'png', // 'png' | 'jpeg' | 'webp'
-    moderation: 'low', // 'low' | 'auto'
-  }
-})
-```
-
-#### DALL-E 3
-
-```typescript
-import { generateImage } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
-
-const result = await generateImage({
-  adapter: openaiImage('dall-e-3'),
-  prompt: 'A futuristic car',
-  modelOptions: {
-    quality: 'hd', // 'hd' | 'standard'
-    style: 'vivid', // 'vivid' | 'natural'
-  }
-})
-```
-
-### Gemini Imagen Model Options
-
-```typescript ignore
-import { generateImage } from '@tanstack/ai'
-import { geminiImage } from '@tanstack/ai-gemini'
-
-const result = await generateImage({
-  adapter: geminiImage('imagen-4.0-generate-001'),
-  prompt: 'A beautiful garden',
-  modelOptions: {
-    aspectRatio: '16:9',
-    // personGeneration accepts PersonGeneration enum values: 'DONT_ALLOW' | 'ALLOW_ADULT' | 'ALLOW_ALL'
-    personGeneration: 'ALLOW_ADULT',
-    negativePrompt: 'blurry, low quality',
-    addWatermark: true,
-    outputMimeType: 'image/png', // 'image/png' | 'image/jpeg' | 'image/webp'
-  }
-})
-```
-
-### Gemini Native Model Options (NanoBanana)
-
-Gemini native image models accept `GenerateContentConfig` options directly in `modelOptions`:
-
-```typescript
-import { generateImage } from '@tanstack/ai'
-import { geminiImage } from '@tanstack/ai-gemini'
-
-const result = await generateImage({
-  adapter: geminiImage('gemini-3.1-flash-image-preview'),
-  prompt: 'A beautiful garden',
-  size: '16:9_4K',
-})
-```
-
-## Response Format
-
-The image generation result includes:
-
-```typescript
-import type { TokenUsage } from '@tanstack/ai'
-
-interface ImageGenerationResult {
-  id: string // Unique identifier for this generation
-  model: string // The model used
-  images: GeneratedImage[] // Array of generated images
-  // Canonical TokenUsage (same shape as chat). Token-billed models also surface
-  // a per-modality breakdown on `promptTokensDetails` (e.g. text vs image input
-  // tokens for gpt-image-1). Usage-billed providers (fal) instead surface
-  // `usage.unitsBilled` — see the note below.
-  usage?: TokenUsage
-}
-
-interface GeneratedImage {
-  b64Json?: string // Base64 encoded image data
-  url?: string // URL to the image (OpenAI only)
-  revisedPrompt?: string // Revised prompt (OpenAI only)
-}
-```
-
-> **Cost tracking (fal):** fal bills by usage-based units rather than tokens. The
-> fal image adapter surfaces the real billed quantity as `usage.unitsBilled`
-> (read from fal's `x-fal-billable-units` result header). Multiply it by the
-> endpoint's unit price from
-> `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` for the exact cost —
-> no `fetch` interceptor needed.
-
-```typescript
-import { generateImage } from '@tanstack/ai'
-import { falImage } from '@tanstack/ai-fal'
-import { unitPrice } from './pricing'
-
-const result = await generateImage({
-  adapter: falImage('fal-ai/flux/dev'),
-  prompt: 'a serene mountain lake',
-})
-
-if (result.usage?.unitsBilled != null) {
-  const cost = result.usage.unitsBilled * unitPrice // unitPrice from fal pricing API
-  console.log(`Billed ${result.usage.unitsBilled} units (~$${cost})`)
-}
-```
-
-## Model Availability
-
-### OpenAI Models
-
-| Model | Images per Request |
-|-------|-------------------|
-| `gpt-image-2` | 1-10 |
-| `gpt-image-1` | 1-10 |
-| `gpt-image-1-mini` | 1-10 |
-| `dall-e-3` | 1 |
-| `dall-e-2` | 1-10 |
-
-### Gemini Native Models (NanoBanana)
-
-| Model | Description |
-|-------|-------------|
-| `gemini-3.1-flash-image-preview` | Latest and fastest Gemini native image generation |
-| `gemini-3.1-flash-lite-image` | Nano Banana 2 Lite — ultra-low-latency, low-cost image generation |
-| `gemini-3-pro-image-preview` | Higher quality Gemini native image generation |
-| `gemini-2.5-flash-image` | Gemini 2.5 Flash with image generation |
-
-### Gemini Imagen Models
-
-| Model | Images per Request |
-|-------|-------------------|
-| `imagen-4.0-ultra-generate-001` | 1-4 |
-| `imagen-4.0-generate-001` | 1-4 |
-| `imagen-4.0-fast-generate-001` | 1-4 |
-
-## Error Handling
-
-Image generation can fail for various reasons. The adapters validate inputs before making API calls:
-
-```typescript ignore
-import { generateImage } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
-
-try {
-  const result = await generateImage({
-    adapter: openaiImage('dall-e-3'),
-    prompt: 'A cat',
-    size: '512x512', // Invalid size for DALL-E 3 — throws at runtime
-  })
-} catch (error) {
-  if (error instanceof Error) {
-    console.error(error.message)
-    // "Size "512x512" is not supported by model "dall-e-3". 
-    //  Supported sizes: 1024x1024, 1792x1024, 1024x1792"
-  }
-}
-```
-
 ## Full-Stack Usage
 
 TanStack AI provides React hooks and server-side streaming helpers to build full-stack image generation with minimal boilerplate.
+
+> **Note:** To keep a batch across reloads, or to keep the images after the
+> provider's URLs expire, add [Generation Persistence](../persistence/generation-persistence).
 
 ### Streaming Mode (Server Route + Client Hook)
 
@@ -572,7 +431,46 @@ function ImageGenerator() {
 }
 ```
 
-### Direct Mode (Server Function + Fetcher)
+The other two transports (a server function returning JSON, or one returning an
+SSE `Response`) work the same way here. They are in
+[Advanced: other transports](#other-transports), and explained once in
+[Generations](./generations#transports-in-full).
+
+### Hook API
+
+The `useGenerateImage` hook accepts:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
+| `fetcher` | `(input) => Promise<ImageGenerationResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
+| `id` | `string` | Unique identifier for this instance |
+| `body` | `Record<string, any>` | Additional body parameters (connection mode) |
+| `onResult` | `(result) => TOutput \| null \| void` | Callback when images are generated. Optionally return a transformed value to store as `result` |
+| `onError` | `(error) => void` | Callback on error |
+| `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
+
+And returns:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `generate` | `(input: ImageGenerateInput) => Promise<void>` | Trigger generation |
+| `result` | `ImageGenerationResult \| null` | The result, or null |
+| `isLoading` | `boolean` | Whether generation is in progress |
+| `error` | `Error \| undefined` | Current error, if any |
+| `status` | `GenerationClientState` | `'idle'` \| `'generating'` \| `'success'` \| `'error'` |
+| `stop` | `() => void` | Abort the current generation |
+| `reset` | `() => void` | Clear result, error, and return to idle |
+
+> **Tip:** To trigger image generation from your React, Vue, or Svelte app with loading states and error handling, see [Generation Hooks](./generation-hooks).
+
+## Advanced
+
+Reference detail you do not need to get this working.
+
+### Other transports
+
+#### Direct Mode (Server Function + Fetcher)
 
 For non-streaming usage with TanStack Start server functions:
 
@@ -618,7 +516,7 @@ function ImageGenerator() {
 }
 ```
 
-### Server Function Streaming (Fetcher + Response)
+#### Server Function Streaming (Fetcher + Response)
 
 For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically:
 
@@ -666,42 +564,190 @@ function ImageGenerator() {
 }
 ```
 
-### Hook API
+### Model Options
 
-The `useGenerateImage` hook accepts:
+#### OpenAI Model Options
 
-| Option | Type | Description |
-|--------|------|-------------|
-| `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
-| `fetcher` | `(input) => Promise<ImageGenerationResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
-| `id` | `string` | Unique identifier for this instance |
-| `body` | `Record<string, any>` | Additional body parameters (connection mode) |
-| `onResult` | `(result) => TOutput \| null \| void` | Callback when images are generated. Optionally return a transformed value to store as `result` |
-| `onError` | `(error) => void` | Callback on error |
-| `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
+OpenAI models support model-specific Model Options:
 
-And returns:
+##### GPT-Image-2 / GPT-Image-1 / GPT-Image-1-Mini
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `generate` | `(input: ImageGenerateInput) => Promise<void>` | Trigger generation |
-| `result` | `ImageGenerationResult \| null` | The result, or null |
-| `isLoading` | `boolean` | Whether generation is in progress |
-| `error` | `Error \| undefined` | Current error, if any |
-| `status` | `GenerationClientState` | `'idle'` \| `'generating'` \| `'success'` \| `'error'` |
-| `stop` | `() => void` | Abort the current generation |
-| `reset` | `() => void` | Clear result, error, and return to idle |
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
 
-> **Tip:** To trigger image generation from your React, Vue, or Svelte app with loading states and error handling, see [Generation Hooks](./generation-hooks).
+const result = await generateImage({
+  adapter: openaiImage('gpt-image-2'),
+  prompt: 'A cat wearing a hat',
+  modelOptions: {
+    quality: 'high', // 'high' | 'medium' | 'low' | 'auto'
+    background: 'transparent', // 'transparent' | 'opaque' | 'auto'
+    output_format: 'png', // 'png' | 'jpeg' | 'webp'
+    moderation: 'low', // 'low' | 'auto'
+  }
+})
+```
 
-## Environment Variables
+##### DALL-E 3
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+const result = await generateImage({
+  adapter: openaiImage('dall-e-3'),
+  prompt: 'A futuristic car',
+  modelOptions: {
+    quality: 'hd', // 'hd' | 'standard'
+    style: 'vivid', // 'vivid' | 'natural'
+  }
+})
+```
+
+#### Gemini Imagen Model Options
+
+```typescript ignore
+import { generateImage } from '@tanstack/ai'
+import { geminiImage } from '@tanstack/ai-gemini'
+
+const result = await generateImage({
+  adapter: geminiImage('imagen-4.0-generate-001'),
+  prompt: 'A beautiful garden',
+  modelOptions: {
+    aspectRatio: '16:9',
+    // personGeneration accepts PersonGeneration enum values: 'DONT_ALLOW' | 'ALLOW_ADULT' | 'ALLOW_ALL'
+    personGeneration: 'ALLOW_ADULT',
+    negativePrompt: 'blurry, low quality',
+    addWatermark: true,
+    outputMimeType: 'image/png', // 'image/png' | 'image/jpeg' | 'image/webp'
+  }
+})
+```
+
+#### Gemini Native Model Options (NanoBanana)
+
+Gemini native image models accept `GenerateContentConfig` options directly in `modelOptions`:
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { geminiImage } from '@tanstack/ai-gemini'
+
+const result = await generateImage({
+  adapter: geminiImage('gemini-3.1-flash-image-preview'),
+  prompt: 'A beautiful garden',
+  size: '16:9_4K',
+})
+```
+
+### Response Format
+
+The image generation result includes:
+
+```typescript
+import type { TokenUsage } from '@tanstack/ai'
+
+interface ImageGenerationResult {
+  id: string // Unique identifier for this generation
+  model: string // The model used
+  images: GeneratedImage[] // Array of generated images
+  // Canonical TokenUsage (same shape as chat). Token-billed models also surface
+  // a per-modality breakdown on `promptTokensDetails` (e.g. text vs image input
+  // tokens for gpt-image-1). Usage-billed providers (fal) instead surface
+  // `usage.unitsBilled` — see the note below.
+  usage?: TokenUsage
+}
+
+interface GeneratedImage {
+  b64Json?: string // Base64 encoded image data
+  url?: string // URL to the image (OpenAI only)
+  revisedPrompt?: string // Revised prompt (OpenAI only)
+}
+```
+
+> **Cost tracking (fal):** fal bills by usage-based units rather than tokens. The
+> fal image adapter surfaces the real billed quantity as `usage.unitsBilled`
+> (read from fal's `x-fal-billable-units` result header). Multiply it by the
+> endpoint's unit price from
+> `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` for the exact cost —
+> no `fetch` interceptor needed.
+
+```typescript
+import { generateImage } from '@tanstack/ai'
+import { falImage } from '@tanstack/ai-fal'
+import { unitPrice } from './pricing'
+
+const result = await generateImage({
+  adapter: falImage('fal-ai/flux/dev'),
+  prompt: 'a serene mountain lake',
+})
+
+if (result.usage?.unitsBilled != null) {
+  const cost = result.usage.unitsBilled * unitPrice // unitPrice from fal pricing API
+  console.log(`Billed ${result.usage.unitsBilled} units (~$${cost})`)
+}
+```
+
+### Model Availability
+
+#### OpenAI Models
+
+| Model | Images per Request |
+|-------|-------------------|
+| `gpt-image-2` | 1-10 |
+| `gpt-image-1` | 1-10 |
+| `gpt-image-1-mini` | 1-10 |
+| `dall-e-3` | 1 |
+| `dall-e-2` | 1-10 |
+
+#### Gemini Native Models (NanoBanana)
+
+| Model | Description |
+|-------|-------------|
+| `gemini-3.1-flash-image-preview` | Latest and fastest Gemini native image generation |
+| `gemini-3.1-flash-lite-image` | Nano Banana 2 Lite — ultra-low-latency, low-cost image generation |
+| `gemini-3-pro-image-preview` | Higher quality Gemini native image generation |
+| `gemini-2.5-flash-image` | Gemini 2.5 Flash with image generation |
+
+#### Gemini Imagen Models
+
+| Model | Images per Request |
+|-------|-------------------|
+| `imagen-4.0-ultra-generate-001` | 1-4 |
+| `imagen-4.0-generate-001` | 1-4 |
+| `imagen-4.0-fast-generate-001` | 1-4 |
+
+### Error Handling
+
+Image generation can fail for various reasons. The adapters validate inputs before making API calls:
+
+```typescript ignore
+import { generateImage } from '@tanstack/ai'
+import { openaiImage } from '@tanstack/ai-openai'
+
+try {
+  const result = await generateImage({
+    adapter: openaiImage('dall-e-3'),
+    prompt: 'A cat',
+    size: '512x512', // Invalid size for DALL-E 3 — throws at runtime
+  })
+} catch (error) {
+  if (error instanceof Error) {
+    console.error(error.message)
+    // "Size "512x512" is not supported by model "dall-e-3". 
+    //  Supported sizes: 1024x1024, 1792x1024, 1024x1792"
+  }
+}
+```
+
+### Environment Variables
 
 The image adapters use the same environment variables as the text adapters:
 
 - **OpenAI**: `OPENAI_API_KEY`
 - **Gemini** (including NanoBanana): `GOOGLE_API_KEY` or `GEMINI_API_KEY`
+- **BytePlus** (Seedream): `ARK_API_KEY` or `BYTEPLUS_API_KEY`
 
-## Explicit API Keys
+### Explicit API Keys
 
 For production use or when you need explicit control:
 

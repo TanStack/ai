@@ -194,6 +194,59 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
     await sbx.destroy()
   })
 
+  it('still auto-generates a runId when none is supplied (non-durable, unchanged behavior)', async () => {
+    // This adapter does not journal, so `resolveDurableRunId` is routed
+    // through with `durable: false` (see `packages/ai-sandbox/src/durability.ts`
+    // and the Phase 3 plan's Task 5) purely so it inherits the enforcement
+    // once journaling lands, not to change today's behavior. Assert the
+    // fallback still fires: a generated, non-empty `runId` on `RUN_STARTED`.
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-acp-agent.mjs', FAKE_ACP_AGENT)
+
+    const chunks = await collect(
+      acpCompatibleText('pi-fast', {
+        name: 'pi',
+        command: () => 'node fake-acp-agent.mjs',
+      }).chatStream({
+        model: 'pi-fast',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const runStarted = chunks[0] as { type: string; runId?: string }
+    expect(runStarted.type).toBe('RUN_STARTED')
+    expect(typeof runStarted.runId).toBe('string')
+    expect(runStarted.runId?.length).toBeGreaterThan(0)
+
+    await sbx.destroy()
+  })
+
+  it('passes a caller-supplied runId through unchanged', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-acp-agent.mjs', FAKE_ACP_AGENT)
+
+    const chunks = await collect(
+      acpCompatibleText('pi-fast', {
+        name: 'pi',
+        command: () => 'node fake-acp-agent.mjs',
+      }).chatStream({
+        model: 'pi-fast',
+        runId: 'caller-supplied-run-id',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const runStarted = chunks[0] as { type: string; runId?: string }
+    expect(runStarted.type).toBe('RUN_STARTED')
+    expect(runStarted.runId).toBe('caller-supplied-run-id')
+
+    await sbx.destroy()
+  })
+
   it('resumes a session and sends only the trailing user message', async () => {
     const sbx = await provider.create({})
     await sbx.fs.write('/workspace/fake-acp-agent.mjs', FAKE_ACP_AGENT)

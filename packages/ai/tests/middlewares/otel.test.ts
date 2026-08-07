@@ -37,6 +37,7 @@ function makeGenCtx(
     source: 'server',
     context: undefined,
     createId: (prefix: string) => `${prefix}-1`,
+    resultTransforms: [],
     ...overrides,
   }
 }
@@ -196,6 +197,107 @@ describe('otelMiddleware — iteration span lifecycle', () => {
     expect(spans[2]!.ended).toBe(true)
     expect(spans[1]!.name).toBe('chat gpt-4o #0')
     expect(spans[2]!.name).toBe('chat gpt-4o #1')
+  })
+
+  // #1054 — no-tools + outputSchema skips the agent loop, so the only
+  // onConfig that fires is phase=structuredOutput. That must open a
+  // generation (iteration) span or captureContent is a silent no-op and
+  // backends that key off iteration spans (PostHog $ai_generation) see
+  // an empty trace.
+  it('opens an iteration span on onConfig(structuredOutput) — no-tools + outputSchema path', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer, captureContent: true })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    ctx.phase = 'structuredOutput'
+    await mw.onConfig?.(ctx, {
+      messages: [{ role: 'user', content: 'Describe this scene' }],
+      systemPrompts: [],
+      tools: [],
+    })
+
+    expect(spans).toHaveLength(2)
+    const [rootSpan, iterSpan] = spans
+    expect(iterSpan!.parent).toBe(rootSpan)
+    expect(iterSpan!.name).toBe('chat gpt-4o #0')
+    expect(iterSpan!.kind).toBe(SpanKind.CLIENT)
+    expect(iterSpan!.attributes['gen_ai.operation.name']).toBe('chat')
+    expect(iterSpan!.attributes['tanstack.ai.iteration']).toBe(0)
+    expect(iterSpan!.attributes['gen_ai.input.messages']).toBe(
+      JSON.stringify([{ role: 'user', content: 'Describe this scene' }]),
+    )
+
+    await mw.onChunk?.(ctx, ev.textContent('{"description":"a sunny park"}'))
+    await mw.onChunk?.(ctx, {
+      ...ev.runFinished('stop'),
+      model: 'gpt-4o',
+      usage: { promptTokens: 12, completionTokens: 8, totalTokens: 20 },
+    })
+    expect(iterSpan!.attributes['gen_ai.output.messages']).toBe(
+      JSON.stringify([
+        { role: 'assistant', content: '{"description":"a sunny park"}' },
+      ]),
+    )
+    expect(iterSpan!.attributes['gen_ai.usage.input_tokens']).toBe(12)
+
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 10,
+      content: '',
+    })
+    expect(iterSpan!.ended).toBe(true)
+    expect(rootSpan!.ended).toBe(true)
+  })
+
+  it('does not open an iteration span for non-model-call phases', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await mw.onStart?.(ctx)
+    for (const phase of [
+      'init',
+      'modelStream',
+      'beforeTools',
+      'afterTools',
+    ] as const) {
+      ctx.phase = phase
+      await mw.onConfig?.(ctx, {
+        messages: [],
+        systemPrompts: [],
+        tools: [],
+      })
+    }
+
+    // Root span only — none of those phases are a provider model call.
+    expect(spans).toHaveLength(1)
+  })
+
+  it('numbers structuredOutput finalization after a prior beforeModel span (#N+1)', async () => {
+    // Tools + outputSchema: agent loop opens #0, then finalization must open
+    // a distinct #1 rather than reusing ctx.iteration from the last turn.
+    const { tracer, spans } = createFakeTracer()
+    const mw = otelMiddleware({ tracer })
+    const ctx = makeCtx()
+
+    await runToIterationStart(mw, ctx)
+    await mw.onChunk?.(ctx, ev.runFinished('tool_calls'))
+    // Engine leaves ctx.iteration at 0 for finalization; middleware must
+    // still mint a distinct leaf.
+    ctx.phase = 'structuredOutput'
+    ctx.iteration = 0
+    await mw.onConfig?.(ctx, {
+      messages: [{ role: 'user', content: 'hi' }],
+      systemPrompts: [],
+      tools: [],
+    })
+
+    expect(spans).toHaveLength(3)
+    expect(spans[1]!.ended).toBe(true)
+    expect(spans[1]!.name).toBe('chat gpt-4o #0')
+    expect(spans[2]!.name).toBe('chat gpt-4o #1')
+    expect(spans[2]!.attributes['tanstack.ai.iteration']).toBe(1)
   })
 })
 

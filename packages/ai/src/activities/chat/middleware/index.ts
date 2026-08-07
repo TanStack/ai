@@ -3,6 +3,8 @@ export type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
   ChatMiddlewareConfig,
+  ChatResumeToolState,
+  ChatResumeGenericResolution,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
@@ -39,3 +41,27 @@ export type {
 } from './builder'
 export { validateCapabilities } from './validate'
 export type { AnyChatMiddleware } from './types'
+
+export {
+  LocksCapability,
+  getLocks,
+  provideLocks,
+  InMemoryLockStore,
+  withLocks,
+  defineLock,
+} from './locks'
+export type { LockStore } from './locks'
+
+export {
+  isRunStatus,
+  isTerminalRunStatus,
+  defineRunStore,
+  InMemoryRunStore,
+} from './run-store'
+export type {
+  RunStatus,
+  TerminalRunStatus,
+  RunRecord,
+  RunError,
+  RunStore,
+} from './run-store'

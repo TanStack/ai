@@ -59,4 +59,39 @@ test.describe('openai — shell tool skills wire format', () => {
       },
     })
   })
+
+  test('free-form map tools use the non-strict wire format', async ({
+    request,
+  }) => {
+    const res = await request.post('/api/openai-shell-skills-wire')
+    expect(res.ok()).toBe(true)
+    const { ok, error, capturedRequest } = (await res.json()) as {
+      ok: boolean
+      error?: string
+      capturedRequest: {
+        body: Record<string, unknown> | null
+      } | null
+    }
+
+    if (!ok) {
+      throw new Error(`Route failed: ${error}`)
+    }
+
+    const body = capturedRequest?.body
+    const tools = body?.['tools'] as Array<Record<string, unknown>> | undefined
+    const mapTool = tools?.find((tool) => tool['name'] === 'store_labels')
+
+    expect(mapTool).toMatchObject({
+      type: 'function',
+      name: 'store_labels',
+      strict: false,
+      parameters: {
+        properties: {
+          labels: {
+            additionalProperties: { type: 'string' },
+          },
+        },
+      },
+    })
+  })
 })

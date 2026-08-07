@@ -211,6 +211,7 @@ function isToolCallIncluded(part: ToolCallPart): boolean {
   return (
     part.state === 'input-complete' ||
     part.state === 'complete' ||
+    part.state === 'approval-requested' ||
     part.state === 'approval-responded' ||
     part.state === 'error' ||
     part.output !== undefined
@@ -614,12 +615,13 @@ export function modelMessagesToUIMessages(
         })
       } else {
         // No assistant message to merge into, create a standalone one
-        const toolResultUIMessage = modelMessageToUIMessage(msg)
+        const toolResultUIMessage = modelMessageToUIMessage(msg, msg.id)
         uiMessages.push(toolResultUIMessage)
       }
     } else {
-      // Regular message
-      const uiMessage = modelMessageToUIMessage(msg)
+      // Regular message. Preserve a persisted stable id so a hydrated message
+      // keeps the same identity as its live stream (enables in-place resume).
+      const uiMessage = modelMessageToUIMessage(msg, msg.id)
       uiMessages.push(uiMessage)
 
       // Track assistant messages for potential tool result merging

@@ -3,9 +3,9 @@ id: ToolDefinitionConfig
 title: ToolDefinitionConfig
 ---
 
-# Interface: ToolDefinitionConfig\<TInput, TOutput, TName\>
+# Interface: ToolDefinitionConfig\<TInput, TOutput, TName, TNeedsApproval\>
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:99](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L99)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L107)
 
 Tool definition configuration
 
@@ -23,6 +23,10 @@ Tool definition configuration
 
 `TName` *extends* `string` = `string`
 
+### TNeedsApproval
+
+`TNeedsApproval` *extends* `boolean` = `false`
+
 ## Properties
 
 ### description
@@ -31,7 +35,7 @@ Tool definition configuration
 description: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:105](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L105)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:114](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L114)
 
 ***
 
@@ -41,7 +45,7 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:105](https
 optional inputSchema: TInput;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:106](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L106)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:115](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L115)
 
 ***
 
@@ -51,7 +55,7 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:106](https
 optional lazy: boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:109](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L109)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:118](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L118)
 
 ***
 
@@ -61,7 +65,7 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:109](https
 optional metadata: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:110](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L110)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:119](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L119)
 
 ***
 
@@ -71,17 +75,17 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:110](https
 name: TName;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L104)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:113](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L113)
 
 ***
 
 ### needsApproval?
 
 ```ts
-optional needsApproval: boolean;
+optional needsApproval: TNeedsApproval;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:108](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L108)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:117](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L117)
 
 ***
 
@@ -91,4 +95,4 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:108](https
 optional outputSchema: TOutput;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L107)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:116](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L116)

@@ -165,7 +165,7 @@ export class ElevenLabsTranscriptionAdapter<
     // The SDK types this as a union of single- and multi-channel responses.
     // We treat multi-channel as "join the channel transcripts" — consumers
     // who care about per-channel detail can re-parse from `modelOptions`.
-    // eslint-disable-next-line no-restricted-syntax -- bridges SpeechToTextConvertResponse union (incl. webhook variant with no text/words/transcripts) to a flattened duck-typed shape we discriminate at runtime
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- bridges SpeechToTextConvertResponse union (incl. webhook variant with no text/words/transcripts) to a flattened duck-typed shape we discriminate at runtime
     const data = response as unknown as {
       text?: string
       languageCode?: string

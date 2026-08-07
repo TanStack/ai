@@ -42,7 +42,7 @@ import type { MistralClientConfig } from '../utils/client'
 /** Cast an event object to StreamChunk. Adapters construct events with string
  *  literal types which are structurally compatible with the EventType enum. */
 const asChunk = (chunk: Record<string, unknown>) =>
-  // eslint-disable-next-line no-restricted-syntax -- Record<string, unknown> doesn't structurally overlap the StreamChunk discriminated union; events are built with literal `type` fields the union accepts at runtime
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- Record<string, unknown> doesn't structurally overlap the StreamChunk discriminated union; events are built with literal `type` fields the union accepts at runtime
   chunk as unknown as StreamChunk
 
 /**

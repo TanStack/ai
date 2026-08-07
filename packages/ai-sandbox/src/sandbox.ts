@@ -9,11 +9,13 @@
 import { bootstrapWorkspace } from './bootstrap'
 import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'
-import { InMemoryLockStore, InMemorySandboxStore } from './store'
+import { InMemoryLockStore } from '@tanstack/ai/locks'
+import type { LockStore } from '@tanstack/ai/locks'
 import type { SandboxFileHookEvent } from '@tanstack/ai'
+import { InMemorySandboxInstanceStore } from './instance-store'
+import type { SandboxInstanceStore } from './instance-store'
 import type { SandboxHandle, SandboxProvider } from './contracts'
 import type { SandboxKeyInput } from './key'
-import type { LockStore, SandboxStore } from './store'
 import type { SandboxPolicy } from './policy'
 import type { WorkspaceDefinition } from './workspace'
 
@@ -69,7 +71,7 @@ export interface SandboxEnsureContext {
   threadId: string
   runId: string
   /** Persistence seam; falls back to an in-memory store when absent. */
-  store?: SandboxStore
+  store?: SandboxInstanceStore
   /** Lock seam; falls back to an in-memory lock when absent. */
   locks?: LockStore
   tenant?: { userId?: string; orgId?: string }
@@ -109,9 +111,16 @@ function parseMaxAgeMs(value: string | undefined): number | undefined {
   return undefined
 }
 
+/**
+ * Bound for the unfenced teardown `destroy` call (see `destroy` below). Long
+ * enough that a slow provider API still completes, short enough that a wedged
+ * one cannot pin the process forever.
+ */
+const DESTROY_TIMEOUT_MS = 60 * 1000
+
 // Process-lifetime fallbacks shared across all definitions so concurrent
 // ensures for the same key serialize even without an injected store/lock.
-const fallbackStore = new InMemorySandboxStore()
+const fallbackStore = new InMemorySandboxInstanceStore()
 const fallbackLocks = new InMemoryLockStore()
 
 export function defineSandbox(config: SandboxConfig): SandboxDefinition {
@@ -242,10 +251,31 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     const key = computeSandboxKey(keyInputFor(ctx))
     const existing = await store.get(key)
     if (!existing) return
-    await config.provider.destroy({
-      id: existing.providerSandboxId,
-      signal: ctx.signal,
-    })
+    /*
+     * TEARDOWN IS DELIBERATELY NOT FENCED BY `ctx.signal`.
+     *
+     * `destroy` runs on every teardown path INCLUDING the one caused by that
+     * very signal aborting, so forwarding it hands the provider a signal that is
+     * already aborted: a provider that honors it does nothing and returns
+     * successfully, and `store.delete` below then removes the only pointer to a
+     * live, billed sandbox. `SandboxInstanceStore` has no `list` (see the note
+     * at the top of `reclaim.ts`), so that sandbox is unreachable from then on.
+     *
+     * Same reasoning as `close()` never being fenced by the run claim (see
+     * `fenceDurability` in `claim.ts`): cleanup must outlive whatever cancelled
+     * the work. A fresh controller with its own bounded timeout keeps the call
+     * from hanging forever without letting the caller's abort cancel it.
+     */
+    const teardown = new AbortController()
+    const timer = setTimeout(() => teardown.abort(), DESTROY_TIMEOUT_MS)
+    try {
+      await config.provider.destroy({
+        id: existing.providerSandboxId,
+        signal: teardown.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
     await store.delete(key)
   }
 

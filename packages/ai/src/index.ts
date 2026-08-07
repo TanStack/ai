@@ -45,12 +45,43 @@ export {
   type ToolDefinitionInstance,
   type ToolDefinitionConfig,
   type ServerTool,
+  type AnyServerTool,
   type ClientTool,
   type AnyClientTool,
   type InferToolName,
   type InferToolInput,
   type InferToolOutput,
+  type ApprovalCapabilityOf,
+  type ApprovalSchemaConfig,
+  type ApprovalSchemaOf,
+  type InputSchemaOf,
+  type OutputSchemaOf,
+  type NoSchema,
 } from './activities/chat/tools/tool-definition'
+export {
+  hashSchemaInput,
+  normalizeApprovalSchema,
+  type NormalizedApprovalSchema,
+  type NormalizedSchemaInput,
+} from './activities/chat/tools/approval-schema'
+export {
+  canonicalInterruptJson,
+  cloneAndDeepFreezeJson,
+  digestInterruptJson,
+} from './interrupt-serialization'
+export {
+  INTERRUPT_BINDING_METADATA_KEY,
+  InterruptResumeValidationError,
+  interruptItemError,
+  readInterruptBinding,
+  readUnopenedInterruptBinding,
+  validateInterruptResumeBatch,
+  withInterruptBinding,
+  withoutInterruptBinding,
+  type PendingInterruptResumeRecord,
+  type ValidateInterruptResumeBatchInput,
+  type ValidatedInterruptResumeBatch,
+} from './interrupt-resume'
 
 // MCP chat option types
 export type {
@@ -67,6 +98,7 @@ export {
   convertSchemaToJsonSchema,
   isStandardSchema,
   parseWithStandardSchema,
+  validateWithStandardSchema,
   StandardSchemaValidationError,
 } from './activities/chat/tools/schema-converter'
 
@@ -75,9 +107,25 @@ export {
   streamToText,
   toServerSentEventsStream,
   toServerSentEventsResponse,
+  resumeServerSentEventsResponse,
   toHttpStream,
   toHttpResponse,
+  resumeHttpResponse,
+  resolveResumeRunId,
+  RUN_ACCEPTED_EVENT,
 } from './stream-to-response'
+// `ResumeResponseOptions` is deliberately not exported (it is a local type
+// alias), so the driver block reaches consumers as its own named type.
+export type { RunDriverOptions } from './stream-to-response'
+
+// Delivery durability (transport layer)
+export { memoryStream, replayRunStream } from './stream-durability'
+export type {
+  MemoryStreamInit,
+  MemoryStreamOptions,
+  StreamDurability,
+  UpsertableStreamDurability,
+} from './stream-durability'
 
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
@@ -110,6 +158,8 @@ export type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
   ChatMiddlewareConfig,
+  ChatResumeToolState,
+  ChatResumeGenericResolution,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
@@ -125,6 +175,28 @@ export type {
   ChatSandboxHooks,
 } from './activities/chat/middleware/index'
 
+// Interrupt protocol surface. Deliberately enumerated rather than
+// `export *`: the interrupt object is the seam between AI-domain pauses and
+// any future durable/workflow-owned approval model, so what we publish here is
+// a commitment. Only the ephemeral contract this release actually implements
+// is exported — no durable-recovery or persisted-state types, which would
+// pre-decide a question the orchestration RFC still owns.
+export {
+  INTERRUPT_BINDING_VERSION,
+  canonicalizeInterruptResolutions,
+} from './interrupts'
+export type {
+  BatchInterruptError,
+  BatchInterruptErrorCode,
+  InterruptBinding,
+  InterruptCorrelation,
+  InterruptSubmissionError,
+  ItemInterruptError,
+  ItemInterruptErrorCode,
+  ToolApprovalResolution,
+  UnopenedInterruptBinding,
+} from './interrupts'
+
 // Base, activity-agnostic middleware. The observe-only superset that media
 // activities accept via their `middleware` option; `ChatMiddleware` adds the
 // chat-only hooks on top. Pure types only — the `otelMiddleware` value lives at
@@ -139,6 +211,8 @@ export type {
   GenerationAbortInfo,
   GenerationErrorInfo,
   AnyGenerationMiddleware,
+  GenerationResultTransform,
+  GenerationResultTransformContext,
 } from './activities/middleware/index'
 // Capability primitives + middleware builder
 export {
@@ -155,9 +229,67 @@ export type {
   DefinedChatMiddleware,
   AnyChatMiddleware,
 } from './activities/chat/middleware/index'
+// Locks are a distributed-mutex primitive — coordination, not chat state — and
+// live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).
+
+// Run lifecycle types — shared by @tanstack/ai-persistence (the `runs` store)
+// and @tanstack/ai-sandbox (the run driver), so one record describes one run.
+export {
+  isRunStatus,
+  isTerminalRunStatus,
+  defineRunStore,
+  InMemoryRunStore,
+} from './activities/chat/middleware/index'
+export type {
+  RunStatus,
+  TerminalRunStatus,
+  RunRecord,
+  RunError,
+  RunStore,
+} from './activities/chat/middleware/index'
+// The detachable-run marker is a coordination fact `@tanstack/ai-sandbox`
+// provides and `@tanstack/ai-persistence` reads, so core owns it and neither
+// consumer package has to depend on the other.
+export {
+  DetachableRunCapability,
+  getDetachableRun,
+  provideDetachableRun,
+} from './activities/chat/middleware/run-store'
+// Its past-tense counterpart: the abort-path verdict that this run WAS detached.
+// `@tanstack/ai-sandbox`'s `onAbort` publishes it on its detach branch, and core's
+// durable delivery sink reads it to keep a detached run's log open for takeover.
+export {
+  RunDetachedCapability,
+  getRunDetached,
+  provideRunDetached,
+} from './activities/chat/middleware/run-store'
+// Out-of-band run cancellation: intent is recorded (durable) or carried on the
+// abort reason (in-process), never inferred from a disconnect.
+export {
+  RUN_CANCEL_REASON,
+  isCancelRequestedReason,
+  requestRunCancel,
+  wasCancelRequested,
+} from './activities/chat/cancel'
+
+// Well-known AG-UI CUSTOM event catalog (agent activity rides on CUSTOM events)
+export { CUSTOM_EVENT, isCustomEvent } from './custom-events'
+export type {
+  WellKnownCustomEventName,
+  FileChangedPayload,
+  ProcessOutputPayload,
+  PortOpenedPayload,
+  ApprovalRequestedPayload,
+  ApprovalResolvedPayload,
+  ArtifactCreatedPayload,
+  SandboxLifecyclePayload,
+} from './custom-events'
 
 // All types
 export * from './types'
+
+// Shared identity/isolation scope for the persistence + memory subsystems
+export type { Scope } from './scope'
 
 export {
   firstSentence,
@@ -248,6 +380,12 @@ export {
   chatParamsFromRequestBody,
   mergeAgentTools,
 } from './utilities/chat-params'
+export type {
+  ClientToolDeclaration,
+  MergedAgentTools,
+} from './utilities/chat-params'
+
+export { generationParamsFromBody, generationParamsFromRequest } from './client'
 
 // AG-UI wire serialization (used internally by @tanstack/ai-client)
 export { uiMessagesToWire } from './utilities/ag-ui-wire'

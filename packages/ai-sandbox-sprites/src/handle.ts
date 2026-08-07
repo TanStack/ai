@@ -43,6 +43,30 @@ export const SPRITES_CAPS: SandboxCapabilities = {
   // stdin channel here, so adapters that feed a prompt over stdin must deliver
   // it via a file + shell redirection instead.
   writableStdin: false,
+  // UNVERIFIED AGAINST A LIVE SPRITE, and deliberately still `true` — unlike the
+  // docker / local-process / vercel / daytona declarations, this one does NOT rest
+  // on a client-side detach. `spawnProcess.kill()` delegates to the exec stream's
+  // `kill()`, which resolves the session id (waiting up to 5s for the
+  // `session_info` frame) and issues a real SERVER-side
+  // `POST /v1/sprites/<name>/exec/<sessionId>/kill` BEFORE closing the socket; the
+  // caller's `signal` runs the same path. Dropping the WebSocket alone would be the
+  // proven-broken shape, and `client.ts` is explicit that it must not be (see
+  // `terminate`, and the two `client.test.ts` cases that assert the kill endpoint
+  // is hit — including when the kill races ahead of `session_info`).
+  //
+  // What is NOT established, and cannot be from here, is WHAT that endpoint
+  // signals. Sprites publishes no SDK or docs in this repo, so whether the kill is
+  // process-group-wide or pid-only is unknown, and `journalFollowCommand` is a
+  // three-statement command (`mkdir …; : >> …; tail -f …`) that no shell can
+  // exec-optimize — so the `tail -f` is necessarily a CHILD of the `bash -c` this
+  // handle spawns. A pid-only kill would therefore leak a `tail -f` per follow read,
+  // which is precisely the local-process defect. `killSession` also swallows a
+  // non-2xx response, so a refused kill is silent.
+  //
+  // Measuring it needs a live Sprite: `tests/journal.conformance.test.ts` registers
+  // the follow cases and runs them the moment `SPRITES_API_KEY` is present,
+  // reporting a NAMED skip until then. Do not read this `true` as measured.
+  killableProcesses: true,
   // Sprites checkpoints capture the writable filesystem overlay. Exposed via
   // `snapshot()` (create) and the provider-specific `restoreCheckpoint()` /
   // `listCheckpoints()`. Note: restore is in-place on the same Sprite, and a

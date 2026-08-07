@@ -33,7 +33,9 @@ import type {
  * Scope (role) of an OTel span emitted by this middleware.
  *
  * - `chat` — the root span for a single `chat()` call
- * - `iteration` — one per agent-loop iteration (one model call)
+ * - `iteration` — one per provider model call (agent-loop `beforeModel`
+ *   turn, or the separate `structuredOutput` finalization when
+ *   `outputSchema` skips the agent loop — see #1054)
  * - `tool` — one per tool execution inside an iteration
  * - `generation` — the single span for a media activity call
  *   (`generateImage`, `generateVideo`, `generateSpeech`, …)
@@ -83,6 +85,7 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   audio: 'audio_generation',
   tts: 'text_to_speech',
   transcription: 'transcription',
+  summarize: 'summarize',
 }
 
 export interface OtelMiddlewareOptions {
@@ -400,7 +403,16 @@ export function otelMiddleware(
     },
 
     onConfig(ctx, config) {
-      if (ctx.phase !== 'beforeModel') return
+      // Open an iteration span for every provider model call:
+      // - `beforeModel`: agent-loop chatStream turns
+      // - `structuredOutput`: separate structured-output finalization
+      //   (no-tools + outputSchema skips the agent loop, so without this
+      //   phase there is no generation span and captureContent is a silent
+      //   no-op — see #1054).
+      // Native-combined mode never fires `structuredOutput`, so a run that
+      // already opened spans via `beforeModel` is not double-counted.
+      if (ctx.phase !== 'beforeModel' && ctx.phase !== 'structuredOutput')
+        return
       safeCall('otel.onConfig', () => {
         const state = stateByCtx.get(ctx)
         if (!state) return
@@ -410,20 +422,26 @@ export function otelMiddleware(
         // on it. Close it here, just before opening the next iteration.
         closeIterationSpan(state, ctx)
 
+        // Number spans by the order of model calls this middleware has seen,
+        // not by `ctx.iteration`. After an agent-loop turn, structured-output
+        // finalization reuses the engine's last iteration index; using our
+        // own counter keeps finalization as a distinct leaf (#N+1).
+        const iteration = state.iterationCount
+
         const info: OtelSpanInfo<'iteration'> = {
           kind: 'iteration',
           ctx,
-          iteration: ctx.iteration,
+          iteration,
         }
         const name =
           safeCall('otel.spanNameFormatter', () => spanNameFormatter?.(info)) ??
-          `chat ${ctx.model} #${ctx.iteration}`
+          `chat ${ctx.model} #${iteration}`
 
         const baseAttrs: Record<string, AttributeValue> = {
           'gen_ai.system': ctx.provider,
           'gen_ai.operation.name': 'chat',
           'gen_ai.request.model': ctx.model,
-          'tanstack.ai.iteration': ctx.iteration,
+          'tanstack.ai.iteration': iteration,
         }
         // Sampling options now live in provider-native `modelOptions`, and
         // providers spell them differently (e.g. `max_output_tokens`,

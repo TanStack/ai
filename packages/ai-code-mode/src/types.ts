@@ -285,6 +285,7 @@ export interface CodeModeToolResult {
         message: string
         name?: string | undefined
         line?: number | undefined
+        stack?: string | undefined
       }
     | undefined
 }

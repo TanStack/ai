@@ -65,12 +65,28 @@ export type {
   UIMessage,
   ChatRequestBody,
   MultimodalContent,
+  QueueConfig,
+  QueuedMessage,
+  QueueOption,
+  QueueStrategy,
+  SendMessageOptions,
+  WhenBusy,
   ReactiveOption,
 } from './types'
 
 // Re-export from @tanstack/ai-client for convenience
 export {
   fetchServerSentEvents,
+  localStoragePersistence,
+  sessionStoragePersistence,
+  indexedDBPersistence,
+  StorageUnavailableError,
+  type ChatClientPersistence,
+  type ChatPersistedState,
+  type ChatPersistenceOption,
+  type ChatStorageAdapter,
+  type WebStoragePersistenceOptions,
+  type IndexedDBPersistenceOptions,
   fetchHttpStream,
   xhrServerSentEvents,
   xhrHttpStream,

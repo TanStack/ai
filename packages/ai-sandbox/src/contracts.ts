@@ -36,6 +36,19 @@ export interface SandboxCapabilities {
    * file + shell redirection.
    */
   writableStdin: boolean
+  /**
+   * A spawned process can be forcibly terminated via {@link SpawnHandle.kill}
+   * and aborted mid-flight via the {@link ProcessOptions.signal} passed to
+   * {@link SandboxProcess.spawn}. `true` for host/Docker; some edge providers
+   * (e.g. Cloudflare) implement `kill()` as a no-op and drop the abort signal
+   * entirely, so a long-running follower process (e.g. `tail -f`) started
+   * there can never be stopped by the caller — only polled and abandoned.
+   * Callers MUST branch on this before relying on `kill`/abort to reclaim a
+   * background process: a bring-your-own provider that omits it would
+   * otherwise be silently treated as killable, leaking an unstoppable process
+   * inside the sandbox.
+   */
+  killableProcesses: boolean
   /** Capture/restore filesystem snapshots via {@link SandboxHandle.snapshot}. */
   snapshots: boolean
   /** Declarative network egress allow/deny policy. */

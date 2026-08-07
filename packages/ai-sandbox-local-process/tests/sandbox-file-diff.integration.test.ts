@@ -91,7 +91,11 @@ async function waitFor(
  */
 async function retryOnFailure(
   fn: () => Promise<void>,
-  attempts = 20,
+  // ~6s of budget. The previous 20×100ms (2s) was enough unloaded but exhausted
+  // under parallel load, failing teardown with EBUSY on a directory the OS was
+  // about to release anyway. Retrying longer costs nothing when it succeeds on
+  // the first attempt, which is the normal case.
+  attempts = 60,
   delayMs = 100,
 ): Promise<void> {
   for (let i = 0; i < attempts; i += 1) {
@@ -231,5 +235,9 @@ describe('sandbox.file + sandbox.file.diff — real localProcessSandbox integrat
       // `retryOnFailure` above for why this can't be a bare await on Windows.
       await retryOnFailure(() => seedHandle.destroy())
     }
-  }, 15000)
+    // Real `git init`/`git add`/`git diff` shell-outs plus a watcher: ~2.2s
+    // unloaded, but it timed out at the previous 15s under parallel load. The
+    // assertions are on the emitted chunks, never on latency, so the deadline
+    // was measuring the machine. 30s matches the rest of this package.
+  }, 30_000)
 })

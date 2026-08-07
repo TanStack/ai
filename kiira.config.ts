@@ -46,6 +46,7 @@ export default defineConfig({
     hono: '^4.0.0',
     '@hono/node-server': '^2.0.0',
     redis: '^6.0.0',
+    ioredis: '^5.0.0',
     pino: '^10.0.0',
     '@opentelemetry/api': '^1.9.0',
     // Community adapters (each documented page imports its published package)

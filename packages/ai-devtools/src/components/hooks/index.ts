@@ -1,4 +1,5 @@
 export { HookDashboard } from './HookDashboard'
 export { HookDetails } from './HookDetails'
 export { GenerationPanel, GenerationPreview } from './GenerationPanel'
+export { MemoryPanel } from './MemoryPanel'
 export { ToolFixtureForm } from './ToolFixtureForm'

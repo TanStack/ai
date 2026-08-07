@@ -1,4 +1,5 @@
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { makeFakeShellSpawn } from '../src/testkit/shell-spawn'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   ExecResult,
@@ -10,69 +11,12 @@ import type {
   SandboxRestoreInput,
   SandboxResumeInput,
   SnapshotRef,
-  SpawnHandle,
 } from '../src/contracts'
-
-/**
- * A minimal sentinel-driven fake `sh` for driving the persistent bootstrap
- * shell (see src/shell.ts). Every command succeeds; `pwd` answers
- * `/workspace`, `export -p` answers an empty env, so `forkState()` resolves.
- */
-function makeFakeShellSpawn(): SpawnHandle {
-  const queue: Array<string> = []
-  const waiters: Array<(result: IteratorResult<string>) => void> = []
-  let done = false
-
-  function emit(chunk: string): void {
-    const waiter = waiters.shift()
-    if (waiter !== undefined) {
-      waiter({ value: chunk, done: false })
-    } else {
-      queue.push(chunk)
-    }
-  }
-
-  const stdout: AsyncIterable<string> = {
-    [Symbol.asyncIterator](): AsyncIterator<string> {
-      return {
-        next(): Promise<IteratorResult<string>> {
-          const queued = queue.shift()
-          if (queued !== undefined) {
-            return Promise.resolve({ value: queued, done: false })
-          }
-          if (done) return Promise.resolve({ value: '', done: true })
-          return new Promise<IteratorResult<string>>((resolve) => {
-            waiters.push(resolve)
-          })
-        },
-      }
-    },
-  }
-
-  let counter = 0
-  return {
-    pid: 1,
-    stdout,
-    stderr: (async function* empty() {})(),
-    stdin: {
-      write: (data: string) => {
-        const sentinel = `__BSSH_${counter}__`
-        counter += 1
-        if (data.startsWith('pwd;')) emit('/workspace\n')
-        emit(`${sentinel} 0\n`)
-        return Promise.resolve()
-      },
-      end: () => {
-        done = true
-        for (const waiter of waiters) waiter({ value: '', done: true })
-        waiters.length = 0
-        return Promise.resolve()
-      },
-    },
-    wait: () => Promise.resolve(0),
-    kill: () => Promise.resolve(),
-  }
-}
+import type {
+  ChatMiddlewareContext,
+  StreamChunk,
+  StreamDurability,
+} from '@tanstack/ai'
 
 export const FULL_CAPS: SandboxCapabilities = {
   fs: true,
@@ -81,6 +25,7 @@ export const FULL_CAPS: SandboxCapabilities = {
   ports: true,
   backgroundProcesses: true,
   writableStdin: true,
+  killableProcesses: true,
   snapshots: true,
   networkPolicy: true,
   durableFilesystem: true,
@@ -253,4 +198,119 @@ export function captureLogger(): {
     },
   })
   return { logger, calls }
+}
+
+/**
+ * A `ChatMiddlewareContext` good enough to drive middleware directly (as
+ * `buildEnsureCtx` at `src/middleware.ts:131-144` reads it) without going
+ * through a real `chat()` call: `threadId`, `runId`, `context`, `signal`, plus
+ * a working capability bus.
+ *
+ * `get`/`getOptional`/`provide` are wired exactly like the production context
+ * builder (`packages/ai/src/activities/chat/index.ts` around `middlewareCtx`):
+ * each delegates to the capability handle's own tuple `get`/`provide`
+ * function, keyed by *this* ctx object's identity. So a capability actually
+ * `provide`d on this ctx (via `ctx.provide` or a handle's own `provideX`
+ * accessor) is actually read back by `get`/`getOptional` — a consumer test
+ * asserting on a provided capability is not exercising a stub that always
+ * answers the same way.
+ *
+ * The one exception is the `capabilities` field itself: production types it
+ * as the `CapabilityRegistry` class (`packages/ai/src/activities/chat/
+ * middleware/capabilities.ts`), which is not exported from any public
+ * `@tanstack/ai` subpath (not `.`, not `/adapter-internals`), so it cannot be
+ * `new`'d — or even named — from this package. Every consumer of a provided
+ * capability only ever calls `markProvided`/`has` on that field (see
+ * `capabilities.ts`'s `provide`), never its private bookkeeping, so the
+ * minimal stand-in below is functionally equivalent for anything this fake is
+ * used for; only the cast on that one field is needed, not on the ctx as a
+ * whole.
+ */
+export function makeMiddlewareCtx(input: {
+  threadId: string
+  runId: string
+}): ChatMiddlewareContext {
+  const controller = new AbortController()
+  const ctx: ChatMiddlewareContext = {
+    requestId: `req-${input.runId}`,
+    streamId: `stream-${input.runId}`,
+    runId: input.runId,
+    threadId: input.threadId,
+    conversationId: input.threadId,
+    phase: 'init',
+    iteration: 0,
+    chunkIndex: 0,
+    signal: controller.signal,
+    abort: (reason) => controller.abort(reason),
+    context: {},
+    defer: () => {},
+    activity: 'chat',
+    provider: 'fake',
+    model: 'fake-model',
+    source: 'server',
+    streaming: true,
+    systemPrompts: [],
+    toolNames: undefined,
+    options: undefined,
+    modelOptions: undefined,
+    messageCount: 0,
+    hasTools: false,
+    currentMessageId: null,
+    accumulatedContent: '',
+    messages: [],
+    createId: (prefix: string) =>
+      `${prefix}-${Math.random().toString(36).slice(2)}`,
+    capabilities: {
+      markProvided: () => {},
+      has: () => false,
+      setOnDuplicate: () => {},
+    } as unknown as ChatMiddlewareContext['capabilities'],
+    get: (capability) => capability[0](ctx),
+    getOptional: (capability) => capability[0](ctx, { optional: true }),
+    provide: (capability, value) => capability[1](ctx, value),
+  }
+  return ctx
+}
+
+/**
+ * A controllable {@link StreamDurability}. `snapshot()` reflects whatever is
+ * seeded via `entries` plus anything since appended, in order — it is NOT a
+ * constant `[]`, so a test asserting alignment/resume behavior against
+ * `fakeLog().snapshot()` is checking real accumulated state, not a stub that
+ * happens to always look empty.
+ */
+export function fakeLog(entries: Array<StreamChunk> = []): StreamDurability {
+  const stored = [...entries]
+  return {
+    resumeFrom: () => null,
+    append: (chunks) => {
+      const start = stored.length
+      stored.push(...chunks)
+      return Promise.resolve(chunks.map((_, i) => `o:${start + i}`))
+    },
+    read: () => (async function* empty() {})(),
+    close: () => Promise.resolve(),
+    snapshot: () =>
+      Promise.resolve(stored.map((chunk, i) => ({ offset: `o:${i}`, chunk }))),
+  }
+}
+
+/** Drain an `AsyncIterable<StreamChunk>` to an array of chunk objects. */
+export async function collectChunks(
+  iter: AsyncIterable<StreamChunk>,
+): Promise<Array<StreamChunk>> {
+  const out: Array<StreamChunk> = []
+  for await (const chunk of iter) out.push(chunk)
+  return out
+}
+
+/** An `AsyncIterable<StreamChunk>` that yields exactly the given chunks. */
+export function fromChunkValues(
+  chunks: Array<StreamChunk>,
+): AsyncIterable<StreamChunk> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      for (const chunk of chunks) yield chunk
+    },
+  }
 }

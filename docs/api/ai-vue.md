@@ -316,7 +316,7 @@ const { generate, result, isLoading, error, status, stop, reset } =
 
 **Options:** `connection?`, `fetcher?`, `id?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset` -- all reactive state is `DeepReadonly<ShallowRef<T>>`.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId` -- all reactive state is `DeepReadonly<ShallowRef<T>>`.
 
 ### `useGenerateImage(options)`
 

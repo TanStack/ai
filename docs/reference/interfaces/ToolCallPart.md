@@ -21,7 +21,7 @@ Defined in: [packages/ai/src/types.ts:370](https://github.com/TanStack/ai/blob/m
 optional approval: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:377](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L377)
+Defined in: [packages/ai/src/types.ts:386](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L386)
 
 Approval metadata if tool requires user approval
 
@@ -65,13 +65,30 @@ Defined in: [packages/ai/src/types.ts:372](https://github.com/TanStack/ai/blob/m
 
 ***
 
+### input?
+
+```ts
+optional input: unknown;
+```
+
+Defined in: [packages/ai/src/types.ts:383](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L383)
+
+Parsed tool input. Set from the parsed arguments once they are complete
+(`state: 'input-complete'` and later). `undefined` while the raw
+`arguments` string is still streaming, and may stay `undefined` for a call
+that terminates in an error state — the raw `arguments` string is always
+available as a fallback. Typed per-tool on the client `ToolCallPart` (see
+`@tanstack/ai-client`); `unknown` on this base type.
+
+***
+
 ### metadata?
 
 ```ts
 optional metadata: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:388](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L388)
+Defined in: [packages/ai/src/types.ts:397](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L397)
 
 Provider-specific metadata that round-trips with the tool call.
 Typed per-adapter via `TToolCallMetadata`. May follow the
@@ -96,7 +113,7 @@ Defined in: [packages/ai/src/types.ts:373](https://github.com/TanStack/ai/blob/m
 optional output: any;
 ```
 
-Defined in: [packages/ai/src/types.ts:383](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L383)
+Defined in: [packages/ai/src/types.ts:392](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L392)
 
 Tool execution output (for client tools or after approval)
 
@@ -108,7 +125,7 @@ Tool execution output (for client tools or after approval)
 state: ToolCallState;
 ```
 
-Defined in: [packages/ai/src/types.ts:375](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L375)
+Defined in: [packages/ai/src/types.ts:384](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L384)
 
 ***
 

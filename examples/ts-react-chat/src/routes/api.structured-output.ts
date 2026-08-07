@@ -160,10 +160,10 @@ function adapterFor(provider: Provider, model?: string): AnyTextAdapter {
       // for the combination and falls back to the engine's legacy
       // finalization path.
       //
-      // Default is `gemini-3.5-flash`: the newest *stable* (non-preview)
+      // Default is `gemini-3.6-flash`: the newest *stable* (non-preview)
       // 3.x id, matching the dropdown's first entry. The previous default
       // (`gemini-3-pro-preview`) was retired by Google and now 404s.
-      return geminiText((baseModel || 'gemini-3.5-flash') as 'gemini-3.5-flash')
+      return geminiText((baseModel || 'gemini-3.6-flash') as 'gemini-3.6-flash')
     case 'grok':
       return grokText((model || 'grok-build-0.1') as 'grok-build-0.1')
     case 'groq':

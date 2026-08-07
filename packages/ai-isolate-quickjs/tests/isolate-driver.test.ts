@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { createQuickJSIsolateDriver } from '../src/isolate-driver'
+import { normalizeError } from '../src/error-normalizer'
 import type { ToolBinding } from '@tanstack/ai-code-mode'
 
 function makeBinding(
@@ -13,6 +14,31 @@ function makeBinding(
     execute,
   }
 }
+
+describe('normalizeError', () => {
+  it('normalizes dumped QuickJS interrupt errors as timeouts', () => {
+    expect(
+      normalizeError({
+        name: 'InternalError',
+        message: 'interrupted',
+        stack: 'guest stack',
+      }),
+    ).toEqual({
+      name: 'TimeoutError',
+      message: 'Code execution timed out',
+      stack: 'guest stack',
+    })
+  })
+
+  it('does not treat unrelated interrupted errors as timeouts', () => {
+    const error = new Error('operation interrupted')
+
+    expect(normalizeError(error)).toMatchObject({
+      name: 'Error',
+      message: 'operation interrupted',
+    })
+  })
+})
 
 describe('createQuickJSIsolateDriver', () => {
   describe('createContext', () => {
@@ -113,6 +139,72 @@ describe('createQuickJSIsolateDriver', () => {
       expect(result.value).toBe('AB')
     })
 
+    it('supports sequential awaits of the same asyncified host function', async () => {
+      // Regression test for https://github.com/justjake/quickjs-emscripten/issues/258
+      const calls: Array<string> = []
+      const get = makeBinding('get', async (args) => {
+        if (
+          typeof args !== 'object' ||
+          args === null ||
+          !('path' in args) ||
+          typeof args.path !== 'string'
+        ) {
+          throw new Error('Expected a path argument')
+        }
+
+        await new Promise<void>((resolve) => setTimeout(resolve, 0))
+        calls.push(args.path)
+        return { path: args.path }
+      })
+
+      const driver = createQuickJSIsolateDriver()
+      const context = await driver.createContext({ bindings: { get } })
+
+      try {
+        const result = await context.execute(`
+          const a = await get({ path: "/a" });
+          const b = await get({ path: "/b" });
+          return [a, b];
+        `)
+
+        expect(result.success).toBe(true)
+        expect(result.value).toEqual([{ path: '/a' }, { path: '/b' }])
+        expect(calls).toEqual(['/a', '/b'])
+      } finally {
+        await context.dispose()
+      }
+    })
+
+    it('supports concurrent tool calls via Promise.all', async () => {
+      const get = makeBinding('get', async (args) => {
+        await new Promise<void>((resolve) => setTimeout(resolve, 0))
+        return args
+      })
+
+      const driver = createQuickJSIsolateDriver()
+      const context = await driver.createContext({ bindings: { get } })
+
+      try {
+        const result = await context.execute(`
+          const [a, b, c] = await Promise.all([
+            get({ path: "/a" }),
+            get({ path: "/b" }),
+            get({ path: "/c" }),
+          ]);
+          return [a, b, c];
+        `)
+
+        expect(result.success).toBe(true)
+        expect(result.value).toEqual([
+          { path: '/a' },
+          { path: '/b' },
+          { path: '/c' },
+        ])
+      } finally {
+        await context.dispose()
+      }
+    })
+
     it('surfaces tool execution errors', async () => {
       const failTool = makeBinding('failTool', async () => {
         throw new Error('Tool failed')
@@ -148,7 +240,67 @@ describe('createQuickJSIsolateDriver', () => {
       `)
 
       expect(result.success).toBe(false)
-      expect(result.error?.name).toBeDefined()
+      expect(result.error?.name).toBe('TimeoutError')
+    })
+
+    it('disposes the context after a timeout so stale jobs cannot leak into later executions', async () => {
+      let resolveNever!: (value: unknown) => void
+      const neverResult = new Promise((resolve) => {
+        resolveNever = resolve
+      })
+      const never = makeBinding('never', () => neverResult)
+
+      const driver = createQuickJSIsolateDriver({ timeout: 100 })
+      const context = await driver.createContext({ bindings: { never } })
+
+      const first = await context.execute(`
+        await never({});
+        return 1;
+      `)
+      expect(first.success).toBe(false)
+      expect(first.error?.name).toBe('TimeoutError')
+
+      const second = await context.execute('return 42')
+      expect(second.success).toBe(false)
+      expect(second.error?.name).toBe('DisposedError')
+
+      await expect(context.dispose()).resolves.toBeUndefined()
+
+      resolveNever('late')
+      await new Promise((resolve) => setTimeout(resolve, 0))
+
+      const next = await driver.createContext({ bindings: {} })
+      const after = await next.execute('return 42')
+
+      expect(after.success).toBe(true)
+      expect(after.value).toBe(42)
+      await next.dispose()
+    })
+
+    it('safely disposes while an in-flight execution times out', async () => {
+      let markToolStarted!: () => void
+      const toolStarted = new Promise<void>((resolve) => {
+        markToolStarted = resolve
+      })
+      const never = makeBinding('never', () => {
+        markToolStarted()
+        return new Promise(() => {})
+      })
+
+      const driver = createQuickJSIsolateDriver({ timeout: 100 })
+      const context = await driver.createContext({ bindings: { never } })
+
+      const execution = context.execute(`
+        await never({});
+        return 1;
+      `)
+      await toolStarted
+
+      const disposal = context.dispose()
+      const [result] = await Promise.all([execution, disposal])
+
+      expect(result.success).toBe(false)
+      expect(result.error?.name).toBe('TimeoutError')
     })
   })
 
@@ -217,6 +369,47 @@ describe('createQuickJSIsolateDriver', () => {
       expect(result.error?.name).toBe('DisposedError')
       expect(result.error?.message).toContain('disposed')
     })
+
+    it('disposes cleanly while an abandoned tool call is still in flight', async () => {
+      // A guest program can settle while a tool call is still awaiting its
+      // host promise (e.g. a Promise.race loser). Disposing the VM with that
+      // unsettled deferred used to abort the shared WASM module in
+      // JS_FreeRuntime (`list_empty(&rt->gc_obj_list)`), breaking every
+      // later context in the process.
+      const driver = createQuickJSIsolateDriver()
+      let resolveSlow!: (value: unknown) => void
+      const slow = new Promise((resolve) => {
+        resolveSlow = resolve
+      })
+      const context = await driver.createContext({
+        bindings: {
+          fast: makeBinding('fast', async () => 'fast'),
+          slow: makeBinding('slow', () => slow),
+        },
+      })
+
+      const result = await context.execute(
+        'return await Promise.race([slow({}), fast({})])',
+      )
+
+      expect(result.success).toBe(true)
+      expect(result.value).toBe('fast')
+
+      await expect(context.dispose()).resolves.toBeUndefined()
+
+      // The shared WASM module must still be healthy for later contexts.
+      const next = await driver.createContext({
+        bindings: { fast: makeBinding('fast', async () => 'ok') },
+      })
+      const after = await next.execute('return await fast({})')
+
+      expect(after.success).toBe(true)
+      expect(after.value).toBe('ok')
+
+      await next.dispose()
+      // The host promise settling after disposal must be a no-op.
+      resolveSlow('late')
+    })
   })
 
   describe('memory isolation', () => {
@@ -265,6 +458,31 @@ describe('createQuickJSIsolateDriver', () => {
       expect(result.success).toBe(false)
       expect(result.error?.name).toBe('MemoryLimitError')
       expect(result.error?.message).toContain('memory limit')
+    })
+
+    it('keeps shared WASM healthy after OOM with an in-flight tool', async () => {
+      const driver = createQuickJSIsolateDriver({ memoryLimit: 1 })
+      const context = await driver.createContext({
+        bindings: {
+          hang: makeBinding('hang', () => new Promise(() => {})),
+        },
+        memoryLimit: 1,
+      })
+
+      const result = await context.execute(`
+        hang({});
+        return "x".repeat(8 * 1024 * 1024);
+      `)
+
+      expect(result.success).toBe(false)
+      expect(result.error?.name).toBe('MemoryLimitError')
+
+      const next = await driver.createContext({ bindings: {} })
+      const after = await next.execute('return 42')
+
+      expect(after.success).toBe(true)
+      expect(after.value).toBe(42)
+      await next.dispose()
     })
 
     it('dispose is safe after memory limit error', async () => {

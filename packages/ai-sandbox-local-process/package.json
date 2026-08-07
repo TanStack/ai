@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-local-process",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Local-process sandbox provider for TanStack AI — runs the agent directly on the host through the uniform SandboxHandle (no isolation; trusted/dev use).",
   "author": "",
   "license": "MIT",
@@ -33,9 +33,9 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"

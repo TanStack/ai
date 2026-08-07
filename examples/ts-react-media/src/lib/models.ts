@@ -87,6 +87,15 @@ export const IMAGE_MODELS = [
     sizeType: 'standard' as const,
     provider: 'gemini' as const,
   },
+  {
+    id: 'dola-seedream-5-0-pro-260628',
+    name: 'Seedream 5.0 Pro',
+    description:
+      'BytePlus Seedream image generation, sized with a 1K/2K/4K token',
+    defaultSize: '2K' as const,
+    sizeType: 'standard' as const,
+    provider: 'byteplus' as const,
+  },
 ] as const
 
 export const VIDEO_MODELS = [
@@ -177,6 +186,14 @@ export const VIDEO_MODELS = [
       'Animate an image with Gemini Omni Flash via the Interactions API',
     mode: 'image-to-video' as const,
     provider: 'gemini' as const,
+  },
+  {
+    id: 'dreamina-seedance-2-0-260128',
+    name: 'Seedance 2.0 (Text-to-Video)',
+    description:
+      'BytePlus Seedance text-to-video (4-15s, 480p/720p/1080p/4k) via ModelArk',
+    mode: 'text-to-video' as const,
+    provider: 'byteplus' as const,
   },
 ] as const
 

@@ -62,6 +62,17 @@ function resolves(fromFile, specifier) {
 
 const IMPORT_RE = /(?:from|import)\s*\(?\s*['"](\.\.?\/[^'"]+)['"]/g
 
+/**
+ * Strip block and line comments so import statements inside JSDoc `@example`
+ * fences (which the declaration emit also rewrites to `.js` specifiers) are
+ * not scanned as real imports.
+ *
+ * @param {string} src
+ */
+function stripComments(src) {
+  return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+}
+
 const packageNames = existsSync(PACKAGES_DIR)
   ? readdirSync(PACKAGES_DIR).filter((name) => {
       try {
@@ -77,10 +88,14 @@ const dists = packageNames
   .filter((dir) => existsSync(dir))
 
 if (dists.length === 0) {
-  console.error(
-    'scan-dangling-dts: no packages/*/dist directories found. Build packages first (e.g. pnpm build:all).',
+  // No built declarations to scan. This is the normal state when `nx affected`
+  // built nothing — e.g. a docs / skill / CI-only PR that touches no package.
+  // There are no `.d.ts` files, so nothing could have regressed; skip cleanly.
+  // (Running standalone? Build first — `pnpm build:all` — then re-run.)
+  console.log(
+    'scan-dangling-dts: no packages/*/dist directories found — nothing to scan (no packages built). Skipping.',
   )
-  process.exit(1)
+  process.exit(0)
 }
 
 /** @type {string[]} */
@@ -90,7 +105,7 @@ let filesScanned = 0
 for (const dist of dists) {
   for (const file of walkDts(dist)) {
     filesScanned += 1
-    const src = readFileSync(file, 'utf8')
+    const src = stripComments(readFileSync(file, 'utf8'))
     IMPORT_RE.lastIndex = 0
     let match
     while ((match = IMPORT_RE.exec(src))) {
