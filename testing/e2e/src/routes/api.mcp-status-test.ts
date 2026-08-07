@@ -4,7 +4,6 @@ import {
   mcpPromptToMessages,
   mcpResourceToContentPart,
 } from '@tanstack/ai-mcp'
-import type { McpToolMetadata } from '@tanstack/ai-mcp'
 
 /**
  * Capability-probe endpoint for the in-process MCP server (`api.mcp-server`).
@@ -35,17 +34,14 @@ export const Route = createFileRoute('/api/mcp-status-test')({
           const discovered = await client.tools()
           const tools = discovered.map((t) => t.name)
           // The server's display title + behavior annotations, as forwarded
-          // onto `metadata.mcp` by discovery. `metadata` is `Record<string,
-          // any>`, so annotate the read with the public `McpToolMetadata`
-          // shape instead of casting.
-          const toolMeta = discovered.map((t) => {
-            const mcp: McpToolMetadata | undefined = t.metadata?.mcp
-            return {
-              name: t.name,
-              title: mcp?.title,
-              annotations: mcp?.annotations,
-            }
-          })
+          // onto `metadata.mcp` by discovery. `tools()` returns
+          // `McpServerTool`s, so this reads straight through — typed, no
+          // annotation, no cast.
+          const toolMeta = discovered.map((t) => ({
+            name: t.name,
+            title: t.metadata.mcp.title,
+            annotations: t.metadata.mcp.annotations,
+          }))
 
           const resourceList = await client.resources().catch(() => [])
           const resourceContent: Array<unknown> = []

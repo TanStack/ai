@@ -12,7 +12,6 @@ import {
   makeServerWithWeatherTool,
 } from './helpers/in-memory-server'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
-import type { McpToolMetadata } from '../src/types'
 
 describe('createMCPClient', () => {
   it('connects and returns discovered tools', async () => {
@@ -109,7 +108,7 @@ describe('createMCPClient', () => {
     const tools = await client.tools([getWeather])
     // The runtime name is prefixed, but the UNPREFIXED native name + serverId
     // must be recoverable from metadata (mirrors auto-discovery).
-    expect(tools[0].metadata?.mcp).toMatchObject({
+    expect(tools[0].metadata.mcp).toMatchObject({
       serverToolName: 'get_weather',
       serverId: 'wx',
     })
@@ -119,8 +118,10 @@ describe('createMCPClient', () => {
     const { clientTransport } = await makeServerWithAnnotatedTool()
     await using client = await createMCPClientFromTransport(clientTransport)
     const tool = (await client.tools()).find((t) => t.name === 'get_weather')!
-    const mcp: McpToolMetadata | undefined = tool.metadata?.mcp
-    expect(mcp?.annotations).toEqual({
+    // `tools()` returns `McpServerTool`s — the read is typed as
+    // `McpToolMetadata` with no annotation and no optional chaining.
+    const mcp = tool.metadata.mcp
+    expect(mcp.annotations).toEqual({
       title: 'Legacy Weather Title',
       readOnlyHint: true,
       destructiveHint: false,
@@ -128,7 +129,7 @@ describe('createMCPClient', () => {
       openWorldHint: true,
     })
     // Top-level `title` wins over the legacy `annotations.title`.
-    expect(mcp?.title).toBe('Weather Lookup')
+    expect(mcp.title).toBe('Weather Lookup')
   })
 
   it('forwards server annotations + display title on bound definitions', async () => {
@@ -144,9 +145,9 @@ describe('createMCPClient', () => {
     // The explicit path binds the caller's definition, but the SERVER's
     // annotations still have to reach the host (mirrors auto-discovery).
     const tools = await client.tools([getWeather])
-    const mcp: McpToolMetadata | undefined = tools[0].metadata?.mcp
-    expect(mcp?.annotations?.readOnlyHint).toBe(true)
-    expect(mcp?.title).toBe('Weather Lookup')
+    const mcp = tools[0].metadata.mcp
+    expect(mcp.annotations?.readOnlyHint).toBe(true)
+    expect(mcp.title).toBe('Weather Lookup')
   })
 
   it('excludes task-required tools from auto-discovery', async () => {

@@ -3,6 +3,7 @@ export type { MCPClient } from './client'
 export type {
   AnyToolDefinition,
   MappedServerTools,
+  McpServerTool,
   McpToolMetadata,
   MCPClientOptions,
   ServerDescriptor,

@@ -3,8 +3,8 @@ import type {
   Tool as McpToolDef,
   ToolAnnotations,
 } from '@modelcontextprotocol/sdk/types.js'
-import type { ContentPart, ServerTool } from '@tanstack/ai'
-import type { McpToolMetadata } from './types'
+import type { ContentPart } from '@tanstack/ai'
+import type { McpServerTool, McpToolMetadata } from './types'
 
 interface ConvertOptions {
   prefix?: string
@@ -155,12 +155,12 @@ export function toServerTools(
   client: Client,
   defs: Array<McpToolDef>,
   options: ConvertOptions,
-): Array<ServerTool> {
+): Array<McpServerTool> {
   return defs
     .filter((def) => !requiresTaskExecution(def))
     .map((def) => {
       const name = options.prefix ? `${options.prefix}_${def.name}` : def.name
-      const tool: ServerTool = {
+      const tool: McpServerTool = {
         __toolSide: 'server',
         name,
         description: def.description ?? '',

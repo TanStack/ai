@@ -13,8 +13,6 @@ import type {
   CallToolResult,
   Tool as McpToolDef,
 } from '@modelcontextprotocol/sdk/types.js'
-import type { ServerTool } from '@tanstack/ai'
-import type { McpToolMetadata } from '../src/types'
 
 /**
  * Build an MCP tool definition for `toServerTools`. The MCP-Apps `_meta.ui`
@@ -210,15 +208,6 @@ describe('makeMcpExecute', () => {
   })
 })
 
-/**
- * Read the `mcp` metadata block off a produced ServerTool. `metadata` is
- * `Record<string, any>` upstream, so the access is already `any` — annotating
- * the return documents the real shape without a cast.
- */
-function readToolMcpMeta(tool: ServerTool): McpToolMetadata {
-  return tool.metadata!.mcp
-}
-
 describe('toServerTools — MCP Apps metadata', () => {
   it('captures serverId (prefix) and the _meta.ui.resourceUri link', () => {
     const tool = toServerTools(
@@ -248,7 +237,9 @@ describe('toServerTools — MCP Apps metadata', () => {
       [mcpToolDef({ name: 't' })],
       {},
     )[0]!
-    const mcp = readToolMcpMeta(tool)
+    // `toServerTools` returns `McpServerTool`s, so `metadata.mcp` reads
+    // straight through — no annotation, no non-null assertion, no cast.
+    const mcp = tool.metadata.mcp
     expect(mcp.uiResourceUri).toBeUndefined()
     expect(mcp.serverId).toBeUndefined()
   })
@@ -268,7 +259,7 @@ describe('toServerTools — annotations + title', () => {
       [mcpToolDef({ name: 'get_weather', description: 'w', annotations })],
       {},
     )[0]!
-    expect(readToolMcpMeta(tool).annotations).toEqual(annotations)
+    expect(tool.metadata.mcp.annotations).toEqual(annotations)
   })
 
   it('omits annotations entirely when the server declares none', () => {
@@ -277,7 +268,9 @@ describe('toServerTools — annotations + title', () => {
       [mcpToolDef({ name: 'get_weather' })],
       {},
     )[0]!
-    const mcp = readToolMcpMeta(tool)
+    // `toServerTools` returns `McpServerTool`s, so `metadata.mcp` reads
+    // straight through — no annotation, no non-null assertion, no cast.
+    const mcp = tool.metadata.mcp
     expect(mcp.annotations).toBeUndefined()
     // Omitted, not present-with-undefined — the explicit tools(defs) path
     // merges this block over caller-supplied metadata.
@@ -298,9 +291,9 @@ describe('toServerTools — annotations + title', () => {
       ],
       {},
     )
-    expect(readToolMcpMeta(both!).title).toBe('Top Level')
-    expect(readToolMcpMeta(annotationsOnly!).title).toBe('Legacy')
-    expect(readToolMcpMeta(neither!).title).toBe('c')
+    expect(both!.metadata.mcp.title).toBe('Top Level')
+    expect(annotationsOnly!.metadata.mcp.title).toBe('Legacy')
+    expect(neither!.metadata.mcp.title).toBe('c')
   })
 
   it('keeps the prefixed tool name independent of the display title', () => {
@@ -311,7 +304,7 @@ describe('toServerTools — annotations + title', () => {
     )[0]!
     // The title is display-only — it must never leak into the model-facing name.
     expect(tool.name).toBe('wx_get_weather')
-    expect(readToolMcpMeta(tool).title).toBe('Weather Lookup')
+    expect(tool.metadata.mcp.title).toBe('Weather Lookup')
   })
 })
 
