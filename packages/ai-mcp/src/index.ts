@@ -3,10 +3,13 @@ export type { MCPClient } from './client'
 export type {
   AnyToolDefinition,
   MappedServerTools,
+  McpServerTool,
+  McpToolMetadata,
   MCPClientOptions,
   ServerDescriptor,
   ToolsOptions,
 } from './types'
+export type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 export type {
   TransportConfig,
   TransportInput,

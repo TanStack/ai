@@ -22,6 +22,37 @@ export async function makeServerWithWeatherTool() {
   return { server, clientTransport }
 }
 
+/**
+ * Build a connected (server, clientTransport) pair whose tool declares a
+ * display `title` plus the full set of MCP `annotations` hints, so the
+ * annotation-forwarding path can be exercised against a real server.
+ */
+export async function makeServerWithAnnotatedTool() {
+  const server = new McpServer({ name: 'annotated', version: '1.0.0' })
+  server.registerTool(
+    'get_weather',
+    {
+      title: 'Weather Lookup',
+      description: 'Get weather for a city',
+      inputSchema: { city: z.string() },
+      annotations: {
+        title: 'Legacy Weather Title',
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ city }) => ({
+      content: [{ type: 'text' as const, text: `Sunny in ${city}` }],
+    }),
+  )
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
 /** Build a connected (server, clientTransport) pair whose only tool always returns an MCP error result. */
 export async function makeServerWithFailingTool() {
   const server = new McpServer({ name: 'failing', version: '1.0.0' })
