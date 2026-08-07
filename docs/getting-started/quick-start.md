@@ -2,7 +2,7 @@
 title: "Quick Start: React"
 id: quick-start
 order: 2
-description: "Add a streaming TanStack AI chat to a React app in minutes using the useChat hook and the OpenAI adapter."
+description: "Add streaming chat to React with useChat and an OpenAI (or OpenRouter) backend."
 keywords:
   - tanstack ai
   - react
@@ -14,17 +14,11 @@ keywords:
   - ai chatbot
 ---
 
-Get started with TanStack AI in minutes. This guide will walk you through creating a simple chat application using the React integration and OpenAI adapter.
+If you need React chat → install packages, add a server route, wire `useChat`. Other stacks: [Vue](./quick-start-vue), [Svelte](./quick-start-svelte), [server-only](./quick-start-server), [React Native](./quick-start-react-native).
 
-> **Using a different framework?** See quick-starts for [Vue](./quick-start-vue), [Svelte](./quick-start-svelte), or [server-only Node.js](./quick-start-server).
+Prefer one key for many models → [OpenRouter](../adapters/openrouter).
 
-> **React Native or Expo app?** Use the headless React hooks with an absolute
-> server URL and a mobile-compatible transport. See
-> [Quick Start: React Native](./quick-start-react-native).
-
-> **Tip:** If you'd prefer not to sign up with individual AI providers, [OpenRouter](../adapters/openrouter) gives you access to 300+ models with a single API key and is the easiest way to get started.
-
-## Installation
+## 1. Install
 
 ```bash
 npm install @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
@@ -34,9 +28,9 @@ pnpm add @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
 yarn add @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
 ```
 
-## Server Setup
+## 2. Server route
 
-First, create an API route that handles chat requests. Here's a simplified example:
+Pick one. Both stream SSE via `toServerSentEventsResponse`.
 
 ### TanStack Start
 
@@ -138,9 +132,7 @@ export async function POST(request: Request) {
 }
 ```
 
-## Client Setup
-
-To use the chat API from your React frontend, create a `Chat` component:
+## 3. Client component
 
 ```tsx
 // components/Chat.tsx
@@ -230,9 +222,12 @@ export function Chat() {
 }
 ```
 
-## Environment Variables
+`useChat` owns message state, streaming, loading, and errors.
 
-To connect to AI providers, set your API keys in your environment variables. Create a `.env.local` file (or `.env` depending on your setup):
+## 4. API keys
+
+Create `.env.local` (or `.env`). Server only — never ship keys to the browser.
+
 ```bash
 # OpenRouter (recommended — access 300+ models with one key)
 OPENROUTER_API_KEY=sk-or-...
@@ -247,18 +242,7 @@ ANTHROPIC_API_KEY=your-anthropic-api-key
 GEMINI_API_KEY=your-gemini-api-key
 ```
 
-## That's It!
-
-You now have a working chat application. The `useChat` hook handles:
-
-- Message state management
-- Streaming responses
-- Loading states
-- Error handling
-
-## Using Tools
-
-Since TanStack AI is framework-agnostic, you can define and use tools in any environment. Here's a quick example of defining a tool and using it in a chat:
+## Optional: tools on the server
 
 ```typescript
 import { chat, toolDefinition } from '@tanstack/ai'
@@ -284,8 +268,8 @@ const stream = chat({
 })
 ```
 
-## Next Steps
+## Next
 
-- Learn about [Tools](../tools/tools) to add function calling
-- Check out [Client Tools](../tools/client-tools) for frontend operations
-- See the [API Reference](../api/ai) for more options
+- [Tools](../tools/tools)
+- [Client Tools](../tools/client-tools)
+- [API Reference](../api/ai)

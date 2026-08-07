@@ -1,33 +1,23 @@
 ---
 title: Chat Persistence
 id: chat-persistence
+description: "Server-authoritative chat: withPersistence writes transcript, run status, and interrupts to your store."
 ---
 
 # Chat Persistence
 
-You want a conversation to outlive a single request: the transcript, whether
-each run finished or is still waiting on an interrupt, all still there after the
-process restarts. `withPersistence` is a chat middleware that writes that
-state to a store you choose, so the server owns an authoritative copy of every
-thread.
+If you need transcript + run status + approvals to survive process restart → add `withPersistence` to `chat()`.
 
 ```bash
 pnpm add @tanstack/ai-persistence
 npx @tanstack/intent@latest install
 ```
 
-The second command wires this package's [Agent Skills](../getting-started/agent-skills)
-into your coding assistant. Run it before you start, because the recipes read your
-existing database setup and write the adapter to match, and they encode the
-invariants (full-overwrite `saveThread`, insert-if-absent run and interrupt
-creates) that are easy to get wrong and expensive to debug.
+The second command wires [Agent Skills](../getting-started/agent-skills). Recipes match your DB and encode invariants (full-overwrite `saveThread`, insert-if-absent creates).
 
-## Persist state on the server
+## 1. Add middleware
 
-Add the middleware to `chat()` and point it at a backend. Here `persistence` is a
-local `./persistence` module: an adapter you build on the core over the database
-you already run. [Build your own adapter](./build-your-own-adapter) walks through
-a complete SQLite version end to end.
+Point at your adapter ([Build your own adapter](./build-your-own-adapter) has a full SQLite walkthrough).
 
 ```ts group=chat-persistence
 import {
@@ -46,7 +36,6 @@ export async function POST(request: Request) {
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
-    // Forward the resume batch so a thread with pending interrupts continues.
     ...(params.resume ? { resume: params.resume } : {}),
     middleware: [withPersistence(persistence)],
   })
@@ -54,53 +43,41 @@ export async function POST(request: Request) {
 }
 ```
 
-The middleware uses whichever **state** stores the backend provides, no feature
-flags. `messages` is required; the rest are optional:
+## 2. Pick stores (by presence, not flags)
 
-- `messages` (required) loads and saves the full model-message thread.
-- `runs` records running, interrupted, completed, failed, or aborted status.
-- `interrupts` records pending tool-approval / client-tool / generic waits, and
-  requires `runs`.
-
-Need a mutex across workers? Add `withLocks` when other middleware needs
-multi-instance coordination; see [Locks](../advanced/locks).
-
-Creating tables on open is convenient for local development. In production, apply
-schema changes through your deployment workflow instead. See
-[Migrations](./migrations).
-
-## Threads, runs, and turns
-
-The transcript is stored per `threadId`, and each run gets a `runs` record with its
-status, timings and usage. One thing follows from that and matters when you wire a
-client: a reconnecting client never has to present a run id it may no longer know.
-The store resolves the thread's live run with `findActiveRun(threadId)` and the client
-tails that.
-
-[Id map](./id-map) covers how to choose a thread id and what both ids mean on the
-generation hooks. [How persistence works](./internals) has the rest.
-
-## Send the full transcript, or none of it
-
-`withPersistence` follows one rule, the authoritative-history contract:
-
-- A request with a **non-empty** `messages` array is the full conversation. On
-  finish it **overwrites** the stored thread. Post the complete transcript, not
-  a delta, or you replace the stored thread with just the newest message.
-- A request with an **empty** `messages` array continues a stored thread. The
-  middleware loads the stored transcript and the run picks up from there, so the
-  client does not have to re-send history.
-
-## What gets persisted, and when
-
-`withPersistence` writes at **four** moments so a reload never loses a turn:
-
-| Moment | What is written | Best-effort? |
+| Store | Must / optional | Role |
 | --- | --- | --- |
-| **Start of a run** (`onStart`) | Pending turn (just-submitted user message + prior history) so a reload mid-generation still shows the question | Yes. Failure does not abort the run; finish is authoritative |
-| **Interrupt boundary** | New interrupt records, run status `interrupted`, and a thread snapshot of current messages | No. Store failures propagate |
-| **Finish** (`onFinish`) | Complete transcript (including the terminal assistant reply with its stream `messageId` for in-place reload identity), run status `completed`, and commit of consumed resumes | No. The transcript is saved **before** the run is marked completed |
-| **Optionally while streaming** | Throttled partial assistant text when `snapshotStreaming: true` | Yes |
+| `messages` | **Required** | Load/save full model-message thread |
+| `runs` | Optional (required if `interrupts`) | running / interrupted / completed / failed / aborted |
+| `interrupts` | Optional | Tool-approval / client-tool / generic waits |
+
+Mutex across workers? Add `withLocks` — [Locks](../advanced/locks).
+
+Local dev: create tables on open. Production: deploy migrations before code — [Migrations](./migrations).
+
+## Transcript rule (authoritative history)
+
+| Client sends | Server does |
+| --- | --- |
+| Non-empty `messages` | Treat as **full** conversation. On finish, **overwrite** stored thread. Send complete transcript, not a delta. |
+| Empty `messages` | Load stored thread and continue. Client need not re-send history. |
+
+## Identity
+
+- Transcript keyed by `threadId`.
+- Each execution gets a `runs` record.
+- Reconnecting clients do **not** need a remembered `runId`: store resolves live run via `findActiveRun(threadId)`.
+
+See [Id map](./id-map) and [How persistence works](./internals).
+
+## When state is written
+
+| Moment | Written | Best-effort? |
+| --- | --- | --- |
+| **Start** (`onStart`) | Pending turn (user message + prior history) | Yes — failure does not abort; finish is authoritative |
+| **Interrupt** | Interrupt records, status `interrupted`, message snapshot | No |
+| **Finish** (`onFinish`) | Full transcript (incl. terminal assistant `messageId`), status `completed`, commit resumes | No — transcript **before** completed |
+| **Streaming** (optional) | Throttled partial text when `snapshotStreaming: true` | Yes |
 
 ```ts group=chat-persistence
 const streamingMiddleware = [
@@ -108,81 +85,46 @@ const streamingMiddleware = [
 ]
 ```
 
-Streaming snapshots default off (finish is the authoritative save); enable
-them to trade extra writes for partial-output durability. Tune the interval
-with `snapshotIntervalMs` (default `1000`).
+Defaults: snapshots off; `snapshotIntervalMs` default `1000`.
 
-On **error**, the run is marked `failed`. On **abort**, the run is marked
-`aborted` with a `finishedAt`; `interrupted` is written only at an interrupt
-boundary, and it is not terminal. Resumes accepted in `onConfig` are **not**
-consumed until a success boundary (interrupt or finish), so a failed run leaves
-pending interrupts retryable with the same resume batch.
+On **error** → `failed`. On **abort** → `aborted` with `finishedAt`. Resumes accepted in `onConfig` are **not** consumed until interrupt or finish success — failed runs leave interrupts retryable.
 
-One abort does **not** terminalize: a plain client disconnect on a run that some
-other middleware has declared *detachable* (a durable event log plus a run
-store, in practice `withSandbox` with durability wired). There, `onAbort` writes
-nothing at all, the record stays `'running'`, and the detach path records
-`detachedSince` so a later request can take the run over. Intent is never
-inferred from the disconnect itself, because a user pressing Stop and a user
-closing the tab produce the identical connection close; a cancel arrives out of
-band, either as the run's own abort reason or as `RunRecord.cancelRequested`, and
-either one makes the abort terminal again. See
-[Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
-
-The lifecycle a run record moves through. `completed`, `failed`, and `aborted`
-are terminal; `interrupted` is **parked**, not terminal, and a continuation
-after one is a new run with a fresh `runId`:
+**Detach exception:** plain disconnect on a *detachable* run (durable event log + run store, e.g. `withSandbox` with durability) leaves status `'running'` and sets `detachedSince`. Cancel is out-of-band (`RunRecord.cancelRequested` or abort reason). See [Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
 
 ```mermaid
 stateDiagram-v2
     [*] --> running : run starts (idempotent createOrResume)
     running --> completed : finish, transcript saved first
     running --> failed : error
-    running --> aborted : abort (explicit cancel, or a non-detachable run)
+    running --> aborted : abort (explicit cancel, or non-detachable)
     running --> interrupted : interrupt boundary
-    running --> running : plain disconnect on a DETACHABLE run (detachedSince set, taken over later)
+    running --> running : plain disconnect, DETACHABLE (detachedSince; takeover later)
     completed --> [*]
     failed --> [*]
     aborted --> [*]
-    interrupted --> [*] : continuation runs under a new runId
+    interrupted --> [*] : continuation under new runId
 ```
 
-## Interrupts survive a restart
+`completed` / `failed` / `aborted` are terminal. `interrupted` is parked; continuation is a new `runId`.
 
-When a run pauses on an interrupt (a tool approval, a client-side tool, a
-generic wait), the middleware records it. A later request on that thread must
-carry a `resume` batch that answers the pending interrupts before new input is
-accepted, otherwise it is rejected, which is why the example above forwards
-`params.resume`.
+## Interrupts across restart
 
-Persistence is the **server-authoritative resume path**: the middleware
-validates the resume batch against pending interrupts, builds
-`ChatResumeToolState` (approvals / client-tool results), and **clears**
-`config.resume` so the chat engine skips its ephemeral reconstruction (which
-needs client message history the persistence flow deliberately omits). Resumes
-are committed (resolved/cancelled in the store) only once the run reaches a
-successful interrupt or finish boundary.
-
-An interrupt record is born `pending` and only a commit moves it, which is why
-a failed continuation leaves it answerable again:
+1. Run pauses → middleware records interrupt.
+2. Later request **must** carry `resume` answering pending interrupts (or it is rejected) — forward `params.resume`.
+3. Middleware validates batch, builds `ChatResumeToolState`, clears `config.resume` so the engine skips ephemeral reconstruction.
+4. Store commits resolve/cancel only at a successful interrupt or finish boundary.
 
 ```mermaid
 stateDiagram-v2
     [*] --> pending : run pauses, interrupt recorded
-    pending --> resolved : resume answers it, committed at a success boundary
+    pending --> resolved : resume answers, commit at success boundary
     pending --> cancelled : resume cancels it
     resolved --> [*]
     cancelled --> [*]
 ```
 
-## Where to go next
+## Next
 
-- Bring durability to the browser too, so a full page reload restores the
-  conversation and rejoins an in-flight run: [Client persistence](./client-persistence).
-- Build the backend on the core, and look up the store contracts:
-  [Build your own adapter](./build-your-own-adapter). Whatever you already run
-  (Drizzle, Prisma, Cloudflare D1, raw SQL), install the shipped
-  [Agent Skills](../getting-started/agent-skills) with
-  `npx @tanstack/intent@latest install` and have your assistant write the
-  `chat-persistence.ts` against your existing schema.
-- Choose which stores to run: [Controls](./controls).
+- [Client persistence](./client-persistence) — reload restores transcript + in-flight run
+- [Build your own adapter](./build-your-own-adapter) — store contracts; skills via `npx @tanstack/intent@latest install`
+- [Controls](./controls) — which stores to run

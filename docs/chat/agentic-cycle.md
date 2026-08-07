@@ -2,7 +2,7 @@
 title: Agentic Cycle
 id: agentic-cycle
 order: 1
-description: "The agentic cycle in TanStack AI — how the LLM loops through tool calls, results, and reasoning until it produces a final answer."
+description: "How chat() loops tool calls → results → reasoning until a final answer — and how to bound the loop."
 keywords:
   - tanstack ai
   - agentic cycle
@@ -12,9 +12,9 @@ keywords:
   - ai agents
 ---
 
-The agentic cycle is the pattern where the LLM repeatedly calls tools, receives results, and continues reasoning until it can provide a final answer. This enables complex multi-step operations.
+If the model needs tools → it calls them, gets results, and continues until it can answer. That loop is the agentic cycle.
 
-> **Tip:** Code Mode can reduce agent loop iterations by letting the LLM write a program that calls multiple tools in a single execution. See [Code Mode](../code-mode/code-mode).
+> **Tip:** Need fewer iterations for multi-tool work? Use [Code Mode](../code-mode/code-mode) so the model writes one program that calls many tools.
 
 ```mermaid
 graph TD
@@ -41,7 +41,7 @@ graph TD
     style L fill:#fff4e1
 ```
 
-### Detailed Agentic Flow
+## Multi-step flow
 
 ```mermaid
 sequenceDiagram
@@ -76,31 +76,21 @@ sequenceDiagram
     Client->>User: Display answer
 ```
 
-### Multi-Step Example
+**Example:** "Find flights to Paris under $500 and book the cheapest"
 
-Here's a real-world example of the agentic cycle:
+1. Call `searchFlights({destination: "Paris", maxPrice: 500})` → two flights
+2. Call `bookFlight({flightId: "F1"})` — may need [Tool Approval](../tools/tool-approval)
+3. Final text with booking ID
 
-**User**: "Find me flights to Paris under $500 and book the cheapest one"
+The loop continues while finish reason is `tool_calls` (pending tools) **and** the agent loop strategy allows another iteration. It stops on a normal `stop` finish reason.
 
-**Cycle 1**: LLM calls `searchFlights({destination: "Paris", maxPrice: 500})`
-- Tool returns: `[{id: "F1", price: 450}, {id: "F2", price: 480}]`
-
-**Cycle 2**: LLM analyzes results and calls `bookFlight({flightId: "F1"})`
-- Tool requires approval (sensitive operation) — see [Tool Approval](../tools/tool-approval)
-- User approves
-- Tool returns: `{bookingId: "B123", confirmed: true}`
-
-**Cycle 3**: LLM generates final response
-- "I found 2 flights under $500. I've booked the cheapest one (Flight F1) for $450. Your booking ID is B123."
-
-### Code Example: Agentic Weather Assistant
+## Wire tools into chat
 
 ```typescript
 import { chat, toolDefinition, toServerSentEventsResponse } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
-// Tool definitions
 const getWeatherDef = toolDefinition({
   name: "get_weather",
   description: "Get current weather for a city",
@@ -118,21 +108,18 @@ const getClothingAdviceDef = toolDefinition({
   }),
 });
 
-// Server implementations
 const getWeather = getWeatherDef.server(async ({ city }) => {
   const response = await fetch(`https://api.weather.com/v1/${city}`);
   return await response.json();
 });
 
 const getClothingAdvice = getClothingAdviceDef.server(async ({ temperature, conditions }) => {
-  // Business logic for clothing recommendations
   if (temperature < 50) {
     return { recommendation: "Wear a warm jacket" };
   }
   return { recommendation: "Light clothing is fine" };
 });
 
-// Server route
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
@@ -146,25 +133,25 @@ export async function POST(request: Request) {
 }
 ```
 
-**User**: "What should I wear in San Francisco today?"
+**User:** "What should I wear in San Francisco today?"
 
-**Agentic Cycle**:
-1. LLM calls `get_weather({city: "San Francisco"})` → Returns `{temp: 62, conditions: "cloudy"}`
-2. LLM calls `get_clothing_advice({temperature: 62, conditions: "cloudy"})` → Returns `{recommendation: "Light jacket recommended"}`
-3. LLM generates: "The weather in San Francisco is 62°F and cloudy. I recommend wearing a light jacket."
+1. `get_weather({city: "San Francisco"})` → `{temp: 62, conditions: "cloudy"}`
+2. `get_clothing_advice({temperature: 62, conditions: "cloudy"})` → recommendation
+3. Model streams the final answer
 
-The loop continues only while the model's finish reason is `tool_calls` (with pending tool calls) **and** the agent loop strategy permits another iteration; it ends as soon as the model returns a normal `stop` finish reason.
+## Bound the loop
 
-### Controlling the loop
+Default: `maxIterations(5)` — stops after five **model turns**, even if the model would keep calling tools.
 
-By default the loop is bounded by `maxIterations(5)` — after five **model turns** it stops even if the model would keep calling tools. Override this with the `agentLoopStrategy` option.
+**Built-in strategies:**
 
-Other built-in strategies:
+| Strategy | Use when |
+| --- | --- |
+| `maxIterations(n)` | Cap model turns (default 5) |
+| `untilFinishReason([...])` | Stop on specific finish reasons |
+| `combineStrategies([...])` | AND multiple strategies |
 
-- **`untilFinishReason([...])`** — continue until the model returns one of the given finish reasons (e.g. `untilFinishReason(["stop", "length"])`).
-- **`combineStrategies([...])`** — combine multiple strategies with AND logic; the loop continues only while every strategy agrees.
-
-A strategy is just a function that receives `{ iterationCount, finishReason, messages, toolCallCount, lastTurnToolCallCount }` and returns `true` to allow another iteration or `false` to stop, so you can also write your own:
+A strategy receives `{ iterationCount, finishReason, messages, toolCallCount, lastTurnToolCallCount }` and returns `true` to continue or `false` to stop:
 
 ```typescript
 import { chat, combineStrategies, maxIterations, toServerSentEventsResponse } from "@tanstack/ai";
@@ -187,14 +174,14 @@ export async function POST(request: Request) {
 }
 ```
 
-### Tool-call budgets (middleware recipe)
+## Cap tool calls (middleware)
 
-> **Iterations ≠ tool calls.** One model turn can emit many parallel tool calls. `maxIterations` only bounds **model turns**. Strategies run *between* turns, so without a per-turn cap a single runaway turn can still fan out unbounded.
+> **Iterations ≠ tool calls.** One model turn can emit many parallel tool calls. `maxIterations` only bounds **model turns**.
 
-There is no built-in `maxToolCalls` strategy. Cap tools with middleware:
+No built-in `maxToolCalls`. Cap with middleware:
 
-- **`onBeforeToolCall`** — skip excess calls inside one turn (`maxPerTurn`)
-- **`onShouldContinue`** — stop further turns once cumulative **emitted** tools hit a budget (`max`); skipped calls still count toward `toolCallCount`
+1. **`onBeforeToolCall`** — skip excess calls inside one turn (`maxPerTurn`)
+2. **`onShouldContinue`** — stop further turns once cumulative **emitted** tools hit `max` (skipped calls still count toward `toolCallCount`)
 
 ```typescript
 import {
@@ -252,8 +239,8 @@ export async function POST(request: Request) {
     agentLoopStrategy: maxIterations(20), // model turns
     middleware: [
       toolCallBudget({
-        maxPerTurn: 10, // cap parallel fan-out inside one turn
-        max: 20, // stop further turns once cumulative emitted tools hit 20
+        maxPerTurn: 10,
+        max: 20,
       }),
     ],
   });
@@ -261,4 +248,4 @@ export async function POST(request: Request) {
 }
 ```
 
-Place this **before** `toolCacheMiddleware` so over-budget skips win over cache hits. See [`onShouldContinue`](../advanced/middleware#onshouldcontinue) for the hook contract.
+Place this **before** `toolCacheMiddleware` so over-budget skips win over cache hits. See [`onShouldContinue`](../advanced/middleware#onshouldcontinue).

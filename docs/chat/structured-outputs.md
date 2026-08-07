@@ -2,7 +2,7 @@
 title: Structured Outputs (Moved)
 id: structured-outputs
 order: 4
-description: "Structured outputs documentation has moved to its own top-level Structured Outputs section, with separate guides for one-shot extraction, streaming UIs, multi-turn chat, and combining with tools."
+description: "Redirect — structured outputs live under /structured-outputs/* by journey (one-shot, streaming, multi-turn, tools)."
 keywords:
   - tanstack ai
   - structured outputs
@@ -10,12 +10,12 @@ keywords:
   - redirect
 ---
 
-The structured-outputs guide has moved to its own top-level section, split by what you're building. Pick the journey that fits:
+This page moved. Pick a journey:
 
-- **[Overview](../structured-outputs/overview)** — what structured output is, schema library options, provider support, and "which page do I read?"
-- **[One-Shot Extraction](../structured-outputs/one-shot)** — single prompt in, single typed object out. Use this when you don't need streaming or chat history.
-- **[Streaming UIs](../structured-outputs/streaming)** — `useChat({ outputSchema })` with `partial` and `final` populating a UI field by field.
-- **[Multi-Turn Chat](../structured-outputs/multi-turn)** — every assistant turn carries its own typed `StructuredOutputPart`, history stays renderable, and `messages[i].parts.find(p => p.type === "structured-output").data` is typed by your schema.
-- **[With Tools](../structured-outputs/with-tools)** — combining `outputSchema` with the agent loop, including pause/resume for server-tool approvals and client-tool invocations.
+1. **[Overview](../structured-outputs/overview)** — what it is, schemas, provider support
+2. **[One-Shot Extraction](../structured-outputs/one-shot)** — single prompt → typed object
+3. **[Streaming UIs](../structured-outputs/streaming)** — `useChat({ outputSchema })` field-by-field
+4. **[Multi-Turn Chat](../structured-outputs/multi-turn)** — per-turn `StructuredOutputPart`
+5. **[With Tools](../structured-outputs/with-tools)** — `outputSchema` + agent loop / approvals
 
-> **Note:** This URL is kept for backward compatibility. New content lives under `/structured-outputs/*` — update existing bookmarks when you can.
+> Kept for backward compatibility. Prefer `/structured-outputs/*`.

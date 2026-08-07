@@ -2,16 +2,12 @@
 title: Policy
 id: policy
 order: 7
-description: "Set allow/ask/deny guardrails over the commands and capabilities the in-sandbox agent may run, ask about, or never run, in one portable description that each harness maps onto its native permissions."
+description: "Allow, ask, or deny commands and capabilities the in-sandbox agent may run."
 ---
 
-A policy is your guardrail layer: it decides which commands and capabilities the
-in-sandbox agent may run outright, must ask about first, or can never run.
-`defineSandboxPolicy()` describes those rules once, portably, and each
-[provider](./providers)'s harness adapter maps them onto its own native
-permission system. You attach a policy to a sandbox via
-[`defineSandbox({ policy })`](./providers), where it guards the commands the
-[workspace](./workspace) setup and bridged [tools](./tools) run.
+If you need guardrails on commands/capabilities → `defineSandboxPolicy()` and attach via `defineSandbox({ policy })`.
+
+Portable once; each harness maps to native permissions. Guards workspace setup and bridged [tools](./tools).
 
 ```ts
 import { defineSandboxPolicy, defineSandbox } from '@tanstack/ai-sandbox'
@@ -36,18 +32,15 @@ const sandbox = defineSandbox({
 
 ## Decisions
 
-Every command or capability resolves to one of three decisions:
-
 | Decision | Meaning |
 | --- | --- |
-| `allow` | The agent runs it without interruption. |
-| `ask`   | The agent pauses; the harness emits an approval request the client answers before the action proceeds. |
-| `deny`  | The action is blocked outright. The agent cannot run it. |
+| `allow` | Run without interruption |
+| `ask` | Pause; client answers approval request |
+| `deny` | Block |
 
 ## Commands
 
-`commands` holds three lists of command patterns: `allow`, `ask` and `deny`.
-A pattern matches against the command the agent is about to run:
+Patterns match the command about to run. `*` globs work (`curl *`, `sudo *`). Prefer named [workspace scripts](./workspace) in `allow` for stable matches.
 
 ```ts
 import { defineSandboxPolicy } from '@tanstack/ai-sandbox'
@@ -61,118 +54,65 @@ const policy = defineSandboxPolicy({
 })
 ```
 
-### Glob patterns
-
-Patterns support `*` globs, so you can gate a whole family of commands with one
-entry. `curl *` matches any `curl` invocation; `sudo *` matches anything run
-through `sudo`. An exact string like `pnpm test` matches only that command.
-Prefer the named [workspace scripts](./workspace) (`pnpm test`, `pnpm build`)
-in your `allow` list. They give the policy stable names to match rather than
-freeform shell.
-
 ## Capabilities
 
-`capabilities` applies the same `allow` / `ask` / `deny` decisions to
-coarse-grained abilities rather than individual commands, for example
-filesystem writes or outbound network access:
+Coarse backstop (file write, network) when a specific command is not listed:
 
 ```ts
 import { defineSandboxPolicy } from '@tanstack/ai-sandbox'
 
 const policy = defineSandboxPolicy({
   capabilities: {
-    fileWrite: 'allow', // let the agent edit the working tree freely
-    network: 'ask',     // pause for approval before any outbound request
+    fileWrite: 'allow',
+    network: 'ask',
   },
 })
 ```
 
-This is the broad backstop: even if a specific network command isn't in your
-`commands` lists, `network: 'ask'` still forces an approval for anything that
-reaches out.
-
 ## Precedence: deny > ask > allow
 
-When more than one rule could match an action, the strictest wins. The order is
-**`deny` > `ask` > `allow`**:
-
-- If any matching rule says `deny`, the action is blocked and no other rule
-  overrides it.
-- Otherwise, if any matching rule says `ask`, the action requires approval.
-- Otherwise, if a rule says `allow`, it runs.
-- If nothing matches, the `default` decision applies.
+1. Any matching `deny` → blocked.
+2. Else any matching `ask` → approval.
+3. Else matching `allow` → run.
+4. Else → `default`.
 
 ```ts
 import { defineSandboxPolicy } from '@tanstack/ai-sandbox'
 
 const policy = defineSandboxPolicy({
   commands: {
-    // `curl` is allowed broadly…
     allow: ['curl *'],
-    // …but `deny` wins, so this specific host is always blocked.
-    deny: ['curl * internal.example.com*'],
+    deny: ['curl * internal.example.com*'], // deny wins
   },
   default: 'deny',
 })
 ```
 
-This means you can paint with a broad `allow` and carve exceptions out with
-narrower `ask` / `deny` patterns, confident the exceptions take priority.
+## Default
 
-## The default
-
-`default` is the decision for anything none of your rules match. Set it to the
-posture you want at the edges:
-
-- `default: 'allow'` is permissive: only the things you explicitly `ask` about or
-  `deny` are gated. Reasonable for trusted dev loops.
-- `default: 'ask'` is cautious: unknown actions pause for approval. A good middle
-  ground.
-- `default: 'deny'`, locked down: the agent can only run what you explicitly
-  `allow`. Strongest posture for untrusted or production runs.
-
-When omitted, treat the default as `ask` so unforeseen actions surface rather
-than silently running.
+| Value | Posture |
+| --- | --- |
+| `'allow'` | Only explicit ask/deny gated (trusted dev) |
+| `'ask'` | Unknown actions pause (good middle; treat as default if omitted) |
+| `'deny'` | Only explicit allow runs (production / untrusted) |
 
 ## How `ask` surfaces
 
-An `ask` decision is not a guess the SDK makes, it's a question routed back to
-you. When the agent attempts an `ask`-gated action, the harness pauses it and
-emits an **approval request** into the run stream. Your client answers that
-request (approve or reject), and the harness either lets the action proceed or
-blocks it based on the answer. Until the client responds, the action is held.
+Agent hits an ask-gated action → harness pauses → approval request on the stream → client approve/reject → action proceeds or blocks. Use for “usually fine, sometimes dangerous” (`pnpm install`, `curl`).
 
-This is why `ask` is the right choice for actions that are usually fine but
-occasionally dangerous (`pnpm install` pulling a new dependency, an outbound
-`curl`): the human stays in the loop without you having to enumerate every safe
-command up front.
+## Harness mapping
 
-## How adapters map a policy
+Adapters map the same rules to native flags (Grok / Claude Code / Codex / …). Unsupported rule → **warn + skip**, not throw.
 
-A policy is portable. Each harness adapter translates the same
-`allow` / `ask` / `deny` description into its own native permission system:
-
-- A Grok Build harness maps it onto the `grok` CLI's permission flags.
-- A Claude Code harness maps it onto Claude Code's permission rules
-  (allowed/ask/denied tool and command rules).
-- A Codex harness maps it onto Codex's approval and sandbox settings.
-- Other harnesses map it onto whatever native gate they expose.
-
-Where a harness can't express a particular rule, it degrades rather than
-failing the run, the unsupported rule is skipped (with a warning) instead of
-throwing. Because the mapping is the adapter's job, you write the policy once
-and it behaves consistently no matter which provider or harness runs the
-sandbox.
-
-## Wiring it on
-
-A policy does nothing on its own, it takes effect when you attach it to a
-sandbox. Pass it as `policy` on [`defineSandbox`](./providers); from there it
-guards every run that uses that sandbox, including the [workspace](./workspace)
-setup commands and any host [tools](./tools) bridged into the agent.
+## Full attach example
 
 ```ts
-import { defineSandboxPolicy, defineSandbox, defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
+import {
+  defineSandboxPolicy,
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+} from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
 const policy = defineSandboxPolicy({
@@ -196,9 +136,6 @@ const sandbox = defineSandbox({
 })
 ```
 
-## Next steps
+## Next
 
-- [Providers](./providers), attach the policy via `defineSandbox`.
-- [Workspace](./workspace), the setup commands and scripts the policy guards.
-- [Tools](./tools), host tools bridged into the agent run under the same policy.
-- [Lifecycle](./lifecycle), how a guarded sandbox resumes and tears down.
+[Providers](./providers) · [Workspace](./workspace) · [Tools](./tools) · [Lifecycle](./lifecycle)

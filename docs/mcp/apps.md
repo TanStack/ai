@@ -2,7 +2,7 @@
 title: MCP Apps
 id: mcp-apps
 order: 12
-description: "Render interactive ui:// widget resources returned by MCP servers — static display via UIResourcePart and full interactivity via createMcpAppCallHandler and createMcpAppBridge."
+description: "Render MCP ui:// widgets — static UIResourcePart and interactive bridge + call handler."
 keywords:
   - tanstack ai
   - mcp
@@ -16,39 +16,34 @@ keywords:
   - interactive widgets
 ---
 
-**MCP Apps** is a ratified MCP extension (standardized 2026-01-26) that lets MCP servers return interactive `ui://` resource widgets alongside normal tool results. Instead of the model receiving raw JSON, the server embeds a resource URI that TanStack AI fetches and streams to the client as a `UIResourcePart` — ready to render as a full interactive iframe widget.
+If an MCP tool returns a `ui://` resource → TanStack AI surfaces a `UIResourcePart` you render with `MCPAppResource`.
 
-There are two levels of MCP Apps support:
+| Level | What you get |
+| --- | --- |
+| **Static** | Display-only widget on the assistant message — no extra routes |
+| **Interactive** | Iframe can call tools / send prompts — needs call handler + bridge |
 
-- **Static** — the MCP tool result contains a `ui://` resource. TanStack AI reads it during the `chat()` run and surfaces it as a `UIResourcePart` on the assistant `UIMessage`. No extra routes needed; render it with `MCPAppResource`.
-- **Interactive** — the widget's iframe posts tool-call or prompt actions back. You mount a server handler (`createMcpAppCallHandler`) at a route and wire a client bridge (`createMcpAppBridge`) so those actions reach the right MCP server.
+## Static widgets
 
-## Static Widgets
+MCP tool result with `ui://` → `UIResourcePart` on the assistant message **alongside** `ToolResultPart` (never model input). Fail-soft: failed resource read still delivers the tool result without a widget.
 
-When an MCP tool's result carries a `ui://` resource, TanStack AI emits a `UIResourcePart` on the assistant `UIMessage`. The part is added to the message's `parts` array **alongside** the normal `ToolResultPart` — it never enters model input.
-
-### The `UIResourcePart` shape
+### Part shape
 
 ```ts
 import type { UIResourcePart } from '@tanstack/ai'
 
-// Arrives on the assistant UIMessage alongside ToolCallPart / ToolResultPart:
-// {
-//   type: 'ui-resource'
-//   resource: { uri: string; mimeType: string; text?: string; blob?: string }
-//   serverId?: string     // pool prefix / config key — routes interactive calls
-//   toolCallId: string    // links to the originating tool call
-//   toolName: string      // MCP tool name whose UI this resource renders
-//   meta?: Record<string, unknown>  // reserved — currently always undefined
-// }
+// type: 'ui-resource'
+// resource: { uri; mimeType; text?; blob? }
+// serverId?: string   // pool key — interactive routing
+// toolCallId: string
+// toolName: string
+// meta?: Record<string, unknown>
 ```
-
-No server-side changes are needed beyond connecting an MCP server that returns `ui://` resources. The resource is read eagerly during the chat run. If the read fails (network error, missing resource), the tool result still flows to the model — the widget is simply absent (**fail-soft**).
 
 ### Server route
 
 ```ts ignore
-// src/routes/api.chat.ts  (TanStack Start)
+// src/routes/api.chat.ts
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
@@ -80,24 +75,19 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
-### React client — rendering a static widget
-
-Install the optional peer dependency:
+### React — render static
 
 ```bash
 pnpm add @mcp-ui/client
 ```
 
-Then render each `ui-resource` part from the assistant message.
-
-> **What is `sandbox`?** `sandbox.url` points to a small static **sandbox-proxy HTML page that you host** (e.g. `mcp-sandbox.html` on your own origin). `AppRenderer` loads that page in an isolated iframe and renders the widget inside it — it's the security boundary, so it's a **deploy-time constant, the same for every widget**. It is *not* the widget's address: the widget's identity and HTML come from the message part (`part.resource`, a `ui://…` resource). See [`@mcp-ui/client`](https://mcpui.dev) for the proxy page.
+> **`sandbox.url`:** your hosted sandbox-proxy HTML page (security boundary — deploy-time constant). Not the widget URL; widget HTML comes from `part.resource`. See [`@mcp-ui/client`](https://mcpui.dev).
 
 ```tsx
 // src/components/Chat.tsx
 import { useChat } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
-import type { UIResourcePart } from '@tanstack/ai'
 
 export function Chat() {
   const { messages, sendMessage, status } = useChat({
@@ -117,7 +107,6 @@ export function Chat() {
                 <MCPAppResource
                   key={i}
                   part={part}
-                  // your hosted sandbox-proxy page (a host constant, not the widget URL)
                   sandbox={{ url: new URL('https://your-app.example.com/mcp-sandbox.html') }}
                 />
               )
@@ -137,39 +126,31 @@ export function Chat() {
 }
 ```
 
-`MCPAppResource` is powered by `@mcp-ui/client`'s `AppRenderer` under the hood. Without a `bridge` prop the widget renders in display-only mode — user interactions inside the iframe that trigger tool calls or prompts are ignored.
+Without `bridge`, interactions that trigger tool calls/prompts are ignored.
 
-> **Framework support:** React and Preact are shipped (`@tanstack/ai-react/mcp-apps` and `@tanstack/ai-preact/mcp-apps`). Preact requires a `preact/compat` alias. Solid, Vue, Svelte, and Angular wrappers are deferred — `@mcp-ui/client` v7's `AppRenderer` is React-only and a framework-agnostic renderer SDK is future work.
+> **Frameworks:** React + Preact (`@tanstack/ai-react/mcp-apps`, `@tanstack/ai-preact/mcp-apps` + `preact/compat`). Solid/Vue/Svelte/Angular deferred — `AppRenderer` is React-only.
 
-## Interactive Widgets
+## Interactive widgets
 
-For widgets that need to call tools or send prompts back to the model, you wire two extra pieces:
+1. **Server:** `createMcpAppCallHandler` on a POST route
+2. **Client:** `useMcpAppBridge` / `createMcpAppBridge` → pass as `bridge` to `MCPAppResource`
 
-1. **Server** — mount `createMcpAppCallHandler` at a POST route. The widget's iframe calls this route.
-2. **Client** — create a `createMcpAppBridge` and pass it to `MCPAppResource`. The bridge routes the iframe's actions (tool calls, prompts, links) to the correct handler.
-
-### Installation
+### Install
 
 ```bash
 pnpm add @tanstack/ai-mcp @tanstack/ai-client @mcp-ui/client
 ```
 
-### Server — the call handler route
+### Call handler route
 
-`createMcpAppCallHandler` from `@tanstack/ai-mcp/apps` accepts the MCP client(s) you already created (a single `MCPClient`, an `MCPClients` pool, or an array of either) and returns a request handler that:
-
-- Resolves each client's transport descriptor via `client.getInfo()` / `pool.getServers()` (pure config — no live socket needed).
-- Reconnects to the MCP server per call using that descriptor (stateless; serverless-safe by default).
-- Checks that the requested `toolName` is actually exposed by that server (same-server allowlist).
-- Calls the tool and returns `{ ok: true, result }` or `{ ok: false, error }`.
+Handler reconnects per call from transport descriptors (`getInfo()` / `getServers()`) — serverless-safe. Always allowlists tools the server actually exposes.
 
 ```ts ignore
-// src/routes/api.mcp-apps-call.ts  (TanStack Start)
+// src/routes/api.mcp-apps-call.ts
 import { createFileRoute } from '@tanstack/react-router'
 import { createMCPClients } from '@tanstack/ai-mcp'
 import { createMcpAppCallHandler } from '@tanstack/ai-mcp/apps'
 
-// Reuse the same pool you pass to chat({ mcp: { clients: [mcp] } }).
 const mcp = await createMCPClients({
   weather: {
     transport: {
@@ -180,9 +161,6 @@ const mcp = await createMCPClients({
   },
 })
 
-// clients: a single MCPClient, an MCPClients pool, or an array of either.
-// The handler reads each client's transport descriptor via getInfo()/getServers()
-// and reconnects per call — works in long-lived servers and serverless alike.
 const handler = createMcpAppCallHandler({ clients: mcp })
 
 export const Route = createFileRoute('/api/mcp-apps/call')({
@@ -201,15 +179,9 @@ export const Route = createFileRoute('/api/mcp-apps/call')({
 })
 ```
 
-> **`link` actions need an `onLink` handler.** If the widget emits a `link` action and no `onLink` handler is wired in the bridge, the bridge drops the link (logging a warning) and `openLink` returns `{ isError: true }` — the call does not hang, and the widget cannot open arbitrary URLs in the host page. Pass `onLink` explicitly to opt in.
->
-> Even with an `onLink` handler, the bridge only forwards `http:`, `https:`, and `mailto:` URLs. Unsafe schemes (`javascript:`, `data:`, `file:`, …) are **always rejected** before your handler runs, so a sandboxed widget can't smuggle a script-executing or local-resource URL through.
+> **`link` actions:** need bridge `onLink` or links are dropped (warned). Even with `onLink`, only `http:`, `https:`, `mailto:` are forwarded — unsafe schemes rejected before your handler.
 
-#### Same-server allowlist
-
-`createMcpAppCallHandler` always verifies that `toolName` is in the list of tools the target server actually exposes. A request for a tool the server does not know about returns `{ ok: false, error: "Tool not allowed: <name>" }` without ever executing it. This server-exposure check is unconditional and cannot be bypassed.
-
-Use the `allowTool` option to add a further restriction on top. A request must satisfy **both** the server-exposure check and `allowTool` — it is AND-ed, not a replacement for the server check:
+**Extra allowlist** (AND-ed with server exposure check):
 
 ```ts
 import { createMCPClients } from '@tanstack/ai-mcp'
@@ -221,18 +193,13 @@ const mcp = await createMCPClients({
 
 const handler = createMcpAppCallHandler({
   clients: mcp,
-  // Additional restriction: even if the server exposes more tools,
-  // only allow this specific one through the call handler.
   allowTool: (req) => req.toolName === 'place_order',
 })
 ```
 
-### Chat route — wire the `serverId`
+### Chat route — match `serverId`
 
-The `serverId` on a `UIResourcePart` comes from the `prefix` you gave the MCP client. Use the same key in both places:
-
-> **Multi-server routing:** interactive calls route by `serverId`, which is each client's `prefix`. `createMCPClients` defaults every server's prefix to its config key, so routing works out of the box. If you pass multiple servers and disable prefixing on one (`prefix: ''`), that server has no `serverId` and its widgets can't make interactive calls — give each interactive server a distinct prefix (the default is fine).
-
+`serverId` on `UIResourcePart` = client/pool `prefix` (defaults to config key). Keep the same key in the call handler pool:
 
 ```ts ignore
 // src/routes/api.chat.ts
@@ -247,9 +214,6 @@ export const Route = createFileRoute('/api/chat')({
       POST: async ({ request }) => {
         const body = await request.json()
 
-        // The pool key "weather" becomes the serverId on every UIResourcePart
-        // emitted by this server — must match the key used when constructing
-        // the pool passed to createMcpAppCallHandler.
         const pool = await createMCPClients({
           weather: {
             transport: { type: 'http', url: process.env.WEATHER_MCP_URL! },
@@ -269,19 +233,15 @@ export const Route = createFileRoute('/api/chat')({
 })
 ```
 
-### Client — bridge + interactive render
+> Multiple servers: give each interactive server a distinct prefix. `prefix: ''` means no `serverId` → no interactive calls.
 
-`createMcpAppBridge` from `@tanstack/ai-client` returns an action handler you pass to `MCPAppResource`. It routes:
+### Client — bridge + render
 
-- `tool` actions → POST to `callEndpoint` with the tool call payload.
-- `prompt` actions → `chat.sendMessage(prompt)`.
-- `link` actions → `onLink(url)` if provided; dropped (with a warning) otherwise.
+Bridge routes:
 
-In React (or Preact), use the `useMcpAppBridge` hook — it returns a **stable**
-bridge for the given `threadId`/`callEndpoint` and always calls your latest
-`sendMessage`/`onLink`, so you don't hand-write `useMemo` or fight
-`exhaustive-deps`. (The underlying `createMcpAppBridge` from
-`@tanstack/ai-client` is framework-agnostic if you need it directly.)
+- `tool` → POST `callEndpoint`
+- `prompt` → `chat.sendMessage`
+- `link` → `onLink` if provided
 
 ```tsx
 // src/components/Chat.tsx
@@ -290,7 +250,6 @@ import { fetchServerSentEvents } from '@tanstack/ai-client'
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
 
 export function Chat() {
-  // A stable id correlating widget calls back to this conversation.
   const threadId = 'weather-chat'
   const { messages, sendMessage, status } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
@@ -300,7 +259,6 @@ export function Chat() {
     threadId,
     callEndpoint: '/api/mcp-apps/call',
     chat: { sendMessage: async (content) => void sendMessage({ content }) },
-    // Opt in to link navigation — absent means links are blocked.
     onLink: (url) => window.open(url, '_blank', 'noopener'),
   })
 
@@ -318,7 +276,6 @@ export function Chat() {
                   key={i}
                   part={part}
                   bridge={bridge}
-                  // your hosted sandbox-proxy page (a host constant, not the widget URL)
                   sandbox={{ url: new URL('https://your-app.example.com/mcp-sandbox.html') }}
                 />
               )
@@ -338,11 +295,11 @@ export function Chat() {
 }
 ```
 
-> **Writeback is client-side.** Widget tool calls do **not** append to the thread's chat history by default. The conversation state writeback path is out of scope for the current release. Each widget interaction is self-contained.
+> Widget tool calls do **not** append to chat history by default (client-side writeback out of scope).
 
-## Session Persistence
+## Session persistence
 
-The call handler reconnects to the MCP server on every widget action using the transport descriptor it reads from `client.getInfo()` / `pool.getServers()` (**reconnect-per-call** — stateless, serverless-safe). For stateful MCP transports that require a persistent session, opt in to an in-memory session store:
+Default: reconnect-per-call. For stateful transports, opt into in-memory store:
 
 ```ts
 import { createMCPClients } from '@tanstack/ai-mcp'
@@ -355,17 +312,13 @@ const mcp = await createMCPClients({
   weather: { transport: { type: 'http', url: process.env.MCP_URL ?? '' } },
 })
 
-// In-memory store: one Node.js process, no cross-instance sharing.
-// Shape matches the McpSessionStore interface — SQL / KV stores
-// can be dropped in later with no API change.
 const store = inMemoryMcpSessionStore({ ttlMs: 30 * 60_000 })
-
 const handler = createMcpAppCallHandler({ clients: mcp, store })
 ```
 
-> **Current limitation:** `inMemoryMcpSessionStore` is single-instance (one Node.js process). It does not survive serverless restarts or scale across replicas. The `McpSessionStore` interface is the persistence extension point — persistent backends (database, KV store) can be dropped in without any API changes.
+> `inMemoryMcpSessionStore` is single-process only. Swap via `McpSessionStore` for durable backends.
 
-## API Reference
+## API reference
 
 ### `createMcpAppCallHandler` (`@tanstack/ai-mcp/apps`)
 
@@ -379,34 +332,22 @@ const mcp = await createMCPClients({
 })
 
 const options: McpAppCallHandlerOptions = {
-  // Pass the MCP client(s) you already created:
-  //   - a single MCPClient
-  //   - an MCPClients pool  (pool key = serverId on UIResourcePart)
-  //   - an array of either
-  // The handler reads each client's transport descriptor via
-  // client.getInfo() / pool.getServers() (pure config, no live socket)
-  // and reconnects per call — serverless-safe by default.
-  clients: mcp,
-
-  // Dynamic session store (opt-in for stateful transports)
+  clients: mcp, // MCPClient | MCPClients pool | array
   // store: inMemoryMcpSessionStore(),
-
-  // Custom tool allowlist — default: server's own exposed tools only
-  // AND-ed on top of the always-on same-server exposure check.
   allowTool: (req) => req.toolName === 'get_weather',
 }
 
-// Returns: (req) => Promise<{ ok: true; result: unknown } | { ok: false; error: string }>
 const handler = createMcpAppCallHandler(options)
+// (req) => Promise<{ ok: true; result } | { ok: false; error: string }>
 ```
 
-### `inMemoryMcpSessionStore` (`@tanstack/ai-mcp/apps`)
+### `inMemoryMcpSessionStore`
 
 ```ts
 import { inMemoryMcpSessionStore } from '@tanstack/ai-mcp/apps'
 
 const store = inMemoryMcpSessionStore({
-  ttlMs: 30 * 60_000, // optional; default: 30 minutes
+  ttlMs: 30 * 60_000, // default 30 min
 })
 ```
 
@@ -417,23 +358,19 @@ import { createMcpAppBridge } from '@tanstack/ai-client'
 import type { CreateMcpAppBridgeOptions } from '@tanstack/ai-client'
 
 const options: CreateMcpAppBridgeOptions = {
-  threadId: 'weather-chat', // identifies the thread for the call handler
-  callEndpoint: '/api/mcp-apps/call', // POST route mounting createMcpAppCallHandler
-  chat: { sendMessage: async (text) => console.log(text) }, // prompt-intent path
-  fetchImpl: fetch, // optional; injectable for testing
-  onLink: (url) => window.open(url, '_blank'), // absent → link is dropped (warned), openLink returns { isError: true }
+  threadId: 'weather-chat',
+  callEndpoint: '/api/mcp-apps/call',
+  chat: { sendMessage: async (text) => console.log(text) },
+  fetchImpl: fetch,
+  onLink: (url) => window.open(url, '_blank'),
 }
 
-// Returns an McpAppBridge with callTool / sendPrompt / openLink methods.
 const bridge = createMcpAppBridge(options)
 ```
 
-### `useMcpAppBridge` (`@tanstack/ai-react` / `@tanstack/ai-preact`)
+### `useMcpAppBridge` (React / Preact)
 
-The React/Preact wrapper around `createMcpAppBridge`. Returns a bridge that is
-**stable** for a given `threadId`/`callEndpoint` (so it won't churn `MCPAppResource`
-on every render) while always invoking the latest `chat.sendMessage`/`onLink`.
-Takes the same options as `createMcpAppBridge`.
+Stable bridge for `threadId`/`callEndpoint`; always uses latest `sendMessage`/`onLink`:
 
 ```tsx
 import { useChat, useMcpAppBridge } from '@tanstack/ai-react'
@@ -456,18 +393,16 @@ function useBridge(threadId: string) {
 
 ```tsx
 import { MCPAppResource } from '@tanstack/ai-react/mcp-apps'
-// `part` is a UIResourcePart from the assistant message; `bridge` is a
-// createMcpAppBridge result — both supplied by your component (see examples above).
 import { part, bridge } from './chat-context'
 
 const widget = (
   <MCPAppResource
-    part={part} // UIResourcePart from the assistant message (carries the toolName)
-    sandbox={{ url: new URL('https://your-app.example.com/mcp-sandbox.html') }} // your hosted sandbox-proxy page (host constant; not the widget's ui:// URL)
-    bridge={bridge} // omit for static, display-only rendering
-    toolInput={{ city: 'Brooklyn' }} // optional tool input for the renderer context
+    part={part}
+    sandbox={{ url: new URL('https://your-app.example.com/mcp-sandbox.html') }}
+    bridge={bridge} // omit for static
+    toolInput={{ city: 'Brooklyn' }}
   />
 )
 ```
 
-Preact: identical API from `@tanstack/ai-preact/mcp-apps` (requires `preact/compat` alias).
+Preact: same API from `@tanstack/ai-preact/mcp-apps` (`preact/compat` required).

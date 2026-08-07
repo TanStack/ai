@@ -1,7 +1,7 @@
 ---
 title: Audio Recording
 id: audio-recording
-description: "Record microphone audio in the browser with useAudioRecorder and send it to a chat or transcription as a ready-to-use content part, with an optional transform."
+description: "Record mic audio with useAudioRecorder and send it as a chat part or transcription input."
 keywords:
   - tanstack ai
   - audio recording
@@ -14,19 +14,9 @@ keywords:
 
 # Audio Recording
 
-You have a chat or generation UI and you want users to talk instead of type. By
-the end of this guide you'll capture microphone audio in the browser with
-`useAudioRecorder`, read the latest recording reactively, and send it straight
-into a chat message or a transcription request, with no transcoding and no
-extra dependencies.
+If you need voice input → `useAudioRecorder`. It wraps `getUserMedia` / `MediaRecorder` and returns native output (`audio/webm` or `audio/mp4`).
 
-`useAudioRecorder` wraps the browser's `getUserMedia` / `MediaRecorder` and
-returns the recorder's native output (`audio/webm` or `audio/mp4`).
-
-## Record audio
-
-Start with a button; end with a working recorder that toggles capture and hands
-you the result.
+## 1. Record
 
 ```tsx group=audio-recording
 import { useAudioRecorder } from '@tanstack/ai-react'
@@ -46,36 +36,26 @@ function RecordButton() {
 }
 ```
 
-`stop()` resolves to an `AudioRecording`:
+`stop()` resolves to `AudioRecording`:
 
-| Field        | Type        | Description                                                                  |
-| ------------ | ----------- | ---------------------------------------------------------------------------- |
-| `part`       | `AudioPart` | Ready-to-use content part: `{ type: 'audio', source: { type: 'data', value, mimeType } }` |
-| `base64`     | `string`    | Raw base64 of the recorded bytes                                             |
-| `blob`       | `Blob`      | The raw recorded blob                                                        |
-| `mimeType`   | `string`    | Native recorder type, e.g. `audio/webm;codecs=opus`                          |
-| `durationMs` | `number`    | Recording length in milliseconds                                             |
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `part` | `AudioPart` | Ready chat content part |
+| `base64` | `string` | Raw base64 bytes |
+| `blob` | `Blob` | Raw recorded blob |
+| `mimeType` | `string` | Native type, e.g. `audio/webm;codecs=opus` |
+| `durationMs` | `number` | Length in ms |
 
-## Handling errors
+## 2. Handle errors (pick one channel)
 
-Failures reach you through **two** channels. Pick one, and do not handle both:
+- `onError(error)` — permission denial and recorder errors
+- `start()` / `stop()` **reject** — wrap in `try`/`catch` if you `await` them
 
-- `onError(error)` fires for permission denial and recorder errors.
-- `start()` and `stop()` also **reject**. `start()` rejects on permission
-  denial; `stop()` rejects on a recorder error or with `Recording cancelled` if
-  the recording is cancelled while a stop is in flight (for example when the
-  component unmounts mid-recording).
+Do not handle both. Browsers may ignore unsupported `mimeType` — read `recording.mimeType` for the real format.
 
-So if you `await start()` / `await stop()`, wrap them in `try`/`catch` rather
-than discarding the promise with `void`. The recorder's native `mimeType` may
-differ from a requested `mimeType` (browsers ignore unsupported types), so read
-`recording.mimeType` if a downstream step requires a specific format.
+## 3. Read latest recording reactively
 
-## Read the latest recording reactively
-
-The same value is also exposed as the reactive `recording` field, so you can
-render a preview without capturing `stop()`'s return value yourself. It's `null`
-until the first `stop()`:
+`recording` is `null` until the first `stop()`:
 
 ```tsx group=audio-recording
 function Preview() {
@@ -84,17 +64,11 @@ function Preview() {
 }
 ```
 
-> Across frameworks `recording` follows the same shape as the other reactive
-> fields: an accessor in Solid (`recording()`), a readonly ref in Vue
-> (`recording.value`), a getter in Svelte (`recorder.recording`), and a
-> `Signal` in Angular (`recording()`).
+Reactive shape by framework: Solid `recording()`, Vue `recording.value`, Svelte `recorder.recording`, Angular `recording()` (signal).
 
-## Transform the recording
+## 4. Transform on complete
 
-Pass `onComplete` to turn the raw recording into whatever your app needs: a URL
-after upload, an encoded blob, or a custom object. Both `stop()` and the
-reactive `recording` field then resolve to your transformed value, and the
-transform can be `async`:
+`onComplete` re-types `stop()` and `recording`. Return `undefined` to keep the raw recording; any other return (including `null`) is used as-is:
 
 ```tsx group=audio-recording
 function Uploader() {
@@ -102,23 +76,15 @@ function Uploader() {
     onComplete: async (rec) => {
       const res = await fetch('/api/upload', { method: 'POST', body: rec.blob })
       const { url } = await res.json()
-      return url // `recording` and `stop()` now resolve to string
+      return url // string
     },
   })
 }
 ```
 
-Return nothing (`undefined`) to keep the raw `AudioRecording`; any returned
-value (including `null`) is used as-is and re-types `stop()` and `recording`.
-This is similar to the `onResult` transform on the
-[generation hooks](./generation-hooks), but is async-capable. (Unlike
-`onResult`, where `null` means "keep the previous value," only `undefined` keeps
-the raw recording here.)
+Unlike generation-hook `onResult`, only `undefined` keeps the raw value here. See [Generation Hooks](./generation-hooks).
 
-## Send a recording in chat
-
-The recording's `part` is already a chat content part, so it drops straight into
-`sendMessage`:
+## 5. Send in chat
 
 ```tsx
 import {
@@ -142,7 +108,6 @@ function VoiceComposer() {
       const rec = await stop()
       await sendMessage({ content: [rec.part] })
     } catch (error) {
-      // start()/stop() reject on permission denial, recorder error, or cancel.
       console.error(error)
     }
   }
@@ -155,12 +120,9 @@ function VoiceComposer() {
 }
 ```
 
-## Transcribe a recording
+## 6. Transcribe
 
-Wrap the recording as a `data:` URL so the provider receives the recorder's
-native content type. Passing raw `base64` makes the transcription adapter
-assume `audio/mpeg` and mislabel the webm/mp4 bytes. See
-[Transcription](./transcription) for the matching server route.
+Wrap as a `data:` URL so the provider gets the real mime type. Raw base64 is assumed `audio/mpeg`. Server route: [Transcription](./transcription).
 
 ```tsx
 import {
@@ -182,10 +144,6 @@ function Transcriber() {
         return
       }
       const rec = await stop()
-      // Wrap as a data URL so the provider gets the recorder's real content
-      // type. Passing raw base64 makes the transcription adapter assume
-      // `audio/mpeg`, which mislabels the native webm/mp4 bytes. Strip the
-      // `;codecs=...` parameter for a clean type.
       const mimeType = rec.mimeType.split(';')[0]
       await generate({ audio: `data:${mimeType};base64,${rec.base64}` })
     } catch (error) {
@@ -206,10 +164,7 @@ function Transcriber() {
 
 ## Other frameworks
 
-The same recorder ships for every framework with idiomatic reactivity. Svelte
-uses the `createAudioRecorder` factory; because Svelte 5 runes can't register
-automatic teardown, call `cancel()` from your component cleanup if a recording
-may still be active:
+Svelte: call `cancel()` on cleanup if a recording may still be active.
 
 ```svelte
 <script lang="ts">
@@ -235,37 +190,32 @@ may still be active:
 <button onclick={toggle}>{recorder.isRecording ? 'Send' : 'Record'}</button>
 ```
 
-| Framework | Import                  | Function             | Reactive fields                                      |
-| --------- | ----------------------- | -------------------- | ---------------------------------------------------- |
-| React     | `@tanstack/ai-react`    | `useAudioRecorder`   | `isRecording`, `recording` (values)                  |
-| Solid     | `@tanstack/ai-solid`    | `useAudioRecorder`   | `isRecording()`, `recording()` (accessors)           |
-| Vue       | `@tanstack/ai-vue`      | `useAudioRecorder`   | `isRecording.value`, `recording.value` (readonly refs) |
-| Svelte    | `@tanstack/ai-svelte`   | `createAudioRecorder`| `recorder.isRecording`, `recorder.recording` (getters) |
-| Angular   | `@tanstack/ai-angular`  | `injectAudioRecorder`| `isRecording()`, `recording()` (signals; call in an injection context) |
+| Framework | Import | Function | Reactive fields |
+| --------- | ------ | -------- | --------------- |
+| React | `@tanstack/ai-react` | `useAudioRecorder` | values |
+| Solid | `@tanstack/ai-solid` | `useAudioRecorder` | accessors `()` |
+| Vue | `@tanstack/ai-vue` | `useAudioRecorder` | `.value` refs |
+| Svelte | `@tanstack/ai-svelte` | `createAudioRecorder` | getters on instance |
+| Angular | `@tanstack/ai-angular` | `injectAudioRecorder` | signals `()` |
 
 ## Hook API
 
-`useAudioRecorder(options?)` and its `createAudioRecorder` / `injectAudioRecorder`
-equivalents accept:
+**Options**
 
-| Option       | Type                                                | Description                                                                                          |
-| ------------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `onComplete` | `(recording: AudioRecording) => T \| Promise<T>`    | Optional transform. Its (awaited) return re-types `stop()` and `recording`. Return nothing to keep the raw recording |
-| `onError`    | `(error: Error) => void`                            | Called on permission denial or recorder error                                                       |
-| `audio`      | `MediaTrackConstraints \| boolean`                  | Passed to `getUserMedia({ audio })`. Defaults to `true`                                             |
-| `mimeType`   | `string`                                            | Preferred recorder mime type; falls back to the browser default if unsupported                      |
+| Option | Type | Description |
+| ------ | ---- | ----------- |
+| `onComplete` | `(recording) => T \| Promise<T>` | Transform; re-types `stop()` / `recording` |
+| `onError` | `(error: Error) => void` | Permission / recorder errors |
+| `audio` | `MediaTrackConstraints \| boolean` | Passed to `getUserMedia` (default `true`) |
+| `mimeType` | `string` | Preferred type; falls back if unsupported |
 
-And return:
+**Returns**
 
-| Property      | Type                  | Description                                                          |
-| ------------- | --------------------- | ------------------------------------------------------------------- |
-| `recording`   | `T \| null`           | Latest recording (transformed if `onComplete` provided), reactive   |
-| `isRecording` | `boolean`             | Whether capture is currently active                                 |
-| `isSupported` | `boolean`             | Whether the browser supports recording                              |
-| `start`       | `() => Promise<void>` | Acquire the mic and begin recording                                 |
-| `stop`        | `() => Promise<T>`    | Stop, and resolve with the recording (transformed if applicable)    |
-| `cancel`      | `() => void`          | Discard the in-progress recording and release the mic               |
-
-> Reactive shapes (`recording`, `isRecording`) vary per framework. See the
-> table in [Other frameworks](#other-frameworks). `T` is `AudioRecording`
-> unless an `onComplete` transform changes it.
+| Property | Type | Description |
+| -------- | ---- | ----------- |
+| `recording` | `T \| null` | Latest recording (transformed if applicable) |
+| `isRecording` | `boolean` | Capture active |
+| `isSupported` | `boolean` | Browser support |
+| `start` | `() => Promise<void>` | Acquire mic, begin |
+| `stop` | `() => Promise<T>` | Stop; resolve with recording |
+| `cancel` | `() => void` | Discard in-progress recording |

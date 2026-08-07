@@ -2,7 +2,7 @@
 title: "@tanstack/ai-react"
 slug: /api/ai-react
 order: 3
-description: "API reference for @tanstack/ai-react — React hooks including useChat for streaming chat with full type safety in React apps."
+description: "React useChat hook, connection adapters, and typed client tools."
 keywords:
   - tanstack ai
   - "@tanstack/ai-react"
@@ -12,29 +12,25 @@ keywords:
   - api reference
 ---
 
-React hooks for TanStack AI, providing convenient React bindings for the headless client.
-For React Native, the documented support surface is narrow: `useChat` with chat
-connection adapters. React DOM-specific UI packages and TanStack AI devtools UI
-are not part of the React Native support surface.
-
-For a complete native journey, see
-[Quick Start: React Native](../getting-started/quick-start-react-native).
-
-## Installation
+If you need streaming chat in React → `useChat` + a connection adapter.
 
 ```bash
 npm install @tanstack/ai-react
 ```
 
+**React Native:** supported surface is `useChat` + connection adapters only (no DOM/devtools UI packages). See [Quick Start: React Native](../getting-started/quick-start-react-native).
+
 ## `useChat(options?)`
 
-Main hook for managing chat state in React with full type safety.
+1. Wire a connection.
+2. Pass `.client()` tools if needed (auto-executed).
+3. Render `messages` / call `sendMessage`.
 
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { 
-  createChatClientOptions, 
-  type InferChatMessages 
+import {
+  createChatClientOptions,
+  type InferChatMessages,
 } from "@tanstack/ai-client";
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
@@ -43,22 +39,18 @@ import { useState } from "react";
 const updateUIDef = toolDefinition({
   name: "updateUI",
   description: "Update the UI with a notification",
-  inputSchema: z.object({
-    message: z.string(),
-  }),
+  inputSchema: z.object({ message: z.string() }),
   outputSchema: z.object({ success: z.boolean() }),
 });
 
 function ChatComponent() {
   const [notification, setNotification] = useState<string | null>(null);
 
-  // Create client tool implementations
   const updateUI = updateUIDef.client((input) => {
     setNotification(input.message);
     return { success: true };
   });
 
-  // Create typed tools array (no 'as const' needed!)
   const tools = [updateUI];
 
   const chatOptions = createChatClientOptions({
@@ -66,7 +58,6 @@ function ChatComponent() {
     tools,
   });
 
-  // Fully typed messages!
   type ChatMessages = InferChatMessages<typeof chatOptions>;
 
   const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
@@ -80,21 +71,14 @@ function ChatComponent() {
 
 Extends `ChatClientOptions` from `@tanstack/ai-client`:
 
-- `connection` - Connection adapter (required)
-- `tools?` - Array of client tool implementations (with `.client()` method)
-- `initialMessages?` - Initial messages array
-- `id?` - Unique identifier for this chat instance
-- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
-- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
-- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
-- `onResponse?` - Callback when response is received
-- `onChunk?` - Callback when stream chunk is received
-- `onFinish?` - Callback when response finishes
-- `onError?` - Callback when error occurs
-- `streamProcessor?` - Stream processing configuration
+- `connection` — required adapter
+- `tools?` — `.client()` implementations (auto-run; no `onToolCall`)
+- `initialMessages?` / `id?` / `threadId?` — seed + AG-UI thread
+- `forwardedProps?` — client JSON → server (e.g. `{ provider: 'openai', model: 'gpt-4o' }`)
+- `context?` — client-local tool context (not serialized)
 
-**Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
+Also: `onResponse?`, `onChunk?`, `onFinish?`, `onError?`, `streamProcessor?`.  
+`body?` is **deprecated** — use `forwardedProps` (still merged for compat).
 
 ### Returns
 
@@ -126,9 +110,11 @@ interface UseChatReturn {
 }
 ```
 
-## Connection Adapters
+---
 
-Re-exported from `@tanstack/ai-client` for convenience:
+## Connection adapters
+
+Re-exported from `@tanstack/ai-client`:
 
 ```typescript
 import {
@@ -143,22 +129,24 @@ import {
 } from "@tanstack/ai-react";
 ```
 
-For React Native or Expo chat screens, use an absolute server URL and prefer
-`xhrHttpStream()` with a server route that returns `toHttpResponse()`. Use
-`xhrServerSentEvents()` with `toServerSentEventsResponse()` when you want SSE.
-Use `fetchHttpStream()` only when the runtime supports streaming `fetch`,
-`Response.body.getReader()`, and `TextDecoder`; otherwise it throws
-`UnsupportedResponseStreamError`.
+| Runtime | Prefer | Server |
+| --- | --- | --- |
+| Browser SSE | `fetchServerSentEvents` | `toServerSentEventsResponse()` |
+| Browser NDJSON | `fetchHttpStream` | `toHttpResponse()` |
+| React Native / Expo | `xhrHttpStream` (absolute URL) | `toHttpResponse()` |
+| RN SSE | `xhrServerSentEvents` | `toServerSentEventsResponse()` |
 
-XHR adapter options include `headers`, `withCredentials`, `signal`, `body`, and
-`xhrFactory`. Fetch adapter options include `headers`, `credentials`, `signal`,
-`body`, and `fetchClient`. Both option objects may be provided directly or as a
-function that resolves per request.
+`fetchHttpStream` needs streaming `fetch` + reader + `TextDecoder`; otherwise `UnsupportedResponseStreamError`.
 
-For error narrowing, import `UnsupportedResponseStreamError` and
-`StreamTruncatedError` from `@tanstack/ai-client`.
+Options may be a static object or a per-request function.  
+Fetch: `headers`, `credentials`, `signal`, `body`, `fetchClient`.  
+XHR: `headers`, `withCredentials`, `signal`, `body`, `xhrFactory`.
 
-## Example: Basic Chat
+Narrow stream errors from `@tanstack/ai-client`: `UnsupportedResponseStreamError`, `StreamTruncatedError`.
+
+---
+
+## Basic chat
 
 ```tsx
 import { useState } from "react";
@@ -216,7 +204,7 @@ export function Chat() {
 }
 ```
 
-## Example: Tool Approval
+## Tool approval
 
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -269,14 +257,10 @@ export function ChatWithApproval() {
 }
 ```
 
-## Example: Client Tools with Type Safety
+## Client tools (typed)
 
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { 
-  createChatClientOptions, 
-  type InferChatMessages 
-} from "@tanstack/ai-client";
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { useState } from "react";
@@ -302,11 +286,12 @@ const saveToStorageDef = toolDefinition({
 });
 
 export function ChatWithClientTools() {
-  const [notification, setNotification] = useState<{ message: string; type: string } | null>(null);
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: string;
+  } | null>(null);
 
-  // Create client implementations
   const updateUI = updateUIDef.client((input) => {
-    // ✅ input is fully typed!
     setNotification({ message: input.message, type: input.type });
     return { success: true };
   });
@@ -316,12 +301,11 @@ export function ChatWithClientTools() {
     return { saved: true };
   });
 
-  // Create typed tools array (no 'as const' needed!)
   const tools = [updateUI, saveToStorage];
 
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
-    tools, // ✅ Automatic execution, full type safety
+    tools,
   });
 
   return (
@@ -329,7 +313,6 @@ export function ChatWithClientTools() {
       {messages.map((message) =>
         message.parts.map((part) => {
           if (part.type === "tool-call" && part.name === "updateUI") {
-            // ✅ part.input and part.output are fully typed!
             return <div key={part.id}>Tool executed: {part.name}</div>;
           }
           return null;
@@ -342,17 +325,16 @@ export function ChatWithClientTools() {
 
 ## `createChatClientOptions(options)`
 
-Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
+Re-export for typed options + `InferChatMessages`.
 
 ```typescript
-import { 
-  createChatClientOptions, 
+import {
+  createChatClientOptions,
   fetchServerSentEvents,
-  type InferChatMessages 
+  type InferChatMessages,
 } from "@tanstack/ai-client";
 import { tool1, tool2 } from "./tools";
 
-// Create typed tools array (no 'as const' needed!)
 const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
@@ -365,27 +347,12 @@ type Messages = InferChatMessages<typeof chatOptions>;
 
 ## Types
 
-Re-exported from `@tanstack/ai-client`:
+From `@tanstack/ai-client`: `UIMessage`, `MessagePart`, `TextPart`, `ThinkingPart`, `ToolCallPart`, `ToolResultPart`, `ChatClientOptions`, `ConnectionAdapter`, `InferChatMessages`.
 
-- `UIMessage<TTools>` - Message type with tool type parameter
-- `MessagePart<TTools>` - Message part with tool type parameter
-- `TextPart` - Text content part
-- `ThinkingPart` - Thinking content part
-- `ToolCallPart<TTools>` - Tool call part (discriminated union)
-- `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
-- `ConnectionAdapter` - Connection adapter interface
-- `InferChatMessages<T>` - Extract message type from options
-
-Re-exported from `@tanstack/ai`:
-
-- `toolDefinition()` - Create isomorphic tool definition
-- `ToolDefinitionInstance` - Tool definition type
-- `ClientTool` - Client tool type
-- `ServerTool` - Server tool type
+From `@tanstack/ai`: `toolDefinition()`, `ToolDefinitionInstance`, `ClientTool`, `ServerTool`.
 
 ## Next Steps
 
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
-- [Client Tools](../tools/client-tools) - Learn about client-side tools
+- [Getting Started](../getting-started/quick-start)
+- [Tools Guide](../tools/tools)
+- [Client Tools](../tools/client-tools)

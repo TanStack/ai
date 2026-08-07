@@ -2,7 +2,7 @@
 title: Code Mode
 id: code-mode
 order: 1
-description: "Let LLMs write and execute TypeScript programs that orchestrate tools in a secure sandbox with TanStack AI Code Mode — fewer loops, richer logic."
+description: "LLM writes TypeScript that orchestrates tools in a sandbox — fewer agent loops, typed stubs."
 keywords:
   - tanstack ai
   - code mode
@@ -13,54 +13,34 @@ keywords:
   - ai agents
 ---
 
-Code Mode lets an LLM write and execute TypeScript programs inside a secure sandbox. Instead of making one tool call at a time, the model writes a short script that orchestrates multiple tools with loops, conditionals, `Promise.all`, and data transformations — then returns a single result.
+# Code Mode
 
-You already have a chat app that uses [tools](../tools/tools). By the end of this guide, you'll have Code Mode set up so the LLM can compose those tools in TypeScript and execute them in a single sandbox call.
+If tools already work in chat → let the model write one TypeScript program that orchestrates them in a sandbox instead of multi-step tool loops.
 
-## Why Code Mode?
+## Why
 
-### Reduced context window usage
+1. **Fewer tokens** — one `execute_typescript` call vs many tool round-trips
+2. **Logic up front** — filter, `Promise.all`, branch inside the sandbox
+3. **Typed stubs** — tools become typed `external_*` functions in the prompt
+4. **Sandbox** — V8 / QuickJS / Cloudflare Worker; timeouts + memory limits
 
-In a traditional agentic loop, every tool call adds a round-trip of messages: the model's tool-call request, the tool result, then the model's next reasoning step. A task that touches five tools can easily consume thousands of tokens in back-and-forth.
+## Setup
 
-With Code Mode the model emits one `execute_typescript` call containing a complete program. The five tool invocations happen inside the sandbox, and only the final result comes back — one request, one response.
-
-### The LLM decides how to interpret tool output
-
-When tools are called individually, the model must decide what to do with each result in a new turn. With Code Mode, the model writes the logic up front: filter, aggregate, compare, branch. It can `Promise.all` ten API calls, pick the best result, and return a summary — all in a single execution.
-
-### Type-safe tool execution
-
-Tools you pass to Code Mode are converted to typed function stubs that appear in the system prompt. The model sees exact input/output types, so it generates correct calls without guessing parameter names or shapes. TypeScript annotations in the generated code are stripped automatically before execution.
-
-### Secure sandboxing
-
-Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, or Cloudflare Worker) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
-
-## Getting Started
-
-### 1. Install packages
+### 1. Install
 
 ```bash
 pnpm add @tanstack/ai @tanstack/ai-code-mode zod
 ```
 
-Pick an isolate driver:
+Pick a driver:
 
 ```bash
-# Node.js — fastest, uses V8 isolates (requires native compilation)
-pnpm add @tanstack/ai-isolate-node
-
-# QuickJS WASM — no native deps, works in browsers and edge runtimes
-pnpm add @tanstack/ai-isolate-quickjs
-
-# Cloudflare Workers — run on the edge
-pnpm add @tanstack/ai-isolate-cloudflare
+pnpm add @tanstack/ai-isolate-node          # Node V8 (fastest)
+pnpm add @tanstack/ai-isolate-quickjs       # WASM, portable
+pnpm add @tanstack/ai-isolate-cloudflare    # Cloudflare edge
 ```
 
 ### 2. Define tools
-
-Define your tools with `toolDefinition()` and provide a server-side implementation with `.server()`. These become the `external_*` functions available inside the sandbox.
 
 ```typescript group=code-mode
 import { toolDefinition } from "@tanstack/ai";
@@ -80,7 +60,7 @@ const fetchWeather = toolDefinition({
 });
 ```
 
-### 3. Create the Code Mode tool and system prompt
+### 3. Create Code Mode
 
 ```typescript group=code-mode
 import { createCodeMode } from "@tanstack/ai-code-mode";
@@ -115,7 +95,7 @@ const result = await chat({
 });
 ```
 
-The model will generate something like:
+Model may emit something like:
 
 ```typescript ignore
 const cities = ["Tokyo", "Paris", "New York City"];
@@ -137,114 +117,85 @@ return {
 };
 ```
 
-All three API calls happen in parallel inside the sandbox. The model receives one structured result instead of three separate tool-call round-trips.
-
-## API Reference
+## API
 
 ### `createCodeMode(config)`
 
-Creates both the `execute_typescript` tool and its matching system prompt from a single config object. This is the recommended entry point.
-
 ```typescript ignore
 const { tool, systemPrompt } = createCodeMode({
-  driver,          // IsolateDriver — required
-  tools,           // Array<ServerTool | ToolDefinition> — required, at least one
-  timeout,         // number — execution timeout in ms (default: 30000)
-  memoryLimit,     // number — memory limit in MB (default: 128, Node + QuickJS drivers)
-  getSkillBindings, // () => Promise<Record<string, ToolBinding>> — optional dynamic bindings
+  driver,           // IsolateDriver — required
+  tools,            // ServerTool[] — required, need .server()
+  timeout,          // ms (default 30000)
+  memoryLimit,      // MB (default 128; Node + QuickJS)
+  getSkillBindings, // optional dynamic bindings
 });
 ```
 
-**Config properties:**
-
 | Property | Type | Description |
 |----------|------|-------------|
-| `driver` | `IsolateDriver` | The sandbox runtime to execute code in |
-| `tools` | `Array<ServerTool \| ToolDefinition>` | Tools exposed as `external_*` functions. Must have `.server()` implementations |
-| `timeout` | `number` | Execution timeout in milliseconds (default: 30000) |
-| `memoryLimit` | `number` | Memory limit in MB (default: 128). Supported by Node and QuickJS drivers |
-| `getSkillBindings` | `() => Promise<Record<string, ToolBinding>>` | Optional function returning additional bindings at execution time |
+| `driver` | `IsolateDriver` | Sandbox runtime |
+| `tools` | `Array<ServerTool \| ToolDefinition>` | Become `external_*` |
+| `timeout` | `number` | Execution timeout ms |
+| `memoryLimit` | `number` | Heap MB |
+| `getSkillBindings` | `() => Promise<Record<string, ToolBinding>>` | Extra bindings |
 
-The tool returns a `CodeModeToolResult`:
+Result:
 
 ```typescript
 interface CodeModeToolResult {
   success: boolean;
-  result?: unknown;    // Return value from the executed code
-  logs?: Array<string>; // Captured console output
-  error?: {
-    message: string;
-    name?: string;
-    line?: number;
-  };
+  result?: unknown;
+  logs?: Array<string>;
+  error?: { message: string; name?: string; line?: number };
 }
 ```
 
-### `createCodeModeTool(config)` / `createCodeModeSystemPrompt(config)`
-
-Lower-level functions if you need only the tool or only the prompt. `createCodeMode` calls both internally.
+### Split helpers
 
 ```typescript
-import { createCodeModeTool, createCodeModeSystemPrompt } from "@tanstack/ai-code-mode";
+import {
+  createCodeModeTool,
+  createCodeModeSystemPrompt,
+} from "@tanstack/ai-code-mode";
 import { config } from "./config";
 
 const tool = createCodeModeTool(config);
 const prompt = createCodeModeSystemPrompt(config);
 ```
 
-### `IsolateDriver`
+### Drivers
 
-The interface that sandbox runtimes implement. You do not implement this yourself — pick one of the provided drivers:
-
-```typescript
-import type { IsolateConfig, IsolateContext } from "@tanstack/ai-code-mode";
-
-interface IsolateDriver {
-  createContext(config: IsolateConfig): Promise<IsolateContext>;
-}
-```
-
-**Available drivers:**
-
-| Package | Factory function | Environment |
-|---------|-----------------|-------------|
+| Package | Factory | Environment |
+|---------|---------|-------------|
 | `@tanstack/ai-isolate-node` | `createNodeIsolateDriver()` | Node.js |
-| `@tanstack/ai-isolate-quickjs` | `createQuickJSIsolateDriver()` | Node.js, browser, edge |
+| `@tanstack/ai-isolate-quickjs` | `createQuickJSIsolateDriver()` | Node, browser, edge |
 | `@tanstack/ai-isolate-cloudflare` | `createCloudflareIsolateDriver()` | Cloudflare Workers |
 
-For full configuration options for each driver, see [Isolate Drivers](./code-mode-isolates.md).
+Full options: [Isolate Drivers](./code-mode-isolates.md).
 
-### Advanced
+**Rule of thumb:** Node for servers · QuickJS for portable/edge without Workers deploy · Cloudflare when you already run Workers.
 
-These utilities are used internally and are exported for custom pipelines:
+### Internals (exported)
 
-- **`stripTypeScript(code)`** — Strips TypeScript syntax using sucrase (edge-safe, no native binary), converting to plain JavaScript.
-- **`toolsToBindings(tools, prefix?)`** — Converts TanStack AI tools into `Record<string, ToolBinding>` for sandbox injection.
-- **`generateTypeStubs(bindings, options?)`** — Generates TypeScript type declarations from tool bindings for system prompts.
+- `stripTypeScript(code)` — sucrase strip to JS
+- `toolsToBindings(tools, prefix?)` — tool → bindings
+- `generateTypeStubs(bindings, options?)` — prompt type stubs
 
-## Choosing a Driver
-
-For a full comparison of drivers with all configuration options, see [Isolate Drivers](./code-mode-isolates.md).
-
-In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), and the **Cloudflare driver** when you deploy to Cloudflare Workers.
-
-## Custom Events
-
-Code Mode emits custom events during execution that you can observe through the TanStack AI event system. These are useful for building UIs that show execution progress, debugging, or logging.
+## Custom events
 
 | Event | When | Payload |
 |-------|------|---------|
-| `code_mode:execution_started` | Code execution begins | `{ timestamp, codeLength }` |
-| `code_mode:console` | Each `console.log/error/warn/info` call | `{ level, message, timestamp }` |
-| `code_mode:external_call` | Before an `external_*` function runs | `{ function, args, timestamp }` |
-| `code_mode:external_result` | After a successful `external_*` call | `{ function, result, duration }` |
-| `code_mode:external_error` | When an `external_*` call fails | `{ function, error, duration }` |
+| `code_mode:execution_started` | Start | `timestamp`, `codeLength` |
+| `code_mode:console` | log/error/warn/info | `level`, `message`, `timestamp` |
+| `code_mode:external_call` | Before tool | `function`, `args`, `timestamp` |
+| `code_mode:external_result` | After tool | `function`, `result`, `duration` |
+| `code_mode:external_error` | Tool fail | `function`, `error`, `duration` |
 
-To display these events in your React app, see [Showing Code Mode in the UI](./client-integration).
+UI: [Showing Code Mode in the UI](./client-integration).
 
-## Model Compatibility
+## Model compatibility
 
-Code Mode asks the model to write valid TypeScript that calls your tools through the sandbox bridge. Not every model handles this equally — many small or older models mishandle the `external_*` calling conventions even when the system prompt is explicit. We track a single multi-step benchmark (joining three tables, filtering customers who bought from every product category, aggregating spend per category) against a gold reference. The full harness lives at `packages/ai-code-mode/models-eval/`.
+Single multi-step benchmark (join/filter/aggregate). Harness: `packages/ai-code-mode/models-eval/`.
 
 | Rank | Model | Stars | Acc | Comp | TS | CME | Latency | Tokens |
 |------|-------|:-----:|:---:|:----:|:--:|:---:|--------:|-------:|
@@ -256,40 +207,32 @@ Code Mode asks the model to write valid TypeScript that calls your tools through
 | 6 | `openai:gpt-4o-mini` | ★★☆ | 10 | 8 | 8 | 10 | 19.2s | 8.7k |
 | 7 | `ollama:gemma4:31b` | ★★☆ | 10 | 8 | 4 | 5 | 264.2s | 6.4k |
 
-**Columns**
-
-- **Stars** — overall weighted rating (1-3) combining accuracy, comprehensiveness, code quality, code-mode efficiency, speed, token efficiency, and stability.
-- **Acc / Comp / TS / CME** — Anthropic-judged subscores out of 10: accuracy vs gold, comprehensiveness, TypeScript quality, code-mode efficiency (fewer wasted attempts is better).
-- **Latency** — wall-clock time for the full agentic loop.
-- **Tokens** — total prompt + completion tokens. Grok's adapter does not report usage.
+- **Stars** — weighted overall (1–3)
+- **Acc / Comp / TS / CME** — accuracy, comprehensiveness, TS quality, code-mode efficiency ( /10)
+- **Latency / Tokens** — full loop wall time and usage (Grok adapter omits usage)
 
 **Takeaways**
 
-- **Strongest cloud picks:** Grok 4.1 Fast, Claude Haiku 4.5, and Gemini 2.5 Flash all finish under 10s and handle the multi-step task cleanly. Claude Haiku 4.5 has the highest comprehensiveness score (10/10).
-- **Strongest local pick:** `ollama:gpt-oss:20b` is the best local performer at 45s with zero compilation failures. `ollama:nemotron-cascade-2` is a close second.
-- **Avoid:** the smaller `gemma4` (9.6 GB) and the other local models commented out at the top of `eval-config.ts` (`granite4:3b`, `ministral-3`, `mistral:7b`, `qwen3:8b`, etc.) — they either ignore the `external_queryTable` shape, hallucinate results, or refuse to invoke `execute_typescript`.
-- **Caveat:** this is a single‑prompt benchmark. Local model results can vary noticeably between runs; use these as a rough capability filter rather than a definitive ranking.
-
-Reproduce locally:
+1. Cloud under 10s: Grok 4.1 Fast, Claude Haiku 4.5, Gemini 2.5 Flash
+2. Best local: `ollama:gpt-oss:20b` (~45s)
+3. Avoid tiny locals that ignore `external_*` / refuse `execute_typescript`
+4. Single-prompt bench — use as a filter, not a ranking
 
 ```bash
 cd packages/ai-code-mode/models-eval
 pnpm install
-pnpm eval                    # full suite (needs cloud API keys + Anthropic for judging)
-pnpm eval -- --ollama-only   # local models only
-pnpm eval -- --no-judge      # skip Anthropic-based judging
+pnpm eval
+pnpm eval -- --ollama-only
+pnpm eval -- --no-judge
 ```
 
 ## Tips
 
-- **Start simple.** Give the model 2-3 tools and a clear task. Code Mode works best when the model has a focused set of capabilities.
-- **Prefer `Promise.all` tasks.** Code Mode shines when the model can parallelize work that would otherwise be sequential tool calls.
-- **Use `console.log` for debugging.** Logs are captured and returned in the result, making it easy to see what happened inside the sandbox.
-- **Keep tools focused.** Each tool should do one thing well. The model will compose them in code.
-- **Check the system prompt.** Call `createCodeModeSystemPrompt(config)` and inspect the output to see exactly what the model will see, including generated type stubs.
+1. Start with 2–3 focused tools.
+2. Prefer tasks that benefit from `Promise.all`.
+3. Use `console.log` — logs return in the result.
+4. Inspect `createCodeModeSystemPrompt(config)` to see model-facing stubs.
 
-## Next Steps
+## Next
 
-- [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
-- [Code Mode with Skills](./code-mode-with-skills) — Add persistent, reusable skill libraries
-- [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, and Cloudflare sandbox runtimes
+- [Client UI](./client-integration) · [Skills](./code-mode-with-skills) · [Isolates](./code-mode-isolates)

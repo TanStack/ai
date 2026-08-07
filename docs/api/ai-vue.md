@@ -2,7 +2,7 @@
 title: "@tanstack/ai-vue"
 id: ai-vue
 order: 5
-description: "API reference for @tanstack/ai-vue — Vue 3 composables including useChat for streaming chat with full type safety."
+description: "Vue 3 useChat composable, generation helpers, and typed client tools."
 keywords:
   - tanstack ai
   - "@tanstack/ai-vue"
@@ -13,9 +13,7 @@ keywords:
   - api reference
 ---
 
-Vue composables for TanStack AI, providing convenient Vue 3 bindings for the headless client.
-
-## Installation
+If you need streaming chat in Vue 3 → `useChat` + a connection adapter.
 
 ```bash
 npm install @tanstack/ai-vue
@@ -23,7 +21,9 @@ npm install @tanstack/ai-vue
 
 ## `useChat(options?)`
 
-Main composable for managing chat state in Vue with full type safety.
+1. Call inside `<script setup>`.
+2. Pass connection + optional `.client()` tools (auto-executed).
+3. Read refs with `.value` in script; bare names in template.
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-vue";
@@ -56,7 +56,6 @@ const chatOptions = createChatClientOptions({
   tools,
 });
 
-// Fully typed messages!
 type ChatMessages = InferChatMessages<typeof chatOptions>;
 
 const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
@@ -65,25 +64,16 @@ const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
 
 ### Options
 
-Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state callbacks):
+Extends `ChatClientOptions` (minus internal state callbacks):
 
-- `connection` - Connection adapter (required)
-- `tools?` - Array of client tool implementations (with `.client()` method)
-- `initialMessages?` - Initial messages array
-- `id?` - Unique identifier for this chat instance
-- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (reactive -- changes are synced automatically via `watch`)
-- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire (reactive)
-- `context?` - Typed client-local runtime context passed to client tool implementations (reactive). This value is not serialized to the server
-- `live?` - Enable live subscription mode (auto-subscribes/unsubscribes)
-- `onResponse?` - Callback when response is received
-- `onChunk?` - Callback when stream chunk is received
-- `onFinish?` - Callback when response finishes
-- `onError?` - Callback when error occurs
-- `onCustomEvent?` - Callback for custom stream events
-- `streamProcessor?` - Stream processing configuration
+- `connection` — required adapter
+- `tools?` — `.client()` implementations (auto-run)
+- `initialMessages?` / `id?` / `threadId?` — seed + AG-UI thread
+- `forwardedProps?` — reactive; synced via `watch`
+- `context?` — reactive client-local tool context (not serialized)
 
-**Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
+Also: `live?`, `onResponse?`, `onChunk?`, `onFinish?`, `onError?`, `onCustomEvent?`, `streamProcessor?`.  
+`body?` is **deprecated** (still reactive + merged into `forwardedProps`).
 
 ### Returns
 
@@ -125,11 +115,11 @@ interface UseChatReturn {
 }
 ```
 
-**Note:** Reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) is wrapped in `DeepReadonly<ShallowRef<T>>`. In `<script setup>` read the underlying value with `.value` (e.g., `messages.value`); in `<template>` Vue auto-unwraps the ref, so use the bare name (e.g., `v-for="m in messages"`). Cleanup is automatic via `onScopeDispose`.
+Reactive fields are `DeepReadonly<ShallowRef<T>>`. Cleanup runs via `onScopeDispose`.
 
-## Connection Adapters
+---
 
-Re-exported from `@tanstack/ai-client` for convenience:
+## Connection adapters
 
 ```typescript
 import {
@@ -140,7 +130,9 @@ import {
 } from "@tanstack/ai-vue";
 ```
 
-## Example: Basic Chat
+---
+
+## Basic chat
 
 ```vue
 <script setup lang="ts">
@@ -185,7 +177,7 @@ const handleSubmit = () => {
 </template>
 ```
 
-## Example: Tool Approval
+## Tool approval
 
 ```vue
 <script setup lang="ts">
@@ -235,16 +227,12 @@ const { messages, sendMessage, addToolApprovalResponse } = useChat({
 </template>
 ```
 
-## Example: Client Tools with Type Safety
+## Client tools (typed)
 
 ```vue
 <script setup lang="ts">
 import { ref } from "vue";
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-vue";
-import {
-  createChatClientOptions,
-  type InferChatMessages,
-} from "@tanstack/ai-client";
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 
@@ -262,9 +250,7 @@ const saveToStorageDef = toolDefinition({
 
 const notification = ref<{ message: string; type: string } | null>(null);
 
-// Create client implementations
 const updateUI = updateUIDef.client((input) => {
-  // input is fully typed!
   notification.value = { message: input.message, type: input.type };
   return { success: true };
 });
@@ -274,12 +260,11 @@ const saveToStorage = saveToStorageDef.client((input) => {
   return { saved: true };
 });
 
-// Create typed tools array (no 'as const' needed!)
 const tools = [updateUI, saveToStorage];
 
 const { messages, sendMessage } = useChat({
   connection: fetchServerSentEvents("/api/chat"),
-  tools, // Automatic execution, full type safety
+  tools,
 });
 </script>
 
@@ -296,13 +281,15 @@ const { messages, sendMessage } = useChat({
 </template>
 ```
 
-## Generation Composables
+---
 
-Vue composables for one-shot generation tasks (images, speech, transcription, summarization, video). All share the same pattern: provide a `connection` or `fetcher`, call `generate()`, and read reactive state.
+## Generation composables
+
+One-shot tasks: provide `connection` or `fetcher`, call `generate()`, read reactive state. Cleanup via `onScopeDispose`.
 
 ### `useGeneration(options)`
 
-Base composable for custom generation types. All specialized composables below are built on this.
+Base composable; specialized ones below wrap it.
 
 ```typescript
 import { useGeneration } from "@tanstack/ai-vue";
@@ -316,33 +303,21 @@ const { generate, result, isLoading, error, status, stop, reset } =
 
 **Options:** `connection?`, `fetcher?`, `id?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId` -- all reactive state is `DeepReadonly<ShallowRef<T>>`.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId` (state is `DeepReadonly<ShallowRef<T>>`).
 
-### `useGenerateImage(options)`
+### Specialized
 
-Image generation composable. `generate()` accepts `ImageGenerateInput`, result is `ImageGenerationResult`.
+| Composable | Input | Result notes |
+| --- | --- | --- |
+| `useGenerateImage` | `ImageGenerateInput` | `ImageGenerationResult` |
+| `useGenerateSpeech` | `SpeechGenerateInput` | `TTSResult` |
+| `useTranscription` | `TranscriptionGenerateInput` | `TranscriptionResult` |
+| `useSummarize` | `SummarizeGenerateInput` | `SummarizationResult` |
+| `useGenerateVideo` | video input | + `jobId`, `videoStatus`; `onJobCreated?`, `onStatusUpdate?` |
 
-### `useGenerateSpeech(options)`
-
-Text-to-speech composable. `generate()` accepts `SpeechGenerateInput`, result is `TTSResult`.
-
-### `useTranscription(options)`
-
-Audio transcription composable. `generate()` accepts `TranscriptionGenerateInput`, result is `TranscriptionResult`.
-
-### `useSummarize(options)`
-
-Text summarization composable. `generate()` accepts `SummarizeGenerateInput`, result is `SummarizationResult`.
-
-### `useGenerateVideo(options)`
-
-Video generation composable with job polling. Returns additional `jobId` and `videoStatus` refs. Accepts extra `onJobCreated?` and `onStatusUpdate?` callbacks.
-
-All generation composables automatically clean up via `onScopeDispose`.
+---
 
 ## `createChatClientOptions(options)`
-
-Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 
 ```typescript
 import {
@@ -352,7 +327,6 @@ import {
 import { fetchServerSentEvents } from "@tanstack/ai-vue";
 import { tool1, tool2 } from "./tools";
 
-// Create typed tools array (no 'as const' needed!)
 const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
@@ -365,36 +339,12 @@ type Messages = InferChatMessages<typeof chatOptions>;
 
 ## Types
 
-Re-exported from `@tanstack/ai-client`:
+From `@tanstack/ai-client`: `UIMessage`, `MessagePart`, `TextPart`, `ThinkingPart`, `ToolCallPart`, `ToolResultPart`, `ChatClientOptions`, `ConnectionAdapter`, `InferChatMessages`, `ChatRequestBody`, generation input/result types (`ImageGenerateInput`, `SpeechGenerateInput`, `TranscriptionGenerateInput`, `SummarizeGenerateInput`, `VideoGenerateInput`, `VideoGenerateResult`, `VideoStatusInfo`, `GenerationClientState`).
 
-- `UIMessage<TTools>` - Message type with tool type parameter
-- `MessagePart<TTools>` - Message part with tool type parameter
-- `TextPart` - Text content part
-- `ThinkingPart` - Thinking content part
-- `ToolCallPart<TTools>` - Tool call part (discriminated union)
-- `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
-- `ConnectionAdapter` - Connection adapter interface
-- `InferChatMessages<T>` - Extract message type from options
-- `ChatRequestBody` - Request body type
-- `GenerationClientState` - Generation lifecycle state
-- `ImageGenerateInput` - Image generation input type
-- `SpeechGenerateInput` - Speech generation input type
-- `TranscriptionGenerateInput` - Transcription input type
-- `SummarizeGenerateInput` - Summarization input type
-- `VideoGenerateInput` - Video generation input type
-- `VideoGenerateResult` - Video generation result type
-- `VideoStatusInfo` - Video job status info
-
-Re-exported from `@tanstack/ai`:
-
-- `toolDefinition()` - Create isomorphic tool definition
-- `ToolDefinitionInstance` - Tool definition type
-- `ClientTool` - Client tool type
-- `ServerTool` - Server tool type
+From `@tanstack/ai`: `toolDefinition()`, `ToolDefinitionInstance`, `ClientTool`, `ServerTool`.
 
 ## Next Steps
 
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
-- [Client Tools](../tools/client-tools) - Learn about client-side tools
+- [Getting Started](../getting-started/quick-start)
+- [Tools Guide](../tools/tools)
+- [Client Tools](../tools/client-tools)

@@ -2,26 +2,18 @@
 title: Audio Generation
 id: audio-generation
 order: 15
+description: "Generate music, soundscapes, and SFX with generateAudio() — Gemini Lyria and fal.ai models."
 ---
 
 # Audio Generation
 
-TanStack AI's `generateAudio()` activity produces audio content — music, soundscapes, or sound effects — from a text prompt. It's distinct from [Text-to-Speech](./text-to-speech), which is optimized for spoken-word synthesis.
+If you need music/SFX → `generateAudio()`. If you need spoken voice → [Text-to-Speech](./text-to-speech).
 
-## Overview
+**Providers:** Gemini Lyria 3 Pro/Clip · fal.ai (MiniMax Music, DiffRhythm, Lyria 2, Stable Audio, ElevenLabs SFX, and more)
 
-Audio generation is handled by audio adapters that follow the same tree-shakeable architecture as other adapters in TanStack AI.
+## Generate music (Gemini Lyria)
 
-Currently supported:
-
-- **Google Gemini**: Lyria 3 Pro and Lyria 3 Clip music generation
-- **fal.ai**: MiniMax Music, DiffRhythm, Google Lyria 2, Stable Audio 2.5, MMAudio, ElevenLabs sound effects, Thinksound, and more
-
-## Basic Usage
-
-### Google Lyria (Music)
-
-Google's Lyria models generate full-length songs with vocals and instrumentation. `lyria-3-pro-preview` handles multi-verse compositions, while `lyria-3-clip-preview` produces 30-second clips.
+`lyria-3-pro-preview` = multi-verse songs. `lyria-3-clip-preview` = ~30s clips.
 
 ```typescript
 import { generateAudio } from '@tanstack/ai'
@@ -32,17 +24,13 @@ const result = await generateAudio({
   prompt: 'Uplifting indie pop with layered vocals and jangly guitars',
 })
 
-console.log(result.audio.b64Json) // Base64-encoded audio bytes (Gemini)
+console.log(result.audio.b64Json) // base64 bytes (Gemini)
 console.log(result.audio.contentType) // e.g. "audio/mpeg"
 ```
 
-### fal.ai
+## Generate with fal.ai
 
-fal.ai gives access to a broad catalogue of music, SFX, and general audio models through a single `falAudio` adapter.
-
-#### Music Generation (MiniMax Music 2.6)
-
-MiniMax's latest music model creates full compositions — vocals, backing music, and arrangements — from a single prompt.
+### Music (MiniMax Music 2.6)
 
 ```typescript
 import { generateAudio } from '@tanstack/ai'
@@ -53,11 +41,11 @@ const result = await generateAudio({
   prompt: 'City Pop, 80s retro, groovy synth bass, warm female vocal, 104 BPM',
 })
 
-console.log(result.audio.url) // URL to the generated audio file
+console.log(result.audio.url)
 console.log(result.audio.contentType) // e.g. "audio/wav"
 ```
 
-#### Music with Explicit Lyrics (DiffRhythm)
+### Music with lyrics (DiffRhythm)
 
 ```typescript
 import { generateAudio } from '@tanstack/ai'
@@ -72,7 +60,7 @@ const result = await generateAudio({
 })
 ```
 
-#### Sound Effects
+### Sound effects
 
 ```typescript
 import { generateAudio } from '@tanstack/ai'
@@ -85,9 +73,7 @@ const result = await generateAudio({
 })
 ```
 
-#### MiniMax Music v2 (lyrics_prompt)
-
-Earlier MiniMax variants use a `lyrics_prompt` field for lyric guidance.
+### MiniMax v2 (`lyrics_prompt`)
 
 ```typescript
 import { generateAudio } from '@tanstack/ai'
@@ -102,31 +88,23 @@ const result = await generateAudio({
 })
 ```
 
-If a request doesn't return the audio you expected — a model silently truncates, a provider rejects a prompt, or the response shape looks off — pass `debug: true` to see every chunk the provider SDK emits. See [Debug Logging](../advanced/debug-logging).
+Unexpected output? Pass `debug: true`. See [Debug Logging](../advanced/debug-logging).
 
 ## Options
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `adapter` | `AudioAdapter` | The adapter created via `falAudio()` (required) |
-| `prompt` | `string` | Text description of the audio to generate (required) |
-| `duration` | `number` | Desired duration in seconds (model-dependent) |
-| `modelOptions` | `object` | Provider-specific options (fully typed when the model ID is passed as a string literal) |
-| `debug` | `DebugOption` | Enable per-category debug logging (`true`, `false`, or a `DebugConfig` — see [Debug Logging](../advanced/debug-logging)) |
+| `adapter` | `AudioAdapter` | Required — e.g. `falAudio()`, `geminiAudio()` |
+| `prompt` | `string` | Required — text description of the audio |
+| `duration` | `number` | Desired length in seconds (model-dependent) |
+| `modelOptions` | `object` | Provider-specific options (typed from model ID literal) |
+| `debug` | `DebugOption` | Per-category debug logging — see [Debug Logging](../advanced/debug-logging) |
 
-## Client Hook (`useGenerateAudio`)
+## Full-stack: server + client
 
-For client-side usage, framework integrations expose a `useGenerateAudio`
-hook (or `createGenerateAudio` in Svelte) that wraps the same generation
-flow. It mirrors the API of `useGenerateSpeech`, `useGenerateImage`, and
-other media hooks — see [Generation Hooks](./generation-hooks) for the full
-shape.
+For long tracks across reloads, use [Generation Persistence](../persistence/generation-persistence).
 
-> **Note:** For long tracks, keep the run's status and result across a reload or
-> a dropped connection — and the audio after the provider's URL expires — with
-> [Generation Persistence](../persistence/generation-persistence).
-
-### Server (streaming SSE route)
+### 1. Server (SSE route)
 
 ```typescript
 // routes/api/generate/audio.ts
@@ -147,7 +125,7 @@ export async function POST(req: Request) {
 }
 ```
 
-### Client (React)
+### 2. Client (React)
 
 ```tsx
 import { useGenerateAudio } from '@tanstack/ai-react'
@@ -176,14 +154,11 @@ function AudioGenerator() {
 }
 ```
 
-Use the `fetcher` option instead of `connection` when calling a TanStack
-Start server function directly.
+Use `fetcher` instead of `connection` when calling a TanStack Start server function. Full hook API: [Generation Hooks](./generation-hooks).
 
 ## Advanced
 
-Reference detail you do not need to get this working.
-
-### Result Shape
+### Result shape
 
 ```typescript
 import type { TokenUsage } from '@tanstack/ai'
@@ -197,16 +172,13 @@ interface AudioGenerationResult {
     contentType?: string
     duration?: number
   }
-  // Canonical TokenUsage (same shape as chat), present when the provider
-  // reports it (e.g. Gemini Lyria via generateContent). Usage-billed providers
-  // (fal) instead surface `usage.unitsBilled` — the real billed quantity read
-  // from fal's `x-fal-billable-units` result header. Multiply by the endpoint's
-  // unit price (fal pricing API) for the exact cost.
+  // Gemini Lyria may report TokenUsage. fal surfaces usage.unitsBilled
+  // from x-fal-billable-units — multiply by endpoint unit price for cost.
   usage?: TokenUsage
 }
 ```
 
-Gemini returns base64-encoded bytes in `result.audio.b64Json`. The fal adapter returns a URL in `result.audio.url` — if you need raw bytes, `fetch()` the URL yourself:
+Gemini → `result.audio.b64Json`. fal → `result.audio.url`. Fetch bytes from a fal URL:
 
 ```typescript
 import { generateAudio } from '@tanstack/ai'
@@ -218,31 +190,27 @@ const result = await generateAudio({
 })
 
 const bytes = new Uint8Array(
-  await (await fetch(result.audio.url!)).arrayBuffer()
+  await (await fetch(result.audio.url!)).arrayBuffer(),
 )
 ```
 
-### Differences vs Text-to-Speech
+### vs Text-to-Speech
 
 | | `generateAudio()` | `generateSpeech()` |
 |---|---|---|
 | Purpose | Music, soundscapes, SFX | Spoken-word TTS |
-| Result | `result.audio.url` or `result.audio.b64Json` | Base64 in `result.audio` |
+| Result | `result.audio.url` or `b64Json` | Base64 in `result.audio` |
 | Primary input | `prompt` | `text` |
-| Voice/speed controls | No | Yes (`voice`, `speed`) |
+| Voice/speed | No | Yes (`voice`, `speed`) |
 
-Use `generateSpeech()` when you want a spoken voice, and `generateAudio()` when you want non-speech audio.
-
-### Environment Variables
-
-Each provider reads its own API key from the environment by default:
+### API keys
 
 ```bash
 GOOGLE_API_KEY=your-google-api-key
 FAL_KEY=your-fal-api-key
 ```
 
-Or pass it explicitly to the adapter:
+Or pass explicitly:
 
 ```typescript
 import { createGeminiAudio } from '@tanstack/ai-gemini'

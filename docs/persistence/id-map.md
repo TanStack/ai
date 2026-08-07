@@ -1,7 +1,7 @@
 ---
 title: Id Map (Advanced)
 id: id-map
-description: "The two ids in TanStack AI and what each one means: threadId is the stable key persistence stores and restores by, runId names one execution. What they mean on useChat versus the generation hooks, how to choose a threadId, and when to read runId."
+description: "threadId is the stable persistence key. runId names one execution. Mixing them breaks restore."
 keywords:
   - threadId
   - runId
@@ -16,16 +16,12 @@ keywords:
 
 # Id Map
 
-There are only two ids to know, and mixing them up is what makes persistence look
-broken.
+If restore looks broken → check `threadId` first. Persistence keys on it, not `runId`.
 
-| Id | Names | Lifetime | You provide it |
+| Id | Names | Lifetime | You provide |
 | --- | --- | --- | --- |
-| `threadId` | the thing runs belong to: a conversation, or a generation slot | as long as your app keeps using the same string | yes, from your own domain |
-| `runId` | one execution: one streamed answer, one generation job | minted at the start, dead when it ends | no, it is minted for you |
-
-Persistence stores and restores by `threadId`. `runId` is what you read when you
-need to talk to your own server about the execution happening right now.
+| `threadId` | conversation or generation slot | as long as the string stays stable | yes, from your domain |
+| `runId` | one execution | minted at start, dead when it ends | no |
 
 ```tsx
 import {
@@ -35,21 +31,18 @@ import {
 } from '@tanstack/ai-react'
 
 export function ProductPage({ productId }: { productId: string }) {
-  // Chat: the thread id names a conversation.
   const support = useChat({
     threadId: `support-${productId}`,
     connection: fetchServerSentEvents('/api/chat'),
     persistence: true,
   })
 
-  // Generation: the thread id names a slot that jobs fill.
   const hero = useGenerateImage({
     threadId: `product-${productId}-hero`,
     connection: fetchServerSentEvents('/api/generate/image'),
     persistence: true,
   })
 
-  // Each hook also reports the id of whatever is running right now.
   return (
     <p>
       chat run {support.runId ?? 'none'}, image job {hero.runId ?? 'none'}
@@ -58,102 +51,64 @@ export function ProductPage({ productId }: { productId: string }) {
 }
 ```
 
-## `threadId`: the key everything is filed under
+## `threadId`
 
-A record is written **per `threadId`** and a reload looks it up **by
-`threadId`**. If the string is not identical after the reload, there is nothing to
-find. Pick it from your own domain, keep it stable, and restore works. Mint a
-fresh one on every mount and nothing ever restores.
+Records write and load **by** `threadId`. Different string after reload → empty.
 
-### On chat, the thread is the conversation
+### Chat: conversation
 
-Every run in it contributes messages to one growing transcript, stored under the
-thread id. Restoring means replaying that transcript. Runs are internal detail the
-user never sees, they just see the conversation.
+All runs append to one transcript under the thread id. User sees conversation, not runs.
 
-### On generation, the thread is a slot
+### Generation: slot
 
-A generation job does not append to anything, it produces one result. So each job
-gets its own record, linked to the thread, and restore hands back the **most
-recent** job for that thread: its status, its error, its result metadata.
-Successive jobs for the same thing (the first attempt, the retry, the regenerate
-after a prompt tweak) all land in one slot, and the latest one is what the user is
-looking at.
+Each job is one result. Restore = **most recent** job for that slot (status, error, result metadata). Retries stay in the same slot.
 
-That is why generation thread ids read like a place in your app rather than a
-conversation:
-
-| The thing on screen | A good `threadId` |
+| On screen | Good `threadId` |
 | --- | --- |
-| The hero image for a product | `product-${productId}-hero` |
-| The start frame of a video | `video-${videoId}-start-frame` |
-| The voice-over of a chapter | `chapter-${chapterId}-narration` |
-| A transcription of an upload | `upload-${uploadId}-transcript` |
-| The support conversation | `chat-${conversationId}` |
+| Product hero image | `product-${productId}-hero` |
+| Video start frame | `video-${videoId}-start-frame` |
+| Chapter voice-over | `chapter-${chapterId}-narration` |
+| Upload transcription | `upload-${uploadId}-transcript` |
+| Support conversation | `chat-${conversationId}` |
 
-Two rules follow from "one slot, latest job wins":
+**Must:**
 
-- **Two different things need two different ids.** Point a hero-image hook and a
-  thumbnail hook at the same thread and each restores whatever ran last, in the
-  other's UI.
-- **The same thing keeps its id forever.** A regenerate is a new job in the same
-  slot, not a new slot. That is what makes a reload land on the newest attempt.
+1. Different UI things → different ids (hero + thumbnail must not share a slot).
+2. Same thing forever → same id (regenerate = new job, same slot).
 
-## `runId`: one execution
+## `runId`
 
-A run is everything between one `RUN_STARTED` and its `RUN_FINISHED`. It is minted
-fresh each time and thrown away when it ends. Both kinds of hook report the one
-this client has in flight, or `null` when there is none.
+One `RUN_STARTED` → `RUN_FINISHED`. Hooks report in-flight id or `null`.
 
-### On chat, a run is one turn
+### Chat: one turn (not one message)
 
-It changes from turn to turn, and the mapping to what the user did is not
-one-to-one:
-
-- **A whole tool loop is one run.** The model calls a tool, you return a result,
-  it calls another, it writes the final answer. However many loops the
-  [agentic cycle](../chat/agentic-cycle) takes, that is a single `runId`.
-- **One user message can produce several runs.** Pausing on an
-  [interrupt](../interrupts/overview) ends the run; resuming continues the same
-  turn under a **new** `runId`. Approve two tools in sequence and one message has
-  spanned three runs. While the run sits paused waiting on that approval, nothing
-  is in flight, so `runId` is `null`.
-
-So `useChat().runId` answers "what is this client running right now", never
-"which message is this". In a [live subscription](../chat/streaming), a run
-another client started is not yours to cancel, so it is not reported here.
+- Whole [agentic tool loop](../chat/agentic-cycle) = one `runId`.
+- One user message can span several runs: [interrupt](../interrupts/overview) ends a run; resume continues under a **new** `runId`. While paused, `runId` is `null`.
+- `useChat().runId` = "what this client is running now", never "which message".
 
 ```mermaid
 flowchart TB
     subgraph chat ["useChat, threadId: support-42"]
         direction LR
         c1["run r1
-tool loop, one turn"] --> c2["run r2
+tool loop"] --> c2["run r2
 interrupted"] --> c3["run r3
-the resume of that same turn"]
+resume of same turn"]
     end
 
     subgraph gen ["useGenerateImage, threadId: product-7-hero"]
         direction LR
-        g1["job g1
-first attempt"] --> g2["job g2
-retry"] --> g3["job g3
+        g1["job g1"] --> g2["job g2"] --> g3["job g3
 running"]
     end
 
-    chat -. "one transcript, keyed by threadId" .-> cstore["messages store"]
-    gen -. "one record per job, newest restores" .-> gstore["generationRuns store"]
+    chat -. "transcript by threadId" .-> cstore["messages store"]
+    gen -. "newest job restores" .-> gstore["generationRuns store"]
 ```
 
-### On generation, a run is the job
+### Generation: the job
 
-One call to `generate(...)` is one job with one `runId`. There is no tool loop and
-no interrupt, so the mapping is exactly one-to-one: `runId` is the handle on the
-provider work currently in progress.
-
-That makes it the id you hand your own server, because `stop()` only aborts the
-local stream. It does not stop a video render already burning credits on the
-provider:
+One `generate(...)` = one `runId`. Use it for server cancel — `stop()` only aborts the local stream:
 
 ```tsx
 import { fetchServerSentEvents, useGenerateVideo } from '@tanstack/ai-react'
@@ -166,7 +121,6 @@ export function VideoPanel({ videoId }: { videoId: string }) {
   })
 
   async function cancel() {
-    // Stop the provider job server-side, then drop the local stream.
     if (video.runId) {
       await fetch(`/api/generate/video/cancel?runId=${video.runId}`, {
         method: 'POST',
@@ -183,27 +137,15 @@ export function VideoPanel({ videoId }: { videoId: string }) {
 }
 ```
 
-The same id is what a durability log is keyed by, so it is also the right thing to
-put in a log line when you are chasing one execution across your server.
+Durability logs key by `runId` too — use it in server logs when chasing one execution.
 
-## Why restore keys on the thread, not the run
+## Why restore keys on the thread
 
-A page that just reloaded has no idea what the last `runId` was, so it cannot ask
-for it. It does know its `threadId`, because your app derived it from a product
-id, a route param, a video id. So the client presents the thread, and the store
-answers "here is what happened in it, and here is the run still going, if any."
+Reloaded page does not know last `runId`. It knows `threadId` (product id, route param). Store answers: transcript + live run if any; then client tails that run's delivery log. See [Threads and runs](../chat/streaming#threads-and-runs), [Resumable streams](../resumable-streams/overview).
 
-Only then does the client tail that run's delivery log. Run ids stay essential one
-layer down, they are just never the entry point. See
-[Threads and runs](../chat/streaming#threads-and-runs) for the protocol anatomy
-and [Resumable streams](../resumable-streams/overview) for the log itself.
+## Same string on both sides
 
-## Both sides use the same thread id
-
-Persistence only works when the client and the server file under the same string.
-On the client that is the hook's `threadId`. On the server it is the activity's
-`threadId`. For generation the middleware reads it straight off the activity,
-so there is nothing to repeat on `withGenerationPersistence`:
+Client hook `threadId` and server activity `threadId` must match exactly. Generation middleware reads activity `threadId` — nothing to pass on `withGenerationPersistence`:
 
 ```ts
 import {
@@ -222,8 +164,6 @@ const persistence = memoryPersistence()
 export async function POST(request: Request) {
   const { input, threadId } = await generationParamsFromRequest('image', request)
 
-  // No scope, nothing to file the job under, so nothing could ever hydrate it.
-  // Reject instead of inventing an id.
   if (threadId === undefined) {
     return new Response('`threadId` is required', { status: 400 })
   }
@@ -243,34 +183,15 @@ export async function POST(request: Request) {
 }
 ```
 
-The client sends its `threadId` on the wire for you, so the hook side is just the
-option. Chat is the same shape: the `threadId` you pass `useChat` is the one
-`chatParamsFromRequest` hands your route and `withPersistence` stores under. See
-[Chat persistence](./chat-persistence) and
-[Generation persistence](./generation-persistence) for the full wiring.
+Client sends `threadId` on the wire. Chat: same with `useChat` → `chatParamsFromRequest` → `withPersistence`. [Chat persistence](./chat-persistence), [Generation persistence](./generation-persistence).
 
 ## When you can skip `threadId`
 
-Without persistence, `threadId` is optional. The hooks fall back to a generated id
-purely to satisfy the protocol, which requires a thread id on the wire. The run
-works, it just cannot be found again, which is fine for a one-shot image you show
-and forget.
+Without persistence: optional (hooks mint a protocol id). With `persistence`: **required** on hook and activity. `withGenerationPersistence` throws if neither activity nor middleware `threadId` override supplies one.
 
-Turn `persistence` on and `threadId` becomes required, on the hook and on the
-activity the middleware wraps. `withGenerationPersistence` throws when neither
-the activity nor its own `threadId` **override** supplies one. An app that
-cannot name the slot has nothing to restore into.
+## Restore does nothing — checklist
 
-## When restore does nothing
-
-Almost always one of these:
-
-- **The thread id changed.** A `crypto.randomUUID()` or a `useId()` in it means a
-  new key on every mount. Log the id on both sides and compare the two strings.
-- **The client and server disagree.** The hook files under one id, the middleware
-  under another. They must match exactly.
-- **You keyed on a run id.** Nothing durable is addressable by `runId` alone from
-  a fresh page load. Restore starts from the thread.
-- **Byte storage is off.** For generation, the record never holds media bytes, so
-  `status` and `error` come back while `result` stays `null`. Add
-  [byte storage](./keep-generated-files) to get the media back too.
+1. **Thread id changed** — `crypto.randomUUID()` / `useId()` in the string → new key every mount. Log both sides.
+2. **Client ≠ server** — strings must match exactly.
+3. **Keyed on run id** — restore starts from thread only.
+4. **Byte storage off** (generation) — `status`/`error` return, `result` null → [Keep generated files](./keep-generated-files).

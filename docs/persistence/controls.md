@@ -1,59 +1,51 @@
 ---
 title: Persistence Controls
 id: controls
+description: "Pick stores by composition. No feature flags — presence enables behavior."
 ---
 
 # Persistence Controls
 
-Persistence has no feature flags. What you persist is decided by which **state**
-stores the backend provides, and you compose backends per store. Supply only the
-stores your workflow needs.
+If you need only some capabilities → supply only those stores. Compose per store; no feature flags.
 
-Need a mutex across instances? See [Locks](#locks-coordination) below.
+Mutex across instances → [Locks](#locks-coordination).
 
 ## Named shapes (prefer these)
 
 | Type | Required stores | Use |
 | --- | --- | --- |
-| `ChatTranscriptStores` / `ChatTranscriptPersistence` | `messages` (optional runs/interrupts/metadata) | Floor for `withPersistence` / `reconstructChat` |
+| `ChatTranscriptStores` / `ChatTranscriptPersistence` | `messages` (+ optional runs/interrupts/metadata) | Floor for `withPersistence` / `reconstructChat` |
 | `ChatPersistenceStores` / `ChatPersistence` | `messages` + `runs` + `interrupts` + `metadata` | Packaged backends (`memoryPersistence`, Drizzle, Prisma, D1) |
-| `ChatWithInterruptsStores` / `ChatWithInterruptsPersistence` | `messages` + `runs` + `interrupts` | HITL without requiring metadata |
+| `ChatWithInterruptsStores` / `ChatWithInterruptsPersistence` | `messages` + `runs` + `interrupts` | HITL without metadata |
 
-There is no public sparse `AIPersistenceStores` export, so use a named shape or
-`AIPersistence<{ messages: MessageStore, … }>` for custom maps.
-`defineAIPersistence` / `composePersistence` still accept sparse maps by
-inference.
+No public sparse `AIPersistenceStores`. Custom maps: `AIPersistence<{ messages: MessageStore, … }>` or infer via `defineAIPersistence` / `composePersistence`.
 
-## What each state store gives you
+## What each store gives
 
 | Requirement | Store |
 | --- | --- |
-| Authoritative server transcript | `messages` (**required** by `withPersistence` / `reconstructChat`) |
-| Run status and usage | `runs` (required on `ChatPersistence`; required when `interrupts` is set) |
-| Durable approvals or human input | `interrupts` (requires `runs`) |
-| App or integration checkpoints | `metadata` (always optional) |
+| Authoritative transcript | `messages` (**required** by `withPersistence` / `reconstructChat`) |
+| Run status and usage | `runs` (required on `ChatPersistence`; required when `interrupts` set) |
+| Durable approvals / human input | `interrupts` (requires `runs`) |
+| App checkpoints | `metadata` (always optional) |
 
-`withPersistence(persistence)` inspects the stores that are present. Store
-presence is the capability selection mechanism for optional chat features.
+`withPersistence(persistence)` inspects present stores. Presence = capability.
 
 ## Entrypoint requirements
 
 | Entrypoint | Shape | Notes |
 | --- | --- | --- |
 | `withPersistence` | `ChatTranscriptStores` floor | `interrupts` ⇒ `runs` |
-| `reconstructChat` | `ChatTranscriptStores` | `runs` / `interrupts` enrich the response when present |
+| `reconstructChat` | `ChatTranscriptStores` | `runs` / `interrupts` enrich when present |
 | Packaged `*Persistence()` | `ChatPersistence` | messages + runs (+ interrupts + metadata) |
-| `defineAIPersistence` / `composePersistence` | sparse by inference | Prefer a named shape for the result |
+| `defineAIPersistence` / `composePersistence` | sparse by inference | Prefer named shape for result |
 
-## Compose and override stores
+## Compose and override
 
-`composePersistence` takes the base backend first and an overrides object
-second. Here it starts from the in-memory reference backend and swaps in custom
-`interrupts` / `runs` stores:
+Base first, overrides second:
 
 ```ts
 import { composePersistence, memoryPersistence } from '@tanstack/ai-persistence'
-// Your own store implementations of the InterruptStore / RunStore contracts.
 import { interruptStore, runStore } from './stores'
 
 const persistence = composePersistence(memoryPersistence(), {
@@ -64,44 +56,44 @@ const persistence = composePersistence(memoryPersistence(), {
 })
 ```
 
-Each override is independent:
-
 | Override value | Result |
 | --- | --- |
-| key omitted | Inherit the base store. |
-| `undefined` | Inherit the base store. |
-| a store object | Replace that store only. |
-| `false` | Remove that store. |
+| key omitted | Inherit base |
+| `undefined` | Inherit base |
+| store object | Replace that store |
+| `false` | Remove that store |
 
 ```ts
 import { composePersistence, memoryPersistence } from '@tanstack/ai-persistence'
 
-// Drop metadata; the resulting type has no `metadata` key.
 const withoutMetadata = composePersistence(memoryPersistence(), {
   overrides: { metadata: false },
 })
 ```
 
-Unknown store names fail type checking, and are also rejected at runtime when
-values arrive from untyped JavaScript.
+Unknown store names fail at type-check and at runtime (untyped JS).
 
-## Valid store combinations
+## Valid combinations
 
-- `withPersistence` requires `messages`.
-- `interrupts` requires `runs`: an interrupt record is scoped to a run.
-- `withGenerationPersistence` requires `generationRuns`.
+**Must:**
 
-To define a partial backend directly rather than by composing, use
-`defineAIPersistence({ stores: { ... } })` and pass only the stores you have.
-See the
-[store reference](./store-reference)
-for the store contracts.
+1. `withPersistence` → `messages`
+2. `interrupts` → also `runs`
+3. `withGenerationPersistence` → `generationRuns`
+
+Partial backend without compose:
+
+```ts
+import { defineAIPersistence } from '@tanstack/ai-persistence'
+
+defineAIPersistence({ stores: { /* only what you have */ } })
+```
+
+Contracts: [store reference](./store-reference).
 
 ## Locks (coordination)
 
-Locks coordinate work across instances (a distributed mutex). They live in
-`@tanstack/ai/locks` and apply as their own middleware with `withLocks`,
-alongside `withPersistence`. Full guide: [Locks](../advanced/locks).
+Distributed mutex lives in `@tanstack/ai/locks` as separate middleware. Full guide: [Locks](../advanced/locks).
 
 ```ts
 import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'

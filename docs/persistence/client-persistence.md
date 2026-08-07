@@ -1,30 +1,23 @@
 ---
 title: Client Persistence
 id: client-persistence
+description: "Reload restores transcript, interrupts, and in-flight runs. Pick browser storage or server-authoritative hydrate."
 ---
 
 # Client Persistence
 
-A `ChatClient` (and every framework `useChat` / `createChat`) keeps messages in
-memory, so a reload or a crashed tab loses the whole conversation and any reply
-that was still streaming. The `persistence` option fixes that from the browser
-side: on reload it repaints the transcript, brings back a pending interrupt, and
-rejoins a run that was mid-stream.
+If you need reload to repaint the chat (and rejoin a stream) → set `persistence` on `useChat` / `ChatClient` / framework chat.
 
-You need this whether or not you have a server:
+Works with or without a server store:
 
-- **The browser owns the chat** (SPA, offline-first, no server store). Pass a
-  storage adapter and it holds the full transcript, restored on reload with no
-  network.
-- **The server owns the chat** (you use [Chat persistence](./chat-persistence)).
-  Set `persistence: true` and the client caches nothing: on reload it hydrates
-  the thread from the server by its `threadId`, painting the conversation and
-  rejoining any run still streaming. That is the server-authoritative mode below.
+| Setup | Option | Behavior |
+| --- | --- | --- |
+| Browser owns chat | storage adapter | Full transcript in browser; no network on restore |
+| Server owns chat | `persistence: true` | No client cache; hydrate by `threadId` from server ([Chat persistence](./chat-persistence)) |
 
-## Turn it on
+## Turn it on (client-authoritative)
 
-Pass a storage adapter as `persistence` and give the chat a stable `threadId` so
-a reload finds the same record:
+Stable `threadId` is the storage key. Fresh id per mount → nothing restores. See [Id map](./id-map).
 
 ```tsx
 import {
@@ -39,69 +32,35 @@ function Chat() {
     connection: fetchServerSentEvents('/api/chat'),
     persistence: localStoragePersistence(),
   })
-  // ...render messages, call sendMessage(text)
+  // render messages, call sendMessage(text)
 }
 ```
 
-`localStoragePersistence()` needs no type argument and no codec: it defaults to
-the chat record shape and a JSON codec. That is the whole opt-in.
+`localStoragePersistence()` needs no type args; defaults to chat record + JSON codec.
 
-The `threadId` is doing the real work here: it is the key the record is written
-under and looked up by, so a fresh id per mount restores nothing. Derive it from
-your own domain (a conversation id, a route param). [Id map](./id-map) covers how
-to pick one and how it differs from the `runId` the hook reports.
+## What reload restores
 
-## What a reload restores
+One record per `threadId`: `{ messages, resume? }`.
 
-The client stores one record per `threadId`, the transcript plus a small resume
-pointer. On the next load `useChat` reads it and:
+1. **Repaint transcript** — sync adapters hydrate in construction; IndexedDB after open (first paint may be empty briefly).
+2. **Pending interrupt** — approval UI returns as left.
+3. **In-flight run** — rejoins if connection has durability/replay — [Resumable streams](../resumable-streams/overview).
 
-- **Repaints the transcript** from storage with no network. Sync adapters
-  (`localStorage` / `sessionStorage`) hydrate during construction; IndexedDB
-  hydrates asynchronously after the database opens (so the first paint may be
-  empty for a tick).
-- **Rehydrates a pending interrupt**, so an approval prompt comes back exactly as
-  it was.
-- **Rejoins an in-flight run**, if a reply was still streaming when the page
-  reloaded, so it finishes in place instead of freezing half-done. This one needs
-  a durability-backed connection (a route that records the stream and exposes a
-  replay handler); see [Resumable streams](../resumable-streams/overview).
+## Modes
 
-## Choose a mode
+| Value | Caches on client | Authoritative history | Reach for |
+| --- | --- | --- | --- |
+| storage adapter | transcript + resume pointer | client | SPA / offline, one device, moderate history |
+| `true` | nothing | server | large histories, multi-device, no message content in browser |
+| `false` / omit | nothing | — | memory only |
 
-`persistence` takes a storage adapter or a boolean:
+Generation hooks take the same option, **boolean only** — [Generation persistence](./generation-persistence).
 
-- an **adapter** (`persistence: localStoragePersistence()`) is client-authoritative.
-- **`true`** is server-authoritative.
-- **`false`** (or omitted) is off: messages live in memory only and a reload starts empty.
+### Server-authoritative wiring
 
-The generation hooks take the same option, boolean only. See
-[Generation persistence](./generation-persistence).
+**Must:** connection with `hydrate` (built-ins have it), stable `threadId`, `persistence: true`, server `GET`.
 
-### An adapter: client-authoritative
-
-Pass the adapter directly, `persistence: localStoragePersistence()`. The
-transcript and the resume pointer both live in the browser. The client owns the
-history; the server, if any, mirrors it. Best when the browser is the source of
-truth: single-page apps, offline-first, one device, small to moderate
-conversations.
-
-### `true`: server-authoritative
-
-Pass `persistence: true`. The client stores nothing, no transcript and no resume
-pointer. On mount `useChat` hydrates the thread from the server by its
-`threadId`: it paints the stored transcript and, if a run is still generating,
-tails it to completion. Best when transcripts are large (localStorage is
-synchronous and quota-bound), when the same conversation must open on another
-device, or when you simply do not want message content in the browser.
-
-You do not fetch or seed the transcript yourself. A reload and the same thread
-opened on another device follow the identical path, because the thread id is the
-stable key and the server resolves everything from it. No loader, no
-`initialMessages`, no extra props. It needs a connection with a `hydrate` handler
-(every built-in connection has one) and the server `GET` endpoint below.
-
-**Client**: a connection, a stable `threadId`, and `persistence: true`:
+**Client:**
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
@@ -127,9 +86,7 @@ function Chat({ threadId }: { threadId: string }) {
 }
 ```
 
-**Server**: one `GET` endpoint next to your chat `POST`. Replay the durability
-log when the request carries a resume cursor, otherwise return the stored
-conversation with `reconstructChat`:
+**Server** — same route as `POST`. Replay durability log if resume cursor present; else `reconstructChat`:
 
 ```ts
 import { memoryStream, resumeServerSentEventsResponse } from '@tanstack/ai'
@@ -138,39 +95,23 @@ import { persistence } from './persistence'
 
 export function GET(request: Request): Response | Promise<Response> {
   const durability = memoryStream(request)
-  // A reconnecting client carries a resume cursor (Last-Event-ID / ?offset and
-  // X-Run-Id / ?runId). Replay the log so the run finishes in place.
   if (durability.resumeFrom() !== null) {
     return resumeServerSentEventsResponse({ adapter: durability })
   }
-  // Otherwise return the stored transcript plus a cursor to any in-flight run.
-  // Guard access in multi-user apps (see authorize in Chat persistence).
+  // Multi-user: pass authorize — see Chat persistence.
   return reconstructChat(persistence, request)
 }
 ```
 
-`reconstructChat` returns `{ messages, activeRun }`: the transcript as UI
-messages, and `activeRun` when a run is still generating for the thread. The
-client calls this endpoint on mount and, when `activeRun` is set, tails the run
-through the replay branch above. You never handle a run id, and a second device
-resumes the live run the same way the original tab does. See
-[Chat persistence](./chat-persistence).
+`reconstructChat` returns `{ messages, activeRun }`. Client mounts → hydrates → if `activeRun`, tails via replay. No `initialMessages`, no manual run id. [Chat persistence](./chat-persistence).
 
-| Mode | Caches on client | Authoritative history | Reach for it when |
+## Storage backends
+
+| Adapter | Lifetime | Notes | When |
 | --- | --- | --- | --- |
-| `persistence: store` | transcript + resume pointer | client | SPA / offline, one device, small to moderate history |
-| `persistence: true` | nothing | server | large histories, multi-device, no transcripts in the browser |
-
-## Choose a storage backend
-
-Three adapters ship from `@tanstack/ai-client`, re-exported from every framework
-package. All share the same shape; they differ in lifetime and encoding.
-
-| Adapter | Lifetime | Notes | Reach for it when |
-| --- | --- | --- | --- |
-| `localStoragePersistence` | across reloads and browser restarts | synchronous, ~5MB quota, JSON codec | the default: persist a conversation for next time |
-| `sessionStoragePersistence` | one tab, cleared when it closes | same shape as localStorage | a conversation that should not outlive the tab |
-| `indexedDBPersistence` | across reloads and restarts | async, structured clone (a `Date` round-trips exactly), room for large data | big transcripts, or values a JSON codec would mangle |
+| `localStoragePersistence` | reloads + restarts | sync, ~5MB, JSON | default |
+| `sessionStoragePersistence` | one tab | same shape | die with tab |
+| `indexedDBPersistence` | reloads + restarts | async, structured clone, large data | big transcripts / non-JSON values |
 
 ```tsx
 import { indexedDBPersistence } from '@tanstack/ai-react'
@@ -178,15 +119,11 @@ import { indexedDBPersistence } from '@tanstack/ai-react'
 const persistence = indexedDBPersistence()
 ```
 
-Each throws only lazily, per operation, when its backing store is missing (for
-example during server-side rendering), so constructing one on the server is safe.
+Throw only lazily when backing store is missing (e.g. SSR). Constructing on the server is safe.
 
-### Writing your own
+### Custom adapter
 
-Any object with `getItem` / `setItem` / `removeItem` works. The record is one
-`{ messages, resume? }` blob per chat id (the transcript plus the pointer that
-lets a reload rejoin an in-flight run), so `setItem` receives that whole record,
-not a bare message array:
+Implement `getItem` / `setItem` / `removeItem`. `setItem` receives the full `{ messages, resume? }` record, not a bare array.
 
 ```ts
 import type {
@@ -208,7 +145,6 @@ const persistence: ChatClientPersistence = {
     const raw = localStorage.getItem(id)
     if (raw === null) return null
     const parsed: unknown = JSON.parse(raw)
-    // A bare array is the legacy messages-only format, still accepted.
     if (Array.isArray(parsed)) return { messages: parsed }
     return isPersistedState(parsed) ? parsed : null
   },
@@ -221,15 +157,8 @@ const persistence: ChatClientPersistence = {
 }
 ```
 
-Reads are best-effort: a `getItem` that throws or returns `null` is treated as
-"nothing stored", so an adapter that parses the wrong shape fails **silently**:
-the conversation just does not come back. Round-trip your adapter once against a
-real reload before shipping it.
+Reads are best-effort: throw/`null` → nothing stored. Wrong shape fails **silently**. Round-trip a real reload before shipping.
 
-## Client and server are independent
+## Client vs server
 
-Client persistence restores what one browser rendered. Server persistence
-([Chat persistence](./chat-persistence)) keeps the authoritative copy for every
-user and survives a server restart. They compose: for the combination we
-recommend for most apps, and why, see the
-[Persistence overview](./overview#what-we-recommend).
+Client persistence = one browser’s rendered state. Server persistence = authoritative copy for all users. They compose — [Persistence overview](./overview#which-setup).

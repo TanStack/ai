@@ -2,7 +2,7 @@
 title: Showing Code Mode in the UI
 id: code-mode-client-integration
 order: 2
-description: "Stream Code Mode execution events to your React app — console output, external calls, and results as they happen, via onCustomEvent."
+description: "Stream Code Mode events to React — console, external calls, results via onCustomEvent."
 keywords:
   - tanstack ai
   - code mode
@@ -13,27 +13,23 @@ keywords:
   - execution progress
 ---
 
-You have [Code Mode](./code-mode) working on your server — the LLM writes and executes TypeScript, and you get results back. But your users see nothing while the sandbox runs. By the end of this guide, your React app will show real-time execution progress: console output, external function calls, and final results as they stream in.
+# Showing Code Mode in the UI
 
-## How events reach the client
+If Code Mode works on the server but the UI is silent → wire `onCustomEvent` and render an execution panel.
 
-When code runs inside the sandbox, Code Mode emits **custom events** through the AG-UI streaming protocol. These events travel alongside normal chat chunks (text, tool calls) and arrive in your client via the `onCustomEvent` callback.
+## Events
 
-The events emitted during each `execute_typescript` call:
+Events ride the AG-UI stream with chat chunks. Each includes `toolCallId` for the matching `execute_typescript` call.
 
 | Event | When | Key fields |
 |-------|------|------------|
-| `code_mode:execution_started` | Sandbox begins executing | `timestamp`, `codeLength` |
-| `code_mode:console` | Each `console.log/error/warn/info` | `level`, `message`, `timestamp` |
-| `code_mode:external_call` | Before an `external_*` function runs | `function`, `args`, `timestamp` |
-| `code_mode:external_result` | After a successful `external_*` call | `function`, `result`, `duration` |
-| `code_mode:external_error` | When an `external_*` call fails | `function`, `error`, `duration` |
+| `code_mode:execution_started` | Sandbox start | `timestamp`, `codeLength` |
+| `code_mode:console` | console.* | `level`, `message`, `timestamp` |
+| `code_mode:external_call` | Before `external_*` | `function`, `args`, `timestamp` |
+| `code_mode:external_result` | After success | `function`, `result`, `duration` |
+| `code_mode:external_error` | After failure | `function`, `error`, `duration` |
 
-Every event includes a `toolCallId` that ties it to the specific `execute_typescript` tool call, so you can render events alongside the right message.
-
-## Listening to events with useChat
-
-Pass an `onCustomEvent` callback to `useChat`. The callback receives the event type, payload, and a context object with the `toolCallId`:
+## 1. Listen with `useChat`
 
 ```tsx group=code-mode-client
 import { useCallback, useRef, useState } from "react";
@@ -83,15 +79,11 @@ export function CodeModeChat() {
     onCustomEvent: handleCustomEvent,
   });
 
-  // Render messages with events — see next section
+  // pass messages + toolCallEvents to MessageList
 }
 ```
 
-Events are keyed by `toolCallId` so each `execute_typescript` call gets its own event timeline.
-
-## Rendering execution progress
-
-When rendering messages, check for `execute_typescript` tool calls and display their events:
+## 2. Render `execute_typescript` parts
 
 ```tsx group=code-mode-client
 function MessageList({
@@ -138,9 +130,7 @@ function MessageList({
 }
 ```
 
-## Building an execution panel
-
-Here's a complete `CodeExecutionPanel` component that shows the generated code, live event stream, and final result:
+## 3. Execution panel
 
 ```tsx group=code-mode-client
 function CodeExecutionPanel({
@@ -151,12 +141,16 @@ function CodeExecutionPanel({
 }: {
   code?: string;
   events: Array<VMEvent>;
-  result?: { success: boolean; result?: unknown; logs?: string[]; error?: { message: string } };
+  result?: {
+    success: boolean;
+    result?: unknown;
+    logs?: string[];
+    error?: { message: string };
+  };
   isRunning: boolean;
 }) {
   return (
     <div className="border rounded-lg overflow-hidden my-2">
-      {/* Generated code */}
       {code && (
         <details open>
           <summary className="px-3 py-2 bg-gray-100 font-mono text-sm cursor-pointer">
@@ -168,7 +162,6 @@ function CodeExecutionPanel({
         </details>
       )}
 
-      {/* Live event stream */}
       {events.length > 0 && (
         <div className="border-t px-3 py-2">
           <div className="text-xs font-semibold text-gray-500 mb-1">
@@ -185,7 +178,6 @@ function CodeExecutionPanel({
         </div>
       )}
 
-      {/* Final result */}
       {result && (
         <div
           className={`border-t px-3 py-2 text-sm ${
@@ -238,8 +230,7 @@ function EventLine({ event }: { event: VMEvent }) {
     case "code_mode:external_call":
       return (
         <div className="text-amber-600">
-          → {String(data.function)}(
-          {JSON.stringify(data.args)})
+          → {String(data.function)}({JSON.stringify(data.args)})
         </div>
       );
 
@@ -270,17 +261,14 @@ function EventLine({ event }: { event: VMEvent }) {
 }
 ```
 
-This gives you:
-- A collapsible code block showing the TypeScript the model wrote
-- A live event log showing console output, external function calls with arguments, results with durations, and errors
-- A status-colored result panel with logs and the return value
+Panel shows: generated code · live console/calls · final result/logs/error.
 
-## Adapting for other frameworks
+## Other frameworks
 
-The `onCustomEvent` callback is available through `ChatClient` from `@tanstack/ai-client`, which all framework integrations use under the hood. In Solid, Vue, or Svelte, pass `onCustomEvent` in the same way you pass it to `useChat` in React — the callback signature is identical:
+Same callback signature via `ChatClient` / framework wrappers:
 
 ```typescript ignore
 (eventType: string, data: unknown, context: { toolCallId?: string }) => void
 ```
 
-See [Code Mode](./code-mode) for setting up the server side, and [Code Mode with Skills](./code-mode-with-skills) for adding persistent skill libraries.
+Server setup: [Code Mode](./code-mode). Skills events: [Code Mode with Skills](./code-mode-with-skills).

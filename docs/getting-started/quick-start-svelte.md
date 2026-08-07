@@ -2,7 +2,7 @@
 title: "Quick Start: Svelte"
 id: quick-start-svelte
 order: 4
-description: "Add a streaming TanStack AI chat component to a SvelteKit app using Svelte 5 runes and the OpenAI adapter."
+description: "Streaming chat in SvelteKit with createChat, Svelte 5 runes, and OpenAI."
 keywords:
   - tanstack ai
   - svelte
@@ -14,11 +14,11 @@ keywords:
   - runes
 ---
 
-You have a SvelteKit app and want to add AI chat. By the end of this guide, you'll have a streaming chat component powered by TanStack AI and OpenAI.
+If you need SvelteKit chat → install packages, add `/api/chat`, wire `createChat` on the page.
 
-> **Tip:** If you'd prefer not to sign up with individual AI providers, [OpenRouter](../adapters/openrouter) gives you access to 300+ models with a single API key and is the easiest way to get started.
+Prefer one key for many models → [OpenRouter](../adapters/openrouter).
 
-## Installation
+## 1. Install
 
 ```bash
 npm install @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai
@@ -28,9 +28,7 @@ pnpm add @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai
 yarn add @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai
 ```
 
-## Server Setup
-
-Create a SvelteKit API route that streams chat responses:
+## 2. Server route
 
 ```typescript ignore
 // src/routes/api/chat/+server.ts
@@ -68,11 +66,11 @@ export const POST: RequestHandler = async ({ request }) => {
 }
 ```
 
-> **Tip:** `toServerSentEventsResponse` returns a standard `Response`, so it works with any server that speaks the Web Response API -- SvelteKit, Hono, Cloudflare Workers, etc.
+`toServerSentEventsResponse` returns a standard `Response` (SvelteKit, Hono, Workers, etc.).
 
-## Client Setup
+## 3. Page component
 
-Create a Svelte 5 component using `createChat`:
+Use `createChat` (not `useChat`):
 
 ```svelte
 <!-- src/routes/+page.svelte -->
@@ -112,9 +110,9 @@ function handleSubmit() {
 </div>
 ```
 
-## Environment Variables
+`chat.messages` / `chat.isLoading` are reactive getters (no `.value`). Same surface as React/Vue: `messages`, `sendMessage`, `isLoading`, `error`, `status`, `stop`, `reload`, `clear`.
 
-Create a `.env` file with your API key:
+## 4. API keys
 
 ```bash
 # OpenRouter (recommended -- access 300+ models with one key)
@@ -124,15 +122,11 @@ OPENROUTER_API_KEY=sk-or-...
 OPENAI_API_KEY=your-openai-api-key
 ```
 
-Your SvelteKit server reads this key at runtime. Never expose it to the browser.
+Server-only. Never expose to the browser.
 
-## Svelte-Specific Notes
+## Cleanup on unmount
 
-**`createChat`, not `useChat`.** The Svelte integration uses `createChat` instead of `useChat` to follow Svelte's naming conventions. The returned object has the same properties as the React and Vue versions (`messages`, `sendMessage`, `isLoading`, `error`, `status`, `stop`, `reload`, `clear`).
-
-**Svelte 5 runes.** The examples above use Svelte 5 runes (`$state`). The `createChat` return object uses reactive getters internally, so `chat.messages` and `chat.isLoading` are reactive without any extra wrappers -- no `.value` like Vue, no signals to unwrap.
-
-**No automatic cleanup.** Unlike the React and Vue integrations, `createChat` does not register automatic cleanup. If your component can unmount while a response is streaming, call `chat.stop()` in an `onDestroy` callback:
+`createChat` does **not** auto-stop streams. If the page can unmount mid-stream:
 
 ```svelte
 <script lang="ts">
@@ -149,17 +143,8 @@ onDestroy(() => {
 </script>
 ```
 
-## That's It!
+## Next
 
-You now have a working SvelteKit chat application. The `createChat` function handles:
-
-- Message state management
-- Streaming responses
-- Loading states
-- Error handling
-
-## Next Steps
-
-- Learn about [Tools](../tools/tools) to add function calling
-- Check out the [Adapters](../adapters/openai) to connect to different providers
-- See the [React Quick Start](./quick-start) if you're comparing frameworks
+- [Tools](../tools/tools)
+- [Adapters](../adapters/openai)
+- [React Quick Start](./quick-start)

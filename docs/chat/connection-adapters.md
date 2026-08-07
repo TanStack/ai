@@ -2,7 +2,7 @@
 title: Connection Adapters
 id: connection-adapters
 order: 3
-description: "Connection adapters bridge your client and server in TanStack AI — SSE, HTTP streaming, server functions, RPC, and persistent transports like WebSockets via subscribe/send."
+description: "Pick and wire how StreamChunks reach ChatClient — SSE, HTTP stream, server functions, RPC, WebSockets."
 keywords:
   - tanstack ai
   - connection adapters
@@ -18,29 +18,27 @@ keywords:
   - subscribe send
 ---
 
-A **connection adapter** is the piece that decides _how_ chunks get from your server to the `ChatClient` (and through it, to your framework's `useChat`). Everything else in TanStack AI — chunk processing, message reassembly, tool calls, UI updates — is transport-agnostic. The adapter is the only thing that touches the network.
+If you need chunks from server → `ChatClient` / `useChat` → pick a connection adapter. Everything else (reassembly, tools, UI) is transport-agnostic.
 
-This page covers every supported transport, when to pick which, and how to build a custom one.
-
-## Pick a Transport
+## Pick a transport
 
 | You have… | Use |
 | --- | --- |
-| A normal HTTP server and want the default | [`fetchServerSentEvents`](#server-sent-events-sse) |
-| An environment that blocks SSE (some edge runtimes, strict proxies) | [`fetchHttpStream`](#http-streaming-ndjson) |
-| React Native or Expo | [`xhrHttpStream`](#react-native-and-expo) by default, [`xhrServerSentEvents`](#react-native-and-expo) for SSE, or [`fetchHttpStream`](#http-streaming-ndjson) only when streaming `fetch` is available |
-| Code that **synchronously** returns an `AsyncIterable<StreamChunk>` (in-process `chat()`, an RSC stream, tests) | [`stream`](#server-functions-and-direct-async-iterables) |
-| An **async** call — a TanStack Start server function or any `Promise`-returning function — resolving to a `Response` or an `AsyncIterable<StreamChunk>` | [`fetcher`](#server-functions-via-fetcher) |
-| An RPC framework like Cap'n Web, gRPC-Web, or tRPC | [`rpcStream`](#rpc-streams) |
-| A single long-lived WebSocket (or BroadcastChannel, postMessage, shared worker) serving many runs | [Custom `subscribe` / `send` adapter](#persistent-transports-websockets-and-friends) |
-| Standard SSE but with custom fetch wrapping (auth refresh, retries) | [`fetchServerSentEvents` with `fetchClient`](#custom-fetch-client) |
-| Something else entirely (HTTP/3, Server-Sent Events over a different protocol, etc.) | [Custom `connect` adapter](#custom-request-scoped-adapters) |
+| Normal HTTP + default | [`fetchServerSentEvents`](#server-sent-events-sse) |
+| SSE blocked (edge/proxy) | [`fetchHttpStream`](#http-streaming-ndjson) |
+| React Native / Expo | [`xhrHttpStream`](#react-native-and-expo) (default); `xhrServerSentEvents` for SSE; `fetchHttpStream` only if streaming `fetch` works |
+| Sync `AsyncIterable<StreamChunk>` (in-process `chat()`, RSC, tests) | [`stream`](#server-functions-and-direct-async-iterables) |
+| Async fn → `Response` or iterable (TanStack Start server fn) | [`fetcher`](#server-functions-via-fetcher) |
+| Cap'n Web / gRPC-Web / tRPC | [`rpcStream`](#rpc-streams) |
+| Long-lived WebSocket / BroadcastChannel / shared worker | [Custom `subscribe` / `send`](#persistent-transports-websockets-and-friends) |
+| SSE + custom fetch (auth refresh, retries) | [`fetchServerSentEvents` + `fetchClient`](#custom-fetch-client) |
+| Other request-scoped transport | [Custom `connect`](#custom-request-scoped-adapters) |
 
-All adapters produce the same `StreamChunk` events ([AG-UI Protocol](../migration/ag-ui-compliance)) — the choice is purely about transport.
+All adapters yield the same `StreamChunk` events ([AG-UI Protocol](../migration/ag-ui-compliance)).
 
 ## Server-Sent Events (SSE)
 
-The default. SSE is well-supported across browsers, transparent through most proxies, and easy to debug. Pair it with `toServerSentEventsResponse()` on the server.
+Default. Pair with `toServerSentEventsResponse()` on the server.
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -50,7 +48,7 @@ const { messages, sendMessage } = useChat({
 });
 ```
 
-**Dynamic URL and headers.** Pass functions when the value depends on per-request state (current user, fresh token):
+**Dynamic URL / headers** — pass functions for per-request values:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -66,7 +64,7 @@ const { messages } = useChat({
 });
 ```
 
-**Static body.** Anything in `options.body` is merged into the AG-UI `forwardedProps` payload sent to your server. Per-message data passed to `sendMessage` wins over this:
+**Static body** — merged into AG-UI `forwardedProps`. Per-message `sendMessage` data wins:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -78,24 +76,15 @@ const { messages } = useChat({
 });
 ```
 
-> **Tip:** `body` and `forwardedProps` populate the same wire field. Use `body` for static defaults, the `forwardedProps` constructor option (or per-`sendMessage` `data`) for dynamic values. Runtime values always win.
+> **Tip:** `body` and `forwardedProps` share the same wire field. Use `body` for static defaults; runtime values always win.
 
 ### Resumable SSE
 
-`fetchServerSentEvents` watches SSE `id:` values. If a connection drops after
-receiving an id, it reconnects with `Last-Event-ID` and de-duplicates the
-replayed prefix. `joinRun(runId)` performs a read-only GET with `offset=-1` and
-the run id, replaying an in-flight or finished run from the start.
+`fetchServerSentEvents` tracks SSE `id:` values. On drop after an id, it reconnects with `Last-Event-ID` and de-duplicates replay. `joinRun(runId)` does a read-only GET with `offset=-1` and the run id.
 
-The ids only appear when the server passes a durability adapter to
-`toServerSentEventsResponse`. They are opaque tokens owned by that adapter; the
-chat client does not create, parse, or persist them. Without ids, behavior is
-identical to a plain single fetch. See
-[Resumable Streams](../resumable-streams/overview).
+Ids appear only when the server passes a durability adapter to `toServerSentEventsResponse`. Without ids → plain single fetch. See [Resumable Streams](../resumable-streams/overview).
 
-Your route needs a `GET` handler alongside `POST` for `joinRun` (second tab or
-reload) to work. `POST` handles fresh runs and auto-reconnects (it re-sends the
-same body with `Last-Event-ID`); `GET` replays a known run from the start:
+**Must:** add a `GET` handler for `joinRun` (second tab / reload). `POST` = fresh runs + auto-reconnect; `GET` = replay only:
 
 ```typescript
 import {
@@ -115,26 +104,19 @@ export async function POST(request: Request) {
   });
 }
 
-// joinRun hits GET ?offset=-1&runId=... (replay only, no messages sent).
+// joinRun hits GET ?offset=-1&runId=... (replay only)
 export async function GET(request: Request) {
   return resumeServerSentEventsResponse({ adapter: memoryStream(request) });
 }
 ```
 
-The `GET` handler calls no provider: on a replay the durability adapter's
-`resumeFrom()` is non-null (from `?offset`), so the log is replayed instead.
-`resumeServerSentEventsResponse` returns a 400 when the request has no resume
-offset. Use `resumeHttpResponse` for the NDJSON adapters.
+`GET` does not call a provider — durability `resumeFrom()` replays the log. No resume offset → 400. Use `resumeHttpResponse` for NDJSON adapters.
 
-`fetchHttpStream` and `xhrHttpStream` resume the same way over NDJSON, where the
-offset rides in an `{ id, chunk }` envelope (see below) instead of an SSE `id:`
-line. Enable it by passing a durability adapter to `toHttpResponse`.
-`xhrServerSentEvents` resumes over SSE exactly like `fetchServerSentEvents`
-(paired with `toServerSentEventsResponse` and its `id:` lines).
+`fetchHttpStream` / `xhrHttpStream` resume the same way over NDJSON (`{ id, chunk }` envelopes via `toHttpResponse`). `xhrServerSentEvents` resumes over SSE like `fetchServerSentEvents`.
 
 ## HTTP Streaming (NDJSON)
 
-For environments that don't speak SSE — some edge runtimes, certain mobile WebViews, or anywhere a proxy strips `text/event-stream` — use raw newline-delimited JSON. The wire format is one JSON `StreamChunk` per line:
+Use when SSE is stripped. Wire format: one JSON `StreamChunk` per line.
 
 ```typescript
 import { useChat, fetchHttpStream } from "@tanstack/ai-react";
@@ -144,17 +126,15 @@ const { messages } = useChat({
 });
 ```
 
-Server-side, write each chunk as `JSON.stringify(chunk) + "\n"` to the response body (or use `toHttpResponse(stream)`). Options (`url`, `headers`, `body`, `fetchClient`, dynamic functions) match `fetchServerSentEvents` exactly.
+Server: `toHttpResponse(stream)` (or `JSON.stringify(chunk) + "\n"`). Options match `fetchServerSentEvents` (`url`, `headers`, `body`, `fetchClient`).
 
-`fetchHttpStream` is also resumable: pass a durability adapter to `toHttpResponse` and each line becomes an `{ id, chunk }` envelope. A dropped connection reconnects with `Last-Event-ID`, de-duplicates the replayed prefix, and `joinRun(runId)` attaches to an existing run. Same guarantees as [Resumable SSE](#resumable-sse), over NDJSON.
+Pass a durability adapter to `toHttpResponse` for resumability — same guarantees as [Resumable SSE](#resumable-sse) over NDJSON.
 
 ## React Native and Expo
 
-You have a native app that needs to call your own backend rather than a
-same-origin browser route. Use `useChat` from `@tanstack/ai-react` with an
-explicit chat transport and an absolute URL. By the end of this section, the
-client adapter and server response helper will be paired correctly for React
-Native or Expo.
+1. Point at an absolute backend URL your runtime can reach
+2. Prefer `xhrHttpStream` + `toHttpResponse`
+3. Keep provider SDKs off the mobile bundle
 
 ```typescript
 const baseUrl =
@@ -164,15 +144,13 @@ const httpUrl = `${baseUrl}/chat/http`
 const sseUrl = `${baseUrl}/chat/sse`
 ```
 
-Use the URL your runtime can reach:
+| Runtime | Host URL tip |
+| --- | --- |
+| iOS simulator | `localhost` / `127.0.0.1` |
+| Android emulator | `10.0.2.2` for host machine |
+| Physical device | LAN or tunnel |
 
-- **iOS simulator**: often `localhost` or `127.0.0.1`.
-- **Android emulator**: commonly `10.0.2.2` to reach the host machine.
-- **A physical device**: a LAN or tunneled URL.
-
-Prefer `xhrHttpStream()` for Expo and React Native. It pairs with
-`toHttpResponse()` and reads newline-delimited JSON through incremental XHR
-progress events:
+**Preferred — XHR + NDJSON:**
 
 ```typescript
 import { useChat, xhrHttpStream } from "@tanstack/ai-react";
@@ -185,12 +163,7 @@ const chat = useChat({
 });
 ```
 
-Mobile connections drop often, so this is where resumability pays off most.
-Both XHR adapters reconnect and `joinRun` when the server adds a durability
-adapter. See [Resumable Streams](../resumable-streams/overview).
-
-Use `xhrServerSentEvents()` when your server returns `text/event-stream` via
-`toServerSentEventsResponse()`:
+**SSE via XHR** (server uses `toServerSentEventsResponse`):
 
 ```typescript
 import { useChat, xhrServerSentEvents } from "@tanstack/ai-react";
@@ -203,62 +176,35 @@ const chat = useChat({
 });
 ```
 
-Only use `fetchHttpStream()` if your exact React Native runtime exposes
-streaming `fetch` responses, `Response.body.getReader()`, and `TextDecoder`.
-The server still returns newline-delimited JSON with `toHttpResponse()`:
+**`fetchHttpStream` only if** the RN runtime has streaming `fetch`, `Response.body.getReader()`, and `TextDecoder`. Missing any → `UnsupportedResponseStreamError`. Buffering polyfills do not count — switch to XHR adapters.
 
-```typescript
-import { useChat, fetchHttpStream } from "@tanstack/ai-react";
+Full walkthrough: [Quick Start: React Native](../getting-started/quick-start-react-native). Resumability: [Resumable Streams](../resumable-streams/overview).
 
-const baseUrl = process.env.EXPO_PUBLIC_TANSTACK_AI_BASE_URL ?? 'http://127.0.0.1:8787';
-const httpUrl = `${baseUrl}/chat/http`;
+## Server functions and direct async iterables
 
-const chat = useChat({
-  connection: fetchHttpStream(httpUrl),
-});
-```
-
-If one of those fetch-streaming APIs is missing, `fetchHttpStream()` throws
-`UnsupportedResponseStreamError`. A polyfill that buffers the response does not
-make fetch streaming compatible; the adapter needs incremental bytes. Switch to
-`xhrHttpStream()` or `xhrServerSentEvents()` instead.
-
-Keep provider SDKs and server helpers on your backend. The React Native bundle
-should import hooks and connection adapters, not OpenAI/Anthropic/Gemini SDKs,
-React DOM UI, devtools UI, or other framework packages. For a complete mobile
-walkthrough, see [Quick Start: React Native](../getting-started/quick-start-react-native).
-
-## Server Functions and Direct Async Iterables
-
-When your client can call into your server without going over HTTP — RSC streams, in-process tests, a direct in-process `chat()` call — skip the transport entirely. `stream()` takes a factory that returns an `AsyncIterable<StreamChunk>` **synchronously** and wires it straight into the client. (A [TanStack Start](https://tanstack.com/start) server function returns a `Promise`, so it needs [`fetcher`](#server-functions-via-fetcher), not `stream()` — see the next section.)
+If the factory returns `AsyncIterable<StreamChunk>` **synchronously** → `stream()`:
 
 ```typescript
 import { useChat, stream } from "@tanstack/ai-react";
 import { chatServerFn } from "./server/chat.server";
 
-// `chatServerFn` is an in-process server-side function that synchronously
-// returns an AsyncIterable<StreamChunk> — e.g. the result of
-// `chat({ adapter, model, messages })` on the server.
+// chatServerFn must return AsyncIterable<StreamChunk> synchronously
 const { messages } = useChat({
   connection: stream((messages, data) => chatServerFn({ messages, ...data })),
 });
 ```
 
-The factory receives the conversation messages plus any per-request `data` you passed to `sendMessage`. Return any async iterable that yields `StreamChunk` objects — a generator, the output of `chat()` on the server, a transformed stream, anything.
+> **Tip:** TanStack Start server functions return a `Promise` → use [`fetcher`](#server-functions-via-fetcher), not `stream()`.
 
-> **Tip:** `stream()` is **request-scoped**. The factory is invoked once per `sendMessage`, the iterable runs to completion, and the connection closes. If you need a single long-lived channel that multiplexes many sends — for example a WebSocket — use [`subscribe` / `send`](#persistent-transports-websockets-and-friends) instead.
+`stream()` is **request-scoped** (one factory call per `sendMessage`). For a long-lived multiplexed channel → [`subscribe` / `send`](#persistent-transports-websockets-and-friends).
 
-`stream()` also takes an optional second argument of persistence handlers, spread onto the adapter, so server-driven persistence (`persistence: true`) works without an HTTP endpoint. Each is typically a one-line call into your server:
+Optional second arg: persistence handlers (`hydrate`, `hydrateGeneration`, `joinRun`). See [Generation Persistence](../persistence/generation-persistence#server-functions--direct).
 
-- `hydrate`: restores a chat thread.
-- `hydrateGeneration`: restores a generation's last run.
-- `joinRun`: replays a run still in flight.
+## Server functions via `fetcher`
 
-See [Generation Persistence](../persistence/generation-persistence#server-functions--direct) for the full server-function wiring.
+For **async** handlers (TanStack Start server fn → `Promise`). Provide `fetcher` **or** `connection`, not both.
 
-## Server Functions via `fetcher`
-
-When you call into your server with an **async** function — the universal case for a [TanStack Start](https://tanstack.com/start) server function, which always returns a `Promise` — use the top-level `fetcher` option instead of a connection adapter. `fetcher` is a sibling of `connection` (provide exactly one), and it accepts a plain async function. It mirrors the `fetcher` option on the [generation hooks](../media/generation-hooks). The most common shape is a handler that ends with `toServerSentEventsResponse(...)` and resolves to a `Response`:
+**Server:**
 
 ```typescript ignore
 // server/chat.server.ts
@@ -276,6 +222,8 @@ export const chatFn = createServerFn({ method: "POST" })
   );
 ```
 
+**Client:**
+
 ```typescript
 import { useChat } from "@tanstack/ai-react";
 import { chatFn } from "./server/chat.server";
@@ -285,26 +233,23 @@ const { messages, sendMessage } = useChat({
 });
 ```
 
-The fetcher receives `{ messages, data, threadId, runId }` plus an `AbortSignal` (triggered by `stop()` or when a send is superseded). Return either:
+Fetcher input: `{ messages, data, threadId, runId }` + `AbortSignal`. Return:
 
-- a `Response`: the chat client parses its SSE body for you.
-- an `AsyncIterable<StreamChunk>`: yielded directly. This covers a server function that returns the stream itself rather than wrapping it in a `Response`.
+1. `Response` — client parses SSE body
+2. `AsyncIterable<StreamChunk>` — yielded directly
 
-Sync and `Promise`-wrapped returns are both accepted.
+Sync and `Promise`-wrapped returns both work.
 
-> **Tip:** The generation hooks (`useGenerateImage` and siblings) take the same server-function shape a step further: alongside their `fetcher` they accept `hydrateGeneration` and `joinRun` options, so `persistence: true` hydrates and rejoins through server functions with no HTTP route at all. See [Generation Persistence — Server functions / direct](../persistence/generation-persistence#server-functions--direct).
+> **`fetcher` vs `stream()`:** about **async vs sync**, not Response-vs-iterable. `stream()` factory must return the iterable synchronously; server-fn `Promise`s need `fetcher` ([issue #509](https://github.com/TanStack/ai/issues/509)).
 
-> **Tip:** The choice between `fetcher` and [`stream()`](#server-functions-and-direct-async-iterables) is about **async vs sync**, not `Response`-vs-iterable — both can yield an `AsyncIterable<StreamChunk>`. `stream()`'s factory must return that iterable **synchronously**, so a server-function call (which returns a `Promise`) won't typecheck there — that's the gap `fetcher` fills ([issue #509](https://github.com/TanStack/ai/issues/509)). Use `stream()` when you can hand back an async iterable synchronously (in-process `chat()`, an RPC client, tests); use `fetcher` for anything you have to `await`. Both normalize to the same request-scoped adapter, so `stop()`/abort, error handling, and tool calls behave identically.
+## RPC streams
 
-## RPC Streams
-
-`rpcStream()` is identical in behavior to `stream()` but reads better at call sites that hand off to an RPC client. Use it when integrating with Cap'n Web, gRPC-Web, tRPC subscriptions, or any RPC framework that already returns an async iterable:
+Same behavior as `stream()`, clearer at RPC call sites:
 
 ```typescript
 import { useChat, rpcStream } from "@tanstack/ai-react";
 import { api } from "./rpc-client";
 
-// `api.chat.stream` is your RPC method; it must return an AsyncIterable<StreamChunk>.
 const { messages } = useChat({
   connection: rpcStream((messages, data) =>
     api.chat.stream({ messages, ...data }),
@@ -312,27 +257,16 @@ const { messages } = useChat({
 });
 ```
 
-Like `stream()`, `rpcStream()` takes an optional second argument of persistence handlers (`{ hydrate, hydrateGeneration, joinRun }`) so server-driven persistence works over RPC — each handler is usually a one-line RPC call.
+Optional persistence handlers: `{ hydrate, hydrateGeneration, joinRun }`.
 
-## Persistent Transports (WebSockets and Friends)
+## Persistent transports (WebSockets)
 
-A persistent transport — WebSocket, BroadcastChannel, postMessage between iframes, a shared worker — is fundamentally different from request/response. You open the channel **once**, then send and receive over it for the lifetime of the client. `stream()`/`connect()` can't model this cleanly because they assume one async iterable per request.
+Open once, send/receive for the client lifetime. Implement `SubscribeConnectionAdapter`:
 
-For these cases, implement the `SubscribeConnectionAdapter` interface directly. The shape (full definition in [The Adapter Interface](#the-adapter-interface)):
+- `subscribe()` — once; long-lived async iterable of all chunks
+- `send()` — once per user message; returns when the frame is written
 
-```typescript
-import type { SubscribeConnectionAdapter } from "@tanstack/ai-react";
-
-// subscribe(abortSignal?): AsyncIterable<StreamChunk>   — long-lived
-// send(messages, data?, abortSignal?, runContext?): Promise<void> — one per user message
-```
-
-- `subscribe()` is called **once** by the `ChatClient` and returns a long-lived async iterable of every chunk the channel produces.
-- `send()` is called **once per user message** to push a request frame onto the channel. It returns when the frame has been written — chunks arrive separately through `subscribe()`.
-
-The runtime correlates them: chunks emitted on the subscription queue between `send()` and the next terminal event (`RUN_FINISHED` / `RUN_ERROR`) are attributed to that run.
-
-### WebSocket example
+Chunks between `send()` and next terminal (`RUN_FINISHED` / `RUN_ERROR`) belong to that run.
 
 ```typescript
 import { useChat, type SubscribeConnectionAdapter } from "@tanstack/ai-react";
@@ -369,16 +303,11 @@ function websocketConnection(url: string): SubscribeConnectionAdapter {
 
   return {
     async *subscribe(abortSignal) {
-      // Register the abort listener once (not per-iteration) so it can't
-      // accumulate on a long-lived socket.
       const onAbort = () => deliver(null);
       abortSignal?.addEventListener("abort", onAbort, { once: true });
       try {
         while (!abortSignal?.aborted) {
-          // Drain buffered chunks BEFORE honoring `closed`: a burst of messages
-          // followed by a close event (common within one macrotask) must still
-          // deliver the queued chunks (including a trailing RUN_FINISHED),
-          // otherwise the client would hang waiting for a terminal it dropped.
+          // Drain queue before honoring close so trailing RUN_FINISHED is not dropped
           const buffered = queue.shift();
           if (buffered !== undefined) {
             yield buffered;
@@ -415,21 +344,19 @@ const { messages } = useChat({
 });
 ```
 
-> **Tip:** Your server is responsible for emitting `RUN_FINISHED` (or `RUN_ERROR`) at the end of each run. Without it, the client will not know the assistant turn has ended and will wait indefinitely. See [Streaming](./streaming) for the full event lifecycle.
+> **Must:** server emits `RUN_FINISHED` (or `RUN_ERROR`) per run or the client waits forever. See [Streaming](./streaming).
 
-### When to choose persistent over request-scoped
+**Choose persistent when any of:**
 
-Pick `subscribe` / `send` when **any** of these are true:
+1. One connection multiplexes many runs
+2. Server pushes outside request/response
+3. Shared connection across tabs/workers
 
-- A single connection multiplexes many runs (chat thread keeps the socket open across messages).
-- The server pushes chunks outside of a request (presence updates, server-initiated tool calls, broadcast notifications).
-- You want to share one connection across multiple tabs (BroadcastChannel) or workers.
+Otherwise prefer `fetchServerSentEvents` or `stream()`.
 
-Otherwise, prefer `fetchServerSentEvents` or `stream()` — they're simpler and require no connection lifecycle management.
+## Custom fetch client
 
-## Custom Fetch Client
-
-If you're keeping SSE or HTTP streaming but need to wrap `fetch` — for auth refresh, retries, logging, or routing through an edge proxy — pass a `fetchClient`:
+Wrap `fetch` for auth refresh, retries, logging:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -451,11 +378,11 @@ const { messages } = useChat({
 });
 ```
 
-The `fetchClient` must satisfy the standard `fetch` signature. `fetchHttpStream` accepts the same option.
+Same option on `fetchHttpStream`.
 
-## Custom Request-Scoped Adapters
+## Custom request-scoped adapters
 
-When none of the built-ins fit but the transport is still request-scoped (one request per user message), implement `ConnectConnectionAdapter` directly. This is the lowest-level escape hatch short of going persistent:
+Implement `ConnectConnectionAdapter` when built-ins do not fit but transport is still one-request-per-message:
 
 ```typescript
 import { useChat, type ConnectConnectionAdapter } from "@tanstack/ai-react";
@@ -478,8 +405,6 @@ const myAdapter: ConnectConnectionAdapter = {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     if (!response.body) throw new Error("Response has no body");
 
-    // Example: newline-delimited JSON. Replace this loop with whatever
-    // framing your wire format uses, yielding one `StreamChunk` per event.
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let buffer = "";
@@ -502,16 +427,11 @@ const myAdapter: ConnectConnectionAdapter = {
 const { messages } = useChat({ connection: myAdapter });
 ```
 
-`runContext` carries `threadId`, `runId`, `clientTools`, and `forwardedProps`. Include them in your request payload so the server can build an AG-UI-compliant response.
+Include `runContext` (`threadId`, `runId`, `clientTools`, `forwardedProps`) in the payload. Runtime synthesizes `RUN_FINISHED` if missing, or `RUN_ERROR` on throw.
 
-The runtime covers the terminal event either way:
+## Adapter interface
 
-- Your `connect` stream completes without emitting `RUN_FINISHED`: one is synthesized for you.
-- Your `connect` stream throws: a `RUN_ERROR` is synthesized.
-
-## The Adapter Interface
-
-A `ConnectionAdapter` is a union — provide **either** `connect`, **or** both `subscribe` and `send`. Never both modes.
+Provide **either** `connect` **or** both `subscribe` + `send` — never both modes:
 
 ```typescript
 import type { UIMessage } from "@tanstack/ai-client";
@@ -549,14 +469,11 @@ export type ConnectionAdapter =
   | SubscribeConnectionAdapter;
 ```
 
-Internally, `ChatClient` normalizes both shapes to a single `subscribe`/`send` pair via `normalizeConnectionAdapter()`:
+`ChatClient` normalizes both via `normalizeConnectionAdapter()`.
 
-- Provide `connect` and it gets wrapped in an async queue.
-- Provide `subscribe` + `send` natively and they are used as-is.
+## Auth
 
-## Authentication
-
-Static headers go in `options.headers`:
+Static headers:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -569,7 +486,7 @@ const { messages } = useChat({
 });
 ```
 
-For tokens that change per request (refresh tokens, short-lived JWTs), pass a function — it's called on every send, so the header always reflects the latest token:
+Per-request tokens — pass a function (called every send):
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -582,24 +499,24 @@ const { messages } = useChat({
 });
 ```
 
-Cookies are sent automatically when `credentials` is `"same-origin"` (default) or `"include"`.
+Cookies: automatic when `credentials` is `"same-origin"` (default) or `"include"`.
 
 ## Cancellation
 
-Every adapter — built-in or custom — receives an `AbortSignal`. Built-ins propagate it to `fetch`; custom adapters must honor it themselves. `useChat`'s `stop()` aborts the current run by triggering the signal:
+Every adapter gets an `AbortSignal`. Built-ins pass it to `fetch`. `stop()` aborts the current run:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { stop } = useChat({ connection: fetchServerSentEvents("/api/chat") });
-stop(); // aborts the active stream
+stop();
 ```
 
-For `SubscribeConnectionAdapter`, the signal in `subscribe()` ends the entire subscription (component unmount); the signal in `send()` ends just the in-flight send.
+`SubscribeConnectionAdapter`: `subscribe` signal ends the subscription (unmount); `send` signal ends that send only.
 
-## Error Handling
+## Errors
 
-Adapters should throw on transport errors (HTTP non-2xx, parse failures, dropped sockets). The `ChatClient` catches the throw, emits a `RUN_ERROR` chunk if none has been emitted yet, and surfaces it via `onError` / the `error` state:
+Throw on transport failures. Client emits `RUN_ERROR` and surfaces via `onError` / `error`:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -610,19 +527,19 @@ const { error } = useChat({
 });
 ```
 
-Don't swallow `AbortError` — let it propagate so the client knows the abort succeeded.
+Do not swallow `AbortError`.
 
-## Best Practices
+## Must-do
 
-- **Default to SSE.** It's the most compatible and the easiest to debug. Switch only when something blocks it.
-- **Use `stream()` when you can.** If you control both sides and don't need HTTP semantics, server functions are faster to wire up than building a custom adapter.
-- **Reach for `subscribe`/`send` only when you need persistence.** WebSockets are powerful but require you to handle reconnection, run correlation, and lifecycle yourself.
-- **Always honor `abortSignal`.** It's how the client cleans up on unmount and on `stop()`.
-- **Emit `RUN_FINISHED` from the server.** Without it, the client never knows the turn ended.
+1. Default to SSE unless something blocks it
+2. Prefer `stream()` / `fetcher` when you control both sides
+3. Use `subscribe`/`send` only when you need a persistent channel
+4. Honor `abortSignal`
+5. Emit `RUN_FINISHED` from the server
 
-## Next Steps
+## Next
 
-- [Streaming](./streaming) — the full event lifecycle and `StreamChunk` types
-- [AG-UI Client Compliance](../migration/ag-ui-compliance) — the wire protocol your server emits
-- [Cloudflare Adapter](../community-adapters/cloudflare) — example of a custom `fetchClient` in production
-- [API Reference: `@tanstack/ai-client`](../api/ai-client) — full type signatures
+- [Streaming](./streaming)
+- [AG-UI Client Compliance](../migration/ag-ui-compliance)
+- [Cloudflare Adapter](../community-adapters/cloudflare)
+- [API Reference: `@tanstack/ai-client`](../api/ai-client)

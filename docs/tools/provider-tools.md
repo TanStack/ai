@@ -2,22 +2,12 @@
 title: Provider Tools
 id: provider-tools
 order: 2
+description: "Import provider-native tools from adapter /tools subpaths and pass them to chat({ tools })."
 ---
 
-Most providers expose native tools beyond user-defined function calls: web
-search, code execution, computer use, hosted retrieval, and more. TanStack AI
-exports each provider's native tools from a dedicated `/tools` subpath per
-adapter package.
+If you need a provider-native capability (web search, code interpreter, …) → import from that adapter's `/tools` subpath and add it to `chat({ tools })`.
 
-You have an adapter already wired up. You want to give the model access to a
-provider-native capability (e.g. Anthropic web search) and be sure you never
-pair a tool with a model that doesn't support it. By the end of this page,
-you'll have imported the factory, added it to `chat({ tools: [...] })`, and
-understood the compile-time guard that will catch unsupported combinations.
-
-## Import
-
-Every adapter ships provider tools on a `/tools` subpath:
+## 1. Import
 
 ```typescript
 import { webSearchTool } from '@tanstack/ai-anthropic/tools'
@@ -25,7 +15,7 @@ import { codeInterpreterTool } from '@tanstack/ai-openai/tools'
 import { googleSearchTool } from '@tanstack/ai-gemini/tools'
 ```
 
-## Use in `chat({ tools })`
+## 2. Pass to `chat`
 
 ```typescript
 import { chat } from '@tanstack/ai'
@@ -47,12 +37,7 @@ const stream = chat({
 
 ## Multi-turn persistence
 
-Provider tools run on the provider's own infrastructure, so their results
-(e.g. Anthropic `web_search` sources, `web_fetch` page contents) come back
-embedded in the assistant turn rather than as a separate tool message. TanStack
-AI preserves those results on the assistant message, so when you feed the prior
-conversation back into the next `chat()` call the model still sees the earlier
-evidence — no special handling required:
+Provider tools run on provider infrastructure. Results stay on the assistant turn (not a separate tool message). Feed prior messages back into the next `chat()` — no special handling:
 
 ```typescript
 import { chat, StreamProcessor } from '@tanstack/ai'
@@ -72,7 +57,6 @@ for await (const chunk of chat({
 }
 processor.finalizeStream()
 
-// The follow-up turn can still cite the previous search results.
 const followUp = chat({
   adapter,
   tools,
@@ -83,62 +67,37 @@ const followUp = chat({
 })
 ```
 
-The search/fetch call surfaces as a provider-executed `tool-call` part on the
-assistant message; the agent loop never tries to run it client-side.
+Surfaces as a provider-executed `tool-call` part on the assistant message — agent loop never runs it client-side.
 
 ## Type-level guard
 
-Every provider-specific tool factory (e.g. `webSearchTool`, `computerUseTool`)
-returns a `ProviderTool<TProvider, TKind>` brand. The adapter's
-`toolCapabilities` (derived from each model's `supports.tools` list) gates
-which brands are assignable to `tools`.
+Factories return `ProviderTool<TProvider, TKind>`. The adapter's `toolCapabilities` (from `supports.tools`) gates assignability to `tools`.
 
-Paste a `computerUseTool(...)` into a model that doesn't expose it, and
-TypeScript reports an error on that array element — not on the factory call,
-not at runtime. User-defined `toolDefinition()` tools stay unbranded and
-always assignable. The `customTool` factories exported from `ai-anthropic` and
-`ai-openai` also return a plain `Tool` (not a `ProviderTool` brand) and are
-therefore universally accepted by any chat model, just like `toolDefinition()`.
+Paste an unsupported tool → TypeScript errors on that array element. User-defined `toolDefinition()` tools and `customTool` factories stay unbranded and always assignable.
 
 ## Available tools
 
 | Provider | Tools |
 |---|---|
-| Anthropic | `webSearchTool`, `webFetchTool`, `codeExecutionTool`, `computerUseTool`, `bashTool`, `textEditorTool`, `memoryTool` — see [Anthropic adapter](../adapters/anthropic.md#provider-tools). |
-| OpenAI | `webSearchTool`, `webSearchPreviewTool`, `fileSearchTool`, `imageGenerationTool`, `codeInterpreterTool`, `mcpTool`, `computerUseTool`, `localShellTool`, `shellTool`, `applyPatchTool` — see [OpenAI adapter](../adapters/openai.md#provider-tools). |
-| Gemini | `codeExecutionTool`, `fileSearchTool`, `googleSearchTool`, `googleSearchRetrievalTool`, `googleMapsTool`, `urlContextTool`, `computerUseTool` — see [Gemini adapter](../adapters/gemini.md#provider-tools). |
-| OpenRouter | `webSearchTool`, `webFetchTool` — see [OpenRouter adapter](../adapters/openrouter.md#provider-tools). |
-| Grok | function tools only (no provider-specific tools). |
-| Groq | function tools only (no provider-specific tools). |
+| Anthropic | `webSearchTool`, `webFetchTool`, `codeExecutionTool`, `computerUseTool`, `bashTool`, `textEditorTool`, `memoryTool` — [Anthropic adapter](../adapters/anthropic.md#provider-tools) |
+| OpenAI | `webSearchTool`, `webSearchPreviewTool`, `fileSearchTool`, `imageGenerationTool`, `codeInterpreterTool`, `mcpTool`, `computerUseTool`, `localShellTool`, `shellTool`, `applyPatchTool` — [OpenAI adapter](../adapters/openai.md#provider-tools) |
+| Gemini | `codeExecutionTool`, `fileSearchTool`, `googleSearchTool`, `googleSearchRetrievalTool`, `googleMapsTool`, `urlContextTool`, `computerUseTool` — [Gemini adapter](../adapters/gemini.md#provider-tools) |
+| OpenRouter | `webSearchTool`, `webFetchTool` — [OpenRouter adapter](../adapters/openrouter.md#provider-tools) |
+| Grok / Groq | Function tools only |
 
-## Which models support which tools?
+## Model support (source of truth: `supports.tools`)
 
-Each adapter's `supports.tools` array is the source of truth. The comparison
-matrix is maintained alongside `model-meta.ts` and reflected here:
+- **Anthropic** — full tool superset on every registered model
+- **OpenAI** — GPT-5 + O-series full; GPT-4 web/file/image/code/mcp; GPT-3.5 / audio: none
+- **Gemini** — 3.x Pro/Flash full; Lite / media variants narrower
+- **OpenRouter** — every chat model supports `webSearchTool` + `webFetchTool`
 
-- **Anthropic**: every registered model supports the full tool superset
-  (the retired Claude 3.x models with narrower support were removed).
-- **OpenAI**: GPT-5 family and reasoning models (O-series) support the full
-  superset. GPT-4-series supports web/file/image/code/mcp but not
-  preview/shell variants. GPT-3.5 and audio-focused models: none.
-- **Gemini**: 3.x Pro/Flash models support the full tool set. Lite and
-  image/video variants have narrower support.
-- **OpenRouter**: every chat model supports `webSearchTool` and
-  `webFetchTool` via the gateway.
-
-For the exact per-model list, open the adapter page or read the model's
-`supports.tools` array directly from `model-meta.ts`.
+Exact lists: adapter page or `model-meta.ts`.
 
 ## Provider Skills
 
-Anthropic and OpenAI support hosted, provider-managed skill bundles that run
-inside the provider's server-side sandbox. Skills attach to an execution tool
-(`codeExecutionTool` for Anthropic, `shellTool` for OpenAI) and are referenced
-by ID — the provider handles installation and execution.
+Hosted skill bundles attach to an execution tool (`codeExecutionTool` / `shellTool`). See [Provider Skills](./provider-skills.md).
 
-See [Provider Skills](./provider-skills.md) for full setup steps and examples.
+## Migrating
 
-## Migrating from earlier versions
-
-If you were using `createWebSearchTool` from `@tanstack/ai-openrouter`, see
-[Migration Guide §6](../migration/migration.md#6-provider-tools-moved-to-tools-subpath).
+Old `createWebSearchTool` from `@tanstack/ai-openrouter` → [Migration Guide §6](../migration/migration.md#6-provider-tools-moved-to-tools-subpath).

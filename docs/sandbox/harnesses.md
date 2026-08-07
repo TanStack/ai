@@ -1,28 +1,22 @@
 ---
 title: Harnesses
 id: sandbox-harnesses
-description: "Pick which coding agent runs inside a TanStack AI sandbox: Grok Build, Claude Code, Codex, OpenCode, or any ACP-compliant agent via acpCompatible."
+description: "Pick which coding agent runs in a sandbox: Grok Build, Claude Code, Codex, OpenCode, or any ACP agent."
 ---
 
-A **harness adapter** is the second axis of a sandboxed run: it decides _which
-coding agent runs_ and translates that agent's work back into `chat()` stream
-chunks. The [provider](./providers) decides _where_ the agent runs; the harness
-decides _what_ runs. Both sit behind the same `chat()` + `withSandbox()` wiring,
-so you can swap a harness without touching your provider or [workspace](./workspace).
+If you need to change **which** agent runs without touching provider/workspace → swap the harness adapter.
 
-Every harness adapter declares `requires: [SandboxCapability]`, so `chat()` fails
-fast at the call site unless a sandbox is provided via `withSandbox(...)`.
+Harness = agent + translation of its work into `chat()` stream chunks. Provider = where it runs. Both use the same `chat()` + `withSandbox()` wiring.
 
-## Built-in harness adapters
+Every harness declares `requires: [SandboxCapability]` → `chat()` fails fast without `withSandbox(...)`.
 
-Each agent has its own package with curated per-model metadata. Pass the adapter
-to `chat({ adapter })` and run it under any provider.
+## Built-in adapters
 
 | Harness | Package | Adapter | Auth env |
 | --- | --- | --- | --- |
-| [Grok Build](../adapters/grok-build) | `@tanstack/ai-grok-build` | `grokBuildText` | `XAI_API_KEY` (or grok.com login on local-process) |
+| [Grok Build](../adapters/grok-build) | `@tanstack/ai-grok-build` | `grokBuildText` | `XAI_API_KEY` (or grok.com on local-process) |
 | [Claude Code](../adapters/claude-code) | `@tanstack/ai-claude-code` | `claudeCodeText` | `ANTHROPIC_API_KEY` (or `claude login`) |
-| [Codex](../adapters/codex) | `@tanstack/ai-codex` | `codexText` | `CODEX_API_KEY` (or `OPENAI_API_KEY`) |
+| [Codex](../adapters/codex) | `@tanstack/ai-codex` | `codexText` | `CODEX_API_KEY` or `OPENAI_API_KEY` |
 | [OpenCode](../adapters/opencode) | `@tanstack/ai-opencode` | `opencodeText` | `OPENAI_API_KEY` (model-dependent) |
 
 ```ts
@@ -39,19 +33,9 @@ const stream = chat({
 })
 ```
 
-## Harness output can go to a journal
+## Journal (durable runs only)
 
-`grokBuildText`, `claudeCodeText`, and `codexText` can stop holding the agent's
-stdout pipe: instead they redirect it to an append-only NDJSON file inside the
-sandbox (`/tmp/tanstack-runs/<runId>.ndjson`) and tail that, so losing the host
-cannot signal the agent and any later reader can replay the run from byte 0.
-
-**They do that only for a durable run.** Journaling is opt-in, and the opt-in is
-passing `withSandbox` **both** `runs` and `durability` (the snippet above), a
-plain `withSandbox(sandbox)`, writes no journal and streams over a pipe exactly
-as it always has. Pass both and forward the `runId`, whose value the journal path
-is derived from (a durable run with no caller-supplied `runId` throws
-`DurableRunIdRequiredError` rather than minting one nothing can recompute):
+`grokBuildText`, `claudeCodeText`, and `codexText` redirect stdout to `/tmp/tanstack-runs/<runId>.ndjson` **only when** `withSandbox` gets **both** `runs` and `durability`. Plain `withSandbox(sandbox)` → no journal, pipe stream as before.
 
 ```ts
 import {
@@ -65,7 +49,6 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 import { withSandbox } from '@tanstack/ai-sandbox'
 import { sandbox } from './sandbox'
 
-// Single-process stand-ins; ./takeover has the multi-replica wiring.
 const persistence = memoryPersistence()
 const { runs } = persistence.stores
 
@@ -76,30 +59,22 @@ export async function POST(request: Request) {
     adapter: codexText('gpt-5.3-codex'),
     messages,
     threadId,
-    runId, // makes the run's journal findable again
-    // BOTH stores, or there is no journal: this is the whole opt-in.
+    runId, // journal path derived from this; durable run without it throws DurableRunIdRequiredError
     middleware: [withSandbox(sandbox, { runs, durability: { adapter } })],
   })
   return toServerSentEventsResponse(stream, { durability: { adapter } })
 }
 ```
 
-The id must be unique per run: the journal appends, so reusing one makes a reader
-stop at the previous run's exit sentinel. Full details, including what you get
-without the opt-in and replay against an already-delivered log, are in
-[The Run Journal](./journal).
+**Cause → fix:** reuse a `runId` → append after previous exit sentinel → reader stops early. Use a unique id per run.
 
-`opencodeText` and `acpCompatible` harnesses do not read NDJSON off stdout at
-all, so they have no journal even when a run is durable.
+Full details → [The Run Journal](./journal). Multi-replica wiring → [Takeover](./takeover).
+
+`opencodeText` and `acpCompatible` do not journal.
 
 ## Any ACP agent (`acpCompatible`)
 
-Many coding agents speak the [Agent Client Protocol](https://agentclientprotocol.com)
-(ACP), `pi`, `gemini --acp`, and [dozens of others](https://agentclientprotocol.com/get-started/agents).
-For any of them that doesn't have a dedicated package, `acpCompatible` (from
-`@tanstack/ai-acp`) builds a harness adapter on the spot, the harness equivalent
-of `openaiCompatible`. Configure how to launch it once, then run it under any
-provider like the built-in adapters:
+For agents without a dedicated package that speak [ACP](https://agentclientprotocol.com):
 
 ```ts
 import { acpCompatible } from '@tanstack/ai-acp'
@@ -112,16 +87,9 @@ const pi = acpCompatible({
 })
 ```
 
-See the [ACP-Compatible Harness](../adapters/acp-compatible) guide for the full
-config (typed models, per-call `modelOptions`, WebSocket transports, permissions,
-and protocol coverage). For which agents you can plug in, browse the official
-**[ACP agents list](https://agentclientprotocol.com/get-started/agents)** and the
-**[ACP registry](https://agentclientprotocol.com/get-started/registry)**.
+Full config → [ACP-Compatible Harness](../adapters/acp-compatible). Agent lists: [ACP agents](https://agentclientprotocol.com/get-started/agents) · [registry](https://agentclientprotocol.com/get-started/registry).
 
-## Where to go next
+## Next
 
-- **[Providers](./providers)**: where the harness runs (local, Docker, Daytona, Vercel, Sprites).
-- **[The Run Journal](./journal)**: how a run's output survives the host that started it.
-- **[Takeover & Detached Runs](./takeover)**: detach on disconnect, and the three exports a harness adapter implements to support attach.
-- **[Tools](./tools)**: bridge your app's own tools into the in-sandbox agent.
-- **[Events & File Hooks](./events)**: stream the agent's edits and activity to a UI.
+- [Providers](./providers) · [Journal](./journal) · [Takeover](./takeover)
+- [Tools](./tools) · [Events](./events)

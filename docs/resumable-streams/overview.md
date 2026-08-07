@@ -1,7 +1,7 @@
 ---
 title: Resumable Streams
 id: overview
-description: "Reconnect to an in-flight AI response without re-running the model. Plug in a durability adapter, add a GET handler, and streams survive refreshes and dropped connections."
+description: "Reconnect to an in-flight AI stream without re-running the model — durability adapter + GET handler."
 keywords:
   - resumable streams
   - resume stream
@@ -14,42 +14,17 @@ keywords:
 
 # Resumable Streams
 
-A resumable stream lets a client reconnect to an in-flight response after a page
-refresh, a dropped connection, or a suspended tab, without calling the provider
-again.
+If a client drops mid-response and you must resume without re-calling the model → plug a durability adapter into the stream response and add a GET reattach handler.
 
-You turn it on by plugging a **durability adapter** into your streaming
-response. The adapter records every chunk to an ordered log before delivery and
-tags each event with an opaque offset. On reconnect the client resends the last
-offset and the server replays from the log instead of re-running the model.
-
-This is the delivery layer: it resumes a live stream. Saving the conversation so
-it survives a reload or reaches another device is a separate layer. For how the
-two fit together and when to pick each, see
-[Durability and Persistence](../persistence/overview).
-
-The log is kept per **run** — one `RUN_STARTED` → `RUN_FINISHED` execution, not
-a whole conversation. If the thread/run distinction is new, see
-[Threads and runs](../chat/streaming#threads-and-runs).
-
-Three steps: pick an adapter, wrap your response with it, add a `GET` handler.
+Delivery only (per **run**). Conversation persistence is separate — [Durability and Persistence](../persistence/overview). Runs vs threads: [Threads and runs](../chat/streaming#threads-and-runs).
 
 ## 1. Pick an adapter
 
-- `memoryStream(request)` from `@tanstack/ai` keeps the log in process memory.
-  Zero setup, ideal for development. Single process only.
-- `durableStream(request, options)` from `@tanstack/ai-durable-stream` writes to
-  an external [Durable Streams](https://durablestreams.com) backend. Use this in
-  production, where requests span many processes.
+- `memoryStream(request)` (`@tanstack/ai`) — in-process; dev / single process
+- `durableStream(request, options)` (`@tanstack/ai-durable-stream`) — external [Durable Streams](https://durablestreams.com); production
+- Custom store → implement `StreamDurability`: [Custom adapter](./custom-adapter)
 
-Using a different store (Redis, Postgres, a queue)? Implement the four-method
-`StreamDurability` interface: see [Custom Durability Adapter](./custom-adapter).
-
-## 2. Wrap your server response
-
-Pass the adapter as `durability` to `toServerSentEventsResponse` (SSE) or
-`toHttpResponse` (NDJSON). Add a `GET` handler so a reload or a second tab can
-re-attach to a run:
+## 2. Wrap the response + GET
 
 ```ts
 import {
@@ -75,29 +50,18 @@ export async function POST(request: Request) {
 }
 
 export async function GET(request: Request) {
-  // Replays the run from the durability log. No model call happens here.
+  // Replay only — no model call
   return resumeServerSentEventsResponse({ adapter: memoryStream(request) })
 }
 ```
 
-For production, swap `memoryStream(request)` for
-`durableStream(request, options)`. Everything else stays the same.
+Production: swap `memoryStream` for `durableStream`. NDJSON: `toHttpResponse` / `resumeHttpResponse`.
 
-That `GET` only ever *replays*: the run's producer is the `POST` that started it,
-so if that host dies the log stops growing. For a sandboxed coding agent, whose
-work outlives the request that launched it, the same `GET` can also take the run
-over and keep driving it — pass `driver: sandboxRunDriver({ … })` alongside the
-adapter. See [Takeover & Detached Runs](../sandbox/takeover).
+Sandbox takeover of a detached run: pass `driver: sandboxRunDriver({ … })` on the GET — [Takeover](../sandbox/takeover).
 
-> **One gotcha:** on a dropped connection the client reconnects by re-sending
-> the same `POST`. The model is not re-run (the log is replayed), but any side
-> effects your handler runs around the stream (saving the user's message,
-> creating a run row, counting usage) would fire a second time. Guard them
-> behind a resume check so they only run on a fresh request.
+### Guard one-time side effects
 
-The adapter already knows whether this is a resume: `resumeFrom()` returns the
-offset on a reconnect and `null` on a fresh request. Build the adapter once,
-check it, then reuse it for the response:
+Reconnect may re-POST. Model is not re-run, but handler side effects would re-fire. Use `resumeFrom()`:
 
 ```ts
 import {
@@ -107,14 +71,12 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
-// Your own one-time side effects.
 import { countUsage, saveUserMessage } from './db'
 
 export async function POST(request: Request) {
   const durability = memoryStream(request)
   const { messages, threadId, runId } = await chatParamsFromRequest(request)
 
-  // null on a fresh request, non-null on a reconnect. Do one-time work once.
   if (durability.resumeFrom() === null) {
     await saveUserMessage(threadId, messages)
     await countUsage(runId)
@@ -132,10 +94,9 @@ export async function POST(request: Request) {
 }
 ```
 
-## 3. Client: nothing to wire
+## 3. Client
 
-Reconnect is automatic. Use `useChat` with any HTTP connection adapter and a
-dropped connection resumes itself:
+No extra wiring. Any HTTP connection adapter reconnects automatically:
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
@@ -149,10 +110,6 @@ export function Chat() {
 }
 ```
 
-For NDJSON, swap `fetchServerSentEvents` for `fetchHttpStream` (with the server
-on `toHttpResponse`). The XHR adapters (`xhrServerSentEvents`, `xhrHttpStream`)
-work the same way, for runtimes without streaming `fetch`.
+NDJSON: `fetchHttpStream` + server `toHttpResponse`. XHR: `xhrServerSentEvents` / `xhrHttpStream`.
 
-That covers the common case. For the durability contract, terminal and error
-handling, reconnect tuning, attaching to a run by id, Cloudflare deployment, and
-production process-death concerns, see [Advanced](./advanced).
+Contract, errors, joinRun, Cloudflare, process death → [Advanced](./advanced).

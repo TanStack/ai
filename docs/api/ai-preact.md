@@ -2,7 +2,7 @@
 title: "@tanstack/ai-preact"
 slug: /api/ai-preact
 order: 5
-description: "API reference for @tanstack/ai-preact — Preact hooks including useChat for streaming chat with full type safety in Preact apps."
+description: "Preact useChat hook, connection adapters, and typed client tools."
 keywords:
   - tanstack ai
   - "@tanstack/ai-preact"
@@ -12,9 +12,7 @@ keywords:
   - api reference
 ---
 
-Preact hooks for TanStack AI, providing convenient Preact bindings for the headless client.
-
-## Installation
+If you need streaming chat in Preact → `useChat` + a connection adapter.
 
 ```bash
 npm install @tanstack/ai-preact
@@ -22,13 +20,15 @@ npm install @tanstack/ai-preact
 
 ## `useChat(options?)`
 
-Main hook for managing chat state in Preact with full type safety.
+1. Wire a connection.
+2. Pass `.client()` tools if needed (auto-executed).
+3. Render `messages` / call `sendMessage`.
 
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-preact";
-import { 
-  createChatClientOptions, 
-  type InferChatMessages 
+import {
+  createChatClientOptions,
+  type InferChatMessages,
 } from "@tanstack/ai-client";
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
@@ -42,13 +42,12 @@ const updateUIDef = toolDefinition({
 
 function ChatComponent() {
   const [, setNotification] = useState<string | null>(null);
-  // Create client tool implementations
+
   const updateUI = updateUIDef.client((input) => {
     setNotification(input.message);
     return { success: true };
   });
 
-  // Create typed tools array (no 'as const' needed!)
   const tools = [updateUI];
 
   const chatOptions = createChatClientOptions({
@@ -56,7 +55,6 @@ function ChatComponent() {
     tools,
   });
 
-  // Fully typed messages!
   type ChatMessages = InferChatMessages<typeof chatOptions>;
 
   const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
@@ -70,21 +68,14 @@ function ChatComponent() {
 
 Extends `ChatClientOptions` from `@tanstack/ai-client`:
 
-- `connection` - Connection adapter (required)
-- `tools?` - Array of client tool implementations (with `.client()` method)
-- `initialMessages?` - Initial messages array
-- `id?` - Unique identifier for this chat instance
-- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
-- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
-- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
-- `onResponse?` - Callback when response is received
-- `onChunk?` - Callback when stream chunk is received
-- `onFinish?` - Callback when response finishes
-- `onError?` - Callback when error occurs
-- `streamProcessor?` - Stream processing configuration
+- `connection` — required adapter
+- `tools?` — `.client()` implementations (auto-run; no `onToolCall`)
+- `initialMessages?` / `id?` / `threadId?` — seed + AG-UI thread
+- `forwardedProps?` — client JSON → server
+- `context?` — client-local tool context (not serialized)
 
-**Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
+Also: `onResponse?`, `onChunk?`, `onFinish?`, `onError?`, `streamProcessor?`.  
+`body?` is **deprecated** — use `forwardedProps`.
 
 ### Returns
 
@@ -116,9 +107,9 @@ interface UseChatReturn {
 }
 ```
 
-## Connection Adapters
+---
 
-Re-exported from `@tanstack/ai-client` for convenience:
+## Connection adapters
 
 ```typescript
 import {
@@ -129,7 +120,9 @@ import {
 } from "@tanstack/ai-preact";
 ```
 
-## Example: Basic Chat
+---
+
+## Basic chat
 
 ```tsx
 import { useState } from "preact/hooks";
@@ -187,7 +180,7 @@ export function Chat() {
 }
 ```
 
-## Example: Tool Approval
+## Tool approval
 
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-preact";
@@ -240,14 +233,10 @@ export function ChatWithApproval() {
 }
 ```
 
-## Example: Client Tools with Type Safety
+## Client tools (typed)
 
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-preact";
-import { 
-  createChatClientOptions, 
-  type InferChatMessages 
-} from "@tanstack/ai-client";
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 import { useState } from "preact/hooks";
@@ -265,11 +254,12 @@ const saveToStorageDef = toolDefinition({
 });
 
 export function ChatWithClientTools() {
-  const [notification, setNotification] = useState<{ message: string; type: string } | null>(null);
+  const [notification, setNotification] = useState<{
+    message: string;
+    type: string;
+  } | null>(null);
 
-  // Create client implementations
   const updateUI = updateUIDef.client((input) => {
-    // ✅ input is fully typed!
     setNotification({ message: input.message, type: input.type });
     return { success: true };
   });
@@ -279,12 +269,11 @@ export function ChatWithClientTools() {
     return { saved: true };
   });
 
-  // Create typed tools array (no 'as const' needed!)
   const tools = [updateUI, saveToStorage];
 
   const { messages, sendMessage } = useChat({
     connection: fetchServerSentEvents("/api/chat"),
-    tools, // ✅ Automatic execution, full type safety
+    tools,
   });
 
   return (
@@ -292,7 +281,6 @@ export function ChatWithClientTools() {
       {messages.map((message) =>
         message.parts.map((part) => {
           if (part.type === "tool-call" && part.name === "updateUI") {
-            // ✅ part.input and part.output are fully typed!
             return <div>Tool executed: {part.name}</div>;
           }
           return null;
@@ -305,17 +293,14 @@ export function ChatWithClientTools() {
 
 ## `createChatClientOptions(options)`
 
-Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
-
 ```typescript
-import { 
-  createChatClientOptions, 
-  type InferChatMessages 
+import {
+  createChatClientOptions,
+  type InferChatMessages,
 } from "@tanstack/ai-client";
 import { fetchServerSentEvents } from "@tanstack/ai-preact";
 import { tool1, tool2 } from "./tools";
 
-// Create typed tools array (no 'as const' needed!)
 const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
@@ -328,27 +313,12 @@ type Messages = InferChatMessages<typeof chatOptions>;
 
 ## Types
 
-Re-exported from `@tanstack/ai-client`:
+From `@tanstack/ai-client`: `UIMessage`, `MessagePart`, `TextPart`, `ThinkingPart`, `ToolCallPart`, `ToolResultPart`, `ChatClientOptions`, `ConnectionAdapter`, `InferChatMessages`.
 
-- `UIMessage<TTools>` - Message type with tool type parameter
-- `MessagePart<TTools>` - Message part with tool type parameter
-- `TextPart` - Text content part
-- `ThinkingPart` - Thinking content part
-- `ToolCallPart<TTools>` - Tool call part (discriminated union)
-- `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
-- `ConnectionAdapter` - Connection adapter interface
-- `InferChatMessages<T>` - Extract message type from options
-
-Re-exported from `@tanstack/ai`:
-
-- `toolDefinition()` - Create isomorphic tool definition
-- `ToolDefinitionInstance` - Tool definition type
-- `ClientTool` - Client tool type
-- `ServerTool` - Server tool type
+From `@tanstack/ai`: `toolDefinition()`, `ToolDefinitionInstance`, `ClientTool`, `ServerTool`.
 
 ## Next Steps
 
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
-- [Client Tools](../tools/client-tools) - Learn about client-side tools
+- [Getting Started](../getting-started/quick-start)
+- [Tools Guide](../tools/tools)
+- [Client Tools](../tools/client-tools)

@@ -2,7 +2,7 @@
 title: Migration Guide
 id: migration
 order: 1
-description: "Migrate existing TanStack AI code to the latest version — adapter function splits, flattened options, renamed modelOptions, and removed embeddings."
+description: "Upgrade TanStack AI: split adapters, modelOptions, toServerSentEventsStream, embeddings removed, provider tools path."
 keywords:
   - tanstack ai
   - migration
@@ -15,25 +15,22 @@ keywords:
 
 # Migration Guide
 
-This guide helps you migrate from the previous version of TanStack AI to the latest version. The major changes focus on improved tree-shaking, clearer API naming, and simplified configuration.
+If you are on a prior TanStack AI major → apply these renames and splits. Then see [sampling options](./sampling-options-to-model-options) if you still pass root `temperature` / `topP` / `maxTokens`.
 
-## Overview of Changes
+## Breaking changes
 
-The main breaking changes in this release are:
+1. Adapters split by activity (`openaiText`, not `openai`)
+2. Sampling later moved into `modelOptions` (see note under options)
+3. `providerOptions` → `modelOptions`
+4. `toResponseStream` → `toServerSentEventsStream`
+5. Embeddings removed; OpenRouter `createWebSearchTool` → `/tools` `webSearchTool`
 
-1. **Adapter functions split** - Adapters are now split into activity-specific functions for optimal tree-shaking
-2. **Common options flattened** - Options are now flattened in the config instead of nested
-3. **`providerOptions` renamed** - Now called `modelOptions` for clarity
-4. **`toResponseStream` renamed** - Now called `toServerSentEventsStream` for clarity
-5. **Embeddings removed** - Embeddings support has been removed (most vector DB services have built-in support)
+## 1. Adapter functions split
 
-## 1. Adapter Functions Split
-
-Adapters have been split into activity-specific functions to enable optimal tree-shaking. Instead of importing a monolithic adapter, you now import specific functions for each activity type.
-
-### Before
+### Change this → to this
 
 ```typescript ignore
+// Before
 import { chat } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 
@@ -44,9 +41,8 @@ const stream = chat({
 })
 ```
 
-### After
-
 ```typescript
+// After
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -56,71 +52,42 @@ const stream = chat({
 })
 ```
 
-### Key Changes
+- Model goes into the adapter factory (`openaiText('gpt-5.2')`)
+- No separate `model` on `chat()`
+- Import only what you need
 
-- **Model is passed to adapter factory** - The model name is now passed directly to the adapter function (e.g., `openaiText('gpt-5.2')`)
-- **No separate `model` parameter** - The model is stored on the adapter, so you don't need to pass it separately to `chat()`
-- **Activity-specific imports** - Import only what you need (e.g., `openaiText`, `openaiSummarize`, `openaiImage`)
-
-### All Adapter Functions
-
-Each provider package now exports activity-specific functions:
-
-#### OpenAI
+### Adapter exports
 
 ```typescript
+// OpenAI
 import {
-  openaiText,          // Chat/text generation
-  openaiSummarize,     // Summarization
-  openaiImage,         // Image generation
-  openaiSpeech,        // Text-to-speech
-  openaiTranscription, // Audio transcription
-  openaiVideo,         // Video generation
+  openaiText,
+  openaiSummarize,
+  openaiImage,
+  openaiSpeech,
+  openaiTranscription,
+  openaiVideo,
 } from '@tanstack/ai-openai'
-```
 
-#### Anthropic
+// Anthropic
+import { anthropicText, anthropicSummarize } from '@tanstack/ai-anthropic'
 
-```typescript
+// Gemini
 import {
-  anthropicText,       // Chat/text generation
-  anthropicSummarize,  // Summarization
-} from '@tanstack/ai-anthropic'
-```
-
-#### Gemini
-
-```typescript
-import {
-  geminiText,       // Chat/text generation
-  geminiSummarize,  // Summarization
-  geminiImage,      // Image generation
-  geminiSpeech,     // Text-to-speech (experimental)
+  geminiText,
+  geminiSummarize,
+  geminiImage,
+  geminiSpeech,
 } from '@tanstack/ai-gemini'
+
+// Ollama
+import { ollamaText, ollamaSummarize } from '@tanstack/ai-ollama'
 ```
 
-#### Ollama
-
-```typescript
-import {
-  ollamaText,       // Chat/text generation
-  ollamaSummarize,  // Summarization
-} from '@tanstack/ai-ollama'
-```
-
-### Migration Example
-
-Here's a complete example of migrating adapter usage:
-
-#### Before
+### Multi-provider switch
 
 ```typescript ignore
-import { chat } from '@tanstack/ai'
-import { openai } from '@tanstack/ai-openai'
-import { anthropic } from '@tanstack/ai-anthropic'
-
-type Provider = 'openai' | 'anthropic'
-
+// Before
 function getAdapter(provider: Provider) {
   switch (provider) {
     case 'openai':
@@ -129,17 +96,15 @@ function getAdapter(provider: Provider) {
       return anthropic()
   }
 }
-
-const stream = chat({
+chat({
   adapter: getAdapter(provider),
   model: provider === 'openai' ? 'gpt-5.2' : 'claude-sonnet-4-5',
   messages,
 })
 ```
 
-#### After
-
 ```typescript
+// After
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { anthropicText } from '@tanstack/ai-anthropic'
@@ -161,29 +126,13 @@ const stream = chat({
 })
 ```
 
-## 2. Common Options Flattened
+## 2. Common options
 
-Common options that were previously nested in an `options` object are now flattened directly in the config.
-
-### Before
+Historical flatten (options nested → root). **Then sampling left the root again:**
 
 ```typescript ignore
-const stream = chat({
-  adapter: openai(),
-  model: 'gpt-5.2',
-  messages,
-  options: {
-    temperature: 0.7,
-    maxTokens: 1000,
-    topP: 0.9,
-  },
-})
-```
-
-### After
-
-```typescript ignore
-const stream = chat({
+// Intermediate (root sampling — later removed)
+chat({
   adapter: openaiText('gpt-5.2'),
   messages,
   temperature: 0.7,
@@ -192,98 +141,59 @@ const stream = chat({
 })
 ```
 
-### Available Options
-
-These options are now available at the top level:
-
-- `temperature` - Controls randomness (0.0 to 2.0)
-- `topP` - Nucleus sampling parameter
-- `maxTokens` - Maximum tokens to generate
-- `metadata` - Additional metadata to attach
-
-> **Heads up — sampling has since moved (breaking).** In a later release, the sampling props (`temperature`, `topP`, `maxTokens`) were removed from the root of `chat()` and now live in provider-native `modelOptions`. Passing them at the root no longer type-checks or takes effect. See [Moving Sampling Options into modelOptions](./sampling-options-to-model-options) for the codemod and provider-native key names. `metadata` stays at the root.
+> **Breaking follow-up:** root `temperature` / `topP` / `maxTokens` no longer type-check or take effect. Put them in provider-native `modelOptions`. See [Moving Sampling Options into modelOptions](./sampling-options-to-model-options). `metadata` stays at the root.
 
 ## 3. `providerOptions` → `modelOptions`
 
-The `providerOptions` parameter has been renamed to `modelOptions` for clarity. This parameter contains model-specific options that vary by provider and model.
-
-### Before
-
 ```typescript ignore
-const stream = chat({
+// Before
+chat({
   adapter: openai(),
   model: 'gpt-5.2',
   messages,
   providerOptions: {
-    // OpenAI-specific options
     responseFormat: { type: 'json_object' },
     logitBias: { '123': 1.0 },
   },
 })
 ```
 
-### After
-
 ```typescript ignore
-const stream = chat({
+// After
+chat({
   adapter: openaiText('gpt-5.2'),
   messages,
   modelOptions: {
-    // OpenAI-specific options
     responseFormat: { type: 'json_object' },
     logitBias: { '123': 1.0 },
   },
 })
 ```
 
-### Type Safety
-
-`modelOptions` is fully typed based on the adapter and model you're using:
-
-```typescript ignore
-import { openaiText } from '@tanstack/ai-openai'
-
-const adapter = openaiText('gpt-5.2')
-
-// TypeScript knows the exact modelOptions type for gpt-5.2
-const stream = chat({
-  adapter,
-  messages,
-  modelOptions: {
-    // Autocomplete and type checking for gpt-5.2 options
-    responseFormat: { type: 'json_object' },
-  },
-})
-```
+`modelOptions` is typed from the adapter + model pair.
 
 ## 4. `toResponseStream` → `toServerSentEventsStream`
 
-The `toResponseStream` function has been renamed to `toServerSentEventsStream` to better reflect its purpose. Additionally, the API has changed slightly.
-
-### Before
-
 ```typescript ignore
+// Before
 import { chat, toResponseStream } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const abortController = new AbortController()
-
   const stream = chat({
     adapter: openai(),
     model: 'gpt-5.2',
     messages,
     abortController,
   })
-
   return toResponseStream(stream, { abortController })
 }
 ```
 
-### After
-
 ```typescript
+// After
 import { chat, toServerSentEventsStream } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -308,51 +218,19 @@ export async function POST(request: Request) {
 }
 ```
 
-### Key Changes
+| Before | After |
+| --- | --- |
+| `toResponseStream` | `toServerSentEventsStream` |
+| Returns `Response` | Returns `ReadableStream`; build `Response` yourself |
+| `{ abortController }` options | `abortController` as second argument |
 
-- **Function renamed** - `toResponseStream` → `toServerSentEventsStream`
-- **Returns ReadableStream** - Now returns a `ReadableStream` instead of a `Response`
-- **Manual Response creation** - You create the `Response` object yourself with appropriate headers
-- **AbortController parameter** - Passed as a separate parameter instead of in options
+NDJSON: `toHttpStream(stream, abortController)` with `Content-Type: application/x-ndjson`.
 
-### Alternative: HTTP Stream Format
+## 5. Embeddings removed
 
-If you need HTTP stream format (newline-delimited JSON) instead of SSE, use `toHttpStream`:
-
-```typescript ignore
-import { toHttpStream } from '@tanstack/ai'
-
-const readableStream = toHttpStream(stream, abortController)
-return new Response(readableStream, {
-  headers: {
-    'Content-Type': 'application/x-ndjson',
-  },
-})
-```
-
-## 5. Embeddings Removed
-
-Embeddings support has been removed from TanStack AI. Most vector database services (like Pinecone, Weaviate, Qdrant, etc.) have built-in support for embeddings, and most applications pick an embedding model and stick with it.
-
-### Before
-
-```typescript ignore
-import { embedding } from '@tanstack/ai'
-import { openaiEmbed } from '@tanstack/ai-openai'
-
-const result = await embedding({
-  adapter: openaiEmbed(),
-  model: 'text-embedding-3-small',
-  input: 'Hello, world!',
-})
-```
-
-### After
-
-Use your vector database service's built-in embedding support, or call the provider's API directly:
+Use the provider SDK or your vector DB:
 
 ```typescript
-// Example with OpenAI SDK directly
 import OpenAI from 'openai'
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
@@ -363,98 +241,52 @@ const result = await openai.embeddings.create({
 })
 ```
 
-### Why This Change?
+## 6. Provider tools → `/tools`
 
-- **Vector DB services handle it** - Most vector databases have native embedding support
-- **Simpler API** - Reduces API surface area and complexity
-- **Direct provider access** - You can use the provider SDK directly for embeddings
-- **Focused scope** - TanStack AI focuses on chat, tools, and agentic workflows
-
-## 6. Provider Tools Moved to `/tools` Subpath
-
-Provider-specific tools (web search, code execution, computer use, etc.) are now
-exported from a dedicated `/tools` subpath on every adapter package. This keeps
-tool imports tree-shakeable and avoids name collisions between providers.
-
-The only breaking change is in `@tanstack/ai-openrouter`:
-`createWebSearchTool` has been removed from the package root, renamed to
-`webSearchTool`, and moved to `@tanstack/ai-openrouter/tools`. Every other
-provider tool (Anthropic, OpenAI, Gemini) is newly exported — no existing
-import breaks.
-
-### Before
+Breaking only for OpenRouter: `createWebSearchTool` left the package root.
 
 ```typescript ignore
+// Before
 import { createWebSearchTool } from '@tanstack/ai-openrouter'
-
-const tools = [
-  createWebSearchTool({ engine: 'native', maxResults: 5 }),
-]
+const tools = [createWebSearchTool({ engine: 'native', maxResults: 5 })]
 ```
-
-### After
 
 ```typescript
+// After
 import { webSearchTool } from '@tanstack/ai-openrouter/tools'
-
-const tools = [
-  webSearchTool({ engine: 'native', maxResults: 5 }),
-]
+const tools = [webSearchTool({ engine: 'native', maxResults: 5 })]
 ```
 
-### Key Changes
+- Import path `/tools` (same pattern as `/adapters`)
+- `createWebSearchTool` → `webSearchTool`
+- Runtime config unchanged; models without support now type-error on `tools`
 
-- **Import path is now `/tools`** — matches the existing `/adapters` subpath
-  pattern used elsewhere in each provider package.
-- **Factory renamed** — `createWebSearchTool` → `webSearchTool`. The `create*`
-  prefix has been dropped to align with every other provider
-  (`webSearchTool` in `@tanstack/ai-anthropic/tools`,
-  `@tanstack/ai-openai/tools`, etc.).
-- **Runtime behavior is unchanged** — the factory accepts the same config
-  object and returns a tool that works identically in `chat({ tools: [...] })`.
-- **Type-level gating is new** — if you pass a provider tool to a model that
-  doesn't support it (per the model's `supports.tools` array), you now get a
-  type error on the `tools` array. User-defined `toolDefinition()` tools are
-  unaffected.
+Full list: [Provider Tools](../tools/provider-tools.md).
 
-For the full list of available provider tools and which models support each
-one, see [Provider Tools](../tools/provider-tools.md).
-
-## Complete Migration Example
-
-Here's a complete example showing all the changes together:
-
-### Before
+## Complete example
 
 ```typescript ignore
+// Before
 import { chat, toResponseStream } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   const { messages } = await request.json()
   const abortController = new AbortController()
-
   const stream = chat({
     adapter: openai(),
     model: 'gpt-5.2',
     messages,
-    options: {
-      temperature: 0.7,
-      maxTokens: 1000,
-    },
-    providerOptions: {
-      responseFormat: { type: 'json_object' },
-    },
+    options: { temperature: 0.7, maxTokens: 1000 },
+    providerOptions: { responseFormat: { type: 'json_object' } },
     abortController,
   })
-
   return toResponseStream(stream, { abortController })
 }
 ```
 
-### After
-
 ```typescript ignore
+// After
 import { chat, toServerSentEventsStream } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -465,8 +297,6 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.2'),
     messages,
-    // Sampling now lives in provider-native `modelOptions` (OpenAI Responses
-    // keys: `temperature`, `max_output_tokens`). `metadata` stays at the root.
     modelOptions: {
       temperature: 0.7,
       max_output_tokens: 1000,
@@ -486,20 +316,9 @@ export async function POST(request: Request) {
 }
 ```
 
-## Benefits of These Changes
+## Help
 
-1. **Better Tree-Shaking** - Import only what you need, resulting in smaller bundle sizes
-2. **Clearer API** - Function names clearly indicate their purpose
-3. **Type Safety** - Model-specific options are fully typed
-4. **Simpler Configuration** - Flattened options are easier to work with
-5. **Focused Scope** - Removed features that are better handled elsewhere
-
-## Need Help?
-
-If you encounter issues during migration:
-
-1. Check the [Tree-Shaking Guide](../advanced/tree-shaking) for details on the new adapter structure
-2. Review the [API Reference](../api/ai) for complete function signatures
-3. Look at the [examples](../getting-started/quick-start) for working code samples
-
-
+1. [Tree-Shaking Guide](../advanced/tree-shaking)
+2. [API Reference](../api/ai)
+3. [Quick Start](../getting-started/quick-start)
+4. [Sampling → modelOptions](./sampling-options-to-model-options)

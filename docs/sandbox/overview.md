@@ -2,16 +2,14 @@
 id: overview
 order: 1
 title: Sandboxes Overview
-description: "Run coding-agent CLIs (Grok Build, Claude Code, Codex, OpenCode) inside an isolated sandbox with a real filesystem and a cloned repo, and stream their work back through chat()."
+description: "Run a coding agent in an isolated sandbox with a real filesystem and stream its work through chat()."
 ---
 
-A **sandbox** gives a coding agent a real computer to work in: a filesystem, a
-shell, processes, and a cloned repository. You point a **harness adapter** (a
-coding-agent CLI like Grok Build) at it through `chat()`, and the agent's work (edits,
-commands, tool calls) streams back to you like any other chat run.
+If you need an agent to **edit a real repo** (not only talk about code) → use a sandbox.
 
-The same code runs on your laptop, in CI, in a Docker container, or on the edge.
-Only the **provider** changes.
+A sandbox gives the agent a filesystem, shell, processes, and a cloned repository. Point a **harness adapter** at it through `chat()`; edits, commands, and tool calls stream back as normal chat chunks.
+
+Same app code runs on a laptop, in CI, in Docker, or at the edge. Only the **provider** changes.
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -49,87 +47,44 @@ chat({
 })
 ```
 
-## The three moving parts
+## Three parts (swap any one)
 
-A sandboxed run is the composition of three independent pieces. You can change
-any one without touching the others.
-
-| Part | What it is | You pick it with |
+| Part | Role | You pick with |
 | --- | --- | --- |
-| **Provider** | *Where* the agent runs (your host, a container, a cloud VM). | A provider package (`dockerSandbox`, `localProcessSandbox`, …) |
-| **Workspace** | *What the agent sees*: the source repo, package manager, setup commands, secrets. | `defineWorkspace({ … })` |
-| **Harness adapter** | *Which agent runs* and how its output is translated to chat chunks. | `grokBuildText`, `claudeCodeText`, `codexText`, `opencodeText`, or `acpCompatible` for [any ACP agent](./harnesses) |
+| **Provider** | Where the agent runs | `dockerSandbox`, `localProcessSandbox`, … |
+| **Workspace** | What the agent sees (repo, setup, secrets) | `defineWorkspace({ … })` |
+| **Harness** | Which agent runs | `grokBuildText`, `claudeCodeText`, `codexText`, `opencodeText`, or `acpCompatible` |
 
-`defineSandbox()` binds a provider + workspace (+ optional policy, lifecycle, and
-hooks) into a reusable definition. `withSandbox(definition)` is the `chat()`
-middleware that turns it on for a run.
+1. `defineSandbox()` binds provider + workspace (+ optional policy, lifecycle, hooks).
+2. `withSandbox(definition)` is the `chat()` middleware that turns it on.
 
-### How a run executes
+### Run order
 
 ```txt
 chat({ adapter: grokBuildText(), middleware: [withSandbox(repoSandbox)] })
   │
-  ├─ withSandbox.setup    → ensure the sandbox: resume → restore snapshot → create + bootstrap
-  ├─ adapter.chatStream   → spawn `grok` INSIDE the sandbox; stream its events back as AG-UI chunks
-  └─ withSandbox.onFinish → snapshot / destroy per the lifecycle
+  ├─ withSandbox.setup    → resume → restore snapshot → create + bootstrap
+  ├─ adapter.chatStream   → spawn agent INSIDE sandbox; stream AG-UI chunks
+  └─ withSandbox.onFinish → snapshot / destroy per lifecycle
 ```
 
-A harness adapter declares `requires: [SandboxCapability]`, so `chat()` fails
-fast at the call site if no middleware provides a sandbox, you can't
-accidentally run a coding agent with nowhere to run it.
+Harness adapters declare `requires: [SandboxCapability]`. `chat()` fails fast if no middleware provides a sandbox.
 
-## When to use a sandbox
+## When to use it
 
-Reach for a sandbox whenever you want an agent to **act on a real codebase**,
-not just talk about one. A few shapes this takes:
+| Need | Use |
+| --- | --- |
+| Agent acts on a real codebase (CI triage, PR review, preview, evals) | Sandbox |
+| Model only reads code already in memory | Normal `chat()` + [tools](../tools/server-tools) |
 
-- **CI issue triage / bug-fix bots.** On a new issue, clone the repo into a
-  sandbox, let the agent reproduce and root-cause it, and post the findings (or
-  a draft fix) back.
-- **PR review automation.** Check out a branch, run the test/lint scripts, and
-  have the agent comment on what it found.
-- **Build-and-preview.** Ask the agent to scaffold or modify an app, run the dev
-  server inside the sandbox, and hand the user a live preview URL, see the
-  [Cloudflare guide](./cloudflare) and the `examples/sandbox-*-web` apps.
-- **Eval / benchmark harnesses.** Run a coding agent against a fixture repo with
-  a known bug and assert on the resulting diff, reproducibly, in isolation.
-- **Interactive coding copilots** that need to actually execute code, edit
-  files, and run commands rather than only suggest them.
+## Next
 
-If you only need the model to read code you already have in memory, you don't
-need a sandbox, a normal `chat()` with [tools](../tools/server-tools) is
-enough. The sandbox earns its keep the moment the agent needs a filesystem and a
-shell.
-
-## Where to go next
-
-[Quick Start](./quick-start) gets an agent fixing a bug in a sandbox on your laptop.
-After that, pick the piece you need:
-
-- [Providers](./providers): local process, Docker, Daytona, Vercel, Sprites, and what
-  each one can do.
-- [Harnesses](./harnesses): which agent runs. Grok Build, Claude Code, Codex,
-  OpenCode, or any ACP agent.
-- [Workspace](./workspace): the source repo, clone depth, and setup commands.
-- [Tools](./tools): bridge your app's own tools into the in-sandbox agent.
-- [Policy](./policy): allow, ask or deny guardrails on what the agent may run.
-- [Lifecycle & Snapshots](./lifecycle): reuse a sandbox, snapshot after setup, resume.
-- [Instance Durability](./durability): reuse it across replicas too.
-- [Durable Runs](./durable-runs): let a run outlive the tab, and turn it on.
-- [Events](./events): stream the agent's edits and tool calls to a UI, and choose what
-  to store.
-
-The Advanced group in the sidebar has the rest: the journal file, takeover from
-another host, the reaping sweeper, provisioning, observability, Cloudflare, and how to
-build an adapter.
+1. [Quick Start](./quick-start) — agent fixes a bug on your laptop.
+2. [Providers](./providers) · [Harnesses](./harnesses) · [Workspace](./workspace)
+3. [Tools](./tools) · [Policy](./policy) · [Lifecycle](./lifecycle)
+4. [Durability](./durability) · [Durable Runs](./durable-runs) · [Events](./events)
 
 ## Try it
 
-Two runnable demos:
-
-- [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web):
-  a "build me an app" agent on Docker with durable runs wired. It scaffolds an app,
-  runs the dev server, and hands back a live preview URL. The run survives a refresh
-  and a closed tab, and Stop is a real cancel.
-- [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare):
-  the same idea at the edge, with the harness picked per run from the UI.
+- [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) — Docker, durable runs, live preview URL.
+- [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare) — edge; pick harness per run in the UI.

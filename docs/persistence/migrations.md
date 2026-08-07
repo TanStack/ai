@@ -1,19 +1,16 @@
 ---
 title: Persistence Migrations
 id: migrations
+description: "Your adapter owns schema. Apply DDL before code that reads or writes those stores."
 ---
 
 # Persistence Migrations
 
-Your adapter owns its schema. TanStack AI never inspects your tables, so you
-decide the table layout and how schema changes are applied. Apply those changes
-before deploying code that reads or writes the corresponding stores.
+If you need schema changes → own them in your deployment workflow. TanStack AI never inspects your tables.
 
-## Create tables on open, for local development
+## Local development: create on open
 
-A hand-rolled adapter can create its tables the first time it opens the database.
-The SQLite example in [Build your own adapter](./build-your-own-adapter) does this
-behind a `migrate` flag with `CREATE TABLE IF NOT EXISTS`, so it is idempotent:
+Hand-rolled adapters can `CREATE TABLE IF NOT EXISTS` on first open. SQLite example in [Build your own adapter](./build-your-own-adapter) uses a `migrate` flag:
 
 ```ts ignore
 import { sqlitePersistence } from './sqlite-persistence'
@@ -24,35 +21,25 @@ const persistence = sqlitePersistence({
 })
 ```
 
-This is convenient for local development and tests. Avoid request-time migrations
-in production.
+Fine for local/tests. Avoid request-time migrations in production.
 
-## Apply migrations in production
+## Production: deploy migrations first
 
-In production, run schema changes through your normal deployment workflow, not on
-first request. Keep the DDL for the four tables (`messages`, `runs`,
-`interrupts`, `metadata`) in a versioned migration and apply it with the same
-tool you use for the rest of your database, before the new code ships.
+1. Keep DDL for store tables (`messages`, `runs`, `interrupts`, `metadata`, generation tables) in a versioned migration — not request handlers.
+2. Apply with the same tool as the rest of your DB **before** shipping code that depends on it.
+3. ORM path: Drizzle → `drizzle-kit`; Prisma → `prisma migrate`; raw SQL → checked-in `.sql`. Skills in `@tanstack/ai-persistence` cover these workflows.
 
-If you build the adapter with an ORM or query builder, let that tool own the
-migration journal. A Drizzle schema drives `drizzle-kit`; a Prisma models
-fragment drives `prisma migrate`; a raw SQL adapter checks in plain `.sql` files.
-The adapter-building skills in `@tanstack/ai-persistence` cover each of these
-workflows.
+## Existing schema
 
-## An existing schema owns its own migrations
+Mapping contracts onto tables you already have ([Build your own adapter](./build-your-own-adapter#existing-database-map-the-contracts-onto-your-schema)):
 
-If you map the store contracts onto tables you already have (see
-[Build your own adapter](./build-your-own-adapter#existing-database-map-the-contracts-onto-your-schema)),
-those tables are part of your application schema, and your existing migration tool
-already owns them. Add the columns the stores need in a normal migration. Keep any
-extra app-owned columns nullable or defaulted so the stores' inserts still
-succeed.
+1. Add needed columns in a normal migration.
+2. Keep extra app columns nullable or defaulted so store inserts succeed.
+3. Your existing migration tool owns the tables.
 
-## Upgrade discipline
+## Upgrade checklist
 
-1. Keep the DDL for the store tables in a reviewable migration, not inline in
-   request handlers.
+1. DDL in reviewable migrations (not request handlers).
 2. Back up production state where required.
-3. Apply migrations before deploying code that depends on them.
+3. Apply migrations before dependent code.
 4. Keep rollback and partial-deployment behavior explicit.

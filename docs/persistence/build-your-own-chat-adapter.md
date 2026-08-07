@@ -1,26 +1,18 @@
 ---
 title: Build a Chat Adapter (Advanced)
 id: build-your-own-chat-adapter
+description: "SQLite walkthrough: messages, runs, interrupts, metadata — method checklists and working stubs."
 ---
 
 # Build a Chat Adapter
 
-You want the transcript, the run lifecycle, and durable approvals in your own
-database, and you would rather write four small stores than add a service. This
-page builds all of them against SQLite (Node's built-in `node:sqlite`), start to
-finish, in the order an app usually grows into them.
+If you need transcript + run lifecycle + durable approvals in your DB → implement four stores. This page builds them against Node `node:sqlite`.
 
-Read [Build your own adapter](./build-your-own-adapter) first for the shape of an
-adapter and which stores your app needs. Every method signature and invariant is
-in the [store reference](./store-reference). The runnable version of this
-walkthrough lives in the `examples/ts-react-chat` app
-(`src/lib/sqlite-persistence.ts`).
+Read first: [Build your own adapter](./build-your-own-adapter) (shape + which stores). Signatures: [store reference](./store-reference). Runnable copy: `examples/ts-react-chat` → `src/lib/sqlite-persistence.ts`.
 
-## 1. The schema
+## 1. Schema
 
-Four tables. JSON payloads are stored as text (SQLite has no JSON column type),
-timestamps as integers (epoch milliseconds), everything keyed the way the store
-methods look records up.
+JSON as text; timestamps epoch ms.
 
 ```sql
 CREATE TABLE IF NOT EXISTS messages (
@@ -59,21 +51,18 @@ CREATE TABLE IF NOT EXISTS metadata (
 );
 ```
 
-## 2. Messages: full-transcript overwrite
+## 2. Messages
 
-Two contracts to hold:
+**Required methods:**
 
-- `saveThread` always receives the complete, authoritative history. It is a
-  replace, not an append.
-- `loadThread` returns `[]` for a thread that was never saved, never `null`.
+1. `loadThread(threadId)` → `[]` if never saved (never `null`)
+2. `saveThread(threadId, messages)` → full replace, not append
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
 import { defineMessageStore } from '@tanstack/ai-persistence'
 import type { ModelMessage } from '@tanstack/ai'
 
-// `defineMessageStore` types the object inline against the contract, so you get
-// autocomplete and checking with no separate `: MessageStore` annotation.
 function createMessageStore(db: DatabaseSync) {
   const select = db.prepare(
     'SELECT messages_json FROM messages WHERE thread_id = ?',
@@ -85,8 +74,6 @@ function createMessageStore(db: DatabaseSync) {
   return defineMessageStore({
     async loadThread(threadId) {
       const json = select.get(threadId)?.messages_json
-      // Unknown thread → [] (never null). `node:sqlite` types columns as a
-      // SQL-value union, so narrow to string before parsing (no cast).
       if (typeof json !== 'string') return []
       const parsed: Array<ModelMessage> = JSON.parse(json)
       return parsed
@@ -98,26 +85,26 @@ function createMessageStore(db: DatabaseSync) {
 }
 ```
 
-The methods are `async`, so `node:sqlite` (a synchronous driver) needs no
-`Promise.resolve` wrapper: `async` promotes the returned value to a promise, and
-a method that returns nothing resolves to `void`. On an async driver, `await` the
-query instead.
+`async` methods wrap sync `node:sqlite` without `Promise.resolve`. On async drivers, `await` queries.
 
-## 3. Runs: idempotent create, patch, get
+## 3. Runs
 
-Two contracts to hold:
+**Required methods:**
 
-- `createOrResume` must be idempotent. If the run id already exists, return the
-  stored record unchanged, so resuming a run never resets its `startedAt` or
-  status. `INSERT ... ON CONFLICT DO NOTHING` gives you that in one statement.
-- `update` on an unknown run id is a no-op.
+1. `createOrResume` — idempotent; existing `runId` returns stored record unchanged (`INSERT … ON CONFLICT DO NOTHING`)
+2. `update` — unknown `runId` = no-op
+3. `get`
+4. `findActiveRun(threadId)` — newest `status = 'running'` by `startedAt`, or `null` (do **not** stub null always)
+
+**Optional:** `listByThread`, `listReclaimable`
+
+**Patch rule:** omitted key = leave column; key present with `undefined` = clear. Sandbox fields use `'field' in patch`.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
 import { defineRunStore } from '@tanstack/ai-persistence'
 import type { RunRecord, RunStatus } from '@tanstack/ai-persistence'
 
-// The `status` column is text; validate it back into the union (no cast).
 function toRunStatus(value: unknown): RunStatus {
   switch (value) {
     case 'running':
@@ -131,8 +118,6 @@ function toRunStatus(value: unknown): RunStatus {
   }
 }
 
-// `node:sqlite` types columns as a SQL-value union, so coerce/narrow each field
-// (String / Number / typeof) rather than casting the whole row.
 function mapRun(row: Record<string, unknown>): RunRecord {
   return {
     runId: String(row.run_id),
@@ -140,12 +125,6 @@ function mapRun(row: Record<string, unknown>): RunRecord {
     status: toRunStatus(row.status),
     startedAt: Number(row.started_at),
     ...(row.finished_at != null ? { finishedAt: Number(row.finished_at) } : {}),
-    // `error` is a `RunError`: the provider's prose in `error`, its stable
-    // classification in `error_code`. Two columns rather than one JSON blob,
-    // because `code` is the field an operator filters and groups by
-    // (`WHERE error_code = 'rate_limited'`), and this schema keeps the `_json`
-    // suffix for columns that really hold serialized JSON. Omit `code` when the
-    // column is NULL so the record matches an error that carried no code.
     ...(typeof row.error === 'string'
       ? {
           error: {
@@ -165,14 +144,9 @@ function mapRun(row: Record<string, unknown>): RunRecord {
     ...(row.detached_since != null
       ? { detachedSince: Number(row.detached_since) }
       : {}),
-    // SQLite has no boolean column type; store it as 0/1 in an integer column
-    // and convert back here, the same way `detached_since` round-trips epoch ms.
     ...(row.cancel_requested != null
       ? { cancelRequested: Boolean(row.cancel_requested) }
       : {}),
-    // The fencing token a takeover bumps. Round-trip it or single-writer
-    // fencing silently does nothing: a superseded host re-reads its own epoch,
-    // never sees a higher one, and keeps appending to a log it no longer owns.
     ...(row.driver_epoch != null
       ? { driverEpoch: Number(row.driver_epoch) }
       : {}),
@@ -221,8 +195,6 @@ function createRunStore(db: DatabaseSync) {
         params.push(patch.finishedAt)
       }
       if (patch.error !== undefined) {
-        // Write both halves together, so a later failure that carries no `code`
-        // cannot leave the previous failure's code behind.
         sets.push('error = ?', 'error_code = ?')
         params.push(patch.error.message, patch.error.code ?? null)
       }
@@ -230,13 +202,7 @@ function createRunStore(db: DatabaseSync) {
         sets.push('usage_json = ?')
         params.push(JSON.stringify(patch.usage))
       }
-      // SANDBOX ONLY, skip these four unless you run durable sandboxed runs:
-      // https://tanstack.com/ai/latest/docs/persistence/build-a-sandbox-adapter
-      // A chat app never writes them and nothing here reads them.
-      //
-      // They are the fields a caller CLEARS by writing `undefined` explicitly, so
-      // these branches key off key presence (`'field' in patch`), not
-      // `!== undefined`.
+      // Sandbox-only fields — see build-a-sandbox-adapter
       if ('sandboxKey' in patch) {
         sets.push('sandbox_key = ?')
         params.push(patch.sandboxKey ?? null)
@@ -269,25 +235,13 @@ function createRunStore(db: DatabaseSync) {
       const row = select.get(runId)
       return row ? mapRun(row) : null
     },
-    // The most recent still-running run for a thread. `reconstructChat` calls
-    // this so a hydrating client (a reload, another device, or switching back to
-    // a generating thread) learns there is a live run and tails it. Stub it to
-    // null and the thread always looks idle on hydrate: the transcript restores,
-    // but a reply that was mid-stream never resumes.
     async findActiveRun(threadId) {
       const row = active.get(threadId)
       return row ? mapRun(row) : null
     },
-    // Every run for a thread, oldest first. Optional: only needed to render a
-    // thread's past agent activity.
     async listByThread(threadId) {
       return byThread.all(threadId).map(mapRun)
     },
-    // Runs the reaper sweeps: still `running`, and detached since before
-    // `now - ttlMs`. `withSandbox`'s detach path sets `detachedSince` for you,
-    // and `reapDetachedRuns` from `@tanstack/ai-sandbox` consumes this list;
-    // this method only answers the query, scheduling that sweep is the app's
-    // job. Optional, like the others above.
     async listReclaimable({ now, ttlMs }) {
       return reclaimable.all(now - ttlMs).map(mapRun)
     },
@@ -295,26 +249,16 @@ function createRunStore(db: DatabaseSync) {
 }
 ```
 
-`update` builds its `SET` list from only the fields present in the patch, so an
-empty patch touches nothing and a partial patch leaves other columns alone. Map
-each row back with a small helper that omits absent optional fields and parses
-the JSON columns.
+Index `runs(status, detached_since)` if you sweep `listReclaimable`.
 
-**Absent is not the same as explicitly `undefined`.** A patch that omits a key
-must leave the column alone; a patch that carries the key with the value
-`undefined` must **clear** it. Only `detachedSince` is cleared that way today
-(the takeover path writes `{ detachedSince: undefined }` when a viewer
-re-attaches), but the distinction is easy to lose in whatever your ORM's "set"
-builder does with `undefined` (Drizzle's `.set()`, for instance, drops such
-columns). Get it wrong and nothing throws: the run simply looks detached
-forever. Index `runs(status, detached_since)` if you plan to sweep on
-`listReclaimable`.
+## 4. Interrupts
 
-## 4. Interrupts: insert-if-absent, ordered listings
+**Required methods:**
 
-`create` is insert-if-absent: a duplicate interrupt id must never overwrite an
-interrupt that was already resolved. Every `list*` method returns records ordered
-by `requested_at` ascending, which the middleware relies on.
+1. `create` — insert-if-absent; never clobber resolved
+2. `resolve` / `cancel`
+3. `get`
+4. All `list*` ordered by `requested_at` ASC
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
@@ -366,7 +310,6 @@ function createInterruptStore(db: DatabaseSync) {
     `UPDATE interrupts SET status = 'cancelled', resolved_at = ? WHERE interrupt_id = ?`,
   )
   const selectOne = db.prepare('SELECT * FROM interrupts WHERE interrupt_id = ?')
-  // Every listing is ORDER BY requested_at ASC, which the middleware relies on.
   const byThread = db.prepare(
     'SELECT * FROM interrupts WHERE thread_id = ? ORDER BY requested_at ASC',
   )
@@ -383,8 +326,6 @@ function createInterruptStore(db: DatabaseSync) {
   )
   return defineInterruptStore({
     async create(record) {
-      // Insert-if-absent: a duplicate id must never clobber an already-resolved
-      // interrupt back to pending.
       insert.run(
         record.interruptId,
         record.runId,
@@ -424,11 +365,9 @@ function createInterruptStore(db: DatabaseSync) {
 }
 ```
 
-## 5. Metadata: reject nullish
+## 5. Metadata
 
-`(scope, key)` is the composite identity. A SQL backend cannot store a nullish
-value in a `NOT NULL` text column, so reject `null` and `undefined` with a clear
-error instead of a cryptic driver failure. Callers clear a value with `delete`.
+**Required methods:** `get` / `set` / `delete`. Identity: `(scope, key)`. Reject nullish on `set`; clear via `delete`.
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
@@ -465,17 +404,12 @@ function createMetadataStore(db: DatabaseSync) {
 }
 ```
 
-## 6. Assemble the adapter
-
-Open the database, create the tables, and return the stores as an
-`AIPersistence`. `defineAIPersistence` keeps the exact store keys in the type and
-rejects unknown keys at runtime.
+## 6. Assemble
 
 ```ts
 import { DatabaseSync } from 'node:sqlite'
 import { defineAIPersistence } from '@tanstack/ai-persistence'
 import type { ChatPersistence } from '@tanstack/ai-persistence'
-// The four store factories and the schema string, each from your own module.
 import { createInterruptStore } from './interrupt-store'
 import { createMessageStore } from './message-store'
 import { createMetadataStore } from './metadata-store'
@@ -499,10 +433,9 @@ export function sqlitePersistence(options: {
 }
 ```
 
-That is a complete backend. If you also need a mutex across workers, add
-`withLocks` alongside it; see [Locks](../advanced/locks).
+Mutex across workers → [Locks](../advanced/locks).
 
-Wire it into `chat()` exactly like any other persistence:
+Wire into `chat()`:
 
 ```ts
 import {
@@ -528,8 +461,8 @@ export async function POST(request: Request) {
 }
 ```
 
-## Where to go next
+## Next
 
-- [Build a generation adapter](./build-your-own-generation-adapter): generation runs, artifacts, and blobs, for media generation.
-- [Build your own adapter](./build-your-own-adapter#verify-with-the-conformance-suite): run the conformance suite against what you just built.
-- [Migrations](./migrations): who owns the schema and when to apply changes.
+- [Build a generation adapter](./build-your-own-generation-adapter)
+- [Conformance suite](./build-your-own-adapter#prove-with-conformance)
+- [Migrations](./migrations)

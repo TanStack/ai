@@ -2,7 +2,7 @@
 title: "Quick Start: Angular"
 id: quick-start-angular
 order: 4
-description: "Build a streaming TanStack AI chat component in an Angular app using the injectChat function and the OpenAI adapter."
+description: "Streaming chat in Angular with injectChat signals and an OpenAI backend."
 keywords:
   - tanstack ai
   - angular
@@ -13,11 +13,11 @@ keywords:
   - signals
 ---
 
-You have an Angular app and want to add AI chat. By the end of this guide, you'll have a streaming chat component powered by TanStack AI and OpenAI.
+If you need Angular chat → install packages, stream from a backend, call `injectChat` in an injection context.
 
-> **Tip:** If you'd prefer not to sign up with individual AI providers, [OpenRouter](../adapters/openrouter) gives you access to 300+ models with a single API key and is the easiest way to get started.
+Prefer one key for many models → [OpenRouter](../adapters/openrouter).
 
-## Installation
+## 1. Install
 
 ```bash
 npm install @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
@@ -27,9 +27,9 @@ pnpm add @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
 yarn add @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
 ```
 
-## Server Setup
+## 2. Server
 
-Angular apps typically use a separate backend. Here's an Express server that streams chat responses:
+Express example (Fastify, Hono, Nitro work if they return TanStack AI SSE):
 
 ```typescript ignore
 import express from 'express'
@@ -82,11 +82,9 @@ app.post('/api/chat', async (req, res) => {
 app.listen(3000, () => console.log('Server running on port 3000'))
 ```
 
-> **Tip:** Any backend that returns the TanStack AI SSE format works — you can use Fastify, Hono, Nitro, or any other Node.js framework.
+## 3. Chat component
 
-## Client Setup
-
-Create a standalone `ChatComponent` using the `injectChat` function:
+Call `injectChat` in a field initializer (or constructor) — not in `ngOnInit`.
 
 ```typescript group=quick-start-angular
 import { Component, signal } from '@angular/core'
@@ -148,9 +146,9 @@ export class ChatComponent {
 }
 ```
 
-## Environment Variables
+## 4. API keys
 
-Create a `.env` file (or `.env.local` depending on your setup) with your API key:
+`.env` or `.env.local` — server only:
 
 ```bash
 # OpenRouter (recommended — access 300+ models with one key)
@@ -160,11 +158,9 @@ OPENROUTER_API_KEY=sk-or-...
 OPENAI_API_KEY=your-openai-api-key
 ```
 
-Your server reads this key at runtime. Never expose it to the browser.
+## Angular notes (when you hit them)
 
-## Angular-Specific Notes
-
-**State is exposed as Angular `Signal`s.** The `injectChat` function returns state wrapped in read-only `Signal`s. Read them by calling them as functions:
+**State is read-only signals** — call them as functions:
 
 ```typescript ignore
 // In component class
@@ -182,7 +178,7 @@ const count = this.chat.messages().length
 <span>{{ chat.messages().length }} messages</span>
 ```
 
-**`injectChat` must be called in an injection context.** Angular's dependency injection requires that `inject()` is called during component construction. The recommended approach is a field initializer (shown above). You can also call it in the constructor or inside `runInInjectionContext`:
+**Injection context only**
 
 ```typescript
 import { injectChat } from '@tanstack/ai-angular'
@@ -202,23 +198,10 @@ export class MyComponentB {
 }
 ```
 
-Calling `injectChat` outside an injection context — for example, in a lifecycle hook like `ngOnInit` — will throw a runtime error.
+Destroy stops in-flight requests (`DestroyRef`). Same API shape as React/Vue (`messages`, `sendMessage`, `isLoading`, `error`, `status`, `stop`, `reload`, `clear`) as signals.
 
-**Automatic cleanup.** The function subscribes to `DestroyRef` internally, so in-flight requests are stopped when the component is destroyed. No manual cleanup needed.
+## Next
 
-**Same API shape as React and Vue.** If you're coming from `@tanstack/ai-react` or `@tanstack/ai-vue`, `injectChat` returns the same properties (`messages`, `sendMessage`, `isLoading`, `error`, `status`, `stop`, `reload`, `clear`). The only difference is that each property is an Angular `Signal` rather than a React state value or a Vue `ShallowRef`.
-
-## That's It!
-
-You now have a working Angular chat application. The `injectChat` function handles:
-
-- Message state management
-- Streaming responses
-- Loading states
-- Error handling
-
-## Next Steps
-
-- Learn about [Tools](../tools/tools) to add function calling
-- Check out the [Adapters](../adapters/openai) to connect to different providers
-- See the [React Quick Start](./quick-start) if you're comparing frameworks
+- [Tools](../tools/tools)
+- [Adapters](../adapters/openai)
+- [React Quick Start](./quick-start)

@@ -4,24 +4,15 @@ title: Migrating to AG-UI Client-to-Server Compliance
 
 # Migrating to AG-UI Client-to-Server Compliance
 
-> **TL;DR:** This release is fully backward compatible. Upgrade `@tanstack/ai` and `@tanstack/ai-client` together and existing code keeps working — both the legacy `body` client option and the legacy `data` server-side wire field continue to function unchanged. The HTTP wire format gained AG-UI `RunAgentInput` fields (`threadId`, `runId`, `tools`, `forwardedProps`, etc.) for full AG-UI compliance, and the legacy fields are emitted alongside them as a deprecation bridge. New helpers (`chatParamsFromRequest`, `mergeAgentTools`) are available for opt-in conveniences. Migrate to the new names when convenient — both `body` (client) and `data` (wire) will be removed in a future major release.
+**Backward compatible.** Upgrade `@tanstack/ai` + `@tanstack/ai-client` together; legacy `body` (client) and `data` (wire) still work. Wire now includes AG-UI `RunAgentInput` fields. Prefer new names before the next major removes the bridges.
 
-## What changed
-
-`@tanstack/ai-client` now POSTs an AG-UI 0.0.52 `RunAgentInput` request body. The previous fields (`messages`, `data`) are emitted alongside the new AG-UI fields so existing servers and clients keep working without code changes.
-
-### Old wire shape
+## Wire shape
 
 ```json
-{
-  "messages": [...],
-  "data": {...}
-}
-```
+// Old
+{ "messages": [...], "data": {...} }
 
-### New wire shape (with deprecation bridge)
-
-```json
+// New (with deprecation bridge)
 {
   "threadId": "thread-...",
   "runId": "run-...",
@@ -34,25 +25,21 @@ title: Migrating to AG-UI Client-to-Server Compliance
 }
 ```
 
-`forwardedProps` and `data` carry the same content. New servers should read `forwardedProps`; legacy servers reading `data` keep working unchanged. The `data` field will be removed in a future major release.
+`forwardedProps` and `data` carry the same content. Read `forwardedProps` on new servers; `data` remains until the next major.
 
-The `messages` array carries TanStack `UIMessage` anchors with `parts` intact, plus AG-UI mirror fields (`content`, `toolCalls`) so strict AG-UI servers can parse it. Tool results and thinking parts are additionally emitted as separate `{role:'tool',...}` and `{role:'reasoning',...}` fan-out messages alongside the anchors.
+`messages` keep TanStack `UIMessage` `parts` plus AG-UI mirrors (`content`, `toolCalls`). Tool results and thinking also fan out as separate `{role:'tool'}` / `{role:'reasoning'}` messages.
 
-## Backward compatibility & deprecation timeline
+## Compatibility bridges
 
-This release introduces three compatibility bridges:
+| Surface | Still works | Prefer |
+|---|---|---|
+| Client option | `body: { ... }` | `forwardedProps: { ... }` |
+| Server wire | `body.data.X` | `body.forwardedProps.X` or `params.forwardedProps` via `chatParamsFromRequest` |
+| Server `chat()` | `conversationId` | `threadId` |
 
-| Surface | Before | After (deprecated, still works) | Recommended |
-|---|---|---|---|
-| Client option (`useChat`, `ChatClient`) | `body: { ... }` | `body: { ... }` | `forwardedProps: { ... }` |
-| Server wire field | `body.data.X` | `body.data.X` (emitted as a mirror of `forwardedProps`) | `body.forwardedProps.X`, or `params.forwardedProps.X` via `chatParamsFromRequest` |
-| Server `chat()` option | `conversationId` | `conversationId` (still accepted) | `threadId` (or rely on `chatParamsFromRequest`) |
+If both `body` and `forwardedProps` are passed, `forwardedProps` wins on collision.
 
-All three bridges will be removed in the next major release. Until then, you can mix old and new freely — if both `body` and `forwardedProps` are passed to `useChat`, they are merged with `forwardedProps` winning on key collision.
-
-### Automated codemod
-
-A jscodeshift codemod is available for the client-side renames. Run it against your codebase to flip every `useChat({ body })`, `new ChatClient({ body })`, `updateOptions({ body })`, Svelte `updateBody(...)`, and `chat({ conversationId })` to its canonical name in one pass:
+### Codemod (client renames)
 
 ```bash
 npx jscodeshift \
@@ -61,48 +48,37 @@ npx jscodeshift \
   "src/**/*.{ts,tsx}"
 ```
 
-Add `--dry --print` to preview changes first. The codemod is import-source–gated, so files that don't import from `@tanstack/ai*` packages are left untouched. See [`codemods/ag-ui-compliance/README.md`](https://github.com/TanStack/ai/blob/main/codemods/ag-ui-compliance/README.md) for the full transform list, conflict-handling rules, and limitations.
+Preview: `--dry --print`. Import-gated to `@tanstack/ai*`. Details: [`codemods/ag-ui-compliance/README.md`](https://github.com/TanStack/ai/blob/main/codemods/ag-ui-compliance/README.md).
 
-> **Server-side `body.data.X` rewrites are not automated.** Detecting whether a given `body.data.foo` read belongs to a TanStack AI route handler vs. unrelated code is unreliable in a syntactic codemod. Migrate those by hand using the Tier 2 / Tier 3 recipes below.
+Server `body.data.X` rewrites are **not** automated — migrate by hand (Tier 2/3 below).
 
 ### `conversationId` → `threadId`
 
-`conversationId` was the pre-AG-UI name for "a stable identifier for this conversation, used to correlate client and server devtools events." AG-UI's `threadId` is the same concept under the standard name. **`conversationId` is now a deprecated alias of `threadId` throughout the API** — passing either name resolves to the same internal value.
+Same concept under the AG-UI name. `conversationId` is a deprecated alias of `threadId`.
 
-**What changed on the wire:** the client no longer auto-emits `forwardedProps.conversationId`. It now sends only the AG-UI top-level `threadId` field. Anyone who explicitly sets `useChat({ forwardedProps: { conversationId } })` (or the legacy `body`) still has their value passed through unchanged.
-
-**What this means for server code:**
-
-- **Server code that doesn't reference `conversationId` is unaffected.** When `chat({ conversationId })` is omitted, the runtime auto-generates a stable `threadId` per request and uses it for devtools event correlation.
-- **`chat({ conversationId: 'foo' })` still works** — `conversationId` is now a deprecated alias for `threadId`, resolved internally. No code change required.
-- **`chat({ threadId: 'foo' })` is the canonical form** — prefer it in new code. If both are passed, `threadId` wins.
-- **`TextOptions.conversationId` is `@deprecated`** in JSDoc and will be removed in a future major release.
-
-> **One real behavior change to verify.** If your server reads `body.forwardedProps?.conversationId` (or the legacy `body.data?.conversationId`) and threads it into `chat({ conversationId })`, the value will now be `undefined` for any client running the upgraded `@tanstack/ai-client`, because the client no longer auto-emits `conversationId`. The fall-back to an auto-generated `threadId` keeps devtools correlation working *within* a single request, but **threadId stability across requests now depends on the client sending its own `threadId`** (which `ChatClient` does — see the AG-UI top-level `threadId` field surfaced via `params.threadId`). To restore the prior cross-request stable identifier, switch the server to read `params.threadId` and pass it to `chat({ threadId: params.threadId })`, or rely on the auto-fallback if cross-request stability is not required.
-
-**Custom middleware:** `ChatMiddlewareContext` now exposes both `ctx.threadId` (canonical) and `ctx.conversationId` (deprecated alias, always equal to `ctx.threadId`). New middleware should read `ctx.threadId`; existing middleware reading `ctx.conversationId` keeps working.
+- Client no longer auto-emits `forwardedProps.conversationId`; it sends top-level `threadId`.
+- Servers that only read `body.forwardedProps?.conversationId` / `body.data?.conversationId` get `undefined` from upgraded clients. Cross-request stability needs client `threadId` (ChatClient sends it) → pass `chat({ threadId: params.threadId })`, or rely on auto-generated per-request id.
+- Middleware: prefer `ctx.threadId`; `ctx.conversationId` still equals it.
 
 ```ts ignore
-// Before — explicit conversationId plumbing
+// Before
 const params = await chatParamsFromRequest(req)
 chat({
   messages: params.messages,
-  conversationId: params.forwardedProps.conversationId, // ← auto-emitted by old client
+  conversationId: params.forwardedProps.conversationId,
 })
 
-// After — drop the plumbing entirely
+// After
 const params = await chatParamsFromRequest(req)
 chat({ messages: params.messages })
-// devtools correlation auto-uses the resolved threadId
+// or chat({ messages: params.messages, threadId: params.threadId })
 ```
 
-## Server endpoint upgrade — choose your tier
+## Server upgrade tiers
 
-The upgrade is **opt-in**: pick the tier that matches the features you use. Most servers fall into Tier 1 and need no code changes.
+### Tier 1 — Minimum (most servers: no change)
 
-### Tier 1 — Minimum (no changes for most servers)
-
-Keep reading `body.messages` and pass it through. `chat()` accepts mixed `UIMessage | ModelMessage` arrays and handles all AG-UI message-shape quirks internally — fan-out tool dedup, dropping `reasoning`/`activity`, collapsing `developer` → `system`.
+Keep reading `body.messages`. `chat()` accepts mixed `UIMessage | ModelMessage`.
 
 ```ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
@@ -111,28 +87,21 @@ import { serverTools } from './tools'
 
 export async function POST(req: Request) {
   const body = await req.json()
-  const provider = body.data?.provider // ← still works (legacy mirror)
-  // or, equivalently and recommended:
-  // const provider = body.forwardedProps?.provider
+  const provider = body.data?.provider // legacy mirror still works
+  // prefer: body.forwardedProps?.provider
 
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
-    messages: body.messages, // AG-UI mixed shape — works directly
+    messages: body.messages,
     tools: serverTools,
   })
   return toServerSentEventsResponse(stream)
 }
 ```
 
-If your existing endpoint reads `body.data.X`, **leave it as-is** — the wire emits a `data` field that mirrors `forwardedProps` exactly until the next major release. Migrate to `body.forwardedProps.X` (or Tier 2's `params.forwardedProps.X`) at your convenience.
+### Tier 2 — Production (recommended)
 
-### Tier 2 — Recommended for production
-
-Adopt `chatParamsFromRequest` when you want any of:
-
-- **Clean 400 responses** for malformed bodies (Zod validation against `RunAgentInputSchema`).
-- **Access to `forwardedProps`** for client-driven options (provider, model, temperature, etc.).
-- **Access to AG-UI metadata** like `threadId`, `runId`, and `parentRunId` for observability, logging, or downstream forwarding (the runtime auto-generates these when not supplied; you only need to read them off `params` if you have a use for them).
+Use `chatParamsFromRequest` when you need: Zod-free structural validation + 400 `Response`, `forwardedProps`, or AG-UI ids (`threadId`, `runId`, `parentRunId`).
 
 ```ts
 import {
@@ -154,17 +123,9 @@ export async function POST(req: Request) {
 }
 ```
 
-`chatParamsFromRequest` reads `req.json()`, validates against AG-UI `RunAgentInputSchema`, and on failure **throws a 400 `Response`** that frameworks like TanStack Start, SolidStart, Remix, and React Router 7 return to the client automatically.
+Thrown 400 `Response` auto-returns in TanStack Start / SolidStart / Remix / RR7. Next.js Route Handlers, SvelteKit, Hono, Node: catch and return, or use `chatParamsFromRequestBody(await req.json())`.
 
-> **Framework note.** Next.js Route Handlers, SvelteKit, Hono, and raw Node do not auto-handle thrown `Response` objects. In those, either wrap the call with try/catch and return the caught Response, or use `chatParamsFromRequestBody(await req.json())` directly with your own error handling.
-
-### Tier 3 — Optional: let the client advertise its tools
-
-`mergeAgentTools` lets the client declare its tools in the request payload (`RunAgentInput.tools`) and have them registered server-side on a per-request basis. **This is purely a convenience over the existing pattern**, not a migration requirement.
-
-If you were already registering client-side tools in your server's `tools` array — even ones without a `.server()` implementation — that pattern still works exactly as before. The runtime treats tools without `execute` as client-side and emits `ClientToolRequest` events; whether the registration came from a static array or `mergeAgentTools` is irrelevant.
-
-Adopt this tier only if you want the client to drive tool advertisement (e.g., your client surfaces different tools per session and you'd rather not keep the server's static registry in sync). The only delta from Tier 2 is the `tools` line — wrap `serverTools` with `mergeAgentTools(serverTools, params.tools)`:
+### Tier 3 — Client-advertised tools (optional)
 
 ```ts
 import {
@@ -181,41 +142,20 @@ export async function POST(req: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages: params.messages,
-    // `mergeAgentTools` returns a plain array — pass it straight to `tools`.
-    tools: mergeAgentTools(serverTools, params.tools), // ← merges client-declared tools
+    tools: mergeAgentTools(serverTools, params.tools),
   })
   return toServerSentEventsResponse(stream)
 }
 ```
 
-`mergeAgentTools` registers client-declared tools as no-execute stubs server-side. The runtime emits a `ClientToolRequest` event when the model calls one; the client executes via its registered handler and posts the result back.
+**Default safe pattern:** static server `tools` array only — ignore client `params.tools`. Client tools can expand advertised surface / inject names and descriptions (prompt injection). Server tools win on name collision; client-declared tools are no-execute stubs only.
 
-> **Security — merging trusts the client to define part of the tool surface.**
-> `params.tools` is attacker-controllable: a malicious or compromised client can
-> put any `name` / `description` / `parameters` it likes in `RunAgentInput.tools`.
-> Merging them means those definitions are advertised to the model. Server tools
-> still win on name collision (a client **cannot** shadow or hijack a server
-> tool's `execute`), and client-declared tools are no-execute — they only ever
-> run by round-tripping back to that same client. But a client can still **expand
-> the advertised tool surface** and **inject arbitrary text into the model's
-> context** through tool names and descriptions (a prompt-injection vector).
->
-> **The safe default is to register your tool definitions statically** in the
-> server's `tools` array (including client-executed tools — a definition with no
-> `.server()` still works) and **not** call `mergeAgentTools`. Then any tools a
-> client declares in the payload are ignored: the model is never told about
-> them, so it never calls them and they can't run. Only reach for
-> `mergeAgentTools` when you genuinely want the client to drive tool
-> advertisement and you trust that client.
+## `forwardedProps` security (Tier 2+)
 
-## `forwardedProps` security (Tier 2+ only)
-
-Skip this section if you're on Tier 1. `forwardedProps` is only surfaced when you opt into `chatParamsFromRequest` (or `chatParamsFromRequestBody`).
-
-`forwardedProps` is arbitrary client-controlled JSON. **Do not** spread it directly into `chat({...})`:
+Do **not** spread into `chat()`:
 
 ```ts ignore
-// 🚫 UNSAFE — a client could override `adapter`, `model`, `tools`, system prompts, anything
+// UNSAFE
 chat({
   adapter: openaiText('gpt-5.5'),
   ...params,
@@ -223,7 +163,7 @@ chat({
 })
 ```
 
-Always destructure the specific fields you intend to forward:
+Allowlist fields:
 
 ```ts
 import {
@@ -238,8 +178,6 @@ import { serverTools } from './tools'
 export async function POST(req: Request) {
   const params = await chatParamsFromRequest(req)
 
-  // ✅ SAFE — explicit allowlist. Sampling params live in modelOptions under
-  // each provider's native key (OpenAI: temperature / max_output_tokens).
   const stream = chat({
     adapter: openaiText('gpt-5.5'),
     messages: params.messages,
@@ -259,17 +197,10 @@ export async function POST(req: Request) {
 }
 ```
 
-### Mapping forwarded values into runtime context
-
-TanStack AI's `chat({ context })` is typed runtime context for tools and middleware. It is separate from AG-UI `RunAgentInput.context` and is not populated automatically from protocol fields.
-
-If a client value should become available to server tools or middleware, validate it from `forwardedProps` and build the runtime context explicitly:
+Runtime `chat({ context })` is separate from AG-UI `RunAgentInput.context`. Map validated values yourself:
 
 ```ts
-import {
-  chat,
-  chatParamsFromRequest,
-} from '@tanstack/ai'
+import { chat, chatParamsFromRequest } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { serverTools } from './tools'
 import { session, defaultTenantId, req } from './context'
@@ -292,42 +223,27 @@ const stream = chat({
 })
 ```
 
-## Client-side: nothing required, one rename recommended
+## Client
 
-`useChat` and the connection adapters (`fetchServerSentEvents`, `fetchHttpStream`) handle the new wire format internally. Existing `UIMessage` state is unchanged. The tools you pass to `useChat({ tools })` are now automatically advertised to the server in the request payload.
-
-### `body` → `forwardedProps` (recommended)
-
-The `body` option on `useChat` / `ChatClient` is now `@deprecated` in favor of `forwardedProps`. Both are accepted, both populate the same wire field. Migrate at your convenience:
+No required change. Prefer `forwardedProps` over deprecated `body`:
 
 ```ts
 import { useChat } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
 
-// Before — still works, but deprecated
-useChat({
-  connection: fetchServerSentEvents('/api/chat'),
-  body: { provider: 'openai', model: 'gpt-5.5' },
-})
-
-// After — recommended
+// After
 useChat({
   connection: fetchServerSentEvents('/api/chat'),
   forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
 })
 ```
 
-If both are passed during a partial migration, `forwardedProps` wins on key collision so stale `body` values don't shadow new ones.
+Svelte: `updateBody` → `updateForwardedProps` (legacy kept, deprecated).
 
-The Svelte equivalent renames `updateBody` → `updateForwardedProps`. The legacy `updateBody` is retained and marked `@deprecated`.
-
-### Optional: explicit thread control
-
-If you instantiated a `ChatClient` directly and want to control the thread identifier, pass `threadId` via the constructor options:
+Optional thread control:
 
 ```ts
-import { ChatClient } from '@tanstack/ai-client'
-import { fetchServerSentEvents } from '@tanstack/ai-client'
+import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
 
 const client = new ChatClient({
   threadId: 'persistent-thread-from-storage',
@@ -335,67 +251,29 @@ const client = new ChatClient({
 })
 ```
 
-If you don't pass `threadId`, one is generated automatically and persists for the lifetime of the `ChatClient` instance. A fresh `runId` is generated for every send.
+Omit `threadId` → generated for the client instance; fresh `runId` every send. `useChat({ tools })` auto-advertises tools on the wire.
 
 ## Tool-merge semantics
 
-- **Server tools win on name collision.** A tool registered server-side via `toolDefinition().server(...)` always executes server-side.
-- **Client-only tools become no-execute stubs** in `chat()` (when registered via `mergeAgentTools`). The runtime emits a `ClientToolRequest` event back to the client; the client's registered handler (the `.client(...)` tool in the hook's `tools` array) executes locally and posts the result.
-- **Dual-handler (both have it):** server executes, then `chat-client.ts`'s `onToolCall` fires the client's handler as a UI side-effect when the streamed tool result event arrives. The server's result is authoritative for the conversation.
+- Server tools win on name collision.
+- Client-only tools via `mergeAgentTools` → no-execute stubs; `ClientToolRequest` round-trips to client handler.
+- Dual-handler: server executes; client `onToolCall` may fire as UI side-effect; server result is authoritative.
 
-## Talking to a foreign AG-UI server
+## Interop
 
-A `@tanstack/ai-client` request hitting a foreign AG-UI server:
+**TanStack client → foreign AG-UI server:** single-turn user messages, server events, and multi-turn tool fan-out work. Client-only tools depend on the foreign server.
 
-- ✅ Single-turn user messages work — content is mirrored to AG-UI's `content` field.
-- ✅ Server-emitted events stream and render correctly.
-- ✅ Multi-turn history that includes tool results from prior turns: the foreign server reads them via the AG-UI fan-out duplicates we send (separate `{role:'tool',...}` messages).
-- ⚠️ Client-only tools are sent in the AG-UI `tools` field; whether the foreign server actually invokes them depends on its tool-calling logic.
+**Foreign AG-UI client → TanStack server:** pure `RunAgentInput` works. Tool messages → `role: 'tool'`. `reasoning` / `activity` dropped. `developer` → `system`.
 
-## Talking to a TanStack server from a foreign AG-UI client
+## `@ag-ui/core` + zod
 
-Pure AG-UI `RunAgentInput` payloads (no TanStack `parts` field) work end-to-end:
-
-- Tool messages pass through as `ModelMessage` entries with `role: 'tool'`.
-- `reasoning` messages are dropped (no LLM-replay equivalent today).
-- `activity` messages are dropped (no TanStack equivalent).
-- `developer` messages are collapsed to `system` role.
-
-## `@ag-ui/core` bump
-
-`@tanstack/ai` now depends on `@ag-ui/core@0.1.1-canary.beta.0`. If your code imports types from `@tanstack/ai` that re-export AG-UI types, you may need minor type adjustments — see the changeset for specifics.
-
-### zod is no longer installed for you
-
-`@ag-ui/core` used to list `zod` as a runtime dependency, so every
-`@tanstack/ai` install pulled zod in transitively. As of `0.1.x` it declares zod
-as an optional peer instead, and `@tanstack/ai` no longer uses zod anywhere —
-the package now ships with no schema-validation runtime at all.
-
-`chatParamsFromRequest` / `chatParamsFromRequestBody` were the only zod
-consumers: they validated the request body with AG-UI's `RunAgentInputSchema`.
-They now validate the same `RunAgentInput` contract structurally. Their
-signatures, their thrown types (`AGUIError`, and a 400 `Response` from
-`chatParamsFromRequest`), and the `parts` passthrough on messages are all
-unchanged. The one visible difference is friendlier failures — the error names
-the offending field, e.g.:
-
-```
-Request body is not a valid AG-UI RunAgentInput. ... Validation errors: messages[1].content must be a string
-```
-
-zod is still fully supported for defining tools; it is just no longer installed
-on your behalf. If your project used zod without declaring it — relying on the
-transitive copy — add it explicitly:
+Depends on `@ag-ui/core@0.1.1-canary.beta.0`. zod is an optional peer — not installed transitively. `chatParamsFromRequest` / `chatParamsFromRequestBody` validate structurally (same contract, friendlier field errors). Add zod yourself if you use it for tools:
 
 ```bash
 npm install zod
 ```
 
-If you define tools with a different Standard Schema library (ArkType, Valibot),
-you can now drop zod entirely.
+## Out of scope (unchanged)
 
-## Out of scope (existing behavior preserved)
-
-- **Reasoning replay to LLM providers.** TanStack still drops `ThinkingPart` at the `UIMessage`→`ModelMessage` boundary (pre-existing behavior). Providers like Anthropic that require thinking blocks to be replayed for extended thinking continuation remain a separate concern, tracked outside this migration.
-- **AG-UI `state` and `context` fields.** Surfaced on `chatParamsFromRequestBody`'s return value as `state` and `aguiContext`, with `context` kept as a deprecated alias of `aguiContext` for backward compatibility. They are protocol-level fields available for your endpoint to inspect/forward. TanStack AI's typed runtime context is the separate `chat({ context })` option; validate and map AG-UI values into it yourself if you want tools or middleware to read them.
+- Reasoning replay to LLM providers still drops `ThinkingPart` at UI→Model boundary.
+- AG-UI `state` / `context` surface on params as `state` / `aguiContext` (`context` deprecated alias of `aguiContext`). Map into `chat({ context })` yourself if tools need them.

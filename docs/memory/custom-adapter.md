@@ -2,7 +2,7 @@
 title: Custom Adapter
 id: memory-custom-adapter
 order: 4
-description: "Write a recall/save MemoryAdapter for a backend that isn't shipped, such as pgvector, MongoDB, DynamoDB, or a hosted memory service. Two methods, one shared contract test."
+description: "Implement MemoryAdapter (recall/save) for pgvector, MongoDB, DynamoDB, or a hosted API."
 keywords:
   - tanstack ai
   - memory
@@ -14,22 +14,14 @@ keywords:
   - contract suite
 ---
 
-You have a backend in mind (pgvector, MongoDB, DynamoDB, a hosted memory API) and the
-built-in `inMemory()` / `redis()` adapters don't fit. A memory adapter is just an object
-with two methods, `recall` and `save`, so this is a short guide.
+# Custom memory adapter
 
-> **First time looking at memory?** Start with the [Overview](./overview) for what the
-> contract is and how the middleware uses it.
+If built-in adapters don't fit → implement `recall` + `save`. Contract overview: [Overview](./overview).
 
-## The contract
+## Contract
 
 ```ts
-// The MemoryAdapter contract, from `@tanstack/ai-memory`:
-import type { MemoryAdapter } from '@tanstack/ai-memory'
-```
-
-```ts
-// The shape of the contract, shown for reference.
+// Shape of the contract (import the real type from `@tanstack/ai-memory`).
 import type {
   MemoryFact,
   MemoryScope,
@@ -43,23 +35,18 @@ interface MemoryAdapter {
   id: string
   recall(scope: MemoryScope, query: string): Promise<RecallResult>
   save(scope: MemoryScope, turn: MemoryTurn): Promise<Array<SaveReceipt>>
-  inspect?(scope: MemoryScope): Promise<MemorySnapshot> // optional (devtools)
-  listFacts?(scope: MemoryScope): Promise<Array<MemoryFact>> // optional (devtools)
+  inspect?(scope: MemoryScope): Promise<MemorySnapshot>
+  listFacts?(scope: MemoryScope): Promise<Array<MemoryFact>>
 }
 ```
 
-Two rules the middleware relies on:
+Rules:
 
-1. **`recall` decides relevance.** Return a rendered `systemPrompt` (empty string when
-   there's nothing), plus optional `fragments`, `tools`, and `toolGuidance`. Ranking
-   strategy is entirely yours: lexical, vector, hybrid, or vendor-native.
-2. **`save` owns extraction.** Turn the `{ user, assistant }` turn into whatever you
-   persist. Return one `SaveReceipt` per underlying write.
+1. **`recall` decides relevance** — return `systemPrompt` (or `''`), optional fragments/tools/guidance
+2. **`save` owns extraction** — turn → storage; one `SaveReceipt` per write
+3. **Scopes stay isolated** — never leak across scopes
 
-Scope isolation is your responsibility: a `recall` for one `scope` must never surface
-another scope's data.
-
-## Step 1: Scaffold
+## 1. Scaffold
 
 ```ts
 import type {
@@ -70,8 +57,6 @@ import type {
   SaveReceipt,
 } from '@tanstack/ai-memory'
 
-// node-postgres' Pool, minimally. In your project, use the real type instead:
-//   import type { Pool } from 'pg'
 type Pool = {
   query: (
     text: string,
@@ -79,10 +64,12 @@ type Pool = {
   ) => Promise<{ rows: Array<{ text: string }> }>
 }
 
-// Your embedding client. Swap in OpenAI, Cohere, a local model, etc.
 type Embed = (text: string) => Promise<Array<number>>
 
-export function pgvectorMemory(options: { pool: Pool; embed: Embed }): MemoryAdapter {
+export function pgvectorMemory(options: {
+  pool: Pool
+  embed: Embed
+}): MemoryAdapter {
   const { pool, embed } = options
   return {
     id: 'pgvector',
@@ -112,8 +99,6 @@ export function pgvectorMemory(options: { pool: Pool; embed: Embed }): MemoryAda
 
     async recall(scope: MemoryScope, query: string): Promise<RecallResult> {
       const q = await embed(query)
-      // Match every isolation dim exactly (including NULL). Omitted tenant/user
-      // must not match rows written with a tenant/user set.
       const { rows } = await pool.query(
         `SELECT text, 1 - (embedding <=> $1::vector) AS score
            FROM memory
@@ -139,35 +124,26 @@ export function pgvectorMemory(options: { pool: Pool; embed: Embed }): MemoryAda
 }
 ```
 
-The shape generalizes: every method takes a `scope`, does its backend-specific work,
-and keeps scopes isolated. For a backend without native search, load the scope's
-records and rank them yourself.
+Match every isolation dim exactly (including NULL). Without native search, load the scope and rank yourself.
 
-## Step 2: Run the contract suite
-
-`@tanstack/ai-memory/tests/contract` exports `runMemoryAdapterContract`. Point it at a
-factory that returns a fresh adapter. It verifies the save then recall round-trip, scope
-isolation, empty recall, receipt shape, and the optional introspection methods.
+## 2. Run the contract suite
 
 ```ts ignore
-// ignore: imports the `../src/pgvector` module you wrote in Step 1.
 // tests/pgvector.test.ts
 import { runMemoryAdapterContract } from '@tanstack/ai-memory/tests/contract'
 import { pgvectorMemory } from '../src/pgvector'
 
 runMemoryAdapterContract('pgvectorMemory', async () => {
-  const pool = makeCleanPool() // truncate between tests for a fresh adapter
+  const pool = makeCleanPool()
   return pgvectorMemory({ pool, embed })
 })
 ```
 
-## Step 3: Wire it into `memoryMiddleware`
+Checks: save→recall round-trip, scope isolation, empty recall, receipts, optional introspect.
 
-Once the suite is green, the adapter is interchangeable with the built-ins:
+## 3. Wire into middleware
 
 ```ts ignore
-// ignore: imports the `./pgvector` module you wrote in Step 1, and assumes
-// `messages` / `scope` from your app.
 import { chat } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import { memoryMiddleware } from '@tanstack/ai-memory'
@@ -182,28 +158,16 @@ const stream = chat({
 })
 ```
 
-The middleware never inspects the adapter's internals. `recall`/`save` is the entire
-interface.
+## Optional: expose tools from `recall`
 
-## Exposing tools (optional)
-
-`recall` can return `tools` and `toolGuidance` to give the model direct control over
-memory (this is how the `hindsight()` adapter exposes retain/recall/reflect tools). The
-middleware merges them into the run's tools and injects the guidance ahead of the
-recalled prompt. Return `tools: []` (or omit it) when your adapter exposes none.
+Return `tools` + `toolGuidance` (see `hindsight()`). Middleware merges tools and injects guidance. Omit or `tools: []` if none.
 
 ## Pitfalls
 
-- **Keep scopes isolated.** If you serialize scope into a composite key, escape your
-  delimiter so a `threadId`/`userId`/`tenantId` containing it can't collide with another
-  scope.
-- **`recall` must not throw for an empty scope.** Return `{ systemPrompt: '' }`.
-- **Extraction lives in `save`.** Don't expect the middleware to derive facts. The raw
-  turn is handed to you; store or summarize it however you like.
+1. Escape delimiters in composite keys so scope fields can't collide.
+2. Empty scope → `{ systemPrompt: '' }`, not a throw.
+3. Extraction lives in `save`, not the middleware.
 
-## Where to go next
+## Next
 
-- [Overview](./overview): the `recall`/`save` contract, scope, and how a turn flows
-- [Adapters](./adapters): the built-in and vendor adapters, with every option
-- [Quickstart](./quickstart): wire `memoryMiddleware` into a real `chat()` call
-- [Operating memory](./operating): options, telemetry, devtools events, and failures
+- [Overview](./overview) · [Adapters](./adapters) · [Quickstart](./quickstart) · [Operating](./operating)

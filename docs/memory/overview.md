@@ -2,7 +2,7 @@
 title: Overview
 id: memory-overview
 order: 1
-description: "Give a TanStack AI chat() call memory across turns and sessions. memoryMiddleware recalls relevant memory into the prompt before the model runs, then saves each finished turn through a pluggable adapter."
+description: "Cross-session chat memory: memoryMiddleware recalls into the prompt, then deferred-saves each turn."
 keywords:
   - tanstack ai
   - memory
@@ -14,99 +14,66 @@ keywords:
   - personalization
 ---
 
-Your assistant forgets everything the moment a session ends. A user tells it their name
-this week; next week it asks again. `memoryMiddleware` fixes that. It gives a `chat()`
-run memory that survives across turns and across sessions.
+# Memory overview
 
-It works in two moves. Before the model runs, it **recalls** relevant memory from a
-pluggable adapter and adds it to the system prompt. After the run finishes, it **saves**
-the turn. The save is deferred, so it never blocks streaming.
+If you need recall across turns/sessions → `memoryMiddleware` + an adapter in `@tanstack/ai-memory`.
 
-Reach for it when you need recall across turns or sessions. To keep the last few messages
-of the same request, just pass them in `messages`. Memory is overkill for that.
+If you only need the last few messages of **this** request → pass them in `messages` (skip memory).
 
-Everything lives in `@tanstack/ai-memory`: the middleware, the adapter contract, and the
-built-in and vendor adapters.
+Copy-paste setup: [Quickstart](./quickstart). Custom backend: [Custom Adapter](./custom-adapter).
 
-> Want a copy-paste setup? See the [Quickstart](./quickstart). Building an adapter for a
-> backend that isn't shipped? See the [Custom Adapter](./custom-adapter) guide.
+## When to use it
 
-## When to reach for it
+| Need | Use |
+|------|-----|
+| Remember last week | Memory + persistent adapter |
+| Per-user context | Memory + scoped adapter |
+| Hosted memory (mem0, Honcho, Hindsight) | Matching vendor adapter |
+| Same-request history only | `messages` only |
 
-| Need | Use this |
-|------|----------|
-| "Remember what the user told me last week" | Memory middleware with a persistent adapter |
-| "Each user has their own context" | Memory middleware with a scoped adapter |
-| "Use a hosted memory service (mem0, Honcho, Hindsight)" | The matching vendor adapter |
-| Keep the last few turns in the same request | Pass them in `messages`, skip memory |
+## Contract: `recall` + `save`
 
-## The contract: recall and save
-
-A memory adapter has one identifier and two verbs. Extraction, ranking, rendering, and
-storage are all the adapter's job. The middleware never looks inside a record.
+Adapter owns extraction, ranking, rendering, storage. Middleware never inspects records.
 
 | Member | Purpose |
 |--------|---------|
-| `id` | Stable identifier used in logs and devtools. |
-| `recall(scope, query)` | Return what's relevant to `query` within `scope`: a rendered `systemPrompt`, optional `fragments`, and optional LLM `tools` plus `toolGuidance`. |
-| `save(scope, turn)` | Persist a finished `{ user, assistant }` turn. Extraction happens here. Returns one `SaveReceipt` per write. |
-| `inspect(scope)?` | Optional. A full snapshot for a devtools panel. |
-| `listFacts(scope)?` | Optional. A flat fact list for a devtools panel. |
+| `id` | Stable id for logs/devtools |
+| `recall(scope, query)` | Relevant memory: `systemPrompt`, optional `fragments` / `tools` / `toolGuidance` |
+| `save(scope, turn)` | Persist `{ user, assistant }`; return `SaveReceipt[]` |
+| `inspect?` / `listFacts?` | Optional devtools |
 
 ```ts
-// The MemoryAdapter contract, from `@tanstack/ai-memory`:
 import type { MemoryAdapter } from '@tanstack/ai-memory'
-```
-
-Built-in adapters, each a tree-shakeable subpath:
-
-```ts
 import { inMemory } from '@tanstack/ai-memory/in-memory'
 import { redis } from '@tanstack/ai-memory/redis'
-```
-
-Vendor adapters:
-
-```ts
 import { hindsight } from '@tanstack/ai-memory/hindsight'
 import { mem0 } from '@tanstack/ai-memory/mem0'
 import { honcho } from '@tanstack/ai-memory/honcho'
 ```
 
-See [Adapters](./adapters) for every adapter and its options.
+All options: [Adapters](./adapters).
 
-## How a turn flows
+## Turn flow
 
-1. **Recall** runs before the model, during the run's `init` phase.
-   `adapter.recall(scope, userText)` returns memory, and the middleware adds the
-   `systemPrompt`, `toolGuidance`, and any `tools` to the run.
-2. **Save** runs after the stream finishes, deferred through `ctx.defer` so it never
-   blocks the response. The middleware hands the `{ user, assistant }` turn to
-   `adapter.save(scope, turn)`.
+1. **Recall** during `init` — inject `systemPrompt`, tools, guidance
+2. **Save** after stream ends via `ctx.defer` — never blocks streaming
 
-To add telemetry, watch memory in devtools, persist without recalling, or handle
-failures, see [Operating memory](./operating).
+Telemetry / save-only / failures: [Operating memory](./operating).
 
 ## Scope and security
 
-`MemoryScope` is the isolation boundary. It is an alias of the shared `Scope` identity
-type from `@tanstack/ai` — the same vocabulary used by persistence — so memory and chat
-center on one conversation key:
+`MemoryScope` aliases shared `Scope` from `@tanstack/ai`:
 
 ```ts
-// MemoryScope is an alias of Scope from `@tanstack/ai`, exported by `@tanstack/ai-memory`:
 type MemoryScope = {
-  threadId: string // required — same as ChatMiddlewareContext.threadId
+  threadId: string // required
   userId?: string
   tenantId?: string
-  namespace?: string // reserved — no adapter keys on it yet
+  namespace?: string // reserved
 }
 ```
 
-Always resolve scope on the server from trusted session/auth state. A client-originated
-`threadId` is fine only after you validate it belongs to the session user; never accept
-`userId`/`tenantId` from the request body alone. The function form of `scope` runs per
-request and only sees what your server attached to the chat context:
+Resolve scope **server-side** from trusted session. Never take `userId`/`tenantId` from the request body alone.
 
 ```ts
 import { memoryMiddleware } from '@tanstack/ai-memory'
@@ -118,15 +85,15 @@ declare function getSession(ctx: unknown): { threadId: string; userId: string }
 memoryMiddleware({
   adapter,
   scope: (ctx) => {
-    const session = getSession(ctx) // your server-validated session
+    const session = getSession(ctx)
     return { threadId: session.threadId, userId: session.userId }
   },
 })
 ```
 
-## Next steps
+## Next
 
-- [Quickstart](./quickstart): wire `memoryMiddleware` into a real `chat()` call
-- [Adapters](./adapters): every adapter's options, with an example of each
-- [Custom Adapter](./custom-adapter): implement `recall`/`save` for a backend that isn't shipped
-- [Operating memory](./operating): options, telemetry, devtools events, and failure behavior
+1. [Quickstart](./quickstart) — wire into `chat()`
+2. [Adapters](./adapters) — options per adapter
+3. [Custom Adapter](./custom-adapter) — your backend
+4. [Operating](./operating) — telemetry and failures

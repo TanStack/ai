@@ -2,7 +2,7 @@
 title: Multiple Interrupts
 id: interrupts-multiple
 order: 3
-description: "Render a queue of pending decisions and resolve them item by item or all at once as one atomic batch."
+description: "Render a queue of pending decisions; resolve item-by-item or all at once as one atomic batch."
 keywords:
   - tanstack ai
   - ag-ui interrupts
@@ -13,25 +13,19 @@ keywords:
 
 # Multiple Interrupts
 
-One run can pause on several decisions at once. The model lines up three
-transfers, or an approval and a question land together. You want to show the
-whole queue and send the answers back together, not one round trip each.
+If one run pauses on several decisions → stage answers, then submit the whole batch atomically (all or nothing).
 
 ## Two ways to resolve
 
-You have already seen the first one on the [Tool Approval](./tool-approval) page:
-call a method on the item itself.
+**Per item** (same as [Tool Approval](./tool-approval)):
 
 ```ts ignore
-// Per item: resolve each one where you render it.
 interrupt.resolveInterrupt(true)
 ```
 
-When several are pending, it is often easier to answer them all from one place.
-The `useChat` hook gives you root helpers that act on the whole queue:
+**Whole queue** via root helpers from `useChat`:
 
 ```ts ignore
-// All at once: one callback decides every pending item.
 resolveInterrupts((interrupt) => {
   if (interrupt.kind === 'tool-approval') {
     interrupt.resolveInterrupt(true)
@@ -41,14 +35,11 @@ resolveInterrupts((interrupt) => {
 })
 ```
 
-Both stage local drafts. Nothing goes to the server until every pending item has
-an answer, then the whole set submits at once. The server accepts all of them or
-none, so you never end up with half a batch applied.
+Both stage local drafts. Nothing goes to the server until every pending item has an answer. Server accepts all or none.
 
 ## Render the queue
 
-Map over `interrupts` and switch on `kind`. Each item carries its own
-`canResolve` and `errors`:
+Map `interrupts`; each item has its own `canResolve` and `errors`:
 
 ```tsx
 // app/decision-queue.tsx
@@ -108,11 +99,9 @@ export function DecisionQueue() {
 }
 ```
 
-## Resolve every item from one callback
+## Resolve from one callback
 
-`resolveInterrupts(callback)` runs your callback once per item inside a single
-synchronous transaction. It must resolve or cancel every item. If it throws or
-leaves one item unanswered, nothing submits:
+`resolveInterrupts(callback)` runs once per item in a single synchronous transaction. It must resolve or cancel every item. Throw or leave one unanswered → nothing submits:
 
 ```ts ignore
 resolveInterrupts((interrupt) => {
@@ -124,27 +113,17 @@ resolveInterrupts((interrupt) => {
 })
 ```
 
-Two shortcuts cover the common cases:
+Shortcuts:
 
-- `resolveInterrupts(true)` / `resolveInterrupts(false)` approves or rejects the
-  whole queue. It works only when every item is a tool approval that needs no
-  payload or edits. Generic items, mixed queues, or required payloads are
-  rejected.
-- `cancelInterrupts()` cancels every item with no payload.
+- `resolveInterrupts(true|false)` — all tool-approval, no payload/edits. Fails on generic items, mixed queues, or required payloads.
+- `cancelInterrupts()` — cancel every item with no payload.
 
 ## When an answer is wrong
 
-A bad answer does not tear down the queue. The item keeps your last valid draft,
-shows what went wrong, and lets you fix it and resubmit. Errors come in two
-places, and you render both.
+A bad answer keeps the last valid draft and surfaces errors. Render both levels:
 
-Each item carries its own `errors`: a bad payload, invalid edited args, or an
-expired item. The root `interruptErrors` carries failures for the whole batch:
-transport problems, server rejections, and errors for the internal client-tool
-steps that never show up as their own item.
-
-This component renders both, gates its buttons correctly, and offers the two
-recovery paths:
+- **Item `errors`** — bad payload, invalid edited args, expired item.
+- **Root `interruptErrors`** — transport, server rejection, hidden client-tool steps.
 
 ```tsx
 // app/robust-queue.tsx
@@ -170,8 +149,6 @@ export function RobustQueue() {
     tools: [transferTool] as const,
   })
 
-  // Retry only helps a transport failure. Expired or stale batches can't be
-  // retried, so don't offer it for those.
   const canRetry = interruptErrors.some((error) => error.code === 'transport')
 
   return (
@@ -184,8 +161,6 @@ export function RobustQueue() {
           return null
         }
 
-        // canResolve reflects the schema and binding, not the live phase, so
-        // also gate on the item's status and the run being busy.
         const busy = interrupt.status === 'submitting' || resuming
 
         return (
@@ -204,7 +179,6 @@ export function RobustQueue() {
               Start over
             </button>
 
-            {/* Item errors: bad payload, bad edited args, expired. */}
             {interrupt.errors.map((error) => (
               <p key={`${error.code}:${error.path?.join('.') ?? ''}`}>
                 {error.message}
@@ -214,7 +188,6 @@ export function RobustQueue() {
         )
       })}
 
-      {/* Batch errors: transport, server, and hidden client-tool steps. */}
       {interruptErrors.map((error) => (
         <p key={error.code}>{error.message}</p>
       ))}
@@ -228,11 +201,7 @@ export function RobustQueue() {
 }
 ```
 
-The two recovery paths, side by side:
+Recovery:
 
-- `interrupt.clearResolution()` drops one item's draft so the user can answer it
-  again from scratch. Fixing a form and calling `resolveInterrupt` again works
-  too, the draft is replaced, not stacked.
-- `retryInterrupts()` re-sends the whole staged batch after a transport failure.
-  It does nothing for expired or stale batches, start a fresh run to get a new
-  set of interrupts for those.
+- `interrupt.clearResolution()` — drop one draft; re-answer from scratch (or call `resolveInterrupt` again to replace the draft).
+- `retryInterrupts()` — re-send staged batch after transport failure only. Expired/stale batches need a fresh run.

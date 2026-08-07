@@ -2,7 +2,7 @@
 title: Server Tools
 id: server-tools
 order: 3
-description: "Server tools in TanStack AI execute automatically with full access to databases, APIs, and environment variables. Patterns, examples, and security."
+description: "Define .server() tools — auto-execute, runtime context, errors, organization."
 keywords:
   - tanstack ai
   - server tools
@@ -12,7 +12,7 @@ keywords:
   - database access
 ---
 
-Server tools execute automatically when called by the LLM. They have full access to server resources like databases, APIs, and environment variables.
+If the tool needs DB/API/env secrets → implement with `.server()`. It runs automatically when the model calls it (or after approval if `needsApproval`).
 
 ```mermaid
 sequenceDiagram
@@ -36,30 +36,16 @@ sequenceDiagram
     Server-->>Server: Stream to client
 ```
 
-## How It Works
+## Execution steps
 
-1. **Tool Call Received**: Server receives a `tool_call` chunk from the LLM
-2. **Argument Parsing**: The tool arguments (JSON string) are parsed and validated against the input schema
-3. **Execution**: The tool's `execute` function is called with the parsed arguments
-4. **Result Processing**: The result is:
-   - Validated against the output schema (if defined)
-   - Converted to a tool result message
-   - Added to the conversation history
-5. **Continuation**: The chat continues with the tool result, allowing the LLM to generate a response based on the result
-  
-## Automatic Execution and Approval Pauses
+1. Server receives tool call → parse/validate args against input schema
+2. Run `.server()` execute
+3. Validate output schema (if defined) → tool result message in history
+4. Chat continues so the model can answer from the result
 
-**Automatic (Default):**
-- Server tools with an `execute` function run automatically
-- Results are added to the conversation immediately
-- No client-side handling required
+**Default:** auto-execute. **`needsApproval: true`:** still auto-executes, but only after client approval — [Tool Approval](./tool-approval).
 
-**Approval-gated:**
-- Tools marked `needsApproval: true` still execute automatically — but only *after* the user approves
-- The run pauses at the `approval-requested` state and resumes (executing the tool, or skipping it on denial) once the client sends an approval response
-- See [Tool Approval Flow](./tool-approval) for the full pattern
-
-## Server Tool Definition
+## Define + implement
 
 ```typescript
 import { toolDefinition } from "@tanstack/ai";
@@ -80,7 +66,6 @@ const getUserDataDef = toolDefinition({
 });
 
 const getUserData = getUserDataDef.server(async ({ userId }) => {
-  // This runs on the server - secure access to database
   const user = await db.users.findUnique({ where: { id: userId } });
   return {
     name: user.name,
@@ -90,41 +75,12 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
 });
 ```
 
-## Defining Server Tools
-
-Server tools use the isomorphic `toolDefinition()` API with the `.server()` method:
+API call with server-only secrets:
 
 ```typescript
 import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
-import { db } from "./db";
 
-// Step 1: Define the tool schema
-const getUserDataDef = toolDefinition({
-  name: "get_user_data",
-  description: "Get user information from the database",
-  inputSchema: z.object({
-    userId: z.string().meta({ description: "The user ID to look up" }),
-  }),
-  outputSchema: z.object({
-    name: z.string(),
-    email: z.string().email(),
-    createdAt: z.string(),
-  }),
-});
-
-// Step 2: Create server implementation
-const getUserData = getUserDataDef.server(async ({ userId }) => {
-  // This runs on the server - can access database, APIs, etc.
-  const user = await db.users.findUnique({ where: { id: userId } });
-  return {
-    name: user.name,
-    email: user.email,
-    createdAt: user.createdAt.toISOString(),
-  };
-});
-
-// Example: API call tool
 const searchProductsDef = toolDefinition({
   name: "search_products",
   description: "Search for products in the catalog",
@@ -139,7 +95,7 @@ const searchProducts = searchProductsDef.server(async ({ query, limit = 10 }) =>
     `https://api.example.com/products?q=${query}&limit=${limit}`,
     {
       headers: {
-        Authorization: `Bearer ${process.env.API_KEY}`, // Server-only access
+        Authorization: `Bearer ${process.env.API_KEY}`,
       },
     }
   );
@@ -147,9 +103,7 @@ const searchProducts = searchProductsDef.server(async ({ query, limit = 10 }) =>
 });
 ```
 
-## Using Server Tools
-
-Pass tools to the `chat` function:
+## Pass to `chat`
 
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
@@ -169,9 +123,9 @@ export async function POST(request: Request) {
 }
 ```
 
-## Runtime Context
+## Runtime context
 
-Server tools can receive typed runtime context as their second argument. Use this for request-scoped dependencies like authenticated users, database clients, tenant IDs, or audit loggers.
+Second arg of `.server()` — request-scoped deps (auth, DB, tenant):
 
 ```typescript
 import { chat, toolDefinition, toServerSentEventsResponse } from "@tanstack/ai";
@@ -205,8 +159,6 @@ const getCurrentUser = toolDefinition({
 
 export async function POST(request: Request) {
   const { messages } = await request.json();
-  // `session` and `db` come from your own app setup (auth middleware,
-  // a DB client, etc.) — they are not provided by TanStack AI.
   const session = await getSession(request);
   const db = getDb();
 
@@ -224,13 +176,9 @@ export async function POST(request: Request) {
 }
 ```
 
-If a server tool declares a context generic, `chat()` requires a compatible `context` value. Untyped tools keep working and receive `unknown` context.
+If a tool declares a context generic, `chat()` requires compatible `context`. Untyped tools get `unknown`. Middleware/handoff: [Runtime Context](../advanced/runtime-context).
 
-For middleware and client-to-server handoff patterns, see [Runtime Context](../advanced/runtime-context).
-
-## Tool Organization Pattern
-
-For better organization, define tool schemas and implementations separately:
+## Organize defs vs implementations
 
 ```typescript ignore
 // tools/definitions.ts
@@ -283,20 +231,9 @@ const stream = chat({
 });
 ```
 
-## Automatic Execution
+## Error handling
 
-Server tools are automatically executed when the model calls them. The SDK:
-
-1. Receives the tool call from the model
-2. Executes the tool's `execute` function
-3. Adds the result to the conversation
-4. Continues the chat with the tool result
-
-You don't need to manually handle tool execution - it's automatic!
-
-## Error Handling
-
-Tools should handle errors gracefully:
+Prefer structured `{ error }` in the return (include it in `outputSchema`). Throws become tool-result errors with less control over the message:
 
 ```typescript
 import { toolDefinition } from "@tanstack/ai";
@@ -329,11 +266,11 @@ const getUserData = getUserDataDef.server(async ({ userId }) => {
 });
 ```
 
-**Throwing vs. returning an error:** if your `.server()` function throws, the SDK catches it and surfaces it as a tool-result *error* (the model sees the failure but you lose control over the message). Returning a structured `{ error }` shape keeps the model in control of how to recover and is usually preferable. Either way, when an `outputSchema` is defined the returned value is validated against it (Zod) before being added to the conversation — so include the `error` field in your `outputSchema` if you return it.
+With `outputSchema`, returns are validated before the conversation updates.
 
-## Using JSON Schema
+## JSON Schema tools
 
-If you have existing JSON Schema definitions or prefer not to use Zod, you can define tool schemas using raw JSON Schema objects:
+Args are `unknown` — narrow before use. No Zod runtime validation:
 
 ```typescript
 import { toolDefinition } from "@tanstack/ai";
@@ -367,7 +304,6 @@ const getUserDataDef = toolDefinition({
   outputSchema,
 });
 
-// With a raw JSON Schema, args is typed as `unknown` — narrow it before use
 const getUserData = getUserDataDef.server(async (args) => {
   if (typeof args !== "object" || args === null || !("userId" in args)) {
     throw new Error("Invalid input: expected a userId");
@@ -377,19 +313,17 @@ const getUserData = getUserDataDef.server(async (args) => {
 });
 ```
 
-> **Note:** JSON Schema tools skip runtime validation. Zod schemas are recommended for full type safety and validation.
+Typed tools also narrow stream events — [Type-Safe Tool Call Events](../chat/streaming#type-safe-tool-call-events).
 
-> **Tip:** When you pass typed tools (server, client, or definition) to `chat()`, the returned stream is fully typed — `toolName` narrows to your tool name literals and `input` narrows per-tool when you check the name. See [Type-Safe Tool Call Events](../chat/streaming#type-safe-tool-call-events).
+## Must-do
 
-## Best Practices
+1. Keep each tool focused
+2. Validate with Zod when possible
+3. Return clear errors
+4. Write descriptions the model can follow
+5. Never expose secrets to the client
 
-1. **Keep tools focused** - Each tool should do one thing well
-2. **Validate inputs** - Use Zod schemas to ensure type safety (JSON Schema skips validation)
-3. **Handle errors** - Return meaningful error messages
-4. **Use descriptions** - Clear descriptions help the model use tools correctly
-5. **Secure sensitive operations** - Never expose API keys or secrets to the client
+## Next
 
-## Next Steps
-
-- [Client Tools](./client-tools) - Learn about client-side tool execution
-- [Tool Approval Flow](./tool-approval) - Add approval workflows for sensitive operations
+- [Client Tools](./client-tools)
+- [Tool Approval Flow](./tool-approval)

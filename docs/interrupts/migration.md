@@ -2,7 +2,7 @@
 title: Migration
 id: interrupts-migration
 order: 6
-description: "Migrate approval and resume code from legacy custom events and raw resume APIs to typed, atomic AG-UI interrupts."
+description: "Move from legacy approval events and raw resume APIs to typed AG-UI interrupts."
 keywords:
   - tanstack ai migration
   - ag-ui interrupts
@@ -13,30 +13,23 @@ keywords:
 
 # Migration
 
-TanStack AI now models approvals, generic pauses, and client-tool execution as
-AG-UI interrupt descriptors. Native runs end with
-`RUN_FINISHED.outcome.type === 'interrupt'`, and the continuation is a new run
-whose `parentRunId` is the interrupted run.
+If you still use `approval-requested` / `addToolApprovalResponse` → switch server lifecycle and client rendering together. No codemod. Start from [Overview](./overview).
 
-There's no codemod. Migrate the server lifecycle and client rendering together.
-Legacy readers stay temporarily for old streams but can't provide the full
-native contract. Start from [Overview](./overview).
+Native runs end with `RUN_FINISHED.outcome.type === 'interrupt'`. Continuation is a new run with `parentRunId` = interrupted run.
 
 ## API mapping
 
 | Deprecated / legacy | Current |
 | --- | --- |
-| `pendingInterrupts` | `interrupts` (`pendingInterrupts` is a deprecated alias of the same array) |
+| `pendingInterrupts` | `interrupts` (`pendingInterrupts` is a deprecated alias) |
 | `ChatClient.getPendingInterrupts()` | `ChatClient.getInterrupts()` |
-| `addToolApprovalResponse({ id, approved })` | Find the bound `tool-approval` item, call `interrupt.resolveInterrupt(approved)` |
-| Raw `resumeInterrupts(entries, state)` | Bound item methods or root `resolveInterrupts(...)`; reserve `resumeInterruptsUnsafe` for validated recovery tooling |
-| `approval-requested` custom event | `RUN_FINISHED` interrupt descriptor, reason `tool_call` |
-| `tool-input-available` custom event | `RUN_FINISHED` interrupt descriptor, reason `tanstack:client_tool_execution` |
-| Boolean denial treated as cancellation | `resolveInterrupt(false)` for denial; `cancel()` for payloadless cancellation |
+| `addToolApprovalResponse({ id, approved })` | Bound `tool-approval` item → `interrupt.resolveInterrupt(approved)` |
+| Raw `resumeInterrupts(entries, state)` | Bound item methods or `resolveInterrupts(...)`; `resumeInterruptsUnsafe` only for validated recovery tooling |
+| `approval-requested` custom event | `RUN_FINISHED` interrupt, reason `tool_call` |
+| `tool-input-available` custom event | `RUN_FINISHED` interrupt, reason `tanstack:client_tool_execution` |
+| Boolean denial as cancellation | `resolveInterrupt(false)` = denial; `cancel()` = payloadless cancel |
 
-`addToolResult` is **not** removed. It still handles client-tool results and
-delegates to a matching native item. `needsApproval` remains the tool-definition
-switch for approvals.
+`addToolResult` remains for client-tool results. `needsApproval` remains the tool-definition switch.
 
 ## Single approval
 
@@ -53,13 +46,11 @@ if (interrupt?.kind === 'tool-approval' && interrupt.toolName === 'transfer') {
 }
 ```
 
-A valid singleton submits automatically. For the full render/resolve component
-see [Tool Approval](./tool-approval).
+Valid singleton submits automatically. Full UI: [Tool Approval](./tool-approval).
 
 ## Branch payloads and edits
 
-Legacy boolean approvals couldn't carry typed data. Add `approvalSchema` and
-resolve the selected branch with data under `payload`:
+Legacy booleans could not carry data. Add `approvalSchema` and resolve with `payload`:
 
 ```ts ignore
 interrupt.resolveInterrupt(true, {
@@ -69,21 +60,20 @@ interrupt.resolveInterrupt(true, {
 interrupt.resolveInterrupt(false, { payload: { reason: 'Policy limit' } })
 ```
 
-Rejection never accepts edits; top-level custom fields are invalid. A single
-`approvalSchema` (not `{ approve, reject }`) applies to the selected decision;
-with no schema the boolean shorthand stays valid.
+Rejection never accepts edits. One `approvalSchema` (not `{ approve, reject }`) applies to the selected decision; without schema, boolean shorthand stays valid.
 
 ## Denial vs cancellation
 
-`resolveInterrupt(false, ...)` continues the model with an explicit rejected
-decision. `cancel()` emits AG-UI `status: 'cancelled'` and never validates or
-selects the reject branch. Deprecated `addToolApprovalResponse({ approved: false })`
-maps to denial, not cancellation.
+| Call | Effect |
+| --- | --- |
+| `resolveInterrupt(false, ...)` | Continues model with explicit rejected decision |
+| `cancel()` | AG-UI `status: 'cancelled'`; no validate / reject branch |
+
+Deprecated `addToolApprovalResponse({ approved: false })` maps to **denial**, not cancel.
 
 ## Batches
 
-Native batches are all-or-nothing. Replace approval-ID loops with staged items
-(the last valid item auto-submits) or one synchronous root callback:
+Native batches are all-or-nothing. Replace approval-ID loops with staged items (last valid auto-submits) or one root callback:
 
 ```ts ignore
 resolveInterrupts((interrupt) => {
@@ -95,50 +85,35 @@ resolveInterrupts((interrupt) => {
 })
 ```
 
-`resolveInterrupts(true|false)` is shorthand only for all-approval batches with
-no payload/edits. Use `cancelInterrupts()` for payloadless all-items cancel,
-`clearResolution()` to drop one draft, `retryInterrupts()` only when every item
-is still validly staged and the root error is retryable. See
-[Multiple Interrupts](./multiple).
+- `resolveInterrupts(true|false)` — all-approval batches, no payload/edits only
+- `cancelInterrupts()` — payloadless all-items cancel
+- `clearResolution()` — drop one draft
+- `retryInterrupts()` — only when every item is staged and root error is retryable
+
+See [Multiple Interrupts](./multiple).
 
 ## Generic responses
 
-Don't derive a static type from a received `responseSchema`. Parse as
-`unknown`, convert with `z.fromJSONSchema`, then resolve the validated value.
-Full form example in [Generic Interrupts](./generic).
+Do not derive a static type from wire `responseSchema`. Parse as `unknown`, convert with `z.fromJSONSchema`, resolve the validated value. Form: [Generic Interrupts](./generic).
 
 ## Server events
 
-A native server emits, in order: `MESSAGES_SNAPSHOT` → optional
-`STATE_SNAPSHOT` → `RUN_FINISHED` with a nonempty interrupt outcome.
-Continuations use a fresh `runId`, the same `threadId`, and the interrupted run
-as `parentRunId`, with every pending ID present exactly once.
+Emit in order: `MESSAGES_SNAPSHOT` → optional `STATE_SNAPSHOT` → `RUN_FINISHED` with nonempty interrupt outcome.
 
-Interrupts run **ephemerally**: the server reconstructs and validates the
-expected batch from the submitted history and its current tool definitions, so
-a stateless route needs no persistence. Because the batch is rebuilt from
-client-provided input, this mode does not provide authoritative recovery,
-exactly-once, replay protection, or restart recovery.
+Continuations: fresh `runId`, same `threadId`, interrupted run as `parentRunId`, every pending ID exactly once.
 
-`resumeInterruptsUnsafe` is a low-level escape hatch for submitting validated
-raw resume entries directly, not the normal target for approval UI.
+Interrupts are **ephemeral**: server rebuilds the expected batch from submitted history + current tool definitions. Stateless routes need no persistence. No authoritative recovery, exactly-once, replay protection, or restart recovery.
+
+`resumeInterruptsUnsafe` is a low-level escape hatch for validated raw entries — not normal approval UI.
 
 ## Legacy limits
 
-Deprecated readers recognize well-formed historical `approval-requested` and
-`tool-input-available` events and convert a fully-covered legacy batch into one
-cloned-history follow-up. They do **not** support edited arguments, custom
-approval payloads, generic responses, payloadless cancellation, or expiry/
-schema-hash reconciliation; those fail with `legacy-unsupported`. Native and
-legacy items can't mix in one batch; a failed legacy transport keeps staged
-decisions and reports `legacy-submit-failed`.
+Deprecated readers map well-formed historical `approval-requested` / `tool-input-available` into one cloned-history follow-up. They do **not** support edited args, custom approval payloads, generic responses, payloadless cancel, or expiry/schema-hash reconciliation (`legacy-unsupported`). Native and legacy items cannot mix in one batch. Failed legacy transport keeps staged decisions and reports `legacy-submit-failed`.
 
 ## Checklist
 
-1. Replace native custom-event writers with the interrupt terminal.
+1. Replace custom-event writers with the interrupt terminal.
 2. Render bound `interrupts` instead of `pendingInterrupts`.
-3. Replace boolean approval helpers with `resolveInterrupt` + explicit
-   denial/cancellation.
-4. Replace approval loops with atomic batch staging or root `resolveInterrupts`.
-5. Keep `addToolResult` for client-tool results where useful.
-6. Test expired items and failed transport before removing legacy support.
+3. Replace boolean helpers with `resolveInterrupt` + explicit denial/cancel.
+4. Replace approval loops with atomic batch staging or `resolveInterrupts`.
+5. Keep `addToolResult` for client-tool results; test expiry and failed transport before dropping legacy support.

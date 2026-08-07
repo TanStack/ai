@@ -2,7 +2,7 @@
 title: OpenCode
 id: opencode-adapter
 order: 14
-description: "Use OpenCode as a chat backend in TanStack AI — agent harness with local tool execution, token-level streaming, stateful sessions, and tool bridging via @tanstack/ai-opencode."
+description: "OpenCode harness adapter — local agent loop, token streaming, sessions via @tanstack/ai-opencode."
 keywords:
   - tanstack ai
   - opencode
@@ -13,28 +13,23 @@ keywords:
   - adapter
 ---
 
-The OpenCode adapter runs [OpenCode](https://opencode.ai) as a chat backend, driving it over its local HTTP server (`@opencode-ai/sdk`). Unlike HTTP provider adapters, this is a **harness adapter**: OpenCode runs its own agent loop and executes its own tools — shell commands, file reads and edits, search — locally on your server. Each `chat()` call runs one full harness turn; assistant text and reasoning stream as true token-level deltas, and the harness's tool activity streams back as already-resolved tool-call events your UI can render.
+If you need OpenCode as a chat backend → **server-only**: install CLI + package, auth providers, call `opencodeText("provider/model", { directory, permissionMode })`.
 
-> **Server-only.** The adapter spawns (or attaches to) an `opencode serve` process, so it only works in a Node.js server environment — never in the browser. Treat it like giving OpenCode a shell on the machine it runs on, and configure permissions accordingly.
+> Spawns or attaches to `opencode serve`. Never in the browser.
 
-## Installation
+Demos: [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare), [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web).
+
+## Install
 
 ```bash
 npm install @tanstack/ai-opencode
-```
-
-The `opencode` CLI must be installed and its providers authenticated on the host:
-
-```bash
 npm install -g opencode-ai
 opencode auth login
 ```
 
-A runnable demo lives at [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare) — pick Claude Code, Codex, or Grok Build in the UI, with session resume, the harness tool timeline, and tool bridging, wired into a TanStack Start app on Workers. For the same wiring on plain Node with durable, refresh-surviving runs (Claude Code on Docker), see [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) — swapping in this adapter is a one-line change (`src/sandbox-agent.ts`).
+## Do this
 
-## Models
-
-OpenCode is provider-agnostic: it resolves any `provider/model` id its configured providers support. Address models as `provider/model` (the adapter splits on the first `/`):
+Models: `provider/model` (split on first `/`).
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -51,33 +46,32 @@ const stream = chat({
 
 ## Configuration
 
-| Option                | Description                                                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `directory`           | Working directory for the harness session. Defaults to `process.cwd()`.                                                                                      |
-| `baseUrl`             | Attach to an already-running `opencode serve` (e.g. `http://127.0.0.1:4096`) instead of spawning a new server per turn.                                       |
-| `hostname`            | Hostname for the spawned server. Defaults to the SDK default (`127.0.0.1`).                                                                                   |
-| `port`                | Port for the spawned server. Defaults to the SDK default (`4096`).                                                                                           |
-| `permissionMode`      | `'default'` (bridged tools run, everything else that prompts is rejected), `'acceptEdits'` (also auto-approves file edits), or `'bypassPermissions'` (allow all). |
-| `onPermissionRequest` | Custom permission handler; replaces the default policy entirely.                                                                                             |
-| `config`              | Extra OpenCode config merged with the adapter's MCP and permission config.                                                                                    |
+| Option | Description |
+| --- | --- |
+| `directory` | Working dir (default `process.cwd()`) |
+| `baseUrl` | Attach to existing `opencode serve` (e.g. `http://127.0.0.1:4096`) |
+| `hostname` / `port` | Spawned server (defaults `127.0.0.1` / `4096`) |
+| `permissionMode` | `'default'` \| `'acceptEdits'` \| `'bypassPermissions'` |
+| `onPermissionRequest` | Custom permission handler |
+| `config` | Extra OpenCode config (MCP, permissions) |
 
-Per-call overrides — `sessionId`, `permissionMode`, `directory` — go through `modelOptions`.
+`modelOptions`: `sessionId`, `permissionMode`, `directory`.
 
 ## Permissions
 
-OpenCode asks for permission before mutating files or running commands. A headless server has no one to answer those prompts, so the adapter applies a policy automatically — it never hangs a turn:
+Headless policy never hangs:
 
-- **`'default'`** — bridged TanStack tools run; anything else that would prompt (edits, shell, web fetch) is rejected.
-- **`'acceptEdits'`** — additionally auto-approves file-mutation requests (edit / write / patch).
-- **`'bypassPermissions'`** — approves everything. Only use this against a sandbox or scratch directory.
+- **`default`** — bridged tools run; edits/shell/fetch that would prompt → rejected
+- **`acceptEdits`** — also auto-approves file mutations
+- **`bypassPermissions`** — allow all (sandbox/scratch only)
 
-Provide `onPermissionRequest` to implement your own policy (e.g. allow-list specific commands).
+## Stateful sessions
 
-## Stateful Sessions
+1. Capture `opencode.session-id` CUSTOM event.
+2. Pass `modelOptions.sessionId`.
+3. Send only the latest user message.
 
-OpenCode sessions are stateful — the harness keeps the full working context (files read, commands run, conclusions reached) between turns. The adapter surfaces the session id of every fresh run as a custom stream event named `opencode.session-id`; thread it back via `modelOptions.sessionId` to resume. When resuming, only the latest user message is sent — the harness already holds the prior context.
-
-Server endpoint:
+**Server:**
 
 ```typescript
 import {
@@ -90,7 +84,6 @@ import { opencodeText } from "@tanstack/ai-opencode";
 export async function POST(request: Request) {
   const params = await chatParamsFromRequest(request);
 
-  // Extra fields the client puts in the connection `body` arrive here.
   const sessionId =
     typeof params.forwardedProps.sessionId === "string"
       ? params.forwardedProps.sessionId
@@ -109,7 +102,7 @@ export async function POST(request: Request) {
 }
 ```
 
-Client (React) — capture the session id from the custom event and send it back on subsequent requests:
+**Client:**
 
 ```typescript
 import { useState } from "react";
@@ -135,21 +128,15 @@ function CodingAssistant() {
       }
     },
   });
-
-  // ... render messages; harness tool activity (bash, edit, read, ...)
-  // arrives as regular tool-call parts with results.
 }
 ```
 
-Sessions live on the server that ran them, so resuming only works against the same server instance (or a shared `baseUrl`).
+Resume on same server (or shared `baseUrl`).
 
 ## Tools
 
-Two kinds of tools flow through this adapter:
-
-1. **Built-in harness tools** are executed by OpenCode itself and stream back as tool-call events with results already attached: `bash`, `edit`, `write`, `read`, `grep`, and the agent's running todo plan (surfaced as an `opencode.todo` custom event). Your code never executes them.
-
-2. **Your TanStack tools** are bridged *into* the harness: the adapter starts a short-lived Streamable-HTTP MCP server on `127.0.0.1` for the duration of the turn and registers it with OpenCode. Define tools as usual with `toolDefinition().server()`; tool-call events come back under the names you registered (OpenCode prefixes MCP tools `tanstack_…` internally, which the adapter strips).
+1. **Harness tools** — `bash`, `edit`, `write`, `read`, `grep`; todo as `opencode.todo` CUSTOM.
+2. **Your tools** — Streamable-HTTP MCP on `127.0.0.1` for the turn (`tanstack_` prefix stripped).
 
 ```typescript
 import { z } from "zod";
@@ -171,16 +158,15 @@ const stream = chat({
 });
 ```
 
-**Client-side and approval-gated tools are not supported.** The harness executes tools inside a live process, which cannot pause across HTTP requests to wait for a browser round-trip or a human approval. Passing a tool without a server `execute()` implementation — or one marked `needsApproval` — fails fast with a descriptive error. Run those tools outside the harness with a regular provider adapter.
+No client-side / `needsApproval` tools — fails fast.
 
-## Structured Output
+## Structured output
 
-`structuredOutput()` is best-effort: OpenCode's prompt API has no native JSON-schema channel, so the schema is embedded as a prompt instruction in a fresh, one-shot session and the final text is parsed (markdown fences are stripped when present). It works for finalization after a chat, but a plain provider adapter (e.g. `@tanstack/ai-openai`) is the better choice when structured extraction is the primary job — it's faster, deterministic, and doesn't spawn a harness.
+Best-effort: schema in prompt, parse final text. Prefer a plain provider for primary extraction.
 
-## Limitations
+## Notes
 
-- **Server-only (Node).** The adapter spawns or attaches to an `opencode serve` process.
-- **The harness owns the agent loop.** TanStack's agent-loop strategies and per-iteration middleware don't apply inside a harness turn.
-- **No sampling controls.** `temperature`-style options don't exist here.
-- **Sessions are server-local.** Resume requires hitting the same server instance (or a shared `baseUrl`).
-- **Cold starts.** Spawning a server per turn adds first-token latency; point the adapter at a long-lived `baseUrl` to avoid it.
+- Server-only (Node)
+- Harness owns agent loop; no sampling controls
+- Sessions server-local
+- Reduce cold start with long-lived `baseUrl`

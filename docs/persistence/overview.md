@@ -1,7 +1,7 @@
 ---
 title: Persistence Overview
 id: overview
-description: "Set up persistence for chat, generation and sandboxes: one server route, one client option. Copy the snippets, then read the details only if you need them."
+description: "Chat, generation, sandboxes: middleware on the server, one client option. Copy the snippets."
 keywords:
   - persistence
   - durability
@@ -13,15 +13,9 @@ keywords:
 
 # Persistence
 
-Your user reloads the page and the conversation is gone, because it only ever lived
-in memory. Or they open the app on their phone and none of it is there. Persistence
-fixes both, and it is two snippets: one middleware on the server, one option on the
-client.
-
-There is a second, separate problem: the socket drops while a reply is still
-streaming. That is [Resumable Streams](../resumable-streams/overview), a different
-layer you can add on its own. Step 3 below combines them, which is what most apps
-end up wanting.
+If you need a conversation that survives reload (and multi-device) → steps 1–2.
+If you also need mid-stream resume after reload → step 3.
+Socket drop with the page still open is [Resumable Streams](../resumable-streams/overview), a separate layer.
 
 ## Install
 
@@ -29,27 +23,19 @@ end up wanting.
 pnpm add @tanstack/ai-persistence
 ```
 
-The client half needs no install. It ships in the framework package you already use
-(`@tanstack/ai-react`, `-vue`, `-solid`, `-svelte`, `-angular`, or
-`@tanstack/ai-client`).
+Client half ships in `@tanstack/ai-react` (and vue/solid/svelte/angular/`ai-client`). No extra install.
 
-Wire this package's [Agent Skills](../getting-started/agent-skills) into your coding
-assistant before you write any of it, then ask it for "add chat persistence to this
-app":
+Optional: wire [Agent Skills](../getting-started/agent-skills), then ask for "add chat persistence":
 
 ```bash
 npx @tanstack/intent@latest install
 ```
 
-Run that after the package is installed. Intent scans `node_modules`, so anything
-added later needs another run.
+Run after install. Intent scans `node_modules`; re-run when you add packages.
 
 ## 1. Server: store the conversation
 
-`withPersistence` writes the transcript, run status and any pending approvals into
-your own store. `persistence` here is your adapter;
-[build one](./build-your-own-adapter) in about 40 lines, or start with
-`memoryPersistence()` for local dev.
+`withPersistence` writes transcript, run status, and pending approvals. Point it at your adapter ([build one](./build-your-own-adapter) ~40 lines, or `memoryPersistence()` for local dev).
 
 ```ts
 import {
@@ -75,15 +61,12 @@ export async function POST(request: Request) {
 }
 ```
 
-## 2. Client: bring it back
+## 2. Client: restore it
 
-Two forms, and the choice is only about who owns the history:
-
-- **`persistence: true`** puts the server in charge. The browser caches nothing and
-  asks the server for the thread on mount. Best for multi-user and multi-device apps.
-- **`persistence: <adapter>`** puts the browser in charge, with
-  `localStoragePersistence()`, `sessionStoragePersistence()` or
-  `indexedDBPersistence()`. No server store needed.
+| Mode | Who owns history | When |
+| --- | --- | --- |
+| `persistence: true` | Server. Browser caches nothing; hydrates by `threadId` on mount | Multi-user, multi-device |
+| `persistence: <adapter>` | Browser (`localStoragePersistence()`, `sessionStoragePersistence()`, `indexedDBPersistence()`) | SPA / offline, no server store |
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
@@ -93,20 +76,18 @@ function Chat() {
     threadId: 'support-chat',
     connection: fetchServerSentEvents('/api/chat'),
     persistence: true,
-    // Or keep the transcript in the browser instead:
+    // Or browser-owned:
     // persistence: localStoragePersistence(),
   })
   return <button onClick={() => sendMessage('hi')}>{messages.length}</button>
 }
 ```
 
-With `persistence: true` the client needs one `GET` to read from, which is step 3.
-With a storage adapter you are done: reload and the conversation is there.
+`persistence: true` needs the `GET` in step 3. A storage adapter is enough alone: reload restores the thread.
 
 ## 3. Survive a reload mid-answer
 
-Add a `GET` to the same route. It does two jobs, and the `if` picks one per request:
-replay a run that is still streaming, or hand back the stored transcript.
+One `GET` on the same route: replay an in-flight run, or return the stored transcript.
 
 ```ts
 import {
@@ -119,13 +100,11 @@ import { persistence } from './persistence'
 
 export function GET(request: Request): Response | Promise<Response> {
   const durability = memoryStream(request)
-  // A run still in flight: the client sent a resume offset, so replay its log.
   if (durability.resumeFrom() !== null) {
     return resumeServerSentEventsResponse({ adapter: durability })
   }
-  // Otherwise return the stored thread, plus a cursor to any run still generating.
   return reconstructChat(persistence, request, {
-    // WITHOUT this, anyone who guesses a thread id gets the whole transcript.
+    // Without this, anyone who guesses a thread id gets the transcript.
     authorize: async (threadId, req) => ownsThread(req, threadId),
   })
 }
@@ -133,46 +112,33 @@ export function GET(request: Request): Response | Promise<Response> {
 async function ownsThread(request: Request, threadId: string): Promise<boolean> {
   void request
   void threadId
-  return true // replace with your session and ownership check
+  return true // replace with session + ownership check
 }
 ```
 
-`useChat` drives both halves for you. On mount it fetches the transcript, and if the
-server reports a run still generating, it tails that run and the reply finishes in
-place. Nothing else to wire, and a second device follows the identical path.
+`useChat` drives both: on mount it fetches the transcript; if a run is still generating, it tails it. For resumable `POST`, pass the same adapter: `toServerSentEventsResponse(stream, { durability: { adapter: memoryStream(request) } })`.
 
-To make the `POST` resumable too, hand the same adapter to the response:
-`toServerSentEventsResponse(stream, { durability: { adapter: memoryStream(request) } })`.
+## Generation and sandboxes
 
-## Generation and sandboxes use the same idea
+| Surface | What to do |
+| --- | --- |
+| Generation (image/video/speech/transcription) | `persistence: true` on the hook + `generationRuns` store → [Generation persistence](./generation-persistence). Bytes after provider URLs expire → [Keep generated files](./keep-generated-files) |
+| Sandboxed agents | Runs can outlive the tab → [Build a Sandbox Adapter](./build-a-sandbox-adapter), [Durable Runs](../sandbox/durable-runs) |
 
-- **Generation** (image, video, speech, transcription): the hooks take a
-  `persistence` option too, boolean only, backed by a `generationRuns` store. See
-  [Generation persistence](./generation-persistence), and
-  [Keep generated files](./keep-generated-files) to hold the bytes after the
-  provider's URLs expire.
-- **Sandboxed agents**: a run can outlive the tab and be adopted by another host.
-  See [Build a Sandbox Adapter](./build-a-sandbox-adapter) for what to
-  store, and [Durable Runs](../sandbox/durable-runs) for why.
-
-## Which setup do I want?
+## Which setup?
 
 | You want | Turn on |
 | --- | --- |
-| The conversation to survive a reload, nothing more | Step 2 with a storage adapter |
-| The same conversation on another device, or after a server restart | Steps 1 and 2 with `persistence: true` |
-| A reload mid-answer to pick the answer back up | Steps 1, 2 and 3 |
-| A dropped socket to resume with the page still open | [Resumable Streams](../resumable-streams/overview) alone |
-| To pause for a human approval and resume it days later | Step 1 with an `interrupts` store |
+| Survive reload only | Step 2 with a storage adapter |
+| Same thread on another device / after server restart | Steps 1–2 with `persistence: true` |
+| Reload mid-answer picks up | Steps 1–3 |
+| Dropped socket, page still open | [Resumable Streams](../resumable-streams/overview) alone |
+| Human approval, resume days later | Step 1 with an `interrupts` store |
 
-## Where to go next
+## Next
 
-- [Chat persistence](./chat-persistence): the server middleware in full, including
-  durable interrupts.
-- [Client persistence](./client-persistence): the modes, storage backends, and what a
-  reload restores in each case.
-- [Build your own adapter](./build-your-own-adapter): implement the stores against
-  your database and prove them with the conformance suite.
-- [Controls](./controls): compose backends per store.
-- [How persistence works](./internals): the two layers, thread and run identity, who
-  owns history, and the middleware lifecycle. Read it when something surprises you.
+- [Chat persistence](./chat-persistence) — server middleware, durable interrupts
+- [Client persistence](./client-persistence) — modes, backends, reload behavior
+- [Build your own adapter](./build-your-own-adapter) — stores + conformance suite
+- [Controls](./controls) — compose backends per store
+- [How persistence works](./internals) — layers, identity, lifecycle (when something surprises you)

@@ -2,7 +2,7 @@
 title: Realtime Voice Chat
 id: realtime-chat
 order: 2
-description: "Build realtime voice-to-voice AI chat with TanStack AI — WebRTC and WebSocket, voice activity detection, interruptions, and multimodal input."
+description: "Voice-to-voice chat with WebRTC/WebSocket, VAD, interruptions, tools, and multimodal input."
 keywords:
   - tanstack ai
   - realtime voice
@@ -15,48 +15,37 @@ keywords:
   - useRealtimeChat
 ---
 
-TanStack AI provides a complete realtime voice chat system for building voice-to-voice AI interactions. The realtime API supports multiple providers (OpenAI, ElevenLabs), automatic tool execution, audio visualization, and multimodal input including images.
+# Realtime Voice Chat
 
-## Overview
+If you need voice-to-voice AI → token endpoint on the server + `useRealtimeChat` (or `RealtimeClient`) on the client.
 
-Realtime voice chat differs from text-based chat in several key ways:
+Flow:
 
-- **Bidirectional audio** - Users speak into a microphone, and the AI responds with synthesized voice
-- **Voice Activity Detection (VAD)** - Automatically detects when the user starts and stops speaking
-- **Interruptions** - Users can interrupt the AI mid-response
-- **Low latency** - Uses WebRTC or WebSocket connections for near-instant communication
-- **Multimodal** - Supports text input, image input, and tool calling alongside voice
+1. Server: `realtimeToken()` with a token adapter (API key stays server-side)
+2. Client: connect with a connection adapter (`openaiRealtime()`, `elevenlabsRealtime()`)
+3. VAD, tools, text/image input run over the live session
 
-The realtime system follows the same adapter architecture as the rest of TanStack AI:
-
-1. **Server** generates ephemeral tokens using `realtimeToken()` with a provider-specific token adapter
-2. **Client** connects using `RealtimeClient` (or `useRealtimeChat` in React) with a provider-specific connection adapter
-3. **Provider adapters** handle the protocol differences between OpenAI WebRTC, ElevenLabs WebSocket, etc.
-
-## Quick Start
-
-### 1. Set Up the Server Token Endpoint
-
-The server generates short-lived tokens so your API keys never reach the client:
+## 1. Server token endpoint
 
 ```typescript ignore
 import { realtimeToken } from '@tanstack/ai'
 import { openaiRealtimeToken } from '@tanstack/ai-openai'
 import { createServerFn } from '@tanstack/react-start'
 
-const getRealtimeToken = createServerFn({ method: 'POST' })
-  .handler(async () => {
+const getRealtimeToken = createServerFn({ method: 'POST' }).handler(
+  async () => {
     return realtimeToken({
       adapter: openaiRealtimeToken({
         model: 'gpt-realtime',
       }),
     })
-  })
+  },
+)
 ```
 
-> **Note:** The `realtimeToken()` function works with any server framework. The example above uses TanStack Start, but you can use Express, Hono, Fastify, or any other framework that can handle HTTP requests.
+Works with any HTTP framework — Express, Hono, Fastify, etc.
 
-### 2. Connect from the Client (React)
+## 2. Client (React)
 
 ```tsx
 import { useRealtimeChat } from '@tanstack/ai-react'
@@ -74,7 +63,8 @@ function VoiceChat() {
     inputLevel,
     outputLevel,
   } = useRealtimeChat({
-    getToken: () => fetch('/api/realtime-token', { method: 'POST' }).then(r => r.json()),
+    getToken: () =>
+      fetch('/api/realtime-token', { method: 'POST' }).then((r) => r.json()),
     adapter: openaiRealtime(),
     instructions: 'You are a helpful voice assistant.',
     voice: 'alloy',
@@ -107,80 +97,57 @@ function VoiceChat() {
 
 ## Providers
 
-### OpenAI Realtime
-
-OpenAI's realtime API uses WebRTC for low-latency voice communication.
-
-**Server (token generation):**
+### OpenAI (WebRTC)
 
 ```typescript
 import { realtimeToken } from '@tanstack/ai'
 import { openaiRealtimeToken } from '@tanstack/ai-openai'
+import { openaiRealtime } from '@tanstack/ai-openai'
 
 const token = await realtimeToken({
-  adapter: openaiRealtimeToken({
-    model: 'gpt-realtime',
-  }),
+  adapter: openaiRealtimeToken({ model: 'gpt-realtime' }),
 })
-```
-
-**Client (connection):**
-
-```typescript
-import { openaiRealtime } from '@tanstack/ai-openai'
 
 const adapter = openaiRealtime()
 ```
 
-**Environment variables:** `OPENAI_API_KEY`
+Env: `OPENAI_API_KEY`. Models: `gpt-realtime`, `gpt-realtime-mini`. Voices: `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin`, `cedar`.
 
-**Available models:**
+### ElevenLabs (WebSocket)
 
-| Model | Description |
-|-------|-------------|
-| `gpt-realtime` | Full realtime model |
-| `gpt-realtime-mini` | Smaller, faster realtime model |
-
-**Available voices:** `alloy`, `ash`, `ballad`, `coral`, `echo`, `sage`, `shimmer`, `verse`, `marin`, `cedar`
-
-### ElevenLabs Realtime
-
-ElevenLabs uses WebSocket connections and requires an agent configured in their dashboard.
-
-**Server (token generation):**
+Configure the agent in the ElevenLabs dashboard.
 
 ```typescript
 import { realtimeToken } from '@tanstack/ai'
 import { elevenlabsRealtimeToken } from '@tanstack/ai-elevenlabs'
+import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
 
 const token = await realtimeToken({
-  adapter: elevenlabsRealtimeToken({
-    agentId: 'your-agent-id',
-  }),
+  adapter: elevenlabsRealtimeToken({ agentId: 'your-agent-id' }),
 })
-```
-
-**Client (connection):**
-
-```typescript
-import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
 
 const adapter = elevenlabsRealtime()
 ```
 
-**Environment variables:** `ELEVENLABS_API_KEY`, `ELEVENLABS_AGENT_ID` (optional)
+Env: `ELEVENLABS_API_KEY`, optional `ELEVENLABS_AGENT_ID`. Setup: [ElevenLabs adapter](../adapters/elevenlabs).
 
-## Voice Activity Detection (VAD)
+```typescript
+import { useRealtimeChat } from '@tanstack/ai-react'
+import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
 
-VAD controls when the system detects that you've started and stopped speaking. Three modes are available:
+const { status, messages, connect, disconnect } = useRealtimeChat({
+  getToken: () => fetch('/api/elevenlabs-token').then((r) => r.json()),
+  adapter: elevenlabsRealtime(),
+})
+```
 
-| Mode | How it works | Best for |
-|------|-------------|----------|
-| `server` | The provider detects speech server-side using audio energy levels | Default — simple, low client complexity |
-| `semantic` | Detects end-of-utterance using semantic cues like pauses and sentence completion | Natural conversation — avoids cutting you off mid-sentence |
-| `manual` | You call `startListening()` / `stopListening()` explicitly | Push-to-talk interfaces |
+## Voice activity detection
 
-Set the VAD mode when creating the hook:
+| Mode | Behavior | Best for |
+|------|----------|----------|
+| `server` | Provider detects speech | Default |
+| `semantic` | End-of-utterance via pauses/sentences | Natural turn-taking |
+| `manual` | You call `startListening` / `stopListening` | Push-to-talk |
 
 ```typescript
 import { useRealtimeChat } from '@tanstack/ai-react'
@@ -190,11 +157,12 @@ import { getToken } from './token'
 const { startListening, stopListening, updateSession } = useRealtimeChat({
   getToken,
   adapter: openaiRealtime(),
-  vadMode: 'manual', // or 'server' or 'semantic'
+  vadMode: 'manual',
 })
-```
 
-With `manual` VAD mode, use push-to-talk style interactions:
+// Runtime switch:
+// updateSession({ vadMode: 'semantic' })
+```
 
 ```tsx ignore
 <button onMouseDown={startListening} onMouseUp={stopListening}>
@@ -202,13 +170,7 @@ With `manual` VAD mode, use push-to-talk style interactions:
 </button>
 ```
 
-You can switch VAD mode at runtime without reconnecting, via `updateSession`:
-
-```typescript ignore
-updateSession({ vadMode: 'semantic' })
-```
-
-For semantic VAD, configure eagerness to control how long the model waits before deciding you've finished speaking:
+Semantic eagerness:
 
 ```typescript
 import { useRealtimeChat } from '@tanstack/ai-react'
@@ -219,13 +181,11 @@ const chat = useRealtimeChat({
   getToken,
   adapter: openaiRealtime(),
   vadMode: 'semantic',
-  semanticEagerness: 'low', // waits longer before detecting end-of-speech
+  semanticEagerness: 'low', // waits longer before end-of-speech
 })
 ```
 
 ## Tools
-
-Realtime sessions support client-side tools. Define tools using the standard `toolDefinition()` API and pass their client implementations:
 
 ```typescript
 import { toolDefinition } from '@tanstack/ai'
@@ -251,7 +211,6 @@ const getWeather = getWeatherDef.client(async ({ location }) => {
   return res.json()
 })
 
-// Pass tools to the hook
 const chat = useRealtimeChat({
   getToken,
   adapter: openaiRealtime(),
@@ -259,11 +218,9 @@ const chat = useRealtimeChat({
 })
 ```
 
-The realtime client automatically executes tool calls and sends results back to the provider. Tool calls appear as `tool-call` and `tool-result` parts in messages.
+Client auto-executes tools; parts appear as `tool-call` / `tool-result`.
 
-## Text and Image Input
-
-In addition to voice, you can send text messages and images:
+## Text and image input
 
 ```typescript
 import { useRealtimeChat } from '@tanstack/ai-react'
@@ -271,18 +228,16 @@ import { openaiRealtime } from '@tanstack/ai-openai'
 import { getToken } from './token'
 import { base64ImageData } from './assets'
 
-const { sendText, sendImage } = useRealtimeChat({ getToken, adapter: openaiRealtime() })
+const { sendText, sendImage } = useRealtimeChat({
+  getToken,
+  adapter: openaiRealtime(),
+})
 
-// Send a text message
 sendText('What is the weather like today?')
-
-// Send an image (base64 data or URL)
 sendImage(base64ImageData, 'image/png')
 ```
 
-## Audio Visualization
-
-`useRealtimeChat` exposes audio analysis data for building level meters, waveforms, and spectrum analyzers.
+## Audio visualization
 
 ```typescript
 import { useRealtimeChat } from '@tanstack/ai-react'
@@ -290,24 +245,16 @@ import { openaiRealtime } from '@tanstack/ai-openai'
 import { getToken } from './token'
 
 const {
-  inputLevel,    // 0–1 normalized microphone level
-  outputLevel,   // 0–1 normalized speaker level
-  getInputFrequencyData,   // Uint8Array — FFT bins for spectrum analyzer
+  inputLevel, // 0–1 mic
+  outputLevel, // 0–1 speaker
+  getInputFrequencyData,
   getOutputFrequencyData,
-  getInputTimeDomainData,  // Uint8Array — waveform samples for oscilloscope
+  getInputTimeDomainData,
   getOutputTimeDomainData,
 } = useRealtimeChat({ getToken, adapter: openaiRealtime() })
 ```
 
-The `inputLevel` and `outputLevel` values update on every animation frame while connected, making them suitable for driving CSS animations or canvas visualizations.
-
-**Simple level meter:**
-
-```tsx ignore
-<div style={{ width: `${inputLevel * 100}%`, height: 4, background: 'green' }} />
-```
-
-**Pulsing audio indicator:**
+Levels update every animation frame while connected.
 
 ```tsx
 function AudioIndicator({ level }: { level: number }) {
@@ -326,198 +273,90 @@ function AudioIndicator({ level }: { level: number }) {
 }
 ```
 
-**Spectrum analyzer using canvas:**
-
-```typescript ignore
-function drawSpectrum(canvas: HTMLCanvasElement) {
-  const ctx = canvas.getContext('2d')!
-  const draw = () => {
-    const data = getInputFrequencyData()
-    ctx.clearRect(0, 0, canvas.width, canvas.height)
-    const barWidth = canvas.width / data.length
-    data.forEach((value, i) => {
-      const height = (value / 255) * canvas.height
-      ctx.fillRect(i * barWidth, canvas.height - height, barWidth - 1, height)
-    })
-    requestAnimationFrame(draw)
-  }
-  draw()
-}
-```
-
 ## Interruptions
-
-Users can interrupt the AI while it's speaking:
 
 ```typescript
 import { useRealtimeChat } from '@tanstack/ai-react'
 import { openaiRealtime } from '@tanstack/ai-openai'
 import { getToken } from './token'
 
-const { interrupt, mode } = useRealtimeChat({ getToken, adapter: openaiRealtime() })
+const { interrupt, mode } = useRealtimeChat({
+  getToken,
+  adapter: openaiRealtime(),
+})
 
-// Programmatically interrupt
 if (mode === 'speaking') {
   interrupt()
 }
 ```
 
-With server or semantic VAD, interruptions happen automatically when the user starts speaking. Interrupted messages are marked with `interrupted: true` in the messages array.
+Server/semantic VAD interrupt automatically. Interrupted messages set `interrupted: true`.
 
-## Using RealtimeClient Directly
-
-For non-React applications or more control, use `RealtimeClient` directly:
+## RealtimeClient (non-React)
 
 ```typescript
 import { RealtimeClient } from '@tanstack/ai-client'
 import { openaiRealtime } from '@tanstack/ai-openai'
 
 const client = new RealtimeClient({
-  getToken: () => fetch('/api/realtime-token', { method: 'POST' }).then(r => r.json()),
+  getToken: () =>
+    fetch('/api/realtime-token', { method: 'POST' }).then((r) => r.json()),
   adapter: openaiRealtime(),
   instructions: 'You are a helpful assistant.',
   voice: 'alloy',
   onMessage: (message) => {
     console.log(`${message.role}:`, message.parts)
   },
-  onStatusChange: (status) => {
-    console.log('Status:', status)
-  },
-  onModeChange: (mode) => {
-    console.log('Mode:', mode)
-  },
+  onStatusChange: (status) => console.log('Status:', status),
+  onModeChange: (mode) => console.log('Mode:', mode),
 })
 
-// Connect
 await client.connect()
-
-// Send text
 client.sendText('Hello!')
 
-// Subscribe to state changes
 const unsub = client.onStateChange((state) => {
   console.log('Messages:', state.messages.length)
 })
 
-// Disconnect when done
 await client.disconnect()
-
-// Clean up
 client.destroy()
 ```
 
-## Using ElevenLabs
+## Next
 
-TanStack AI supports [ElevenLabs](../adapters/elevenlabs) as an alternative realtime voice provider. The client API is identical — swap the adapter and token function:
-
-```typescript
-import { useRealtimeChat } from '@tanstack/ai-react'
-import { elevenlabsRealtime } from '@tanstack/ai-elevenlabs'
-
-const { status, messages, connect, disconnect } = useRealtimeChat({
-  getToken: () => fetch('/api/elevenlabs-token').then(r => r.json()),
-  adapter: elevenlabsRealtime(),
-})
-```
-
-> **Note:** ElevenLabs uses agent-based configuration — voice and system prompt are set in the ElevenLabs dashboard or via token overrides. See the [ElevenLabs adapter page](../adapters/elevenlabs) for setup details.
-
-## Next Steps
-
-- [Tools](../tools/tools) - Learn about the isomorphic tool system
-- [Text-to-Speech](./text-to-speech) - Non-realtime speech generation
-- [Multimodal Content](../advanced/multimodal-content) - Working with images, audio, and video
-- [ElevenLabs Adapter](../adapters/elevenlabs) - ElevenLabs realtime voice provider setup and configuration
+- [Tools](../tools/tools) · [Text-to-Speech](./text-to-speech) · [Multimodal](../advanced/multimodal-content) · [ElevenLabs](../adapters/elevenlabs)
 
 ## Advanced
 
-Reference detail you do not need to get this working.
-
-### Session Configuration
-
-Configure the realtime session through the hook options:
+### Session options
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `getToken` | `() => Promise<RealtimeToken>` | required | Function to fetch a token from the server |
-| `adapter` | `RealtimeAdapter` | required | Provider adapter (`openaiRealtime()`, `elevenlabsRealtime()`) |
-| `instructions` | `string` | — | System instructions for the assistant |
-| `voice` | `string` | — | Voice to use for audio output |
-| `tools` | `AnyClientTool[]` | — | Client-side tools with execution logic |
-| `vadMode` | `'server' \| 'semantic' \| 'manual'` | `'server'` | Voice activity detection mode |
-| `semanticEagerness` | `'low' \| 'medium' \| 'high'` | — | Eagerness for semantic VAD |
-| `autoPlayback` | `boolean` | `true` | Auto-play assistant audio |
-| `autoCapture` | `boolean` | `true` | Request microphone on connect |
-| `outputModalities` | `Array<'audio' \| 'text'>` | — | Response modalities |
-| `temperature` | `number` | — | Generation temperature |
-| `maxOutputTokens` | `number \| 'inf'` | — | Max tokens in a response |
+| `getToken` | `() => Promise<RealtimeToken>` | required | Fetch token |
+| `adapter` | `RealtimeAdapter` | required | Provider adapter |
+| `instructions` / `voice` / `tools` | session config | — | System prompt, voice, client tools |
+| `vadMode` | `'server' \| 'semantic' \| 'manual'` | `'server'` | VAD mode |
+| `semanticEagerness` | `'low' \| 'medium' \| 'high'` | — | Semantic VAD |
+| `autoPlayback` / `autoCapture` | `boolean` | `true` | Play audio / request mic |
+| `outputModalities` / `temperature` / `maxOutputTokens` | generation | — | Modalities and limits |
 
-### Connection Lifecycle
+### Lifecycle
 
-The realtime client manages a connection lifecycle with these statuses:
+**Status:** `idle` → `connecting` → `connected` → `reconnecting` / `error`
 
-| Status | Description |
-|--------|-------------|
-| `idle` | Not connected |
-| `connecting` | Establishing connection |
-| `connected` | Active session |
-| `reconnecting` | Reconnecting after interruption |
-| `error` | Connection error occurred |
+**Mode:** `idle` · `listening` · `thinking` · `speaking`
 
-And these modes while connected:
+### Message parts
 
-| Mode | Description |
-|------|-------------|
-| `idle` | Connected but not actively interacting |
-| `listening` | Capturing user audio input |
-| `thinking` | Processing user input |
-| `speaking` | AI is generating a response |
+| Type | Fields |
+|------|--------|
+| `text` | `content` |
+| `audio` | `transcript`, `durationMs` |
+| `tool-call` | `id`, `name`, `arguments`, `input`, `output` |
+| `tool-result` | `toolCallId`, `content` |
+| `image` | `data`, `mimeType` |
 
-```typescript
-import { useRealtimeChat } from '@tanstack/ai-react'
-import { openaiRealtime } from '@tanstack/ai-openai'
-import { getToken } from './token'
-import { useEffect } from 'react'
-
-const { status, mode, error, connect, disconnect } = useRealtimeChat({ getToken, adapter: openaiRealtime() })
-
-// Handle connection
-useEffect(() => {
-  if (status === 'error' && error) {
-    console.error('Connection error:', error.message)
-  }
-}, [status, error])
-```
-
-### Message Structure
-
-Realtime messages use a `parts`-based structure similar to `UIMessage`:
-
-```typescript
-import type { RealtimeMessagePart } from '@tanstack/ai'
-
-interface RealtimeMessage {
-  id: string
-  role: 'user' | 'assistant'
-  timestamp: number
-  parts: Array<RealtimeMessagePart>
-  interrupted?: boolean
-}
-```
-
-Each part can be one of:
-
-| Part Type | Fields | Description |
-|-----------|--------|-------------|
-| `text` | `content` | Text content from `sendText()` |
-| `audio` | `transcript`, `durationMs` | Transcribed voice content |
-| `tool-call` | `id`, `name`, `arguments`, `input`, `output` | Tool invocation |
-| `tool-result` | `toolCallId`, `content` | Tool execution result |
-| `image` | `data`, `mimeType` | Image sent via `sendImage()` |
-
-### Error Handling
-
-Handle errors through the `onError` callback or the `error` state:
+### Errors
 
 ```typescript
 import { useRealtimeChat } from '@tanstack/ai-react'
@@ -537,11 +376,10 @@ const { error } = useRealtimeChat({
 })
 ```
 
-### Best Practices
+### Practices
 
-1. **Token security** - Always generate tokens server-side. Never expose API keys to the client.
-2. **Microphone permissions** - Handle the case where the user denies microphone access gracefully.
-3. **Cleanup** - Always disconnect when unmounting components. The `useRealtimeChat` hook handles this automatically.
-4. **Instructions** - Keep voice assistant instructions concise. Remind the model it's in a voice interface so responses stay conversational.
-5. **Tool design** - Keep tool descriptions clear and tool outputs small, since results are processed in real time.
-6. **Error recovery** - Implement retry logic for transient connection failures.
+1. Generate tokens server-side only.
+2. Handle mic permission denial.
+3. Disconnect on unmount (`useRealtimeChat` does this).
+4. Keep voice instructions short and conversational.
+5. Keep tool outputs small for real-time turns.

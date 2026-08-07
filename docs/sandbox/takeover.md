@@ -2,7 +2,7 @@
 title: Takeover & Detached Runs (Advanced)
 id: sandbox-takeover
 order: 13
-description: "Let a sandboxed agent run outlive the browser tab: detach on disconnect, then take the run over from another host and resume streaming where the log left off."
+description: "Detach on disconnect, take a run over from another host, resume streaming from the log."
 keywords:
   - detached run
   - run takeover
@@ -16,86 +16,33 @@ keywords:
 
 # Takeover & Detached Runs
 
-A sandboxed coding agent can work for ten minutes. A browser tab does not last
-ten minutes. Users refresh, close the laptop, lose wifi, and hit a load balancer
-that lands the next request on a different replica.
+If the agent outlives a tab (refresh, wifi, other replica) → wire durable detach + takeover.
 
-Without durability wired, the disconnect is fatal: `withSandbox`'s abort path
-destroys the sandbox on every abort, deliberately, because closing the agent's
-IO stream does **not** kill the agent process (a Docker `exec` survives its
-client), so destroying the container is the only reliable way to stop it burning
-tokens. Correct for a cancel. Ruinous for a refresh.
+**Must read first:** [Journal](./journal) · [Resumable Streams](../resumable-streams/overview).
 
-Durable runs split those two cases apart. A disconnect **detaches**: the agent
-keeps working, the sandbox stays up, and the run record remembers that nobody is
-watching. A later request **takes the run over**, replays what was already
-delivered, and continues streaming the rest.
+Without durability: abort destroys the sandbox (closing the agent IO stream does **not** kill the process). Correct for cancel; ruinous for refresh.
 
-This page is the wiring. It builds on two pages you should read first:
-[The Run Journal](./journal) (where the agent's output lives, and why it is a
-file rather than a pipe) and
-[Resumable Streams](../resumable-streams/overview) (the delivery log a client
-reconnects to).
+## Opt-in: both `runs` + `durability`
 
-## Durability is one opt-in, not two
+Either alone is useless. Silent destroy-on-disconnect if incomplete. Use the same `RunStore` as chat persistence.
 
-`withSandbox` takes `runs` and `durability`. A run is durable only when **both**
-are present, because either alone is useless: a record with no event log cannot
-be replayed, and a log with no record cannot be found, claimed, or reaped. There
-is no half-configured state. Pass one and you get exactly today's behavior,
-silently and with no warning, because you have not asked for durability.
+## Same backend stream on POST and GET
 
-Pass the **same** `RunStore` chat persistence uses, so one record describes the
-run instead of two that disagree.
+`durableStream(request, options)` resolves run via `X-Run-Id` header first, then `?runId`.
 
-## Both routes must address the same backend stream
+- POST from `@tanstack/ai-client` → header
+- GET join → `?offset=-1&runId=<runId>`
 
-Read this before the snippets. A `StreamDurability` is bound to **one run**,
-and `durableStream(request, options)` resolves which run through core's
-`resolveResumeRunId`: the `X-Run-Id` header first, then `?runId` on the
-request URL. Core's own `memoryStream` uses the same resolver, so no two
-durability adapters can disagree about which run a request names.
-
-- A **POST from `@tanstack/ai-client`** carries the run id in the `X-Run-Id`
-  header, not the URL. The POST URL stays byte-identical to a plain, non-durable
-  chat request.
-- A **GET join** carries it in the URL instead: `joinRun` requests
-  `?offset=-1&runId=<runId>`.
-
-So `durableStream(request, durableOptions)` on both routes resolves the same
-`agent-runs/<runId>` stream, whichever way the run id arrived. Nothing to rewrite,
-nothing to force onto a copy of the URL:
+No run id → throws. Cron/alarm synthesizes a request → [Reaping](./reaping).
 
 ```ts
 import { durableStream } from '@tanstack/ai-durable-stream'
 
-// The external Durable Streams backend every replica can reach. See
-// ../resumable-streams/advanced for the full option set (auth headers, batch
-// size, reconnect tuning).
 export const durableOptions = {
   server: 'https://streams.example.com',
   streamPrefix: 'agent-runs',
 }
 ```
-
-A request naming no run at all (neither header nor query) throws rather than
-silently producing into a stream no attach request could ever name:
-
-```
-durableStream: a runId is required: send it as an X-Run-Id header or a
-?runId query param
-```
-
-That only bites a client that bypasses `@tanstack/ai-client` (a custom
-`fetch`, a hand-rolled reconnect): make sure it sends one of the two, an
-`X-Run-Id` header on the POST or `?runId` on the URL. A mid-stream SSE
-reconnect to the POST route still works. It arrives carrying `Last-Event-ID` and the
-same `X-Run-Id` header the original POST used, so `durableStream` resolves the run and
-honors the resume offset.
-
-And a caller with no live `Request` at all (a cron, a Durable Object `alarm()`)
-synthesizes one from scratch instead. See the reaper's own
-`durabilityFor` in [Reaping & Retention](./reaping).
 
 ## Server: start a durable run
 
@@ -110,34 +57,21 @@ import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 import { withSandbox } from '@tanstack/ai-sandbox'
 import { durableStream } from '@tanstack/ai-durable-stream'
-// The options from the section above.
 import { durableOptions } from './durability'
-// Your distributed LockStore. `InMemoryLockStore` is NOT enough here. See
-// "Requirements" below.
 import { locks } from './locks'
-// Your `defineSandbox(...)` result.
 import { sandbox } from './sandbox'
 
-// Development stand-in. A durable run needs a store every replica can read;
-// see ../persistence/build-your-own-adapter.
 const persistence = memoryPersistence()
 const { runs } = persistence.stores
 
 export async function POST(request: Request) {
   const { messages, threadId, runId } = await chatParamsFromRequest(request)
-  // ONE adapter instance, handed to both the middleware and the transport, so
-  // the journal path and the delivery log describe the same run.
-  // `@tanstack/ai-client` sends `X-Run-Id` on every POST, which is exactly what
-  // `durableStream` resolves first, so this already addresses
-  // `agent-runs/<runId>`: the same stream the attach route below reads.
   const adapter = durableStream(request, durableOptions)
 
   const stream = chat({
     adapter: claudeCodeText('claude-opus-4-8'),
     messages,
     threadId,
-    // Required for a durable run. Omit it and `chatStream` throws
-    // `DurableRunIdRequiredError`. See "Requirements".
     runId,
     middleware: [
       withPersistence(persistence),
@@ -153,94 +87,39 @@ export async function POST(request: Request) {
 }
 ```
 
-Three things changed compared with a plain sandboxed chat endpoint, and each one
-is load bearing:
+**Load-bearing:**
 
-- **`runs` + `durability`** turn on detach-on-disconnect and publish
-  `DetachableRunCapability` on the bus, which is how `withPersistence` learns
-  that an abort on this run is a detach rather than a cancel.
-- **`runId` is forwarded**, not generated. The journal path, the deterministic
-  message-id generator, **and the backend stream name** are all derived from it,
-  so a successor host can only resume a run whose `runId` it can recompute.
-- **The adapter instance is shared** between `withSandbox` and the response, and it is
-  keyed by that same `runId`. That is what makes the attach route below address this
-  very stream.
+1. `runs` + `durability` → detach-on-disconnect + `DetachableRunCapability`.
+2. Forward `runId` (journal path, message ids, stream name).
+3. Share the same adapter instance with the response.
 
-One thing must **not** be there: an `abortController` that mirrors `request.signal`.
+### Do not mirror `request.signal` into `abortController`
 
-A plain sandboxed endpoint mirrors it, because there a disconnect should end the run.
-On a durable run it destroys the thing you are trying to protect. Aborting the run
-makes `chat()` return at its cancellation check right after middleware `setup`, so the
-harness adapter's `chatStream` is never called and **the agent inside the sandbox you
-just spent minutes building is never launched**. Switch tabs while the UI still says
-"starting the sandbox" and you come back to an empty log for a run that did nothing.
-No takeover can recover it either, because an agent that never started wrote no
-journal to replay.
+**Cause:** durable POST aborts on disconnect before harness starts.  
+**Effect:** empty log; agent never launched; takeover cannot recover.  
+**Fix:** omit that mirror. Durable transport notifies disconnect without aborting the run.
 
-The disconnect still reaches `withSandbox` without it. The durable transport notifies
-the run the moment the response body is cancelled, **without** aborting it, and then:
+### `memoryStream` first-chunk deadline
 
-- `withSandbox` stamps `detachedSince` and `sandboxKey`, and publishes the detach
-  verdict.
-- The run keeps draining into its still-open delivery log.
-- A rejoining client tails that log.
-
-Passing `runs` plus `durability` buys all of that. There is nothing else to wire.
-
-A genuine stop is unaffected, because it arrives out of band (see
-[Detach vs cancel](#detach-vs-cancel)). That is the only channel that can tell "the
-user wants this stopped" from "the user closed a tab", since both are the same socket
-close on the wire.
-
-### On `memoryStream`, raise the first-chunk deadline
-
-A rejoin during the sandbox build fails with
-`Memory stream run produced no data within 100ms`, and the run it calls gone is
-healthy. `memoryStream` gives up on a from-start rejoin when the run produces no chunk
-within `firstChunkDeadlineMs`, which defaults to 100ms. That default fits chat, where
-an in-flight run's log already holds chunks. A sandboxed run emits nothing until
-`ensure` has built the sandbox and cloned the repo.
-
-Raise it on **every** handle for the run. The `GET` that serves the rejoin is the call
-that actually applies it:
+Sandbox build can exceed default 100ms. Raise on every handle for the run:
 
 ```ts
-import { memoryStream } from "@tanstack/ai";
+import { memoryStream } from '@tanstack/ai'
 
-// Longer than your slowest `ensure`.
-const FIRST_CHUNK_DEADLINE_MS = 15 * 60_000;
+const FIRST_CHUNK_DEADLINE_MS = 15 * 60_000
 
-// POST (the producer) and GET (the rejoin) alike.
 export function adapterFor(request: Request) {
   return memoryStream(request, {
     firstChunkDeadlineMs: FIRST_CHUNK_DEADLINE_MS,
-  });
+  })
 }
 ```
 
-Failing fast buys nothing once you gate the rejoin on `findActiveRun`, which already
-excludes a run that is really gone before the join is attempted.
-
-Two things make this a backstop rather than the main defence:
-
-- `durableStream` runs no first-chunk deadline at all. Its `read` parks for a live
-  reader, so an empty in-flight log simply waits.
-- A fresh durable producer appends one `CUSTOM` `run.accepted` chunk
-  (`RUN_ACCEPTED_EVENT`) before it pulls the producer stream, so a rejoin attaches in
-  milliseconds instead of waiting on the harness. That chunk also keeps the client from
-  abandoning the join, since `ai-client` gives up on a rejoin that receives nothing for
-  2s and a sandbox build always takes longer.
+`durableStream` has no first-chunk deadline. Fresh durable producers also emit `run.accepted` early so clients do not abandon after 2s.
 
 ## Server: take the run over
 
-The takeover happens in the `GET` handler that already serves resumes. Add a
-`driver` and the same request that replays the log also claims the run and keeps
-driving it.
-
-Every adapter here comes from the **same** `durableStream(request, durableOptions)`
-the `POST` route used, so the log this route replays, the log the drive appends
-to, and the log the producing route wrote are provably one stream:
-`agent-runs/<runId>`.
+GET that already serves resumes: add `driver` + `attach: true` (never on POST).
 
 ```ts
 import { chat, resumeServerSentEventsResponse } from '@tanstack/ai'
@@ -249,7 +128,6 @@ import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { durableStream } from '@tanstack/ai-durable-stream'
 import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 import { sandboxRunDriver, withSandbox } from '@tanstack/ai-sandbox'
-// The same backend options as the POST route.
 import { durableOptions } from './durability'
 import { locks } from './locks'
 import { sandbox } from './sandbox'
@@ -258,11 +136,6 @@ import type { StreamChunk } from '@tanstack/ai'
 const persistence = memoryPersistence()
 const { messages: messageStore, runs } = persistence.stores
 
-/**
- * The claim hands `drive` an `AbortSignal` that fires the moment this host loses
- * ownership; `chat()` takes an `AbortController`. Mirror one onto the other so a
- * lost claim actually stops the drive.
- */
 function controllerFor(signal: AbortSignal): AbortController {
   const controller = new AbortController()
   const abort = (): void => controller.abort(signal.reason)
@@ -277,7 +150,6 @@ export function GET(request: Request) {
     threadId: string
     signal: AbortSignal
   }): AsyncIterable<StreamChunk> {
-    // The client sent no history: it is reconnecting, not asking a question.
     const stored = await messageStore.loadThread(input.threadId)
     const stream = chat({
       adapter: claudeCodeText('claude-opus-4-8'),
@@ -290,14 +162,7 @@ export function GET(request: Request) {
         withLocks(locks),
         withSandbox(sandbox, {
           runs,
-          // `attach: true` is the whole difference: the harness tails the run's
-          // EXISTING journal instead of starting a second agent. It belongs
-          // here and never on `chat()`, which has no sandbox vocabulary. It
-          // is set only by an attach route, never by a POST handler.
           durability: {
-            // `request` already names this run (`?runId` on an attach GET),
-            // so `durableStream` resolves the same `agent-runs/<runId>` the
-            // journal replay aligns against.
             adapter: durableStream(request, durableOptions),
             attach: true,
           },
@@ -308,22 +173,11 @@ export function GET(request: Request) {
   }
 
   return resumeServerSentEventsResponse({
-    // The replaying adapter is the one adapter here whose `resumeFrom()` matters,
-    // and the offset it must return (`?offset=-1` from a join, or an SSE
-    // reconnect's `Last-Event-ID`) lives on the incoming request. `durableStream`
-    // resolves the run the same way on every route, `X-Run-Id` header first,
-    // then `?runId`, so this addresses the same `agent-runs/<runId>` the POST
-    // route wrote, whichever way a given request names the run.
     adapter: durableStream(request, durableOptions),
     driver: sandboxRunDriver({
       request,
       runs,
       locks,
-      // Per-run log factory. Core resolves the id from this same request
-      // through the same `resolveResumeRunId` `durableStream` uses, so every
-      // call for this run talks to the same backend stream and `snapshot()`
-      // sees this host's own appends. The state lives in the Durable Streams
-      // backend, not this process.
       durability: () => durableStream(request, durableOptions),
       drive: driveRun,
     }),
@@ -331,52 +185,13 @@ export function GET(request: Request) {
 }
 ```
 
-The response is **byte-identical** whether or not you pass `driver`: it still
-replays from the durability log. The drive runs beside it, appending to the run's
-producer-side log, and the response tails what lands. That separation is what
-lets a taken-over run keep `chat()`'s normal middleware path, so
-`withPersistence`'s `onFinish` still saves the transcript of a run that finished
-while detached.
+Response always replays the log; drive appends beside it. Failures: serve log, drive nothing (no id, terminal, claim lost). Drive throws → log only. Serverless: pass `waitUntil`.
 
-Everything about the takeover is **total by construction**. Every failure is
-logged and swallowed, and the response still serves the log:
+## Client: reconnect
 
-| Situation | What happens |
-| --- | --- |
-| No run id on the request, or no record | Serve the log, drive nothing. |
-| The record is already terminal | Serve the log, drive nothing. A second tab attaching to a finished run must still see the transcript. |
-| Another host holds the claim | Serve the log, drive nothing. Two tabs attaching at once: one wins the lease and drives, the other tails. |
-| The drive throws | Logged server-side. It cannot be reported to a response that is already streaming; the run's own `RUN_ERROR` event is that channel. |
+Mid-stream: `useChat` reconnects with last offset.
 
-Serverless platforms need a keep-alive for the background drive. Pass
-`waitUntil: (promise) => ctx.waitUntil(promise)`.
-
-## Client: reconnect and continue
-
-A mid-stream drop needs nothing: `useChat` reconnects with the last offset and
-the server replays from the log.
-
-```tsx
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-
-export function Chat() {
-  const chat = useChat({
-    connection: fetchServerSentEvents('/api/chat'),
-  })
-
-  return (
-    <button onClick={() => void chat.sendMessage('Refactor the auth module')}>
-      Send ({chat.messages.length} messages)
-    </button>
-  )
-}
-```
-
-A full reload is different. The page comes back with no `Last-Event-ID`, so it
-has to ask which run is still going and then join it from the start with
-`joinRun` (a read-only `GET` with `offset=-1`), which is exactly the handler
-above. That `GET` is what claims the run, so joining and taking over are the same
-request.
+Full reload: resolve active run → `joinRun`:
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-client'
@@ -404,9 +219,7 @@ export function ResumeInFlight({ threadId }: { threadId: string }) {
       }
     }
 
-    void rejoin().catch(() => {
-      // The run finished, or there was none. Nothing to rejoin.
-    })
+    void rejoin().catch(() => {})
     return () => controller.abort()
   }, [threadId])
 
@@ -414,9 +227,7 @@ export function ResumeInFlight({ threadId }: { threadId: string }) {
 }
 ```
 
-The "which run" endpoint is `RunStore.findActiveRun`, which resolves a live run
-from the **stable** `threadId` rather than the ephemeral run id a single turn may
-mint several of. It is an optional store method, so feature-detect it.
+Active-run endpoint (`findActiveRun`):
 
 ```ts
 import { memoryPersistence } from '@tanstack/ai-persistence'
@@ -429,39 +240,19 @@ export async function GET(request: Request) {
   if (threadId === null) {
     return new Response('threadId is required', { status: 400 })
   }
-  // Optional on the RunStore contract, so a backend that omits it degrades to
-  // "no active run" instead of throwing.
   const active = await runs.findActiveRun(threadId)
   return Response.json({ runId: active?.runId ?? null })
 }
 ```
 
-All four HTTP connection adapters (`fetchServerSentEvents`, `fetchHttpStream`,
-`xhrServerSentEvents`, `xhrHttpStream`) expose `joinRun`. For NDJSON, pair it
-with `resumeHttpResponse` on the server; the driver wiring is identical.
-
 ## Detach vs cancel
 
-**This is the part that is easy to get wrong, and getting it wrong is
-expensive.** A user pressing Stop and a user closing the tab produce the
-*identical* connection close. There is nothing in the disconnect to tell them
-apart.
+Stop and close-tab look identical on the wire. Intent is **out of band**:
 
-So intent is never inferred from the disconnect. It arrives **out of band**, and
-there are exactly two bands, and either one is authoritative:
+1. **Durable:** `requestRunCancel(runs, runId)` — reaches remote drivers.
+2. **In-process:** abort with `RUN_CANCEL_REASON`.
 
-1. **Durable**: `requestRunCancel(runs, runId)` records `cancelRequested` on
-   the run record. This is the only channel that reaches a run being driven by a
-   *different* host than the one the cancel request landed on, which is the
-   normal case for a detached run.
-2. **In-process**: abort the run's own `AbortController` with
-   `RUN_CANCEL_REASON`. Core reads that reason back when it builds `AbortInfo`,
-   so `AbortInfo.cancelRequested` is `true` for that abort and `false` for a
-   plain disconnect. Fast path when the cancel reaches the driving host.
-
-A cancel endpoint should do **both**. `requestRunCancel` deliberately writes no
-status: recording intent is not the same as the run having stopped, and only the
-driver knows when the agent is actually dead and the sandbox is gone.
+Cancel endpoint should do **both**:
 
 ```ts
 import { RUN_CANCEL_REASON, requestRunCancel } from '@tanstack/ai'
@@ -469,11 +260,6 @@ import { memoryPersistence } from '@tanstack/ai-persistence'
 
 const persistence = memoryPersistence()
 const { runs } = persistence.stores
-
-/**
- * Runs this process is currently driving. Only ever a fast path: a run driven by
- * another replica is absent here, and the durable band is what reaches it.
- */
 const driving = new Map<string, AbortController>()
 
 export async function POST(request: Request) {
@@ -489,22 +275,14 @@ export async function POST(request: Request) {
   const active = await runs.findActiveRun(threadId)
   if (!active) return new Response(null, { status: 204 })
 
-  // Band 1: durable, so a remote driver observes it on its next teardown.
   await requestRunCancel(runs, active.runId)
-  // Band 2: in-process, so a co-located driver stops immediately.
   driving.get(active.runId)?.abort(RUN_CANCEL_REASON)
 
   return new Response(null, { status: 204 })
 }
 ```
 
-Populate `driving` where you create the run's `AbortController`: in the `POST`
-handler for a fresh run, and in `controllerFor` on the takeover path.
-
-On the client, `chat.stop()` alone is **not** a cancel. It aborts a local
-`AbortController` and sends the server nothing, which on a durable run is
-indistinguishable from a refresh, so the agent keeps running. Call the endpoint
-too:
+Client: `chat.stop()` alone is **not** cancel on durable runs — also hit the endpoint:
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
@@ -516,9 +294,7 @@ export function StoppableChat({ threadId }: { threadId: string }) {
   })
 
   async function stopRun(): Promise<void> {
-    // Local: stop rendering the stream immediately.
     chat.stop()
-    // Remote: tell the server this was intent, not a lost connection.
     await fetch('/api/chat/cancel', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -532,355 +308,74 @@ export function StoppableChat({ threadId }: { threadId: string }) {
 
 ### What each path writes
 
-| Event | `withSandbox` | `withPersistence` | Delivery log |
+| Event | Sandbox | Record | Delivery log |
 | --- | --- | --- | --- |
-| Disconnect, durable, `detachOnDisconnect` on, no cancel recorded | Keeps the sandbox; writes `detachedSince` and `sandboxKey` | Writes **nothing**; the record stays `'running'` | Left **open**, no terminal appended |
-| Cancel (either band) | Destroys the sandbox, always, regardless of `destroyOnComplete` | Writes `'aborted'` with `finishedAt` | Terminal `RUN_ERROR`, then closed |
-| Disconnect on a non-durable run | Destroys the sandbox | Writes `'aborted'` | Terminal `RUN_ERROR`, then closed |
+| Disconnect, durable, no cancel | Keep; `detachedSince` + `sandboxKey` | Stay `'running'` | Open, no terminal |
+| Cancel | Always destroy | `'aborted'` | Terminal then close |
+| Disconnect, non-durable | Destroy | `'aborted'` | Terminal then close |
 
-The delivery-log column is what makes takeover work at all. A detached run's log
-has to stay open and terminal-free: a closed log ends the attaching client's
-replay at the prefix, and a stored synthetic `RUN_ERROR` is a chunk the takeover's
-journal replay cannot reproduce, so alignment diverges and a perfectly healthy run
-is recorded as `'failed'`. See [`RunDetachedCapability`](#rundetachedcapability)
-for how the verdict reaches the transport.
+`keepAlive` / `destroyOnComplete: false` never survive cancel.
 
-`keepAlive` / `destroyOnComplete: false` govern *successful completion* only.
-They never keep a sandbox alive through a cancel.
+### Cancel on non-killable providers
 
-Get this backwards in either direction and it hurts: a Stop button that only
-calls `chat.stop()` leaks running sandboxes that keep spending tokens with nobody
-watching, and treating every disconnect as a cancel kills a user's ten-minute
-refactor on a wifi blip.
-
-### What cancel means on a provider that cannot kill
-
-On a provider whose capabilities declare `killableProcesses: false` (Daytona,
-Vercel, and Cloudflare among the bundled ones (see
-[the measured table](./providers#killableprocesses-across-the-bundled-providers))
-and no signal reaches the agent process: `kill()` does not stop it, and no
-`AbortSignal` crosses the provider boundary. There, **the sandbox destroy the
-cancel path performs is not cleanup, it is the cancel**. It is the only mechanism
-that actually stops the agent. Wire a cancel to anything less (mark the record
-`'aborted'`, close the log, skip the destroy) and what you have built is
-"marked cancelled, still running": the UI says stopped while the agent keeps
-working and the sandbox keeps billing.
+`killableProcesses: false` (Daytona, Vercel, Cloudflare, …) → **destroy is the cancel**. Mark aborted without destroy → UI stopped, agent still billing. → [providers table](./providers#killableprocesses-across-the-bundled-providers).
 
 ## Single-writer safety
 
-Only one host may write a run, and the client has no safety
-net below its offset de-dup. If two hosts both snapshot the log, both compute a
-"remainder", and both append it, the same logical chunk lands twice under two
-different offsets, so it looks new to the client, and the stream processor
-applies text and tool-argument deltas unconditionally. You get doubled prose and
-`{"a":1}{"a":1}` tool arguments. Takeover is by definition two hosts wanting one
-run, so the exclusion has to be real.
+Two hosts appending → doubled prose / tool args. `sandboxRunDriver` fences:
 
-`sandboxRunDriver` wires it for you, in three layers:
+1. **Lease** — `LockStore.withLock` on per-run key.
+2. **Epoch** — `driverEpoch` bumps; superseded appends refused.
+3. **Quiescence** — wait for log to stop growing (`fenceQuietMs`, default 5s).
 
-1. **A lease.** The entire drive runs inside `LockStore.withLock` on a per-run
-   key, so the snapshot and every append after it are one critical section. A
-   lease-backed lock aborts the drive's signal the moment ownership is lost.
-2. **An epoch.** Each successful claim bumps `RunRecord.driverEpoch`. The log
-   re-reads it periodically and refuses to append once a higher epoch exists.
-   This covers what a lease cannot: a lock whose renewal is coarser than the
-   run's append rate, or one whose signal never fires at all.
-3. **Quiescence.** The successor waits for the stored log to stop growing before
-   its first append, so a predecessor that is still writing is *observed* rather
-   than raced. The window defaults to `DEFAULT_FENCE_QUIET_MS` (5 seconds) and is
-   configurable with `fenceQuietMs`. If the log never quiesces, the drive fails
-   instead of appending into a log another host is still writing.
+Both log **and** record are fenced (terminal `update` from lost claim suppressed). `close()` is intentionally unfenced (wedged open log is worse).
 
-### Both authoritative channels are fenced
+Errors: `RunClaimNotAcquiredError`, `RunClaimLostError` (normal contention — swallowed by resume helper); `RunDriverPipeOutsideClaimError` (programming error).
 
-A run's facts live in **two** places: its event log and its record. Fencing only
-the log does not remove the harm, it relocates it. A superseded driver whose
-append is refused folds that refusal into a terminal `runs.update`, and the
-record then reads `'failed'` for a run the successor is healthily streaming.
-Every consumer that branches on terminal status (`isTerminalRunStatus`,
-`findActiveRun`, a status poller, a reaper) would then believe a live run had
-died, on the authority of a host that no longer owns it.
-
-So both seams are closed, over the same claim:
-
-- **The log.** A superseded driver's `append` is refused. The **first** refusal
-  latches the fence permanently shut: every later append refuses immediately,
-  without a re-read. That permanence matters, because the refused append is followed
-  directly by the recovery path's own terminal `RUN_ERROR`, and that log belongs
-  to the *successor*, so a dead host's error chunk would fail the stream for
-  every client attached to the healthy run.
-- **The record.** A terminal-status `update` from a lost claim is **suppressed**:
-  it resolves without writing. Non-terminal writes still pass through, including
-  a stale `detachedSince` or `sandboxKey`. Those cannot make a live run look
-  finished, and the successor owns and overwrites them anyway.
-
-The practical upshot for you: **a terminal status on the record is trustworthy.**
-A status poller may believe it.
-
-`close()` is outside both fences, deliberately. It runs on every teardown path
-including the teardown *caused* by losing the claim, and a fenced `close` would
-wedge the record at `'running'` with every live tailer parked forever: a
-durability `read` only ends when the log closes. A wedged run with parked clients
-is worse than the write being prevented.
-
-### Errors you can branch on
-
-```ts
-import {
-  RunClaimLostError,
-  RunClaimNotAcquiredError,
-  RunDriverPipeOutsideClaimError,
-} from '@tanstack/ai-sandbox'
-
-function describeDriveFailure(error: unknown): string {
-  if (error instanceof RunClaimNotAcquiredError) {
-    // 'terminal' | 'unknown' | 'superseded': normal, not a bug.
-    return `not driving ${error.runId}: ${error.reason}`
-  }
-  if (error instanceof RunClaimLostError) {
-    return `superseded mid-drive at epoch ${error.heldEpoch}`
-  }
-  if (error instanceof RunDriverPipeOutsideClaimError) {
-    // A programming error: the options object was taken apart and `pipe` called
-    // outside `claim`, so there is no epoch to fence with.
-    return `run ${error.runId}: pipe ran outside its claim`
-  }
-  throw error
-}
-```
-
-The first two are ordinary outcomes of a contended takeover and
-`resumeServerSentEventsResponse` already swallows both. You will see them in
-logs, not in responses.
-
-### What this is not
-
-It is not airtight fencing. A predecessor paused (GC, VM suspend) for longer than
-the quiescence window, between its last fence check and its append landing at the
-backend, can still write one batch. Closing that needs a compare-and-set on the
-durability write, which `StreamDurability.append` does not offer. The mitigation
-is deployment-level: use a lease-backed distributed `LockStore`, and keep
-`fenceQuietMs` above the lease's renewal interval.
+Not airtight if a predecessor pauses longer than quiescence — use a real distributed lease; keep `fenceQuietMs` above renewal interval.
 
 ## Replay and divergence
 
-A takeover does not resume the journal from where the dead host stopped. It
-re-reads the journal **from byte zero** and re-translates it, which reproduces
-chunks the client already has. Alignment is what makes that safe: the stored log
-is read once, the replay is verified against it by fingerprint, the matching
-prefix is suppressed, and only the remainder is appended and delivered. The log
-*is* the checkpoint, so there is no window in which a checkpoint and the log can
-disagree. The precedence rule this implements: **the log wins for what clients
-see; the journal wins for where the taking-over driver resumes.**
+Takeover re-reads journal from byte 0; alignment suppresses the stored prefix. Attach only — never align a fresh run (would suppress new chunks).
 
-Two properties make the comparison possible, and both are already true on the
-journaled path:
+`JournalReplayDivergedError` → bug (ids, clock, reused `runId`). Do not continue past mismatch.
 
-- **Ids are deterministic.** A journaled run mints message ids from a run-scoped
-  counter (`<runId>-0`, `<runId>-1`, …) rather than a timestamp plus randomness.
-- **Alignment runs only on an attach.** On a fresh run the transform's premise
-  ("this stream is a replay of what is already stored") is false, and aligning
-  anyway would match a fresh run's own chunks against pre-existing log entries
-  and silently *suppress* them. That is data loss, not a slow path.
+Out-of-band host-tool events skipped up to `DEFAULT_MAX_OUT_OF_BAND_SKIP` (64).
 
-### `JournalReplayDivergedError`
+## Config (`durability: { … }`)
 
-If the replay produces a different chunk than the log already holds at that
-index, `JournalReplayDivergedError` is thrown with the index and both
-fingerprints.
-
-```ts
-import { JournalReplayDivergedError } from '@tanstack/ai-sandbox'
-
-function report(error: unknown): string {
-  if (error instanceof JournalReplayDivergedError) {
-    return `diverged at ${error.index}: stored ${error.stored}, replayed ${error.replayed}`
-  }
-  throw error
-}
-```
-
-Read it plainly: **the agent's replay produced a different sequence of events
-than the log already delivered.** Translation stopped being deterministic. The
-realistic causes are an id generator that is not run-scoped, a translator that
-consults the clock, or a journal that was rewritten (most often a reused
-`runId`).
-
-What to do about it: treat it as a bug to fix, not a condition to recover from.
-Do not catch it and continue. The log is authoritative and already went to the
-client, so forwarding past a mismatch delivers a stream whose prefix and suffix
-disagree about message identity, and the client cannot survive that. Log the
-index and both fingerprints, let the run fail, and check `runId` uniqueness
-first.
-
-One tolerance exists. On adapters that splice host-tool-bridge events into their
-output (`@tanstack/ai-codex`, `@tanstack/ai-claude-code`), the log holds `CUSTOM`
-chunks fired by *live* tool execution, which a replay runs no tools to reproduce.
-Alignment skips those as out-of-band, up to `DEFAULT_MAX_OUT_OF_BAND_SKIP` (64)
-consecutive entries. The bound is what keeps this a tolerance rather than a
-search: unbounded, a genuine determinism regression would scan forward looking
-for any fingerprint that happens to match.
-
-## Configuration
-
-All of these live under `withSandbox(sandbox, { durability: { … } })`.
-
-| Option | Default | What it does |
+| Option | Default | Role |
 | --- | --- | --- |
-| `adapter` | required | The run's delivery-durable event log. Same instance you hand the transport. |
-| `journal` | `/tmp/tanstack-runs` (`DEFAULT_JOURNAL_DIR`) | Journal directory inside the sandbox. |
-| `detachOnDisconnect` | `true` whenever durability is wired | Whether a disconnect detaches instead of destroying the sandbox. |
-| `attach` | `false` | Read an existing run's journal instead of starting an agent. Set by an attach route's `drive`, never by a `POST` handler. |
-| `pollIntervalMs` | adapter default | Journal poll interval for providers that cannot follow a file. |
+| `adapter` | required | Delivery log (same as transport) |
+| `journal` | `/tmp/tanstack-runs` | Journal dir in sandbox |
+| `detachOnDisconnect` | `true` when durability wired | Disconnect detaches vs destroy |
+| `attach` | `false` | Tail existing journal (GET drive only) |
+| `pollIntervalMs` | adapter default | For non-follow providers |
 
-There is deliberately no `detachedRunTtl` here. The only actor that enforces a
-TTL is `reapDetachedRuns`, which runs from a cron with no chat request in
-flight, so it cannot read anything `withSandbox` publishes on the
-per-request capability bus, so a TTL stored here could only ever go unread,
-while the sweep took its own `detachedRunTtlMs`, and the two would silently
-disagree. So the sweep's `detachedRunTtlMs` (milliseconds, no default, no
-string parsing) is the single source of truth; see [Reaping &
-Retention](./reaping) for sizing it.
+**No `detachedRunTtl` here** — only `reapDetachedRuns({ detachedRunTtlMs })`. **You must schedule the reaper** → [Reaping](./reaping).
 
-**The reaper ships, but nothing schedules it.** `reapDetachedRuns` from
-`@tanstack/ai-sandbox` is the sweep. It reads the optional
-`RunStore.listReclaimable({ now, ttlMs })`, which returns runs that are
-`'running'`, have a `detachedSince`, and whose `detachedSince <= now - ttlMs`
-(inclusive). It drives each run its out-of-band journal probe says already finished
-to a terminal status so the transcript lands, cancels and terminalizes the ones
-past `detachedRunTtlMs`, and destroys the sandbox named by `sandboxKey` through
-`sandboxReclaimer`. It never clears `detachedSince`: that marker is the evidence
-its TTL accounting selected the run on. (The takeover path clears it, because a
-viewer is attached again.)
+`detachOnDisconnect: false` → destroy-on-disconnect but still resumable delivery log.
 
-It is a plain async function with no timer and no daemon, so **calling it on a
-schedule is your job**: a cron route, a queue consumer, a Durable Object
-`alarm()`, a `waitUntil`. Treat that as a hard requirement of wiring
-`durability`, not a nice-to-have: until something invokes it, nothing closes a
-detached run's delivery log, so every attached client parks forever,
-`detachedRunTtlMs` is enforced by nothing, and the sandbox bills indefinitely.
+### Capabilities (core)
 
-[Reaping & Retention](./reaping) is the whole picture: the sweep's outcomes, why
-it never drives a run to find out whether it finished, `pruneJournals`,
-`reclaimSandbox`, ready-to-paste schedules for Node, Vercel Cron, and a
-Cloudflare `alarm()`, and how to size the TTL against the sweep interval.
-
-Set `detachOnDisconnect: false` to keep today's destroy-on-disconnect cost
-profile while still getting resumable *delivery*: a reload replays the log, but
-the agent does not survive the disconnect. An explicit cancel destroys the
-sandbox either way.
-
-### `DetachableRunCapability`
-
-A neutral boolean that core owns. `withSandbox` provides it as `true` only when a
-run is genuinely durable; `withPersistence` reads it with `getOptional` to decide
-whether an abort is terminal (`'aborted'`) or a detach (write nothing). It lives
-in core so the two packages can agree without either importing the other. A
-persistence → sandbox import would invert the layering. Read it in your own
-middleware if you need the same distinction; absent means "not detachable", which
-is every app that has not wired durability.
-
-### `RunDetachedCapability`
-
-Its past-tense counterpart, also owned by core. `DetachableRunCapability` is
-published at setup and only says a disconnect *may* be survived;
-`RunDetachedCapability` is published on the abort path by `withSandbox`'s detach
-branch and says the run **was** detached. The agent is still working and a later
-attach can take it over.
-
-Its consumer is the durable delivery sink behind `toServerSentEventsResponse` /
-`toHttpResponse`. Without the verdict the sink terminalizes every abort, which
-defeats takeover (see the table above). The fact travels on the **stream object
-itself**, so there is nothing to wire: passing `chat()`'s stream to the response
-helper is already mandatory, and both sides hold the same object.
-
-```ts
-import { provideRunDetached } from '@tanstack/ai'
-import type { CapabilityContext } from '@tanstack/ai'
-
-// You do not write this. `withSandbox` does, on its detach branch, from a hook
-// that already holds the middleware context. Shown only so the fact is legible.
-function markRunDetached(ctx: CapabilityContext): void {
-  provideRunDetached(ctx, true)
-}
-```
-
-Only a plain, intentless disconnect of a detachable run publishes it. An explicit
-cancel in either band, a disconnect on a non-detachable run,
-`detachOnDisconnect: false`, a provider failure, and a normal finish all leave it
-unpublished, and the sink appends its terminal and closes the log exactly as it
-always has. Core additionally refuses to treat an abort carrying
-`RUN_CANCEL_REASON` as a detach, whatever a middleware publishes. A user pressing
-Stop always gets a closed, terminal log.
+- `DetachableRunCapability` — setup: disconnect *may* be a detach.
+- `RunDetachedCapability` — abort path: run **was** detached; sink leaves log open.
 
 ## Requirements
 
-**A real `LockStore`.** `InMemoryLockStore` cannot coordinate across hosts: it
-serializes claims within one process, and the signal it hands out is a fresh
-`AbortController().signal` that is never aborted, so the lease can never report a
-loss. Two replicas can then drive one run and duplicate its log. `withSandbox`
-emits a warning when durability is wired over an in-memory lock (including when
-no lock is wired at all, since the fallback *is* in-memory). See
-[Locks](../advanced/locks).
-
-**A caller-supplied `runId`.** A durable run throws
-`DurableRunIdRequiredError` at the start of `chatStream` when none is passed.
-That is deliberately loud, because the alternative is invisible: an
-adapter-generated id produces a journal path no successor host can recompute, so
-the run streams normally, records normally, and is silently unrecoverable. You
-would only discover it during an incident.
-
-**The run record's `threadId`, on an attaching run.** An ATTACHING durable run
-throws `DurableThreadIdRequiredError` when driven without the run record's
-`threadId`. `threadId` rides in **every** emitted chunk, so an attach that
-generates a fresh one replays a stream whose very first chunk already differs
-from the stored log. Alignment fails at index 0 with
-`JournalReplayThreadIdMismatchError`, a subclass of
-[`JournalReplayDivergedError`](#journalreplaydivergederror) reported above,
-even though the agent behaved identically. This is the asymmetry to keep
-straight: a durable **fresh** run needs no caller `threadId`, because that run is
-what establishes it, but a durable run that is **attaching** must reuse the
-one already on the record, which is exactly the `threadId: input.threadId`
-forwarded by `driveRun` above.
-
-**A `RunStore` that persists every durable-run field.** `createOrResume`,
-`update`, and `get` are required; `update` must accept and round-trip all of
-`status`, `finishedAt`, `error`, `usage`, `sandboxKey`, `detachedSince`,
-`cancelRequested`, and `driverEpoch`. The last four are exactly what a
-hand-written backend tends to omit, and each one breaks a specific
-mechanism: no `driverEpoch` means no fencing, no `cancelRequested` means Stop
-cannot reach a remote driver, no `detachedSince`/`sandboxKey` means nothing can
-reclaim the sandbox. Two invariants also hold: `createOrResume` returns an
-existing record **unchanged** (that is what makes resuming safe), and `update` on
-an unknown `runId` is a **no-op** that must not throw.
-
-`findActiveRun` is required: it is how you rejoin by thread. `listReclaimable`
-is optional and feature-detected, but `reapDetachedRuns` needs it to have
-anything to sweep: a store without it cannot be reaped at all.
+| Must | Why |
+| --- | --- |
+| Distributed `LockStore` | In-memory cannot fence replicas |
+| Caller `runId` | Else `DurableRunIdRequiredError` / unrecoverable journal |
+| Attach: record's `threadId` | Else `JournalReplayThreadIdMismatchError` at index 0 |
+| `RunStore` fields | `sandboxKey`, `detachedSince`, `cancelRequested`, `driverEpoch`, … |
+| `findActiveRun` | Rejoin by thread |
+| `listReclaimable` (optional) | Required for reaper to have work |
 
 ## Adapter authors
 
-If you are writing a harness adapter rather than an application, three exports
-are yours: `getSandboxDurability` reads the resolved durability off the
-capability bus, `journalOptionsFor` turns it into the journal option
-`spawnNdjson` takes, and `alignedIfAttaching` applies alignment on attach only.
-Wrap the *merged* output stream, never the pre-merge translator, or you compare
-against a stream the log never contained. See [Harnesses](./harnesses).
+`getSandboxDurability` · `journalOptionsFor` · `alignedIfAttaching` (wrap **merged** stream). → [Harnesses](./harnesses).
 
 ## See also
 
-- [Durable Runs Explained](./durable-runs): the mental model behind this page, in
-  plain language and with no code. Start there if any of the above felt abrupt
-- [The Run Journal](./journal): where the agent's output lives, `runId`
-  uniqueness, and `alignToStoredLog`
-- [Sandbox Instance Durability](./durability): keeping the sandbox itself
-  findable across processes
-- [Lifecycle & Snapshots](./lifecycle): `destroyOnComplete`, `keepAlive`, and
-  snapshots
-- [Resumable Streams](../resumable-streams/overview) and
-  [Advanced](../resumable-streams/advanced): the delivery log, `joinRun`, and
-  offset ownership
-- [Locks](../advanced/locks): the distributed lock a durable run requires
-- [Persistence overview](../persistence/overview) and
-  [Store Reference](../persistence/store-reference): the shared
-  `RunStore`
+[Durable Runs](./durable-runs) · [Journal](./journal) · [Instance Durability](./durability) · [Lifecycle](./lifecycle) · [Resumable Streams](../resumable-streams/overview) · [Locks](../advanced/locks) · [Persistence](../persistence/overview)

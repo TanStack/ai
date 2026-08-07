@@ -2,7 +2,7 @@
 title: "Quick Start: Vue"
 id: quick-start-vue
 order: 3
-description: "Build a streaming TanStack AI chat component in a Vue 3 app using the useChat composable and the OpenAI adapter."
+description: "Streaming chat in Vue 3 with useChat and an OpenAI (or OpenRouter) backend."
 keywords:
   - tanstack ai
   - vue
@@ -14,11 +14,11 @@ keywords:
   - composable
 ---
 
-You have a Vue 3 app and want to add AI chat. By the end of this guide, you'll have a streaming chat component powered by TanStack AI and OpenAI.
+If you need Vue chat → install packages, stream from a backend, wire `useChat` in a component.
 
-> **Tip:** If you'd prefer not to sign up with individual AI providers, [OpenRouter](../adapters/openrouter) gives you access to 300+ models with a single API key and is the easiest way to get started.
+Prefer one key for many models → [OpenRouter](../adapters/openrouter).
 
-## Installation
+## 1. Install
 
 ```bash
 npm install @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
@@ -28,9 +28,9 @@ pnpm add @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
 yarn add @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
 ```
 
-## Server Setup
+## 2. Server
 
-Vue apps typically use a separate backend. Here's an Express server that streams chat responses:
+Express example (Fastify, Hono, Nitro work if they return TanStack AI SSE):
 
 ```typescript ignore
 import express from 'express'
@@ -83,11 +83,7 @@ app.post('/api/chat', async (req, res) => {
 app.listen(3000, () => console.log('Server running on port 3000'))
 ```
 
-> **Tip:** Any backend that returns the TanStack AI SSE format works -- you can use Fastify, Hono, Nitro, or any other Node.js framework.
-
-## Client Setup
-
-Create a `Chat.vue` component using the `useChat` composable:
+## 3. `Chat.vue`
 
 ```vue
 <script setup lang="ts">
@@ -137,9 +133,9 @@ function handleSubmit() {
 </template>
 ```
 
-## Environment Variables
+## 4. API keys
 
-Create a `.env` file (or `.env.local` depending on your setup) with your API key:
+`.env` or `.env.local` — server only:
 
 ```bash
 # OpenRouter (recommended — access 300+ models with one key)
@@ -149,11 +145,9 @@ OPENROUTER_API_KEY=sk-or-...
 OPENAI_API_KEY=your-openai-api-key
 ```
 
-Your server reads this key at runtime. Never expose it to the browser.
+## Vue notes (when you hit them)
 
-## Vue-Specific Notes
-
-**Reactive state uses `ShallowRef`.** The `useChat` composable returns state wrapped in `DeepReadonly<ShallowRef<>>`. In `<script setup>` you must read the underlying value with `.value`. In `<template>` Vue auto-unwraps the ref, so use the bare name:
+**Script needs `.value`; template unwraps.**
 
 ```vue
 <script setup lang="ts">
@@ -169,21 +163,10 @@ const count = messages.value.length
 </template>
 ```
 
-**Automatic cleanup.** The composable calls `onScopeDispose` internally, so in-flight requests are stopped when the component unmounts. No manual cleanup needed.
+State is `DeepReadonly<ShallowRef<>>`. Unmount stops in-flight requests (`onScopeDispose`). API matches React (`messages`, `sendMessage`, `isLoading`, `error`, `status`, `stop`, `reload`, `clear`) with the ref wrapper.
 
-**Same API shape as React.** If you're coming from `@tanstack/ai-react`, the Vue composable returns the same properties (`messages`, `sendMessage`, `isLoading`, `error`, `status`, `stop`, `reload`, `clear`). The only difference is the `ShallowRef` wrapper.
+## Next
 
-## That's It!
-
-You now have a working Vue chat application. The `useChat` composable handles:
-
-- Message state management
-- Streaming responses
-- Loading states
-- Error handling
-
-## Next Steps
-
-- Learn about [Tools](../tools/tools) to add function calling
-- Check out the [Adapters](../adapters/openai) to connect to different providers
-- See the [React Quick Start](./quick-start) if you're comparing frameworks
+- [Tools](../tools/tools)
+- [Adapters](../adapters/openai)
+- [React Quick Start](./quick-start)

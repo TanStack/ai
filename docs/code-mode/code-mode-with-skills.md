@@ -2,7 +2,7 @@
 title: Code Mode with Skills
 id: code-mode-with-skills
 order: 3
-description: "Teach Code Mode to save and reuse working code as named skills backed by persistent storage — faster follow-up requests and composable agent memory."
+description: "Save and reuse TypeScript snippets as skills — storage, selection, register_skill, trust."
 keywords:
   - tanstack ai
   - code mode
@@ -14,66 +14,38 @@ keywords:
   - skill storage
 ---
 
-Skills extend [Code Mode](./code-mode.md) with a persistent library of reusable TypeScript snippets. When the LLM writes a useful piece of code — say, a function that fetches and ranks NPM packages — it can save that code as a _skill_. On future requests, relevant skills are loaded from storage and made available as first-class tools the LLM can call without re-writing the logic.
+# Code Mode with Skills
 
-> **Different from agent-authoring skills.** The skills on this page are _runtime_ snippets the chat LLM saves and reuses. If you're looking to teach your coding assistant (Claude Code, Cursor, etc.) how TanStack AI itself works, see [Agent Skills (TanStack Intent)](../getting-started/agent-skills).
+If Code Mode works and you want reusable snippets → skills: the model saves working code and reloads it on later requests.
 
-## Overview
+> Runtime skills (this page) ≠ [Agent Skills / TanStack Intent](../getting-started/agent-skills) for coding assistants.
 
-The skills system has two integration paths:
+## Paths
 
-| Approach | Entry point | Skill selection | Best for |
-|----------|-------------|----------------|----------|
-| **High-level** | `codeModeWithSkills()` | Automatic (LLM-based) | New projects, turnkey setup |
-| **Manual** | Individual functions (`skillsToTools`, `createSkillManagementTools`, etc.) | You decide which skills to load | Full control, existing setups |
+| Approach | Entry | Selection | When |
+|----------|-------|-----------|------|
+| High-level | `codeModeWithSkills()` | Auto (cheap LLM) | New projects |
+| Manual | `skillsToTools`, etc. | You load skills | Full control |
 
-Both paths share the same storage, trust, and execution primitives — they differ only in how skills are selected and assembled.
+## Request flow (high-level)
 
-## How It Works
+1. Load skill index (metadata only)
+2. Select relevant skills (cheap model)
+3. Build registry: `execute_typescript` + management tools + selected skill tools
+4. System prompt = Code Mode stubs + skill docs
+5. Main `chat()` with strong model
 
-A request with skills enabled goes through these stages:
+**Two LLM calls:** selection (metadata, last 5 messages) + main chat. Empty storage/messages short-circuits selection.
 
-```
-┌─────────────────────────────────────────────────────┐
-│ 1. Load skill index (metadata only, no code)        │
-├─────────────────────────────────────────────────────┤
-│ 2. Select relevant skills (LLM call — fast model)   │
-├─────────────────────────────────────────────────────┤
-│ 3. Build tool registry                              │
-│    ├── execute_typescript (Code Mode sandbox)        │
-│    ├── search_skills / get_skill / register_skill   │
-│    └── skill tools (one per selected skill)         │
-├─────────────────────────────────────────────────────┤
-│ 4. Generate system prompt                           │
-│    ├── Code Mode type stubs                         │
-│    └── Skill library documentation                  │
-├─────────────────────────────────────────────────────┤
-│ 5. Main chat() call (strong model)                  │
-│    ├── Can call skill tools directly                │
-│    ├── Can write code via execute_typescript         │
-│    └── Can register new skills for future use       │
-└─────────────────────────────────────────────────────┘
-```
+## High-level: `codeModeWithSkills()`
 
-### LLM calls
-
-There are **two** LLM interactions per request when using the high-level API:
-
-1. **Skill selection** (`selectRelevantSkills`) — A single chat call using the adapter you provide. It sends the last 5 conversation messages plus a catalog of skill names/descriptions, and asks the model to return a JSON array of relevant skill names. This should be a cheap/fast model (e.g., `gpt-4o-mini`, `claude-haiku-4-5`).
-
-2. **Main chat** — The primary `chat()` call with your full model. This is where the LLM reasons, calls tools, writes code, and registers skills.
-
-The selection call is lightweight — it only sees skill metadata (names, descriptions, usage hints), not full code. If there are no skills in storage or no messages, it short-circuits and skips the LLM call entirely.
-
-## High-Level API: `codeModeWithSkills()`
-
-### Installation
+### 1. Install
 
 ```bash
 pnpm add @tanstack/ai-code-mode-skills
 ```
 
-### Usage
+### 2. Wire
 
 ```typescript
 import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
@@ -87,23 +59,24 @@ const messages = [{ role: 'user' as const, content: 'Hello' }]
 const storage = createFileSkillStorage({ directory: './.skills' })
 const driver = createNodeIsolateDriver()
 
-const { toolsRegistry, systemPrompt, selectedSkills } = await codeModeWithSkills({
-  config: {
-    driver,
-    tools: [myTool1, myTool2],
-    timeout: 60_000,
-    memoryLimit: 128,
-  },
-  adapter: openaiText('gpt-5-mini'),  // cheap model for skill selection
-  skills: {
-    storage,
-    maxSkillsInContext: 5,
-  },
-  messages,  // current conversation
-})
+const { toolsRegistry, systemPrompt, selectedSkills } =
+  await codeModeWithSkills({
+    config: {
+      driver,
+      tools: [myTool1, myTool2],
+      timeout: 60_000,
+      memoryLimit: 128,
+    },
+    adapter: openaiText('gpt-5-mini'), // selection
+    skills: {
+      storage,
+      maxSkillsInContext: 5,
+    },
+    messages,
+  })
 
 const stream = chat({
-  adapter: openaiText('gpt-5.5'),  // strong model for reasoning
+  adapter: openaiText('gpt-5.5'), // main
   tools: toolsRegistry.getTools(),
   messages,
   systemPrompts: ['You are a helpful assistant.', systemPrompt],
@@ -111,27 +84,17 @@ const stream = chat({
 })
 ```
 
-`codeModeWithSkills` returns:
-
 | Property | Type | Description |
 |----------|------|-------------|
-| `toolsRegistry` | `ToolRegistry` | Mutable registry containing all tools. Pass to `chat()` via `tools: toolsRegistry.getTools()`. |
-| `systemPrompt` | `string` | Combined Code Mode + skill library documentation. |
-| `selectedSkills` | `Array<Skill>` | Skills the selection model chose for this conversation. |
+| `toolsRegistry` | `ToolRegistry` | `tools: toolsRegistry.getTools()` |
+| `systemPrompt` | `string` | Code Mode + skill docs |
+| `selectedSkills` | `Array<Skill>` | Chosen for this turn |
 
-### What goes into the registry
-
-The registry is populated with:
-
-- **`execute_typescript`** — The Code Mode sandbox tool. Inside the sandbox, skills are also available as `skill_*` functions (loaded dynamically at execution time).
-- **`search_skills`** — Search the skill library by query. Returns matching skill metadata.
-- **`get_skill`** — Retrieve full details (including code) for a specific skill.
-- **`register_skill`** — Save working code as a new skill. Newly registered skills are immediately added to the registry as callable tools.
-- **One tool per selected skill** — Each selected skill becomes a direct tool (prefixed with `[SKILL]` in its description) that the LLM can call without going through `execute_typescript`.
+**Registry contents:** `execute_typescript` · `search_skills` · `get_skill` · `register_skill` · one tool per selected skill (`[SKILL]` prefix). Skills also bind as `skill_*` inside the sandbox.
 
 ## Manual API
 
-If you want full control — for example, loading all skills instead of using LLM-based selection — use the lower-level functions directly. This is the approach used in the `ts-code-mode-web` example.
+Skip selection LLM; load what you want (as in `ts-code-mode-web`):
 
 ```typescript
 import { chat, maxIterations } from '@tanstack/ai'
@@ -155,44 +118,39 @@ const storage = createFileSkillStorage({
 })
 const driver = createNodeIsolateDriver()
 
-// 1. Create Code Mode tool + prompt
-const { tool: codeModeTool, systemPrompt: codeModePrompt } =
-  createCodeMode({
-    driver,
-    tools: [myTool1, myTool2],
-    timeout: 60_000,
-    memoryLimit: 128,
-  })
+const { tool: codeModeTool, systemPrompt: codeModePrompt } = createCodeMode({
+  driver,
+  tools: [myTool1, myTool2],
+  timeout: 60_000,
+  memoryLimit: 128,
+})
 
-// 2. Load all skills and convert to tools
 const allSkills = await storage.loadAll()
 const skillIndex = await storage.loadIndex()
 
-const skillTools = allSkills.length > 0
-  ? skillsToTools({
-      skills: allSkills,
-      driver,
-      tools: [myTool1, myTool2],
-      storage,
-      timeout: 60_000,
-      memoryLimit: 128,
-    })
-  : []
+const skillTools =
+  allSkills.length > 0
+    ? skillsToTools({
+        skills: allSkills,
+        driver,
+        tools: [myTool1, myTool2],
+        storage,
+        timeout: 60_000,
+        memoryLimit: 128,
+      })
+    : []
 
-// 3. Create management tools
 const managementTools = createSkillManagementTools({
   storage,
   trustStrategy,
 })
 
-// 4. Generate skill library prompt
 const skillsPrompt = createSkillsSystemPrompt({
   selectedSkills: allSkills,
   totalSkillCount: skillIndex.length,
   skillsAsTools: true,
 })
 
-// 5. Assemble and call chat()
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
   tools: [codeModeTool, ...managementTools, ...skillTools],
@@ -202,44 +160,23 @@ const stream = chat({
 })
 ```
 
-This approach skips the selection LLM call entirely — you load whichever skills you want and pass them in directly.
+## Storage
 
-## Skill Storage
-
-Skills are persisted through the `SkillStorage` interface. Two implementations are provided:
-
-### File storage (production)
-
-`createFileSkillStorage` is Node-only — it imports `node:fs` / `node:path` — so
-it lives behind the `/storage` subpath rather than the package root. This keeps
-the root export safe to bundle for Cloudflare Workers and browser builds; only
-reach for the subpath in a Node runtime.
+### File (Node only — `/storage` subpath)
 
 ```typescript
 import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
 import { createDefaultTrustStrategy } from '@tanstack/ai-code-mode-skills'
 
-const trustStrategy = createDefaultTrustStrategy()
 const storage = createFileSkillStorage({
   directory: './.skills',
-  trustStrategy,  // optional, defaults to createDefaultTrustStrategy()
+  trustStrategy: createDefaultTrustStrategy(),
 })
 ```
 
-Creates a directory structure:
+Layout: `_index.json` + per-skill `meta.json` / `code.ts`.
 
-```
-.skills/
-  _index.json              # Lightweight catalog for fast loading
-  fetch_github_stats/
-    meta.json              # Description, schemas, hints, stats
-    code.ts                # TypeScript source
-  compare_npm_packages/
-    meta.json
-    code.ts
-```
-
-### Memory storage (testing & edge runtimes)
+### Memory (tests / edge / Workers)
 
 ```typescript
 import { createMemorySkillStorage } from '@tanstack/ai-code-mode-skills'
@@ -247,27 +184,25 @@ import { createMemorySkillStorage } from '@tanstack/ai-code-mode-skills'
 const storage = createMemorySkillStorage()
 ```
 
-Keeps everything in memory — no `node:fs` dependency, so it is re-exported from
-the package root and is safe to use in Workers and browsers. Useful for tests,
-demos, and edge deployments. (It is also available from the `/storage` subpath.)
-
-### Storage interface
-
-Both implementations satisfy this interface:
+### Interface
 
 | Method | Description |
 |--------|-------------|
-| `loadIndex()` | Load lightweight metadata for all skills (no code) |
-| `loadAll()` | Load all skills with full details including code |
-| `get(name)` | Get a single skill by name |
-| `save(skill)` | Create or update a skill |
-| `delete(name)` | Remove a skill |
-| `search(query, options?)` | Search skills by text query |
-| `updateStats(name, success)` | Record an execution result for trust tracking |
+| `loadIndex()` / `loadAll()` / `get(name)` | Read |
+| `save(skill)` / `delete(name)` | Write |
+| `search(query, options?)` | Text search |
+| `updateStats(name, success)` | Trust stats |
 
-## Trust Strategies
+## Trust strategies
 
-Skills start untrusted and earn trust through successful executions. The trust level is metadata only — it does not currently gate execution. Four built-in strategies are available:
+Metadata only — does not gate execution.
+
+| Strategy | Initial | Provisional | Trusted |
+|----------|---------|-------------|---------|
+| Default | `untrusted` | 10+ runs, ≥90% | 100+ runs, ≥95% |
+| Relaxed | `untrusted` | 3+ / ≥80% | 10+ / ≥90% |
+| Always trusted | `trusted` | — | — |
+| Custom | configurable | configurable | configurable |
 
 ```typescript group=code-mode-with-skills
 import {
@@ -276,16 +211,7 @@ import {
   createRelaxedTrustStrategy,
   createCustomTrustStrategy,
 } from '@tanstack/ai-code-mode-skills'
-```
 
-| Strategy | Initial level | Provisional | Trusted |
-|----------|--------------|-------------|---------|
-| **Default** | `untrusted` | 10+ runs, ≥90% success | 100+ runs, ≥95% success |
-| **Relaxed** | `untrusted` | 3+ runs, ≥80% success | 10+ runs, ≥90% success |
-| **Always trusted** | `trusted` | — | — |
-| **Custom** | Configurable | Configurable | Configurable |
-
-```typescript group=code-mode-with-skills
 const strategy = createCustomTrustStrategy({
   initialLevel: 'untrusted',
   provisionalThreshold: { executions: 5, successRate: 0.85 },
@@ -293,76 +219,37 @@ const strategy = createCustomTrustStrategy({
 })
 ```
 
-## Skill Lifecycle
+## Lifecycle
 
-### Registration
+**Register** via `register_skill`: `name`, `description`, `code`, schemas, `usageHints`, `dependsOn`. High-level registry adds the tool immediately.
 
-When the LLM produces useful code via `execute_typescript`, the system prompt instructs it to call `register_skill` with:
+**Execute:** wrap input → strip TS → sandbox with `external_*` → return → async stats.
 
-- `name` — snake_case identifier (becomes the tool name)
-- `description` — what the skill does
-- `code` — TypeScript source that receives an `input` variable
-- `inputSchema` / `outputSchema` — JSON Schema strings
-- `usageHints` — when to use this skill
-- `dependsOn` — other skills this one calls
+**Select (high-level):** last 5 messages + catalog → JSON names (max `maxSkillsInContext`) → load full skills. Parse failure → empty selection; management tools still work.
 
-The skill is saved to storage and (if a `ToolRegistry` was provided) immediately added as a callable tool in the current session.
+## Skills as tools vs bindings
 
-### Execution
+| Mode | Call style | Tradeoff |
+|------|------------|----------|
+| `skillsAsTools: true` (default) | Direct tool call | Simpler UI; more tools |
+| `false` | Inside `execute_typescript` as `skill_*` | Composable in code; fewer top-level tools |
 
-When a skill tool is called, the system:
+## Events
 
-1. Wraps the skill code with `const input = <serialized input>;`
-2. Strips TypeScript syntax to plain JavaScript
-3. Creates a fresh sandbox context with `external_*` bindings
-4. Executes the code and returns the result
-5. Updates execution stats (success/failure count) asynchronously
+| Event | When |
+|-------|------|
+| `code_mode:skill_call` / `:skill_result` / `:skill_error` | Skill tool lifecycle |
+| `skill:registered` | New skill saved |
 
-### Selection (high-level API only)
-
-On each new request, `selectRelevantSkills`:
-
-1. Takes the last 5 conversation messages as context
-2. Builds a catalog from the skill index (name + description + first usage hint)
-3. Asks the adapter to return a JSON array of relevant skill names (max `maxSkillsInContext`)
-4. Loads full skill data for the selected names
-
-If parsing fails or the model returns invalid JSON, it falls back to an empty selection — the request proceeds without pre-loaded skills, but the LLM can still search and use skills via the management tools.
-
-## Skills as Tools vs. Sandbox Bindings
-
-The `skillsAsTools` option (default: `true`) controls how skills are exposed:
-
-| Mode | How the LLM calls a skill | Pros | Cons |
-|------|--------------------------|------|------|
-| **As tools** (`true`) | Direct tool call: `skill_name({ ... })` | Simpler for the LLM, shows in tool-call UI, proper input validation | One tool per skill in the tool list |
-| **As bindings** (`false`) | Inside `execute_typescript`: `await skill_fetch_data({ ... })` | Skills composable in code, fewer top-level tools | LLM must write code to use them |
-
-When `skillsAsTools` is enabled, the system prompt documents each skill with its schema, usage hints, and example calls. When disabled, skills appear as typed `skill_*` functions in the sandbox type stubs.
-
-## Custom Events
-
-Skill execution emits events through the TanStack AI event system:
-
-| Event | When | Payload |
-|-------|------|---------|
-| `code_mode:skill_call` | Skill tool invoked | `{ skill, input, timestamp }` |
-| `code_mode:skill_result` | Skill completed successfully | `{ skill, result, duration, timestamp }` |
-| `code_mode:skill_error` | Skill execution failed | `{ skill, error, duration, timestamp }` |
-| `skill:registered` | New skill saved via `register_skill` | `{ id, name, description, timestamp }` |
-
-To render these events in your React app alongside Code Mode execution events, see [Showing Code Mode in the UI](./client-integration).
+Render with Code Mode events: [Client integration](./client-integration).
 
 ## Tips
 
-- **Use a cheap model for selection.** The selection call only needs to match skill names to conversation context — `gpt-4o-mini` or `claude-haiku-4-5` work well.
-- **Start without skills.** Get Code Mode working first, then add `@tanstack/ai-code-mode-skills` once you have tools that produce reusable patterns.
-- **Monitor the skill count.** As the library grows, consider increasing `maxSkillsInContext` or switching to the manual API where you control which skills load.
-- **Newly registered skills are available on the next message,** not in the current turn's tool list (unless using `ToolRegistry` with the high-level API, which adds them immediately).
-- **Skills can call other skills.** Inside the sandbox, both `external_*` and `skill_*` functions are available. Set `dependsOn` when registering to document these relationships.
+1. Cheap model for selection (`gpt-4o-mini`, `claude-haiku-4-5`).
+2. Get Code Mode working before adding skills.
+3. Watch library size — raise `maxSkillsInContext` or use manual API.
+4. Skills can call `external_*` and `skill_*`; set `dependsOn` when registering.
 
-## Next Steps
+## Next
 
-- [Code Mode](./code-mode) — Core Code Mode setup and API reference
-- [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
-- [Isolate Drivers](./code-mode-isolates) — Compare sandbox runtimes
+- [Code Mode](./code-mode) · [Client UI](./client-integration) · [Isolates](./code-mode-isolates)

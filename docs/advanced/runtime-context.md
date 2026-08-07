@@ -2,7 +2,7 @@
 title: Runtime Context
 id: runtime-context
 order: 2
-description: "Pass typed runtime dependencies to TanStack AI tools and middleware without serializing them to the model or AG-UI protocol context."
+description: "Pass typed runtime deps to tools and middleware without sending them to the model or AG-UI context."
 keywords:
   - tanstack ai
   - runtime context
@@ -12,24 +12,25 @@ keywords:
   - ag-ui context
 ---
 
-Runtime context is application state you pass to tool implementations and middleware. Use it for request-scoped or client-local dependencies such as authenticated users, database clients, tenancy, feature flags, audit loggers, or browser services.
+If tools/middleware need request-local deps (user, db, toast) → pass `context` on `chat()` / `useChat`. It is **not** prompt context and **not** AG-UI `RunAgentInput.context`. Never sent to the model automatically.
 
-Runtime context is not prompt context and is not the AG-UI `RunAgentInput.context` field. It is never sent to the model automatically.
+## Type safety
 
-## How Type Safety Works
+Consumers declare needs; call site must satisfy the merge:
 
-Runtime context is checked from the point of view of the code that consumes it. Tools and middleware declare the context shape they need, and `chat()`, `ChatClient`, and framework hooks check that the `context` value you pass satisfies those requirements.
+1. `toolDefinition(...).server<TContext>(...)` / `.client<TContext>(...)`
+2. `ChatMiddleware<TContext>`
+3. `chat()` / hooks check `context` against every typed consumer
 
-The source of truth is:
-
-- `toolDefinition(...).server<TContext>(...)` for server tools.
-- `toolDefinition(...).client<TContext>(...)` for client tools.
-- `ChatMiddleware<TContext>` for middleware.
-
-This means the context value is the implementation detail you provide at runtime, while tools and middleware are the contract. TanStack AI infers the required context from every typed tool and middleware in the call, merges those requirements, and checks your `context` option against the result.
+Untyped consumers get `unknown` and do not force `context`. Optional: declare `TContext | undefined` so `context` may be omitted.
 
 ```typescript
-import { chat, toServerSentEventsResponse, toolDefinition, type ChatMiddleware } from "@tanstack/ai";
+import {
+  chat,
+  toServerSentEventsResponse,
+  toolDefinition,
+  type ChatMiddleware,
+} from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 type UserContext = {
@@ -70,13 +71,7 @@ export async function POST(request: Request) {
 }
 ```
 
-In this example, the tool requires `UserContext` and the middleware requires `TenantContext`, so the `context` value must satisfy both. If you remove `tenantId`, TypeScript reports an error because `tenantMiddleware` declared that it needs it.
-
-This is intentional. The `context` object alone should not decide what tools and middleware are allowed to read. The consumers define their requirements, and the call site proves that it supplied them. Untyped tools and middleware still work; they receive `unknown` context and do not force a `context` option.
-
-This inference also works when reusable tools or middleware are declared outside the `chat()` call and passed in as arrays. A consumer can opt into optional runtime context by declaring `TContext | undefined`; then the `context` option can be omitted when all typed consumers accept `undefined`. If a context value is provided, it still has to satisfy every typed consumer.
-
-The same rule applies on the client:
+Client tools force client `context` the same way:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -106,11 +101,7 @@ useChat({
 });
 ```
 
-Because the client tool declares `ClientRuntimeContext & { mode: "debug" }`, `useChat()` requires a `context` value with both `currentTabId` and the literal `mode: "debug"`.
-
-## Server Runtime Context
-
-Define the context type once, use it in server tools and middleware, then pass the matching `context` value to `chat()`.
+## Server runtime context
 
 ```typescript
 import {
@@ -128,7 +119,10 @@ type AppContext = {
   tenantId: string;
   db: {
     notes: {
-      findMany(args: { userId: string; tenantId: string }): Promise<Array<{ title: string }>>;
+      findMany(args: {
+        userId: string;
+        tenantId: string;
+      }): Promise<Array<{ title: string }>>;
     };
   };
 };
@@ -176,11 +170,9 @@ export async function POST(request: Request) {
 }
 ```
 
-When any tool or middleware in a `chat()` call declares a concrete context type, TypeScript checks the `context` value against that type. Existing untyped tools and middleware continue to work; their `ctx.context` type remains `unknown`.
+## Client runtime context
 
-## Client Runtime Context
-
-Client runtime context is local to `ChatClient` and framework hooks. It is passed to client tool implementations and is not serialized to the server.
+Local to `ChatClient` / hooks — not serialized to the server.
 
 ```typescript
 import { createChatClientOptions } from "@tanstack/ai-client";
@@ -212,11 +204,11 @@ const chatOptions = createChatClientOptions({
 const chat = useChat(chatOptions);
 ```
 
-Use client context for local dependencies only. Do not put values there expecting the server to receive them.
+## Client → server handoff
 
-## Client-to-Server Handoff
+Serializable data → `forwardedProps`. Validate on the server; map into server `context` yourself.
 
-To send serializable client data to the server, use `forwardedProps`, validate it in your route, and explicitly map it into the server runtime context.
+**Client:**
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -235,7 +227,6 @@ const notifyUser = toolDefinition({
   return { ok: true };
 });
 
-// Client
 useChat({
   connection: fetchServerSentEvents("/api/chat"),
   tools: [notifyUser],
@@ -249,8 +240,9 @@ useChat({
 });
 ```
 
+**Server:**
+
 ```typescript
-// Server
 import {
   chat,
   chatParamsFromRequest,
@@ -288,16 +280,18 @@ export async function POST(request: Request) {
 }
 ```
 
-Treat `forwardedProps` as client-controlled input. Validate and allowlist every field before using it to build server runtime context.
+Treat `forwardedProps` as client-controlled: validate and allowlist before use.
 
-## AG-UI Context
+## AG-UI context
 
-AG-UI also defines `RunAgentInput.context`, usually as protocol-level context entries for interoperable agents. TanStack AI surfaces that field through `chatParamsFromRequest`, but it is separate from `chat({ context })`.
-
-TanStack AI does not automatically copy AG-UI `params.aguiContext` into runtime context. If you want to use AG-UI context values, validate and map them yourself. `params.context` is a deprecated alias of `params.aguiContext` kept for backward compatibility.
+`RunAgentInput.context` is protocol metadata via `chatParamsFromRequest` (`params.aguiContext`; `params.context` is a deprecated alias). TanStack AI does **not** auto-copy it into runtime `context` — map it yourself:
 
 ```typescript
-import { chat, chatParamsFromRequest, toServerSentEventsResponse } from "@tanstack/ai";
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { buildRuntimeContextFrom } from "./context";
 import { serverTools } from "./tools";

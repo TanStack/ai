@@ -2,7 +2,7 @@
 title: Generic Interrupts
 id: interrupts-generic
 order: 4
-description: "Pause a run to ask the user something that isn't a tool call, validate their answer, and continue."
+description: "Pause a run to ask a non-tool question, validate the answer, continue."
 keywords:
   - tanstack ai
   - generic interrupt
@@ -13,23 +13,13 @@ keywords:
 
 # Generic Interrupts
 
-Sometimes the agent needs an answer that isn't a tool call at all. Mid-run it has
-to ask the user to pick a shipping speed, confirm an address, or choose which of
-two drafts to keep. There's no tool to approve here, just a question your app
-asks and the user answers.
+If the agent needs a free-form answer (shipping speed, draft choice) that is not a tool call → emit a generic interrupt with `responseSchema`, render a form, resolve with a validated value.
 
-A generic interrupt is that question. You end the run with a pause that carries a
-`responseSchema` describing the answer you expect, render a form for it, and
-continue the run once the user submits a valid value.
+You own both ends: server emits, client resolves.
 
-Because the pause is defined by your app, you own both ends: the server emits it,
-and the client resolves it.
+## Resolve on the client
 
-## Resolve it on the client
-
-The schema arrives over the wire, so its value is `unknown` at compile time.
-Validate the user's answer against it before resolving. Build the value from your
-form fields and pass it straight to the schema:
+Wire schema is `unknown` at compile time. Validate before resolving:
 
 ```tsx
 // app/refund-reason.tsx
@@ -38,8 +28,6 @@ import type { GenericAGUIInterrupt } from '@tanstack/ai-client'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { z } from 'zod'
 
-// You emitted this pause, so you know the shape of the answer. Here it is a
-// single reason string chosen from a dropdown.
 function RefundReasonForm({ interrupt }: { interrupt: GenericAGUIInterrupt }) {
   const [reason, setReason] = useState('damaged')
   const [errors, setErrors] = useState<ReadonlyArray<string>>([])
@@ -96,30 +84,15 @@ export function RefundReasons() {
 }
 ```
 
-`z.fromJSONSchema` gives you a runtime validator, not a trustworthy static type.
-The library does not validate the wire schema for you. Whatever you pass to
-`resolveInterrupt` is sent as-is, so validate the value here on the client, and
-again on the server if you need to trust it, the same way you would treat any
-other user input.
+`z.fromJSONSchema` is a runtime validator, not a static type. The library does not validate the wire schema for you. Treat `resolveInterrupt` input like any other user input — validate client-side, and again on the server if you need to trust it.
 
-## Emit it on the server
+## Emit on the server
 
-Tool approvals are rebuilt by `chat()` from message history for free. Generic
-pauses are not, because only your app knows when to ask and what to ask. You emit
-the descriptor and validate the answer yourself:
+Tool approvals rebuild from history via `chat()`. Generic pauses do not — only your app knows when/what to ask.
 
-1. End a run with `RUN_FINISHED` and `outcome.type === 'interrupt'`, carrying a
-   `generic` descriptor with your `responseSchema`. A small middleware is the
-   usual place to do this.
-2. On the continuation request, correlate the incoming `resume` against that
-   same pending descriptor with `validateInterruptResumeBatch`. It checks the
-   batch is complete and matches the pending item; it does not validate your
-   generic value, that is yours to do. Then append the answer and continue.
+1. End a run with `RUN_FINISHED` and `outcome.type === 'interrupt'`, carrying a `generic` descriptor with your `responseSchema` (middleware is the usual place).
+2. On continuation, correlate `resume` with `validateInterruptResumeBatch` (checks batch completeness / pending match — not your generic value). Append the answer and continue.
 
-The interrupt lab in `examples/ts-react-chat` has a complete middleware that
-emits a generic pause and correlates its answer. Without the server half, a
-generic answer fails resume validation with `unknown-interrupt` or
-`incomplete-batch`.
+Full middleware example: interrupt lab in `examples/ts-react-chat`. Without the server half, resume fails with `unknown-interrupt` or `incomplete-batch`.
 
-> Gating a tool instead of asking a free-form question? A tool
-> [approval](./tool-approval) gives you typed branches on top of validation.
+> Gating a tool instead? Use [approval](./tool-approval) for typed branches on top of validation.

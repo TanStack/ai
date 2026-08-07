@@ -2,7 +2,7 @@
 title: Overview
 id: overview
 order: 1
-description: "TanStack AI is a type-safe, provider-agnostic TypeScript SDK for building streaming chat, tool calling, and AI features that work across any framework."
+description: "Type-safe, provider-agnostic TypeScript SDK for streaming chat, tools, and AI features."
 keywords:
   - tanstack ai
   - ai sdk
@@ -14,29 +14,25 @@ keywords:
   - llm sdk
 ---
 
-TanStack AI is a lightweight, type-safe SDK for building production-ready AI experiences. Its framework-agnostic core provides type-safe tool/function calling, streaming responses, and first-class React and Solid integrations, with adapters for multiple LLM providers — enabling predictable, composable, and testable AI features across any stack.
+If you need a working chat UI → [Quick Start](./quick-start). Server only → [Server Quick Start](./quick-start-server).
 
-## Key Features
+TanStack AI is a type-safe TypeScript SDK for streaming chat, tool calling, and multi-provider AI apps. Core is framework-agnostic; React, Solid, Vue, Svelte, and Preact ship first-class clients.
 
-- ✅ **Type-Safe** - Full TypeScript support with Zod schema inference
-- ✅ **Streaming** - Built-in streaming support for real-time responses
-- ✅ **Isomorphic Tools** - Define once with `toolDefinition()`, implement with `.server()` or `.client()`
-- ✅ **Framework Agnostic** - Core library works anywhere
-- ✅ **Multiple Providers** - OpenRouter, OpenAI, Anthropic, Gemini, Ollama, and more
-- ✅ **Approval Flow** - Built-in support for tool approval workflows
-- ✅ **Automatic Execution** - Both server and client tools execute automatically
+## When to use it
 
-## Framework Agnostic
+**Must-have capabilities**
 
-The framework-agnostic core of TanStack AI provides the building blocks for creating AI experiences in any environment, including:
+- Type-safe tools and model options (Zod + per-model narrowing)
+- Streaming chat with automatic tool execution
+- Isomorphic tools: define once, `.server()` / `.client()`
+- Adapters for OpenRouter, OpenAI, Anthropic, Gemini, Ollama, and more
+- Approval flows for human-in-the-loop tools
 
-- **Next.js** - API routes and App Router
-- **TanStack Start** - React Start or Solid Start (recommended!)
-- **React Native / Expo** - Native chat screens with `useChat`, absolute server URLs, and XHR streaming transports
-- **Express** - Node.js server
-- **React Router v7** - Loaders and actions
+**Runs in**
 
-TanStack AI lets you define a tool once and provide environment-specific implementations. Using `toolDefinition()` to declare the tool's input/output types and the server behavior with `.server()` (or a client implementation with `.client()`). These isomorphic tools can be invoked from the AI runtime regardless of framework.
+Next.js, TanStack Start, Express, React Router v7, React Native / Expo (absolute URL + XHR stream).
+
+## Define a tool once
 
 ```typescript
 import { chat, toolDefinition } from '@tanstack/ai'
@@ -44,7 +40,6 @@ import { openaiText } from '@tanstack/ai-openai'
 import { z } from 'zod'
 import { db } from './db'
 
-// Define a tool
 const getProductsDef = toolDefinition({
   name: 'getProducts',
   description: 'Search for products by query',
@@ -52,12 +47,10 @@ const getProductsDef = toolDefinition({
   outputSchema: z.array(z.object({ id: z.string(), name: z.string() })),
 })
 
-// Create server implementation
 const getProducts = getProductsDef.server(async ({ query }) => {
   return await db.products.search(query)
 })
 
-// Use in AI chat
 chat({
   adapter: openaiText('gpt-5.2'),
   messages: [{ role: 'user', content: 'Find products' }],
@@ -65,60 +58,34 @@ chat({
 })
 ```
 
-## Core Packages
+## Packages
 
-The TanStack AI ecosystem consists of several packages:
+| Package | Use for |
+| --- | --- |
+| `@tanstack/ai` | `chat()`, adapters, tools, agent loops, typed modalities |
+| `@tanstack/ai-client` | Headless chat state, SSE/HTTP/custom connections |
+| `@tanstack/ai-react` | React `useChat` |
+| `@tanstack/ai-solid` | Solid `useChat` |
 
-### `@tanstack/ai`
-The core AI library that provides:
-- AI adapter interface for connecting to LLM providers
-- Chat completion and streaming
-- Isomorphic tool/function calling system
-- Agent loop strategies
-- Type-safe tool definitions with `toolDefinition()`
-- Type-safe Model Options based on adapter & model selection
-- Type-safe content modalities (text, image, audio, video, document) based on model capabilities
-
-### `@tanstack/ai-client`
-A framework-agnostic headless client for managing chat state:
-- Message management with full type safety
-- Streaming support
-- Connection adapters (SSE, HTTP stream, custom)
-- Automatic tool execution (server and client)
-- Tool approval flow handling
-
-### `@tanstack/ai-react`
-React hooks for TanStack AI:
-- `useChat` hook for chat interfaces
-- Automatic state management
-- Tool approval flow support
-- Type-safe message handling with `InferChatMessages`
-
-### `@tanstack/ai-solid`
-Solid hooks for TanStack AI:
-- `useChat` hook for chat interfaces
-- Automatic state management
-- Tool approval flow support
-- Type-safe message handling with `InferChatMessages`
+Framework packages wrap the same headless client (messages, streaming, auto tool execution, approvals).
 
 ## Adapters
 
-With the help of adapters, TanStack AI can connect to various LLM providers. Available adapters include:
+**Do now (common)**
 
-- **@tanstack/ai-openrouter** - OpenRouter (300+ models via a single API key — recommended)
-- **@tanstack/ai-openai** - OpenAI (GPT series)
-- **@tanstack/ai-anthropic** - Anthropic (Claude)
-- **@tanstack/ai-gemini** - Google Gemini
-- **@tanstack/ai-ollama** - Ollama (local models)
-- **@tanstack/ai-groq** - Groq
-- **@tanstack/ai-grok** - xAI Grok
-- **@tanstack/ai-bedrock** - Amazon Bedrock (Claude, Nova, Llama, and more via AWS)
-- **@tanstack/ai-byteplus** - BytePlus (Seed chat, Seedance video, Seedream image, Seed Speech)
-- **@tanstack/ai-fal** - fal (image & video generation)
+- `@tanstack/ai-openrouter` — 300+ models, one API key (recommended to start)
+- `@tanstack/ai-openai` — GPT series
+- `@tanstack/ai-anthropic` — Claude
+- `@tanstack/ai-gemini` — Google Gemini
+- `@tanstack/ai-ollama` — local models
 
-## Next Steps
+**Also available**
 
-- [Quick Start Guide](./quick-start) - Get up and running in minutes
-- [Quick Start: React Native](./quick-start-react-native) - Add mobile chat with Expo and a server-owned provider boundary
-- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
-- [API Reference](../api/ai) - Explore the full API
+`@tanstack/ai-groq`, `@tanstack/ai-grok`, `@tanstack/ai-bedrock`, `@tanstack/ai-byteplus`, `@tanstack/ai-fal`
+
+## Next
+
+- [Quick Start: React](./quick-start)
+- [Quick Start: React Native](./quick-start-react-native)
+- [Tools](../tools/tools)
+- [API Reference](../api/ai)

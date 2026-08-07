@@ -1,7 +1,7 @@
 ---
 title: OpenAI-Compatible Adapter
 id: openai-compatible-adapter
-description: "Use any OpenAI-compatible provider (DeepSeek, Moonshot/Kimi, Together, Fireworks, Cerebras, Qwen, Perplexity, local servers, and more) in TanStack AI with one generic adapter."
+description: "Any OpenAI Chat Completions provider (DeepSeek, Kimi, Together, local servers, LiteLLM) via one generic adapter."
 keywords:
   - tanstack ai
   - openai compatible
@@ -19,28 +19,27 @@ keywords:
   - adapter
 ---
 
-Many providers expose the OpenAI **Chat Completions** API (`/chat/completions`) — DeepSeek, Moonshot/Kimi, Together, Fireworks, Cerebras, Alibaba Qwen, Perplexity, NVIDIA NIM, and local servers like LM Studio, Ollama, and vLLM. Instead of a dedicated package per provider, TanStack AI ships one generic adapter: point it at any compatible `baseURL`, give it your models, and you get the same type-safe `chat()` experience as the first-class adapters.
+If your provider speaks OpenAI `/chat/completions` but has no `@tanstack/ai-*` package → use `openaiCompatible`. Prefer dedicated adapters (OpenAI, Grok, Groq, OpenRouter) when they exist.
 
-Use this when your provider speaks the OpenAI Chat Completions wire format but doesn't have its own `@tanstack/ai-*` package. If a dedicated adapter exists (OpenAI, Grok, Groq, OpenRouter), prefer it — those carry curated per-model metadata.
+## Install
 
-## Installation
-
-The adapter ships inside `@tanstack/ai-openai` under the `/compatible` subpath — no extra install:
+Ships in `@tanstack/ai-openai` under `/compatible`:
 
 ```bash
 npm install @tanstack/ai-openai
 ```
 
-## Basic Usage
+## Do this
 
-Configure the provider once with `openaiCompatible({ baseURL, apiKey, models })`, then select a model per call. The returned model name is a type-safe union of the models you declared:
+1. Configure once with `baseURL`, `apiKey`, `models`.
+2. Select a model per call (type-safe union of declared models).
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";
 
 const deepseek = openaiCompatible({
-  name: "deepseek", // optional label shown in devtools/errors (default: "openai-compatible")
+  name: "deepseek",
   baseURL: "https://api.deepseek.com/v1",
   apiKey: process.env.DEEPSEEK_API_KEY!,
   models: ["deepseek-chat", "deepseek-reasoner"],
@@ -52,11 +51,7 @@ const stream = chat({
 });
 ```
 
-`deepseek("deepseek-reasoner")` is valid; `deepseek("gpt-4o")` is a type error — only declared models are accepted.
-
-## One-Shot Usage
-
-For a single model, skip the provider-factory and build the adapter inline with `openaiCompatibleText`:
+### One-shot
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -71,12 +66,10 @@ const stream = chat({
 });
 ```
 
-## Declaring Models
+## Declaring models
 
-The `models` array accepts two forms, which you can mix:
-
-- **A bare string** — gets optimistic defaults: `text` + `image` input, with `streaming`, `function_calling`, and `structured_outputs` support. Good for mainstream chat models.
-- **A `createModel(name, capabilities)` definition** — declares precise per-model capabilities so the types match reality (e.g. a reasoning model with no image input).
+- **String** → optimistic defaults: text+image input, streaming, function_calling, structured_outputs
+- **`createModel(name, capabilities)`** → precise features (e.g. no image)
 
 ```typescript
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";
@@ -86,20 +79,20 @@ const provider = openaiCompatible({
   baseURL: "https://api.deepseek.com/v1",
   apiKey: process.env.DEEPSEEK_API_KEY!,
   models: [
-    "deepseek-chat", // string → optimistic defaults
+    "deepseek-chat",
     createModel("deepseek-reasoner", {
-      input: ["text"], // text only
+      input: ["text"],
       features: ["reasoning", "structured_outputs"],
     }),
   ],
 });
 ```
 
-> Capabilities are enforced at the type level. If a provider rejects a feature at runtime (e.g. tools on a model that doesn't support them), declare that model with `createModel` and omit the unsupported feature so the types stop you from calling it.
+Omit unsupported features so types block bad calls.
 
 ## Configuration
 
-`openaiCompatible` accepts every OpenAI SDK `ClientOptions` field besides `apiKey`/`baseURL` (which are required and promoted to the top level). The most useful are `defaultHeaders` and `defaultQuery`, for providers that need extra auth or routing parameters:
+All OpenAI SDK `ClientOptions` except `apiKey`/`baseURL` (required at top level). Useful: `defaultHeaders`, `defaultQuery`.
 
 ```typescript
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";
@@ -113,9 +106,9 @@ const provider = openaiCompatible({
 });
 ```
 
-## Chat Completions vs Responses
+### Responses API
 
-By default the adapter targets the **Chat Completions** API (`/chat/completions`) — the surface virtually every compatible provider implements. For the rare provider that also implements OpenAI's **Responses** API (e.g. Azure OpenAI), opt in with `api: "responses"`:
+Default is Chat Completions. Opt in:
 
 ```typescript
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";
@@ -124,41 +117,32 @@ const provider = openaiCompatible({
   baseURL: "https://my-resource.openai.azure.com/openai/v1",
   apiKey: process.env.AZURE_OPENAI_API_KEY!,
   models: ["gpt-4o"],
-  api: "responses", // default is "chat-completions"
+  api: "responses", // default: "chat-completions"
 });
 ```
 
-## Supported Providers
-
-Any provider implementing the OpenAI Chat Completions API works. Common ones are below — **verify the `baseURL` and model ids against each provider's current docs**, since they change over time. Set the API key via the provider's own environment variable and pass it as `apiKey`.
+## Providers (verify baseURL/models in their docs)
 
 | Provider | `baseURL` | Example model |
 | --- | --- | --- |
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat`, `deepseek-reasoner` |
+| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
 | Moonshot / Kimi | `https://api.moonshot.ai/v1` | `kimi-k2-0711-preview` |
-| Alibaba Qwen (DashScope, intl) | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | `qwen-max`, `qwen-plus` |
-| Alibaba Qwen (DashScope, China) | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-max` |
-| Together AI | `https://api.together.xyz/v1` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
-| Fireworks AI | `https://api.fireworks.ai/inference/v1` | `accounts/fireworks/models/llama-v3p3-70b-instruct` |
+| Qwen (intl) | `https://dashscope-intl.aliyuncs.com/compatible-mode/v1` | `qwen-max` |
+| Qwen (China) | `https://dashscope.aliyuncs.com/compatible-mode/v1` | `qwen-max` |
+| Together | `https://api.together.xyz/v1` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
+| Fireworks | `https://api.fireworks.ai/inference/v1` | `accounts/fireworks/models/llama-v3p3-70b-instruct` |
 | Cerebras | `https://api.cerebras.ai/v1` | `llama-3.3-70b` |
 | DeepInfra | `https://api.deepinfra.com/v1/openai` | `meta-llama/Llama-3.3-70B-Instruct` |
-| Perplexity | `https://api.perplexity.ai` | `sonar`, `sonar-pro` |
-| Requesty | `https://router.requesty.ai/v1` | `openai/gpt-4o-mini` |
-| Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
-| Nebius | `https://api.studio.nebius.ai/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
-| Z.AI (GLM) | `https://api.z.ai/api/paas/v4` | `glm-4.6` |
-| Baseten | `https://inference.baseten.co/v1` | model-dependent |
-| Hugging Face (router) | `https://router.huggingface.co/v1` | `meta-llama/Llama-3.3-70B-Instruct` |
+| Perplexity | `https://api.perplexity.ai` | `sonar` |
 | NVIDIA NIM | `https://integrate.api.nvidia.com/v1` | `meta/llama-3.3-70b-instruct` |
 
-## Local & Self-Hosted Servers
+Also: Requesty, Mistral, Nebius, Z.AI, Baseten, Hugging Face router, …
 
-Point the adapter at any local OpenAI-compatible server. The API key is usually a placeholder:
+## Local servers
 
 ```typescript
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";
 
-// LM Studio
 const lmstudio = openaiCompatible({
   name: "lmstudio",
   baseURL: "http://localhost:1234/v1",
@@ -166,7 +150,6 @@ const lmstudio = openaiCompatible({
   models: ["local-model"],
 });
 
-// vLLM
 const vllm = openaiCompatible({
   name: "vllm",
   baseURL: "http://localhost:8000/v1",
@@ -174,7 +157,6 @@ const vllm = openaiCompatible({
   models: ["meta-llama/Llama-3.3-70B-Instruct"],
 });
 
-// Ollama's OpenAI-compatible endpoint
 const ollama = openaiCompatible({
   name: "ollama",
   baseURL: "http://localhost:11434/v1",
@@ -183,19 +165,17 @@ const ollama = openaiCompatible({
 });
 ```
 
-> Ollama also has a dedicated adapter, [`@tanstack/ai-ollama`](./ollama), which understands its native API. Use `openaiCompatible` only if you specifically want Ollama's OpenAI-compatible surface.
+Ollama native API: [`@tanstack/ai-ollama`](./ollama).
 
-## LiteLLM Proxy
-
-[LiteLLM](https://github.com/BerriAI/litellm) is a self-hosted gateway that exposes a single OpenAI Chat Completions endpoint in front of 100+ providers (OpenAI, Anthropic, Google, Azure, AWS Bedrock, Mistral, Groq, and more). Because the proxy speaks the OpenAI wire format, it needs no dedicated package — point `openaiCompatible` at your proxy's `baseURL` (default `http://localhost:4000/v1`) and route to a provider with LiteLLM's `provider/model` naming:
+## LiteLLM
 
 ```typescript
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";
 
 const litellm = openaiCompatible({
   name: "litellm",
-  baseURL: "http://localhost:4000/v1", // your LiteLLM proxy
-  apiKey: process.env.LITELLM_API_KEY!, // a virtual key issued by the proxy
+  baseURL: "http://localhost:4000/v1",
+  apiKey: process.env.LITELLM_API_KEY!,
   models: [
     "anthropic/claude-sonnet-5",
     "openai/gpt-5.5",
@@ -204,13 +184,9 @@ const litellm = openaiCompatible({
 });
 ```
 
-`litellm("anthropic/claude-sonnet-5")` selects the Anthropic route; `litellm("openai/gpt-5.5")` selects OpenAI — all through the one proxy. Declare only the model routes you configured on the proxy; for precise per-model capabilities (e.g. a reasoning route without image input), use `createModel` as shown under [Declaring Models](#declaring-models).
-
-> The proxy holds each upstream provider's real credentials; the `apiKey` here is the proxy's own virtual/master key, not the upstream provider's.
+`apiKey` is the proxy virtual key, not upstream credentials.
 
 ## Azure OpenAI
-
-Azure uses a resource-scoped URL and a separate API-version. Use the `/openai/v1` endpoint with `defaultQuery` for the version and `defaultHeaders` for the `api-key` header:
 
 ```typescript
 import { openaiCompatible } from "@tanstack/ai-openai/compatible";
@@ -218,18 +194,16 @@ import { openaiCompatible } from "@tanstack/ai-openai/compatible";
 const azure = openaiCompatible({
   name: "azure",
   baseURL: "https://YOUR_RESOURCE.openai.azure.com/openai/v1",
-  apiKey: process.env.AZURE_OPENAI_API_KEY!, // also sent as Bearer; Azure accepts the api-key header below
-  models: ["gpt-4o"], // your Azure deployment name
+  apiKey: process.env.AZURE_OPENAI_API_KEY!,
+  models: ["gpt-4o"],
   defaultQuery: { "api-version": "2026-01-01-preview" },
   defaultHeaders: { "api-key": process.env.AZURE_OPENAI_API_KEY! },
 });
 ```
 
-> Confirm the current `api-version` and endpoint shape in Azure's documentation — Azure's API surface evolves independently of OpenAI's.
+Confirm `api-version` in Azure docs.
 
-## Example: With Tools
-
-Tools work exactly as they do with any other adapter, for models that support function calling:
+## Tools
 
 ```typescript
 import { chat, toolDefinition } from "@tanstack/ai";
@@ -259,9 +233,9 @@ const stream = chat({
 });
 ```
 
-## Next Steps
+## Next steps
 
-- [OpenAI Adapter](./openai) - The first-class OpenAI adapter
-- [OpenRouter Adapter](./openrouter) - Access 300+ models through one gateway
-- [Tools Guide](../tools/tools) - Learn about tools
-- [Extending Adapters](../advanced/extend-adapter) - Add custom models to any adapter
+- [OpenAI Adapter](./openai)
+- [OpenRouter Adapter](./openrouter)
+- [Tools](../tools/tools)
+- [Extending Adapters](../advanced/extend-adapter)

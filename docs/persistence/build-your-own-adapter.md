@@ -1,7 +1,7 @@
 ---
 title: Build Your Own Adapter
 id: build-your-own-adapter
-description: "Store chat history in the database you already run: implement one store, hand it to withPersistence, and prove it with the conformance suite."
+description: "Implement store functions against your DB, hand them to withPersistence, prove with the conformance suite."
 keywords:
   - persistence adapter
   - custom store
@@ -11,14 +11,11 @@ keywords:
 
 # Build Your Own Persistence Adapter
 
-Your data lives in your own database (Postgres behind Prisma, a SQLite file, D1,
-Mongo) and you do not want another service just for chat history. You do not need
-one. An adapter is a plain object of store functions. The core never looks at your
-tables, so the schema stays yours.
+If you need chat history in the database you already run → implement store methods as plain objects. Core never inspects your tables.
 
-## The smallest adapter that works
+## Smallest adapter that works
 
-One store, `messages`, is enough for `withPersistence`. This is the whole thing:
+**Must:** `messages` only.
 
 ```ts
 import {
@@ -30,16 +27,14 @@ import { db } from './db'
 export const persistence = defineAIPersistence({
   stores: {
     messages: defineMessageStore({
-      // Return [] for a thread that was never saved, never null.
+      // [] for unknown thread, never null
       loadThread: (threadId) => db.threads.messages(threadId),
-      // The full transcript, not a delta. Overwrite what you had.
+      // full transcript overwrite, not a delta
       saveThread: (threadId, messages) => db.threads.save(threadId, messages),
     }),
   },
 })
 ```
-
-Hand it to the middleware and you are done:
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -55,19 +50,11 @@ export const stream = chat({
 })
 ```
 
-Already have tables? Nothing above assumes new ones. Name your columns whatever you
-like, use your native types (`jsonb`, `timestamptz`), and convert inside the store
-functions. Extra columns such as `user_id` or audit timestamps are fine as long as
-they are nullable or defaulted, because these stores never touch a column they do not
-know about. There is one `define*Store` helper per store, and each type-checks your
-object inline so you never annotate it by hand.
+Existing tables: any column names/types; convert inside store functions. Extra columns (`user_id`, audit) fine if nullable/defaulted. Use `define*Store` helpers — they type-check inline.
 
-## Which stores do you need?
+## Which stores?
 
-Each store switches on one capability. Find your column and implement the rows marked
-with a tick:
-
-| Store | Save the transcript | Rejoin a run after reload | Durable approvals | App key/value | Persist generation runs | Keep generated files |
+| Store | Transcript | Rejoin run | Approvals | App KV | Generation runs | Generated files |
 | --- | :-: | :-: | :-: | :-: | :-: | :-: |
 | `messages` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 | `runs` | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
@@ -77,16 +64,15 @@ with a tick:
 | `artifacts` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 | `blobs` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
 
-- **Columns stack.** Durable approvals and generated files means the union of both.
-- **Two pairs cannot be split.** `interrupts` needs `runs`, and `artifacts` needs
-  `blobs`.
-- **The generation stores feed `withGenerationPersistence`** instead, and need none of
-  the chat stores. See [Generation persistence](./generation-persistence).
+**Rules:**
 
-The common production shape is `messages` + `runs` + `interrupts`.
+1. Columns stack (need approvals + files → union).
+2. Pairs: `interrupts` needs `runs`; `artifacts` needs `blobs`.
+3. Generation stores feed `withGenerationPersistence` only — [Generation persistence](./generation-persistence).
 
-You can also own only part of it. Put `messages` and `runs` in your database and fill
-the rest from somewhere else with `composePersistence`:
+Common production: `messages` + `runs` + `interrupts`.
+
+Partial own + fill rest:
 
 ```ts
 import { composePersistence, memoryPersistence } from '@tanstack/ai-persistence'
@@ -97,31 +83,18 @@ export const persistence = composePersistence(memoryPersistence(), {
 })
 ```
 
-That gives you no transaction across the two systems, so a write touching both is two
-writes. The store invariants (idempotent creates, insert-if-absent) are what make
-retrying them safe.
+No cross-system transaction. Idempotent creates make retries safe.
 
 ## Let your agent write it
-
-`@tanstack/ai-persistence` ships [Agent Skills](../getting-started/agent-skills) that
-turn this into a recipe against your stack: your ORM config, your schema file, your
-database handle.
 
 ```bash
 pnpm add @tanstack/ai-persistence
 npx @tanstack/intent@latest install
 ```
 
-Then ask for "add chat persistence to this app". There are recipes for Drizzle,
-Prisma, Cloudflare D1, and anything else (raw `pg`, Kysely, SQLite, Mongo, Supabase).
-The skills are plain Markdown under
-`node_modules/@tanstack/ai-persistence/skills/` if you would rather read them.
+Ask: "add chat persistence to this app". Recipes: Drizzle, Prisma, D1, raw `pg`, Kysely, SQLite, Mongo, Supabase. Skills under `node_modules/@tanstack/ai-persistence/skills/`.
 
-## Prove it with the conformance suite
-
-Do not eyeball it. The same suite every packaged backend runs is shipped for yours. It
-exercises every method of every store you provide, including the ordering and
-idempotency rules that are easy to get subtly wrong.
+## Prove with conformance
 
 ```ts
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
@@ -132,8 +105,7 @@ runPersistenceConformance('my sqlite adapter', () =>
 )
 ```
 
-Declare what you left out. A store you do not provide goes in `skip`, and an optional
-`runs` method goes in `skipMethods`:
+Declare skips:
 
 ```ts
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
@@ -145,20 +117,13 @@ runPersistenceConformance('chat-only adapter', () => chatOnlyPersistence(), {
 })
 ```
 
-Anything absent and undeclared fails with a message naming exactly what to add, so a
-half-wired adapter cannot report a pass. When this is green, your adapter is a drop-in
-for `withPersistence`, and with the generation stores for
-`withGenerationPersistence` too.
+Absent + undeclared → fail naming the gap. Green → drop-in for `withPersistence` / `withGenerationPersistence`.
 
-## Where to go next
+## Next
 
-- [Build a chat adapter](./build-your-own-chat-adapter): the full SQLite walkthrough
-  for all four chat stores, method by method.
-- [Build a generation adapter](./build-your-own-generation-adapter): generation runs,
-  artifacts and blobs.
-- [Build a sandbox adapter](./build-a-sandbox-adapter): the sandbox instance store, and
-  what a durable sandboxed run adds to `runs`. Only if you run sandboxes.
-- [Store reference](./store-reference): every signature and invariant, and how the
-  records relate.
-- [Controls](./controls): compose stores from different systems.
-- [Migrations](./migrations): who owns the schema.
+- [Build a chat adapter](./build-your-own-chat-adapter) — SQLite, all four chat stores
+- [Build a generation adapter](./build-your-own-generation-adapter) — generationRuns, artifacts, blobs
+- [Build a sandbox adapter](./build-a-sandbox-adapter) — sandbox instance store + durable run fields
+- [Store reference](./store-reference) — signatures and invariants
+- [Controls](./controls) — compose stores
+- [Migrations](./migrations) — schema ownership

@@ -2,7 +2,7 @@
 title: Quickstart
 id: memory-quickstart
 order: 2
-description: "Add cross-session memory to a TanStack AI chat() call: install the package, pick a recall/save adapter, wire memoryMiddleware, and derive scope server-side."
+description: "Install @tanstack/ai-memory, pick an adapter, wire memoryMiddleware, derive scope server-side."
 keywords:
   - tanstack ai
   - memory
@@ -12,37 +12,31 @@ keywords:
   - chat middleware
 ---
 
-You have a working `chat()` call and you want it to remember context across turns or
-sessions. By the end of this guide, `memoryMiddleware` recalls relevant memory into the
-prompt and saves each finished turn through a real adapter, scoped safely from your
-server-validated session.
+# Memory quickstart
 
-> Want the full contract first? See the [Overview](./overview).
+If you already have `chat()` → add cross-session memory in five steps.
 
-## Step 1: Install the package
+Contract first? [Overview](./overview).
+
+## 1. Install
 
 ```bash
 pnpm add @tanstack/ai-memory
 ```
 
-`@tanstack/ai-memory` ships `memoryMiddleware`, the `MemoryAdapter` contract, and the
-built-in and vendor adapters (each on its own subpath).
+Ships `memoryMiddleware`, `MemoryAdapter`, and adapters on subpaths.
 
-## Step 2: Pick an adapter
+## 2. Pick an adapter
 
-> **In-memory:** `inMemory()` is zero-dependency and stores records in a `Map`. Use it
-> for local development, tests, and single-process demos. Records vanish on restart.
->
-> **Redis:** `redis({ redis })` persists across restarts and shares state across
-> processes. Bring your own client (`ioredis`, or `redis` via `fromNodeRedis`).
->
-> **Vendors:** `hindsight()`, `mem0()`, and `honcho()` delegate to a hosted memory service.
+| Adapter | When |
+|---------|------|
+| `inMemory()` | Dev, tests, single process (gone on restart) |
+| `redis({ redis })` | Persist + multi-process |
+| `hindsight()` / `mem0()` / `honcho()` | Hosted memory services |
 
-Custom adapters implement the `recall`/`save` contract. See [Custom Adapter](./custom-adapter).
+Custom backends: [Custom Adapter](./custom-adapter).
 
-## Step 3: Wire `memoryMiddleware` into `chat()`
-
-Start with the in-memory adapter, the fastest path to a working setup:
+## 3. Wire `memoryMiddleware`
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -64,10 +58,9 @@ const stream = chat({
 })
 ```
 
-Each turn, the middleware recalls relevant memory into the system prompt (lexical scoring
-by default), then deferred-saves the user and assistant turn after the stream finishes.
+Each turn: recall into system prompt → deferred save after stream.
 
-When you're ready to ship, swap the adapter and keep everything else the same:
+Swap for production without changing middleware shape:
 
 ```ts
 import Redis from 'ioredis'
@@ -75,7 +68,7 @@ import { memoryMiddleware } from '@tanstack/ai-memory'
 import { redis } from '@tanstack/ai-memory/redis'
 import type { MemoryScope } from '@tanstack/ai-memory'
 
-declare const scope: MemoryScope // from Step 5
+declare const scope: MemoryScope
 
 const client = new Redis(process.env.REDIS_URL ?? 'redis://localhost:6379')
 const memory = redis({ redis: client })
@@ -83,14 +76,11 @@ const memory = redis({ redis: client })
 memoryMiddleware({ adapter: memory, scope })
 ```
 
-> Using a hosted service? Swap `inMemory()` for `hindsight({ user })`, `mem0({ user })`,
-> or `honcho({ user })`. The middleware wiring is identical. The adapter maps
-> `recall`/`save` onto the vendor API.
+Hosted: `hindsight({ user })`, `mem0({ user })`, or `honcho({ user })`.
 
-## Step 4: Semantic scoring (optional)
+## 4. Semantic scoring (optional)
 
-The built-in adapters score lexically by default. Pass an `embedder` for semantic recall
-when scopes grow large or queries don't share keywords with stored text:
+Default is lexical. Add `embedder` for large scopes / non-keyword queries:
 
 ```ts
 import OpenAI from 'openai'
@@ -113,11 +103,9 @@ const memory = inMemory({
 })
 ```
 
-## Step 5: Derive scope server-side
+## 5. Derive scope server-side
 
-`scope` is the isolation boundary. Static scopes are fine for fixtures, but in any real
-app derive scope per request from server-validated session data, never from the request
-body.
+Never trust `userId` from the client body.
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -126,7 +114,6 @@ import { memoryMiddleware } from '@tanstack/ai-memory'
 import type { ModelMessage } from '@tanstack/ai'
 import type { MemoryAdapter } from '@tanstack/ai-memory'
 
-// From earlier steps / your auth layer.
 declare const messages: Array<ModelMessage>
 declare const memory: MemoryAdapter
 declare const session: { userId: string; threadId: string }
@@ -135,7 +122,7 @@ declare function getSession(ctx: unknown): { threadId: string; userId: string }
 const stream = chat({
   adapter: openaiText('gpt-5.5'),
   messages,
-  context: { session }, // attached by your auth middleware, not from req.body
+  context: { session },
   middleware: [
     memoryMiddleware({
       adapter: memory,
@@ -148,8 +135,7 @@ const stream = chat({
 })
 ```
 
-On the client, nothing changes for memory wiring — consume the same stream as any
-other `chat()` endpoint:
+Client is unchanged — memory is server-only:
 
 ```ts
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
@@ -158,17 +144,10 @@ function Chat() {
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
   })
-  // Memory is entirely server-side; the client only sees the usual message stream.
-  return (
-    // render messages, input, sendMessage, isLoading…
-    null
-  )
+  return null // render messages, input, sendMessage, isLoading
 }
 ```
 
-## Where to go next
+## Next
 
-- [Overview](./overview): the `recall`/`save` contract, scope, and how a turn flows
-- [Adapters](./adapters): every adapter's options, with an example of each
-- [Operating memory](./operating): options, telemetry, devtools events, and failures
-- [Custom Adapter](./custom-adapter): implement `recall`/`save` for a backend that isn't shipped
+- [Overview](./overview) · [Adapters](./adapters) · [Operating](./operating) · [Custom Adapter](./custom-adapter)

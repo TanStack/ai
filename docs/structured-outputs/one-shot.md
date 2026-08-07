@@ -2,7 +2,7 @@
 title: One-Shot Extraction
 id: structured-outputs-one-shot
 order: 2
-description: "Extract a single typed object from a prompt with chat({ outputSchema }). Field descriptions, nested schemas, plain JSON Schema, error handling — everything you need for a single round-trip from text in to typed data out."
+description: "Extract one typed object with chat({ outputSchema }) — field hints, nested schemas, JSON Schema, errors."
 keywords:
   - tanstack ai
   - structured outputs
@@ -13,15 +13,13 @@ keywords:
   - type inference
 ---
 
-You have unstructured input — a paragraph of text, a freeform user prompt, the body of an email — and you want exactly one typed object back. No streaming, no history, no agent loop: one prompt in, one validated object out.
+# One-Shot Extraction
 
-By the end of this guide you'll have a working `chat({ outputSchema })` call returning a fully-typed result, know how to describe fields so the model fills them correctly, and have a pattern for handling validation errors.
+If you need one prompt → one validated object (no history UI) → `await chat({ outputSchema })`.
 
-> **Note:** If you want to stream the result field-by-field into a UI, you want [Streaming UIs](./streaming) instead. If you want users to iterate on the object across multiple turns, you want [Multi-Turn Chat](./multi-turn). This page is for the single-extraction case.
+Progressive UI → [Streaming](./streaming). Multi-turn history → [Multi-Turn](./multi-turn).
 
-## Basic Usage
-
-Define a schema and pass it as `outputSchema`. The return type follows from the schema — no cast needed.
+## Basic usage
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -51,22 +49,18 @@ person.age;   // number
 person.email; // string
 ```
 
-## Type Inference
-
-The return type of `chat()` switches on the combination of `outputSchema` and `stream`:
+## Return types
 
 | Configuration | Return type |
 |---|---|
 | No `outputSchema`, `stream: false` | `Promise<string>` |
-| No `outputSchema`, `stream: true` (default for plain chat) | `AsyncIterable<StreamChunk>` |
-| With `outputSchema` (this page — implicitly non-streaming) | `Promise<InferSchemaType<TSchema>>` |
-| With `outputSchema` and `stream: true` | `StructuredOutputStream<InferSchemaType<TSchema>>` (see [Streaming UIs](./streaming)) |
+| No `outputSchema`, `stream: true` (default) | `AsyncIterable<StreamChunk>` |
+| With `outputSchema` (this page) | `Promise<InferSchemaType<TSchema>>` |
+| With `outputSchema` + `stream: true` | `StructuredOutputStream<…>` — [Streaming](./streaming) |
 
-The TypeScript type of `person` above is `{ name: string; age: number; email: string }` — derived from `PersonSchema`. No runtime cast, no `as`, no separate type definition.
+## Field descriptions
 
-## Field Descriptions
-
-Field descriptions tell the model what data to extract. They become part of the JSON Schema sent to the provider — the model sees them as hints. In Zod v4.2+ use `.meta()`:
+Use `.meta({ description })` (Zod v4.2+) for ambiguous names, units, or freeform source text.
 
 ```typescript
 import { z } from "zod";
@@ -79,21 +73,11 @@ const ProductSchema = z.object({
   }),
   categories: z
     .array(z.string())
-    .meta({
-      description:
-        "Product categories like 'electronics', 'clothing', etc.",
-    }),
+    .meta({ description: "Product categories like 'electronics', 'clothing'" }),
 });
 ```
 
-Descriptions earn their keep when:
-- The field name is ambiguous (`price` — in what currency?)
-- The expected unit isn't obvious (`duration` — seconds or minutes?)
-- The schema is being applied to text where the same concept could be phrased many ways
-
-## Complex Nested Schemas
-
-Schemas can nest arbitrarily. The inferred type follows the structure.
+## Nested schemas
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -129,14 +113,14 @@ const company = await chat({
   outputSchema: CompanySchema,
 });
 
-company.headquarters.city; // string
-company.employees[0]!.role; // string
-company.financials?.profitable; // boolean | undefined
+company.headquarters.city;
+company.employees[0]!.role;
+company.financials?.profitable;
 ```
 
-## Using Plain JSON Schema
+## Plain JSON Schema
 
-If you don't want a schema library, pass a JSON Schema object directly. The trade-off: TypeScript can't infer the return type, so the result is `unknown` and you take responsibility for the runtime shape.
+Result is `unknown` — validate before use:
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -157,21 +141,19 @@ const result = await chat({
   messages: [{ role: "user", content: "Extract: John is 25 years old" }],
   outputSchema: schema,
 });
-
-// `result` is `unknown` — a raw JSON Schema gives no compile-time type.
-// Validate it (e.g. with a Standard Schema library) before use.
 ```
 
-Prefer a schema library when you can — type inference is worth it.
-
-## Error Handling
-
-If the model's response doesn't satisfy your schema, `chat()` throws a validation error. The message includes the failing fields.
+## Errors
 
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { MySchema } from "./schemas";
+import { z } from "zod";
+
+const MySchema = z.object({
+  name: z.string(),
+  age: z.number(),
+});
 
 try {
   const result = await chat({
@@ -182,20 +164,15 @@ try {
 } catch (error) {
   if (error instanceof Error) {
     console.error("Structured output failed:", error.message);
-    // The message names which fields failed validation.
   }
 }
 ```
 
-Provider-level errors (auth failure, rate limit, network) throw the same way — wrap the call in `try` / `catch` to handle both.
+Schema failures and provider errors both throw.
 
-## Consuming the result on the client
+## Client consumption
 
-The `await chat({ outputSchema })` call above returns a `Promise<T>` — ideal for a server route, a script, or a CLI. There are two ways that typed object reaches a browser.
-
-### As plain JSON (no hook)
-
-If the client only needs the finished object and you don't want progressive UI, resolve the promise on the server and return it as JSON. The browser fetches it like any other endpoint — no TanStack client API, no `partial` / `final`:
+### Plain JSON (no hook)
 
 ```typescript
 import { chat } from "@tanstack/ai";
@@ -205,44 +182,38 @@ import { z } from "zod";
 const PersonSchema = z.object({
   name: z.string(),
   age: z.number(),
-  email: z.string().email(),
 });
 
-// server route
+// server
 export async function POST(request: Request) {
-  const { text } = await request.json();
+  const body: unknown = await request.json();
+  const text =
+    typeof body === "object" &&
+    body !== null &&
+    "text" in body &&
+    typeof body.text === "string"
+      ? body.text
+      : "";
   const person = await chat({
     adapter: openaiText("gpt-5.5"),
     messages: [{ role: "user", content: `Extract the person info: ${text}` }],
     outputSchema: PersonSchema,
   });
-  return Response.json(person); // typed object → JSON
+  return Response.json(person);
 }
-```
-
-```typescript
-import { z } from "zod";
-
-const PersonSchema = z.object({
-  name: z.string(),
-  age: z.number(),
-  email: z.string().email(),
-});
 
 // client
-const text = "John Doe, 30, john@example.com";
+const text = "John is 25 years old";
 const res = await fetch("/api/extract-person", {
   method: "POST",
   body: JSON.stringify({ text }),
 });
-const person = PersonSchema.parse(await res.json()); // validated + typed
+const person = PersonSchema.parse(await res.json());
 ```
 
-This is the most literal one-shot shape: one request, one object back. You own the fetch and the typing; the hook isn't involved.
+### `useChat` + `final`
 
-### With `useChat` — typed `final` (and optional `partial`)
-
-When you want the hook ergonomics — managed `isLoading` state, a schema-typed result, optional field-by-field fill — read `final` off `useChat({ outputSchema })`. Because `useChat` consumes a stream, the server switches to the streaming shape (`stream: true` + `toServerSentEventsResponse`); the client still treats it as "one object, when it's ready":
+Server must stream (`stream: true` + `toServerSentEventsResponse`). Client treats it as one finished object:
 
 ```tsx
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -256,8 +227,6 @@ const PersonSchema = z.object({
 });
 
 function PersonExtractor() {
-  // `final` is `z.infer<typeof PersonSchema> | null`.
-  // `partial` is `DeepPartial<z.infer<typeof PersonSchema>>`.
   const { sendMessage, isLoading, final, partial } = useChat({
     connection: fetchServerSentEvents("/api/extract-person"),
     outputSchema: PersonSchema,
@@ -271,36 +240,22 @@ function PersonExtractor() {
       >
         Extract
       </button>
-
-      {/* One-shot UI: just render the validated object when it lands. */}
       {final && <PersonCard person={final} />}
     </div>
   );
 }
 ```
 
-- **`final`** — `T | null`. The validated terminal object, populated when the run completes. For a one-shot UI, render off `final` and you're done.
-- **`partial`** — `DeepPartial<T>`. The same object filling in field by field as the JSON streams. Ignore it if you only care about the finished result; reach for it when you want a progressive form. The [Streaming UIs](./streaming) guide covers that pattern in depth.
-- **The schema on `useChat`** is for client-side TypeScript inference (and progressive parsing of `partial`). Validation still runs on the server against the schema you pass to `chat({ outputSchema })`.
+- `final` — `T | null` when complete
+- `partial` — `DeepPartial<T>` while streaming (ignore for pure one-shot)
+- Client schema is for TS + progressive parse; server still validates
 
-For non-streaming adapters (Anthropic, Gemini, Ollama), the object arrives as a single event — `partial` stays `{}` and `final` snaps in one step. The consumer code above is identical regardless of adapter.
+Non-streaming adapters snap `final` in one event (`partial` stays `{}`). Progressive UI → [Streaming](./streaming); history → [Multi-Turn](./multi-turn).
 
-> Want the result to fill in field-by-field, or to keep a history of objects across turns? Those are the [Streaming UIs](./streaming) and [Multi-Turn Chat](./multi-turn) journeys — both build on this same `useChat({ outputSchema })` surface.
+## Practices
 
-## Best Practices
-
-1. **Use descriptive field names and descriptions.** The model uses them as hints.
-2. **Keep schemas focused.** Extract only what you need — smaller schemas produce more reliable results.
-3. **Mark fields optional when they really are.** Don't force the model to invent a value just because the schema demands one.
-4. **Use enums for constrained values.**
-
-   ```typescript
-   import { z } from "zod";
-
-   const schema = z.object({
-     status: z.enum(["pending", "approved", "rejected"]),
-     priority: z.enum(["low", "medium", "high"]),
-   });
-   ```
-
-5. **Test edge cases.** Empty inputs, ambiguous inputs, inputs with extra fields — make sure the schema handles them the way you expect.
+1. Describe ambiguous fields.
+2. Keep schemas small.
+3. Mark true optionals optional.
+4. Prefer enums for closed sets.
+5. Test empty / ambiguous / extra-field inputs.

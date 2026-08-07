@@ -2,7 +2,7 @@
 title: Locks
 id: locks
 order: 3
-description: "Cross-instance mutual exclusion with LockStore and withLocks — coordination middleware for multi-worker critical sections (e.g. sandbox ensure)."
+description: "Cross-instance mutual exclusion with LockStore and withLocks for multi-worker critical sections."
 keywords:
   - tanstack ai
   - locks
@@ -16,33 +16,27 @@ keywords:
   - coordination
 ---
 
-Locks answer a different question from persistence:
+If multiple processes might enter the same critical section for one key → use locks. Locks are **not** persistence.
 
 | Concern | Question | Seam |
 | --- | --- | --- |
 | **State** | What is durable? | Stores + `withPersistence` |
-| **Locks** | Who may run this critical section right now? | `LockStore` + `withLocks` |
+| **Locks** | Who may run this critical section now? | `LockStore` + `withLocks` |
 
-They live in **`@tanstack/ai`** as a middleware capability — not in
-`@tanstack/ai-persistence`, and never as a key on `AIPersistence.stores`.
+Lives in `@tanstack/ai` (middleware capability), not `@tanstack/ai-persistence`.
 
 ## When you need them
 
-Use locks when **more than one process or isolate** might enter the same critical
-section for the same key:
+**Must use locks when** more than one process/isolate can hit the same key:
 
-- **Sandbox resume-or-create** (`withSandbox` / `ensure`) — two concurrent runs
-  for the same thread must not both create a provider sandbox. See
-  [Sandbox Instance Durability](../sandbox/durability).
-- **Your own middleware** — any multi-writer work you want to serialize across
-  workers (e.g. a custom “one active job per thread” gate).
+1. Sandbox resume-or-create (`withSandbox` / `ensure`) — concurrent runs must not both create a sandbox. See [Sandbox Instance Durability](../sandbox/durability).
+2. Custom multi-writer middleware (e.g. one active job per thread).
 
-You do **not** need locks for:
+**Skip locks for:**
 
-- Single-process local dev (optional: `InMemoryLockStore` is fine).
-- Ordinary chat state durability — that is stores, not mutexes.
-- Automatically locking an entire `chat()` turn — `withLocks` only **provides**
-  the capability; consumers call `withLock` when they need exclusion.
+- Single-process local dev (`InMemoryLockStore` is fine if you want one anyway)
+- Chat state durability (use stores)
+- Auto-locking a whole `chat()` turn — `withLocks` only **provides** the capability; consumers call `withLock`
 
 ## Wire it up
 
@@ -58,18 +52,14 @@ chat({
   adapter: grokBuildText('grok-build'),
   messages,
   middleware: [
-    // Single process. Multi-instance: pass a distributed LockStore instead.
-    withLocks(new InMemoryLockStore()),
-    // later middleware can getLocks(ctx) / withSandbox will use the same token
+    withLocks(new InMemoryLockStore()), // multi-instance: pass a distributed LockStore
   ],
 })
 ```
 
-Capability identity is by **object reference**. `withLocks` provides the shared
-`LocksCapability` from core; any later middleware that reads that token (including
-`@tanstack/ai-sandbox`) sees the same store.
+Capability identity is by **object reference**. `withLocks` provides `LocksCapability`; later middleware (including `@tanstack/ai-sandbox`) read the same store.
 
-Typical order when composing with sandbox:
+With sandbox, provide locks first:
 
 ```ts
 import { withLocks, InMemoryLockStore } from '@tanstack/ai/locks'
@@ -80,45 +70,36 @@ declare const sandbox: SandboxDefinition
 
 const middleware = [
   withLocks(new InMemoryLockStore()),
-  withSandbox(sandbox), // after providers
+  withSandbox(sandbox),
 ]
 ```
 
-## The contract
+## Contract
 
 ```ts
 import type { LockStore } from '@tanstack/ai/locks'
 
 declare const locks: LockStore
 
-// Mutual exclusion for a key; lease-backed impls abort `signal` on loss.
 await locks.withLock('thread:abc', async (signal) => {
-  // critical section — pass `signal` to cancellable work when using leases
+  // critical section — pass signal to cancellable work under leases
   void signal
 })
 ```
 
 | Piece | Role |
 | --- | --- |
-| `LockStore` | Interface: `withLock(key, fn)` |
-| `withLocks(store)` | Chat middleware that provides `LocksCapability` |
-| `InMemoryLockStore` | Process-local implementation (promise chain per key) |
-| `getLocks` / `provideLocks` | Low-level capability accessors for custom middleware |
+| `LockStore` | `withLock(key, fn)` |
+| `withLocks(store)` | Middleware that provides `LocksCapability` |
+| `InMemoryLockStore` | Process-local (promise chain per key) |
+| `getLocks` / `provideLocks` | Capability accessors for custom middleware |
 
-`InMemoryLockStore` is correct **within one process only**. It serializes
-callers for the same key, does not poison the chain when a critical section
-throws, and never aborts its signal (ownership cannot be lost in-process).
+`InMemoryLockStore` only serializes **within one process**. Throws don't poison the chain; signal never aborts (ownership can't be lost in-process).
 
-## Implement a lock
-
-Wrap your own mutual-exclusion primitive with `defineLock`. It types the object
-against the contract inline (autocomplete, no `: LockStore` annotation). Acquire
-the key, run `fn`, and release when `fn` settles (whether it resolves or throws):
+## Implement a store
 
 ```ts
 import { defineLock } from '@tanstack/ai/locks'
-// Your distributed primitive. `acquire` waits until the key is free and returns
-// a `release` (plus, for leases, a `signal` that fires when ownership is lost).
 import { acquire } from './my-lock-backend'
 
 export const locks = defineLock({
@@ -133,29 +114,19 @@ export const locks = defineLock({
 })
 ```
 
-Wire it as middleware with `withLocks(locks)`. The requirements a production
-store must meet are covered below.
+Then: `withLocks(locks)`.
 
 ## Distributed locks and leases
 
-Multi-instance deployments need a **distributed** implementation (Durable Object,
-Redis, etc.). A good store:
+Multi-instance needs a distributed backend (Durable Object, Redis, …). A production store must:
 
-1. Serializes owners per `key`.
-2. Uses **leases** (or equivalent) so a crashed owner cannot block forever.
-3. Passes an `AbortSignal` into `fn`; when the lease is lost, **abort** so the
-   callback stops starting externally visible work and passes the signal to
-   cancellable dependencies.
+1. Serialize owners per `key`
+2. Use **leases** so a crashed owner can't block forever
+3. Abort `signal` when the lease is lost so `fn` stops starting external work
 
-Callbacks that ignore `signal` still type-check (`() => Promise<T>` is
-assignable), but lease-backed backends cannot protect you if the critical
-section keeps mutating after abort.
+Ignoring `signal` still type-checks; lease backends can't protect you if work continues after abort.
 
-There is no shared lock conformance suite in the chat store testkit — write
-targeted tests for concurrency, release-on-throw, and lease expiry for your
-backend. The Cloudflare Durable Object recipe lives in the
-`ai-persistence/build-cloudflare-adapter` agent skill (app-owned file,
-not a shipped package).
+No shared conformance suite — test concurrency, release-on-throw, and lease expiry yourself. Cloudflare Durable Object recipe: `ai-persistence/build-cloudflare-adapter` agent skill (app-owned, not a package).
 
 ## Consume in custom middleware
 
@@ -169,20 +140,18 @@ const serializePerThread = defineChatMiddleware({
   async onStart(ctx) {
     const locks = getLocks(ctx)
     await locks.withLock(`thread:${ctx.threadId}`, async (signal) => {
-      // critical section — honor `signal` under lease-backed locks
       void signal
     })
   },
 })
 ```
 
-Or provide without `withLocks` by calling `provideLocks` in your own
-`setup` hook if you already own a custom middleware.
+Or call `provideLocks` in your own `setup` instead of `withLocks`.
 
-## See also
+## Related
 
 - [Middleware](./middleware) — capability bus and lifecycle
-- [Sandboxes](../sandbox/overview) — sandbox middleware overview
-- [Sandbox Instance Durability](../sandbox/durability) — primary product consumer (`withSandbox` / `ensure`)
-- [Persistence Controls](../persistence/controls) — compose state stores from different systems
+- [Sandboxes](../sandbox/overview) — sandbox middleware
+- [Sandbox Instance Durability](../sandbox/durability) — `withSandbox` / `ensure`
+- [Persistence Controls](../persistence/controls) — compose state stores
 - [Build Your Own Adapter](../persistence/build-your-own-adapter) — chat store contracts

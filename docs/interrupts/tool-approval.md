@@ -2,7 +2,7 @@
 title: Tool Approval
 id: interrupts-tool-approval
 order: 2
-description: "Pause a tool call for a human yes or no, render it inside the chat, and continue the run once the user decides."
+description: "Pause a tool call for yes/no, render it in chat, continue the run after the user decides."
 keywords:
   - tanstack ai
   - tool approval
@@ -13,17 +13,11 @@ keywords:
 
 # Tool Approval
 
-You have a tool that shouldn't run until a person says yes: transferring money,
-deleting a record, sending a message. You want the model to plan the call, then
-wait for a human to approve it before anything happens.
+If a tool must not run until a person says yes → set `needsApproval: true`, render `interrupts`, call `resolveInterrupt`.
 
-By the end of this page the chat pauses on that call, shows an approve or reject
-prompt inline, and continues the run with the user's decision.
+## 1. Define the tool
 
-## Define the tool
-
-`needsApproval: true` turns the call into an approval pause. Define the tool once
-and share it, so the server and the browser infer the same types:
+Share one definition so server and client infer the same types:
 
 ```ts
 // tools/transfer.ts
@@ -42,11 +36,9 @@ export const transferTool = toolDefinition({
 })
 ```
 
-## Serve it
+## 2. Serve it
 
-The server runs the tool only after the user approves. It needs no database: the
-browser sends the message history and the `resume` decision back, so forward
-`parentRunId` and `resume` into `chat()` and it rebuilds the paused call.
+Forward `parentRunId` and `resume` into `chat()`. No database: the client resends history and the decision.
 
 ```ts
 // app/api/chat/route.ts
@@ -79,12 +71,9 @@ export async function POST(request: Request) {
 }
 ```
 
-## Render it in the chat
+## 3. Render and resolve
 
-Pass the shared tool to `useChat` so `toolName` and `originalArgs` are typed.
-Render your messages as usual, and when the run pauses, the pending approval
-shows up in `interrupts` right alongside the conversation. Resolve it straight
-from the item with `interrupt.resolveInterrupt(...)`:
+Pass the shared tool to `useChat`. Pending approvals appear in `interrupts`:
 
 ```tsx
 // app/transfer-chat.tsx
@@ -155,27 +144,20 @@ export function TransferChat() {
 }
 ```
 
-The approve and reject buttons call `resolveInterrupt` on the item itself. For a
-single pending decision that submits right away, no extra step. Resolving
-several at once is covered in [Multiple Interrupts](./multiple).
+A single pending decision submits immediately. Several at once → [Multiple Interrupts](./multiple).
 
-## Server tools and client tools
+## Server tools vs client tools
 
-Approval works the same for both. The difference is only where the tool runs
-after the user says yes.
+Approval UI is identical for both:
 
-- A **server tool** (`.server()`) runs on the server once approved.
-- A **client tool** (`.client()`) runs in the browser once approved.
+- **Server tool** (`.server()`) — runs on the server after approve.
+- **Client tool** (`.client()`) — runs in the browser after approve.
 
-The approval interrupt is identical in both cases, so the UI above does not
-change. A client tool without `needsApproval` runs on its own and never pauses,
-see [Client Tools](../tools/client-tools).
+Without `needsApproval`, a client tool runs on its own and never pauses. See [Client Tools](../tools/client-tools).
 
 ## Carry data on the decision
 
-Attach an `approvalSchema` when the decision itself needs typed data, like a
-review note or a rejection reason. Add it to the tool definition. Use one schema
-for both branches, or an `{ approve, reject }` map for different payloads:
+Add `approvalSchema` when the decision needs typed data. One schema for both branches, or `{ approve, reject }`:
 
 ```ts ignore
 export const transferTool = toolDefinition({
@@ -189,36 +171,25 @@ export const transferTool = toolDefinition({
 })
 ```
 
-Now the decision carries a payload, and approval can also replace the arguments:
-
 ```ts ignore
-// Approve as-is, with the approve-branch payload.
+// Approve as-is with approve-branch payload
 interrupt.resolveInterrupt(true, { payload: { note: 'Reviewed' } })
 
-// Approve, but replace the arguments first. editedArgs is a full replacement,
-// not a merge, and is validated against the tool's inputSchema.
+// Approve and fully replace args (not a merge); validated against inputSchema
 interrupt.resolveInterrupt(true, {
   editedArgs: { amount: 12, recipient: 'Ada' },
   payload: { note: 'Capped to policy' },
 })
 
-// Reject, with the reject-branch payload.
+// Reject with reject-branch payload
 interrupt.resolveInterrupt(false, { payload: { reason: 'Too large' } })
 ```
 
-Only approval accepts `editedArgs`. Without an `approvalSchema` the boolean
-shorthand `resolveInterrupt(true)` / `resolveInterrupt(false)` is all you need.
-The server re-validates the whole decision before it runs the tool.
+Only approval accepts `editedArgs`. Without `approvalSchema`, use `resolveInterrupt(true|false)`. Server re-validates the whole decision before running the tool.
 
-## Consume the decision on the server
+## Where fields land on the server
 
-The two fields you sent land in two different places, so pick the one that fits
-what you need.
-
-`editedArgs` become the arguments the tool runs with. This is how a human
-reshapes what the tool does before it runs. There is nothing to wire up: your
-`execute` always receives the final input, edited or not, already validated
-against `inputSchema`:
+**`editedArgs`** become the tool input. `execute` always receives final input (edited or model-supplied), already validated:
 
 ```ts
 // server/transfer-tool.ts
@@ -237,34 +208,20 @@ const transferTool = toolDefinition({
 })
 
 export const transfer = transferTool.server(async (input) => {
-  // input.amount / input.recipient are the model's arguments, or the
-  // approver's editedArgs when they changed them. Same code either way.
   return {
     receiptId: `${input.recipient}-${input.amount}-${crypto.randomUUID()}`,
   }
 })
 ```
 
-The `payload` is decision data, not tool input, and the two branches use it
-differently:
+**`payload`** is decision data, not tool input:
 
-- The **reject** payload comes back as the tool's failed result, so the model
-  reads why it was refused and can respond. `resolveInterrupt(false, { payload:
-  { reason: 'Too large' } })` hands `{ reason: 'Too large' }` to the model as
-  the result of that call.
-- The **approve** payload is validated decision data for your own app: an audit
-  log, a "reviewed by" record, an analytics event. It is not passed to
-  `execute`. If the tool itself needs a value from the approver, put it in
-  `editedArgs` (part of the tool input) rather than the payload.
+- **Reject** payload → tool's failed result (model sees why it was refused).
+- **Approve** payload → your app only (audit, analytics). Not passed to `execute`. Put values the tool needs in `editedArgs`.
 
-## Reject is not cancel
+## Reject vs cancel
 
-`resolveInterrupt(false, ...)` is a resolved no. The run continues and the model
-sees the rejection (and its reject payload as the tool result), so it can
-respond to it.
+- `resolveInterrupt(false, ...)` — resolved no; run continues; model sees rejection.
+- `interrupt.cancel()` — abandons the pause; no payload; does not pick the reject branch.
 
-`interrupt.cancel()` abandons the pause. It carries no payload and does not pick
-the reject branch. Reject when the user answered no; cancel when the workflow is
-dropped without an answer.
-
-> Resolving a queue of approvals together? See [Multiple Interrupts](./multiple).
+> Queue of approvals? [Multiple Interrupts](./multiple).

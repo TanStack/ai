@@ -2,7 +2,7 @@
 title: Lazy Tool Discovery
 id: lazy-tool-discovery
 order: 6
-description: "Reduce token cost in tool-heavy TanStack AI apps with lazy tool discovery — the LLM discovers only the tools it needs for the current task."
+description: "Mark tools lazy: true so the model discovers schemas on demand and saves tokens."
 keywords:
   - tanstack ai
   - lazy tools
@@ -13,13 +13,7 @@ keywords:
   - large tool sets
 ---
 
-When an application has many tools, sending all tool definitions to the LLM on every request wastes tokens and can degrade response quality. Lazy tool discovery lets the LLM selectively discover only the tools it needs for the current task.
-
-## How It Works
-
-Tools marked with `lazy: true` are **not** sent to the LLM upfront. Instead, a synthetic `__lazy__tool__discovery__` tool is created whose description lists all available lazy tool names. The LLM can call this discovery tool with the names of tools it wants to learn about, and receives their full descriptions and argument schemas in return.
-
-Once discovered, lazy tools are dynamically injected as normal tools — the LLM calls them directly like any other tool.
+If you have many tools and want lower token cost → set `lazy: true`. Lazy tools are **not** sent upfront; the model discovers them via `__lazy__tool__discovery__`.
 
 ```mermaid
 sequenceDiagram
@@ -43,9 +37,7 @@ sequenceDiagram
     Server-->>LLM: Tool result
 ```
 
-## Marking Tools as Lazy
-
-Add `lazy: true` to any tool definition:
+## Mark tools lazy
 
 ```typescript group=lazy-intro
 import { toolDefinition, chat, toServerSentEventsResponse } from "@tanstack/ai";
@@ -69,7 +61,7 @@ const searchProductsDef = toolDefinition({
       })
     ),
   }),
-  lazy: true, // This tool won't be sent to the LLM upfront
+  lazy: true,
 });
 
 const searchProducts = searchProductsDef.server(async ({ query }) => {
@@ -78,8 +70,6 @@ const searchProducts = searchProductsDef.server(async ({ query }) => {
 });
 ```
 
-Then pass it to `chat()` alongside your other tools:
-
 ```typescript group=lazy-intro
 async function handleRequest(request: Request) {
   const { messages } = await request.json();
@@ -87,9 +77,9 @@ async function handleRequest(request: Request) {
     adapter: openaiText("gpt-5.5"),
     messages,
     tools: [
-      getProducts, // Normal tool — sent to LLM immediately
-      searchProducts, // Lazy tool — discovered on demand
-      compareProducts, // Lazy tool — discovered on demand
+      getProducts, // eager
+      searchProducts, // lazy
+      compareProducts, // lazy
     ],
   });
 
@@ -97,12 +87,9 @@ async function handleRequest(request: Request) {
 }
 ```
 
-## Controlling the Discovery Catalog
+## Catalog detail (`lazyToolsConfig`)
 
-By default, the `__lazy__tool__discovery__` tool's description lists only the
-**names** of available lazy tools. The optional `lazyToolsConfig` on `chat()`
-controls how much of each lazy tool's description appears in that pre-discovery
-catalog:
+Default catalog lists **names only**. Tune pre-discovery description depth:
 
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
@@ -116,8 +103,7 @@ async function handleRequest(request: Request) {
     messages,
     tools: [getProducts, searchProducts, compareProducts],
     lazyToolsConfig: {
-      // 'none' (default) | 'first-sentence' | 'full'
-      includeDescription: "first-sentence",
+      includeDescription: "first-sentence", // 'none' | 'first-sentence' | 'full'
     },
   });
 
@@ -125,72 +111,53 @@ async function handleRequest(request: Request) {
 }
 ```
 
-| `includeDescription` | Catalog entry for `searchProducts`              |
-| -------------------- | ----------------------------------------------- |
-| `'none'` (default)   | `searchProducts`                                |
-| `'first-sentence'`   | `searchProducts — Search products by keyword.`  |
-| `'full'`             | `searchProducts — <full description>`           |
+| `includeDescription` | Catalog entry |
+| -------------------- | ------------- |
+| `'none'` (default)   | `searchProducts` |
+| `'first-sentence'`   | `searchProducts — Search products by keyword.` |
+| `'full'`             | `searchProducts — <full description>` |
 
-This only affects the **pre-discovery** catalog. Regardless of the setting, the
-discovery tool's result always returns each tool's full description and argument
-schema — `includeDescription` just tunes how much the LLM sees before it
-decides what to discover. The default `'none'` keeps the catalog as lean as
-possible.
+Discovery **result** always returns full description + argument schema. Same option exists on Code Mode `createCodeMode()` — [Code Mode Lazy Tools](../code-mode/lazy-tools).
 
-`lazyToolsConfig` is optional and the same option is accepted by Code Mode's
-`createCodeMode()` — see [Code Mode Lazy Tools](../code-mode/lazy-tools).
+## When to use
 
-## When to Use Lazy Tools
+**Lazy:** many tools, rare secondary tools, large descriptions.
 
-Lazy tools are useful when:
+**Eager (default):** tools used in most conversations.
 
-- **You have many tools** and want to reduce token usage per request
-- **Some tools are rarely needed** — secondary features like comparison, financing, or advanced search
-- **Tool descriptions are large** — lazy tools keep the initial prompt lean
+## Discovery flow
 
-Tools that are called in most conversations should remain eager (the default).
+1. Model sees `__lazy__tool__discovery__` with catalog names
+2. Calls discovery with needed names
+3. Gets full schemas; tools inject for next iteration
+4. Calls discovered tools normally
 
-## Discovery Flow
-
-1. The LLM sees `__lazy__tool__discovery__` with a list of available tool names in its description
-2. Based on the user's request, the LLM decides which tools it needs and calls the discovery tool
-3. The discovery tool returns the full description and JSON Schema for each requested tool
-4. The discovered tools are injected as normal tools for the next iteration
-5. The LLM calls the discovered tools directly
-
-The LLM can discover one or many tools in a single call:
+Discover many at once:
 
 ```
-// LLM calls:
 __lazy__tool__discovery__({ toolNames: ["searchProducts", "compareProducts"] })
 ```
 
-## Multi-Turn Conversations
+## Multi-turn
 
-Lazy tool discovery works across multiple turns. When a tool is discovered in one turn, it remains available in subsequent turns within the same conversation — the LLM does not need to re-discover it.
+Discovered tools stay available later in the same conversation (history scanned for prior discovery results). No re-discovery required.
 
-This is handled automatically by scanning the message history for previous discovery tool results on each `chat()` call.
+## Self-correction
 
-## Self-Correction
-
-If the LLM tries to call a lazy tool that hasn't been discovered yet, it receives an error message:
+Calling a not-yet-discovered lazy tool returns:
 
 ```
 Error: Tool 'searchProducts' must be discovered first.
 Call __lazy__tool__discovery__ with toolNames: ['searchProducts'] to discover it.
 ```
 
-The LLM then self-corrects by calling the discovery tool first, then retrying the original tool call.
+Model discovers, then retries.
 
-## Zero Overhead
+## Zero overhead
 
-If none of your tools have `lazy: true`, no discovery tool is created and the behavior is identical to the default. There is no performance or token cost when lazy discovery is not in use.
+No `lazy: true` → no discovery tool. All lazy tools discovered → discovery tool removed.
 
-When all lazy tools have been discovered, the discovery tool is automatically removed from the active tool set.
-
-## Example
-
-Here's a complete example with a mix of eager and lazy tools:
+## Complete example
 
 ```typescript
 import { toolDefinition, chat, toServerSentEventsResponse, maxIterations } from "@tanstack/ai";
@@ -198,7 +165,6 @@ import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 import { db } from "./db";
 
-// Eager tool — always available
 const getProductsDef = toolDefinition({
   name: "getProducts",
   description: "Get all products from the catalog",
@@ -216,7 +182,6 @@ const getProducts = getProductsDef.server(async () => {
   return await db.products.findMany();
 });
 
-// Lazy tool — discovered on demand
 const compareProductsDef = toolDefinition({
   name: "compareProducts",
   description: "Compare two or more products side by side",
@@ -233,7 +198,6 @@ const compareProducts = compareProductsDef.server(async ({ productIds }) => {
   return { products };
 });
 
-// Lazy tool — discovered on demand
 const calculateFinancingDef = toolDefinition({
   name: "calculateFinancing",
   description: "Calculate monthly payment plans for a product",
@@ -250,7 +214,6 @@ const calculateFinancing = calculateFinancingDef.server(async ({ productId, mont
   return { monthlyPayment, totalPrice: product.price, months };
 });
 
-// Use in chat
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
@@ -265,14 +228,11 @@ export async function POST(request: Request) {
 }
 ```
 
-With this setup:
-- The LLM always sees `getProducts` and `__lazy__tool__discovery__`
-- When a user asks to compare products, the LLM discovers `compareProducts` first, then calls it
-- When a user asks about financing, the LLM discovers `calculateFinancing` first, then calls it
+Model always sees `getProducts` + `__lazy__tool__discovery__`; discovers `compareProducts` / `calculateFinancing` when needed.
 
-## Next Steps
+## Next
 
-- [Tools Overview](./tools) - Basic tool concepts
-- [Server Tools](./server-tools) - Server-side tool execution
-- [Tool Architecture](./tool-architecture) - Deep dive into the tool system
-- [Agentic Cycle](../chat/agentic-cycle) - How the agent loop works
+- [Tools Overview](./tools)
+- [Server Tools](./server-tools)
+- [Tool Architecture](./tool-architecture)
+- [Agentic Cycle](../chat/agentic-cycle)

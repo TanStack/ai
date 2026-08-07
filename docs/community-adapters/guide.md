@@ -2,7 +2,7 @@
 title: "Community Adapters Guide"
 slug: /community-adapters/guide
 order: 1
-description: "Build and publish a community adapter for TanStack AI — package conventions, implementing the adapter interface, and publishing to npm."
+description: "Build and publish a community adapter — package layout, model metadata, capability typing, npm + docs PR."
 keywords:
   - tanstack ai
   - community adapters
@@ -15,82 +15,28 @@ keywords:
 
 # Community Adapters Guide
 
-This guide explains how to create and contribute community adapters for the TanStack AI ecosystem.
+If you need a provider TanStack AI does not ship → implement an activity adapter, publish to npm, PR the docs list.
 
-Community adapters extend TanStack AI by integrating external services, APIs, or custom model logic. They are authored and maintained by the community and can be reused across projects.
+Community adapters are community-maintained (not core team).
 
-## What is a Community Adapter?
+## Steps
 
-A community adapter is a reusable module that connects TanStack AI to an external provider or system.
+1. **Study existing adapters** — [packages/](https://github.com/tanstack/ai/tree/main/packages); full reference: [OpenAI adapter](https://github.com/tanstack/ai/tree/main/packages/ai-openai).
+2. **Define model metadata** — name/id, input/output modalities, features (stream, tools, structured output), pricing if known, provider limits. Example: [model-meta.ts](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/model-meta.ts).
+3. **Export capability arrays** — only models that fully support each activity:
 
-Common use cases include:
-- Integrating third-party AI model providers
-- Implementing custom inference or routing logic
-- Exposing provider-specific tools or capabilities
-- Connecting to non-LLM AI services (e.g. images, embeddings, video)
-
-Community adapters are **not maintained by the core TanStack AI team**, and can be reused across different projects.
-
-## Creating a Community Adapter
-
-Follow the steps below to build a well-structured, type-safe adapter.
-
-### 1. Set up your project
-
-Start by reviewing the [existing internal adapter implementations in the TanStack AI GitHub repository](https://github.com/tanstack/ai/tree/main/packages). These define the expected structure, conventions, and integration patterns.
-
-For a complete, detailed reference, use the [OpenAI adapter](https://github.com/tanstack/ai/tree/main/packages/ai-openai), which is the most fully featured implementation.
-
-### 2. Define model metadata
-
-Model metadata describes each model’s capabilities and constraints and is used by TanStack AI for compatibility checks and feature selection.
-
-Your metadata should define, at a minimum:
-
-- Model name and identifier
-- Supported input and output modalities
-- Supported features (e.g. streaming, tools, structured output)
-- Pricing or cost information (if available)
-- Any provider-specific notes or limitations
-
-Refer to the [OpenAI adapter’s model metadata](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/model-meta.ts) for a concrete example.
-
-### 3. Define model capability arrays 
-
-After defining metadata, group models by supported functionality using exported arrays. These arrays allow TanStack AI to automatically select compatible models for a given task.
-
-Example:
 ```typescript ignore
 export const OPENAI_CHAT_MODELS = [
-  // Frontier models
   GPT5_2.name,
   GPT5_2_PRO.name,
-  GPT5_2_CHAT.name,
-  GPT5_1.name,
-  GPT5_1_CODEX.name,
-  GPT5.name,
-  GPT5_MINI.name,
-  GPT5_NANO.name,
-  GPT5_PRO.name,
-  GPT5_CODEX.name,
-  // ...other models
+  // ...
 ] as const
-export const OPENAI_IMAGE_MODELS = [
-  GPT_IMAGE_1.name,
-  GPT_IMAGE_1_MINI.name,
-  DALL_E_3.name,
-  DALL_E_2.name,
-] as const
-
+export const OPENAI_IMAGE_MODELS = [GPT_IMAGE_1.name, DALL_E_3.name] as const
 export const OPENAI_VIDEO_MODELS = [SORA2.name, SORA2_PRO.name] as const
 ```
-Each array should only include models that fully support the associated functionality.
 
-### 4. Define model provider options
+4. **Type options per model** — map model name → option fragments:
 
-Each model exposes a different set of configurable options. These options must be typed per model name so that users only see valid configuration options.
-
-Example:
 ```typescript ignore
 export type OpenAIChatModelProviderOptionsByName = {
   [GPT5_2.name]: OpenAIBaseOptions &
@@ -99,119 +45,57 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
-  [GPT5_2_CHAT.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
-  // ... repeat for each model
+  // repeat per model
 }
-
 ```
-This ensures strict type safety and feature correctness at compile time.
 
-### 5. Define supported input modalities
+5. **Type input modalities per model**:
 
-Models typically support different input modalities (e.g. text, images, audio). These must be defined per model to prevent invalid usage.
-
-Example:
 ```typescript ignore
 export type OpenAIModelInputModalitiesByName = {
   [GPT5_2.name]: typeof GPT5_2.supports.input
   [GPT5_2_PRO.name]: typeof GPT5_2_PRO.supports.input
-  [GPT5_2_CHAT.name]: typeof GPT5_2_CHAT.supports.input
-  //  ... repeat for each model
+  // ...
 }
 ```
 
-### 6. Define model option fragments
+## Option fragments
 
-Model options should be composed from reusable fragments rather than duplicated per model.
+Compose reusable pieces (base + feature) rather than duplicating per model. Example: [text-provider-options.ts](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/text/text-provider-options.ts).
 
-A common pattern is:
-- Base options shared by all models
-- Feature fragments that are stitched together per model
-
-Example (based on [OpenAI models](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/text/text-provider-options.ts)):
 ```typescript
 export interface OpenAIBaseOptions {
-  // base options that every chat model supports
+  // shared by all chat models
 }
 
-// Feature fragments that can be stitched per-model 
-
-/**
- * Reasoning options for models  
- */
 export interface OpenAIReasoningOptions {
-   //...
+  // ...
 }
- 
-/**
- * Structured output options for models.
- */
+
 export interface OpenAIStructuredOutputOptions {
-  //...
+  // ...
 }
 ```
 
+## Runtime logic
 
-Models can then opt into only the features they support:
+Implement only capabilities your provider supports:
 
-```typescript ignore
-export type OpenAIChatModelProviderOptionsByName = {
-  [GPT5_2.name]: OpenAIBaseOptions &
-    OpenAIReasoningOptions &
-    OpenAIStructuredOutputOptions &
-    OpenAIToolsOptions &
-    OpenAIStreamingOptions &
-    OpenAIMetadataOptions
-}
-```
+- Text / chat
+- Image / embeddings / video (as applicable)
 
-There is no single correct composition; this structure should reflect the capabilities of the provider you are integrating.
+Handle request mapping, streaming vs non-streaming, response → TanStack types, model constraints. Reference: [text adapter](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/adapters/text.ts).
 
-### 7. Implement adapter logic
+## Publish and list
 
-Finally, implement the adapter’s runtime logic.
+1. Publish the npm package.
+2. Open a PR to [TanStack AI](https://github.com/TanStack/ai/pulls).
+3. Add the adapter under [docs/community-adapters](https://github.com/TanStack/ai/tree/main/docs/community-adapters).
+4. Run `pnpm run sync-docs-config` at monorepo root; PR the nav changes.
 
-This includes:
-- Sending requests to the external service
-- Handling streaming and non-streaming responses
-- Mapping provider responses to TanStack AI types
-- Enforcing model-specific options and constraints
+## Maintain
 
-Adapters are implemented per capability, so only implement what your provider supports:
-
-- Text adapter
-- Chat adapter
-- Image adapter
-- Embeddings adapter
-- Video adapter
-
-Refer to the [OpenAI adapter](https://github.com/TanStack/ai/blob/main/packages/ai-openai/src/adapters/text.ts) for a complete, end-to-end implementation example.
-
-### 8. Publish and submit a PR
-
-Once your adapter is complete:
-1. Publish it as an npm package
-2. Open a PR to the [TanStack AI repository](https://github.com/TanStack/ai/pulls)
-3. Add your adapter to the [Community Adapters list in the documentation](https://github.com/TanStack/ai/tree/main/docs/community-adapters)
-
-### 9. Sync documentation configuration
-
-After adding your adapter, run the  `pnpm run sync-docs-config` in the root of the TanStack AI monorepo. This ensures your adapter appears correctly in the documentation navigation. Open a PR with the generated changes.
-
-### 10. Maintain your adapter
-
-As a community adapter author, you are responsible for ongoing maintenance.
-
-This includes:
-
-- Tracking upstream provider API changes
-- Keeping compatibility with TanStack AI releases
-- Addressing issues and feedback from users
-- Updating documentation when features change
-
-If you add new features or breaking changes, open a follow-up PR to keep the docs in sync.
+- Track provider API changes
+- Stay compatible with TanStack AI releases
+- Fix user issues
+- Update docs on feature or breaking changes

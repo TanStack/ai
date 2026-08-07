@@ -2,32 +2,24 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker, Daytona, or Vercel) and what each one can do."
+description: "Pick where a sandbox runs: local process, Docker, Daytona, Vercel, or Sprites."
 ---
 
-A provider owns the isolation primitive: where the harness actually runs. Every
-provider implements the same `SandboxProvider` / `SandboxHandle` contract, so the
-[workspace](./workspace) you hand the agent and the [policy](./policy) that guards
-it are provider-agnostic. Pick a provider for the isolation, auth, and
-snapshot/resume behaviour you need; the rest of your sandbox definition stays the
-same.
+If you need to change **where** the agent runs without rewriting workspace/policy → swap the provider.
 
-> The provider is _where_ the agent runs. For _which_ agent runs (Grok Build,
-> Claude Code, Codex, OpenCode, or any ACP agent via `acpCompatible`) see
-> [Harnesses](./harnesses).
+Every provider implements the same `SandboxProvider` / `SandboxHandle` contract. [Workspace](./workspace) and [policy](./policy) stay provider-agnostic.
 
-## Choosing a provider
+> _Which_ agent runs → [Harnesses](./harnesses).
+
+## Choose a provider
 
 | Provider | Package | Isolation | Notes |
 | --- | --- | --- | --- |
-| Local process | `@tanstack/ai-sandbox-local-process` | none (host) | The fast, no-Docker dev loop. Trusted/dev use only. |
-| Docker | `@tanstack/ai-sandbox-docker` | container | Real isolation; commit-based snapshots, fork, resume-by-id. |
-| Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
-| Vercel | `@tanstack/ai-sandbox-vercel` | microVM | Managed [Vercel Sandbox](https://vercel.com/docs/sandbox) microVMs; exposed-port domains, resume-by-id (persistent). Needs `VERCEL_TOKEN` + team/project. |
-| Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
-
-Each provider is its own package, and the constructor is the only thing that
-differs between them:
+| Local process | `@tanstack/ai-sandbox-local-process` | none (host) | Fast dev loop. Trusted/dev only. |
+| Docker | `@tanstack/ai-sandbox-docker` | container | Snapshots, fork, resume-by-id. |
+| Daytona | `@tanstack/ai-sandbox-daytona` | cloud | Resume-by-id, preview ports. Needs `DAYTONA_API_KEY`. |
+| Vercel | `@tanstack/ai-sandbox-vercel` | microVM | Durable FS, resume-by-id. Needs `VERCEL_TOKEN` + team/project. |
+| Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Checkpoints, public URL. Needs `SPRITES_API_KEY`. |
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
@@ -35,17 +27,13 @@ import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 
-const dev = localProcessSandbox() // runs on your host
-const isolated = dockerSandbox({ image: 'node:22' }) // runs in a container
-const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY }) // managed cloud sandbox
-const vercel = vercelSandbox({ runtime: 'node24' }) // managed Vercel microVM
+const dev = localProcessSandbox()
+const isolated = dockerSandbox({ image: 'node:22' })
+const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY })
+const vercel = vercelSandbox({ runtime: 'node24' })
 ```
 
-> Cloud providers (Daytona, Vercel) run as remote VMs. When you drive them from
-> your laptop, [tools](./tools) bridged from `chat()` can't dial your machine's
-> `localhost`, you need the bridge tunnel. See the [tools guide](./tools) for the
-> ngrok subpath, and the [Cloudflare guide](./cloudflare) for the edge-native
-> co-located model.
+> Cloud providers (Daytona, Vercel, Sprites) are remote VMs. Bridged [tools](./tools) cannot dial laptop `localhost` — tunnel the bridge in local dev. Edge path → [Cloudflare](./cloudflare).
 
 ## Local process
 
@@ -55,23 +43,15 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 const dev = localProcessSandbox()
 ```
 
-- **Isolation:** none. The harness runs directly on your host, inheriting your
-  host environment. Use it for trusted or dev work only. There is no boundary
-  between the agent and your machine.
-- **Auth / env:** inherits the host environment. No API key injection is required
-  if your host CLI is already logged in.
-- **Snapshot / resume:** no snapshots and no durable resume-by-id; each run
-  re-creates and re-bootstraps under the same identity. The snapshot step is
-  skipped silently (see [Capabilities](#capabilities)).
+| Topic | Behavior |
+| --- | --- |
+| Isolation | None — agent = host process. |
+| Auth | Inherits host env; host CLI login works. |
+| Snapshots | None; snapshot step skipped silently. |
 
-### Use a host CLI's own auth (`scrubEnv`)
+### Use host CLI login (`scrubEnv`)
 
-Because `localProcessSandbox` runs the harness on your host, it inherits your host
-environment, including any API keys exported there. Use `scrubEnv` to remove
-variables before spawning, so the host CLI falls back to its own logged-in
-session instead of billing the API. For example, drop `XAI_API_KEY` so Grok Build
-uses your **grok.com login** (the same trick works for Claude Code with
-`ANTHROPIC_API_KEY` → `claude login`):
+Drop an injected API key so the host CLI falls back to its login session:
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
@@ -79,27 +59,11 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 const hostLogin = localProcessSandbox({ scrubEnv: ['XAI_API_KEY'] })
 ```
 
-> Only local-process can do this. It is the only provider that runs your host
-> CLI. Isolated and cloud providers have no host login, so they always use an
-> injected API key (supplied as a workspace secret).
+Only local-process can do this. Isolated/cloud providers always need workspace secrets.
 
 ### Windows process teardown (`logger`)
 
-Killing a spawned process means killing the whole tree, and on Windows that takes
-more than `taskkill /T`. Commands run through a git-bash `sh`, and MSYS's
-fork emulation runs the final command of a statement list, such as the
-`tail -f` behind a [journal](./journal) follow read, under an intermediate shell
-that immediately exits. Windows never reparents, so the surviving process points
-at a dead parent and `taskkill /T`, which walks only live parent links, cannot
-reach it **while still exiting `0`**. Left alone, every follow read leaks a
-process for the life of the machine.
-
-`localProcessSandbox` therefore consults MSYS's own process table, which does
-keep the logical parentage before killing, then kills any descendant `/T` missed.
-Teardown is total by construction: it never throws, because a throwing kill would
-strand a run mid-flight. That means a kill it genuinely cannot complete (a
-protected process, access denied) is otherwise invisible, so pass a `logger` to
-see it:
+On Windows, MSYS fork emulation can leave orphan processes after `taskkill /T` exits `0`. `localProcessSandbox` consults MSYS's process table and kills descendants. Teardown never throws (a throwing kill would strand a run) — pass a `logger` to see kills that fail:
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
@@ -111,12 +75,7 @@ const dev = localProcessSandbox({
 })
 ```
 
-Any object with a `warn(message, meta?)` method works, so the `InternalLogger`
-your adapter already receives can be handed straight in. A process that had
-already exited on its own is **not** a failure and is never reported.
-
-Nothing here changes on POSIX, where `sh` really is the command's parent and
-signalling the wrapper is enough.
+Any object with `warn(message, meta?)` works. Already-exited processes are not reported. POSIX is unchanged.
 
 ## Docker
 
@@ -126,13 +85,9 @@ import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 const isolated = dockerSandbox({ image: 'node:22' })
 ```
 
-- **Isolation:** a real container boundary between the agent and your host.
-- **Auth / env:** no host login; provide credentials as workspace secrets, which
-  are injected into the container env at create/resume. The agent reaches host
-  tools over `host.docker.internal` (see [tools](./tools)).
-- **Snapshot / resume:** full commit-based snapshots, `fork`, and resume-by-id.
-  Bootstrap snapshots after `setup` completes, so subsequent runs resume from the
-  snapshot instead of re-running setup.
+- **Isolation:** real container boundary.
+- **Auth:** workspace secrets at create/resume. Host tools via `host.docker.internal` ([tools](./tools)).
+- **Snapshots:** commit-based snapshots, `fork`, resume-by-id. Bootstrap snapshots after `setup`.
 
 ## Daytona
 
@@ -142,15 +97,10 @@ import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY })
 ```
 
-- **Isolation:** a managed cloud sandbox on a remote VM you do not run yourself.
-- **Auth / env:** needs `DAYTONA_API_KEY`. Harness credentials are injected as
-  workspace secrets; there is no host login to fall back on.
-- **Snapshot / resume:** no snapshots; resume-by-id reconnects to a still-running
-  sandbox (not a restored point-in-time snapshot), plus port preview links for
-  live previews.
-- **Bridge:** the sandbox is remote, so a [bridged tool](./tools) call can't reach
-  your laptop's `localhost`. In local dev, tunnel the bridge (see [tools](./tools));
-  a deployed orchestrator is reachable out of the box.
+- **Isolation:** managed cloud sandbox.
+- **Auth:** `DAYTONA_API_KEY` + workspace secrets. No host login.
+- **Resume:** resume-by-id to a still-running sandbox (not point-in-time snapshot) + preview links.
+- **Bridge:** remote → tunnel in local dev ([tools](./tools)).
 
 ## Vercel
 
@@ -160,13 +110,10 @@ import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 const vercel = vercelSandbox({ runtime: 'node24' })
 ```
 
-- **Isolation:** a managed microVM (Vercel Sandbox).
-- **Auth / env:** needs `VERCEL_TOKEN` plus a team/project. Harness credentials
-  are injected as workspace secrets.
-- **Snapshot / resume:** persistent resume-by-id with a durable filesystem, plus
-  exposed-port domains for previews.
-- **Bridge:** like Daytona, it is a remote VM, so bridged tools need the tunnel in local
-  dev (see [tools](./tools)).
+- **Isolation:** managed microVM.
+- **Auth:** `VERCEL_TOKEN` + team/project + workspace secrets.
+- **Resume:** persistent resume-by-id, durable filesystem, exposed-port domains.
+- **Bridge:** remote → tunnel in local dev ([tools](./tools)).
 
 ## Sprites
 
@@ -176,53 +123,25 @@ import { spritesSandbox } from '@tanstack/ai-sandbox-sprites'
 const sprites = spritesSandbox({ apiKey: process.env.SPRITES_API_KEY })
 ```
 
-- **Isolation:** a managed [Sprites](https://sprites.dev) stateful sandbox
-  (Fly.io), a remote VM you do not run yourself.
-- **Auth / env:** needs `SPRITES_API_KEY` (token form
-  `org/projectNumber/tokenId/secret`); override the control-plane URL with
-  `apiUrl` / `SPRITES_API_URL`. Harness credentials are injected as workspace
-  secrets.
-- **Snapshot / resume:** resume-by-id reconnects to the named Sprite (its
-  filesystem is durable across idle suspend/resume). `snapshot()` creates a
-  Sprite **checkpoint** (a save point of the writable overlay); restore is
-  **in-place** on the same Sprite via the handle's `restoreCheckpoint()` /
-  `listCheckpoints()`. A checkpoint does not survive Sprite deletion, so the
-  provider intentionally does **not** implement the reconstruct-after-gone
-  `restoreSnapshot`, when a Sprite is gone the framework degrades to a fresh
-  create instead. Restore restarts the environment and can take minutes;
-  `restoreCheckpoint()` polls the workspace until it is listable again before
-  resolving. Note that immediately after a restore the overlay can be listable
-  while individual file reads briefly return an I/O error as it settles, so retry
-  reads if you act on the filesystem the instant restore returns.
-- **Ports:** a Sprite proxies a single internal HTTP port (default `8080`,
-  configurable via `httpPort`) to its always-on public URL. `ports.connect(8080)`
-  switches the URL to `public` auth and returns it; other ports are not exposed.
-- **Bridge:** like Daytona and Vercel, it is a remote VM, so bridged tools need the tunnel in
-  local dev (see [tools](./tools)).
+- **Isolation:** managed [Sprites](https://sprites.dev) (Fly.io) sandbox.
+- **Auth:** `SPRITES_API_KEY` (`org/projectNumber/tokenId/secret`); optional `apiUrl` / `SPRITES_API_URL`.
+- **Resume:** resume-by-id (durable FS). `snapshot()` → checkpoint; restore is **in-place** via `restoreCheckpoint()` / `listCheckpoints()`. No reconstruct-after-gone `restoreSnapshot` — gone Sprite → fresh create. Restore can take minutes; retry file reads immediately after.
+- **Ports:** one proxied HTTP port (default `8080`, via `httpPort`). `ports.connect(8080)` switches public auth and returns the URL.
+- **Bridge:** remote → tunnel in local dev ([tools](./tools)).
 
 ## Capabilities
 
-Providers declare what they support via `capabilities()`. The flags are:
+Providers declare support via `capabilities()`. Code checks flags and degrades; calling an unsupported method throws `UnsupportedCapabilityError`.
 
 | Capability | Meaning |
 | --- | --- |
-| `fs` | Read/write the sandbox filesystem. |
-| `exec` | Run commands. |
-| `env` | Inject environment variables. |
-| `ports` | Expose/forward ports (preview URLs). |
-| `backgroundProcesses` | Keep long-running processes alive between calls. |
-| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process and Docker; `false` on remote/edge providers (Daytona, Vercel, Cloudflare), where stdin-fed harnesses deliver the prompt via a file + shell redirection instead. |
-| `killableProcesses` | A spawned process can be forcibly stopped via `SpawnHandle.kill()` **and** aborted mid-flight via the `signal` passed to `spawn`. |
-| `snapshots` | Capture and restore point-in-time snapshots. |
-| `networkPolicy` | Enforce network allow/deny rules. |
-| `durableFilesystem` | Disk that survives across resumes. |
-| `fork` | Branch a sandbox from an existing one. |
-
-Code that uses an **optional** capability checks the flag first and degrades
-gracefully. For example, bootstrap only snapshots when `snapshots` is supported,
-so `localProcessSandbox` simply skips the step. Calling an unsupported optional
-method directly (instead of checking the flag) throws an
-`UnsupportedCapabilityError`:
+| `fs` / `exec` / `env` | Filesystem, commands, env injection |
+| `ports` | Preview URLs |
+| `backgroundProcesses` | Long-lived processes between calls |
+| `writableStdin` | Host→process stdin (`true` local/Docker; `false` remote/edge) |
+| `killableProcesses` | `SpawnHandle.kill()` + mid-flight abort via `signal` |
+| `snapshots` / `fork` / `durableFilesystem` | Point-in-time restore, branch, durable disk |
+| `networkPolicy` | Network allow/deny |
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
@@ -231,54 +150,23 @@ const provider = localProcessSandbox()
 const caps = provider.capabilities()
 
 if (caps.snapshots) {
-  // safe to take a snapshot
+  // take a snapshot
 } else {
-  // degrade gracefully, local-process has no snapshots
+  // local-process has none
 }
 ```
 
-Use the flags to write provider-agnostic code: branch on the capability rather
-than the concrete provider, and your sandbox definition keeps working when you
-swap one provider for another.
+### `killableProcesses` (measured)
 
-### `killableProcesses` across the bundled providers
+Wrong `true` leaks an unstoppable `tail -f` per run. Providers declare it only when kill is observed on a real sandbox. Required on every provider (omit → treated as killable = dangerous default).
 
-This flag is **measured, not asserted**. A wrong `true` hands the journal reader
-an unstoppable `tail -f` and leaks a process per run, so a provider only declares
-it once killing has been observed to work against a real sandbox. Two of these
-declarations were once `true` on reasoning alone and both turned out to be false
-when probed (Docker's stream destroy left the container-side process in `ps`;
-local-process's `sh -c` did not `exec`, so killing the shell left the command
-alive). Anything that cannot be measured yet stays `false`, because `poll` is
-merely slower while a wrong `follow` is a leak.
-
-| Provider | `killableProcesses` | Why |
+| Provider | Flag | Why |
 | --- | --- | --- |
-| Local process | `true` | **Measured.** Kills the process GROUP, not the wrapper: `detached` spawn plus `process.kill(-pid, signal)` on POSIX (killing only the `sh` left the command running, dash does not reliably `exec`); on Windows `taskkill /T` plus a verified sweep, see [Windows teardown](#windows-process-teardown-logger). |
-| Docker | `true` | **Measured.** Signals the process INSIDE the container by the pid the wrapper recorded for itself, process group first and escalating to `KILL`. Destroying the hijacked exec stream is *not* sufficient: it only detaches the client. |
-| Daytona | `false` | `kill()` only aborts the client-side poll loop and does not await any termination; the `deleteSession` that might terminate the command runs later from the pump's teardown, is failure-swallowed, and is documented as cleanup for a *completed* session. Unmeasured, needs `DAYTONA_API_KEY`. |
-| Vercel | `false` | The abort signal reaches only the HTTP request that STARTS a detached command, so the old `kill()` was a no-op. It now issues the SDK's server-side `Command.kill`, but whether that reaches a forked child (the follow command is a multi-statement shell, so `tail -f` is always a child) is unmeasured, needs Vercel credentials. |
-| Sprites | `true` (unverified) | Not a client-side detach: `kill()` issues a real server-side `POST /exec/<sessionId>/kill` before closing the socket. What that endpoint signals (process group or pid) is undocumented and unmeasured; needs `SPRITES_API_KEY`. |
-| Cloudflare | `false` | `kill()` is a no-op, and the caller's `AbortSignal` reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
+| Local process | `true` | Kills process **group** (POSIX `-pid`; Windows `taskkill /T` + MSYS sweep). |
+| Docker | `true` | Signals pid **inside** container; stream destroy alone is not enough. |
+| Daytona | `false` | `kill()` aborts client poll only; unmeasured. |
+| Vercel | `false` | Server-side kill unmeasured against forked children. |
+| Sprites | `true` (unverified) | Real `POST …/kill`; signal scope unmeasured. |
+| Cloudflare | `false` | `kill()` no-op; Workers RPC cannot serialize `AbortSignal`. |
 
-Each of the remote providers registers the shared journal conformance suite, so
-the claim is falsifiable rather than asserted: with credentials present the suite
-runs against a real sandbox, and without them it reports a **named skip** carrying
-the reason instead of a silent pass. Cloudflare's gate is the runtime rather than
-credentials, its provider can only create a sandbox through a `Sandbox` Durable
-Object binding, which no Node test process has, so its registration is a named
-skip saying exactly that, until a Workers-runtime harness can measure it.
-
-This flag is required on every provider, including a bring-your-own one. A
-provider that omitted it would be treated as killable, which is the dangerous
-default: a follower process started there could never be reclaimed, and it would
-keep running inside the sandbox for as long as the sandbox lives.
-
-It is the flag the [run journal](./journal) reads to decide how to tail a run's
-output: a killable provider gets a streaming `tail -f`, and a provider like
-Cloudflare gets a loop of bounded reads, each of which terminates on its own.
-
-The flag also bounds what *cancel* can mean. On a `false` provider there is no
-signal path to the agent process, so the only cancel that actually stops the
-agent means destroying the sandbox, which is what the cancel path does. See
-[what cancel means on a provider that cannot kill](./takeover#what-cancel-means-on-a-provider-that-cannot-kill).
+**Cause → fix:** [journal](./journal) uses `follow` when killable, `poll` when not. On `false`, cancel only works by **destroying the sandbox** — see [takeover](./takeover#what-cancel-means-on-a-provider-that-cannot-kill).

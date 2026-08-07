@@ -1,7 +1,7 @@
 ---
 title: Approval Flow Processing Architecture
 id: approval-flow-processing
-description: "Internal architecture of TanStack AI tool approvals, interrupts, persistence, and typed client resume handling."
+description: "Internal interrupt → validate → resume pipeline for tool approvals (ephemeral by default)."
 keywords:
   - tanstack ai
   - approval flow
@@ -12,8 +12,7 @@ keywords:
 
 # Approval Flow Processing Architecture
 
-Tool approval is an interrupt-and-resume protocol. A run that needs user input
-ends with one canonical event:
+If a tool needs user input → the run ends with one interrupt terminal. Public guide: [Interrupts](../interrupts/overview). Deprecated readers: [Migrate to AG-UI interrupts](../interrupts/migration).
 
 ```ts
 const interruptTerminal = {
@@ -40,57 +39,32 @@ const interruptTerminal = {
 }
 ```
 
-The canonical event stream is the only native approval event stream. It works
-ephemerally without persistence. When server state persistence is configured,
-it stores the complete descriptor/binding batch before the terminal is exposed;
-SSE delivery durability separately assigns opaque resume offsets to delivered
-events. Native paths do not emit `approval-requested` or
-`tool-input-available` custom events.
+Canonical event stream only. Works ephemerally without persistence. With server state persistence, the descriptor/binding batch is stored before the terminal is exposed. Native paths do **not** emit `approval-requested` or `tool-input-available` custom events.
 
-See [Interrupts](../interrupts/overview) for the public server/client guide and
-[Migrate to AG-UI interrupts](../interrupts/migration) for deprecated readers.
-
-## Responsibilities
+## Layer responsibilities
 
 | Layer | Responsibility |
 | --- | --- |
-| Tool definition | Declares `needsApproval: true` for a sensitive operation. |
-| Chat engine | Stops before tool execution and emits the interrupt outcome. |
-| Chat client | Binds descriptors to typed methods, stages drafts, and submits one exact resume batch. |
-| Application UI | Explains the operation and uses `resolveInterrupt`, `cancel`, or root batch controls. |
-| Delivery adapter | Optionally replays SSE events by opaque adapter-owned offsets. |
+| Tool definition | `needsApproval: true` |
+| Chat engine | Stop before execute; emit interrupt outcome |
+| Chat client | Bind descriptors, stage drafts, submit one resume batch |
+| Application UI | `resolveInterrupt` / `cancel` / root batch controls |
+| Delivery adapter | Optional SSE replay by opaque offsets |
 
-## Descriptor to continuation pipeline
+## Pipeline: descriptor → validate all → continuation → history
 
-The invariant is **descriptor → validate all → continuation → history**:
+1. Engine builds descriptors/bindings → `MESSAGES_SNAPSHOT`, optional `STATE_SNAPSHOT`, interrupt `RUN_FINISHED`
+2. Client binds only descriptors that match reason, tool identity, call ID, schema hashes, interrupted run, generation — untrusted → `generic`
+3. Item methods validate and stage drafts; submit includes every pending interrupt ID exactly once
+4. Client starts a fresh run with full message history, interrupted `parentRunId`, full resume batch
+5. Server validates **all** payloads, edits, hashes, correlation; rebuilds expected batch from client history + current tool defs
+6. Resumed tools emit results only (no synthetic tool-call start/args replay)
 
-1. The engine builds public descriptors and bindings. Output includes
-   `MESSAGES_SNAPSHOT`, optional `STATE_SNAPSHOT`, and the interrupt
-   `RUN_FINISHED` terminal.
-2. The client binds only descriptors whose reason, tool identity, call ID,
-   schema hashes, interrupted run, and generation match its tool registry.
-   Anything untrusted degrades to `generic` rather than gaining a typed tool
-   resolver.
-3. Item methods validate and stage local drafts. The submit boundary contains
-   every pending interrupt ID exactly once.
-4. The client submits a fresh run with the full current message history, the
-   interrupted `parentRunId`, and the complete resume batch.
-5. The server validates **all** payloads, edited inputs, outputs, hashes, and
-   correlation before executing anything, reconstructing the expected batch
-   from the client-provided history and its current tool definitions.
-6. Resumed tool calls emit results only; they do not replay synthetic tool-call
-   start/argument events. Successful history belongs to the continuation run.
+Ephemeral mode: no replay / exactly-once / restart / cross-instance guarantees — history is client-provided and validated.
 
-Because the batch is rebuilt from client-provided history, ephemeral mode does
-not provide replay, exactly-once, restart, or cross-instance guarantees; the
-message history is validated but remains client-provided input.
+## Server setup (ephemeral)
 
-## Server setup
-
-Define the tool normally. The following route is the **ephemeral** flow (no
-persistence middleware): `chat` + `chatParamsFromRequest` resume the interrupt
-batch from client message history and tool definitions. Durable recovery is a
-separate optional layer and is not required for tool approvals.
+No storage required. Continuation rebuilds the paused call from browser-sent history.
 
 ```ts
 // tools.ts
@@ -139,31 +113,19 @@ export async function POST(request: Request) {
 }
 ```
 
-No server storage is required to emit or resolve interrupts. The route above is
-the complete flow: the browser sends the full message history back on the
-continuation request, and the engine rebuilds the paused call from it.
-
 ## Client state machine
 
-A single approval follows this sequence:
+1. Model emits tool call
+2. Tool-call part → `approval-requested`
+3. Run ends: `RUN_FINISHED.outcome.type === 'interrupt'`
+4. `useChat` exposes bound item in `interrupts`
+5. UI: `resolveInterrupt(...)` or `cancel()` — singleton submits immediately; multi-item batch waits for every valid draft
+6. Next request: fresh `runId`, interrupted `parentRunId`, exact AG-UI `resume` array
+7. Server validates full set, then continues
 
-1. The model emits a tool call.
-2. The client tool-call part reaches `approval-requested`.
-3. The run ends with `RUN_FINISHED.outcome.type === 'interrupt'`.
-4. `useChat` exposes a bound item in `interrupts`.
-5. The UI calls `resolveInterrupt(...)` or `cancel()`; a singleton
-   submits immediately, while a multi-item batch waits for every valid draft.
-6. The next request carries a fresh `runId`, the interrupted `parentRunId`, and
-   the exact AG-UI `resume` array.
-7. The server validates the full set before the engine continues the tool call.
-
-Normal input is rejected at step 4. This prevents a second branch from being
-created while the existing run still waits for a decision.
+Normal input is rejected at step 4 while a decision is pending.
 
 ## React approval UI
-
-Use the bound values returned by `useChat`. Rendering `interrupts` keeps IDs,
-tool types, drafts, and errors connected to the hook that owns the run.
 
 ```tsx group=approval-ui
 import type { ItemInterruptError } from '@tanstack/ai'
@@ -201,7 +163,7 @@ export function ApprovalQueue() {
 }
 ```
 
-For a batch, stage every resolution in one synchronous root callback:
+Batch — stage every resolution in one synchronous root callback:
 
 ```tsx group=approval-ui
 function ResolveAll({ approved }: { approved: boolean }) {
@@ -233,11 +195,11 @@ function ResolveAll({ approved }: { approved: boolean }) {
 }
 ```
 
-## State durability versus delivery durability
+## State durability vs delivery durability
 
-Interrupts run ephemerally: the paused call is rebuilt from the message history
-the browser replays on the continuation request. That is separate from
-*delivery* durability, which makes the live byte stream replayable after a
-dropped connection. Delivery durability is configured on
-`toServerSentEventsResponse` and assigns one opaque SSE id per chunk (it is not
-available for NDJSON). See [Resumable Streams](../resumable-streams/overview).
+| Kind | What it does |
+| --- | --- |
+| State (ephemeral default) | Rebuild paused call from message history on continue |
+| Delivery | Replay live byte stream after drop — configure on `toServerSentEventsResponse` (opaque SSE id per chunk; not NDJSON) |
+
+See [Resumable Streams](../resumable-streams/overview).

@@ -2,7 +2,7 @@
 title: "@tanstack/ai-svelte"
 id: ai-svelte
 order: 6
-description: "API reference for @tanstack/ai-svelte — Svelte 5 reactive factory functions for streaming chat built on runes."
+description: "Svelte 5 createChat factory, generation helpers, and typed client tools."
 keywords:
   - tanstack ai
   - "@tanstack/ai-svelte"
@@ -13,17 +13,23 @@ keywords:
   - api reference
 ---
 
-Svelte 5 bindings for TanStack AI, providing reactive factory functions for the headless client using Svelte runes.
-
-## Installation
+If you need streaming chat in Svelte 5 → `createChat` (factory, not a hook).
 
 ```bash
 npm install @tanstack/ai-svelte
 ```
 
-## `createChat(options)`
+## Svelte-specific rules
 
-Factory function for managing chat state in Svelte 5 with full type safety.
+1. Call `createChat` in `<script>` — not inside lifecycle callbacks.
+2. Read state as getters: `chat.messages`, `chat.isLoading` (no `.value`).
+3. **No auto-dispose** — call `chat.stop()` on unmount (`onDestroy` or `$effect` cleanup).
+4. Update props with `chat.updateForwardedProps()` / `updateContext()` (Vue watches options; Svelte needs methods).
+5. Package sources use `.svelte.ts` for runes.
+
+---
+
+## `createChat(options)`
 
 ```typescript
 import { createChat, fetchServerSentEvents } from "@tanstack/ai-svelte";
@@ -58,39 +64,34 @@ const chatOptions = createChatClientOptions({
   tools,
 });
 
-// Fully typed messages!
 type ChatMessages = InferChatMessages<typeof chatOptions>;
 
 const chat = createChat(chatOptions);
-// Access: chat.messages, chat.sendMessage, chat.isLoading, chat.error
+// chat.messages, chat.sendMessage, chat.isLoading, chat.error
 ```
 
 ### Options
 
-Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state callbacks):
+Extends `ChatClientOptions` (minus internal state callbacks):
 
-- `connection` - Connection adapter (required)
-- `tools?` - Array of client tool implementations (with `.client()` method)
-- `initialMessages?` - Initial messages array
-- `id?` - Unique identifier for this chat instance
-- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
-- `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
-- `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
-- `live?` - Enable live subscription mode (subscribes on creation)
-- `onResponse?` - Callback when response is received
-- `onChunk?` - Callback when stream chunk is received
-- `onFinish?` - Callback when response finishes
-- `onError?` - Callback when error occurs
-- `onCustomEvent?` - Callback for custom stream events
-- `streamProcessor?` - Stream processing configuration
+- `connection` — required adapter
+- `tools?` — `.client()` implementations (auto-run)
+- `initialMessages?` / `id?` / `threadId?` — seed + AG-UI thread
+- `forwardedProps?` — client JSON → server
+- `context?` — client-local tool context (not serialized)
 
-**Note:** Client tools are now automatically executed - no `onToolCall` callback needed!
+Also: `live?`, `onResponse?`, `onChunk?`, `onFinish?`, `onError?`, `onCustomEvent?`, `streamProcessor?`.  
+`body?` is **deprecated** — use `forwardedProps`.
 
 ### Returns
 
 ```typescript
-import type { UIMessage, MultimodalContent, ChatClientState, ConnectionStatus } from "@tanstack/ai-client";
+import type {
+  UIMessage,
+  MultimodalContent,
+  ChatClientState,
+  ConnectionStatus,
+} from "@tanstack/ai-client";
 import type { ModelMessage } from "@tanstack/ai";
 
 interface CreateChatReturn<TContext = unknown> {
@@ -125,17 +126,9 @@ interface CreateChatReturn<TContext = unknown> {
 }
 ```
 
-**Key differences from React/Vue:**
+---
 
-- **`create*` naming** -- factory functions, not hooks. Call outside of any lifecycle.
-- **Reactive getters** -- state properties (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) are Svelte 5 `$state` via getters. Access directly (e.g., `chat.messages`, not `chat.messages.value`).
-- **No automatic cleanup** -- unlike React/Vue/Solid, `createChat` does not auto-dispose. Call `chat.stop()` manually when the component unmounts (e.g., in `onDestroy` or an `$effect` return).
-- **`updateForwardedProps()`** -- update AG-UI `forwardedProps` dynamically (e.g., for model selection). In Vue, changes to the `forwardedProps` option are synced via `watch`; in Svelte, call this method explicitly. The legacy `updateBody()` is still available but deprecated.
-- **`.svelte.ts` files** -- source files use the `.svelte.ts` extension for Svelte 5 rune support.
-
-## Connection Adapters
-
-Re-exported from `@tanstack/ai-client` for convenience:
+## Connection adapters
 
 ```typescript
 import {
@@ -146,7 +139,9 @@ import {
 } from "@tanstack/ai-svelte";
 ```
 
-## Example: Basic Chat
+---
+
+## Basic chat
 
 ```svelte
 <script lang="ts">
@@ -191,7 +186,7 @@ import {
 </div>
 ```
 
-## Example: Tool Approval
+## Tool approval
 
 ```svelte
 <script lang="ts">
@@ -233,22 +228,16 @@ import {
 </div>
 ```
 
-## Example: Client Tools with Type Safety
+## Client tools (typed)
 
 ```svelte
 <script lang="ts">
   import { createChat, fetchServerSentEvents } from "@tanstack/ai-svelte";
-  import {
-    createChatClientOptions,
-    type InferChatMessages,
-  } from "@tanstack/ai-client";
   import { updateUIDef, saveToStorageDef } from "./tool-definitions";
 
   let notification = $state(null);
 
-  // Create client implementations
   const updateUI = updateUIDef.client((input) => {
-    // input is fully typed!
     notification = { message: input.message, type: input.type };
     return { success: true };
   });
@@ -258,12 +247,11 @@ import {
     return { saved: true };
   });
 
-  // Create typed tools array (no 'as const' needed!)
   const tools = [updateUI, saveToStorage];
 
   const chat = createChat({
     connection: fetchServerSentEvents("/api/chat"),
-    tools, // Automatic execution, full type safety
+    tools,
   });
 </script>
 
@@ -278,13 +266,13 @@ import {
 </div>
 ```
 
-## Generation Functions
+---
 
-Factory functions for one-shot generation tasks (images, speech, transcription, summarization, video). All share the same pattern: provide a `connection` or `fetcher`, call `generate()`, and read reactive state.
+## Generation functions
+
+Provide `connection` or `fetcher`, call `generate()`, read reactive getters. **No auto-cleanup** — call `.stop()` when done.
 
 ### `createGeneration(options)`
-
-Base factory for custom generation types. All specialized functions below are built on this.
 
 ```typescript
 import { createGeneration, fetchServerSentEvents } from "@tanstack/ai-svelte";
@@ -299,33 +287,21 @@ const gen = createGeneration({
 
 **Options:** `connection?`, `fetcher?`, `id?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId`, `updateBody` -- all state properties are reactive getters.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId`, `updateBody`.
 
-### `createGenerateImage(options)`
+### Specialized
 
-Image generation factory. `generate()` accepts `ImageGenerateInput`, result is `ImageGenerationResult`.
+| Factory | Input | Result notes |
+| --- | --- | --- |
+| `createGenerateImage` | `ImageGenerateInput` | `ImageGenerationResult` |
+| `createGenerateSpeech` | `SpeechGenerateInput` | `TTSResult` |
+| `createTranscription` | `TranscriptionGenerateInput` | `TranscriptionResult` |
+| `createSummarize` | `SummarizeGenerateInput` | `SummarizationResult` |
+| `createGenerateVideo` | video input | + `jobId`, `videoStatus`; `onJobCreated?`, `onStatusUpdate?` |
 
-### `createGenerateSpeech(options)`
-
-Text-to-speech factory. `generate()` accepts `SpeechGenerateInput`, result is `TTSResult`.
-
-### `createTranscription(options)`
-
-Audio transcription factory. `generate()` accepts `TranscriptionGenerateInput`, result is `TranscriptionResult`.
-
-### `createSummarize(options)`
-
-Text summarization factory. `generate()` accepts `SummarizeGenerateInput`, result is `SummarizationResult`.
-
-### `createGenerateVideo(options)`
-
-Video generation factory with job polling. Returns additional `jobId` and `videoStatus` reactive getters. Accepts extra `onJobCreated?` and `onStatusUpdate?` callbacks.
-
-No generation function includes automatic cleanup. Call `.stop()` manually when done.
+---
 
 ## `createChatClientOptions(options)`
-
-Helper to create typed chat options (re-exported from `@tanstack/ai-client`).
 
 ```typescript
 import {
@@ -335,7 +311,6 @@ import {
 } from "@tanstack/ai-client";
 import { tool1, tool2 } from "./tools";
 
-// Create typed tools array (no 'as const' needed!)
 const tools = [tool1, tool2];
 
 const chatOptions = createChatClientOptions({
@@ -348,36 +323,12 @@ type Messages = InferChatMessages<typeof chatOptions>;
 
 ## Types
 
-Re-exported from `@tanstack/ai-client`:
+From `@tanstack/ai-client`: `UIMessage`, `MessagePart`, `TextPart`, `ThinkingPart`, `ToolCallPart`, `ToolResultPart`, `ChatClientOptions`, `ConnectionAdapter`, `InferChatMessages`, `ChatRequestBody`, generation types (`GenerationClientState`, `ImageGenerateInput`, `SpeechGenerateInput`, `TranscriptionGenerateInput`, `SummarizeGenerateInput`, `VideoGenerateInput`, `VideoGenerateResult`, `VideoStatusInfo`).
 
-- `UIMessage<TTools>` - Message type with tool type parameter
-- `MessagePart<TTools>` - Message part with tool type parameter
-- `TextPart` - Text content part
-- `ThinkingPart` - Thinking content part
-- `ToolCallPart<TTools>` - Tool call part (discriminated union)
-- `ToolResultPart` - Tool result part
-- `ChatClientOptions<TTools, TContext>` - Chat client options with typed client runtime context
-- `ConnectionAdapter` - Connection adapter interface
-- `InferChatMessages<T>` - Extract message type from options
-- `ChatRequestBody` - Request body type
-- `GenerationClientState` - Generation lifecycle state
-- `ImageGenerateInput` - Image generation input type
-- `SpeechGenerateInput` - Speech generation input type
-- `TranscriptionGenerateInput` - Transcription input type
-- `SummarizeGenerateInput` - Summarization input type
-- `VideoGenerateInput` - Video generation input type
-- `VideoGenerateResult` - Video generation result type
-- `VideoStatusInfo` - Video job status info
-
-Re-exported from `@tanstack/ai`:
-
-- `toolDefinition()` - Create isomorphic tool definition
-- `ToolDefinitionInstance` - Tool definition type
-- `ClientTool` - Client tool type
-- `ServerTool` - Server tool type
+From `@tanstack/ai`: `toolDefinition()`, `ToolDefinitionInstance`, `ClientTool`, `ServerTool`.
 
 ## Next Steps
 
-- [Getting Started](../getting-started/quick-start) - Learn the basics
-- [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
-- [Client Tools](../tools/client-tools) - Learn about client-side tools
+- [Getting Started](../getting-started/quick-start)
+- [Tools Guide](../tools/tools)
+- [Client Tools](../tools/client-tools)
