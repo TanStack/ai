@@ -1239,7 +1239,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               `${this.name}.processStreamChunks orphan function_call_arguments.delta`,
               {
                 source: `${this.name}.processStreamChunks`,
-                toolCallId: chunk.item_id,
+                // No metadata yet, so the `call_id` is unknown here — only the
+                // output item id the delta referenced.
+                itemId: chunk.item_id,
                 rawDelta: chunk.delta,
               },
             )
@@ -1274,7 +1276,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               `${this.name}.processStreamChunks deferring function_call_arguments.done — TOOL_CALL_START not yet emitted (waiting for name)`,
               {
                 source: `${this.name}.processStreamChunks`,
-                toolCallId: item_id,
+                ...(metadata && { toolCallId: metadata.callId }),
+                itemId: item_id,
                 rawArguments: chunk.arguments,
               },
             )
@@ -1301,10 +1304,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 {
                   error: toRunErrorPayload(
                     parseError,
-                    `tool ${name} (${item_id}) returned malformed JSON arguments`,
+                    `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
                   ),
                   source: `${this.name}.processStreamChunks`,
-                  toolCallId: item_id,
+                  toolCallId: metadata.callId,
+                  itemId: item_id,
                   toolName: name,
                   rawArguments: chunk.arguments,
                 },
@@ -1381,10 +1385,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                     {
                       error: toRunErrorPayload(
                         parseError,
-                        `tool ${name} (${item.id}) returned malformed JSON arguments`,
+                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
                       ),
                       source: `${this.name}.processStreamChunks`,
-                      toolCallId: item.id,
+                      toolCallId: metadata.callId,
+                      itemId: item.id,
                       toolName: name,
                       rawArguments: rawArgs,
                     },
@@ -1463,10 +1468,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                     {
                       error: toRunErrorPayload(
                         parseError,
-                        `tool ${name} (${item.id}) returned malformed JSON arguments`,
+                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
                       ),
                       source: `${this.name}.processStreamChunks`,
-                      toolCallId: item.id,
+                      toolCallId: metadata.callId,
+                      itemId: item.id,
                       toolName: name,
                       rawArguments: rawArgs,
                     },

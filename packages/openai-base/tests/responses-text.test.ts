@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type OpenAI from 'openai'
-import { EventType } from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
@@ -2162,6 +2162,132 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
             type: 'function_call_output',
             call_id: 'call_123',
             output: '{"temp":72}',
+          }),
+        ]),
+      )
+    })
+
+    /**
+     * End-to-end guard for the `call_id` / output-item-`id` split, covering
+     * every adapter that inherits this base (`@tanstack/ai-openai`,
+     * `@tanstack/ai-grok`, `@tanstack/ai-bedrock`, and the OpenAI-compatible
+     * adapter — none of them override `convertMessagesToInput`).
+     *
+     * Unlike the request-mapping test above, this drives the real `chat()`
+     * agent loop, so it proves the output item id actually survives the round
+     * trip: adapter -> TOOL_CALL_START metadata -> assistant ModelMessage ->
+     * adapter. Hand-building the assistant message would assume the very
+     * propagation that can break.
+     *
+     * This has to live here, in a unit test. The mock-based E2E suite cannot
+     * catch it: aimock maps an incoming `function_call.call_id` straight onto
+     * `tool_calls[].id`, so a request that uses the *wrong* id consistently in
+     * both the `function_call` and its `function_call_output` still correlates
+     * and still passes. Only a provider that knows the real item -> call_id
+     * mapping rejects it.
+     */
+    it('round-trips distinct output item and call IDs through a server tool', async () => {
+      const firstTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_item_1',
+            call_id: 'call_abc',
+            name: 'lookup_weather',
+            arguments: '',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_item_1',
+          output_index: 0,
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'fc_item_1',
+                call_id: 'call_abc',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      const secondTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Sunny',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+          },
+        },
+      ]
+
+      mockResponsesCreate = vi
+        .fn()
+        .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+        .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+      const execute = vi.fn().mockReturnValue({ temperature: 72 })
+
+      for await (const _chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'How is the weather?' }],
+        tools: [{ ...weatherTool, execute }],
+      })) {
+        // consume both agent-loop turns
+      }
+
+      expect(execute).toHaveBeenCalledOnce()
+      expect(mockResponsesCreate).toHaveBeenCalledTimes(2)
+
+      const secondRequest = mockResponsesCreate.mock.calls[1]![0]
+      expect(secondRequest.input).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'function_call',
+            id: 'fc_item_1',
+            call_id: 'call_abc',
+          }),
+          expect.objectContaining({
+            type: 'function_call_output',
+            call_id: 'call_abc',
           }),
         ]),
       )

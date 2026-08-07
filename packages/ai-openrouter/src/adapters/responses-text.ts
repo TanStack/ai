@@ -1197,7 +1197,9 @@ export class OpenRouterResponsesTextAdapter<
               `${this.name}.processStreamChunks orphan function_call_arguments.delta`,
               {
                 source: `${this.name}.processStreamChunks`,
-                toolCallId: itemId,
+                // No metadata yet, so the `call_id` is unknown here — only the
+                // output item id the delta referenced.
+                itemId,
                 rawDelta: chunk.delta,
               },
             )
@@ -1224,7 +1226,8 @@ export class OpenRouterResponsesTextAdapter<
               `${this.name}.processStreamChunks deferring function_call_arguments.done — TOOL_CALL_START not yet emitted (waiting for name)`,
               {
                 source: `${this.name}.processStreamChunks`,
-                toolCallId: itemId,
+                ...(metadata && { toolCallId: metadata.callId }),
+                itemId,
                 rawArguments: chunk.arguments,
               },
             )
@@ -1245,10 +1248,11 @@ export class OpenRouterResponsesTextAdapter<
                 {
                   error: toRunErrorPayload(
                     parseError,
-                    `tool ${name} (${itemId}) returned malformed JSON arguments`,
+                    `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
                   ),
                   source: `${this.name}.processStreamChunks`,
-                  toolCallId: itemId,
+                  toolCallId: metadata.callId,
+                  itemId,
                   toolName: name,
                   rawArguments: chunk.arguments,
                 },
@@ -1320,10 +1324,11 @@ export class OpenRouterResponsesTextAdapter<
                     {
                       error: toRunErrorPayload(
                         parseError,
-                        `tool ${name} (${item.id}) returned malformed JSON arguments`,
+                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
                       ),
                       source: `${this.name}.processStreamChunks`,
-                      toolCallId: item.id,
+                      toolCallId: metadata.callId,
+                      itemId: item.id,
                       toolName: name,
                       rawArguments: rawArgs,
                     },
@@ -1402,10 +1407,11 @@ export class OpenRouterResponsesTextAdapter<
                     {
                       error: toRunErrorPayload(
                         parseError,
-                        `tool ${name} (${item.id}) returned malformed JSON arguments`,
+                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
                       ),
                       source: `${this.name}.processStreamChunks`,
-                      toolCallId: item.id,
+                      toolCallId: metadata.callId,
+                      itemId: item.id,
                       toolName: name,
                       rawArguments: rawArgs,
                     },
