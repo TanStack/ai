@@ -1,5 +1,13 @@
 # @tanstack/ai-angular
 
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`ed44467`](https://github.com/TanStack/ai/commit/ed44467c5e701f0a4fcc1c9f5639d036de35d26a)]:
+  - @tanstack/ai@0.43.1
+  - @tanstack/ai-client@0.23.1
+
 ## 0.4.0
 
 ### Minor Changes

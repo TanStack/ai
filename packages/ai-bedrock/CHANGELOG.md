@@ -1,5 +1,13 @@
 # @tanstack/ai-bedrock
 
+## 0.1.6
+
+### Patch Changes
+
+- Updated dependencies [[`ed44467`](https://github.com/TanStack/ai/commit/ed44467c5e701f0a4fcc1c9f5639d036de35d26a)]:
+  - @tanstack/ai@0.43.1
+  - @tanstack/openai-base@0.9.10
+
 ## 0.1.5
 
 ### Patch Changes

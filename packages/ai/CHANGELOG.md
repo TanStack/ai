@@ -1,5 +1,13 @@
 # @tanstack/ai
 
+## 0.43.1
+
+### Patch Changes
+
+- [#1055](https://github.com/TanStack/ai/pull/1055) [`ed44467`](https://github.com/TanStack/ai/commit/ed44467c5e701f0a4fcc1c9f5639d036de35d26a) - fix(otelMiddleware): open an iteration span for structured-output finalization ([#1054](https://github.com/TanStack/ai/issues/1054))
+
+  No-tools + `outputSchema` calls skip the agent loop and only run the structured-output finalization request. That path previously emitted only a root `chat` span — no generation record, and `captureContent` was a silent no-op. `onConfig` now also opens an iteration span when `phase === 'structuredOutput'`, so each provider model call is observable. Native-combined mode is unaffected (it never fires that phase).
+
 ## 0.43.0
 
 ### Minor Changes
