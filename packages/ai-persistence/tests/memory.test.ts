@@ -50,6 +50,35 @@ describe('memoryPersistence', () => {
       expect(got?.status).toBe('completed')
       expect(got?.finishedAt).toBe(200)
     })
+
+    it('implements the optional listByThread and listReclaimable methods', async () => {
+      const { runs } = memoryPersistence().stores
+      // `memoryPersistence()` is annotated `ChatPersistence`, so `runs` is typed
+      // as the bare `RunStore` interface and the optional methods come back as
+      // possibly-undefined even though this backend implements them. Assert
+      // their presence first: that is the feature detection every consumer of
+      // the contract performs, and it turns a genuine omission into a stated
+      // expectation instead of an opaque `TypeError` at the call site.
+      const listByThread = runs.listByThread?.bind(runs)
+      const listReclaimable = runs.listReclaimable?.bind(runs)
+      if (!listByThread || !listReclaimable) {
+        throw new Error(
+          'MemoryRunStore must implement listByThread and listReclaimable; ' +
+            'they are the only optional RunStore methods this backend promises.',
+        )
+      }
+
+      await runs.createOrResume({ runId: 'a', threadId: 't1', startedAt: 2 })
+      await runs.createOrResume({ runId: 'b', threadId: 't1', startedAt: 1 })
+      expect((await listByThread('t1')).map((r) => r.runId)).toEqual(['b', 'a'])
+
+      await runs.update('a', { detachedSince: 1_000 })
+      const reclaimable = await listReclaimable({
+        now: 10_000,
+        ttlMs: 5_000,
+      })
+      expect(reclaimable.map((r) => r.runId)).toEqual(['a'])
+    })
   })
 
   describe('messages', () => {

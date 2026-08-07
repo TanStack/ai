@@ -15,10 +15,17 @@ bookkeeping is in-memory, so it only holds within one process. The moment a run
 lands on a different replica (or a fresh isolate), that instance has never seen
 the sandbox and re-creates it.
 
-**Sandbox instance durability** is runtime placement — not chat history. It is
+**Sandbox instance durability** is runtime placement, not chat history. It is
 owned by `@tanstack/ai-sandbox`, independent of `@tanstack/ai-persistence`
 (transcript / runs / interrupts). You may share a database with chat stores, but
 you compose a separate middleware.
+
+It is also not the agent's *output*. This page keeps a sandbox findable across
+processes; keeping the run's event stream readable across processes is
+[The Run Journal](./journal). The two compose: a resumed sandbox still holds the
+journal of every **durable** run that executed in it, under `/tmp/tanstack-runs`.
+(Durable meaning `withSandbox` was given both `runs` and `durability`. Journaling
+is opt-in, and a run without it leaves no file there.)
 
 Two pieces:
 
@@ -60,13 +67,14 @@ const sandbox = defineSandbox({
       ports: false,
       backgroundProcesses: false,
       writableStdin: false,
+      killableProcesses: false,
       snapshots: false,
       networkPolicy: false,
       durableFilesystem: false,
       fork: false,
     }),
     create: () => {
-      throw new Error('example provider — wire a real SandboxProvider')
+      throw new Error('example provider: wire a real SandboxProvider')
     },
     resume: () => Promise.resolve(null),
     destroy: () => Promise.resolve(),
@@ -123,61 +131,11 @@ const middleware = [
 
 ## Implement `SandboxInstanceStore`
 
-```ts
-import {
-  defineSandboxInstanceStore,
-} from '@tanstack/ai-sandbox'
-import type { SandboxInstanceRecord } from '@tanstack/ai-sandbox'
-
-export const instanceStore = defineSandboxInstanceStore({
-  async get(_key) {
-    return null
-  },
-  async upsert(_record: SandboxInstanceRecord) {
-    // insert or FULLY replace by record.key
-  },
-  async delete(_key) {
-    // no-op if missing
-  },
-})
-```
-
-### Invariants (conformance)
-
-```ts
-import {
-  runSandboxInstanceStoreConformance,
-} from '@tanstack/ai-sandbox/testkit'
-import type { SandboxInstanceStore } from '@tanstack/ai-sandbox'
-
-declare const instanceStore: SandboxInstanceStore
-
-runSandboxInstanceStoreConformance('my-instance-store', () => instanceStore)
-```
-
-| Method | Invariant |
-| --- | --- |
-| `get` | Missing key → `null` (not throw). |
-| `upsert` | **Full replace** by `record.key`. Omitted optionals clear prior values. |
-| `delete` | Missing key is a **no-op**. |
-| timestamps | `updatedAt` is epoch **milliseconds**. |
-
-### Suggested schema (SQLite)
-
-```sql
-CREATE TABLE IF NOT EXISTS sandbox_instances (
-  key text PRIMARY KEY NOT NULL,
-  provider text NOT NULL,
-  provider_sandbox_id text NOT NULL,
-  latest_snapshot_id text,
-  thread_id text NOT NULL,
-  latest_run_id text,
-  updated_at integer NOT NULL
-);
-```
-
-You can put this table next to chat tables in the same DB — that is an **app**
-choice, not a requirement of `@tanstack/ai-persistence`.
+The store is three methods (`get`, `upsert`, `delete`), each with an invariant that
+a conformance suite checks for you.
+[Build a Sandbox Adapter](../persistence/build-a-sandbox-adapter) walks through the
+implementation, the table, and the suite, alongside the choice of how much a
+sandboxed run should leave behind at all.
 
 ## Locks
 
@@ -189,6 +147,12 @@ create. Pair the store with a lock, either `withLocks` from
 
 ## See also
 
+- [The Run Journal](./journal): durability of a run's output, as opposed to its sandbox
+- [Takeover & Detached Runs](./takeover): surviving a client disconnect. A
+  detached run keeps its sandbox up, and `RunStore.sandboxKey` /
+  `RunStore.detachedSince` is how a later host finds it again
+- [Build a Sandbox Adapter](../persistence/build-a-sandbox-adapter): implement this store, and
+  choose how much a sandboxed run leaves behind
 - [Locks](../advanced/locks)
 - [Lifecycle](./lifecycle)
-- [Persistence overview](../persistence/overview) — chat state only
+- [Persistence overview](../persistence/overview): chat state only

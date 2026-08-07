@@ -1012,7 +1012,9 @@ export function normalizeConnectionAdapter(
 
         // If the connect stream ended cleanly without a terminal event,
         // synthesize RUN_FINISHED so request-scoped consumers can complete.
-        // Reuse the caller's threadId/runId so client-side activeRunIds tracking matches.
+        // The event payload may carry an upstream/provider runId when one was
+        // observed, but stamp the caller's request runId so getChunkRunId()
+        // correlates to activeRunIds / currentRunId (same as real stream chunks).
         if (!abortSignal?.aborted && !hasTerminalEvent) {
           const synthetic: RunFinishedEvent = {
             type: EventType.RUN_FINISHED,
@@ -1028,7 +1030,7 @@ export function normalizeConnectionAdapter(
             timestamp: Date.now(),
             finishReason: 'stop',
           }
-          push(synthetic)
+          push(synthetic, runContext?.runId)
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
@@ -1052,7 +1054,7 @@ export function normalizeConnectionAdapter(
               timestamp: Date.now(),
               message,
             }
-            push(synthetic)
+            push(synthetic, runContext?.runId)
           } catch {
             // fall through to rethrow the original error
           }

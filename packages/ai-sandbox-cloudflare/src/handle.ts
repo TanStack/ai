@@ -39,6 +39,11 @@ export const CLOUDFLARE_CAPS: SandboxCapabilities = {
   backgroundProcesses: true,
   // No writable host→process stdin; stdin-fed harnesses use file-redirection.
   writableStdin: false,
+  // `spawnProcess.kill()` is a no-op (see the comment in `spawnProcess`) and
+  // the caller's abort signal is never forwarded to `sandbox.exec` — on
+  // `exec` as well as `spawn` — so a spawned follower process (e.g. `tail -f`)
+  // can never be stopped by the caller here.
+  killableProcesses: false,
   snapshots: false,
   networkPolicy: false,
   durableFilesystem: false,

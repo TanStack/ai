@@ -41,9 +41,14 @@ import {
   normalizeApprovalSchema,
 } from './tools/approval-schema'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
+import { isCancelRequestedReason } from './cancel'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
+import { getRunDetached } from './middleware/run-store'
+import { publishRunDetachedSignal } from '../../delivery-detach'
+import { publishRunDisconnectHandler } from '../../delivery-disconnect'
 import { provideSandboxRuntime } from './middleware/sandbox-runtime'
+import { provideRunDisconnect } from './middleware/run-disconnect'
 import { CapabilityRegistry } from './middleware/capabilities'
 import { validateCapabilities } from './middleware/validate'
 import { MCPManager } from './mcp/manager'
@@ -760,6 +765,14 @@ class TextEngine<
   // observe both cancellation sources via ctx.abortSignal.
   private readonly toolAbortSignal?: AbortSignal
   private terminalHookCalled = false
+  /**
+   * Latched the first time the delivery socket closes; see `notifyDisconnected`.
+   * Also read by `subscribe` so a listener registered AFTER the disconnect (a
+   * middleware whose `setup` was still running at the time — the common case) is
+   * called immediately rather than never.
+   */
+  private disconnected = false
+  private readonly disconnectListeners: Array<() => void | Promise<void>> = []
 
   private readonly logger: InternalLogger
 
@@ -913,6 +926,22 @@ class TextEngine<
         capability[0](this.middlewareCtx, { optional: true }),
       provide: (capability, value) => capability[1](this.middlewareCtx, value),
     }
+
+    // Provide the internal RunDisconnect capability BEFORE `setup` runs, so a
+    // middleware can subscribe from inside its own `setup` — which is where the
+    // subscription has to happen, because `setup` is the long await the common
+    // disconnect lands in.
+    //
+    // `subscribe` calls back IMMEDIATELY when the socket has already closed. That
+    // ordering is load-bearing rather than defensive: a middleware whose `setup`
+    // was still running during the disconnect would otherwise register a listener
+    // for an event that has already been and gone, and silently never detach.
+    provideRunDisconnect(this.middlewareCtx, {
+      subscribe: (listener) => {
+        this.disconnectListeners.push(listener)
+        if (this.disconnected) this.runDisconnectListener(listener)
+      },
+    })
 
     // Provide the internal SandboxRuntime capability so harness adapters and
     // sandbox middleware can emit file events. The sink logs, fans the event
@@ -1168,6 +1197,7 @@ class TextEngine<
           await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
             reason: error.message,
             duration: Date.now() - this.streamStartTime,
+            cancelRequested: isCancelRequestedReason(error.message),
           })
         } else {
           // Genuine error — call onError
@@ -1189,9 +1219,11 @@ class TextEngine<
       // Check for abort terminal hook
       if (!this.terminalHookCalled && this.isCancelled()) {
         this.terminalHookCalled = true
+        const reason = this.resolveAbortReason()
         await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
-          reason: this.abortReason,
+          reason,
           duration: Date.now() - this.streamStartTime,
+          cancelRequested: isCancelRequestedReason(reason),
         })
       }
 
@@ -2594,6 +2626,100 @@ class TextEngine<
   }
 
   /**
+   * The reason to report on `AbortInfo` for a cancelled run.
+   *
+   * `this.abortReason` only ever holds a *middleware*-initiated reason
+   * (`ctx.abort(reason)` / `MiddlewareAbortError`). A caller that aborts its own
+   * controller — `abortController.abort(RUN_CANCEL_REASON)`, the in-process
+   * cancel channel — never touches that field, so the reason has to be read back
+   * off the caller's signal, which is the signal `isCancelled()` consults via
+   * `isAborted()`. A signal aborted with no reason carries a DOMException rather
+   * than a string, so non-string reasons are reported as absent.
+   */
+  private resolveAbortReason(): string | undefined {
+    if (this.abortReason !== undefined) return this.abortReason
+    const signalReason: unknown = this.effectiveSignal?.reason
+    return typeof signalReason === 'string' ? signalReason : undefined
+  }
+
+  /**
+   * Whether this run's teardown declared its abort a DETACH — see
+   * {@link RunDetachedCapability}. Only `withSandbox`'s `onAbort` publishes it,
+   * and only for a plain, intentless disconnect of a detachable run, so every
+   * other exit path answers `false`.
+   *
+   * Surfaced on the engine (rather than the ctx being handed out) so the
+   * capability read stays inside core, and so the delivery sink learns the
+   * verdict through {@link publishRunDetachedSignal} instead of reaching into a
+   * middleware context it has no business holding.
+   *
+   * @internal
+   */
+  wasDetached(): boolean {
+    return getRunDetached(this.middlewareCtx, { optional: true }) === true
+  }
+
+  /**
+   * The delivery socket closed while this run was still going.
+   *
+   * Notifies every subscriber (see {@link RunDisconnectCapability}) and RETURNS
+   * IMMEDIATELY. Synchronous on purpose: it is called from
+   * `ReadableStream.cancel()`, which must not be made to wait on a run-store
+   * write, and the caller ({@link notifyRunDisconnected}) has no consumer left to
+   * report to anyway.
+   *
+   * Subscribers therefore run CONCURRENTLY with the still-executing run — which is
+   * the entire point. The run is typically suspended inside a slow middleware
+   * `setup` at this moment, so anything dispatched from the run's own unwinding
+   * would be minutes late. Nothing on this path aborts the run: a durable run
+   * outlives its viewer.
+   *
+   * Each subscriber's promise is parked on `deferredPromises`, which the run awaits
+   * in its `finally`, so bookkeeping cannot be lost to a race with the run's own
+   * completion even though nothing awaits it here.
+   *
+   * IDEMPOTENT. A second cancel, or one arriving after a terminal hook already ran,
+   * is ignored: the terminal hooks own the run's outcome, and re-stamping
+   * `detachedSince` on a run that has already finished would hand a completed run
+   * to the reaper as reclaimable work.
+   *
+   * @internal
+   */
+  notifyDisconnected(): void {
+    if (this.disconnected || this.terminalHookCalled) return
+    this.disconnected = true
+    for (const listener of this.disconnectListeners) {
+      this.runDisconnectListener(listener)
+    }
+  }
+
+  /**
+   * Invoke one disconnect listener, isolated and with its failure SWALLOWED after
+   * logging.
+   *
+   * There is no caller left to report to — the socket this would report on is the
+   * one that just closed — and a rejection parked on `deferredPromises` would
+   * surface as the run's failure, replacing a healthy outcome with a bookkeeping
+   * error. Isolation matters for the usual reason too: one subscriber's failing
+   * write must not skip the next one's.
+   */
+  private runDisconnectListener(listener: () => void | Promise<void>): void {
+    let result: void | Promise<void>
+    try {
+      result = listener()
+    } catch (error) {
+      this.logger.errors('run disconnect listener failed', { error })
+      return
+    }
+    if (result === undefined) return
+    this.deferredPromises.push(
+      result.catch((error: unknown) => {
+        this.logger.errors('run disconnect listener failed', { error })
+      }),
+    )
+  }
+
+  /**
    * Run the final structured-output adapter call through the middleware
    * pipeline. Yields chunks to the caller only when
    * `this.finalStructuredOutput.yieldChunks` is true; otherwise consumes
@@ -3557,10 +3683,66 @@ export function chat<
 }
 
 /**
- * Run streaming text (agentic or one-shot depending on tools)
+ * The slice of the engine that the durable delivery sink reaches back into, in
+ * BOTH directions: it reads the detach verdict (`wasDetached`) and pushes the
+ * socket-closed fact in (`notifyDisconnected`). Filled by the generator body as
+ * soon as its engine exists.
  */
-async function* runStreamingText<TContext = unknown>(
+interface DeliveryEngineRef {
+  current?: {
+    wasDetached: () => boolean
+    notifyDisconnected: () => void
+  }
+}
+
+/**
+ * Publish both delivery-side seams for `stream`.
+ *
+ * Shared by the two streaming paths so they cannot drift apart — the
+ * structured-output path having been wired for one seam and not the other is
+ * exactly the bug `publishRunDetachedSignal` picked up last time (a durable
+ * `chat({ outputSchema, stream: true })` could never detach).
+ */
+function publishDeliverySeams(
+  stream: object,
+  engineRef: DeliveryEngineRef,
+): void {
+  // A thunk, evaluated on the sink's teardown path: the engine does not exist
+  // yet, and the verdict it will report is only written during `onAbort`.
+  publishRunDetachedSignal(
+    stream,
+    () => engineRef.current?.wasDetached() === true,
+  )
+  // The inbound direction. Dropped if the socket closes before the body has run
+  // far enough to have an engine, which is correct: there is no run state to
+  // record yet, and `setup` has not begun, so nothing is leaked by not knowing.
+  publishRunDisconnectHandler(stream, () => {
+    engineRef.current?.notifyDisconnected()
+  })
+}
+
+/**
+ * Run streaming text (agentic or one-shot depending on tools).
+ *
+ * A thin, NON-generator wrapper, because the stream object is also the key the
+ * durable delivery sink looks the run's detach verdict up under (see
+ * `../../delivery-detach`) and delivers its disconnect notification through (see
+ * `../../delivery-disconnect`). A generator function cannot reach the generator it
+ * returns, so the identity has to be minted out here and the engine reached back
+ * through `engineRef`, which the body fills as soon as its engine exists.
+ */
+function runStreamingText<TContext = unknown>(
   options: TextActivityOptions<AnyTextAdapter, undefined, true, TContext>,
+): AsyncIterable<StreamChunk> {
+  const engineRef: DeliveryEngineRef = {}
+  const stream = streamTextChunks(options, engineRef)
+  publishDeliverySeams(stream, engineRef)
+  return stream
+}
+
+async function* streamTextChunks<TContext = unknown>(
+  options: TextActivityOptions<AnyTextAdapter, undefined, true, TContext>,
+  engineRef: DeliveryEngineRef,
 ): AsyncIterable<StreamChunk> {
   const { adapter, middleware, context, debug, mcp, ...textOptions } = options
   const model = adapter.model
@@ -3585,6 +3767,7 @@ async function* runStreamingText<TContext = unknown>(
     },
     logger,
   )
+  engineRef.current = engine
 
   try {
     for await (const chunk of engine.run()) {
@@ -3934,11 +4117,21 @@ function runStreamingStructuredOutput<
   // CUSTOM wait events.
   // The contained cast keeps the public stream type focused on
   // structured-output completion.
-  return runStreamingStructuredOutputImpl(
+  //
+  // Same seam as `runStreamingText`: this wrapper is NOT a generator, so the
+  // stream identity can be minted here and the engine reached back through
+  // `engineRef` once the impl body has its engine. Without this a durable
+  // structured-output stream could never detach — the sink would find no verdict
+  // and terminalize a healthy detached run's log — nor survive a disconnect.
+  const engineRef: DeliveryEngineRef = {}
+  const stream = runStreamingStructuredOutputImpl(
     options,
     jsonSchema,
     normalize,
-  ) as StructuredOutputStream<InferSchemaType<TSchema>>
+    engineRef,
+  )
+  publishDeliverySeams(stream, engineRef)
+  return stream as StructuredOutputStream<InferSchemaType<TSchema>>
 }
 
 /**
@@ -3964,6 +4157,7 @@ async function* runStreamingStructuredOutputImpl<
   options: TextActivityOptions<AnyTextAdapter, TSchema, true, TContext>,
   jsonSchema: NonNullable<ReturnType<typeof convertSchemaToJsonSchema>>,
   normalize: (data: unknown) => unknown,
+  engineRef: DeliveryEngineRef,
 ): StructuredOutputStreamInternal<InferSchemaType<TSchema>> {
   const {
     adapter,
@@ -4014,6 +4208,7 @@ async function* runStreamingStructuredOutputImpl<
     },
     logger,
   )
+  engineRef.current = engine
 
   try {
     for await (const chunk of engine.run()) {

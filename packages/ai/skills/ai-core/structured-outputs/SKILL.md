@@ -13,7 +13,7 @@ description: >
   part. convertSchemaToJsonSchema() for manual schema conversion.
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/structured-outputs/overview.md'
   - 'TanStack/ai:docs/structured-outputs/one-shot.md'

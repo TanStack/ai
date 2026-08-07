@@ -60,7 +60,7 @@ const chunk = (n: number): StreamChunk =>
 describe('DurableObjectRunEventLog', () => {
   it('assigns gap-free seq starting at 0 and tracks lastSeq', async () => {
     const log = new DurableObjectRunEventLog(fakeStorage())
-    await log.open({ runId: 'r1' })
+    await log.open({ runId: 'r1', threadId: 't1' })
     expect(await log.append('r1', chunk(0))).toBe(0)
     expect(await log.append('r1', chunk(1))).toBe(1)
     expect(await log.append('r1', chunk(2))).toBe(2)
@@ -71,11 +71,11 @@ describe('DurableObjectRunEventLog', () => {
 
   it('replays the backlog after fromSeq then returns on terminal', async () => {
     const log = new DurableObjectRunEventLog(fakeStorage())
-    await log.open({ runId: 'r1' })
+    await log.open({ runId: 'r1', threadId: 't1' })
     await log.append('r1', chunk(0))
     await log.append('r1', chunk(1))
     await log.append('r1', chunk(2))
-    await log.finish('r1', 'done')
+    await log.finish('r1', 'completed')
 
     const seen: Array<number> = []
     for await (const event of log.read('r1', { fromSeq: 0 })) {
@@ -87,10 +87,10 @@ describe('DurableObjectRunEventLog', () => {
 
   it('replays from the start when fromSeq is omitted', async () => {
     const log = new DurableObjectRunEventLog(fakeStorage())
-    await log.open({ runId: 'r1' })
+    await log.open({ runId: 'r1', threadId: 't1' })
     await log.append('r1', chunk(0))
     await log.append('r1', chunk(1))
-    await log.finish('r1', 'done')
+    await log.finish('r1', 'completed')
 
     const seen: Array<number> = []
     for await (const event of log.read('r1')) seen.push(event.seq)
@@ -99,7 +99,7 @@ describe('DurableObjectRunEventLog', () => {
 
   it('live-tails: a reader that joins mid-run sees backlog + new events', async () => {
     const log = new DurableObjectRunEventLog(fakeStorage())
-    await log.open({ runId: 'r1' })
+    await log.open({ runId: 'r1', threadId: 't1' })
     await log.append('r1', chunk(0))
 
     const seen: Array<number> = []
@@ -109,25 +109,25 @@ describe('DurableObjectRunEventLog', () => {
     // Append more, then finish, after the reader is tailing.
     await log.append('r1', chunk(1))
     await log.append('r1', chunk(2))
-    await log.finish('r1', 'done')
+    await log.finish('r1', 'completed')
     await reading
     expect(seen).toEqual([0, 1, 2])
   })
 
   it('rejects append after terminal', async () => {
     const log = new DurableObjectRunEventLog(fakeStorage())
-    await log.open({ runId: 'r1' })
-    await log.finish('r1', 'done')
+    await log.open({ runId: 'r1', threadId: 't1' })
+    await log.finish('r1', 'completed')
     await expect(log.append('r1', chunk(0))).rejects.toThrow(/terminal/)
   })
 
   it('finish is idempotent and keeps the first terminal status', async () => {
     const log = new DurableObjectRunEventLog(fakeStorage())
-    await log.open({ runId: 'r1' })
-    await log.finish('r1', 'error', { message: 'boom' })
-    await log.finish('r1', 'done')
+    await log.open({ runId: 'r1', threadId: 't1' })
+    await log.finish('r1', 'failed', { message: 'boom' })
+    await log.finish('r1', 'completed')
     const record = await log.get('r1')
-    expect(record?.status).toBe('error')
+    expect(record?.status).toBe('failed')
     expect(record?.error?.message).toBe('boom')
   })
 
@@ -135,7 +135,8 @@ describe('DurableObjectRunEventLog', () => {
     const log = new DurableObjectRunEventLog(fakeStorage())
     const a = await log.open({ runId: 'r1', threadId: 't1' })
     await log.append('r1', chunk(0))
-    const b = await log.open({ runId: 'r1' })
+    // The second call's threadId is ignored: the existing record wins.
+    const b = await log.open({ runId: 'r1', threadId: 't2' })
     expect(b.lastSeq).toBe(a.lastSeq + 1)
     expect(b.threadId).toBe('t1')
   })
@@ -156,7 +157,7 @@ describe('DurableObjectRunEventLog', () => {
     // make progress via the TAIL_POLL_MS fallback re-read.
     const reader = new DurableObjectRunEventLog(storage)
     const writer = new DurableObjectRunEventLog(storage)
-    await writer.open({ runId: 'r1' })
+    await writer.open({ runId: 'r1', threadId: 't1' })
 
     const seen: Array<number> = []
     const reading = (async () => {
@@ -164,8 +165,80 @@ describe('DurableObjectRunEventLog', () => {
     })()
     await writer.append('r1', chunk(0))
     await writer.append('r1', chunk(1))
-    await writer.finish('r1', 'done')
+    await writer.finish('r1', 'completed')
     await reading
     expect(seen).toEqual([0, 1])
+  })
+
+  it('migrates a legacy terminal record on read and writes it back', async () => {
+    const storage = fakeStorage()
+    // A record persisted by the pre-convergence layout: legacy status
+    // vocabulary, createdAt/updatedAt, no threadId.
+    await storage.put('rec:legacy', {
+      runId: 'legacy',
+      status: 'done',
+      lastSeq: 0,
+      error: undefined,
+      createdAt: 100,
+      updatedAt: 200,
+    })
+    await storage.put(`evt:legacy:${'0'.padStart(8, '0')}`, chunk(0))
+
+    const log = new DurableObjectRunEventLog(storage)
+    const record = await log.get('legacy')
+    expect(record?.status).toBe('completed')
+    expect(record?.startedAt).toBe(100)
+    expect(record?.finishedAt).toBe(200)
+    expect(record?.updatedAt).toBe(200)
+    // No thread was stored — the self-referential backfill, never a fake one.
+    expect(record?.threadId).toBe('legacy')
+
+    // Write-back: the stored value is now the converged layout, so the
+    // conversion is paid exactly once.
+    const stored = await storage.get<{ status: string; startedAt?: number }>(
+      'rec:legacy',
+    )
+    expect(stored?.status).toBe('completed')
+    expect(stored?.startedAt).toBe(100)
+
+    // The migrated run replays like any other.
+    const seen: Array<number> = []
+    for await (const event of log.read('legacy')) seen.push(event.seq)
+    expect(seen).toEqual([0])
+  })
+
+  it('a migrated legacy running record stays appendable with a continuous seq', async () => {
+    const storage = fakeStorage()
+    await storage.put('rec:legacy', {
+      runId: 'legacy',
+      threadId: 't1',
+      status: 'error',
+      lastSeq: 1,
+      createdAt: 100,
+      updatedAt: 200,
+    })
+    await storage.put('rec:live', {
+      runId: 'live',
+      threadId: 't2',
+      status: 'running',
+      lastSeq: 2,
+      createdAt: 100,
+      updatedAt: 200,
+    })
+
+    const log = new DurableObjectRunEventLog(storage)
+    // `error` maps to `failed` and stays terminal: appends still reject.
+    await expect(log.append('legacy', chunk(9))).rejects.toThrow(/terminal/)
+    expect((await log.get('legacy'))?.status).toBe('failed')
+
+    // A running record migrates without gaining finishedAt and keeps its cursor.
+    const live = await log.get('live')
+    expect(live?.status).toBe('running')
+    expect(live?.finishedAt).toBeUndefined()
+    expect(await log.append('live', chunk(3))).toBe(3)
+
+    // `list` (the watchdog's view) also observes only the converged layout.
+    const statuses = (await log.list()).map((r) => r.status).sort()
+    expect(statuses).toEqual(['failed', 'running'])
   })
 })

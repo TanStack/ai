@@ -18,6 +18,15 @@ export interface ModelOption {
 
 export const MODEL_OPTIONS: Array<ModelOption> = [
   // OpenAI
+  { provider: 'openai', model: 'gpt-5.6', label: 'OpenAI - GPT-5.6' },
+  { provider: 'openai', model: 'gpt-5.6-sol', label: 'OpenAI - GPT-5.6 Sol' },
+  {
+    provider: 'openai',
+    model: 'gpt-5.6-terra',
+    label: 'OpenAI - GPT-5.6 Terra',
+  },
+  { provider: 'openai', model: 'gpt-5.6-luna', label: 'OpenAI - GPT-5.6 Luna' },
+  { provider: 'openai', model: 'gpt-5.5', label: 'OpenAI - GPT-5.5' },
   { provider: 'openai', model: 'gpt-5.2', label: 'OpenAI - GPT-5.2' },
   { provider: 'openai', model: 'gpt-5.2-pro', label: 'OpenAI - GPT-5.2 Pro' },
   { provider: 'openai', model: 'gpt-5.1', label: 'OpenAI - GPT-5.1' },
@@ -58,6 +67,21 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Gemini (stateless `geminiText`)
   {
     provider: 'gemini',
+    model: 'gemini-3.6-flash',
+    label: 'Gemini - 3.6 Flash',
+  },
+  {
+    provider: 'gemini',
+    model: 'gemini-3.5-flash',
+    label: 'Gemini - 3.5 Flash',
+  },
+  {
+    provider: 'gemini',
+    model: 'gemini-3.5-flash-lite',
+    label: 'Gemini - 3.5 Flash Lite',
+  },
+  {
+    provider: 'gemini',
     model: 'gemini-3.1-pro-preview',
     label: 'Gemini - 3.1 Pro Preview',
   },
@@ -80,13 +104,23 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Gemini Interactions (stateful, experimental — `@tanstack/ai-gemini/experimental`)
   {
     provider: 'gemini-interactions',
-    model: 'gemini-3.1-pro-preview',
-    label: 'Gemini Interactions - 3.1 Pro Preview (experimental)',
+    model: 'gemini-3.6-flash',
+    label: 'Gemini Interactions - 3.6 Flash (experimental)',
   },
   {
     provider: 'gemini-interactions',
     model: 'gemini-3.5-flash',
     label: 'Gemini Interactions - 3.5 Flash (experimental)',
+  },
+  {
+    provider: 'gemini-interactions',
+    model: 'gemini-3.5-flash-lite',
+    label: 'Gemini Interactions - 3.5 Flash Lite (experimental)',
+  },
+  {
+    provider: 'gemini-interactions',
+    model: 'gemini-3.1-pro-preview',
+    label: 'Gemini Interactions - 3.1 Pro Preview (experimental)',
   },
   {
     provider: 'gemini-interactions',

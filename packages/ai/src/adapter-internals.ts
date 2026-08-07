@@ -15,4 +15,13 @@ export {
   provideSandboxRuntime,
   SandboxRuntimeCapability,
 } from './activities/chat/middleware/sandbox-runtime'
-export type { SandboxRuntime } from './activities/chat/middleware/sandbox-runtime'
+export {
+  getRunDisconnect,
+  provideRunDisconnect,
+  RunDisconnectCapability,
+} from './activities/chat/middleware/run-disconnect'
+export {
+  getPendingTurn,
+  PendingTurnCapability,
+  providePendingTurn,
+} from './activities/chat/middleware/pending-turn'

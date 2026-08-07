@@ -25,6 +25,71 @@ export interface StreamDurability<TOffset extends string = string> {
    * for every producer exit, including completion, cancellation, and failure.
    */
   close: () => Promise<void>
+  /**
+   * Everything stored for this run **at the moment of the call**, in append
+   * order, then resolve.
+   *
+   * This is the bounded counterpart to {@link StreamDurability.read}. `read`
+   * tails: it parks until the log is terminalized or the caller aborts, so it
+   * cannot be used to inspect a log whose producer died without calling
+   * `close` — that log stays open forever and a `for await` over it never
+   * finishes. `snapshot` exists for exactly that case: a producer resuming a
+   * run needs to see the prefix a previous host already stored so it can line
+   * its own output up against it, and it needs that read to *return*.
+   *
+   * Implementations MUST:
+   *
+   * - never wait for more entries — resolve with what is stored, including
+   *   while the log is still open and still being appended to;
+   * - resolve to an empty array for a run with nothing stored, rather than
+   *   throwing. In particular an implementation must not reuse the
+   *   unknown-run failure path a from-start `read` join takes (`read('-1')` on
+   *   an empty log is allowed to fail; `snapshot()` is not). A backend over a
+   *   network may of course still reject on a transport, protocol, or
+   *   authorization failure — that is a failed call, not an empty run;
+   * - return a fresh array the caller can keep or mutate without reaching the
+   *   stored log through it.
+   *
+   * The result is a point-in-time view and carries no lock: a concurrent
+   * `append` may land immediately after the snapshot is taken, so a caller
+   * must not treat the last returned offset as the permanent tail.
+   */
+  snapshot: () => Promise<Array<{ offset: TOffset; chunk: StreamChunk }>>
+}
+
+/**
+ * A {@link StreamDurability} that can re-persist an already-stored range
+ * idempotently.
+ *
+ * A run driver resuming after a crash re-derives the same offsets from its
+ * source position, so replaying an overlapping range must be a no-op rather
+ * than producing duplicates. That capability is deliberately a **separate,
+ * optional method** instead of an optional parameter on `append`:
+ *
+ * - Only adapters that actually support it return this type, so a consumer
+ *   requiring the capability asks for `UpsertableStreamDurability` and a
+ *   mismatch is a compile error rather than a runtime failure buried in a
+ *   run log.
+ * - Pairing each chunk with its offset structurally makes a length mismatch
+ *   and an unpaired chunk unrepresentable. A sparse hole is still
+ *   representable, so implementations must reject one explicitly.
+ *
+ * Implementations MUST validate the entire batch before mutating any stored
+ * state (so a rejected call never partially applies), MUST reject an offset
+ * they did not mint themselves (every accepted offset is resumable by
+ * definition), MUST reject an offset repeated within one batch, and MUST
+ * reject a hole in the entries array.
+ */
+export interface UpsertableStreamDurability<
+  TOffset extends string = string,
+> extends StreamDurability<TOffset> {
+  /**
+   * Persist a batch at caller-supplied offsets, replacing any entry already
+   * stored at the same offset. Returns the offsets in the order supplied.
+   */
+  upsert: (
+    entries: Array<{ chunk: StreamChunk; offset: TOffset }>,
+  ) => Promise<Array<TOffset>>
 }
 
 const MEMORY_OFFSET_PREFIX = 'memory:v1:'
@@ -65,7 +130,15 @@ function readResumeOffset(request: Request): string | null {
   }
 }
 
-function readRunId(request: Request): string | null {
+/**
+ * The run id a request names: `X-Run-Id` header first, then `?runId`.
+ *
+ * The single implementation of that precedence, shared by the durability
+ * adapters below and by the resume response helpers' run driver
+ * (`stream-to-response.ts`), so the helper and the adapter can never disagree
+ * about which run a request is talking about.
+ */
+export function resolveResumeRunId(request: Request): string | null {
   // A POST producer carries its client-chosen run id in the X-Run-Id header so
   // the request URL stays byte-identical to a plain, non-durable request; the
   // GET join path carries it in the ?runId query instead. Prefer the header,
@@ -99,7 +172,7 @@ function resolveMemoryRunId(
   ) {
     return assertValidRunId(decodeMemoryOffset(resumeOffset).runId)
   }
-  const requestedRunId = readRunId(request)
+  const requestedRunId = resolveResumeRunId(request)
   return requestedRunId === null
     ? crypto.randomUUID()
     : assertValidRunId(requestedRunId)
@@ -122,6 +195,15 @@ interface MemoryEntry {
   offset: string
   chunk: StreamChunk
 }
+
+/**
+ * One validated action from an `upsert` batch. Building the whole plan before
+ * applying any of it is what keeps a rejected `upsert` from partially mutating
+ * the log.
+ */
+type UpsertStep =
+  | { kind: 'replace'; existing: MemoryEntry; chunk: StreamChunk }
+  | { kind: 'push'; seq: number; offset: string; chunk: StreamChunk }
 
 interface MemoryLog {
   entries: Array<MemoryEntry>
@@ -249,7 +331,7 @@ export interface MemoryStreamInit {
 export function memoryStream(
   source: Request | MemoryStreamInit,
   options: MemoryStreamOptions = {},
-): StreamDurability {
+): UpsertableStreamDurability {
   const resumeOffset =
     source instanceof Request
       ? readResumeOffset(source)
@@ -263,7 +345,10 @@ export function memoryStream(
 
   return {
     resumeFrom: () => resumeOffset,
-    append: (chunks) => {
+    // `async` so every failure surfaces as a rejected promise rather than a
+    // synchronous throw at the call site — `append` is declared to return a
+    // Promise, so callers must be able to `.catch()` every failure mode.
+    append: async (chunks) => {
       const log = getOrCreateLog(runId)
       const firstSeq = (log.entries.at(-1)?.seq ?? 0) + 1
       const offsets = chunks.map((chunk, index) => {
@@ -273,7 +358,104 @@ export function memoryStream(
         return offset
       })
       wakeWaiters(log)
-      return Promise.resolve(offsets)
+      return offsets
+    },
+    // `async` for the same reason as `append`: every validation failure below
+    // must be observable via `.catch()`, never as a synchronous throw.
+    upsert: async (entries) => {
+      const log = getOrCreateLog(runId)
+      const tailSeq = log.entries.at(-1)?.seq ?? 0
+
+      // Validate the WHOLE batch before touching `log.entries`, so a rejected
+      // upsert never partially applies and a caller that catches and retries
+      // can be sure no prefix landed.
+      const seen = new Set<string>()
+      // Tail as it will stand once every push planned so far has been applied,
+      // so intra-batch ordering is validated up front too.
+      let plannedTailSeq = tailSeq
+      // `Array.from` rather than `entries.map`: `map` SKIPS holes in a sparse
+      // array, which would leave the plan short and make the apply loop below
+      // read `undefined` partway through, after earlier steps had already
+      // mutated the log. `Array.from` invokes this callback for every index,
+      // so a hole is rejected here, before anything is touched.
+      const plan = Array.from(entries, (entry, index): UpsertStep => {
+        if (entry === undefined) {
+          throw new Error(
+            `memoryStream: entries[${index}] is missing; entries must be dense`,
+          )
+        }
+        const { chunk, offset } = entry
+        let decoded: MemoryOffset
+        try {
+          decoded = decodeMemoryOffset(offset)
+        } catch (cause) {
+          throw new Error(
+            `memoryStream: entries[${index}].offset ${JSON.stringify(offset)} is not a resumable memory stream offset: ${cause instanceof Error ? cause.message : String(cause)}`,
+          )
+        }
+        if (decoded.runId !== runId) {
+          throw new Error(
+            `memoryStream: entries[${index}].offset ${JSON.stringify(offset)} belongs to run ${JSON.stringify(decoded.runId)}, not ${JSON.stringify(runId)}`,
+          )
+        }
+        const seq = decoded.seq
+        if (seen.has(offset)) {
+          throw new Error(
+            `memoryStream: entries[${index}].offset ${JSON.stringify(offset)} is repeated within the batch; each offset may appear at most once`,
+          )
+        }
+        seen.add(offset)
+        const existing = log.entries.find((stored) => stored.offset === offset)
+        if (existing) return { kind: 'replace', existing, chunk }
+        // A not-yet-stored offset must sit strictly after the current tail.
+        // `read()` walks `entries` in array order and filters `seq > threshold`,
+        // so a pushed entry has to keep the seqs monotonically increasing;
+        // reusing the offset's own decoded seq also keeps a returned offset's
+        // threshold exactly consistent with the entry it names. Gaps are fine —
+        // nothing depends on seqs being contiguous, only on them increasing —
+        // so do NOT "fix" this to renumber densely.
+        if (seq <= plannedTailSeq) {
+          throw new Error(
+            `memoryStream: entries[${index}].offset ${JSON.stringify(offset)} is not stored yet but claims position ${seq}, at or before the tail ${plannedTailSeq}; a new offset must come after every stored and preceding entry`,
+          )
+        }
+        plannedTailSeq = seq
+        return { kind: 'push', seq, offset, chunk }
+      })
+
+      // Validation passed for every entry — mutation below cannot fail.
+      for (const step of plan) {
+        if (step.kind === 'replace') {
+          step.existing.chunk = step.chunk
+        } else {
+          log.entries.push({
+            seq: step.seq,
+            offset: step.offset,
+            chunk: step.chunk,
+          })
+        }
+      }
+      wakeWaiters(log)
+      return plan.map((step) =>
+        step.kind === 'replace' ? step.existing.offset : step.offset,
+      )
+    },
+    snapshot: () => {
+      // Peek, never getOrCreateLog: an unknown run must resolve to `[]`, and
+      // inserting an empty, never-completed log here would leave a permanent
+      // entry the sweep cannot reclaim (it only reclaims complete logs).
+      const log = memoryLogs.get(runId)
+      if (log === undefined) return Promise.resolve([])
+      // Fresh outer array AND fresh pair objects, so a caller that mutates the
+      // result cannot reach `log.entries` or the stored entries through it.
+      // Never touches `log.waiters` — a snapshot is a point-in-time read and
+      // returns even while the log is open and still being appended to.
+      return Promise.resolve(
+        log.entries.map((entry) => ({
+          offset: entry.offset,
+          chunk: entry.chunk,
+        })),
+      )
     },
     close: () => {
       const log = getOrCreateLog(runId)

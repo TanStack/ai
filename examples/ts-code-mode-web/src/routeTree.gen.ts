@@ -17,6 +17,7 @@ import { Route as ExecutePromptRouteRouteImport } from './routes/_execute-prompt
 import { Route as DatabaseDemoRouteRouteImport } from './routes/_database-demo/route'
 import { Route as BankingDemoRouteRouteImport } from './routes/_banking-demo/route'
 import { Route as HomeIndexRouteImport } from './routes/_home/index'
+import { Route as ApiRuntimeRouteImport } from './routes/api.runtime'
 import { Route as StructuredOutputStructuredOutputRouteImport } from './routes/_structured-output/structured-output'
 import { Route as ReportingReportingAgentRouteImport } from './routes/_reporting/reporting-agent'
 import { Route as NpmGithubChatNpmGithubChatRouteImport } from './routes/_npm-github-chat/npm-github-chat'
@@ -75,6 +76,11 @@ const HomeIndexRoute = HomeIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => HomeRouteRoute,
+} as any)
+const ApiRuntimeRoute = ApiRuntimeRouteImport.update({
+  id: '/api/runtime',
+  path: '/api/runtime',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const StructuredOutputStructuredOutputRoute =
   StructuredOutputStructuredOutputRouteImport.update({
@@ -223,6 +229,7 @@ export interface FileRoutesByFullPath {
   '/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/reporting-agent': typeof ReportingReportingAgentRoute
   '/structured-output': typeof StructuredOutputStructuredOutputRoute
+  '/api/runtime': typeof ApiRuntimeRoute
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
   '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
@@ -251,6 +258,7 @@ export interface FileRoutesByTo {
   '/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/reporting-agent': typeof ReportingReportingAgentRoute
   '/structured-output': typeof StructuredOutputStructuredOutputRoute
+  '/api/runtime': typeof ApiRuntimeRoute
   '/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/api/banking-init': typeof BankingDemoApiBankingInitRoute
   '/api/database-demo': typeof DatabaseDemoApiDatabaseDemoRoute
@@ -286,6 +294,7 @@ export interface FileRoutesById {
   '/_npm-github-chat/npm-github-chat': typeof NpmGithubChatNpmGithubChatRoute
   '/_reporting/reporting-agent': typeof ReportingReportingAgentRoute
   '/_structured-output/structured-output': typeof StructuredOutputStructuredOutputRoute
+  '/api/runtime': typeof ApiRuntimeRoute
   '/_home/': typeof HomeIndexRoute
   '/_banking-demo/api/banking-demo': typeof BankingDemoApiBankingDemoRoute
   '/_banking-demo/api/banking-init': typeof BankingDemoApiBankingInitRoute
@@ -317,6 +326,7 @@ export interface FileRouteTypes {
     | '/npm-github-chat'
     | '/reporting-agent'
     | '/structured-output'
+    | '/api/runtime'
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/database-demo'
@@ -345,6 +355,7 @@ export interface FileRouteTypes {
     | '/npm-github-chat'
     | '/reporting-agent'
     | '/structured-output'
+    | '/api/runtime'
     | '/api/banking-demo'
     | '/api/banking-init'
     | '/api/database-demo'
@@ -379,6 +390,7 @@ export interface FileRouteTypes {
     | '/_npm-github-chat/npm-github-chat'
     | '/_reporting/reporting-agent'
     | '/_structured-output/structured-output'
+    | '/api/runtime'
     | '/_home/'
     | '/_banking-demo/api/banking-demo'
     | '/_banking-demo/api/banking-init'
@@ -409,6 +421,7 @@ export interface RootRouteChildren {
   NpmGithubChatRouteRoute: typeof NpmGithubChatRouteRouteWithChildren
   ReportingRouteRoute: typeof ReportingRouteRouteWithChildren
   StructuredOutputRouteRoute: typeof StructuredOutputRouteRouteWithChildren
+  ApiRuntimeRoute: typeof ApiRuntimeRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -468,6 +481,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof HomeIndexRouteImport
       parentRoute: typeof HomeRouteRoute
+    }
+    '/api/runtime': {
+      id: '/api/runtime'
+      path: '/api/runtime'
+      fullPath: '/api/runtime'
+      preLoaderRoute: typeof ApiRuntimeRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/_structured-output/structured-output': {
       id: '/_structured-output/structured-output'
@@ -776,6 +796,7 @@ const rootRouteChildren: RootRouteChildren = {
   NpmGithubChatRouteRoute: NpmGithubChatRouteRouteWithChildren,
   ReportingRouteRoute: ReportingRouteRouteWithChildren,
   StructuredOutputRouteRoute: StructuredOutputRouteRouteWithChildren,
+  ApiRuntimeRoute: ApiRuntimeRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

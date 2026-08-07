@@ -127,7 +127,8 @@
         {
           "label": "MCP Server Tools",
           "to": "tools/mcp",
-          "addedAt": "2026-06-05"
+          "addedAt": "2026-06-05",
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Managed MCP with chat()",
@@ -187,32 +188,27 @@
         {
           "label": "Overview",
           "to": "interrupts/overview",
-          "addedAt": "2026-07-16",
-          "updatedAt": "2026-07-29"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Tool Approval",
           "to": "interrupts/tool-approval",
-          "addedAt": "2026-07-16",
-          "updatedAt": "2026-07-21"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Multiple Interrupts",
           "to": "interrupts/multiple",
-          "addedAt": "2026-07-16",
-          "updatedAt": "2026-07-21"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Generic Interrupts",
           "to": "interrupts/generic",
-          "addedAt": "2026-07-16",
-          "updatedAt": "2026-07-21"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Migration",
           "to": "interrupts/migration",
-          "addedAt": "2026-07-14",
-          "updatedAt": "2026-07-21"
+          "addedAt": "2026-08-04"
         }
       ]
     },
@@ -223,19 +219,17 @@
         {
           "label": "Overview",
           "to": "resumable-streams/overview",
-          "addedAt": "2026-07-17",
-          "updatedAt": "2026-07-29"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Advanced",
           "to": "resumable-streams/advanced",
-          "addedAt": "2026-07-17",
-          "updatedAt": "2026-07-29"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Custom Durability Adapter",
           "to": "resumable-streams/custom-adapter",
-          "addedAt": "2026-07-17"
+          "addedAt": "2026-08-04"
         }
       ]
     },
@@ -246,76 +240,80 @@
         {
           "label": "Overview",
           "to": "persistence/overview",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-30"
-        },
-        {
-          "label": "Id Map",
-          "to": "persistence/id-map",
-          "addedAt": "2026-07-30"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-30"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-30"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Generation Persistence",
           "to": "persistence/generation-persistence",
-          "addedAt": "2026-07-28",
-          "updatedAt": "2026-07-31"
-        },
-        {
-          "label": "Keep Generated Files",
-          "to": "persistence/keep-generated-files",
-          "addedAt": "2026-07-28",
-          "updatedAt": "2026-07-31"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Controls",
           "to": "persistence/controls",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-25"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
-          "addedAt": "2026-07-24",
-          "updatedAt": "2026-07-31"
-        },
-        {
-          "label": "Build a Chat Adapter",
-          "to": "persistence/build-your-own-chat-adapter",
-          "addedAt": "2026-07-31"
-        },
-        {
-          "label": "Build a Generation Adapter",
-          "to": "persistence/build-your-own-generation-adapter",
-          "addedAt": "2026-07-31"
-        },
-        {
-          "label": "Store Reference",
-          "to": "persistence/store-reference",
-          "addedAt": "2026-07-31"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Migrations",
           "to": "persistence/migrations",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-25"
+          "addedAt": "2026-08-04"
+        }
+      ]
+    },
+    {
+      "label": "Persistence (Advanced)",
+      "tab": "guides",
+      "collapsible": true,
+      "defaultCollapsed": true,
+      "children": [
+        {
+          "label": "Id Map",
+          "to": "persistence/id-map",
+          "addedAt": "2026-08-04"
         },
         {
-          "label": "Internals",
+          "label": "Keep Generated Files",
+          "to": "persistence/keep-generated-files",
+          "addedAt": "2026-08-04"
+        },
+        {
+          "label": "Build a Chat Adapter",
+          "to": "persistence/build-your-own-chat-adapter",
+          "addedAt": "2026-08-04"
+        },
+        {
+          "label": "Build a Generation Adapter",
+          "to": "persistence/build-your-own-generation-adapter",
+          "addedAt": "2026-08-04"
+        },
+        {
+          "label": "Build a Sandbox Adapter",
+          "to": "persistence/build-a-sandbox-adapter",
+          "addedAt": "2026-08-04"
+        },
+        {
+          "label": "Store Reference",
+          "to": "persistence/store-reference",
+          "addedAt": "2026-08-04"
+        },
+        {
+          "label": "How Persistence Works",
           "to": "persistence/internals",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-31"
+          "addedAt": "2026-08-04"
         }
       ]
     },
@@ -368,7 +366,8 @@
         {
           "label": "Code Mode",
           "to": "code-mode/code-mode",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-11"
         },
         {
           "label": "Showing Code Mode in the UI",
@@ -384,7 +383,8 @@
         {
           "label": "Code Mode Isolate Drivers",
           "to": "code-mode/code-mode-isolates",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-11"
         },
         {
           "label": "Lazy Tools",
@@ -399,48 +399,50 @@
         {
           "label": "Generations",
           "to": "media/generations",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Realtime Voice Chat",
           "to": "media/realtime-chat",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Text-to-Speech",
           "to": "media/text-to-speech",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-31"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Transcription",
           "to": "media/transcription",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-31"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Audio Recording",
           "to": "media/audio-recording",
           "addedAt": "2026-06-23",
-          "updatedAt": "2026-06-26"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Audio Generation",
           "to": "media/audio-generation",
           "addedAt": "2026-04-23",
-          "updatedAt": "2026-07-28"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-31"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-02"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Generation Hooks",
@@ -468,14 +470,13 @@
         {
           "label": "Locks",
           "to": "advanced/locks",
-          "addedAt": "2026-07-27",
-          "updatedAt": "2026-07-28"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-07-31"
+          "updatedAt": "2026-08-06"
         }
       ]
     },
@@ -487,72 +488,106 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Quick Start",
           "to": "sandbox/quick-start",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Harnesses",
           "to": "sandbox/harnesses",
-          "addedAt": "2026-06-30"
+          "addedAt": "2026-06-30",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Workspace",
           "to": "sandbox/workspace",
-          "addedAt": "2026-06-29"
-        },
-        {
-          "label": "Provisioning",
-          "to": "sandbox/provisioning",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Tools",
           "to": "sandbox/tools",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Policy",
           "to": "sandbox/policy",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Lifecycle & Snapshots",
           "to": "sandbox/lifecycle",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-07-09"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Instance Durability",
           "to": "sandbox/durability",
-          "addedAt": "2026-07-27"
+          "addedAt": "2026-08-04"
+        },
+        {
+          "label": "Durable Runs",
+          "to": "sandbox/durable-runs",
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Events",
           "to": "sandbox/events",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-08-04"
+        }
+      ]
+    },
+    {
+      "label": "Sandboxes (Advanced)",
+      "tab": "guides",
+      "collapsible": true,
+      "defaultCollapsed": true,
+      "children": [
+        {
+          "label": "The Run Journal",
+          "to": "sandbox/journal",
+          "addedAt": "2026-08-04"
+        },
+        {
+          "label": "Takeover & Detached Runs",
+          "to": "sandbox/takeover",
+          "addedAt": "2026-08-04"
+        },
+        {
+          "label": "Reaping & Retention",
+          "to": "sandbox/reaping",
+          "addedAt": "2026-08-04"
+        },
+        {
+          "label": "Provisioning",
+          "to": "sandbox/provisioning",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Observability",
           "to": "sandbox/observability",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "Cloudflare (Edge)",
           "to": "sandbox/cloudflare",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-04"
         }
       ]
     },
@@ -563,32 +598,27 @@
         {
           "label": "Overview",
           "to": "memory/overview",
-          "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-24"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Quickstart",
           "to": "memory/quickstart",
-          "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-24"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Adapters",
           "to": "memory/adapters",
-          "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-24"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Custom Adapter",
           "to": "memory/custom-adapter",
-          "addedAt": "2026-07-21",
-          "updatedAt": "2026-07-24"
+          "addedAt": "2026-08-04"
         },
         {
           "label": "Operating",
           "to": "memory/operating",
-          "addedAt": "2026-07-22",
-          "updatedAt": "2026-07-24"
+          "addedAt": "2026-08-04"
         }
       ]
     },
@@ -662,7 +692,7 @@
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
           "addedAt": "2026-05-16",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-31"
         },
         {
           "label": "Sampling → modelOptions",
@@ -684,7 +714,7 @@
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-04"
         },
         {
           "label": "@tanstack/ai-react",
@@ -823,7 +853,7 @@
         {
           "label": "BytePlus",
           "to": "adapters/byteplus",
-          "addedAt": "2026-07-31"
+          "addedAt": "2026-08-04"
         }
       ]
     },

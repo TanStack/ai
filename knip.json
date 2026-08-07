@@ -47,6 +47,9 @@
     "packages/ai-memory": {
       "ignoreDependencies": ["ioredis", "redis"]
     },
+    "packages/ai-isolate-quickjs-bun": {
+      "entry": ["src/index.ts", "benchmarks/*.ts"]
+    },
     "packages/ai-sandbox": {
       "ignoreDependencies": ["@ngrok/ngrok"]
     },

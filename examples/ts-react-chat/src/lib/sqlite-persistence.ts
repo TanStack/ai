@@ -82,7 +82,12 @@ CREATE TABLE IF NOT EXISTS runs (
   started_at integer NOT NULL,
   finished_at integer,
   error text,
-  usage_json text
+  error_code text,
+  usage_json text,
+  sandbox_key text,
+  detached_since integer,
+  cancel_requested integer,
+  driver_epoch integer
 );
 CREATE TABLE IF NOT EXISTS interrupts (
   interrupt_id text PRIMARY KEY NOT NULL,
@@ -143,6 +148,63 @@ CREATE TABLE IF NOT EXISTS blobs (
 );
 `
 
+/**
+ * Columns added to `runs` after the table first shipped.
+ *
+ * `CREATE TABLE IF NOT EXISTS` does NOT alter a table that already exists, so a
+ * `.data/*.db` written by an earlier version of this example has none of these.
+ * Without an additive migration that file breaks hard, and early: `createRunStore`
+ * prepares its `listReclaimable` statement eagerly, and `node:sqlite` resolves
+ * column names at prepare time, so `sqlitePersistence()` itself throws
+ * `no such column: detached_since` before a single request is served — `update`
+ * would fail the same way.
+ *
+ * SQLite has no `ADD COLUMN IF NOT EXISTS`, so {@link addMissingColumns} consults
+ * `PRAGMA table_info` instead of relying on a caught error. Adding a nullable
+ * column needs no table rewrite. A production adapter would keep versioned
+ * migration files; this stays honest about being an example.
+ */
+const RUNS_ADDED_COLUMNS: ReadonlyArray<{ name: string; type: string }> = [
+  { name: 'error_code', type: 'text' },
+  { name: 'usage_json', type: 'text' },
+  { name: 'sandbox_key', type: 'text' },
+  { name: 'detached_since', type: 'integer' },
+  { name: 'cancel_requested', type: 'integer' },
+  { name: 'driver_epoch', type: 'integer' },
+]
+
+/** `PRAGMA table_info` row, narrowed to the one field this uses. */
+interface TableInfoRow {
+  name: string
+}
+
+function hasName(value: unknown): value is TableInfoRow {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'name' in value &&
+    typeof (value as { name: unknown }).name === 'string'
+  )
+}
+
+/** Bring an existing `runs` table up to the current schema. Idempotent. */
+function addMissingColumns(db: DatabaseSync): void {
+  const existing = new Set(
+    db
+      .prepare(`PRAGMA table_info(runs)`)
+      .all()
+      .filter(hasName)
+      .map((row) => row.name),
+  )
+  // An empty set means the table does not exist at all, in which case SCHEMA_SQL
+  // just created it complete and there is nothing to add.
+  if (existing.size === 0) return
+  for (const column of RUNS_ADDED_COLUMNS) {
+    if (existing.has(column.name)) continue
+    db.exec(`ALTER TABLE runs ADD COLUMN ${column.name} ${column.type}`)
+  }
+}
+
 // Row shapes as SQLite hands them back (JSON columns are still text here).
 interface MessagesRow {
   messages_json: string
@@ -154,7 +216,12 @@ interface RunRow {
   started_at: number
   finished_at: number | null
   error: string | null
+  error_code: string | null
   usage_json: string | null
+  sandbox_key: string | null
+  detached_since: number | null
+  cancel_requested: number | null
+  driver_epoch: number | null
 }
 interface InterruptRow {
   interrupt_id: string
@@ -242,6 +309,21 @@ function createMessageStore(db: DatabaseSync) {
 // ---------------------------------------------------------------------------
 // RunStore — idempotent create/resume + patch.
 // ---------------------------------------------------------------------------
+// `status` is stored verbatim as text, so the whole `RunStatus` union round-trips
+// — including `'aborted'` — without a schema change. The durable-agent-runs
+// fields (`sandboxKey`, `detachedSince`, `cancelRequested`, `driverEpoch`) each
+// get their own column: `sandbox_key`/`driver_epoch`/`detached_since` are plain
+// scalars (text / integer / integer epoch-ms, matching `finished_at`), and
+// `cancel_requested` is an `integer` 0/1 flag — SQLite has no native boolean, so
+// this file's convention is the same "integer used as a boolean" SQLite itself
+// uses internally.
+//
+// `RunRecord.error` is the structured `RunError` (`{ message, code? }`) and gets
+// two columns rather than one JSON blob: `error` for the provider's prose and
+// `error_code` for the stable classification. `code` is precisely the field an
+// operator filters and groups by (`WHERE error_code = 'rate_limited'`), which a
+// JSON blob would bury, and this file's convention reserves the `_json` suffix
+// for columns that really do hold serialized JSON.
 function mapRun(row: RunRow): RunRecord {
   return {
     runId: row.run_id,
@@ -249,10 +331,29 @@ function mapRun(row: RunRow): RunRecord {
     status: row.status as RunStatus,
     startedAt: row.started_at,
     ...(row.finished_at != null ? { finishedAt: row.finished_at } : {}),
-    ...(row.error != null ? { error: row.error } : {}),
+    ...(row.error != null
+      ? {
+          error: {
+            message: row.error,
+            ...(row.error_code != null ? { code: row.error_code } : {}),
+          },
+        }
+      : {}),
     ...(row.usage_json != null
       ? { usage: parseJson<TokenUsage>(row.usage_json) }
       : {}),
+    // Each column is omitted entirely (not surfaced as `null`/coerced `false`)
+    // when NULL: `undefined` and `false` mean different things for
+    // `cancelRequested`, and a spurious `detachedSince` would make a live run
+    // look detached to the reaper.
+    ...(row.sandbox_key != null ? { sandboxKey: row.sandbox_key } : {}),
+    ...(row.detached_since != null
+      ? { detachedSince: row.detached_since }
+      : {}),
+    ...(row.cancel_requested != null
+      ? { cancelRequested: row.cancel_requested !== 0 }
+      : {}),
+    ...(row.driver_epoch != null ? { driverEpoch: row.driver_epoch } : {}),
   }
 }
 
@@ -265,6 +366,23 @@ function createRunStore(db: DatabaseSync) {
   const activeStmt = db.prepare(
     `SELECT * FROM runs WHERE thread_id = ? AND status = 'running'
      ORDER BY started_at DESC LIMIT 1`,
+  )
+  // Reclaim candidates: ALL THREE of status === 'running', detachedSince set,
+  // and detachedSince <= now - ttlMs (inclusive cutoff — a run detached at
+  // exactly the boundary IS reclaimable, so this is `<=` not `<`). `cutoff` is
+  // computed in JS and bound as a single `?` parameter; the column names and
+  // comparison are fixed literals, so no patch/caller value ever reaches the
+  // SQL text itself.
+  //
+  // `detached_since IS NOT NULL` is written explicitly rather than relied on
+  // implicitly: SQLite's `NULL <= ?` already evaluates to NULL (excluding the
+  // row), but spelling out the NULL guard keeps the intent legible if this
+  // query is ever rewritten to a form where that implicit behavior doesn't
+  // hold.
+  const reclaimableStmt = db.prepare(
+    `SELECT * FROM runs WHERE status = 'running'
+       AND detached_since IS NOT NULL
+       AND detached_since <= ?`,
   )
   return defineRunStore({
     createOrResume(input) {
@@ -289,8 +407,19 @@ function createRunStore(db: DatabaseSync) {
     update(runId, patch) {
       // Build a dynamic SET from only the provided fields; empty patch is a
       // no-op, and a missing run_id simply updates zero rows (no throw/create).
+      //
+      // All eight columns this schema has are mapped here. Never splice a
+      // patch key into SQL directly — the column name always comes from this
+      // fixed literal set, never from an object key the caller controls.
+      //
+      // `detachedSince`/`sandboxKey`/`cancelRequested`/`driverEpoch` use
+      // `'key' in patch` rather than `patch.key !== undefined`: a reattach
+      // clears `detachedSince` by passing it explicitly as `undefined`, which
+      // must write NULL, not be filtered out of the SET clause (a filtered-out
+      // clear would leave the old value and make every re-attached run look
+      // permanently detached to the reaper).
       const sets: Array<string> = []
-      const params: Array<string | number> = []
+      const params: Array<string | number | null> = []
       if (patch.status !== undefined) {
         sets.push('status = ?')
         params.push(patch.status)
@@ -300,12 +429,36 @@ function createRunStore(db: DatabaseSync) {
         params.push(patch.finishedAt)
       }
       if (patch.error !== undefined) {
-        sets.push('error = ?')
-        params.push(patch.error)
+        // Both halves of the structured error move together, so a later failure
+        // with no `code` cannot leave a stale code from an earlier one behind.
+        sets.push('error = ?', 'error_code = ?')
+        params.push(patch.error.message, patch.error.code ?? null)
       }
       if (patch.usage !== undefined) {
         sets.push('usage_json = ?')
         params.push(JSON.stringify(patch.usage))
+      }
+      if ('sandboxKey' in patch) {
+        sets.push('sandbox_key = ?')
+        params.push(patch.sandboxKey ?? null)
+      }
+      if ('detachedSince' in patch) {
+        sets.push('detached_since = ?')
+        params.push(patch.detachedSince ?? null)
+      }
+      if ('cancelRequested' in patch) {
+        sets.push('cancel_requested = ?')
+        params.push(
+          patch.cancelRequested === undefined
+            ? null
+            : patch.cancelRequested
+              ? 1
+              : 0,
+        )
+      }
+      if ('driverEpoch' in patch) {
+        sets.push('driver_epoch = ?')
+        params.push(patch.driverEpoch ?? null)
       }
       if (sets.length === 0) return Promise.resolve()
       params.push(runId)
@@ -325,6 +478,15 @@ function createRunStore(db: DatabaseSync) {
     findActiveRun(threadId) {
       const row = activeStmt.get(threadId) as RunRow | undefined
       return Promise.resolve(row ? mapRun(row) : null)
+    },
+    // Reclaim candidates for a sandbox reaper to sweep. Not thread-scoped —
+    // callers filter the result themselves when they need a subset.
+    listReclaimable(opts) {
+      const cutoff = opts.now - opts.ttlMs
+      const rows = reclaimableStmt.all(
+        cutoff,
+      ) as Array<unknown> as Array<RunRow>
+      return Promise.resolve(rows.map(mapRun))
     },
   })
 }
@@ -936,7 +1098,10 @@ export function sqlitePersistence(
   ensureParentDirectory(filename)
   const db = new DatabaseSync(filename)
   try {
-    if (options.migrate) db.exec(SCHEMA_SQL)
+    if (options.migrate) {
+      db.exec(SCHEMA_SQL)
+      addMissingColumns(db)
+    }
   } catch (error) {
     db.close()
     throw error

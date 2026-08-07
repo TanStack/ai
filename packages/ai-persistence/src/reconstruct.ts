@@ -57,7 +57,7 @@ export interface ReconstructChatOptions {
  * - `messages` — the stored transcript as UI messages.
  * - `activeRun` — `{ runId }` if a run is still generating for the thread (so the
  *   client tails it via the durability stream), else `null`. Resolved via the
- *   optional `stores.runs.findActiveRun`; `null` when that store/method is absent.
+ *   required `stores.runs.findActiveRun`; `null` when the `runs` store is absent.
  * - `interrupts` — `{ runId, pending }` if the thread has pending human-in-the-loop
  *   interrupts (a paused approval / wait) and the run they paused, else `null`, so
  *   a reload re-prompts the decision from the server. Resolved via the optional

@@ -186,7 +186,7 @@ let codeModeCache: {
 async function getCodeModeTools() {
   if (!codeModeCache) {
     const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
-    const driver = await createIsolateDriver('node')
+    const driver = await createIsolateDriver()
     const { tool, systemPrompt } = createCodeMode({
       driver,
       tools: allTools,

@@ -155,6 +155,14 @@ export function injectChat<
   messages.set(client.getMessages())
   interruptState.set(client.getInterruptState())
 
+  // START TAILING HERE, not in the constructor. A client is idle until something
+  // attaches it, so a client that gets built and thrown away never opens a
+  // connection — an unreachable stream would hold one of the browser's ~6
+  // connections per origin until the page reloaded. `inject*` runs in an injection
+  // context tied to the consumer's lifetime, and `destroyRef.onDestroy` below is the
+  // matching `detach`.
+  client.attach()
+
   // Sync reactive body / forwardedProps / context to the client.
   if (bodySource || forwardedPropsSource || contextSource) {
     effect(
@@ -199,6 +207,8 @@ export function injectChat<
   )
 
   destroyRef.onDestroy(() => {
+    // Release the connection first: the counterpart of the `attach` above.
+    client.detach()
     if (liveSource?.()) {
       client.unsubscribe()
     } else {

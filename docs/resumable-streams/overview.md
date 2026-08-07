@@ -83,6 +83,12 @@ export async function GET(request: Request) {
 For production, swap `memoryStream(request)` for
 `durableStream(request, options)`. Everything else stays the same.
 
+That `GET` only ever *replays*: the run's producer is the `POST` that started it,
+so if that host dies the log stops growing. For a sandboxed coding agent, whose
+work outlives the request that launched it, the same `GET` can also take the run
+over and keep driving it — pass `driver: sandboxRunDriver({ … })` alongside the
+adapter. See [Takeover & Detached Runs](../sandbox/takeover).
+
 > **One gotcha:** on a dropped connection the client reconnects by re-sending
 > the same `POST`. The model is not re-run (the log is replayed), but any side
 > effects your handler runs around the stream (saving the user's message,

@@ -53,8 +53,10 @@ export interface ReconstructGenerationOptions {
 
 /**
  * Map the persisted run status to the client-facing resume-snapshot status.
- * An `interrupted` run surfaces as `error` — the client has no live run to
- * resume, and an interrupted generation produced no usable result.
+ * An `interrupted` or `aborted` run surfaces as `error` — the client has no live
+ * run to resume, and neither produced a usable result. (A generation abort is
+ * always terminal: there is no journal to reattach to, so `withGenerationPersistence`
+ * writes `'aborted'` rather than parking the run.)
  */
 function snapshotStatus(
   status: GenerationRunRecord['status'],
@@ -66,6 +68,7 @@ function snapshotStatus(
       return 'complete'
     case 'failed':
     case 'interrupted':
+    case 'aborted':
       return 'error'
   }
 }

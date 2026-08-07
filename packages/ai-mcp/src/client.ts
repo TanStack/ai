@@ -5,7 +5,12 @@ import {
   MCPTaskRequiredToolError,
   MCPToolNotFoundError,
 } from './errors'
-import { makeMcpExecute, requiresTaskExecution, toServerTools } from './tools'
+import {
+  makeMcpExecute,
+  requiresTaskExecution,
+  toolMcpMetadata,
+  toServerTools,
+} from './tools'
 import { isTransportInstance, resolveTransport } from './transport'
 import type { TransportConfig } from './transport'
 import type {
@@ -14,6 +19,7 @@ import type {
   DescriptorTools,
   MCPClientOptions,
   MappedServerTools,
+  McpServerTool,
   ServerDescriptor,
   ToolsOptions,
 } from './types'
@@ -35,6 +41,9 @@ export interface MCPClient<
    * Auto-discovery: every server tool as a ServerTool. With a generated
    * descriptor, tool names are typed as the descriptor's name literals;
    * args/results stay untyped — use the `tools(defs)` overload for typed args.
+   *
+   * Both overloads yield {@link McpServerTool}s, so `tool.metadata.mcp` (the
+   * server's title / annotations) is typed without an annotation or a cast.
    */
   tools: {
     (options?: ToolsOptions): Promise<DescriptorTools<TServer>>
@@ -122,7 +131,7 @@ class MCPClientImpl<
   async tools(
     defsOrOptions?: ReadonlyArray<AnyToolDefinition> | ToolsOptions,
     maybeOptions: ToolsOptions = {},
-  ): Promise<Array<ServerTool>> {
+  ): Promise<Array<McpServerTool>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
 
     const isDefs = Array.isArray(defsOrOptions)
@@ -131,7 +140,7 @@ class MCPClientImpl<
       : // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         ((defsOrOptions as ToolsOptions) ?? {}) // SDK interop: defsOrOptions may be undefined at runtime even though TS types it as ToolsOptions here
 
-    let tools: Array<ServerTool>
+    let tools: Array<McpServerTool>
     if (isDefs) {
       // Explicit path: bind each TanStack toolDefinition to the server by name.
       const available = new Map(
@@ -144,22 +153,34 @@ class MCPClientImpl<
         // on every callTool with -32600) — unlike discovery, which skips them.
         if (requiresTaskExecution(serverTool))
           throw new MCPTaskRequiredToolError(def.name)
-        const tool = def.server(
+        const bound = def.server(
           makeMcpExecute(this.#client, def.name, Boolean(def.outputSchema)),
         ) as ServerTool
-        if (this.prefix) tool.name = `${this.prefix}_${def.name}`
-        if (options.lazy) tool.lazy = true
-        // Stamp MCP metadata so `serverToolNameOf` (and the call handler) can
-        // recover the UNPREFIXED native name + serverId — mirror toServerTools.
-        // `metadata.mcp` is `unknown`; only spread it when it's a plain object.
-        const existingMcp = tool.metadata?.mcp
+        // A caller-supplied definition may already carry its own `mcp` block,
+        // and `metadata.mcp` is untyped there — only spread it when it really
+        // is a plain object.
+        const existingMcp: unknown = bound.metadata?.mcp
         const mcpBase =
           existingMcp !== null && typeof existingMcp === 'object'
             ? existingMcp
             : {}
-        tool.metadata = {
-          ...tool.metadata,
-          mcp: { ...mcpBase, serverToolName: def.name, serverId: this.prefix },
+        // Rebuilt rather than mutated in place: assigning `metadata` on a
+        // `ServerTool` can't narrow its declared `Record<string, any> |
+        // undefined` type, so a fresh literal is what lets the return value be
+        // an `McpServerTool` (typed `metadata.mcp`) without a cast.
+        //
+        // Stamping MCP metadata lets `serverToolNameOf` (and the call handler)
+        // recover the UNPREFIXED native name + serverId, and carries the
+        // server's display title / annotations to the host — mirrors
+        // toServerTools.
+        const tool: McpServerTool = {
+          ...bound,
+          ...(this.prefix ? { name: `${this.prefix}_${def.name}` } : {}),
+          ...(options.lazy ? { lazy: true } : {}),
+          metadata: {
+            ...bound.metadata,
+            mcp: { ...mcpBase, ...toolMcpMetadata(serverTool, this.prefix) },
+          },
         }
         return tool
       })
