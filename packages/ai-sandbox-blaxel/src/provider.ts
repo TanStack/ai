@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from 'node:crypto'
 import { SandboxInstance, initialize, settings } from '@blaxel/core'
 import { BLAXEL_CAPS, BLAXEL_DEFAULT_WORKDIR, BlaxelHandle } from './handle'
+import { abortable, errorStatus, isNotFound } from './utils'
 import type { SandboxCreateConfiguration } from '@blaxel/core'
 import type { BlaxelSandboxLike } from './handle'
 import type {
@@ -76,54 +77,10 @@ export function isTerminal(status?: string): boolean {
   return status !== undefined && TERMINAL_STATUSES.has(status)
 }
 
-function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return operation
-  signal.throwIfAborted()
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => {
-      signal.removeEventListener('abort', onAbort)
-      try {
-        signal.throwIfAborted()
-      } catch (error) {
-        reject(error)
-      }
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-    operation.then(
-      (value) => {
-        signal.removeEventListener('abort', onAbort)
-        resolve(value)
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', onAbort)
-        reject(error)
-      },
-    )
-  })
-}
-
-function isNotFound(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) return false
-  const record = error as {
-    code?: unknown
-    status?: unknown
-    response?: { status?: unknown }
-  }
-  return [record.code, record.status, record.response?.status].some(
-    (value) => value === 404 || value === '404',
-  )
-}
-
 function mayHaveCreatedSandbox(error: unknown): boolean {
   if (typeof error !== 'object' || error === null) return false
-  const record = error as {
-    code?: unknown
-    status?: unknown
-    response?: { status?: unknown }
-  }
-  const rawStatus = record.response?.status ?? record.status ?? record.code
-  const status = Number(rawStatus)
-  if (!Number.isFinite(status)) return true
+  const status = errorStatus(error)
+  if (status === undefined) return true
   return (
     status === 408 ||
     status === 409 ||
@@ -281,9 +238,13 @@ class BlaxelProvider implements SandboxProvider {
         await this.cleanupOwnedSandbox(name, attemptId, error, sandbox)
       } else if (input.signal?.aborted) {
         // The SDK does not accept an AbortSignal. Reject the caller promptly,
-        // then reconcile the labeled attempt whether the SDK eventually
-        // resolves or rejects. A reused same-name sandbox has a different label
-        // and is never deleted.
+        // and immediately reconcile the labeled attempt because the SDK promise
+        // may never settle. Repeat cleanup when it does settle as a later
+        // fallback. A reused same-name sandbox has a different label and is
+        // never deleted.
+        void this.cleanupOwnedSandbox(name, attemptId, error).catch(
+          () => undefined,
+        )
         void creation
           .then(
             (created) =>

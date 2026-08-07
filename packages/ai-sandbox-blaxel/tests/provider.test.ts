@@ -265,6 +265,42 @@ describe('blaxelSandbox create', () => {
     await vi.waitFor(() => expect(calls.deleted).toEqual(['late-create']))
   })
 
+  it('deletes an aborted create whose SDK promise never settles', async () => {
+    createGate = new Promise(() => undefined)
+    let visible = false
+    let visibilityScheduled = false
+    getFactory = (name) => {
+      if (!visible) {
+        if (!visibilityScheduled) {
+          visibilityScheduled = true
+          setTimeout(() => {
+            visible = true
+          }, 25)
+        }
+        throw Object.assign(new Error('sandbox is not visible yet'), {
+          status: 404,
+        })
+      }
+      return fakeInstance(
+        name,
+        calls.created[0]?.labels as Record<string, string> | undefined,
+      )
+    }
+    const controller = new AbortController()
+    const provider = blaxelSandbox({ ttl: null })
+    const creating = provider.create({
+      id: 'never-settled-create',
+      signal: controller.signal,
+    })
+    controller.abort()
+
+    await expect(creating).rejects.toThrow()
+    await vi.waitFor(
+      () => expect(calls.deleted).toEqual(['never-settled-create']),
+      { timeout: 2_500 },
+    )
+  })
+
   it('deletes a billed sandbox when workspace preparation fails', async () => {
     mkdirError = new Error('mkdir failed')
     const provider = blaxelSandbox()

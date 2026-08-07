@@ -497,6 +497,53 @@ describe('BlaxelHandle process', () => {
     expect(fake.kill).toHaveBeenCalledWith(fake.execCalls[0]?.name)
   })
 
+  it.each(['exec', 'spawn'] as const)(
+    'reconciles an aborted %s when its start promise never settles',
+    async (kind) => {
+      const controller = new AbortController()
+      const neverSettlingStart = new Promise<BlaxelProcessLike>(() => undefined)
+      let visible = false
+      let visibilityScheduled = false
+      let successfulKills = 0
+      const notFound = (): Error =>
+        Object.assign(new Error('not registered yet'), { status: 404 })
+      const scheduleVisibility = (): void => {
+        if (visibilityScheduled) return
+        visibilityScheduled = true
+        setTimeout(() => {
+          visible = true
+        }, 75)
+      }
+      const { handle } = makeHandle({
+        execGate: neverSettlingStart,
+        onKill: async () => {
+          if (!visible) {
+            scheduleVisibility()
+            throw notFound()
+          }
+          successfulKills += 1
+          return {}
+        },
+        onReap: async () => {
+          if (!visible) throw notFound()
+        },
+        onRm: async () => {
+          if (!visible) throw notFound()
+          return {}
+        },
+      })
+
+      const operation =
+        kind === 'exec'
+          ? handle.process.exec('long-task', { signal: controller.signal })
+          : handle.process.spawn('long-task', { signal: controller.signal })
+      controller.abort()
+
+      await expect(operation).rejects.toThrow()
+      await vi.waitFor(() => expect(successfulKills).toBeGreaterThan(0))
+    },
+  )
+
   it('reaps an accepted blocking exec whose POST response rejects', async () => {
     const execGate = Promise.resolve().then(() => {
       throw new Error('connection reset after accept')

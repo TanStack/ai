@@ -11,6 +11,7 @@
  */
 import { createHash, randomUUID } from 'node:crypto'
 import { createExecBackedGit } from '@tanstack/ai-sandbox'
+import { abortable, errorStatus, isNotFound } from './utils'
 import type {
   ExecResult,
   ProcessOptions,
@@ -58,32 +59,6 @@ const PREVIEW_TOKEN_TTL_MS = 60 * 60 * 1000
 /** Maximum unread stdout or stderr retained per spawned process. */
 const STREAM_BUFFER_LIMIT_BYTES = 8 * 1024 * 1024
 const PROCESS_REGISTRATION_RECONCILIATION_MS = 10_000
-
-function abortable<T>(operation: Promise<T>, signal?: AbortSignal): Promise<T> {
-  if (!signal) return operation
-  signal.throwIfAborted()
-  return new Promise<T>((resolve, reject) => {
-    const onAbort = (): void => {
-      signal.removeEventListener('abort', onAbort)
-      try {
-        signal.throwIfAborted()
-      } catch (error) {
-        reject(error)
-      }
-    }
-    signal.addEventListener('abort', onAbort, { once: true })
-    operation.then(
-      (value) => {
-        signal.removeEventListener('abort', onAbort)
-        resolve(value)
-      },
-      (error: unknown) => {
-        signal.removeEventListener('abort', onAbort)
-        reject(error)
-      },
-    )
-  })
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -694,11 +669,14 @@ export class BlaxelHandle implements SandboxHandle {
     let termination: Promise<void> | undefined
     const terminate = (): Promise<void> =>
       (termination ??= this.terminateProcess(name, bounded.outputDir))
+    let executionResolved = false
     const onAbort = (): void => {
-      void terminate().catch(() => undefined)
+      const cleanup = executionResolved
+        ? terminate()
+        : this.reconcileAmbiguousProcessStart(name, bounded.outputDir)
+      void cleanup.catch(() => undefined)
     }
     signal?.addEventListener('abort', onAbort, { once: true })
-    let executionResolved = false
     try {
       const result = await abortable(execution, signal)
       executionResolved = true
@@ -771,7 +749,12 @@ export class BlaxelHandle implements SandboxHandle {
       timeout: 0,
     })
     const abortStart = (): void => {
-      void terminate().catch(() => undefined)
+      // The SDK POST cannot be aborted and its promise may never settle. Start
+      // bounded registration reconciliation now; the settlement callback below
+      // remains a later fallback if the process appears after this window.
+      void this.reconcileAmbiguousProcessStart(name, bounded.outputDir).catch(
+        () => undefined,
+      )
     }
     signal?.addEventListener('abort', abortStart, { once: true })
 
@@ -1144,24 +1127,6 @@ function eventPath(event: BlaxelWatchEventLike): string {
   return event.path.endsWith('/')
     ? `${event.path}${event.name}`
     : `${event.path}/${event.name}`
-}
-
-function errorStatus(error: unknown): number | undefined {
-  if (typeof error !== 'object' || error === null) return undefined
-  const record = error as {
-    code?: unknown
-    status?: unknown
-    response?: { status?: unknown }
-  }
-  for (const value of [record.code, record.status, record.response?.status]) {
-    if (typeof value === 'number' && Number.isFinite(value)) return value
-    if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value)
-  }
-  return undefined
-}
-
-function isNotFound(error: unknown): boolean {
-  return errorStatus(error) === 404
 }
 
 /** A lost POST response can arrive before the accepted process is observable. */
