@@ -13,8 +13,8 @@ through the app's existing `drizzle-kit` setup.
 Do not create a package, a second `db` instance, a migration runner, or a
 `drizzle.config.ts`. The app has those.
 
-Read the **Build Your Own Adapter** guide
-(`docs/persistence/build-your-own-adapter.md`) for the store contracts and
+Read the **Store Reference**
+(`docs/persistence/store-reference.md`) for the store contracts and
 invariants, and **ai-persistence/stores** for the shape rules. Every
 store below mirrors the reference in-memory backend in
 `@tanstack/ai-persistence` (`memory.ts`); the shared conformance testkit is the
@@ -47,7 +47,13 @@ SQLite. JSON payloads use `text({ mode: 'json' })` so Drizzle round-trips
 objects for you; timestamps are `integer` epoch ms.
 
 ```ts ignore
-import { integer, primaryKey, sqliteTable, text } from 'drizzle-orm/sqlite-core'
+import {
+  index,
+  integer,
+  primaryKey,
+  sqliteTable,
+  text,
+} from 'drizzle-orm/sqlite-core'
 import type { ModelMessage, TokenUsage } from '@tanstack/ai'
 import type { InterruptRecord, RunStatus } from '@tanstack/ai-persistence'
 
@@ -59,15 +65,29 @@ export const chatThreads = sqliteTable('chat_threads', {
   updatedAt: integer('updated_at').notNull(),
 })
 
-export const chatRuns = sqliteTable('chat_runs', {
-  runId: text('run_id').primaryKey(),
-  threadId: text('thread_id').notNull(),
-  status: text('status').$type<RunStatus>().notNull(),
-  startedAt: integer('started_at').notNull(),
-  finishedAt: integer('finished_at'),
-  error: text('error'),
-  usageJson: text('usage_json', { mode: 'json' }).$type<TokenUsage>(),
-})
+export const chatRuns = sqliteTable(
+  'chat_runs',
+  {
+    runId: text('run_id').primaryKey(),
+    threadId: text('thread_id').notNull(),
+    status: text('status').$type<RunStatus>().notNull(),
+    startedAt: integer('started_at').notNull(),
+    finishedAt: integer('finished_at'),
+    error: text('error'),
+    errorCode: text('error_code'),
+    usageJson: text('usage_json', { mode: 'json' }).$type<TokenUsage>(),
+    sandboxKey: text('sandbox_key'),
+    detachedSince: integer('detached_since'),
+    cancelRequested: integer('cancel_requested', { mode: 'boolean' }),
+    driverEpoch: integer('driver_epoch'),
+  },
+  (table) => [
+    // Powers listReclaimable: status = 'running' AND detachedSince <= cutoff.
+    index('chat_runs_status_detached').on(table.status, table.detachedSince),
+    // Powers listByThread and findActiveRun.
+    index('chat_runs_thread_started').on(table.threadId, table.startedAt),
+  ],
+)
 
 export const chatInterrupts = sqliteTable('chat_interrupts', {
   interruptId: text('interrupt_id').primaryKey(),
@@ -99,13 +119,23 @@ or audit columns the same way (nullable or defaulted so inserts still succeed).
 The `namespace` column is the `MetadataStore` first argument; the stock SQL in
 the guide calls the same column `scope`.
 
+`RunRecord.error` is a structured `RunError` (`{ message: string, code?: string }`),
+so it gets two columns rather than one JSON blob: `error` for the provider's
+prose and `errorCode` for the stable classification an operator filters and
+groups by. `error` and `errorCode` always move together in `update`, so a
+later code-less failure can never leave a stale `code` from an earlier one
+behind.
+
 **Postgres** (`drizzle-orm/pg-core`): `jsonb()` for the JSON payloads,
-`bigint({ mode: 'number' })` for epoch-ms timestamps, `text()` elsewhere,
-composite `primaryKey` on `(namespace, key)` unchanged. **MySQL**
-(`drizzle-orm/mysql-core`): `json()`, `bigint({ mode: 'number' })`, and
-`varchar(…, { length: 255 })` for the primary-key columns. The store bodies
-below are identical across all three — only `onConflictDoUpdate` becomes
-`onDuplicateKeyUpdate` on MySQL.
+`bigint({ mode: 'number' })` for epoch-ms timestamps (including
+`detachedSince`), `integer()` for `driverEpoch`, `boolean()` for
+`cancelRequested`, `text()` elsewhere, composite `primaryKey` on
+`(namespace, key)` unchanged. **MySQL**
+(`drizzle-orm/mysql-core`): `json()`, `bigint({ mode: 'number' })`,
+`boolean()` for `cancelRequested`, and `varchar(..., { length: 255 })` for the
+primary-key columns. The store bodies below are identical across all three,
+only `onConflictDoUpdate` becomes `onDuplicateKeyUpdate` on MySQL, and the
+`(status, detachedSince)` / `(threadId, startedAt)` indexes carry over as is.
 
 ## 3. Write `src/lib/chat-persistence.ts`
 
@@ -113,7 +143,7 @@ The whole file. Idempotency is the entire game — the comments below mark the
 rules the conformance suite checks.
 
 ```ts ignore
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull, lte } from 'drizzle-orm'
 import { defineAIPersistence } from '@tanstack/ai-persistence'
 import type { SQL } from 'drizzle-orm'
 import type {
@@ -145,8 +175,21 @@ function mapRun(row: typeof chatRuns.$inferSelect): RunRecord {
     status: row.status,
     startedAt: row.startedAt,
     ...(row.finishedAt != null ? { finishedAt: row.finishedAt } : {}),
-    ...(row.error != null ? { error: row.error } : {}),
+    ...(row.error != null
+      ? {
+          error: {
+            message: row.error,
+            ...(row.errorCode != null ? { code: row.errorCode } : {}),
+          },
+        }
+      : {}),
     ...(row.usageJson != null ? { usage: row.usageJson } : {}),
+    ...(row.sandboxKey != null ? { sandboxKey: row.sandboxKey } : {}),
+    ...(row.detachedSince != null ? { detachedSince: row.detachedSince } : {}),
+    ...(row.cancelRequested != null
+      ? { cancelRequested: row.cancelRequested }
+      : {}),
+    ...(row.driverEpoch != null ? { driverEpoch: row.driverEpoch } : {}),
   }
 }
 
@@ -225,8 +268,26 @@ function createRunStore(db: Db): RunStore {
       const set: Partial<typeof chatRuns.$inferInsert> = {}
       if (patch.status !== undefined) set.status = patch.status
       if (patch.finishedAt !== undefined) set.finishedAt = patch.finishedAt
-      if (patch.error !== undefined) set.error = patch.error
+      // Both columns move together, so a later code-less failure cannot
+      // leave a stale errorCode from an earlier one behind.
+      if (patch.error !== undefined) {
+        set.error = patch.error.message
+        set.errorCode = patch.error.code ?? null
+      }
       if (patch.usage !== undefined) set.usageJson = patch.usage
+      // The four durable-run fields use `'field' in patch`, NOT
+      // `!== undefined`: a reattach clears `detachedSince` by passing it
+      // explicitly as `undefined`, and that must still write NULL. Checking
+      // `!== undefined` cannot distinguish "clear this" from "didn't mention
+      // this", so it would silently drop the clear and leave the run looking
+      // permanently detached to the reaper. Same reasoning applies to
+      // `cancelRequested` (`false` is a meaningful value, not "unset").
+      if ('sandboxKey' in patch) set.sandboxKey = patch.sandboxKey ?? null
+      if ('detachedSince' in patch)
+        set.detachedSince = patch.detachedSince ?? null
+      if ('cancelRequested' in patch)
+        set.cancelRequested = patch.cancelRequested ?? null
+      if ('driverEpoch' in patch) set.driverEpoch = patch.driverEpoch ?? null
       if (Object.keys(set).length === 0) return
 
       await db.update(chatRuns).set(set).where(eq(chatRuns.runId, runId))
@@ -242,6 +303,32 @@ function createRunStore(db: Db): RunStore {
         .orderBy(desc(chatRuns.startedAt))
         .limit(1)
       return rows[0] ? mapRun(rows[0]) : null
+    },
+    // Optional; every run for the thread, ascending by startedAt. Uses the
+    // (threadId, startedAt) index.
+    async listByThread(threadId) {
+      const rows = await db
+        .select()
+        .from(chatRuns)
+        .where(eq(chatRuns.threadId, threadId))
+        .orderBy(asc(chatRuns.startedAt))
+      return rows.map(mapRun)
+    },
+    // Optional; still-running runs detached at or before the cutoff. Uses the
+    // (status, detachedSince) index. The cutoff is inclusive.
+    async listReclaimable({ now, ttlMs }) {
+      const cutoff = now - ttlMs
+      const rows = await db
+        .select()
+        .from(chatRuns)
+        .where(
+          and(
+            eq(chatRuns.status, 'running'),
+            isNotNull(chatRuns.detachedSince),
+            lte(chatRuns.detachedSince, cutoff),
+          ),
+        )
+      return rows.map(mapRun)
     },
   }
 }
@@ -443,6 +530,12 @@ that has the migration applied, and reset between runs. The suite covers all
 seven stores, so a chat adapter declares the generation half it omits; drop the
 `skip` once you add those tables. `skip` never accepts `'locks'`, which is not a
 store.
+
+If your recipe leaves an optional `runs` method
+(`listByThread`/`listReclaimable`) unimplemented, declare it
+with `skipMethods`, e.g. `{ skipMethods: ['runs.listByThread'] }`. An
+omitted method that is not declared fails the suite instead of silently
+passing.
 
 ## Only if you are publishing this as a package
 

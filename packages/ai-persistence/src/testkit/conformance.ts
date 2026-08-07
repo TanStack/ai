@@ -12,11 +12,27 @@
  * `artifacts`, `blobs`). Locks are not part of this suite — they are a separate
  * coordination concern (`LockStore` + `withLocks`), not a store.
  *
- * SKIPPING: a backend that deliberately omits a store must declare it in
- * `options.skip`. A store that is absent AND not listed in `skip` fails the
- * suite loudly — silent gaps are not allowed. A chat-only adapter therefore
- * passes `skip: ['generationRuns', 'artifacts', 'blobs']`, and a
- * generation-only one skips the four state stores.
+ * SKIPPING (declare or fail): a backend that deliberately omits a store must
+ * declare it in `options.skip`, and one that omits an OPTIONAL store method
+ * must declare it in `options.skipMethods`. Anything absent and not declared
+ * fails the suite loudly, and anything declared absent is reported by vitest as
+ * a SKIPPED case, never as a pass. Silent gaps are not allowed: a case that did
+ * not run must never be indistinguishable from one that did. A chat-only
+ * adapter therefore passes `skip: ['generationRuns', 'artifacts', 'blobs']`,
+ * and a generation-only one skips the four state stores.
+ *
+ * NOT COVERED HERE: the four durable-run fields on `RunRecord` (`sandboxKey`,
+ * `detachedSince`, `cancelRequested`, `driverEpoch`). They exist for durable
+ * sandboxed runs, a chat app never writes them, and requiring them here made every
+ * backend implement four columns and an omitted-vs-explicit-undefined rule it had no
+ * use for. They are proven by `runDurableRunFieldsConformance` from
+ * `@tanstack/ai-sandbox/testkit`, next to the takeover and reaper suites that consume
+ * them. A backend that never runs sandboxes can leave the columns out.
+ *
+ * RESERVED RUN-ID PREFIX: `rc-` belongs to the `listReclaimable` case, which
+ * filters the method's (not thread-scoped) result down to `rc-` ids before an
+ * exact-set assertion. A new case in `describe('runs')` must NOT seed a run id
+ * starting with `rc-`, or it silently changes that expected set.
  */
 import { beforeAll, describe, expect, it } from 'vitest'
 import type { ModelMessage } from '@tanstack/ai'
@@ -24,9 +40,22 @@ import type {
   AIPersistence,
   AIPersistenceStores,
   ArtifactRecord,
+  RunStore,
 } from '../types'
 
 type MakePersistence = () => Promise<AIPersistence> | AIPersistence
+
+/**
+ * Methods that are optional on the `RunStore` contract.
+ *
+ * `findActiveRun` is deliberately NOT here: it is REQUIRED, per the evolution
+ * policy in `../types.ts`. It was optional for one release cycle and silently
+ * disabled reconnect on every backend that had not caught up.
+ */
+type OptionalRunStoreMethod = 'listByThread' | 'listReclaimable'
+
+/** Dotted `store.method` key a backend passes to declare an omitted method. */
+export type PersistenceConformanceMethodKey = `runs.${OptionalRunStoreMethod}`
 
 /**
  * Unwrap a value the store contract says must be present. Fails the test with a
@@ -72,6 +101,12 @@ export interface PersistenceConformanceOptions {
    * dropped/misconfigured store can never pass silently.
    */
   skip?: Array<keyof AIPersistenceStores>
+  /**
+   * OPTIONAL store methods this backend intentionally does not implement, as
+   * `'runs.listByThread'` and friends. A method that is absent and NOT listed
+   * here fails the suite; a listed one is reported as a skipped case.
+   */
+  skipMethods?: Array<PersistenceConformanceMethodKey>
 }
 
 /**
@@ -85,6 +120,9 @@ export function runPersistenceConformance(
   options?: PersistenceConformanceOptions,
 ): void {
   const skip = new Set<keyof AIPersistenceStores>(options?.skip ?? [])
+  const skipMethods = new Set<PersistenceConformanceMethodKey>(
+    options?.skipMethods ?? [],
+  )
 
   describe(`AIPersistence conformance: ${name}`, () => {
     let persistence: AIPersistence
@@ -110,10 +148,32 @@ export function runPersistenceConformance(
       )
     }
 
+    /**
+     * Narrow `runs` to a store that definitely implements the optional method
+     * `methodName`, so the case can call it without a non-null assertion.
+     *
+     * Returns `false` only when the omission was declared in
+     * `options.skipMethods` (the caller then reports a skip). An undeclared
+     * omission throws, mirroring `resolveStore`: a case that cannot run must
+     * never be reported as a pass.
+     */
+    function hasRunsMethod<TName extends OptionalRunStoreMethod>(
+      runs: RunStore,
+      methodName: TName,
+    ): runs is RunStore & Required<Pick<RunStore, TName>> {
+      if (runs[methodName]) return true
+      const key: PersistenceConformanceMethodKey = `runs.${methodName}`
+      if (skipMethods.has(key)) return false
+      throw new Error(
+        `AIPersistence conformance: optional method '${key}' is not implemented. ` +
+          `Implement it, or pass { skipMethods: ['${key}'] } if the omission is intentional.`,
+      )
+    }
+
     describe('messages', () => {
-      it('round-trips a thread and returns [] for unknown threads', async () => {
+      it('round-trips a thread and returns [] for unknown threads', async (ctx) => {
         const store = resolveStore('messages')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         expect(await store.loadThread('thread-unknown')).toEqual([])
 
@@ -135,9 +195,9 @@ export function runPersistenceConformance(
         ])
       })
 
-      it('round-trips rich message shapes with deep equality', async () => {
+      it('round-trips rich message shapes with deep equality', async (ctx) => {
         const store = resolveStore('messages')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         const rich: Array<ModelMessage> = [
           { role: 'user', content: 'plain string' },
@@ -196,9 +256,9 @@ export function runPersistenceConformance(
     })
 
     describe('runs', () => {
-      it('creates, resumes idempotently, updates, and gets', async () => {
+      it('creates, resumes idempotently, updates, and gets', async (ctx) => {
         const store = resolveStore('runs')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         expect(await store.get('run-missing')).toBeNull()
 
@@ -239,24 +299,67 @@ export function runPersistenceConformance(
           usage: { promptTokens: 3, completionTokens: 4, totalTokens: 7 },
         })
 
-        await store.update('run-1', { status: 'failed', error: 'boom' })
+        // `error` is a structured RunError: the prose `message` plus the
+        // optional machine-branchable `code`. Both must survive the round-trip,
+        // so a backend that flattens the record to a bare string fails here.
+        await store.update('run-1', {
+          status: 'failed',
+          error: { message: 'boom', code: 'provider_overloaded' },
+        })
         const failed = await store.get('run-1')
         expect(failed?.status).toBe('failed')
-        expect(failed?.error).toBe('boom')
+        expect(failed?.error).toEqual({
+          message: 'boom',
+          code: 'provider_overloaded',
+        })
 
         // Updating a missing run is a no-op (does not throw, does not create).
         await store.update('run-absent', { status: 'completed' })
         expect(await store.get('run-absent')).toBeNull()
       })
 
-      // `findActiveRun` is REQUIRED on the RunStore contract — every backend that
-      // provides a `runs` store must satisfy these invariants (most-recent-running
-      // wins, thread-scoped, null when idle). Reconnect is built on it, and a
-      // backend that always answers `null` disables reconnect indistinguishably
-      // from one that is merely idle, so this must never degrade to a skip.
-      it('findActiveRun returns the most recent running run for a thread', async () => {
+      // The idempotency invariant has teeth precisely where it is dangerous:
+      // resuming a run that already FINISHED must not resurrect it. An adapter
+      // written as `INSERT ... ON CONFLICT DO UPDATE SET status='running'`
+      // looks correct on a still-running record and silently revives dead ones,
+      // after which `findActiveRun` hands clients a run that will never emit
+      // again. Assert the terminal status and `finishedAt` both survive.
+      it('createOrResume never resurrects a finished run', async (ctx) => {
         const store = resolveStore('runs')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
+
+        await store.createOrResume({
+          runId: 'nc-1',
+          threadId: 'nc-t',
+          startedAt: 10,
+        })
+        await store.update('nc-1', { status: 'completed', finishedAt: 20 })
+
+        // Resume with a DIFFERENT status/startedAt: both must be ignored.
+        const resumed = await store.createOrResume({
+          runId: 'nc-1',
+          threadId: 'nc-t',
+          startedAt: 999,
+          status: 'running',
+        })
+        expect(resumed).toMatchObject({
+          runId: 'nc-1',
+          status: 'completed',
+          startedAt: 10,
+          finishedAt: 20,
+        })
+
+        // And the stored record itself was not rewritten either.
+        expect(await store.get('nc-1')).toMatchObject({
+          status: 'completed',
+          startedAt: 10,
+          finishedAt: 20,
+        })
+      })
+
+      it('findActiveRun returns the most recent running run for a thread', async (ctx) => {
+        const store = resolveStore('runs')
+        if (!store) return ctx.skip('store not provided')
 
         const thread = 'thread-active'
         expect(await store.findActiveRun(thread)).toBeNull()
@@ -304,12 +407,210 @@ export function runPersistenceConformance(
         })
         expect(await store.findActiveRun(thread)).toBeNull()
       })
+
+      // `listByThread` is optional on the RunStore contract; a declared omission
+      // is reported as skipped and an undeclared one fails. Any backend that has
+      // it must return that thread's runs ordered ascending by `startedAt`.
+      it('lists runs by thread when supported', async (ctx) => {
+        const runs = resolveStore('runs')
+        if (!runs) return ctx.skip('store not provided')
+        if (!hasRunsMethod(runs, 'listByThread')) {
+          return ctx.skip('runs.listByThread not implemented')
+        }
+
+        await runs.createOrResume({
+          runId: 'lt-b',
+          threadId: 'lt',
+          startedAt: 2,
+        })
+        await runs.createOrResume({
+          runId: 'lt-a',
+          threadId: 'lt',
+          startedAt: 1,
+        })
+        const listed = await runs.listByThread('lt')
+        expect(listed.map((r) => r.runId)).toEqual(['lt-a', 'lt-b'])
+      })
+
+      // `listReclaimable` is optional on the RunStore contract; a declared
+      // omission is reported as skipped and an undeclared one fails. Any
+      // backend that has it must
+      // surface only runs where ALL THREE hold: status === 'running',
+      // detachedSince is set, and detachedSince <= now - ttlMs (inclusive
+      // cutoff). Each negative fixture below pins one of those conditions so
+      // a backend that drops any single check (e.g. "return every run", or
+      // "ignore status", or "ignore detachedSince") fails this case. Do not
+      // simplify these away to a bare `toContain` — that is exactly the
+      // weakness this case was strengthened to catch.
+      it('lists reclaimable detached runs when supported', async (ctx) => {
+        const runs = resolveStore('runs')
+        if (!runs) return ctx.skip('store not provided')
+        if (!hasRunsMethod(runs, 'listReclaimable')) {
+          return ctx.skip('runs.listReclaimable not implemented')
+        }
+
+        const now = 10_000
+        const ttlMs = 5_000
+        const cutoff = now - ttlMs // 5_000
+
+        // Positive: running, detached well past the cutoff.
+        await runs.createOrResume({
+          runId: 'rc-included',
+          threadId: 'rc-t',
+          startedAt: 1,
+        })
+        await runs.update('rc-included', { detachedSince: 1_000 })
+
+        // Positive boundary: detachedSince exactly equals the cutoff. Pins
+        // the `<=` (inclusive) semantics — a backend that uses `<` instead
+        // would wrongly exclude this run.
+        await runs.createOrResume({
+          runId: 'rc-boundary',
+          threadId: 'rc-t',
+          startedAt: 1,
+        })
+        await runs.update('rc-boundary', { detachedSince: cutoff })
+
+        // Negative: still running, but detached AFTER the cutoff (not yet
+        // abandoned long enough). Pins the `<= cutoff` comparison — a
+        // backend that returns every detached run regardless of how recent
+        // would wrongly include this one.
+        await runs.createOrResume({
+          runId: 'rc-too-recent',
+          threadId: 'rc-t',
+          startedAt: 1,
+        })
+        await runs.update('rc-too-recent', { detachedSince: cutoff + 1 })
+
+        // Negative: detached past the cutoff, but no longer running (already
+        // completed). Pins the `status === 'running'` check — a backend
+        // that ignores status would wrongly include this one.
+        await runs.createOrResume({
+          runId: 'rc-completed',
+          threadId: 'rc-t',
+          startedAt: 1,
+        })
+        await runs.update('rc-completed', {
+          detachedSince: 1_000,
+          status: 'completed',
+          finishedAt: 2_000,
+        })
+
+        // Negative: running, but never detached at all. Pins the
+        // `detachedSince !== undefined` check — a backend that treats a
+        // missing `detachedSince` as "always reclaimable" would wrongly
+        // include this one.
+        await runs.createOrResume({
+          runId: 'rc-never-detached',
+          threadId: 'rc-t',
+          startedAt: 1,
+        })
+
+        const reclaimable = await runs.listReclaimable({ now, ttlMs })
+
+        // Scope the assertion to ids seeded by this case: `listReclaimable`
+        // is not thread-scoped, so it also sees `'running'` runs seeded by
+        // sibling cases in this shared-store `describe('runs', ...)` block
+        // (e.g. `other-1`, `lt-a`, `lt-b`). Those all lack `detachedSince`,
+        // so a correct implementation already excludes them — but filtering
+        // here keeps this assertion from depending on that fact holding for
+        // every other case forever. Ordering is not part of this method's
+        // contract, so sort before an exact-set comparison.
+        const ourIds = reclaimable
+          .map((r) => r.runId)
+          .filter((id) => id.startsWith('rc-'))
+          .sort()
+        expect(ourIds).toEqual(['rc-boundary', 'rc-included'])
+
+        // The four assertions below are scoped by exact runId (never by the
+        // `rc-` exact-set comparison above), so each uses its own randomUUID
+        // fixture and cannot perturb the fixed-set assertion just made.
+
+        // (1) `ttlMs: 0` pins the cutoff as inclusive: a run detached at
+        // exactly `now` (cutoff === now) must still come back. A backend
+        // using strict `<` instead of `<=` would silently never reclaim a
+        // run detached exactly at the boundary.
+        const zeroTtlRunId = `rc-${crypto.randomUUID()}`
+        await runs.createOrResume({
+          runId: zeroTtlRunId,
+          threadId: 'rc-t',
+          startedAt: 1,
+        })
+        await runs.update(zeroTtlRunId, { detachedSince: now })
+        const zeroTtlReclaimable = await runs.listReclaimable({
+          now,
+          ttlMs: 0,
+        })
+        expect(
+          zeroTtlReclaimable.find((r) => r.runId === zeroTtlRunId)
+            ?.detachedSince,
+        ).toBe(now)
+
+        // (2) Re-attaching — `update(runId, { detachedSince: undefined })`
+        // — must drop the run out of the list. This is the most important
+        // assertion in this case: a SQL `SET`-clause builder that filters
+        // `undefined` out of the patch (`'field' in patch` instead of
+        // `patch.field !== undefined`) keeps the old `detachedSince`, so a
+        // run a user has actively re-attached to still looks detached — and
+        // the reaper then cancels a run someone is watching.
+        const reattachedRunId = `rc-${crypto.randomUUID()}`
+        await runs.createOrResume({
+          runId: reattachedRunId,
+          threadId: 'rc-t',
+          startedAt: 1,
+        })
+        await runs.update(reattachedRunId, { detachedSince: 1_000 })
+        await runs.update(reattachedRunId, { detachedSince: undefined })
+        const afterReattach = await runs.listReclaimable({ now, ttlMs })
+        expect(afterReattach.some((r) => r.runId === reattachedRunId)).toBe(
+          false,
+        )
+
+        // (3) No terminal status (`completed` / `failed` / `aborted`) ever
+        // appears, whatever its `detachedSince`.
+        const terminalStatuses = ['completed', 'failed', 'aborted'] as const
+        const terminalRunIds = await Promise.all(
+          terminalStatuses.map(async (status) => {
+            const runId = `rc-${crypto.randomUUID()}`
+            await runs.createOrResume({ runId, threadId: 'rc-t', startedAt: 1 })
+            await runs.update(runId, {
+              status,
+              detachedSince: 1_000,
+              finishedAt: 2_000,
+            })
+            return runId
+          }),
+        )
+        const afterTerminal = await runs.listReclaimable({ now, ttlMs })
+        expect(
+          afterTerminal.some((r) => terminalRunIds.includes(r.runId)),
+        ).toBe(false)
+
+        // (4) `'interrupted'` does not appear. The documented predicate is
+        // `status === 'running'`; an interrupted run is a human-in-the-loop
+        // pause that interrupt-resume continues, not abandoned work a reaper
+        // should tear down.
+        const interruptedRunId = `rc-${crypto.randomUUID()}`
+        await runs.createOrResume({
+          runId: interruptedRunId,
+          threadId: 'rc-t',
+          startedAt: 1,
+        })
+        await runs.update(interruptedRunId, {
+          status: 'interrupted',
+          detachedSince: 1_000,
+        })
+        const afterInterrupted = await runs.listReclaimable({ now, ttlMs })
+        expect(afterInterrupted.some((r) => r.runId === interruptedRunId)).toBe(
+          false,
+        )
+      })
     })
 
     describe('interrupts', () => {
-      it('creates, resolves, cancels, and lists by thread and run', async () => {
+      it('creates, resolves, cancels, and lists by thread and run', async (ctx) => {
         const store = resolveStore('interrupts')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         expect(await store.get('int-missing')).toBeNull()
 
@@ -374,9 +675,9 @@ export function runPersistenceConformance(
         ).toEqual([])
       })
 
-      it('create is insert-if-absent: a duplicate id never clobbers a resolved interrupt', async () => {
+      it('create is insert-if-absent: a duplicate id never clobbers a resolved interrupt', async (ctx) => {
         const store = resolveStore('interrupts')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         await store.create({
           interruptId: 'int-dup',
@@ -404,9 +705,9 @@ export function runPersistenceConformance(
         expect(after?.requestedAt).toBe(100)
       })
 
-      it('lists ordered by requestedAt ascending even when inserts are out of order', async () => {
+      it('lists ordered by requestedAt ascending even when inserts are out of order', async (ctx) => {
         const store = resolveStore('interrupts')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         // Insert later-timestamped first so Map insertion order would reverse
         // requestedAt order without an explicit sort.
@@ -953,9 +1254,9 @@ export function runPersistenceConformance(
     })
 
     describe('metadata', () => {
-      it('sets, gets, namespaces, and deletes without composite-key collisions', async () => {
+      it('sets, gets, namespaces, and deletes without composite-key collisions', async (ctx) => {
         const store = resolveStore('metadata')
-        if (!store) return
+        if (!store) return ctx.skip('store not provided')
 
         expect(await store.get('scope-a', 'k')).toBeNull()
 

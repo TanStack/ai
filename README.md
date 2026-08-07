@@ -1,5 +1,19 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/TanStack/ai/main/media/header_ai.png" alt="TanStack AI" />
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
+      width="900"
+    />
+  </picture>
 </div>
 
 <br />
@@ -19,6 +33,14 @@
   </a>
   <a href="https://twitter.com/tan_stack">
     <img alt="Follow @TanStack" src="https://img.shields.io/twitter/follow/tan_stack.svg?style=social" />
+  </a>
+</div>
+
+<br />
+
+<div align="center">
+  <a href="https://tanstack.com/blog/tanstack-open-source-awards-2026">
+    <img src="https://raw.githubusercontent.com/TanStack/ai/16826d81cade868956df240d6239a671e689193c/media/js-open-source-award-2026-ai-project-of-the-year.svg" alt="Winner of the 2026 JavaScript Open Source Award for AI Project of the Year" width="250" />
   </a>
 </div>
 

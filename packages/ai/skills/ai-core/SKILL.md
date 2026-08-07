@@ -9,7 +9,7 @@ description: >
   toServerSentEventsResponse() not manual SSE, middleware hooks not onEnd callbacks.
 type: core
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 ---
 
 # TanStack AI — Core Concepts
@@ -51,7 +51,10 @@ paused tool approval. It ships the **store contracts** (`MessageStore`,
 `withGenerationPersistence` middleware, `reconstructChat` for server-side
 hydrate, an in-memory reference backend, and a conformance testkit. Multi-instance
 locks are **not** in this package — `LockStore` / `withLocks` ship in
-`@tanstack/ai/locks`; see ai-core/locks.
+`@tanstack/ai/locks`; see ai-core/locks. The `runs` store contract is typed
+against run lifecycle types (`RunStatus`, `RunRecord`, `RunStore`,
+`defineRunStore`, `InMemoryRunStore`), which ship in `@tanstack/ai` itself;
+see ai-core/middleware.
 
 It does **not** ship a backend for your database — you implement the stores
 against Postgres, SQLite, D1, Mongo, or whatever you run, and the package's
@@ -102,8 +105,8 @@ See the `ai-code-mode` skill in that package.
 3. **Use `toServerSentEventsResponse()`** to convert streams to HTTP responses. Never implement SSE manually.
 4. **Use middleware for lifecycle events.** No `onEnd`/`onFinish` callbacks on `chat()` — use `middleware: [{ onFinish: ... }]`.
 5. **Ask the user which adapter and model** they want. Suggest the latest model. Also ask if they want Code Mode.
-6. **Tools must be passed to both server and client.** Server gets the tool in `chat({ tools })`, client gets the definition in `useChat({ clientTools })`.
+6. **Tools must be passed to both server and client.** Server gets the tool in `chat({ tools })`; the client passes the `.client()` implementation through the `clientTools()` helper into the **`tools`** option — `useChat({ tools: clientTools(myTool.client(...)) })`. There is no `clientTools` option. See ai-core/tool-calling.
 
 ## Version
 
-Targets TanStack AI v0.10.0.
+Targets TanStack AI v0.42.0.

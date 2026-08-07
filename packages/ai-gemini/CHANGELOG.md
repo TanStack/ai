@@ -1,5 +1,19 @@
 # @tanstack/ai-gemini
 
+## 0.21.0
+
+### Minor Changes
+
+- [#1041](https://github.com/TanStack/ai/pull/1041) [`399b4b1`](https://github.com/TanStack/ai/commit/399b4b1855a5fb93dfc37a2afa71cedb092ac36e) - Add Gemini 3.6 Flash (`gemini-3.6-flash`) and Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`) chat models.
+
+  Both are stable GA text models with full multimodal input, thinking, structured output, batch/caching, and the native combined tools + `responseSchema` path. Tool surface includes code execution, file search, Google Search, Google Maps, and URL context. Computer Use (Preview) is listed for 3.6 Flash (and corrected onto existing 3.5 Flash); 3.5 Flash-Lite does not support Computer Use.
+
+### Patch Changes
+
+- Updated dependencies [[`7499171`](https://github.com/TanStack/ai/commit/74991716aea4d90a5d0363676a1e3349689a48e8)]:
+  - @tanstack/ai@0.43.0
+  - @tanstack/ai-utils@0.4.0
+
 ## 0.20.1
 
 ### Patch Changes
@@ -22,7 +36,9 @@
   ```ts
   createOpenaiImage('gpt-image-1', apiKey, { allowUrlFetch: true })
   createOpenaiVideo('sora-2', apiKey, { allowUrlFetch: true })
-  createGeminiVideo('veo-3.1-generate-preview', apiKey, { allowUrlFetch: true })
+  createGeminiVideo('veo-3.1-generate-preview', apiKey, {
+    allowUrlFetch: true,
+  })
   ```
 
   Migration: if you passed HTTP(S) URL image inputs to these adapters, either fetch the bytes yourself and pass a `data:` URI, pass a `gs://` reference (Veo), or set `allowUrlFetch: true`.

@@ -2,14 +2,17 @@ import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  DurableAttachNotSupportedError,
   SandboxCapability,
   buildApprovalRequestedEvent,
   createBridgeEventChannel,
   getSandbox,
+  getSandboxDurability,
   getToolBridgeProvisioner,
   getWorkspaceProjection,
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
+  resolveDurableRunId,
   resolveHarnessCwd,
 } from '@tanstack/ai-sandbox'
 import { AsyncQueue } from '../stream/queue'
@@ -331,8 +334,56 @@ export class AcpCompatibleTextAdapter<
       const modelOptions = options.modelOptions
       const cwd = modelOptions?.cwd ?? this.harness.cwd ?? DEFAULT_WORKDIR
       const harnessCwd = resolveHarnessCwd(sandbox, cwd)
-      const runId = options.runId ?? this.generateId()
+      // This adapter does not journal yet, so a generated id is still fine.
+      // Routed through the helper anyway so that whenever it gains journaling
+      // it inherits the caller-supplied-runId requirement instead of
+      // re-deriving it (see `packages/ai-sandbox/src/durability.ts`).
+      const runId = resolveDurableRunId(options.runId, {
+        durable: false,
+        adapter: 'acp',
+        fallback: () => this.generateId(),
+      })
       const threadId = options.threadId ?? this.generateId()
+
+      // Durability wired onto a path that cannot deliver it. Two outcomes, split
+      // by whether a first attempt has already run.
+      //
+      // ATTACH is fatal. `sandboxRunDriver`'s `drive()` sets `attach: true` only
+      // when a previous host was already streaming this run, so continuing past
+      // here reaches `startAcpSession` + `session.prompt(...)` and re-runs the
+      // agent from scratch against the workspace that attempt already mutated,
+      // appending its whole output to a log that still holds the first
+      // attempt's. This adapter has no journal to tail, no
+      // `awaitAttachableJournal` to refuse the attach up front, and no
+      // `alignedIfAttaching` to suppress the already-delivered prefix — so there
+      // is nothing between here and that corruption except this throw.
+      //
+      // A FRESH durable run only fails to be recoverable LATER, which an app may
+      // knowingly accept (it can wire `withSandbox({ runs, durability })` once at
+      // the middleware level and still route some runs through this adapter). So
+      // that is a warn, not a throw: audible, not fatal. Once per run, not per
+      // chunk — a per-chunk warning would be worse than none. Mirrors
+      // `ai-grok-build`'s `chatStreamAcp`.
+      const durability = options.capabilities
+        ? getSandboxDurability(options.capabilities, { optional: true })
+        : undefined
+      if (durability !== undefined) {
+        if (durability.attach) {
+          throw new DurableAttachNotSupportedError(
+            'acp',
+            'this adapter drives the harness over a bidirectional ACP ' +
+              'connection and does not journal',
+          )
+        }
+        logger.warn(
+          'acp: sandbox durability is wired but this adapter never journals — ' +
+            'this run will not be recoverable on reconnect. Use a journaling ' +
+            'harness adapter for runs that must survive a host restart, or drop ' +
+            'durability if these runs are not meant to.',
+          { runId, adapter: 'acp' },
+        )
+      }
+
       const channel = createBridgeEventChannel({
         model: this.model,
         threadId,

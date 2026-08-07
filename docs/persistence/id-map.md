@@ -1,5 +1,5 @@
 ---
-title: Id Map
+title: Id Map (Advanced)
 id: id-map
 description: "The two ids in TanStack AI and what each one means: threadId is the stable key persistence stores and restores by, runId names one execution. What they mean on useChat versus the generation hooks, how to choose a threadId, and when to read runId."
 keywords:

@@ -55,7 +55,17 @@ class MemoryRunStore implements RunStore {
   update(
     runId: string,
     patch: Partial<
-      Pick<RunRecord, 'status' | 'finishedAt' | 'error' | 'usage'>
+      Pick<
+        RunRecord,
+        | 'status'
+        | 'finishedAt'
+        | 'error'
+        | 'usage'
+        | 'sandboxKey'
+        | 'detachedSince'
+        | 'cancelRequested'
+        | 'driverEpoch'
+      >
     >,
   ): Promise<void> {
     const existing = this.runs.get(runId)
@@ -70,6 +80,25 @@ class MemoryRunStore implements RunStore {
       .filter((run) => run.threadId === threadId && run.status === 'running')
       .sort((a, b) => b.startedAt - a.startedAt)
     return Promise.resolve(active[0] ?? null)
+  }
+  listByThread(threadId: string): Promise<Array<RunRecord>> {
+    const matching = [...this.runs.values()]
+      .filter((run) => run.threadId === threadId)
+      .sort((a, b) => a.startedAt - b.startedAt)
+    return Promise.resolve(matching)
+  }
+  listReclaimable(opts: {
+    now: number
+    ttlMs: number
+  }): Promise<Array<RunRecord>> {
+    const cutoff = opts.now - opts.ttlMs
+    const matching = [...this.runs.values()].filter(
+      (run) =>
+        run.status === 'running' &&
+        run.detachedSince !== undefined &&
+        run.detachedSince <= cutoff,
+    )
+    return Promise.resolve(matching)
   }
 }
 

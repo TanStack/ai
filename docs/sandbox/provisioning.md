@@ -1,5 +1,5 @@
 ---
-title: Provisioning
+title: Provisioning (Advanced)
 id: provisioning
 order: 5
 description: "Give the in-sandbox agent secrets, skill repos, MCP servers, plugins, and instructions with one portable definition that each harness projects into its own native format."
@@ -8,7 +8,7 @@ description: "Give the in-sandbox agent secrets, skill repos, MCP servers, plugi
 Provisioning is how you hand the in-sandbox agent everything beyond the working
 tree: typed secrets, skill repos, MCP servers, plugins, and a universal
 instruction file. You declare it all on [`defineWorkspace()`](./workspace), and
-each harness adapter projects it into its own native format at bootstrap — so
+each harness adapter projects it into its own native format at bootstrap, so
 the same definition works whether the agent is Grok Build, Claude Code, Codex, or OpenCode.
 
 ```ts
@@ -77,7 +77,7 @@ non-enumerable:
 - `Object.keys(secrets)`, spreads, and `JSON.stringify(secrets)` never expose
   the values.
 - The values are **never written to snapshots, the sandbox store, or the event
-  log** — only resolved at the moment the sandbox env is built.
+  log**. They are resolved only at the moment the sandbox env is built.
 
 This is what makes the workspace definition safe to hash, persist, and replay
 for resume bookkeeping without ever persisting a credential.
@@ -85,7 +85,7 @@ for resume bookkeeping without ever persisting a credential.
 ### Passing a secret where a `SecretRef` is accepted
 
 Hand a ref directly to any field that takes one. The clearest example is
-`gitSkill` auth — pass `secret: secrets.GH` and the token is resolved only when
+`gitSkill` auth: pass `secret: secrets.GH` and the token is resolved only when
 the repo is cloned:
 
 ```ts
@@ -130,7 +130,7 @@ of capability:
 
 | Builder      | What it provisions                                                                 |
 | ------------ | ---------------------------------------------------------------------------------- |
-| `agentSkill` | A named public skill (portable placeholder; Claude Code warns and skips — use `gitSkill` instead). |
+| `agentSkill` | A named public skill (portable placeholder; Claude Code warns and skips it, so use `gitSkill` instead). |
 | `gitSkill`   | A skill repo cloned into the workspace, with optional auth and clone path.         |
 | `mcpSkill`   | A third-party MCP server, with URL and headers.                                    |
 | `fileSkill`  | An arbitrary file written into the workspace.                                      |
@@ -173,8 +173,8 @@ defineWorkspace({
 
 ### `gitSkill` clone path
 
-`gitSkill` takes an optional `into` field — an **absolute path inside the
-sandbox** — controlling where the repo is cloned. It defaults to
+`gitSkill` takes an optional `into` field, an **absolute path inside the
+sandbox**, controlling where the repo is cloned. It defaults to
 `.tanstack-skills/<repo-basename>`:
 
 ```ts
@@ -206,7 +206,7 @@ format:
 | Codex       | `.codex/config.toml`     |
 | OpenCode    | `opencode.json`          |
 
-A concept a given CLI lacks — for example, `plugins` on Codex — **emits a
+A concept a given CLI lacks (for example, `plugins` on Codex) **emits a
 warning and is silently skipped** rather than throwing. The same applies to
 `agentSkill` on Claude Code: there is no reliable primitive to install a public
 skill by bare name, so the projector warns and skips it. Prefer `gitSkill` (or a
@@ -216,13 +216,13 @@ each agent takes the parts it understands.
 
 > These MCP servers are third-party services you point the agent at. Bridging
 > your **own app's host tools** into the agent (a `chat()` server tool whose
-> `execute()` runs back on the host) is a different mechanism — see
+> `execute()` runs back on the host) is a different mechanism, see
 > [Tools](./tools).
 
 ## `AGENTS.md` and per-harness symlinks
 
 `instructions` is a string written to `AGENTS.md` at the workspace root during
-bootstrap. Harness-specific counterparts — `CLAUDE.md`, `GEMINI.md` — are
+bootstrap. Harness-specific counterparts (`CLAUDE.md`, `GEMINI.md`) are
 created as **symlinks** to it; if the sandbox process layer cannot symlink, they
 are written as copies instead. Either way the instruction content is read
 natively by every supported CLI without extra config.
@@ -237,5 +237,5 @@ defineWorkspace({
 ```
 
 > Use `instructions` for guidance you want the agent to always follow. To
-> constrain what it is *allowed* to do — which commands and capabilities are
-> allowed, asked about, or denied — reach for [Policy](./policy) instead.
+> constrain what it is *allowed* to do, which commands and capabilities are
+> allowed, asked about, or denied, reach for [Policy](./policy) instead.

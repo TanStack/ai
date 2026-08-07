@@ -15,7 +15,7 @@ description: >
   (Seed Speech — TTS/transcription); neither is a fallback for the other.
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/adapters/openai.md'
   - 'TanStack/ai:docs/adapters/anthropic.md'

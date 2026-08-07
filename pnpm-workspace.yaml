@@ -56,6 +56,19 @@ packageExtensions:
     dependencies:
       typescript: 5.9.3
 
+# Keep @types/bun out of pnpm's shared virtual store (node_modules/.pnpm/node_modules).
+# @types/bun (a devDep of @tanstack/ai-isolate-quickjs-bun) globally augments Node/DOM
+# types — notably it redeclares `fetch` with `init: RequestInit | BunFetchRequestInit`,
+# dropping the DOM `preconnect` member. When it's hoisted into the shared store, the
+# phantom `import "bun"` type statements inside unrelated deps (srvx, crossws in the
+# nitro/SSR stack) resolve to it, leaking that augmentation into example apps' `tsc`
+# runs and breaking their `typeof fetch` usage. Excluding it from the shared store
+# keeps it resolvable only by its direct dependent (which links it in its own
+# node_modules), so the Bun types stay scoped to the package that needs them.
+hoistPattern:
+  - '*'
+  - '!@types/bun'
+
 patchedDependencies:
   '@changesets/assemble-release-plan@6.0.9': patches/@changesets__assemble-release-plan@6.0.9.patch
 

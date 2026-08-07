@@ -9,10 +9,14 @@ export {
   defineGenerationRunStore,
   defineArtifactStore,
   defineBlobStore,
+  // Run lifecycle helpers owned by @tanstack/ai, transiting through ./types so
+  // this package's public surface stays a single import for backend authors.
+  isTerminalRunStatus,
 } from './types'
 export type {
   MessageStore,
   RunStatus,
+  TerminalRunStatus,
   RunRecord,
   RunStore,
   InterruptRecord,

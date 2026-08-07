@@ -1,5 +1,5 @@
 ---
-title: Keep Generated Files
+title: Keep Generated Files (Advanced)
 id: keep-generated-files
 ---
 

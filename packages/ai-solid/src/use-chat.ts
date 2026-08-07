@@ -224,6 +224,11 @@ export function useChat<
   })
 
   onMount(() => {
+    // START TAILING HERE, not in the constructor. A client is idle until a view
+    // attaches it, so a client that gets built and thrown away never opens a
+    // connection — an unreachable stream would hold one of the browser's ~6
+    // connections per origin until the page reloaded.
+    client().attach()
     client().mountDevtools()
     // Delivery-durability resume is transparent: the resumable SSE connection
     // adapter reattaches via the browser's native Last-Event-ID on reconnect.
@@ -233,6 +238,10 @@ export function useChat<
 
   // Cleanup on unmount: stop any in-flight requests.
   onCleanup(() => {
+    // Release the connection first: `detach` is the counterpart of the `attach`
+    // above, and it keeps the transcript and resume pointer so a later mount can
+    // pick the run back up from the durable log.
+    client().detach()
     if (options.live) {
       client().unsubscribe()
     } else {

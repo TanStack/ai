@@ -22,11 +22,18 @@
  * runtime-verified in this repo.
  */
 import { DurableObject } from 'cloudflare:workers'
-import { EventType } from '@tanstack/ai'
-import { RunController, isTerminalRunStatus } from '@tanstack/ai-sandbox'
+import { EventType, isTerminalRunStatus } from '@tanstack/ai'
+// The PORTABLE run driver: this coordinator is a platform binding of core's
+// `RunController`, not a driver of its own. The DO run log backs both of the
+// driver's seams through the adapters in './durability' — `runLogStore` for
+// the lifecycle record, `runLogStream` for the per-run event log — and the
+// vocabulary is core's throughout (historical `done`/`error` records are
+// migrated on read; see './run-log').
+import { RunController } from '@tanstack/ai-sandbox'
+import { runLogStore, runLogStream } from './durability'
 import { DurableObjectRunEventLog } from './run-log-do'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
-import type { RunRecord } from '@tanstack/ai-sandbox'
+import type { RunLogRecord } from './run-log'
 
 /** Re-arm window for the liveness watchdog while a run is in flight (ms). */
 const WATCHDOG_MS = 30_000
@@ -103,7 +110,10 @@ export abstract class SandboxCoordinator<
   constructor(ctx: DurableObjectState, env: TEnv) {
     super(ctx, env)
     this.log = new DurableObjectRunEventLog(ctx.storage)
-    this.controller = new RunController(this.log)
+    this.controller = new RunController({
+      runs: runLogStore(this.log),
+      durability: (runId) => runLogStream(this.log, { runId }),
+    })
   }
 
   // ===========================================================================
@@ -162,7 +172,7 @@ export abstract class SandboxCoordinator<
         type: EventType.RUN_ERROR,
         message,
       })
-      await this.log.finish(input.runId, 'error', { message })
+      await this.log.finish(input.runId, 'failed', { message })
       this.onRunSettled(input.runId)
       return { runId: input.runId }
     }
@@ -172,15 +182,21 @@ export abstract class SandboxCoordinator<
       threadId: input.threadId,
       stream,
     })
-    // Keep the instance alive until the run is terminal; `pipeToRunLog` never
-    // rejects (failures land in the log), so no `.catch` is needed.
-    this.ctx.waitUntil(done.finally(() => this.onRunSettled(input.runId)))
+    // Keep the instance alive until the run is terminal. `pipeToRunLog` never
+    // rejects (failures land in the log), but this must not DEPEND on that:
+    // `.finally` adopts a rejection, which would hand `waitUntil` a rejected
+    // promise. Two-argument `then` settles fulfilled either way while still
+    // running the settle hook.
+    const settle = (): void => this.onRunSettled(input.runId)
+    this.ctx.waitUntil(done.then(settle, settle))
     await this.ctx.storage.setAlarm(Date.now() + WATCHDOG_MS)
     return { runId: input.runId }
   }
 
-  async status(runId: string): Promise<RunRecord | null> {
-    return this.controller.status(runId)
+  async status(runId: string): Promise<RunLogRecord | null> {
+    // Straight off the log (not `controller.status`) so the answer keeps the
+    // log-level fields (`lastSeq`) a reconnecting client resumes from.
+    return this.log.get(runId)
   }
 
   // ===========================================================================
@@ -244,7 +260,11 @@ export abstract class SandboxCoordinator<
     this.pumping.add(socket)
     const done = (async () => {
       try {
-        for await (const event of this.controller.attach(runId, { fromSeq })) {
+        // The tail reads the log directly by seq — the client wire protocol
+        // (`?lastSeq`, `{seq, chunk}` frames) is seq-based, and `log.read` is
+        // the seq-cursor surface. Core's `controller.attach` serves consumers
+        // that speak opaque `StreamDurability` offsets instead.
+        for await (const event of this.log.read(runId, { fromSeq })) {
           socket.send(JSON.stringify(event))
           socket.serializeAttachment({
             runId,
@@ -301,10 +321,12 @@ export abstract class SandboxCoordinator<
 
   override async alarm(): Promise<void> {
     try {
-      const runs = await this.ctx.storage.list<RunRecord>({ prefix: 'rec:' })
+      // Through the log (not a raw `rec:` list) so legacy records are migrated
+      // on the way out — the storage layout is the log's private concern.
+      const runs = await this.log.list()
       const now = Date.now()
       let active = false
-      for (const record of runs.values()) {
+      for (const record of runs) {
         if (isTerminalRunStatus(record.status)) continue
         if (now - record.updatedAt > WATCHDOG_STALL_MS) {
           // No progress for too long — the driver is presumed dead. Fail the run
@@ -332,7 +354,7 @@ export abstract class SandboxCoordinator<
     } catch {
       // The run may have just reached terminal concurrently; finish is idempotent.
     }
-    await this.log.finish(runId, 'error', { message })
+    await this.log.finish(runId, 'failed', { message })
     this.onRunSettled(runId)
   }
 }

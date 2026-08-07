@@ -86,6 +86,52 @@ Notes:
 | `tests/error-handling.spec.ts` | Server RUN_ERROR, aimock error fixture                    |
 | `tests/tool-error.spec.ts`     | Tool throws error, agentic loop continues                 |
 
+### Durable / detachable run tests
+
+| Spec file                              | What it covers                                                                                                                                              |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `tests/delivery-durability.spec.ts`    | Transport layer: offset-tagged log, `Last-Event-ID` reconnect, second-tab join, SSE + NDJSON                                                                |
+| `tests/persistence-durability.spec.ts` | Client layer: a browser refresh restores the conversation and any pending interrupt                                                                         |
+| `tests/sandbox-durability.spec.ts`     | Sandbox instances: a second run resumes the persisted sandbox                                                                                               |
+| `tests/durable-takeover.spec.ts`       | Takeover with log alignment, detach-on-disconnect, out-of-band cancel in both bands, cancel-vs-disconnect divergence, and the superseded-driver epoch fence |
+
+`durable-takeover.spec.ts` drives `/api/durable-takeover`, a provider-free harness
+whose fake agent journal advances only on an explicit `?action=tick`, so every
+disconnect happens at a known point in the stream. Two things to know before
+extending it:
+
+- **The disconnect is injected server-side** (`?action=drop`, a plain abort with
+  no reason) — a genuine precondition, not a workaround. A client `fetch` abort
+  does not propagate to the server through this app's dev server, so a test
+  cannot otherwise produce a mid-stream socket close the run observes; the spec
+  documents this in the `SseStream` comments (around lines 141-146).
+- **`?action=seed` is also used, and is still legitimate**: it lets a test reach
+  the cross-host takeover case — attaching from a process that never held the
+  original connection — which a single test process cannot otherwise produce.
+  A detached run's log now stays open for takeover: `RunDetachedCapability` and
+  `packages/ai/src/delivery-detach.ts` carry the run's detach verdict to the
+  sink, which skips both the synthetic `RUN_ERROR` and `durability.close()` for
+  an unrequested disconnect on a detachable run. That path is pinned by
+  `'a real disconnect, then an attach, continues the stream'` — a normal
+  passing test, not a `test.fail()` case.
+
+## What to add for your change
+
+E2E coverage is mandatory for every feature, bug fix, or behavior change (see the root `CLAUDE.md`). Mirror of that table, kept in sync here:
+
+| Change type                             | What E2E test to add                                                                                                                                                                                       |
+| --------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| New provider adapter                    | Add provider to `feature-support.ts` + `test-matrix.ts`. Existing feature tests auto-run.                                                                                                                  |
+| New feature (e.g., new generation type) | Add feature to types, feature config, support matrix. Create fixture + spec file.                                                                                                                          |
+| Bug fix in chat/streaming               | Add a test case to `chat.spec.ts` or `tools-test/` that reproduces the bug.                                                                                                                                |
+| Tool system change                      | Add scenario to `tools-test-scenarios.ts` + test in `tools-test/` specs.                                                                                                                                   |
+| Middleware change                       | Add test to `middleware.spec.ts` with appropriate scenario.                                                                                                                                                |
+| Client-side change (useChat, etc.)      | Add test covering the observable behavior change.                                                                                                                                                          |
+| Durable/detachable run + takeover       | Add a spec that disconnects mid-stream, reconnects with the same `runId`, and asserts the resumed stream continues from the aligned offset instead of restarting the agent.                                |
+| Out-of-band cancel vs. plain disconnect | Add a case distinguishing `requestRunCancel`/`wasCancelRequested` (durable cancel — record ends `'aborted'`) from an unrequested disconnect on a detachable run (record stays `'running'`, resumable).     |
+| New run-store backend                   | Run `runPersistenceConformance` from `packages/ai-persistence/src/testkit/` against it; it now pins `undefined` vs. explicit `false` on `cancelRequested` and absent vs. explicit `undefined` on `update`. |
+| New sandbox provider                    | Run the journal conformance suite from `@tanstack/ai-sandbox/testkit` against it, using `makeFakeShellSpawn` (also from that testkit) to exercise the journal/claim/driver seam without a real sandbox.    |
+
 ## 1. Quick Start
 
 ```bash

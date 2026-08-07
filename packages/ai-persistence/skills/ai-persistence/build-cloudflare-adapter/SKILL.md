@@ -14,8 +14,8 @@ Tables go into the app's existing `migrations/` directory and are applied with
 Do not create a package or a migration runner. Wrangler already tracks applied
 migrations; a second bookkeeping table only creates drift.
 
-Read the **Build Your Own Adapter** guide
-(`docs/persistence/build-your-own-adapter.md`) for the store contracts, and
+Read the **Store Reference**
+(`docs/persistence/store-reference.md`) for the store contracts, and
 **ai-persistence/stores** for the shape rules. This skill covers only
 the Cloudflare-specific parts.
 
@@ -37,8 +37,10 @@ Durable Object   -> LockStore                              (withLocks — NOT a 
 ```
 
 These do not compose into one object. `AIPersistence.stores` accepts exactly
-four keys; putting `locks` in the map — or in a `composePersistence` override —
-throws `Unknown AIPersistence store key: locks` and fails to type-check. Return
+four keys. Putting `locks` in the map throws
+`Unknown AIPersistence store key: locks`; putting it in a `composePersistence`
+override throws `Unknown AIPersistence override key: locks`. Both also fail to
+type-check. Return
 the state persistence from one factory and the lock store from another, then
 wire them as two middlewares.
 
@@ -88,20 +90,52 @@ Two routes, same invariants:
 
 The invariants are the whole game, whichever route you take:
 
-| Store        | Rule                                                                                                              |
-| ------------ | ----------------------------------------------------------------------------------------------------------------- |
-| `messages`   | `saveThread` is a full replace (`INSERT … ON CONFLICT(thread_id) DO UPDATE`)                                      |
-| `runs`       | `createOrResume` reads first, else `INSERT … ON CONFLICT DO NOTHING`, then re-reads                               |
-| `runs`       | `update` on an unknown id is a silent no-op — never throws, never inserts                                         |
-| `runs`       | `findActiveRun` returns the latest `'running'` run for the thread, else null — required for reload/switch tailing |
-| `interrupts` | `create` is insert-if-absent; never clobber a resolved interrupt back to pending                                  |
-| `interrupts` | every `list*` ends `ORDER BY requested_at ASC`                                                                    |
-| `metadata`   | reject nullish `set` with a clear `TypeError`; tell callers to use `delete`                                       |
+| Store        | Rule                                                                                                                                                                                               |
+| ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `messages`   | `saveThread` is a full replace (`INSERT … ON CONFLICT(thread_id) DO UPDATE`)                                                                                                                       |
+| `runs`       | `createOrResume` reads first, else `INSERT … ON CONFLICT DO NOTHING`, then re-reads                                                                                                                |
+| `runs`       | `update` on an unknown id is a silent no-op — never throws, never inserts                                                                                                                          |
+| `runs`       | `findActiveRun` (required) returns the latest `'running'` run for the thread, else null                                                                                                            |
+| `runs`       | `listByThread` (optional) returns every run for the thread `ORDER BY started_at ASC`                                                                                                               |
+| `runs`       | `listReclaimable` (optional) returns runs where `status = 'running' AND detached_since IS NOT NULL AND detached_since <= now - ttlMs` (inclusive cutoff); it is a query, not automatic reclamation |
+| `interrupts` | `create` is insert-if-absent; never clobber a resolved interrupt back to pending                                                                                                                   |
+| `interrupts` | every `list*` ends `ORDER BY requested_at ASC`                                                                                                                                                     |
+| `metadata`   | reject nullish `set` with a clear `TypeError`; tell callers to use `delete`                                                                                                                        |
 
-Row mappers omit absent optionals (`...(row.error != null ? { error: row.error } : {})`)
-so records compare cleanly against the reference in-memory backend. JSON columns
-are `text` — `JSON.parse` on read, `JSON.stringify` on write. Timestamps are
+On `runs`, `findActiveRun` is required; `listByThread` and `listReclaimable` are
+optional, so implement those two only if the app needs them. `withPersistence`
+calls **none** of the three — the consumers are `reconstruct.ts`
+(`findActiveRun`, for rejoin-by-thread) and `@tanstack/ai-sandbox`'s `reapDetachedRuns`
+(`listReclaimable`, without which the store cannot be reaped); nothing in the
+framework calls `listByThread`. Consumers of the two OPTIONAL methods
+feature-detect with `store.method?.(...)` and degrade to "not supported" when one
+is absent. The conformance testkit does not: either of those you leave out must
+be listed in `skipMethods` or the suite fails, so declare them and it reports the
+omission as a skip.
+
+`RunRecord.error` is a structured `RunError` (`{ message: string, code?: string }`),
+so the table gets two columns rather than one JSON blob: `error` for the
+provider's prose and `error_code` for the stable classification an operator
+filters and groups by. Write both together in `update`, so a later code-less
+failure can never leave a stale `error_code` from an earlier one behind, and
+omit `code` from the mapped record when the column is `null`:
+`...(row.error != null ? { error: { message: row.error, ...(row.error_code != null ? { code: row.error_code } : {}) } } : {})`.
+Other row mappers omit absent optionals the same way
+(`...(row.sandbox_key != null ? { sandboxKey: row.sandbox_key } : {})`) so
+records compare cleanly against the reference in-memory backend. JSON columns
+are `text`: `JSON.parse` on read, `JSON.stringify` on write. Timestamps are
 `integer` epoch ms.
+
+`sandbox_key`, `detached_since`, `cancel_requested`, and `driver_epoch` are the
+durable-agent-runs columns. In `update`, check `'field' in patch` for all
+four — never `patch.field !== undefined` — because a reattach clears
+`detachedSince` by passing it explicitly as `undefined`, which must bind
+`NULL` into the `SET` clause rather than being filtered out of it (a filtered
+clear leaves the stale value and the run looks permanently detached to the
+reaper). The same applies to `cancelRequested`: `false` written explicitly is
+a real, meaningful value distinct from "never set", not something to coerce
+away. See `examples/ts-react-chat/src/lib/sqlite-persistence.ts` (D1 speaks
+the same SQLite dialect) for the worked `update` body.
 
 ## 5. The migration
 
@@ -120,9 +154,17 @@ CREATE TABLE IF NOT EXISTS chat_runs (
   started_at integer NOT NULL,
   finished_at integer,
   error text,
-  usage_json text
+  error_code text,
+  usage_json text,
+  sandbox_key text,
+  detached_since integer,
+  cancel_requested integer,
+  driver_epoch integer
 );
 CREATE INDEX IF NOT EXISTS chat_runs_thread_status ON chat_runs (thread_id, status);
+CREATE INDEX IF NOT EXISTS chat_runs_thread_started ON chat_runs (thread_id, started_at);
+-- Powers listReclaimable: status = 'running' AND detached_since <= cutoff.
+CREATE INDEX IF NOT EXISTS chat_runs_status_detached ON chat_runs (status, detached_since);
 CREATE TABLE IF NOT EXISTS chat_interrupts (
   interrupt_id text PRIMARY KEY NOT NULL,
   run_id text NOT NULL,
@@ -247,6 +289,12 @@ generation stores, so a chat-only adapter declares them skipped (drop the `skip`
 once you add the R2-backed set from
 **ai-persistence/build-cloudflare-artifact-store**). `skip` never accepts
 `'locks'`, which is not a store.
+
+If your recipe leaves an optional `runs` method
+(`listByThread`/`listReclaimable`) unimplemented, declare it
+with `skipMethods`, e.g. `{ skipMethods: ['runs.listByThread'] }`. An
+omitted method that is not declared fails the suite instead of silently
+passing.
 
 The lock store needs its **own** tests, because nothing in the conformance suite
 touches it. Cover at minimum: two concurrent `withLock` calls on the same key

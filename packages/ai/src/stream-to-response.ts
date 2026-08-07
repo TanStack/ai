@@ -1,10 +1,25 @@
 import { toRunErrorPayload } from './activities/error-payload'
+import { isCancelRequestedReason } from './activities/chat/cancel'
+import {
+  isRunStatus,
+  isTerminalRunStatus,
+} from './activities/chat/middleware/run-store'
+import { wasRunDetached } from './delivery-detach'
+import { notifyRunDisconnected } from './delivery-disconnect'
+import { resolveResumeRunId } from './stream-durability'
 import { EventType } from './types'
 import { resolveDebugOption } from './logger/resolve'
+import type { LockStore } from './activities/chat/middleware/locks'
+import type {
+  RunRecord,
+  RunStore,
+} from './activities/chat/middleware/run-store'
 import type { InternalLogger } from './logger/internal-logger'
 import type { DebugOption } from './logger/types'
 import type { StreamDurability } from './stream-durability'
 import type { StreamChunk } from './types'
+
+export { resolveResumeRunId } from './stream-durability'
 
 /**
  * Collect all text content from a StreamChunk async iterable and return as a string.
@@ -80,6 +95,21 @@ function isAborted(signal: AbortSignal): boolean {
   return signal.aborted
 }
 
+/**
+ * Whether this abort is an EXPLICIT in-process cancel — the caller aborted with
+ * {@link RUN_CANCEL_REASON} rather than the socket going away.
+ *
+ * Core's own guard, independent of any middleware verdict: a user pressing Stop
+ * must always get a closed, terminal log, so the sink refuses to treat that abort
+ * as a detach even if the run's middleware published one. A reason-less abort
+ * carries a `DOMException`, never a string, so a non-string reason is "no
+ * explicit intent" — exactly how `resolveAbortReason` reads it in `chat()`.
+ */
+function isExplicitCancel(signal: AbortSignal): boolean {
+  const reason: unknown = signal.reason
+  return typeof reason === 'string' && isCancelRequestedReason(reason)
+}
+
 function needsTerminalPersistence(
   terminalPersisted: boolean,
   cancelled: boolean,
@@ -94,6 +124,12 @@ function toEncodedStream(
   encodeChunk: (chunk: StreamChunk, index: number) => Uint8Array,
   encodeError: (error: unknown) => Uint8Array,
   detachOnCancel = false,
+  /**
+   * Called once when the response body is cancelled on the detach path, BEFORE
+   * returning. The durability branch uses it to tell the run its viewer is gone
+   * (see `./delivery-disconnect`) without aborting it.
+   */
+  onDetachedCancel?: () => void,
 ): ReadableStream<Uint8Array> {
   const cancellation = abortController ?? new AbortController()
   let iterator: AsyncIterator<StreamChunk> | undefined
@@ -172,7 +208,18 @@ function toEncodedStream(
       // keeps draining `stream` → the log in the background and terminates
       // normally on its own. A genuine caller-driven stop aborts the producer's
       // own AbortController instead, which this path never touches.
-      if (detachOnCancel) return
+      //
+      // Notify the run FIRST, and synchronously. This is the only moment the
+      // socket-closed fact exists anywhere, and the run cannot observe it on its
+      // own: it holds no handle on this response. That notification is what lets a
+      // durable run record itself as detached while it KEEPS RUNNING — the
+      // alternative applications were driven to (mirroring `request.signal` into
+      // `chat()`'s abortController) reaches the middleware only by killing the run,
+      // which for a sandboxed run means the agent is never even launched.
+      if (detachOnCancel) {
+        onDetachedCancel?.()
+        return
+      }
 
       if (!isAborted(cancellation.signal)) cancellation.abort(reason)
 
@@ -282,6 +329,27 @@ function isDurabilityFlushBoundary(chunk: StreamChunk): boolean {
     chunk.type === 'TOOL_CALL_END'
   )
 }
+
+/**
+ * Name of the synthetic `CUSTOM` chunk a fresh durable producer appends to its
+ * log before pulling the first real chunk.
+ *
+ * Flushing `RUN_STARTED` (above) makes a run joinable from the instant the
+ * stream EMITS something — but a `chat()` whose middleware boots a sandbox
+ * (create a container, install a CLI) legitimately emits nothing for minutes,
+ * and during that window the log is empty. Every joiner's empty-log fail-fast
+ * (`memoryStream`'s first-chunk deadline, the client's rejoin connect deadline)
+ * then reads the run as gone — and the client clears its resume pointer, so a
+ * reload during the boot window permanently orphans a run that is still going.
+ *
+ * This marker closes the window: it is appended (and flushed) before the
+ * producer stream is first pulled, so a join always finds a first chunk within
+ * milliseconds of the run being accepted. Takeover alignment is unaffected — a
+ * journal replay cannot reproduce the marker, and alignment already skips
+ * stored `CUSTOM` chunks as out-of-band for exactly that reason (see
+ * `isBridgeCustomChunk` in `@tanstack/ai-sandbox`).
+ */
+export const RUN_ACCEPTED_EVENT = 'run.accepted'
 
 /**
  * Build the delivery-durable source iterable for a transport helper.
@@ -405,6 +473,16 @@ function durableStreamSource<TOffset extends string>(
 
     try {
       if (isAborted(abortController.signal)) return
+      // Make the run joinable BEFORE the producer is first pulled — the pull
+      // is what runs the middleware chain, and middleware may take minutes to
+      // yield a first chunk. See {@link RUN_ACCEPTED_EVENT}.
+      batch.push({
+        type: 'CUSTOM',
+        name: RUN_ACCEPTED_EVENT,
+        value: {},
+        timestamp: Date.now(),
+      })
+      yield* flush()
       for await (const chunk of stream) {
         if (isAborted(abortController.signal)) break
         batch.push(chunk)
@@ -431,6 +509,12 @@ function durableStreamSource<TOffset extends string>(
         }
       }
     } finally {
+      // The PRODUCER was stopped, which is deliberately not the same question as
+      // "did the delivery socket go away". A disconnect alone must leave this
+      // false: the run survives it and terminalizes this log itself on its way
+      // out, and treating the disconnect as a cancel here would make `detached`
+      // true for a run that had already finished — skipping `close()` and parking
+      // every later tailer forever on a log nobody will ever continue.
       const cancelled = isAborted(abortController.signal)
 
       // Persist any buffered-but-unflushed chunks before terminalizing, so a
@@ -450,7 +534,42 @@ function durableStreamSource<TOffset extends string>(
         }
       }
 
+      // Was this abort a DETACH? Only the run's own middleware can say — it is
+      // the only actor that has resolved both out-of-band cancel bands and
+      // `detachOnDisconnect` — and it says so on the stream itself (see
+      // `./delivery-detach`). Read only AFTER the try block above has exited,
+      // which is what awaits the chat generator's `return()` and therefore the
+      // whole `onAbort` chain that publishes the verdict.
+      //
+      // Every conjunct is load bearing. `cancelled` keeps a normal finish on
+      // today's path. `!isExplicitCancel` is core's own belt-and-braces refusal to
+      // spare a run the user deliberately stopped, whatever a middleware claims.
+      // `!hasTerminalCause` keeps a GENUINE provider failure
+      // terminal even if the socket died too, so a real error is never mistaken
+      // for a detach. And `wasRunDetached` is false for an
+      // explicit cancel (either band), for a non-detachable disconnect, and for
+      // every app that has not wired durability — all of which keep terminalizing
+      // and closing exactly as before.
+      //
+      // What is ALREADY IN THE LOG is deliberately NOT a conjunct. An agent-loop
+      // run emits one `RUN_FINISHED` PER ITERATION — the intermediate
+      // `finishReason: 'tool_calls'` terminal is flushed at its boundary
+      // mid-run — so `terminalPersisted` means "some terminal is in the log",
+      // never "the run ended". Gating on it terminalized the log of a healthy,
+      // still-running agent for every tool-calling run. Nor can the sink
+      // distinguish a final terminal from an intermediate one by its
+      // `finishReason`: only the run's middleware knows, and that is exactly
+      // what the verdict reports. So a published detach verdict WINS — it
+      // already means "the agent is alive and a successor will terminalize this
+      // log".
+      const detached =
+        cancelled &&
+        !isExplicitCancel(abortController.signal) &&
+        !hasTerminalCause &&
+        wasRunDetached(stream)
+
       if (
+        !detached &&
         needsTerminalPersistence(terminalPersisted, cancelled, hasTerminalCause)
       ) {
         // Prefer the real provider error even when the delivery socket was also
@@ -472,15 +591,30 @@ function durableStreamSource<TOffset extends string>(
         }
       }
 
-      try {
-        await durability.close()
-      } catch (closeError) {
-        // A failed close leaves the durable log unterminated for joiners; the
-        // live consumer gets the rethrow, but log it for the joiner's sake.
-        logger?.errors('closing durability stream failed', {
-          error: closeError,
-        })
-        recordFailure(closeError, 'closing durability stream failed')
+      // A detached run's log is deliberately left OPEN: the run is still going,
+      // and `close()` would terminalize the log the takeover has to continue —
+      // a tailing attach would stop at the prefix, and a stored synthetic
+      // `RUN_ERROR` would additionally diverge the takeover's journal replay and
+      // record a healthy run as failed.
+      //
+      // This is NOT the general "fence the close" that `ai-sandbox`'s claim.ts
+      // rules out. That fence would suppress `close()` for a run nobody will ever
+      // drive again, wedging the record at `'running'` with every tailer parked
+      // forever. The skip here is conditional on a verdict that means the exact
+      // opposite: the agent is alive and a successor WILL terminalize this log
+      // (its own producer exit runs this same `finally`). Keep that distinction —
+      // widening this condition to "any abort" re-introduces the wedge.
+      if (!detached) {
+        try {
+          await durability.close()
+        } catch (closeError) {
+          // A failed close leaves the durable log unterminated for joiners; the
+          // live consumer gets the rethrow, but log it for the joiner's sake.
+          logger?.errors('closing durability stream failed', {
+            error: closeError,
+          })
+          recordFailure(closeError, 'closing durability stream failed')
+        }
       }
 
       // Rethrow a terminalization/close failure to the live consumer ONLY when
@@ -620,6 +754,9 @@ export function toServerSentEventsResponse<TOffset extends string = string>(
       encodeChunk,
       encodeError,
       isFresh,
+      // Fresh runs only: a resume response IS a reader, so its cancel is an
+      // ordinary read being stopped, not a producer losing its viewer.
+      isFresh ? () => notifyRunDisconnected(stream) : undefined,
     )
   } else {
     body = toServerSentEventsStream(stream, abortController)
@@ -640,11 +777,201 @@ function emptyDurableSource(): AsyncIterable<StreamChunk> {
   return (async function* () {})()
 }
 
+/**
+ * Everything the resume helpers need to take a run over as a side effect of
+ * serving its log.
+ *
+ * `claim` and `pipe` are **injected**, not imported. The two mechanisms a
+ * takeover needs (`withRunClaim` and `pipeToRunLog`) live in
+ * `@tanstack/ai-sandbox`, and `@tanstack/ai` must not depend on that package —
+ * that layering inversion is exactly what moving `LockStore` into core was meant
+ * to prevent, and it would make core depend on the sandbox package to serve a
+ * plain chat run. Injecting them keeps only the *shape* of a takeover in core
+ * (parse the run id, read the record, skip if terminal, claim, drive) and lets a
+ * background-worker-driven run supply its own pair.
+ * `@tanstack/ai-sandbox`'s `sandboxRunDriver` fills both in.
+ */
+export interface RunDriverOptions {
+  /** The attach request; its run id is read with {@link resolveResumeRunId}. */
+  request: Request
+  runs: RunStore
+  locks: LockStore
+  /** Produce the run's remaining events. Called only once the claim is held. */
+  drive: (input: {
+    runId: string
+    threadId: string
+    signal: AbortSignal
+  }) => AsyncIterable<StreamChunk>
+  /** Run `fn` under exclusive ownership of the run, or reject if refused. */
+  claim: <T>(
+    input: { runs: RunStore; locks: LockStore; runId: string },
+    fn: (claim: {
+      runId: string
+      epoch: number
+      signal: AbortSignal
+    }) => Promise<T>,
+  ) => Promise<T>
+  /** Persist the driven stream to the run's producer-side durability log. */
+  pipe: (
+    stream: AsyncIterable<StreamChunk>,
+    input: { runId: string; threadId: string; signal: AbortSignal },
+  ) => Promise<unknown>
+  /** Platform keep-alive (e.g. `ctx.waitUntil`) for the background drive. */
+  waitUntil?: (promise: Promise<unknown>) => void
+  logger?: InternalLogger
+}
+
 /** Shared options for the resume-only response helpers. */
 type ResumeResponseOptions<TOffset extends string> = ResponseInit & {
   adapter: StreamDurability<TOffset>
   batch?: number
   debug?: DebugOption
+  /**
+   * Take the run over while serving its log. Omit to serve the log only —
+   * the response is byte-identical either way.
+   */
+  driver?: RunDriverOptions
+}
+
+/**
+ * Take over an in-flight run as a side effect of serving its log.
+ *
+ * The response itself is unchanged: it still replays from the durability log via
+ * `emptyDurableSource()`. The drive runs BESIDE it, appending to the run's own
+ * producer-side log through the injected `pipe`, and the response tails what
+ * lands. That separation is what lets a taken-over run keep `chat()`'s normal
+ * middleware path — `withPersistence.onFinish` is what saves the transcript, so a
+ * parallel translation path would lose the history of any run that completed
+ * while detached.
+ *
+ * TOTAL BY CONSTRUCTION. Every failure is logged and swallowed:
+ *
+ * - No run id, no record, or a terminal record → serve the log, drive nothing.
+ *   A second tab attaching to a finished run must still see the transcript.
+ * - The claim is refused (another host is already driving) → serve the log,
+ *   drive nothing. That is the documented "two hosts attach at once: one wins
+ *   the lease and drives, the other tails the log" behavior.
+ * - The drive throws → logged. It cannot be reported to this response, which is
+ *   already streaming the log; the run's own `RUN_ERROR` event is the channel.
+ *
+ * A rejection escaping here would be an unhandled rejection with nobody to
+ * report it to — process-fatal on modern Node and instance-fatal inside a
+ * Durable Object.
+ */
+function startRunDriver(driver: RunDriverOptions): void {
+  const logger = driver.logger
+  const promise = (async () => {
+    const runId = resolveResumeRunId(driver.request)
+    if (runId === null) return
+    let record: RunRecord | null = null
+    try {
+      record = await driver.runs.get(runId)
+    } catch (error) {
+      logger?.errors('resume driver: reading the run record failed', {
+        runId,
+        error,
+      })
+      return
+    }
+    // Validated, not trusted: `record.status` is typed `RunStatus` but comes off
+    // a user-implemented `RunStore`, so the type is a claim about a storage
+    // column and nothing checked it. An unrecognized value means the run cannot
+    // be reasoned about at all — the record says nothing trustworthy about
+    // whether an agent is already driving it — so refuse the drive the same way
+    // a terminal record does, and still serve the log so a corrupt row does not
+    // also blank the transcript.
+    if (record !== null && !isRunStatus(record.status)) {
+      logger?.errors(
+        'resume driver: the run record has an unrecognized status',
+        {
+          runId,
+          status: record.status,
+        },
+      )
+      return
+    }
+    if (record === null || isTerminalRunStatus(record.status)) return
+    // A recorded cancel is NOT a status. `requestRunCancel` deliberately writes
+    // only `cancelRequested`, so a run cancelled out of band while its driving
+    // host had already died stays `'running'` — and the status gate above waves
+    // it straight through. Driving it resurrects a run the user explicitly
+    // stopped and burns tokens until the TTL expires. The log is still served, so
+    // an attaching tab sees the transcript; only the drive is refused.
+    //
+    // This is the "don't START one" half. Aborting a drive that is ALREADY live
+    // when a cancel lands afterwards is a separate, still-open concern.
+    if (record.cancelRequested === true) return
+    // Captured after narrowing so the closure below sees a definite record
+    // rather than the re-widened `let`.
+    const active = record
+
+    try {
+      await driver.claim(
+        { runs: driver.runs, locks: driver.locks, runId },
+        async (claim) => {
+          // A viewer is attached again, so the detached clock stops. Cleared
+          // under the claim so it cannot race the reaper's read.
+          //
+          // THE REAPER: do NOT reuse `startRunDriver` for reclaiming detached
+          // runs. `@tanstack/ai-sandbox`'s `reapDetachedRuns` deliberately does
+          // the opposite of this line — it ACTS ON `detachedSince` and must
+          // leave the marker intact for its own TTL accounting — so borrowing
+          // this path would erase the very evidence the reaper selected the run
+          // on, resetting the TTL on every sweep so a detached run could never
+          // expire. That is why the reaper has its own drive path.
+          //
+          // LOG AND CONTINUE. This write is BOOKKEEPING for the reaper's TTL
+          // accounting; the claim is already held and the takeover is the
+          // valuable part. Letting a rejection propagate would land in the catch
+          // below — the channel reserved for the normal "someone else won the
+          // lease" case — so one transient store error would silently cost the
+          // whole drive, logged only on the `provider` debug channel and
+          // therefore invisible at default log levels. The worst case of
+          // continuing is a stale `detachedSince` the reaper may act on later;
+          // the worst case of vetoing is a run nobody drives at all.
+          try {
+            await driver.runs.update(runId, { detachedSince: undefined })
+          } catch (error) {
+            logger?.errors('resume driver: clearing detachedSince failed', {
+              runId,
+              error,
+            })
+          }
+          await driver.pipe(
+            driver.drive({
+              runId,
+              threadId: active.threadId,
+              signal: claim.signal,
+            }),
+            { runId, threadId: active.threadId, signal: claim.signal },
+          )
+        },
+      )
+    } catch (error) {
+      // Includes RunClaimNotAcquiredError (someone else is driving) and
+      // RunClaimLostError (we were superseded mid-drive). Both are normal.
+      logger?.provider('resume driver: not driving this run', { runId, error })
+    }
+  })()
+
+  if (driver.waitUntil) {
+    driver.waitUntil(promise)
+  } else {
+    // No platform keep-alive: at least ensure the rejection is handled. The
+    // async body above already catches everything, so this is belt-and-braces.
+    void promise.catch(() => {})
+  }
+}
+
+/**
+ * The single wiring point both resume helpers call, so the SSE and NDJSON
+ * halves cannot drift: a fix here applies to both. Called AFTER each helper's
+ * `resumeFrom() === null` 400 check — an attach with no offset has nothing to
+ * replay, and driving a run whose response will 400 would start an agent
+ * nobody is watching.
+ */
+function maybeStartRunDriver(driver: RunDriverOptions | undefined): void {
+  if (driver) startRunDriver(driver)
 }
 
 const NO_RESUME_OFFSET =
@@ -669,10 +996,14 @@ const NO_RESUME_OFFSET =
 export function resumeServerSentEventsResponse<TOffset extends string = string>(
   options: ResumeResponseOptions<TOffset>,
 ): Response {
-  const { adapter, batch, debug, ...responseInit } = options
+  // `driver` MUST be destructured out: `responseInit` is spread into
+  // `new Response(body, init)`, so leaving it in would leak the driver object
+  // (and its Request) into the response init.
+  const { adapter, batch, debug, driver, ...responseInit } = options
   if (adapter.resumeFrom() === null) {
     return new Response(NO_RESUME_OFFSET, { status: 400 })
   }
+  maybeStartRunDriver(driver)
   return toServerSentEventsResponse(emptyDurableSource(), {
     ...responseInit,
     durability: { adapter, batch },
@@ -829,6 +1160,8 @@ export function toHttpResponse<TOffset extends string = string>(
       encodeChunk,
       encodeError,
       isFresh,
+      // See the SSE helper: fresh runs only.
+      isFresh ? () => notifyRunDisconnected(stream) : undefined,
     )
   } else {
     body = toHttpStream(stream, abortController)
@@ -856,10 +1189,12 @@ export function toHttpResponse<TOffset extends string = string>(
 export function resumeHttpResponse<TOffset extends string = string>(
   options: ResumeResponseOptions<TOffset>,
 ): Response {
-  const { adapter, batch, debug, ...responseInit } = options
+  // See `resumeServerSentEventsResponse`: `driver` must not reach `responseInit`.
+  const { adapter, batch, debug, driver, ...responseInit } = options
   if (adapter.resumeFrom() === null) {
     return new Response(NO_RESUME_OFFSET, { status: 400 })
   }
+  maybeStartRunDriver(driver)
   return toHttpResponse(emptyDurableSource(), {
     ...responseInit,
     durability: { adapter, batch },

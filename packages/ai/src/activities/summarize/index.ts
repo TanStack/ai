@@ -17,6 +17,12 @@ import {
   runGenerationStart,
   runGenerationUsage,
 } from '../middleware/run'
+import {
+  abortReasonMessage,
+  createActivityAbortControls,
+  isActivityAbortError,
+  raceWithAbort,
+} from '../../utilities/activity-abort'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
@@ -93,6 +99,18 @@ export interface SummarizeActivityOptions<
    * mid-summary fires `onAbort`.
    */
   middleware?: Array<GenerationMiddleware>
+  /**
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default — choose a value suitable for the provider and job.
+   * Composed with {@link abortSignal}; the first abort wins.
+   */
+  timeout?: number
+  /**
+   * Caller cancellation signal (request disconnects, job/runtime cancellation).
+   * Composed with {@link timeout} into an effective signal forwarded to the
+   * adapter. Request-specific — not stored on global provider client config.
+   */
+  abortSignal?: AbortSignal
   /**
    * Whether to stream the summarization result.
    * When true, returns an AsyncIterable<StreamChunk> for streaming output.
@@ -216,13 +234,26 @@ export function summarize<
 async function runSummarize(
   options: SummarizeActivityOptions<SummarizeAdapter<string, object>, false>,
 ): Promise<SummarizationResult> {
-  const { adapter, text, maxLength, style, focus, modelOptions, middleware } =
-    options
+  const {
+    adapter,
+    text,
+    maxLength,
+    style,
+    focus,
+    modelOptions,
+    middleware,
+    timeout,
+    abortSignal: callerAbortSignal,
+  } = options
   const model = adapter.model
   const requestId = createId('summarize')
   const inputLength = text.length
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
+  const abortControls = createActivityAbortControls({
+    timeout,
+    abortSignal: callerAbortSignal,
+  })
 
   const mwCtx = createGenerationContext({
     requestId,
@@ -259,10 +290,15 @@ async function runSummarize(
     focus,
     modelOptions,
     logger,
+    ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
   }
 
   try {
-    const rawResult = await adapter.summarize(summarizeOptions)
+    const rawResult = await raceWithAbort(
+      adapter.summarize(summarizeOptions),
+      abortControls.signal,
+    )
+    abortControls.clear()
     // Transforms run before anything observes the result — the same order every
     // media activity uses — so the run record and the returned value are the
     // same object.
@@ -294,10 +330,19 @@ async function runSummarize(
 
     return result
   } catch (error) {
-    await runGenerationError(middleware, mwCtx, {
-      error,
-      duration: Date.now() - startTime,
-    })
+    abortControls.clear()
+    const duration = Date.now() - startTime
+    if (isActivityAbortError(error, abortControls.signal)) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: abortReasonMessage(error, abortControls.signal),
+        duration,
+      })
+    } else {
+      await runGenerationError(middleware, mwCtx, {
+        error,
+        duration,
+      })
+    }
     logger.errors('summarize activity failed', {
       error,
       source: 'summarize',

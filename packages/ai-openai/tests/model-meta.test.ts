@@ -121,6 +121,46 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
       expectTypeOf<Options>().toExtend<BaseOptions>()
     })
+
+    it('gpt-5.6 should support all features', () => {
+      type Options = OpenAIChatModelProviderOptionsByName['gpt-5.6']
+
+      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
+      expectTypeOf<Options>().toExtend<BaseOptions>()
+    })
+
+    it('gpt-5.6-sol should support all features', () => {
+      type Options = OpenAIChatModelProviderOptionsByName['gpt-5.6-sol']
+
+      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
+      expectTypeOf<Options>().toExtend<BaseOptions>()
+    })
+
+    it('gpt-5.6-terra should support all features', () => {
+      type Options = OpenAIChatModelProviderOptionsByName['gpt-5.6-terra']
+
+      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
+      expectTypeOf<Options>().toExtend<BaseOptions>()
+    })
+
+    it('gpt-5.6-luna should support all features', () => {
+      type Options = OpenAIChatModelProviderOptionsByName['gpt-5.6-luna']
+
+      expectTypeOf<Options>().toExtend<OpenAIReasoningOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIStructuredOutputOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIToolsOptions>()
+      expectTypeOf<Options>().toExtend<OpenAIStreamingOptions>()
+      expectTypeOf<Options>().toExtend<BaseOptions>()
+    })
   })
 
   describe('Models WITH reasoning AND structured output AND tools (gpt-5-mini/nano)', () => {
@@ -475,6 +515,10 @@ describe('OpenAI Chat Model Provider Options Type Assertions', () => {
       expectTypeOf<'gpt-5.1-codex'>().toExtend<Keys>()
       expectTypeOf<'gpt-5'>().toExtend<Keys>()
       expectTypeOf<'gpt-5-pro'>().toExtend<Keys>()
+      expectTypeOf<'gpt-5.6'>().toExtend<Keys>()
+      expectTypeOf<'gpt-5.6-sol'>().toExtend<Keys>()
+      expectTypeOf<'gpt-5.6-terra'>().toExtend<Keys>()
+      expectTypeOf<'gpt-5.6-luna'>().toExtend<Keys>()
 
       // Standard models (structured output + tools, no reasoning)
       expectTypeOf<'gpt-5-mini'>().toExtend<Keys>()
