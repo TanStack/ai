@@ -403,6 +403,18 @@ describe('Message Converters', () => {
       ])
     })
 
+    it('should preserve the UI message id on an empty assistant fallback', () => {
+      const uiMessage: UIMessage = {
+        id: 'assistant-empty',
+        role: 'assistant',
+        parts: [],
+      }
+
+      expect(uiMessageToModelMessages(uiMessage)).toEqual([
+        { id: uiMessage.id, role: 'assistant', content: null },
+      ])
+    })
+
     it('should preserve interleaving of text, tool calls, and tool results', () => {
       const uiMessage: UIMessage = {
         id: 'msg-1',

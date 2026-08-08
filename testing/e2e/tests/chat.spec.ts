@@ -7,6 +7,9 @@ import {
 } from './helpers'
 import { providersFor } from './test-matrix'
 
+// The server conversion test in this spec does not call a provider HTTP
+// endpoint, so it intentionally does not configure aimock.
+
 for (const provider of providersFor('chat')) {
   test.describe(`${provider} — chat`, () => {
     test('sends a message and receives a streaming response', async ({
@@ -112,6 +115,35 @@ test('preserves UI message IDs at the server conversion boundary', async ({
       toolCallId: 'tool-1',
     },
   ])
+})
+
+test('rejects malformed JSON at the server conversion boundary', async ({
+  request,
+}) => {
+  const response = await request.post('/api/message-ids', {
+    data: '{',
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+  expect(response.status()).toBe(400)
+})
+
+test('rejects invalid message parts at the server conversion boundary', async ({
+  request,
+}) => {
+  const response = await request.post('/api/message-ids', {
+    data: {
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 42 }],
+        },
+      ],
+    },
+  })
+
+  expect(response.status()).toBe(400)
 })
 
 test.describe('openai chat persistence', () => {
