@@ -44,6 +44,7 @@ import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-u
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
+import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
 import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
 import { Route as ApiMcpStatusTestRouteImport } from './routes/api.mcp-status-test'
 import { Route as ApiMcpServerRouteImport } from './routes/api.mcp-server'
@@ -257,6 +258,11 @@ const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
   path: '/api/middleware-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiMessageIdsRoute = ApiMessageIdsRouteImport.update({
+  id: '/api/message-ids',
+  path: '/api/message-ids',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMcpTestRoute = ApiMcpTestRouteImport.update({
   id: '/api/mcp-test',
   path: '/api/mcp-test',
@@ -454,6 +460,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
@@ -521,6 +528,7 @@ export interface FileRoutesByTo {
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
@@ -589,6 +597,7 @@ export interface FileRoutesById {
   '/api/mcp-server': typeof ApiMcpServerRoute
   '/api/mcp-status-test': typeof ApiMcpStatusTestRoute
   '/api/mcp-test': typeof ApiMcpTestRoute
+  '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
@@ -658,6 +667,7 @@ export interface FileRouteTypes {
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-test'
+    | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
     | '/api/openai-shell-skills-wire'
@@ -725,6 +735,7 @@ export interface FileRouteTypes {
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-test'
+    | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
     | '/api/openai-shell-skills-wire'
@@ -792,6 +803,7 @@ export interface FileRouteTypes {
     | '/api/mcp-server'
     | '/api/mcp-status-test'
     | '/api/mcp-test'
+    | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
     | '/api/openai-shell-skills-wire'
@@ -860,6 +872,7 @@ export interface RootRouteChildren {
   ApiMcpServerRoute: typeof ApiMcpServerRoute
   ApiMcpStatusTestRoute: typeof ApiMcpStatusTestRoute
   ApiMcpTestRoute: typeof ApiMcpTestRoute
+  ApiMessageIdsRoute: typeof ApiMessageIdsRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
@@ -1125,6 +1138,13 @@ declare module '@tanstack/react-router' {
       path: '/api/middleware-test'
       fullPath: '/api/middleware-test'
       preLoaderRoute: typeof ApiMiddlewareTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/message-ids': {
+      id: '/api/message-ids'
+      path: '/api/message-ids'
+      fullPath: '/api/message-ids'
+      preLoaderRoute: typeof ApiMessageIdsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp-test': {
@@ -1441,6 +1461,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpServerRoute: ApiMcpServerRoute,
   ApiMcpStatusTestRoute: ApiMcpStatusTestRoute,
   ApiMcpTestRoute: ApiMcpTestRoute,
+  ApiMessageIdsRoute: ApiMessageIdsRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,

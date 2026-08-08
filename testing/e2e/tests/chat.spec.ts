@@ -53,6 +53,67 @@ for (const provider of providersFor('chat')) {
   })
 }
 
+test('preserves UI message IDs at the server conversion boundary', async ({
+  request,
+}) => {
+  const response = await request.post('/api/message-ids', {
+    data: {
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+        },
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          parts: [
+            { type: 'text', content: 'Let me check.' },
+            {
+              type: 'tool-call',
+              id: 'tool-1',
+              name: 'getWeather',
+              arguments: '{}',
+              state: 'input-complete',
+            },
+            {
+              type: 'tool-result',
+              toolCallId: 'tool-1',
+              content: '{"temp":72}',
+              state: 'complete',
+            },
+          ],
+        },
+      ],
+    },
+  })
+
+  expect(response.ok()).toBe(true)
+  const modelMessages = await response.json()
+
+  expect(modelMessages).toEqual([
+    { id: 'user-1', role: 'user', content: 'Hello' },
+    {
+      id: 'assistant-1',
+      role: 'assistant',
+      content: 'Let me check.',
+      toolCalls: [
+        {
+          id: 'tool-1',
+          type: 'function',
+          function: { name: 'getWeather', arguments: '{}' },
+        },
+      ],
+    },
+    {
+      id: 'assistant-1',
+      role: 'tool',
+      content: '{"temp":72}',
+      toolCallId: 'tool-1',
+    },
+  ])
+})
+
 test.describe('openai chat persistence', () => {
   test('persists chat messages across browser reload with localStorage', async ({
     page,
