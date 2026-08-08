@@ -53,8 +53,16 @@ export const BLAXEL_CAPS: SandboxCapabilities = {
 /** Default workspace root created inside the sandbox. */
 export const BLAXEL_DEFAULT_WORKDIR = '/workspace'
 
-/** How long a minted preview token stays valid. */
+/** Fallback when a preview TTL uses an unknown server-side duration format. */
 const PREVIEW_TOKEN_TTL_MS = 60 * 60 * 1000
+const PREVIEW_TTL_UNIT_MS: Record<string, number> = {
+  ms: 1,
+  s: 1000,
+  m: 60 * 1000,
+  h: 60 * 60 * 1000,
+  d: 24 * 60 * 60 * 1000,
+  w: 7 * 24 * 60 * 60 * 1000,
+}
 
 /** Maximum unread stdout or stderr retained per spawned process. */
 const STREAM_BUFFER_LIMIT_BYTES = 8 * 1024 * 1024
@@ -139,7 +147,7 @@ export interface BlaxelProcessLike {
 }
 
 export interface BlaxelPreviewLike {
-  spec?: { url?: string; public?: boolean; port?: number }
+  spec?: { url?: string; public?: boolean; port?: number; expires?: string }
   tokens: { create: (expiresAt: Date) => Promise<{ value: string }> }
 }
 
@@ -159,6 +167,37 @@ export interface BlaxelHandleDeps {
   publicPreviews: boolean
   /** TTL applied to previews this handle creates. */
   previewTtl: string
+}
+
+function previewTtlMilliseconds(ttl: string): number {
+  let milliseconds = 0
+  let offset = 0
+  for (const match of ttl.matchAll(/(\d+(?:\.\d+)?)(ms|s|m|h|d|w)/g)) {
+    if (match.index !== offset) return PREVIEW_TOKEN_TTL_MS
+    const amount = match[1]
+    const unitMilliseconds = PREVIEW_TTL_UNIT_MS[match[2] ?? '']
+    if (amount === undefined || unitMilliseconds === undefined) {
+      return PREVIEW_TOKEN_TTL_MS
+    }
+    milliseconds += Number(amount) * unitMilliseconds
+    offset += match[0].length
+  }
+  return offset === ttl.length &&
+    milliseconds > 0 &&
+    Number.isFinite(milliseconds)
+    ? milliseconds
+    : PREVIEW_TOKEN_TTL_MS
+}
+
+function previewTokenExpiresAt(
+  preview: BlaxelPreviewLike,
+  previewTtl: string,
+): Date {
+  if (preview.spec?.expires) {
+    const serverExpiry = new Date(preview.spec.expires)
+    if (Number.isFinite(serverExpiry.getTime())) return serverExpiry
+  }
+  return new Date(Date.now() + previewTtlMilliseconds(previewTtl))
 }
 
 export class BlaxelHandle implements SandboxHandle {
@@ -382,7 +421,7 @@ export class BlaxelHandle implements SandboxHandle {
         `  cat ${chunkFile} >> ${file} || { __tanstack_capture_status=1; break; }`,
         `  printf '%s' ${q(recordPrefix)}`,
         `  base64 < ${chunkFile} | tr -d '\r\n'`,
-        `  printf '\n'`,
+        `  printf '\\n'`,
         '  __tanstack_remaining=$((__tanstack_remaining - __tanstack_chunk_size))',
         'done',
         'if [ "$__tanstack_capture_status" -eq 0 ] && [ "$__tanstack_remaining" -eq 0 ]; then',
@@ -395,8 +434,8 @@ export class BlaxelHandle implements SandboxHandle {
         'fi',
         `rm -f -- ${chunkFile}`,
         'if [ "$__tanstack_capture_status" -ne 0 ]; then',
-        `  printf '%s\n' ${q(label)} >> ${limitsFile}`,
-        `  printf '%s\n' ${q(overflowMarker)}`,
+        `  printf '%s\\n' ${q(label)} >> ${limitsFile}`,
+        `  printf '%s\\n' ${q(overflowMarker)}`,
         'fi',
         `) < ${pipe}${redirect} &`,
       ].join('\n')
@@ -954,7 +993,7 @@ export class BlaxelHandle implements SandboxHandle {
     // Keep the credential out of the URL and report Blaxel's explicit preview
     // header. The separate token field remains available to channel consumers.
     const token = await preview.tokens.create(
-      new Date(Date.now() + PREVIEW_TOKEN_TTL_MS),
+      previewTokenExpiresAt(preview, this.previewTtl),
     )
     if (!token.value) {
       throw new Error(

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/require-await -- trivial fixed-value fakes */
 import { SandboxInstance } from '@blaxel/core'
 import { toLines } from '@tanstack/ai-sandbox'
-import { spawn as spawnChild } from 'node:child_process'
+import { spawn as spawnChild, spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync } from 'node:fs'
 import { describe, expect, it, vi } from 'vitest'
 import { BLAXEL_CAPS, BlaxelHandle, previewName } from '../src/handle'
@@ -23,6 +23,7 @@ interface FakeOptions {
   previewUrl?: string | undefined
   previewPublic?: boolean
   previewPort?: number
+  previewExpires?: string
   watchBase?: string
   waitResult?: BlaxelProcessLike
   waitGate?: Promise<BlaxelProcessLike>
@@ -178,6 +179,9 @@ function fakeSandbox(options: FakeOptions = {}): {
               : { url: 'https://abc.preview.bl.run' }),
             public: options.previewPublic ?? preview.spec.public,
             port: options.previewPort ?? preview.spec.port,
+            ...(options.previewExpires
+              ? { expires: options.previewExpires }
+              : {}),
           },
           tokens: { create: tokenCreate },
         }
@@ -204,6 +208,7 @@ function makeHandle(
   overrides: {
     workdir?: string
     publicPreviews?: boolean
+    previewTtl?: string
   } = {},
 ): {
   handle: BlaxelHandle
@@ -215,7 +220,7 @@ function makeHandle(
     name: 'sb',
     workdir: overrides.workdir ?? '/workspace',
     publicPreviews: overrides.publicPreviews ?? false,
-    previewTtl: '1h',
+    previewTtl: overrides.previewTtl ?? '1h',
   })
   return { handle, fake }
 }
@@ -687,7 +692,10 @@ describe('BlaxelHandle process', () => {
     expect(await collect(spawned.stderr)).toBe('warned')
   })
 
-  it.runIf(process.platform !== 'win32')(
+  it.runIf(
+    process.platform !== 'win32' &&
+      spawnSync('bash', ['-c', 'exit 0'], { stdio: 'ignore' }).status === 0,
+  )(
     'supervisor reaps the command and capture process groups on termination',
     async () => {
       let resolveWait!: (value: BlaxelProcessLike) => void
@@ -707,25 +715,35 @@ describe('BlaxelHandle process', () => {
       const child = spawnChild('/bin/sh', ['-c', script], {
         stdio: 'ignore',
       })
-      const pidsPath = `${outputDir!}/pids`
-      await vi.waitFor(() => expect(existsSync(pidsPath)).toBe(true))
-      const pids = readFileSync(pidsPath, 'utf8')
-        .trim()
-        .split(/\s+/)
-        .map(Number)
       const exited = new Promise<void>((resolve, reject) => {
         child.once('error', reject)
         child.once('exit', () => resolve())
       })
-      child.kill('SIGTERM')
-      await exited
-      await vi.waitFor(() => {
+      let pids: Array<number> = []
+      try {
+        const pidsPath = `${outputDir!}/pids`
+        await vi.waitFor(() => expect(existsSync(pidsPath)).toBe(true))
+        pids = readFileSync(pidsPath, 'utf8').trim().split(/\s+/).map(Number)
+        child.kill('SIGTERM')
+        await exited
+        await vi.waitFor(() => {
+          for (const pid of pids) {
+            expect(() => process.kill(-pid, 0)).toThrow()
+          }
+        })
+      } finally {
+        child.kill('SIGKILL')
         for (const pid of pids) {
-          expect(() => process.kill(-pid, 0)).toThrow()
+          try {
+            process.kill(-pid, 'SIGKILL')
+          } catch {
+            // The process group already exited.
+          }
         }
-      })
-      rmSync(outputDir!, { recursive: true, force: true })
-      resolveWait({ exitCode: 0, stdout: '', stderr: '' })
+        await exited.catch(() => undefined)
+        rmSync(outputDir!, { recursive: true, force: true })
+        resolveWait({ exitCode: 0, stdout: '', stderr: '' })
+      }
       await spawned.wait()
     },
   )
@@ -947,6 +965,25 @@ describe('BlaxelHandle ports', () => {
       metadata: { name: 'tanstack-ai-3000' },
       spec: { port: 3000, public: false, ttl: '1h' },
     })
+  })
+
+  it('keeps a private preview token valid for a custom preview TTL', async () => {
+    const before = Date.now()
+    const { handle, fake } = makeHandle({}, { previewTtl: '4h' })
+    await handle.ports.connect(3000)
+    const after = Date.now()
+    const expiresAt = fake.tokenCreate.mock.calls[0]?.[0] as Date
+    expect(expiresAt.getTime()).toBeGreaterThanOrEqual(
+      before + 4 * 60 * 60 * 1000,
+    )
+    expect(expiresAt.getTime()).toBeLessThanOrEqual(after + 4 * 60 * 60 * 1000)
+  })
+
+  it('uses the preview expiration reported by Blaxel for its token', async () => {
+    const previewExpires = new Date(Date.now() + 90 * 60 * 1000).toISOString()
+    const { handle, fake } = makeHandle({ previewExpires })
+    await handle.ports.connect(3000)
+    expect(fake.tokenCreate).toHaveBeenCalledWith(new Date(previewExpires))
   })
 
   it('returns a bare URL and mints no token for a public preview', async () => {

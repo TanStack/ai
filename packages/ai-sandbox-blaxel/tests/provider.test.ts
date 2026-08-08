@@ -10,9 +10,9 @@ const calls: {
 
 let getError: unknown
 let getFactory: ((name: string) => Record<string, unknown>) | undefined
-let createGate: Promise<Record<string, unknown>> | undefined
+let createGate: (() => Promise<Record<string, unknown>>) | undefined
 let mkdirError: unknown
-let deleteGate: Promise<Record<string, never>> | undefined
+let deleteGate: (() => Promise<Record<string, never>>) | undefined
 
 let getStatus: string | undefined = 'DEPLOYED'
 
@@ -73,13 +73,12 @@ vi.mock('@blaxel/core', () => ({
   SandboxInstance: {
     createIfNotExists: async (config: Record<string, unknown>) => {
       calls.created.push(config)
-      return (
-        createGate ??
-        fakeInstance(
-          String(config.name),
-          config.labels as Record<string, string> | undefined,
-        )
-      )
+      return createGate
+        ? await createGate()
+        : fakeInstance(
+            String(config.name),
+            config.labels as Record<string, string> | undefined,
+          )
     },
     get: async (name: string) => {
       calls.got.push(name)
@@ -88,7 +87,7 @@ vi.mock('@blaxel/core', () => ({
     },
     delete: async (name: string) => {
       calls.deleted.push(name)
-      return deleteGate ?? {}
+      return deleteGate ? await deleteGate() : {}
     },
   },
 }))
@@ -244,9 +243,10 @@ describe('blaxelSandbox create', () => {
 
   it('aborts an in-flight create and deletes the late billed sandbox', async () => {
     let resolveCreate!: (sandbox: Record<string, unknown>) => void
-    createGate = new Promise((resolve) => {
-      resolveCreate = resolve
-    })
+    createGate = () =>
+      new Promise((resolve) => {
+        resolveCreate = resolve
+      })
     const controller = new AbortController()
     const provider = blaxelSandbox()
     const creating = provider.create({
@@ -266,7 +266,7 @@ describe('blaxelSandbox create', () => {
   })
 
   it('deletes an aborted create whose SDK promise never settles', async () => {
-    createGate = new Promise(() => undefined)
+    createGate = () => new Promise(() => undefined)
     let visible = false
     let visibilityScheduled = false
     getFactory = (name) => {
@@ -312,9 +312,12 @@ describe('blaxelSandbox create', () => {
 
   it('never deletes a same-name sandbox reused by concurrent callers', async () => {
     mkdirError = new Error('mkdir failed')
-    createGate = Promise.resolve(
-      fakeInstance('shared', { 'tanstack-ai-create-attempt': 'other-attempt' }),
-    )
+    createGate = () =>
+      Promise.resolve(
+        fakeInstance('shared', {
+          'tanstack-ai-create-attempt': 'other-attempt',
+        }),
+      )
     const provider = blaxelSandbox()
     const results = await Promise.allSettled([
       provider.create({ id: 'shared' }),
@@ -328,7 +331,8 @@ describe('blaxelSandbox create', () => {
   })
 
   it('reconciles and deletes an owned create accepted before a late 504', async () => {
-    createGate = Promise.reject({ status: 504, message: 'gateway timeout' })
+    createGate = () =>
+      Promise.reject({ status: 504, message: 'gateway timeout' })
     getFactory = (name) =>
       fakeInstance(
         name,
@@ -345,13 +349,14 @@ describe('blaxelSandbox create', () => {
   })
 
   it('reports cleanup failure after reconciling an accepted create error', async () => {
-    createGate = Promise.reject({ status: 504, message: 'gateway timeout' })
+    createGate = () =>
+      Promise.reject({ status: 504, message: 'gateway timeout' })
     getFactory = (name) =>
       fakeInstance(
         name,
         calls.created[0]?.labels as Record<string, string> | undefined,
       )
-    deleteGate = Promise.reject({ status: 500, message: 'delete failed' })
+    deleteGate = () => Promise.reject({ status: 500, message: 'delete failed' })
     const provider = blaxelSandbox()
     await expect(
       provider.create({ id: 'accepted-cleanup-failed' }),
@@ -361,7 +366,7 @@ describe('blaxelSandbox create', () => {
 
   it('reports both preparation and owned-sandbox cleanup failures', async () => {
     mkdirError = new Error('mkdir failed')
-    deleteGate = Promise.reject({ status: 500, message: 'delete failed' })
+    deleteGate = () => Promise.reject({ status: 500, message: 'delete failed' })
     const provider = blaxelSandbox()
     await expect(provider.create({ id: 'cleanup-failed' })).rejects.toThrow(
       /cleanup also failed|could not be cleaned up/,
@@ -443,13 +448,13 @@ describe('blaxelSandbox destroy', () => {
   })
 
   it('treats an already deleted sandbox as a successful destroy', async () => {
-    deleteGate = Promise.reject({ code: 404 })
+    deleteGate = () => Promise.reject({ code: 404 })
     const provider = blaxelSandbox()
     await expect(provider.destroy({ id: 'sb-gone' })).resolves.toBeUndefined()
   })
 
   it('does not hang past the destroy signal when the SDK call stalls', async () => {
-    deleteGate = new Promise(() => {})
+    deleteGate = () => new Promise(() => {})
     const controller = new AbortController()
     const provider = blaxelSandbox()
     const destroying = provider.destroy({

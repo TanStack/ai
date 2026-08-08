@@ -153,7 +153,7 @@ describe.skipIf(gated)(
       // survives in a terminal state — so resume() has to read the status.
       // Without that check this returns a handle to a dead sandbox.
       const provider = blaxelSandbox({ apiKey, workspace })
-      const sbx = await provider.create({})
+      const sbx = track(await provider.create({}))
       await sbx.destroy()
       expect(await provider.resume({ id: sbx.id })).toBeNull()
     }, 180_000)
