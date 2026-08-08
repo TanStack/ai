@@ -104,6 +104,19 @@ export default async function globalSetup() {
   // `usage` survives onto `RUN_FINISHED.usage` on the fallback path.
   mock.mount('/anthropic-structured-usage', anthropicStructuredUsageMount())
 
+  // BytePlus. Ark (chat, Seedream image, Seedance video) serves its whole data
+  // plane under /api/v3, and Seed Speech (TTS/ASR) mounts its own endpoints at
+  // the same prefix on a different host — which collapses onto one prefix here
+  // because every adapter points at this single mock. Chat and image are NOT
+  // handled by these mounts: aimock's compat-path normalizer rewrites
+  // `/api/v3/chat/completions` and `/api/v3/images/generations` to their /v1
+  // equivalents, so each mount returns false for anything it doesn't own and
+  // those two fall through to the native handlers. Mounts are matched by raw
+  // pathname *before* that normalization, so ordering here is safe.
+  mock.mount('/api/v3', byteplusSeedanceMount())
+  mock.mount('/api/v3', byteplusTTSMount())
+  mock.mount('/api/v3', byteplusASRMount())
+
   await mock.start()
   console.log(`[aimock] started on port 4010`)
   ;(globalThis as any).__aimock = mock
@@ -503,6 +516,385 @@ function geminiOmniVideoMount(): Mountable {
       }
 
       return false
+    },
+  }
+}
+
+/**
+ * Fake audio payloads keyed by Seed Speech's `audio_config.format`.
+ *
+ * The TTS adapter labels its result from the format it *requested*
+ * (`getContentType`), and it always sends `audio_config.format` explicitly —
+ * defaulting to `mp3` when the caller names no format. So the mount has to
+ * answer in whichever container the request asked for, or the adapter builds a
+ * mislabeled `data:` URI (mp3 bytes announced as `audio/wav`, say).
+ *
+ * Each payload is only as real as it needs to be: the specs assert that the
+ * `<audio>` element renders, not that it plays. `ogg_opus` is not exercised by
+ * any spec today — its magic bytes are a placeholder so an unexpected format
+ * still yields a plausible container rather than a silent mismatch.
+ */
+const FAKE_AUDIO_BY_FORMAT: Record<string, Buffer> = {
+  mp3: FAKE_MP3_BYTES,
+  wav: buildSilentWav(),
+  pcm: FAKE_PCM_BYTES,
+  ogg_opus: Buffer.from('OggS'),
+}
+
+/**
+ * Minimal RIFF/WAV container: a 44-byte header describing 16-bit mono PCM at
+ * 24 kHz, followed by silence.
+ */
+function buildSilentWav(): Buffer {
+  const samples = Buffer.alloc(64)
+  const header = Buffer.alloc(44)
+  header.write('RIFF', 0, 'ascii')
+  header.writeUInt32LE(36 + samples.length, 4)
+  header.write('WAVE', 8, 'ascii')
+  header.write('fmt ', 12, 'ascii')
+  header.writeUInt32LE(16, 16) // PCM chunk size
+  header.writeUInt16LE(1, 20) // format: PCM
+  header.writeUInt16LE(1, 22) // channels
+  header.writeUInt32LE(24000, 24) // sample rate
+  header.writeUInt32LE(24000 * 2, 28) // byte rate
+  header.writeUInt16LE(2, 32) // block align
+  header.writeUInt16LE(16, 34) // bits per sample
+  header.write('data', 36, 'ascii')
+  header.writeUInt32LE(samples.length, 40)
+  return Buffer.concat([header, samples])
+}
+
+/**
+ * Reads a mounted request body as a JSON object, or `undefined` when the body
+ * is absent, malformed, or not an object.
+ *
+ * The three BytePlus mounts below **validate** what the adapters send instead
+ * of draining it, which deliberately deviates from the `drainBody` house style
+ * every other mount in this file uses. The reason: BytePlus is the only
+ * provider in this suite with neither aimock fixtures nor record mode
+ * (aimock's `RecordProviderKey` union has no `byteplus` entry), so nothing
+ * else pins the request wire shape. With a canned 200, an adapter regression —
+ * a dropped `text_prompt`, a `speaker` that stopped nesting under
+ * `references`, an empty Seedance `content[]` — would still be answered
+ * successfully and the spec would pass green. A 400 turns that into a failing
+ * spec, which is the whole point of these mounts existing.
+ */
+async function readJsonRequestBody(
+  req: http.IncomingMessage,
+): Promise<Record<string, unknown> | undefined> {
+  const raw = await readBody(req)
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    if (typeof parsed !== 'object' || parsed === null) return undefined
+    return parsed as Record<string, unknown>
+  } catch {
+    return undefined
+  }
+}
+
+/** Narrow an arbitrary JSON value to an object so nested fields can be read. */
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return undefined
+  }
+  return value as Record<string, unknown>
+}
+
+/**
+ * Rejects with Ark's error envelope — `{ error: { code, message } }` with a
+ * dotted string code. Matching the real envelope means `bytePlusArkError`
+ * renders the reason into the thrown message, so a validation failure shows up
+ * in the spec output as the actual missing field.
+ */
+function rejectArkRequest(res: http.ServerResponse, message: string): true {
+  res.statusCode = 400
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({ error: { code: 'InvalidParameter', message } }))
+  return true
+}
+
+/**
+ * Rejects with Seed Speech's error envelope — a flat numeric `code` plus
+ * `message`, which is what `bytePlusVoiceError` parses.
+ */
+function rejectVoiceRequest(res: http.ServerResponse, message: string): true {
+  res.statusCode = 400
+  res.setHeader('Content-Type', 'application/json')
+  res.end(JSON.stringify({ code: 45000001, message }))
+  return true
+}
+
+/**
+ * Mounts BytePlus Seedance's asynchronous video task API:
+ *
+ * - `POST /api/v3/contents/generations/tasks` — submits the job, returns `{ id }`.
+ * - `GET  /api/v3/contents/generations/tasks/{id}` — polls it.
+ *
+ * aimock's native `/v1/videos` handling models OpenAI's job API, not Ark's, so
+ * this is hand-mocked. Every poll answers `succeeded`, matching the openai
+ * `onVideo` fixture and `geminiVeoMount` — the `fetcher` transport's
+ * `generateVideoFn` calls `getVideoJobStatus` exactly once after creating the
+ * job, so a mock that reports `running` first has no second poll to recover on.
+ * The queued/running branches of the adapter's status map are unit-tested.
+ *
+ * The success body mirrors a captured live task (see the Phase 0 probe notes):
+ * `content.video_url` plus `usage.completion_tokens`, `seed`, `resolution`,
+ * `ratio`, `duration`, the lowercase `framespersecond`, and `output_format`.
+ * `updated_at` matters — `getVideoUrl` anchors its 24-hour `expiresAt` to it.
+ * The `model` is echoed back from the submitted task rather than hardcoded, so
+ * the poll response can't drift from what the adapter actually asked for.
+ *
+ * The create request is validated (see `readJsonRequestBody`): Ark requires a
+ * string `model` and a non-empty `content[]`, and answers `MissingParameter`
+ * without them — a live-probed behaviour worth preserving here, since an
+ * adapter that stopped building `content[]` would otherwise still get a job id.
+ *
+ * Anything that isn't a task path returns false so Ark's OpenAI-compatible
+ * chat and Seedream image requests reach aimock's native handlers.
+ */
+function byteplusSeedanceMount(): Mountable {
+  const VIDEO_URL = 'https://example.com/guitar-store.mp4'
+  const TASKS_PATH = '/contents/generations/tasks'
+  // Model per submitted task id, so the poll can echo what was requested.
+  const jobModels = new Map<string, string>()
+  let nextTaskId = 0
+
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/api/v3'), so pathname looks like
+      // '/contents/generations/tasks' or '/contents/generations/tasks/{id}'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname === TASKS_PATH && req.method === 'POST') {
+        const body = await readJsonRequestBody(req)
+        if (!body) {
+          return rejectArkRequest(res, 'Malformed JSON body.')
+        }
+        if (typeof body.model !== 'string' || body.model.length === 0) {
+          return rejectArkRequest(res, 'MissingParameter: model.')
+        }
+        if (!Array.isArray(body.content) || body.content.length === 0) {
+          return rejectArkRequest(
+            res,
+            'MissingParameter: content must be a non-empty array.',
+          )
+        }
+
+        const id = `cgt-e2e-${++nextTaskId}`
+        jobModels.set(id, body.model)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(JSON.stringify({ id }))
+        return true
+      }
+
+      const pollMatch = pathname.match(
+        /^\/contents\/generations\/tasks\/([^/]+)$/,
+      )
+      if (pollMatch && req.method === 'GET') {
+        const jobId = pollMatch[1]!
+        const nowSeconds = Math.floor(Date.now() / 1000)
+        res.statusCode = 200
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            id: jobId,
+            model: jobModels.get(jobId),
+            status: 'succeeded',
+            created_at: nowSeconds - 30,
+            updated_at: nowSeconds,
+            content: { video_url: VIDEO_URL },
+            usage: { completion_tokens: 39285, total_tokens: 39285 },
+            seed: 1234567890,
+            resolution: '480p',
+            ratio: '16:9',
+            duration: 5,
+            framespersecond: 24,
+            output_format: 'mp4',
+            service_tier: 'default',
+          }),
+        )
+        return true
+      }
+
+      // Not a Seedance path — fall through to aimock's compat-path
+      // normalization (Ark chat + Seedream image live under the same prefix).
+      return false
+    },
+  }
+}
+
+/**
+ * Mounts Seed Speech's synchronous TTS endpoint,
+ * `POST /api/v3/tts/create`.
+ *
+ * The request is validated against the decoded wire schema (see
+ * `readJsonRequestBody` for why these mounts validate at all). Three fields
+ * pin the shapes most likely to regress silently:
+ *
+ * - `text_prompt` — the synthesis field. There is no request-side `text`; that
+ *   belongs to the *other* endpoint (`/tts/unidirectional`), so a rename to
+ *   `text` is exactly the kind of drift worth catching.
+ * - `references[0].speaker` — the voice nests inside `references[]`. A
+ *   top-level `speaker` is ignored by the real server, which would otherwise
+ *   look like success here.
+ * - `audio_config.format` — always sent explicitly by the adapter.
+ *
+ * The response echoes that requested format's container (see
+ * `FAKE_AUDIO_BY_FORMAT`), because the adapter derives its result's content
+ * type from what it asked for, not from anything in this payload.
+ *
+ * The envelope is the documented one: a numeric `code` (0 on success), base64
+ * `audio`, `duration` / `original_duration` in **seconds**, and a temporary
+ * `url`. Note that a non-zero `code` can arrive on an HTTP 200 — the adapter
+ * rejects `code !== 0`, so this must send 0 for the success path to hold.
+ * `subtitle` is omitted: the adapter only asks for it via `enable_subtitle`,
+ * which this feature doesn't set.
+ */
+function byteplusTTSMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/tts/create' || req.method !== 'POST') return false
+
+      const body = await readJsonRequestBody(req)
+      if (!body) {
+        return rejectVoiceRequest(res, 'Malformed JSON body.')
+      }
+      if (typeof body.text_prompt !== 'string' || !body.text_prompt) {
+        return rejectVoiceRequest(
+          res,
+          'Missing text_prompt (note: the synthesis field is text_prompt, not text).',
+        )
+      }
+      const references = Array.isArray(body.references)
+        ? body.references
+        : undefined
+      const speaker = asRecord(references?.[0])?.speaker
+      if (typeof speaker !== 'string' || !speaker) {
+        return rejectVoiceRequest(
+          res,
+          'Missing references[0].speaker (the voice nests inside references[], not at the top level).',
+        )
+      }
+      const audioConfig = asRecord(body.audio_config)
+      const format = audioConfig?.format
+      if (typeof format !== 'string' || !(format in FAKE_AUDIO_BY_FORMAT)) {
+        return rejectVoiceRequest(
+          res,
+          `Missing or unsupported audio_config.format: ${String(format)}.`,
+        )
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          code: 0,
+          message: 'Success',
+          audio: FAKE_AUDIO_BY_FORMAT[format]!.toString('base64'),
+          duration: 2.4,
+          original_duration: 2.4,
+          url: `https://example.com/welcome-to-the-guitar-store.${format}`,
+          // Timings only come back when the caller opted in. No spec sets
+          // `enable_subtitle` today; this keeps the branch honest if one does.
+          // Subtitle times are MILLISECONDS even though `duration` above is
+          // seconds — the endpoint genuinely mixes units, so don't "fix" it.
+          ...(audioConfig?.enable_subtitle === true && {
+            subtitle: {
+              sentences: [
+                {
+                  text: 'welcome to the guitar store',
+                  start_time: 0,
+                  end_time: 2400,
+                },
+              ],
+            },
+          }),
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts Seed Speech's synchronous ASR endpoint,
+ * `POST /api/v3/auc/bigmodel/recognize/flash`.
+ *
+ * The transcript matches the other providers' transcription mocks so
+ * `transcription.spec.ts` asserts the same "Fender Stratocaster" text for
+ * every provider. Wire timings are **milliseconds** (the adapter converts
+ * them to seconds), and the payload uses the nested `result` spelling rather
+ * than the flat aliases.
+ *
+ * The request is validated for an `audio.url` or `audio.data` (see
+ * `readJsonRequestBody`): the endpoint takes the clip one way or the other,
+ * and an adapter that sent neither would otherwise still get a transcript back
+ * and pass.
+ */
+function byteplusASRMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      pathname: string,
+    ): Promise<boolean> {
+      if (
+        pathname !== '/auc/bigmodel/recognize/flash' ||
+        req.method !== 'POST'
+      ) {
+        return false
+      }
+
+      const body = await readJsonRequestBody(req)
+      if (!body) {
+        return rejectVoiceRequest(res, 'Malformed JSON body.')
+      }
+      const audio = asRecord(body.audio)
+      const hasUrl = typeof audio?.url === 'string' && audio.url.length > 0
+      const hasData = typeof audio?.data === 'string' && audio.data.length > 0
+      if (!hasUrl && !hasData) {
+        return rejectVoiceRequest(
+          res,
+          'Missing audio: exactly one of audio.url or audio.data is required.',
+        )
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          audio_info: { duration: 2400 },
+          result: {
+            text: 'I would like to buy a Fender Stratocaster please',
+            utterances: [
+              {
+                text: 'I would like to buy a Fender Stratocaster please',
+                start_time: 0,
+                end_time: 2400,
+                words: [
+                  { text: 'I', start_time: 0, end_time: 100 },
+                  { text: 'would', start_time: 100, end_time: 300 },
+                  { text: 'like', start_time: 300, end_time: 500 },
+                  { text: 'to', start_time: 500, end_time: 600 },
+                  { text: 'buy', start_time: 600, end_time: 800 },
+                  { text: 'a', start_time: 800, end_time: 900 },
+                  { text: 'Fender', start_time: 900, end_time: 1300 },
+                  { text: 'Stratocaster', start_time: 1300, end_time: 2000 },
+                  { text: 'please', start_time: 2000, end_time: 2400 },
+                ],
+              },
+            ],
+          },
+        }),
+      )
+      return true
     },
   }
 }

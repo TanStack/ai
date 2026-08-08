@@ -91,6 +91,218 @@ describe('chatParamsFromRequestBody', () => {
   })
 })
 
+// The AG-UI `RunAgentInput` contract is validated structurally rather than by a
+// schema library, so the accept/reject boundary is covered explicitly here.
+describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
+  const base = {
+    threadId: 'thread-1',
+    runId: 'run-1',
+    tools: [],
+    context: [],
+  }
+  const withMessages = (messages: Array<unknown>) => ({ ...base, messages })
+
+  it.each([
+    ['a non-object body', 'not-an-object'],
+    ['a null body', null],
+    ['an array body', []],
+  ])('rejects %s', async (_label, body) => {
+    await expect(chatParamsFromRequestBody(body)).rejects.toThrow(/AG-UI/i)
+  })
+
+  it.each([
+    ['tools', { ...base, tools: undefined, messages: [] }],
+    ['context', { ...base, context: undefined, messages: [] }],
+  ])('rejects a missing required `%s` array', async (_label, body) => {
+    await expect(chatParamsFromRequestBody(body)).rejects.toThrow(/AG-UI/i)
+  })
+
+  it('rejects a non-array `messages`', async () => {
+    await expect(
+      chatParamsFromRequestBody({ ...base, messages: {} }),
+    ).rejects.toThrow(/messages must be an array/)
+  })
+
+  it('reports the offending index and field in the error', async () => {
+    await expect(
+      chatParamsFromRequestBody(
+        withMessages([
+          { id: 'm1', role: 'user', content: 'ok' },
+          { id: 'm2', role: 'user' },
+        ]),
+      ),
+    ).rejects.toThrow(/messages\[1\]\.content/)
+  })
+
+  it('rejects an unknown role', async () => {
+    await expect(
+      chatParamsFromRequestBody(
+        withMessages([{ id: 'm1', role: 'wizard', content: 'hi' }]),
+      ),
+    ).rejects.toThrow(/messages\[0\]\.role/)
+  })
+
+  it('rejects a message without a string id', async () => {
+    await expect(
+      chatParamsFromRequestBody(
+        withMessages([{ id: 7, role: 'user', content: 'hi' }]),
+      ),
+    ).rejects.toThrow(/messages\[0\]\.id/)
+  })
+
+  it.each(['developer', 'system', 'reasoning', 'user'] as const)(
+    'requires string content on a %s message',
+    async (role) => {
+      await expect(
+        chatParamsFromRequestBody(withMessages([{ id: 'm1', role }])),
+      ).rejects.toThrow(/messages\[0\]\.content/)
+    },
+  )
+
+  it('accepts an assistant message with no content (tool-calling turn)', async () => {
+    const result = await chatParamsFromRequestBody(
+      withMessages([
+        {
+          id: 'm1',
+          role: 'assistant',
+          toolCalls: [
+            {
+              id: 'tc1',
+              type: 'function',
+              function: { name: 'greet', arguments: '{}' },
+            },
+          ],
+        },
+      ]),
+    )
+    expect(result.messages).toHaveLength(1)
+  })
+
+  it('accepts multimodal user content as an array', async () => {
+    const result = await chatParamsFromRequestBody(
+      withMessages([
+        {
+          id: 'm1',
+          role: 'user',
+          content: [{ type: 'text', text: 'describe this' }],
+        },
+      ]),
+    )
+    expect(result.messages).toHaveLength(1)
+  })
+
+  it('requires toolCallId on a tool message', async () => {
+    await expect(
+      chatParamsFromRequestBody(
+        withMessages([{ id: 'm1', role: 'tool', content: 'result' }]),
+      ),
+    ).rejects.toThrow(/messages\[0\]\.toolCallId/)
+  })
+
+  it('requires activityType and object content on an activity message', async () => {
+    await expect(
+      chatParamsFromRequestBody(
+        withMessages([{ id: 'm1', role: 'activity', content: {} }]),
+      ),
+    ).rejects.toThrow(/messages\[0\]\.activityType/)
+
+    await expect(
+      chatParamsFromRequestBody(
+        withMessages([
+          { id: 'm1', role: 'activity', activityType: 'search', content: 'no' },
+        ]),
+      ),
+    ).rejects.toThrow(/messages\[0\]\.content/)
+  })
+
+  it('drops `parts` that contain unrecognized part types', async () => {
+    const result = await chatParamsFromRequestBody(
+      withMessages([
+        {
+          id: 'm1',
+          role: 'user',
+          content: 'hi',
+          parts: [{ type: 'not-a-real-part' }],
+        },
+      ]),
+    )
+    expect('parts' in result.messages[0]!).toBe(false)
+  })
+
+  it('rejects a malformed tool declaration', async () => {
+    await expect(
+      chatParamsFromRequestBody({
+        ...base,
+        messages: [],
+        tools: [{ name: 'greet' }],
+      }),
+    ).rejects.toThrow(/tools\[0\]\.description/)
+  })
+
+  it('rejects a malformed context entry', async () => {
+    await expect(
+      chatParamsFromRequestBody({
+        ...base,
+        messages: [],
+        context: [{ description: 'user tz', value: 5 }],
+      }),
+    ).rejects.toThrow(/context\[0\]\.value/)
+  })
+
+  it('rejects an unknown resume status', async () => {
+    await expect(
+      chatParamsFromRequestBody({
+        ...base,
+        messages: [],
+        resume: [{ interruptId: 'i1', status: 'maybe' }],
+      }),
+    ).rejects.toThrow(/resume\[0\]\.status/)
+  })
+
+  it('omits `payload` on resume entries that carry none', async () => {
+    const result = await chatParamsFromRequestBody({
+      ...base,
+      messages: [],
+      resume: [{ interruptId: 'i1', status: 'cancelled' }],
+    })
+    expect(result.resume).toEqual([{ interruptId: 'i1', status: 'cancelled' }])
+    expect('payload' in result.resume![0]!).toBe(false)
+  })
+
+  it('defaults forwardedProps to {} and rejects a non-object one', async () => {
+    const result = await chatParamsFromRequestBody(withMessages([]))
+    expect(result.forwardedProps).toEqual({})
+
+    await expect(
+      chatParamsFromRequestBody({
+        ...withMessages([]),
+        forwardedProps: 'nope',
+      }),
+    ).rejects.toThrow(/forwardedProps/)
+  })
+
+  it('passes `state` through untouched without validating it', async () => {
+    const state = { nested: { count: 1 } }
+    const result = await chatParamsFromRequestBody({
+      ...withMessages([]),
+      state,
+    })
+    expect(result.state).toEqual(state)
+  })
+
+  it('accepts an optional parentRunId and rejects a non-string one', async () => {
+    const result = await chatParamsFromRequestBody({
+      ...withMessages([]),
+      parentRunId: 'parent-1',
+    })
+    expect(result.parentRunId).toBe('parent-1')
+
+    await expect(
+      chatParamsFromRequestBody({ ...withMessages([]), parentRunId: 3 }),
+    ).rejects.toThrow(/parentRunId/)
+  })
+})
+
 describe('chatParamsFromRequest', () => {
   const validBody = {
     threadId: 'thread-1',

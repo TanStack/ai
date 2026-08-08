@@ -1,5 +1,19 @@
 <div align="center">
-  <img src="https://raw.githubusercontent.com/TanStack/ai/main/media/header_ai.png" alt="TanStack AI" />
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?framework=solid&theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png?framework=solid"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png?framework=solid"
+      alt="TanStack Solid AI"
+      width="900"
+    />
+  </picture>
 </div>
 
 <br />

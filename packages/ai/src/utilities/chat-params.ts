@@ -1,5 +1,10 @@
-import { AGUIError, RunAgentInputSchema } from '@ag-ui/core'
-import type { Context as AGUIContext } from '@ag-ui/core'
+import { AGUIError } from '@ag-ui/core'
+import type {
+  Context as AGUIContext,
+  Message as AGUIMessage,
+  ResumeEntry as AGUIResumeEntry,
+  Role as AGUIRole,
+} from '@ag-ui/core'
 import type {
   AnyTool,
   JSONSchema,
@@ -30,6 +35,162 @@ function isValidParts(value: unknown): value is Array<{ type: string }> {
 }
 
 /**
+ * Keyed by `AGUIRole` so a role added upstream fails to compile here until it
+ * is handled, rather than silently falling through as an unknown role.
+ */
+const AGUI_ROLES: Record<AGUIRole, true> = {
+  developer: true,
+  system: true,
+  assistant: true,
+  user: true,
+  tool: true,
+  activity: true,
+  reasoning: true,
+}
+
+function isAGUIRole(value: unknown): value is AGUIRole {
+  return typeof value === 'string' && value in AGUI_ROLES
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Reject the request body, pointing at the migration guide. Mirrors the
+ * message the previous `RunAgentInputSchema.safeParse` failure produced.
+ */
+function invalidBody(reason: string): never {
+  throw new AGUIError(
+    `Request body is not a valid AG-UI RunAgentInput. ` +
+      `If you're upgrading from a previous @tanstack/ai-client release, ` +
+      `see docs/migration/ag-ui-compliance.md. ` +
+      `Validation errors: ${reason}`,
+  )
+}
+
+function requireString(value: unknown, at: string): string {
+  if (typeof value !== 'string') invalidBody(`${at} must be a string`)
+  return value
+}
+
+function requireArray(value: unknown, at: string): Array<unknown> {
+  if (!Array.isArray(value)) invalidBody(`${at} must be an array`)
+  return value
+}
+
+/**
+ * Assert one AG-UI `Message`, discriminating on `role` exactly as the upstream
+ * `MessageSchema` discriminated union does. The record view is retained on the
+ * asserted type so callers can still inspect non-AG-UI extras like `parts`.
+ */
+function assertAGUIMessage(
+  value: Record<string, unknown>,
+  at: string,
+): asserts value is Record<string, unknown> & AGUIMessage {
+  requireString(value.id, `${at}.id`)
+
+  const role = value.role
+  if (!isAGUIRole(role)) {
+    invalidBody(
+      `${at}.role must be one of ${Object.keys(AGUI_ROLES).join(' | ')}`,
+    )
+  }
+
+  switch (role) {
+    case 'assistant':
+      // Both optional: a tool-calling turn carries no text content.
+      if (value.content !== undefined) {
+        requireString(value.content, `${at}.content`)
+      }
+      if (value.toolCalls !== undefined) {
+        requireArray(value.toolCalls, `${at}.toolCalls`)
+      }
+      break
+    case 'user':
+      if (typeof value.content !== 'string' && !Array.isArray(value.content)) {
+        invalidBody(
+          `${at}.content must be a string or an array of content parts`,
+        )
+      }
+      break
+    case 'tool':
+      requireString(value.content, `${at}.content`)
+      requireString(value.toolCallId, `${at}.toolCallId`)
+      break
+    case 'activity':
+      requireString(value.activityType, `${at}.activityType`)
+      if (!isRecord(value.content)) {
+        invalidBody(`${at}.content must be an object`)
+      }
+      break
+    case 'developer':
+    case 'system':
+    case 'reasoning':
+      requireString(value.content, `${at}.content`)
+      break
+  }
+}
+
+function validateMessage(value: unknown, index: number): AGUIMessage {
+  const at = `messages[${index}]`
+  if (!isRecord(value)) invalidBody(`${at} must be an object`)
+  assertAGUIMessage(value, at)
+
+  // `parts` is TanStack's canonical extra, carried through so the UIMessage
+  // path inside `chat()` can use it. Keep it only when it holds recognized
+  // part types — the previous schema-based path dropped `parts` during parse
+  // and re-attached it from the raw body behind this same check.
+  if ('parts' in value && !isValidParts(value.parts)) {
+    const withoutParts = { ...value }
+    Reflect.deleteProperty(withoutParts, 'parts')
+    return withoutParts
+  }
+  return value
+}
+
+function validateTool(
+  value: unknown,
+  index: number,
+): { name: string; description: string; parameters: JSONSchema } {
+  const at = `tools[${index}]`
+  if (!isRecord(value)) invalidBody(`${at} must be an object`)
+  return {
+    name: requireString(value.name, `${at}.name`),
+    description: requireString(value.description, `${at}.description`),
+    // Upstream `ToolSchema` types this as optional `any`; it reaches the
+    // provider as a raw JSON Schema either way.
+    parameters: value.parameters as JSONSchema,
+  }
+}
+
+function validateContext(value: unknown, index: number): AGUIContext {
+  const at = `context[${index}]`
+  if (!isRecord(value)) invalidBody(`${at} must be an object`)
+  return {
+    description: requireString(value.description, `${at}.description`),
+    value: requireString(value.value, `${at}.value`),
+  }
+}
+
+function validateResumeEntry(value: unknown, index: number): AGUIResumeEntry {
+  const at = `resume[${index}]`
+  if (!isRecord(value)) invalidBody(`${at} must be an object`)
+  const status = value.status
+  if (status !== 'resolved' && status !== 'cancelled') {
+    invalidBody(`${at}.status must be "resolved" or "cancelled"`)
+  }
+  const entry: AGUIResumeEntry = {
+    interruptId: requireString(value.interruptId, `${at}.interruptId`),
+    status,
+  }
+  // Omit the key entirely when absent, matching the optional-field shape the
+  // schema produced.
+  if (value.payload !== undefined) entry.payload = value.payload
+  return entry
+}
+
+/**
  * Parse and validate an HTTP request body as an AG-UI `RunAgentInput`.
  *
  * Returns a spread-friendly object whose `messages` field is suitable for
@@ -37,11 +198,14 @@ function isValidParts(value: unknown): value is Array<{ type: string }> {
  * `convertMessagesToModelMessages` handles AG-UI fan-out dedup and
  * reasoning/activity/developer-role normalization internally.
  *
+ * Validated structurally against the AG-UI `RunAgentInput` contract without a
+ * schema library, so this package pulls in no validation runtime of its own.
+ *
  * @throws An error with a migration-pointing message when the body does
- *   not conform to AG-UI `RunAgentInputSchema`. Surface this as a
+ *   not conform to AG-UI `RunAgentInput`. Surface this as a
  *   400 Bad Request to the client.
  */
-export function chatParamsFromRequestBody(body: unknown): Promise<{
+export async function chatParamsFromRequestBody(body: unknown): Promise<{
   messages: Array<UIMessage | ModelMessage>
   threadId: string
   runId: string
@@ -57,55 +221,41 @@ export function chatParamsFromRequestBody(body: unknown): Promise<{
   context: Array<AGUIContext>
   aguiContext: Array<AGUIContext>
 }> {
-  const parseResult = RunAgentInputSchema.safeParse(body)
-  if (!parseResult.success) {
-    return Promise.reject(
-      new AGUIError(
-        `Request body is not a valid AG-UI RunAgentInput. ` +
-          `If you're upgrading from a previous @tanstack/ai-client release, ` +
-          `see docs/migration/ag-ui-compliance.md. ` +
-          `Validation errors: ${parseResult.error.message}`,
-      ),
-    )
+  if (!isRecord(body)) invalidBody('body must be a JSON object')
+
+  const threadId = requireString(body.threadId, 'threadId')
+  const runId = requireString(body.runId, 'runId')
+  const parentRunId =
+    body.parentRunId === undefined
+      ? undefined
+      : requireString(body.parentRunId, 'parentRunId')
+
+  const messages = requireArray(body.messages, 'messages').map(validateMessage)
+  const tools = requireArray(body.tools, 'tools').map(validateTool)
+  const aguiContext = requireArray(body.context, 'context').map(validateContext)
+  const resume =
+    body.resume === undefined
+      ? undefined
+      : requireArray(body.resume, 'resume').map(validateResumeEntry)
+
+  if (body.forwardedProps !== undefined && !isRecord(body.forwardedProps)) {
+    invalidBody('forwardedProps must be an object')
   }
 
-  const parsed = parseResult.data
-  const aguiContext = parsed.context
-
-  // AG-UI Zod uses `.strip()` so extra fields like `parts` on messages are
-  // dropped during parse. We re-attach them from the original body so the
-  // existing UIMessage path inside `chat()` can use them directly.
-  const rawMessages =
-    (body as { messages?: Array<Record<string, unknown>> }).messages ?? []
-  const messages = parsed.messages.map((m, i) => {
-    const raw = rawMessages[i]
-    if (
-      raw &&
-      typeof raw === 'object' &&
-      'parts' in raw &&
-      isValidParts(raw.parts)
-    ) {
-      return { ...m, parts: raw.parts } as UIMessage | ModelMessage
-    }
-    return m as ModelMessage
-  })
-
-  return Promise.resolve({
-    messages,
-    threadId: parsed.threadId,
-    runId: parsed.runId,
-    parentRunId: parsed.parentRunId,
-    tools: parsed.tools as Array<{
-      name: string
-      description: string
-      parameters: JSONSchema
-    }>,
-    forwardedProps: (parsed.forwardedProps ?? {}) as Record<string, unknown>,
-    state: parsed.state,
-    resume: parsed.resume,
+  return {
+    // Unknown top-level fields (e.g. a legacy `cursor`) are dropped by
+    // construction: only the fields below are copied onto the result.
+    messages: messages as Array<UIMessage | ModelMessage>,
+    threadId,
+    runId,
+    parentRunId,
+    tools,
+    forwardedProps: (body.forwardedProps ?? {}) as Record<string, unknown>,
+    state: body.state,
+    resume: resume as Array<RunAgentResumeItem> | undefined,
     context: aguiContext,
     aguiContext,
-  })
+  }
 }
 
 /**

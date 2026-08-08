@@ -22,8 +22,9 @@ it has the driver-specific code:
 | Cloudflare Workers + D1   | ai-persistence/build-cloudflare-adapter |
 
 Everything else lands here. The full contracts and their invariants are in
-**ai-persistence/stores**; the complete worked `node:sqlite` walkthrough
-is `docs/persistence/build-your-own-adapter.md` and
+**ai-persistence/stores** and `docs/persistence/store-reference.md`; the
+complete worked `node:sqlite` walkthrough is
+`docs/persistence/build-your-own-chat-adapter.md` and
 `examples/ts-react-chat/src/lib/sqlite-persistence.ts`.
 
 ## 1. Read the app before writing anything
@@ -42,25 +43,36 @@ is `docs/persistence/build-your-own-adapter.md` and
 Four logical records. Whatever the engine, keep these keys — the store methods
 look records up by exactly these:
 
-| Record    | Key                | Fields                                                                              |
-| --------- | ------------------ | ----------------------------------------------------------------------------------- |
-| thread    | `threadId`         | `messages` (array, full transcript)                                                 |
-| run       | `runId`            | `threadId`, `status`, `startedAt`, `finishedAt?`, `error?`, `usage?`                |
-| interrupt | `interruptId`      | `runId`, `threadId`, `status`, `requestedAt`, `resolvedAt?`, `payload`, `response?` |
-| metadata  | `(namespace, key)` | `value`                                                                             |
+| Record    | Key                | Fields                                                                                                                                    |
+| --------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| thread    | `threadId`         | `messages` (array, full transcript)                                                                                                       |
+| run       | `runId`            | `threadId`, `status`, `startedAt`, `finishedAt?`, `error?`, `usage?`, `sandboxKey?`, `detachedSince?`, `cancelRequested?`, `driverEpoch?` |
+| interrupt | `interruptId`      | `runId`, `threadId`, `status`, `requestedAt`, `resolvedAt?`, `payload`, `response?`                                                       |
+| metadata  | `(namespace, key)` | `value`                                                                                                                                   |
 
 - Timestamps are **epoch milliseconds** (`number`) in records. Store them
   however the engine prefers and convert in the mapper.
 - `(namespace, key)` is a **composite** key. Never join with a separator —
   `('a:b','c')` and `('a','b:c')` must stay distinct records, and the
   conformance suite checks it.
-- Index `runs(threadId, status)` and `interrupts(threadId, requestedAt)` — those
-  are the two listing paths.
+- Index `runs(threadId, status)`, `runs(threadId, startedAt)`, and
+  `interrupts(threadId, requestedAt)` for the listing paths. If the backend
+  implements `listReclaimable`, also index `runs(status, detachedSince)`; that
+  is the query it runs.
+- `run.error` is a structured `RunError` (`{ message: string, code?: string }`),
+  not a bare string. `message` is the provider's prose; `code` is the stable,
+  machine-branchable classification an operator filters and groups by. In a
+  SQL-backed table, store it as two columns (`error`, `error_code`) rather than
+  one JSON blob, moved together in `update` so a later code-less failure can
+  never leave a stale `code` from an earlier one behind. `run.status` is one of
+  `'running' | 'interrupted' | 'completed' | 'failed' | 'aborted'`;
+  `'interrupted'` is a pause, not terminal, and only
+  `'completed' | 'failed' | 'aborted'` are terminal.
 - Extra app-owned columns are fine (a `userId`, audit columns) as long as they
   are nullable or defaulted. The stores never read columns they do not know
   about.
 
-## 3. The five invariants
+## 3. The invariants
 
 Getting one of these wrong is the usual source of stuck approvals and wiped
 history. They are engine-independent:
@@ -74,13 +86,33 @@ history. They are engine-independent:
 4. **`runs.update` on an unknown id is a silent no-op** — it must not throw and
    must not insert. (Drivers that throw on zero rows affected need the
    `updateMany`-style call, not the `update`-one-or-throw call.)
-5. **`interrupts.create` is insert-if-absent** — never clobber a resolved
+5. **`runs.update` distinguishes "field omitted" from "field explicitly
+   cleared" for the durable-run fields** (`sandboxKey`, `detachedSince`,
+   `cancelRequested`, `driverEpoch`). A reattach clears `detachedSince` by
+   passing it explicitly as `undefined` — `update(runId, { detachedSince: undefined })`
+   — and that must write `NULL`, not be silently dropped. Check
+   `'detachedSince' in patch`, never `patch.detachedSince !== undefined`; the
+   latter cannot tell a clear from an omission and leaves every reattached run
+   looking permanently detached to the reaper. Same rule for
+   `cancelRequested` (`false` is a real value, not "unset") and for
+   `sandboxKey` / `driverEpoch`. See
+   `examples/ts-react-chat/src/lib/sqlite-persistence.ts` for the pattern.
+6. **`interrupts.create` is insert-if-absent** — never clobber a resolved
    interrupt back to pending. Every `list*` is ordered by `requestedAt`
    ascending.
+7. **`runs.listReclaimable` uses an inclusive cutoff** (if implemented):
+   `status === 'running' AND detachedSince <= now - ttlMs`. It is a query, not
+   automatic reclamation: `reapDetachedRuns` from `@tanstack/ai-sandbox` is the
+   sweep that consumes it, and the application schedules that sweep. A store
+   without this method cannot be reaped. `runs.findActiveRun` is required;
+   `runs.listByThread` / `runs.listReclaimable` are optional: implement only
+   what the app needs and leave the rest off the object.
 
 Row mappers omit absent optionals
-(`...(row.error != null ? { error: row.error } : {})`) so records compare
-cleanly against the reference in-memory backend.
+(`...(row.sandbox_key != null ? { sandboxKey: row.sandbox_key } : {})`) so
+records compare cleanly against the reference in-memory backend. For a
+two-column `error`/`error_code` layout, the mapper is
+`...(row.error != null ? { error: { message: row.error, ...(row.error_code != null ? { code: row.error_code } : {}) } } : {})`.
 
 ## 4. Write `src/lib/chat-persistence.ts`
 
@@ -150,7 +182,17 @@ function createRunStore(db: Pool): RunStore {
         stored ?? { runId, threadId, status: status ?? 'running', startedAt }
       )
     },
-    // ... update (no-op on unknown id), findActiveRun (latest 'running')
+    // ... update (no-op on unknown id; sandboxKey/detachedSince/
+    // cancelRequested/driverEpoch are checked with `'field' in patch`, not
+    // `patch.field !== undefined`, so an explicit `undefined` (a clear) still
+    // writes NULL instead of being silently dropped — status/finishedAt/usage
+    // can use the simpler `!== undefined` check since they are never
+    // explicitly cleared; writes patch.error as two columns,
+    // error = patch.error.message and error_code = patch.error.code ?? null,
+    // together in the same call),
+    // findActiveRun (latest 'running', required), listByThread (ascending
+    // by startedAt, optional), listReclaimable (status = 'running' AND
+    // detachedSince <= now - ttlMs, inclusive cutoff, optional)
   }
 }
 
@@ -195,8 +237,10 @@ statements at factory scope, `INSERT ... ON CONFLICT`, JSON as `text`, epoch ms
 as `integer`. Wrap sync calls in `async` methods; the contracts are promise-based.
 
 **MongoDB** — one collection per record type, `_id` set to the natural key
-(`threadId`, `runId`, `interruptId`, and `` `${namespace}�${key}` `` or a
-compound unique index on `{ namespace, key }` — never a `:`-joined string).
+(`threadId`, `runId`, `interruptId`). For `metadata`, use `_id: { namespace, key }`
+— a compound `_id` subdocument, or a unique index on `{ namespace, key }` — never
+a delimiter-joined string. Invariant: `('a:b','c')` and `('a','b:c')` must stay
+distinct records, and the conformance suite checks it.
 `createOrResume` is `updateOne({ _id }, { $setOnInsert: doc }, { upsert: true })`
 then a `findOne` — `$setOnInsert` is the insert-if-absent primitive. Guard the
 `E11000` duplicate-key race and re-read. `list*` need `.sort({ requestedAt: 1 })`.
@@ -207,7 +251,7 @@ indexes you have to maintain by hand (a sorted set per thread and per run,
 scored by `requestedAt`). A common split is Postgres for `messages`/`runs`/
 `interrupts` and Redis for locks; compose them with `composePersistence`.
 
-**Anything else** — you only need the five invariants above. The core never
+**Anything else** — you only need the seven invariants above. The core never
 inspects your storage.
 
 ## Adopt part of it
@@ -276,3 +320,9 @@ Point it at a throwaway database and reset between runs. The suite covers all
 seven stores, so declare every intentional omission — a chat adapter skips the
 generation half above, and adds e.g. `'metadata'` if it drops that too. `skip`
 never accepts `'locks'`, which is not a store.
+
+If your recipe leaves an optional `runs` method (`listByThread`/
+`listReclaimable`) unimplemented, declare it separately with `skipMethods`, e.g.
+`{ skipMethods: ['runs.listByThread'] }`. An omitted method that is not declared
+fails the suite instead of silently passing. `findActiveRun` is **not** in that
+set — it is required, so there is nothing to declare.

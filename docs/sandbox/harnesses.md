@@ -1,7 +1,7 @@
 ---
 title: Harnesses
 id: sandbox-harnesses
-description: "Pick which coding agent runs inside a TanStack AI sandbox — Grok Build, Claude Code, Codex, OpenCode, or any ACP-compliant agent via acpCompatible."
+description: "Pick which coding agent runs inside a TanStack AI sandbox: Grok Build, Claude Code, Codex, OpenCode, or any ACP-compliant agent via acpCompatible."
 ---
 
 A **harness adapter** is the second axis of a sandboxed run: it decides _which
@@ -39,12 +39,65 @@ const stream = chat({
 })
 ```
 
+## Harness output can go to a journal
+
+`grokBuildText`, `claudeCodeText`, and `codexText` can stop holding the agent's
+stdout pipe: instead they redirect it to an append-only NDJSON file inside the
+sandbox (`/tmp/tanstack-runs/<runId>.ndjson`) and tail that, so losing the host
+cannot signal the agent and any later reader can replay the run from byte 0.
+
+**They do that only for a durable run.** Journaling is opt-in, and the opt-in is
+passing `withSandbox` **both** `runs` and `durability` (the snippet above), a
+plain `withSandbox(sandbox)`, writes no journal and streams over a pipe exactly
+as it always has. Pass both and forward the `runId`, whose value the journal path
+is derived from (a durable run with no caller-supplied `runId` throws
+`DurableRunIdRequiredError` rather than minting one nothing can recompute):
+
+```ts
+import {
+  chat,
+  chatParamsFromRequest,
+  memoryStream,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { codexText } from '@tanstack/ai-codex'
+import { memoryPersistence } from '@tanstack/ai-persistence'
+import { withSandbox } from '@tanstack/ai-sandbox'
+import { sandbox } from './sandbox'
+
+// Single-process stand-ins; ./takeover has the multi-replica wiring.
+const persistence = memoryPersistence()
+const { runs } = persistence.stores
+
+export async function POST(request: Request) {
+  const { messages, threadId, runId } = await chatParamsFromRequest(request)
+  const adapter = memoryStream(request)
+  const stream = chat({
+    adapter: codexText('gpt-5.3-codex'),
+    messages,
+    threadId,
+    runId, // makes the run's journal findable again
+    // BOTH stores, or there is no journal: this is the whole opt-in.
+    middleware: [withSandbox(sandbox, { runs, durability: { adapter } })],
+  })
+  return toServerSentEventsResponse(stream, { durability: { adapter } })
+}
+```
+
+The id must be unique per run: the journal appends, so reusing one makes a reader
+stop at the previous run's exit sentinel. Full details, including what you get
+without the opt-in and replay against an already-delivered log, are in
+[The Run Journal](./journal).
+
+`opencodeText` and `acpCompatible` harnesses do not read NDJSON off stdout at
+all, so they have no journal even when a run is durable.
+
 ## Any ACP agent (`acpCompatible`)
 
 Many coding agents speak the [Agent Client Protocol](https://agentclientprotocol.com)
-(ACP) — `pi`, `gemini --acp`, and [dozens of others](https://agentclientprotocol.com/get-started/agents).
+(ACP), `pi`, `gemini --acp`, and [dozens of others](https://agentclientprotocol.com/get-started/agents).
 For any of them that doesn't have a dedicated package, `acpCompatible` (from
-`@tanstack/ai-acp`) builds a harness adapter on the spot — the harness equivalent
+`@tanstack/ai-acp`) builds a harness adapter on the spot, the harness equivalent
 of `openaiCompatible`. Configure how to launch it once, then run it under any
 provider like the built-in adapters:
 
@@ -67,6 +120,8 @@ and protocol coverage). For which agents you can plug in, browse the official
 
 ## Where to go next
 
-- **[Providers](./providers)** — where the harness runs (local, Docker, Daytona, Vercel, Sprites).
-- **[Tools](./tools)** — bridge your app's own tools into the in-sandbox agent.
-- **[Events & File Hooks](./events)** — stream the agent's edits and activity to a UI.
+- **[Providers](./providers)**: where the harness runs (local, Docker, Daytona, Vercel, Sprites).
+- **[The Run Journal](./journal)**: how a run's output survives the host that started it.
+- **[Takeover & Detached Runs](./takeover)**: detach on disconnect, and the three exports a harness adapter implements to support attach.
+- **[Tools](./tools)**: bridge your app's own tools into the in-sandbox agent.
+- **[Events & File Hooks](./events)**: stream the agent's edits and activity to a UI.

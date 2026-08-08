@@ -58,7 +58,7 @@ The middleware uses whichever **state** stores the backend provides, no feature
 flags. `messages` is required; the rest are optional:
 
 - `messages` (required) loads and saves the full model-message thread.
-- `runs` records running, completed, failed, or interrupted status.
+- `runs` records running, interrupted, completed, failed, or aborted status.
 - `interrupts` records pending tool-approval / client-tool / generic waits, and
   requires `runs`.
 
@@ -71,25 +71,14 @@ schema changes through your deployment workflow instead. See
 
 ## Threads, runs, and turns
 
-Threads and runs are protocol concepts, not persistence ones. A **thread**
-(`threadId`) is the stable conversation, a **run** (`runId`) one
-`RUN_STARTED` → `RUN_FINISHED` execution, and one user-visible turn can span
-several runs. [Threads and runs](../chat/streaming#threads-and-runs)
-in the streaming guide covers the anatomy. What persistence adds is the durable
-record of them, anchored on the thread:
+The transcript is stored per `threadId`, and each run gets a `runs` record with its
+status, timings and usage. One thing follows from that and matters when you wire a
+client: a reconnecting client never has to present a run id it may no longer know.
+The store resolves the thread's live run with `findActiveRun(threadId)` and the client
+tails that.
 
-- The transcript is stored per `threadId` (the `messages` store).
-- Each run gets a `runs` record with status, timings, and usage. The id is
-  ephemeral, the record is not.
-- A reconnecting client (a reload, or the same thread on another device) never
-  has to present a run id it may no longer know: the store resolves the
-  thread's live run (`findActiveRun(threadId)`) and the client tails that.
-- Interrupt records carry both ids: the `runId` of the execution they paused
-  and the `threadId` of the conversation they live in.
-
-[Id map](./id-map) is the practical companion to this: how to choose a thread
-id, why both client and server must file under the same one, when to read
-`useChat`'s `runId`, and what the same two ids mean on the generation hooks.
+[Id map](./id-map) covers how to choose a thread id and what both ids mean on the
+generation hooks. [How persistence works](./internals) has the rest.
 
 ## Send the full transcript, or none of it
 
@@ -123,27 +112,38 @@ Streaming snapshots default off (finish is the authoritative save); enable
 them to trade extra writes for partial-output durability. Tune the interval
 with `snapshotIntervalMs` (default `1000`).
 
-How a run that does not finish cleanly is recorded:
+On **error**, the run is marked `failed`. On **abort**, the run is marked
+`aborted` with a `finishedAt`; `interrupted` is written only at an interrupt
+boundary, and it is not terminal. Resumes accepted in `onConfig` are **not**
+consumed until a success boundary (interrupt or finish), so a failed run leaves
+pending interrupts retryable with the same resume batch.
 
-- On **error**, the run is marked `failed`.
-- On **abort**, the run is marked `interrupted`.
+One abort does **not** terminalize: a plain client disconnect on a run that some
+other middleware has declared *detachable* (a durable event log plus a run
+store, in practice `withSandbox` with durability wired). There, `onAbort` writes
+nothing at all, the record stays `'running'`, and the detach path records
+`detachedSince` so a later request can take the run over. Intent is never
+inferred from the disconnect itself, because a user pressing Stop and a user
+closing the tab produce the identical connection close; a cancel arrives out of
+band, either as the run's own abort reason or as `RunRecord.cancelRequested`, and
+either one makes the abort terminal again. See
+[Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
 
-Resumes accepted in `onConfig` are **not** consumed until a success boundary (an
-interrupt or a finish), so a failed run leaves pending interrupts retryable with
-the same resume batch.
-
-Every run record moves through this lifecycle. All three end states are
-terminal for that record, because a continuation after an interrupt is a new run
-with a fresh `runId`:
+The lifecycle a run record moves through. `completed`, `failed`, and `aborted`
+are terminal; `interrupted` is **parked**, not terminal, and a continuation
+after one is a new run with a fresh `runId`:
 
 ```mermaid
 stateDiagram-v2
     [*] --> running : run starts (idempotent createOrResume)
     running --> completed : finish, transcript saved first
     running --> failed : error
-    running --> interrupted : interrupt boundary, or abort
+    running --> aborted : abort (explicit cancel, or a non-detachable run)
+    running --> interrupted : interrupt boundary
+    running --> running : plain disconnect on a DETACHABLE run (detachedSince set, taken over later)
     completed --> [*]
     failed --> [*]
+    aborted --> [*]
     interrupted --> [*] : continuation runs under a new runId
 ```
 

@@ -2,7 +2,12 @@ import { randomUUID } from 'node:crypto'
 import * as fsp from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
-import { LOCAL_PROCESS_CAPS, LocalProcessHandle } from './handle'
+import {
+  LOCAL_PROCESS_CAPS,
+  LocalProcessHandle,
+  removeDirWithRetry,
+} from './handle'
+import type { LocalProcessLogger } from './handle'
 import type {
   SandboxCapabilities,
   SandboxCreateInput,
@@ -31,6 +36,13 @@ export interface LocalProcessSandboxConfig {
    * of billing the API.
    */
   scrubEnv?: Array<string>
+  /**
+   * Sink for non-fatal teardown diagnostics — a `killTree` that could not
+   * confirm the spawned process tree is gone. Teardown is total by construction
+   * (it never throws), so without a logger such a failure is silent.
+   * `@tanstack/ai`'s `InternalLogger` satisfies this shape as-is.
+   */
+  logger?: LocalProcessLogger
 }
 
 class LocalProcessProvider implements SandboxProvider {
@@ -51,6 +63,7 @@ class LocalProcessProvider implements SandboxProvider {
       root,
       removeOnDestroy: this.removeDefault(),
       scrubEnv: this.config.scrubEnv,
+      logger: this.config.logger,
       forkFactory: async (sourceRoot) => {
         const dest = path.join(this.baseDir(), `fork-${randomUUID()}`)
         await fsp.mkdir(dest, { recursive: true })
@@ -58,6 +71,7 @@ class LocalProcessProvider implements SandboxProvider {
         return new LocalProcessHandle({
           root: dest,
           removeOnDestroy: true,
+          logger: this.config.logger,
           forkFactory: () =>
             Promise.reject(new Error('nested fork unsupported')),
         })
@@ -91,9 +105,16 @@ class LocalProcessProvider implements SandboxProvider {
     return this.makeHandle(input.id)
   }
 
+  /**
+   * Destroy by id (a dir path). Unlike `LocalProcessHandle.destroy` there is no
+   * handle here, so no children can be killed first — a process spawned through
+   * a handle we no longer hold may still own the dir as its CWD. The bounded
+   * retry is all that is available, and a dir that never releases is reported
+   * through the logger rather than silently left behind.
+   */
   async destroy(input: SandboxDestroyInput): Promise<void> {
     if (this.removeDefault()) {
-      await fsp.rm(input.id, { recursive: true, force: true })
+      await removeDirWithRetry(input.id, this.config.logger)
     }
   }
 }

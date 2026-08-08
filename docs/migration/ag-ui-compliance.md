@@ -363,7 +363,37 @@ Pure AG-UI `RunAgentInput` payloads (no TanStack `parts` field) work end-to-end:
 
 ## `@ag-ui/core` bump
 
-`@tanstack/ai` now depends on `@ag-ui/core@^0.0.52`. If your code imports types from `@tanstack/ai` that re-export AG-UI types, you may need minor type adjustments — see the changeset for specifics.
+`@tanstack/ai` now depends on `@ag-ui/core@0.1.1-canary.beta.0`. If your code imports types from `@tanstack/ai` that re-export AG-UI types, you may need minor type adjustments — see the changeset for specifics.
+
+### zod is no longer installed for you
+
+`@ag-ui/core` used to list `zod` as a runtime dependency, so every
+`@tanstack/ai` install pulled zod in transitively. As of `0.1.x` it declares zod
+as an optional peer instead, and `@tanstack/ai` no longer uses zod anywhere —
+the package now ships with no schema-validation runtime at all.
+
+`chatParamsFromRequest` / `chatParamsFromRequestBody` were the only zod
+consumers: they validated the request body with AG-UI's `RunAgentInputSchema`.
+They now validate the same `RunAgentInput` contract structurally. Their
+signatures, their thrown types (`AGUIError`, and a 400 `Response` from
+`chatParamsFromRequest`), and the `parts` passthrough on messages are all
+unchanged. The one visible difference is friendlier failures — the error names
+the offending field, e.g.:
+
+```
+Request body is not a valid AG-UI RunAgentInput. ... Validation errors: messages[1].content must be a string
+```
+
+zod is still fully supported for defining tools; it is just no longer installed
+on your behalf. If your project used zod without declaring it — relying on the
+transitive copy — add it explicitly:
+
+```bash
+npm install zod
+```
+
+If you define tools with a different Standard Schema library (ArkType, Valibot),
+you can now drop zod entirely.
 
 ## Out of scope (existing behavior preserved)
 

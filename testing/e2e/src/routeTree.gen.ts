@@ -33,6 +33,7 @@ import { Route as ApiTranscriptionRouteImport } from './routes/api.transcription
 import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
+import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
@@ -59,6 +60,7 @@ import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
+import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
@@ -197,6 +199,11 @@ const ApiSummarizeRoute = ApiSummarizeRouteImport.update({
   path: '/api/summarize',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSandboxToolHistoryRoute = ApiSandboxToolHistoryRouteImport.update({
+  id: '/api/sandbox-tool-history',
+  path: '/api/sandbox-tool-history',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiSandboxDurabilityRoute = ApiSandboxDurabilityRouteImport.update({
   id: '/api/sandbox-durability',
   path: '/api/sandbox-durability',
@@ -333,6 +340,11 @@ const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
   path: '/api/foreign-interrupt',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiDurableTakeoverRoute = ApiDurableTakeoverRouteImport.update({
+  id: '/api/durable-takeover',
+  path: '/api/durable-takeover',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiDurableDeliveryRoute = ApiDurableDeliveryRouteImport.update({
   id: '/api/durable-delivery',
   path: '/api/durable-delivery',
@@ -432,6 +444,7 @@ export interface FileRoutesByFullPath {
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
@@ -458,6 +471,7 @@ export interface FileRoutesByFullPath {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
+  '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -498,6 +512,7 @@ export interface FileRoutesByTo {
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
@@ -524,6 +539,7 @@ export interface FileRoutesByTo {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
+  '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -565,6 +581,7 @@ export interface FileRoutesById {
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
+  '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
@@ -591,6 +608,7 @@ export interface FileRoutesById {
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
+  '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
   '/api/tools-test': typeof ApiToolsTestRoute
@@ -633,6 +651,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-takeover'
     | '/api/foreign-interrupt'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
@@ -659,6 +678,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/sandbox-durability'
+    | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -699,6 +719,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-takeover'
     | '/api/foreign-interrupt'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
@@ -725,6 +746,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/sandbox-durability'
+    | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -765,6 +787,7 @@ export interface FileRouteTypes {
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
+    | '/api/durable-takeover'
     | '/api/foreign-interrupt'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
@@ -791,6 +814,7 @@ export interface FileRouteTypes {
     | '/api/otel-usage'
     | '/api/persistence-durability'
     | '/api/sandbox-durability'
+    | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
     | '/api/tools-test'
@@ -832,6 +856,7 @@ export interface RootRouteChildren {
   ApiChatRoute: typeof ApiChatRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
+  ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
@@ -858,6 +883,7 @@ export interface RootRouteChildren {
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
+  ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
   ApiToolsTestRoute: typeof ApiToolsTestRoute
@@ -1035,6 +1061,13 @@ declare module '@tanstack/react-router' {
       path: '/api/summarize'
       fullPath: '/api/summarize'
       preLoaderRoute: typeof ApiSummarizeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sandbox-tool-history': {
+      id: '/api/sandbox-tool-history'
+      path: '/api/sandbox-tool-history'
+      fullPath: '/api/sandbox-tool-history'
+      preLoaderRoute: typeof ApiSandboxToolHistoryRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/sandbox-durability': {
@@ -1217,6 +1250,13 @@ declare module '@tanstack/react-router' {
       path: '/api/foreign-interrupt'
       fullPath: '/api/foreign-interrupt'
       preLoaderRoute: typeof ApiForeignInterruptRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/durable-takeover': {
+      id: '/api/durable-takeover'
+      path: '/api/durable-takeover'
+      fullPath: '/api/durable-takeover'
+      preLoaderRoute: typeof ApiDurableTakeoverRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/durable-delivery': {
@@ -1405,6 +1445,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiChatRoute: ApiChatRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
+  ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
@@ -1431,6 +1472,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
+  ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,
   ApiToolsTestRoute: ApiToolsTestRoute,

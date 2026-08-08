@@ -1,8 +1,72 @@
 import type { ServerTool, ToolDefinition } from '@tanstack/ai'
+import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import type { TransportInput } from './transport'
 
 /** A bare tool definition (from `toolDefinition({...})`, no `.server()`/`.client()` called). */
 export type AnyToolDefinition = ToolDefinition<any, any, string>
+
+/**
+ * The `mcp` block stamped onto every tool this package produces
+ * (`tool.metadata.mcp`), on BOTH the auto-discovery and explicit
+ * `tools(defs)` paths.
+ *
+ * You rarely name this type: `tools()` returns {@link McpServerTool}s, whose
+ * `metadata.mcp` is already typed as this shape, so the read needs no
+ * annotation and no cast:
+ *
+ * ```ts
+ * const tools = await mcp.tools()
+ * for (const tool of tools) {
+ *   if (tool.metadata.mcp.annotations?.readOnlyHint) {
+ *     // e.g. skip the approval prompt for a read-only tool
+ *   }
+ * }
+ * ```
+ */
+export interface McpToolMetadata {
+  /** Server-native (UNPREFIXED) tool name, even when the client sets a `prefix`. */
+  serverToolName: string
+  /**
+   * Human-readable display name, resolved with the MCP spec's precedence:
+   * `title` → `annotations.title` → `name`. Always set, so a UI can render it
+   * without re-implementing the fallback chain.
+   */
+  title: string
+  /** The owning client's `prefix` (the value a widget sends as `serverId`). */
+  serverId?: string
+  /** MCP Apps widget link, from the tool def's `_meta.ui.resourceUri`. */
+  uiResourceUri?: string
+  /**
+   * The server's `annotations` for this tool, forwarded verbatim (absent when
+   * the server declares none). All fields are **hints** — useful for display
+   * and for shaping an approval UI, never a security boundary.
+   */
+  annotations?: ToolAnnotations
+}
+
+/**
+ * A `ServerTool` produced by this package — structurally a plain `ServerTool`
+ * (so it drops straight into `chat({ tools })`) with one difference: its
+ * `metadata.mcp` block is statically known to be present and typed as
+ * {@link McpToolMetadata}.
+ *
+ * `ServerTool['metadata']` is `Record<string, any> | undefined`, so reading
+ * `tool.metadata.mcp` off a bare `ServerTool` neither compiles (possibly
+ * undefined) nor type-checks the fields under it (`any`). Every `tools()`
+ * overload returns these instead, which makes the natural read work and a
+ * misspelling a compile error:
+ *
+ * ```ts
+ * const [tool] = await mcp.tools()
+ * tool.metadata.mcp.title             // string
+ * tool.metadata.mcp.annotaions        // compile error (typo)
+ * ```
+ */
+export type McpServerTool<
+  TTool extends ServerTool<any, any, any> = ServerTool,
+> = Omit<TTool, 'metadata'> & {
+  metadata: Record<string, any> & { mcp: McpToolMetadata }
+}
 
 /** Compile-time-only descriptor of an MCP server, emitted by the codegen CLI. */
 export interface ServerDescriptor {
@@ -32,11 +96,12 @@ export interface ToolsOptions {
 /**
  * Per-element ServerTool type from a tool definition. `def.server(execute)`
  * already returns a fully-typed `ServerTool<TInput, TOutput, TName>`, so a
- * mapped tuple over the passed definitions preserves per-tool types.
+ * mapped tuple over the passed definitions preserves per-tool types. Wrapped
+ * in {@link McpServerTool} because the explicit path stamps `metadata.mcp` too.
  */
 export type ServerToolFromDef<TDef> =
   TDef extends ToolDefinition<infer TInput, infer TOutput, infer TName>
-    ? ServerTool<TInput, TOutput, TName>
+    ? McpServerTool<ServerTool<TInput, TOutput, TName>>
     : never
 
 export type MappedServerTools<TDefs extends ReadonlyArray<AnyToolDefinition>> =
@@ -53,7 +118,9 @@ export type MappedServerTools<TDefs extends ReadonlyArray<AnyToolDefinition>> =
  * emitted by the codegen CLI. Per-tool argument/result typing comes from the
  * explicit `tools(defs)` overload via `MappedServerTools`.
  */
-type DescribedTool<TKey extends string> = ServerTool<any, any, TKey>
+type DescribedTool<TKey extends string> = McpServerTool<
+  ServerTool<any, any, TKey>
+>
 
 /**
  * Discovery result typed from the generated descriptor: an array whose

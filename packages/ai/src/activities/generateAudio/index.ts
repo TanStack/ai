@@ -11,11 +11,18 @@ import { resolveDebugOption } from '../../logger/resolve'
 import {
   applyGenerationResultTransforms,
   createGenerationContext,
+  runGenerationAbort,
   runGenerationError,
   runGenerationFinish,
   runGenerationStart,
   runGenerationUsage,
 } from '../middleware/run'
+import {
+  abortReasonMessage,
+  createActivityAbortControls,
+  isActivityAbortError,
+  raceWithAbort,
+} from '../../utilities/activity-abort'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
@@ -89,6 +96,18 @@ export interface AudioActivityOptions<
   threadId?: string
   /** Stable run id for correlating this run when persisted. */
   runId?: string
+  /**
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default — choose a value suitable for the provider and job.
+   * Composed with {@link abortSignal}; the first abort wins.
+   */
+  timeout?: number
+  /**
+   * Caller cancellation signal (request disconnects, job/runtime cancellation).
+   * Composed with {@link timeout} into an effective signal forwarded to the
+   * adapter. Request-specific — not stored on global provider client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 // ===========================
@@ -167,12 +186,18 @@ async function runGenerateAudio<
     middleware,
     threadId,
     runId,
+    timeout,
+    abortSignal: callerAbortSignal,
     ...rest
   } = options
   const model = adapter.model
   const requestId = createId('audio')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
+  const abortControls = createActivityAbortControls({
+    timeout,
+    abortSignal: callerAbortSignal,
+  })
   const providerName =
     (adapter as { name?: string; provider?: string }).provider ??
     (adapter as { name?: string }).name ??
@@ -208,7 +233,16 @@ async function runGenerateAudio<
   })
 
   try {
-    const rawResult = await adapter.generateAudio({ ...rest, model, logger })
+    const rawResult = await raceWithAbort(
+      adapter.generateAudio({
+        ...rest,
+        model,
+        logger,
+        ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
+      }),
+      abortControls.signal,
+    )
+    abortControls.clear()
     const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const elapsedMs = Date.now() - startTime
 
@@ -245,6 +279,7 @@ async function runGenerateAudio<
 
     return result
   } catch (error) {
+    abortControls.clear()
     const elapsedMs = Date.now() - startTime
     const err = error as Error
     aiEventClient.emit('audio:request:error', {
@@ -256,10 +291,17 @@ async function runGenerateAudio<
       modelOptions: rest.modelOptions as Record<string, unknown> | undefined,
       timestamp: Date.now(),
     })
-    await runGenerationError(middleware, mwCtx, {
-      error,
-      duration: elapsedMs,
-    })
+    if (isActivityAbortError(error, abortControls.signal)) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: abortReasonMessage(error, abortControls.signal),
+        duration: elapsedMs,
+      })
+    } else {
+      await runGenerationError(middleware, mwCtx, {
+        error,
+        duration: elapsedMs,
+      })
+    }
     logger.errors('generateAudio activity failed', {
       error,
       source: 'generateAudio',

@@ -1,5 +1,5 @@
 ---
-title: Build a Chat Adapter
+title: Build a Chat Adapter (Advanced)
 id: build-your-own-chat-adapter
 ---
 
@@ -34,7 +34,12 @@ CREATE TABLE IF NOT EXISTS runs (
   started_at integer NOT NULL,
   finished_at integer,
   error text,
-  usage_json text
+  error_code text,
+  usage_json text,
+  sandbox_key text,
+  detached_since integer,
+  cancel_requested integer,
+  driver_epoch integer
 );
 CREATE TABLE IF NOT EXISTS interrupts (
   interrupt_id text PRIMARY KEY NOT NULL,
@@ -116,9 +121,10 @@ import type { RunRecord, RunStatus } from '@tanstack/ai-persistence'
 function toRunStatus(value: unknown): RunStatus {
   switch (value) {
     case 'running':
+    case 'interrupted':
     case 'completed':
     case 'failed':
-    case 'interrupted':
+    case 'aborted':
       return value
     default:
       throw new TypeError(`Unexpected run status: ${String(value)}`)
@@ -134,9 +140,41 @@ function mapRun(row: Record<string, unknown>): RunRecord {
     status: toRunStatus(row.status),
     startedAt: Number(row.started_at),
     ...(row.finished_at != null ? { finishedAt: Number(row.finished_at) } : {}),
-    ...(typeof row.error === 'string' ? { error: row.error } : {}),
+    // `error` is a `RunError`: the provider's prose in `error`, its stable
+    // classification in `error_code`. Two columns rather than one JSON blob,
+    // because `code` is the field an operator filters and groups by
+    // (`WHERE error_code = 'rate_limited'`), and this schema keeps the `_json`
+    // suffix for columns that really hold serialized JSON. Omit `code` when the
+    // column is NULL so the record matches an error that carried no code.
+    ...(typeof row.error === 'string'
+      ? {
+          error: {
+            message: row.error,
+            ...(typeof row.error_code === 'string'
+              ? { code: row.error_code }
+              : {}),
+          },
+        }
+      : {}),
     ...(typeof row.usage_json === 'string'
       ? { usage: JSON.parse(row.usage_json) }
+      : {}),
+    ...(typeof row.sandbox_key === 'string'
+      ? { sandboxKey: row.sandbox_key }
+      : {}),
+    ...(row.detached_since != null
+      ? { detachedSince: Number(row.detached_since) }
+      : {}),
+    // SQLite has no boolean column type; store it as 0/1 in an integer column
+    // and convert back here, the same way `detached_since` round-trips epoch ms.
+    ...(row.cancel_requested != null
+      ? { cancelRequested: Boolean(row.cancel_requested) }
+      : {}),
+    // The fencing token a takeover bumps. Round-trip it or single-writer
+    // fencing silently does nothing: a superseded host re-reads its own epoch,
+    // never sees a higher one, and keeps appending to a log it no longer owns.
+    ...(row.driver_epoch != null
+      ? { driverEpoch: Number(row.driver_epoch) }
       : {}),
   }
 }
@@ -150,6 +188,13 @@ function createRunStore(db: DatabaseSync) {
   const active = db.prepare(
     `SELECT * FROM runs WHERE thread_id = ? AND status = 'running'
      ORDER BY started_at DESC LIMIT 1`,
+  )
+  const byThread = db.prepare(
+    'SELECT * FROM runs WHERE thread_id = ? ORDER BY started_at ASC',
+  )
+  const reclaimable = db.prepare(
+    `SELECT * FROM runs WHERE status = 'running' AND detached_since IS NOT NULL
+     AND detached_since <= ? ORDER BY started_at ASC`,
   )
   return defineRunStore({
     async createOrResume(input) {
@@ -166,7 +211,7 @@ function createRunStore(db: DatabaseSync) {
     },
     async update(runId, patch) {
       const sets: Array<string> = []
-      const params: Array<string | number> = []
+      const params: Array<string | number | null> = []
       if (patch.status !== undefined) {
         sets.push('status = ?')
         params.push(patch.status)
@@ -176,12 +221,43 @@ function createRunStore(db: DatabaseSync) {
         params.push(patch.finishedAt)
       }
       if (patch.error !== undefined) {
-        sets.push('error = ?')
-        params.push(patch.error)
+        // Write both halves together, so a later failure that carries no `code`
+        // cannot leave the previous failure's code behind.
+        sets.push('error = ?', 'error_code = ?')
+        params.push(patch.error.message, patch.error.code ?? null)
       }
       if (patch.usage !== undefined) {
         sets.push('usage_json = ?')
         params.push(JSON.stringify(patch.usage))
+      }
+      // SANDBOX ONLY, skip these four unless you run durable sandboxed runs:
+      // https://tanstack.com/ai/latest/docs/persistence/build-a-sandbox-adapter
+      // A chat app never writes them and nothing here reads them.
+      //
+      // They are the fields a caller CLEARS by writing `undefined` explicitly, so
+      // these branches key off key presence (`'field' in patch`), not
+      // `!== undefined`.
+      if ('sandboxKey' in patch) {
+        sets.push('sandbox_key = ?')
+        params.push(patch.sandboxKey ?? null)
+      }
+      if ('detachedSince' in patch) {
+        sets.push('detached_since = ?')
+        params.push(patch.detachedSince ?? null)
+      }
+      if ('cancelRequested' in patch) {
+        sets.push('cancel_requested = ?')
+        params.push(
+          patch.cancelRequested === undefined
+            ? null
+            : patch.cancelRequested
+              ? 1
+              : 0,
+        )
+      }
+      if ('driverEpoch' in patch) {
+        sets.push('driver_epoch = ?')
+        params.push(patch.driverEpoch ?? null)
       }
       if (sets.length === 0) return
       params.push(runId)
@@ -202,6 +278,19 @@ function createRunStore(db: DatabaseSync) {
       const row = active.get(threadId)
       return row ? mapRun(row) : null
     },
+    // Every run for a thread, oldest first. Optional: only needed to render a
+    // thread's past agent activity.
+    async listByThread(threadId) {
+      return byThread.all(threadId).map(mapRun)
+    },
+    // Runs the reaper sweeps: still `running`, and detached since before
+    // `now - ttlMs`. `withSandbox`'s detach path sets `detachedSince` for you,
+    // and `reapDetachedRuns` from `@tanstack/ai-sandbox` consumes this list;
+    // this method only answers the query, scheduling that sweep is the app's
+    // job. Optional, like the others above.
+    async listReclaimable({ now, ttlMs }) {
+      return reclaimable.all(now - ttlMs).map(mapRun)
+    },
   })
 }
 ```
@@ -210,6 +299,16 @@ function createRunStore(db: DatabaseSync) {
 empty patch touches nothing and a partial patch leaves other columns alone. Map
 each row back with a small helper that omits absent optional fields and parses
 the JSON columns.
+
+**Absent is not the same as explicitly `undefined`.** A patch that omits a key
+must leave the column alone; a patch that carries the key with the value
+`undefined` must **clear** it. Only `detachedSince` is cleared that way today
+(the takeover path writes `{ detachedSince: undefined }` when a viewer
+re-attaches), but the distinction is easy to lose in whatever your ORM's "set"
+builder does with `undefined` (Drizzle's `.set()`, for instance, drops such
+columns). Get it wrong and nothing throws: the run simply looks detached
+forever. Index `runs(status, detached_since)` if you plan to sweep on
+`listReclaimable`.
 
 ## 4. Interrupts: insert-if-absent, ordered listings
 

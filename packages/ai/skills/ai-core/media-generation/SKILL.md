@@ -2,16 +2,16 @@
 name: ai-core/media-generation
 description: >
   Image, audio, video, speech (TTS), and transcription generation using
-  activity-specific adapters: generateImage() with openaiImage/geminiImage,
+  activity-specific adapters: generateImage() with openaiImage/geminiImage/byteplusImage,
   generateAudio() with geminiAudio/falAudio, generateVideo() with async
-  polling (openaiVideo/geminiVideo/grokVideo/falVideo, per-model typed
-  durations), generateSpeech() with openaiSpeech, generateTranscription()
-  with openaiTranscription. React hooks: useGenerateImage, useGenerateAudio,
+  polling (openaiVideo/geminiVideo/grokVideo/falVideo/byteplusVideo, per-model typed
+  durations), generateSpeech() with openaiSpeech/byteplusSpeech, generateTranscription()
+  with openaiTranscription/byteplusTranscription. React hooks: useGenerateImage, useGenerateAudio,
   useGenerateSpeech, useTranscription, useGenerateVideo.
   TanStack Start server function integration with toServerSentEventsResponse.
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/media/generations.md'
   - 'TanStack/ai:docs/media/generation-hooks.md'
@@ -150,8 +150,16 @@ function ImageGenerator() {
 ### 1. Image Generation
 
 Supported adapters: `openaiImage` (dall-e-2, dall-e-3, gpt-image-1,
-gpt-image-1-mini, gpt-image-2) and `geminiImage` (gemini-3.1-flash-image-preview,
-gemini-3.1-flash-lite-image, imagen-4.0-generate-001, etc.).
+gpt-image-1-mini, gpt-image-2), `geminiImage` (gemini-3.1-flash-image-preview,
+gemini-3.1-flash-lite-image, imagen-4.0-generate-001, etc.) and `byteplusImage`
+(Seedream — `seedream-4-0-250828`, `seedream-4-5-251128`, the 5.0 family).
+
+> **Seedream quirks:** `watermark` defaults to **`true`** (pass
+> `modelOptions: { watermark: false }` for a clean image), `size` is a token
+> (`'1K'` | `'2K'` | `'4K'`) **or** explicit `'2048x2048'` pixels but never a
+> mix, and `numberOfImages` is an **upper bound** — Seedream has no `n`, so it
+> maps onto group-image mode and the model may return fewer. Reads
+> `ARK_API_KEY`.
 
 ```typescript
 import { generateImage } from '@tanstack/ai'
@@ -333,7 +341,19 @@ const { generate, result, isLoading } = useGenerateAudio({
 
 ### 3. Text-to-Speech
 
-Adapter: `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview).
+Adapters: `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview) and
+`byteplusSpeech` (`seed-audio-1.0`).
+
+> **BytePlus Seed Speech is a separate product from ModelArk** — it reads
+> **`BYTEPLUS_VOICE_API_KEY`**, not `ARK_API_KEY`, and an Ark key there fails
+> with `45000010 Invalid X-Api-Key`. Output is capped at **120 seconds**.
+> There is no top-level `speaker` field — `voice` is sent as
+> `references: [{ speaker }]`, and `modelOptions.references` **replaces** that
+> array rather than merging, so passing `references` for voice cloning silently
+> drops `voice`. Voice ids ending `_uranus_bigtts` are TTS 2.0,
+> `_mars_bigtts` / `_moon_bigtts` are TTS 1.0, and `*_emo_v2_*` are the 1.0
+> voices that accept emotion tags. Formats: `wav`, `mp3`, `pcm`, `ogg_opus`;
+> `watermark` is also available on `modelOptions`.
 
 ```typescript
 import { generateSpeech } from '@tanstack/ai'
@@ -367,8 +387,10 @@ const { generate, result, isLoading } = useGenerateSpeech({
 
 ### 4. Audio Transcription
 
-Adapter: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
-gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize).
+Adapters: `openaiTranscription` (whisper-1, gpt-4o-transcribe,
+gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize) and `byteplusTranscription`
+(`seed-asr` — synchronous, no polling; audio up to 2 hours / 100 MB; also reads
+**`BYTEPLUS_VOICE_API_KEY`**).
 
 > **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass the recording as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`). For transcription, wrap it as a `data:` URL so the provider gets the real content type; passing raw `recording.base64` makes the adapter assume `audio/mpeg` and mislabel the webm/mp4 bytes.
 >
@@ -517,7 +539,20 @@ durations 4/8/12s, single `input_reference` image prompt part), `grokVideo(...)`
 (`grok-imagine-video` does text-to-video + image-to-video; `grok-imagine-video-1.5` is
 image-to-video only — needs an `image` prompt part as the starting frame, text-only throws;
 aspect-ratio size template like `'16:9_720p'`, integer durations 1-15s, reports
-`usage.billed` seconds ({ quantity, unit: 'seconds' }) and exact `usage.cost`), and `falVideo(...)` (hosted models, see cost tracking below).
+`usage.billed` seconds ({ quantity, unit: 'seconds' }) and exact `usage.cost`), `byteplusVideo(...)` (Seedance —
+aspect-ratio size template like `'16:9_720p'`, durations 4-15s on the 2.0 family,
+4-12s on 1.5-pro, 2-12s on the 1.0-pro models; reads `ARK_API_KEY`), and
+`falVideo(...)` (hosted models, see cost tracking below).
+
+> **Seedance option applicability is per model and enforced server-side** —
+> Ark returns a 400 for an inapplicable field rather than ignoring it.
+> `service_tier` / `camera_fixed` are Seedance 1.x only, `frames` is
+> 1-0-pro + 1-0-pro-fast only, `draft` is 1-5-pro only, `priority` is the 2.0
+> family only, and `duration: -1` works on 2.0 + 1-5-pro. There is no 2K tier
+> on any model and `4k` exists only on `dreamina-seedance-2-0-260128`.
+> **Video URLs expire 24 hours after the task completes** (task record kept 7
+> days). Seedance is also reachable via `falVideo` — `byteplusVideo` is the
+> direct-to-BytePlus path.
 
 Client hook with job tracking:
 

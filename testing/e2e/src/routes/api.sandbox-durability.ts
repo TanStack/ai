@@ -47,6 +47,7 @@ function fakeHandle(id: string): SandboxHandle {
       ports: false,
       backgroundProcesses: false,
       writableStdin: false,
+      killableProcesses: false,
       snapshots: false,
       networkPolicy: false,
       durableFilesystem: false,

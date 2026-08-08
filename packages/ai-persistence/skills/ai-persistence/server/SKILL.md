@@ -88,7 +88,7 @@ it because `stores.messages` is possibly `undefined`.
 | `onFinish`         | Full transcript **first**, then run → `completed`, commit resumes | No                               |
 | Stream (optional)  | Throttled partial assistant text                                  | Yes if `snapshotStreaming: true` |
 | `onError`          | Run → `failed`                                                    | Resumes stay pending             |
-| `onAbort`          | Run → `interrupted`                                               | Resumes stay pending             |
+| `onAbort`          | Run → `aborted` — **but only sometimes** (see below)              | Resumes stay pending             |
 
 ```ts
 withPersistence(persistence, {
@@ -96,6 +96,38 @@ withPersistence(persistence, {
   snapshotIntervalMs: 1000, // default
 })
 ```
+
+### `onAbort` writes conditionally, not always
+
+A user pressing Stop and a user closing the tab produce the **identical**
+connection close, so `onAbort` can never infer intent from the abort alone.
+It writes:
+
+- **`'aborted'`** (terminal, with `finishedAt`) when the abort is an explicit
+  cancel — `info.cancelRequested === true`, or a durable cancel request found
+  via `wasCancelRequested(runs, runId)` (both from `@tanstack/ai`; paired with
+  `requestRunCancel`/`RUN_CANCEL_REASON`) — **or** when the run is not
+  detachable at all (no sandbox/journal behind it, so there is nothing to
+  reattach to).
+- **Nothing** when it is a plain disconnect on a **detachable** run (some
+  other middleware, e.g. `@tanstack/ai-sandbox`, has provided
+  `DetachableRunCapability` from `@tanstack/ai`). The record deliberately
+  stays `'running'` — the agent keeps running and a later attach can take it
+  over. (The detaching middleware, not `withPersistence`, is what stamps
+  `detachedSince`.)
+
+Chat's `onAbort` and generation's `onAbort` (`withGenerationPersistence`) are
+**asymmetric on purpose**: a generation job has no journal and no agent loop
+to reattach to, so its `onAbort` always writes `'aborted'` unconditionally.
+Do not "fix" that asymmetry by making generation conditional, or chat
+unconditional — both are correct for what they wrap.
+
+Never build a client, or a persistence backend, that assumes a disconnect
+always finalizes the run — for a detachable run it usually does not, and
+inventing a `finishedAt` for a still-`'running'` record breaks takeover.
+Use `isTerminalRunStatus(status)` (from `@tanstack/ai-persistence`) to test
+whether a status is finished, rather than re-listing
+`'completed' | 'failed' | 'aborted'` by hand.
 
 Streaming snapshots default **off** (finish is authoritative). Enable only when
 partial-output durability is worth extra writes.

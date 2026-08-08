@@ -22,7 +22,7 @@ import {
 } from '../lib/generation-server-store'
 
 const SPEECH_PROVIDER_SCHEMA = z
-  .enum(['openai', 'gemini', 'fal', 'grok', 'elevenlabs'])
+  .enum(['openai', 'gemini', 'fal', 'grok', 'elevenlabs', 'byteplus'])
   .optional()
 
 const SPEECH_BODY_SCHEMA = z.object({

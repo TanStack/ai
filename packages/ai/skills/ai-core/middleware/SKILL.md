@@ -8,7 +8,7 @@ description: >
   execution order. NOT onEnd/onFinish callbacks on chat() — use middleware.
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/advanced/middleware.md'
   - 'TanStack/ai:docs/sandbox/observability.md'
@@ -118,16 +118,24 @@ onStructuredOutputConfig?: (
   | void
   | null
   | Partial<StructuredOutputMiddlewareConfig>
-  | Promise<void | Partial<StructuredOutputMiddlewareConfig>>
+  | Promise<void | null | Partial<StructuredOutputMiddlewareConfig>>
 ```
 
 **`StructuredOutputMiddlewareConfig` shape:**
 
 ```ts
-interface StructuredOutputMiddlewareConfig extends ChatMiddlewareConfig {
+interface StructuredOutputMiddlewareConfig extends Omit<
+  ChatMiddlewareConfig,
+  'tools'
+> {
   outputSchema: JSONSchema // The JSON Schema being sent to the provider
 }
 ```
+
+Note the `Omit<…, 'tools'>`: there is **no `config.tools`** on this hook. The
+structured-output call is the final, tool-free call, so reading or returning
+`tools` here is a compile error, not a no-op. Transform tools in `onConfig`
+instead.
 
 **Ordering rule:**
 
@@ -213,11 +221,18 @@ const toolGuard: ChatMiddleware = {
       return { type: 'abort', reason: 'Dangerous operation blocked' }
     }
 
-    // Enforce default arguments
-    if (hookCtx.toolName === 'search' && !hookCtx.args.limit) {
-      return {
-        type: 'transformArgs',
-        args: { ...hookCtx.args, limit: 10 },
+    // Enforce default arguments. `hookCtx.args` is `unknown` — the provider
+    // sent it — so narrow before reading it. No `as` casts.
+    if (hookCtx.toolName === 'search') {
+      const args =
+        typeof hookCtx.args === 'object' && hookCtx.args !== null
+          ? hookCtx.args
+          : {}
+      if (!('limit' in args)) {
+        return {
+          type: 'transformArgs',
+          args: { ...args, limit: 10 },
+        }
       }
     }
 
@@ -487,6 +502,57 @@ Annotate your factory with a named shape (`ChatPersistence` /
 Locks are separate from state and are **not** a `stores` key: wire a
 `LockStore` with `withLocks(lockStore)`.
 
+The `runs` store in that list is typed against `RunStore`, which ships in
+`@tanstack/ai` alongside `RunRecord`, `RunStatus`, `TerminalRunStatus`,
+`RunError`, `isTerminalRunStatus`, `defineRunStore`, and `InMemoryRunStore`. A
+`RunRecord` tracks one run: `runId`, `threadId`, `status`, `startedAt`, plus
+optional `finishedAt`, `error`, `usage`, `sandboxKey`, `detachedSince`,
+`cancelRequested`, and `driverEpoch`. A backend must round-trip **all** of
+them: `cancelRequested` is the durable out-of-band cancel channel
+(`requestRunCancel` writes it, `wasCancelRequested` reads it), and
+`driverEpoch` is the monotonic fencing token each host bumps when it claims a
+run, so a superseded host can discover it lost. Omit either and a durable
+sandboxed run loses a mechanism silently — Stop stops reaching a remote
+driver, or nothing fences a dead host's writes.
+`error` is a structured `RunError` (`{ message: string, code?: string }`), not
+a bare string: `message` is the provider's prose, `code` is the stable,
+machine-branchable classification a consumer switches on. Only
+`createOrResume`, `update`, `get`, and `findActiveRun` are required on a
+`RunStore`; `listByThread` and `listReclaimable` are optional, so a backend can
+leave either out and callers feature-detect
+(`store.listReclaimable?.(opts)`). Shape your own store with
+`defineRunStore` for autocomplete without a separate `: RunStore` annotation,
+matching `defineLock`; `defineRunStore<const T extends RunStore>(store: T): T`
+returns the argument's own type, so an optional method your store implements
+stays known-present on the result instead of collapsing to `| undefined`.
+`isTerminalRunStatus(status)` is a type predicate narrowing `RunStatus` to
+`TerminalRunStatus`, so code inside the guard can pass `status` where a
+`TerminalRunStatus` is required without a cast. When a backend omits an
+optional `RunStore` method, declare the omission when running the conformance
+testkit (`ai-persistence/stores`'s `skipMethods` option) rather than leaving it
+undeclared.
+
+### `StreamDurability.snapshot()`
+
+A `StreamDurability` (the event-log backend `memoryStream` / `durableStream`
+implement, and what `@tanstack/ai-sandbox`'s run driver resolves per run — its
+`RunDeps.durability` / `sandboxRunDriver({ durability })` is a factory
+`(runId) => StreamDurability`, because one log is bound to one run) requires a
+`snapshot()` method alongside `append`, `read`, and `close`:
+
+```ts
+snapshot: () => Promise<Array<{ offset: TOffset; chunk: StreamChunk }>>
+```
+
+It returns everything stored for a run right now, in append order, then
+resolves. Use it, not `read()`, when a caller needs to inspect a run's stored
+prefix and get an answer back: `read()` tails and only resolves once the log
+is terminalized with `close()` or the caller aborts, so it never resolves
+against a producer that crashed without calling `close()`, and its log stays
+open indefinitely. `snapshot()` resolves immediately with what is stored,
+including while the log is still open, and resolves to an empty array for a
+run with nothing stored yet.
+
 **Full guidance lives in the package's own skills** — start at
 `node_modules/@tanstack/ai-persistence/skills/ai-persistence/SKILL.md`,
 which routes to the server, client, stores, locks, and adapter-recipe
@@ -646,35 +712,38 @@ has no effect on the stream output.
 
 Source: docs/advanced/middleware.md
 
-### b. MEDIUM: Middleware exceptions breaking the stream
+### b. MEDIUM: Middleware exceptions breaking the stream — in `onChunk` / `onConfig`
+
+Know which hooks the framework already guards. **The terminal hooks
+(`onFinish`, `onAbort`, `onError`) are individually wrapped** by core's
+`runTerminalHook`: a throw there is logged on the `errors` channel and the next
+middleware's terminal hook still runs, so a failed analytics `POST` in `onFinish`
+cannot break the stream or replace the abort reason. Guarding those is about
+keeping your own bookkeeping intact, not about protecting the run.
+
+**`onChunk` and `onConfig` are NOT guarded, deliberately** — they are transforms
+on the data path, where swallowing a throw would forward a chunk or a config the
+middleware had decided to reject. A throw from either fails the whole stream. That
+is where an unhandled error actually costs you a response:
 
 ```typescript
-// WRONG -- unhandled error kills the entire streaming response
+// WRONG -- an unhandled error in onChunk kills the entire streaming response
 const fragile: ChatMiddleware = {
-  name: 'fragile-analytics',
-  onFinish: async (ctx, info) => {
-    // If this fetch fails, the stream breaks
-    await fetch('/api/analytics', {
-      method: 'POST',
-      body: JSON.stringify({ duration: info.duration }),
-    })
+  name: 'fragile-chunk-logger',
+  onChunk: (ctx, chunk) => {
+    // A logger that throws on an unexpected chunk shape takes the stream with it
+    logChunk(chunk)
+  },
+  onConfig: (ctx, config) => {
+    // Same for a config transform that reads an env var that is not set
+    return { model: requireEnv('MODEL_OVERRIDE') }
   },
 }
 
-// CORRECT -- wrap in try-catch and/or use ctx.defer()
+// CORRECT -- own the failure inside the unguarded hooks
 const resilient: ChatMiddleware = {
-  name: 'resilient-analytics',
-  onFinish: (ctx, info) => {
-    // Option 1: defer (non-blocking, errors are isolated)
-    ctx.defer(
-      fetch('/api/analytics', {
-        method: 'POST',
-        body: JSON.stringify({ duration: info.duration }),
-      }),
-    )
-  },
+  name: 'resilient-chunk-logger',
   onChunk: (ctx, chunk) => {
-    // Option 2: try-catch for synchronous/critical hooks
     try {
       logChunk(chunk)
     } catch (err) {
@@ -682,14 +751,30 @@ const resilient: ChatMiddleware = {
     }
     // Return void to pass through
   },
+  onConfig: (ctx, config) => {
+    const override = process.env.MODEL_OVERRIDE
+    // Decide, do not throw: no override means no transform.
+    return override === undefined ? undefined : { model: override }
+  },
+  onFinish: (ctx, info) => {
+    // Already guarded by core — but prefer ctx.defer() anyway, so a slow
+    // analytics call does not delay the terminal fan-out at all.
+    ctx.defer(
+      fetch('/api/analytics', {
+        method: 'POST',
+        body: JSON.stringify({ duration: info.duration }),
+      }),
+    )
+  },
 }
 ```
 
-Wrap all middleware hooks in try-catch to prevent analytics or logging failures
-from killing the chat stream. For async side effects, prefer `ctx.defer()` which
-runs after the terminal hook and isolates failures.
+Rule: put the try-catch where the framework has none — `onChunk` and `onConfig`
+(and the other transform hooks: `onStructuredOutputConfig`, `onBeforeToolCall`,
+`onAfterToolCall`). For async side effects in the terminal hooks, prefer
+`ctx.defer()`, which runs after the terminal hook and isolates failures.
 
-Source: docs/advanced/middleware.md
+Source: docs/advanced/middleware.md, `packages/ai/src/activities/chat/middleware/compose.ts`
 
 ## Cross-References
 

@@ -13,8 +13,8 @@ with the app's own `prisma migrate`.
 Do not create a package, a second client, a datasource block, a generator, or a
 hand-written SQL migration. The app has those.
 
-Read the **Build Your Own Adapter** guide
-(`docs/persistence/build-your-own-adapter.md`) for the store contracts and
+Read the **Store Reference**
+(`docs/persistence/store-reference.md`) for the store contracts and
 invariants, and **ai-persistence/stores** for the shape rules. Every
 store below mirrors the reference in-memory backend in
 `@tanstack/ai-persistence` (`memory.ts`); the shared conformance testkit is the
@@ -55,15 +55,23 @@ model ChatThread {
 }
 
 model ChatRun {
-  runId      String  @id @map("run_id")
-  threadId   String  @map("thread_id")
-  status     String
-  startedAt  BigInt  @map("started_at")
-  finishedAt BigInt? @map("finished_at")
-  error      String?
-  usageJson  String? @map("usage_json")
+  runId           String  @id @map("run_id")
+  threadId        String  @map("thread_id")
+  status          String
+  startedAt       BigInt  @map("started_at")
+  finishedAt      BigInt? @map("finished_at")
+  error           String?
+  errorCode       String? @map("error_code")
+  usageJson       String? @map("usage_json")
+  sandboxKey      String? @map("sandbox_key")
+  detachedSince   BigInt? @map("detached_since")
+  cancelRequested Boolean? @map("cancel_requested")
+  driverEpoch     Int?     @map("driver_epoch")
 
   @@index([threadId, status])
+  @@index([threadId, startedAt])
+  // Powers listReclaimable: status = 'running' AND detachedSince <= cutoff.
+  @@index([status, detachedSince])
   @@map("chat_runs")
 }
 
@@ -96,6 +104,13 @@ that references them. Extra app-owned fields (a `userId`, audit columns) are
 fine as long as they are optional or defaulted, so the stores' creates still
 succeed. `namespace` is the `MetadataStore` first argument; the stock SQL in
 the guide calls the same column `scope`.
+
+`RunRecord.error` is a structured `RunError` (`{ message: string, code?: string }`),
+so it gets two columns rather than one JSON blob: `error` for the provider's
+prose and `errorCode` for the stable classification an operator filters and
+groups by. `error` and `errorCode` always move together in `update`, so a
+later code-less failure can never leave a stale `code` from an earlier one
+behind.
 
 On **Postgres or MySQL** you can switch the `*Json` fields to Prisma's `Json`
 type and drop the `JSON.stringify`/`parse` in the mappers below. Keep `String`
@@ -137,9 +152,10 @@ function parseJson<T>(raw: string): T {
 
 const RUN_STATUSES: ReadonlyArray<RunStatus> = [
   'running',
+  'interrupted',
   'completed',
   'failed',
-  'interrupted',
+  'aborted',
 ]
 const INTERRUPT_STATUSES: ReadonlyArray<InterruptStatus> = [
   'pending',
@@ -169,10 +185,25 @@ function mapRun(row: ChatRun): RunRecord {
     status: toRunStatus(row.status),
     startedAt: Number(row.startedAt),
     ...(row.finishedAt != null ? { finishedAt: Number(row.finishedAt) } : {}),
-    ...(row.error != null ? { error: row.error } : {}),
+    ...(row.error != null
+      ? {
+          error: {
+            message: row.error,
+            ...(row.errorCode != null ? { code: row.errorCode } : {}),
+          },
+        }
+      : {}),
     ...(row.usageJson != null
       ? { usage: parseJson<TokenUsage>(row.usageJson) }
       : {}),
+    ...(row.sandboxKey != null ? { sandboxKey: row.sandboxKey } : {}),
+    ...(row.detachedSince != null
+      ? { detachedSince: Number(row.detachedSince) }
+      : {}),
+    ...(row.cancelRequested != null
+      ? { cancelRequested: row.cancelRequested }
+      : {}),
+    ...(row.driverEpoch != null ? { driverEpoch: row.driverEpoch } : {}),
   }
 }
 
@@ -239,9 +270,29 @@ function createRunStore(db: PrismaClient): RunStore {
       if (patch.finishedAt !== undefined) {
         data.finishedAt = BigInt(patch.finishedAt)
       }
-      if (patch.error !== undefined) data.error = patch.error
+      // Both columns move together, so a later code-less failure cannot
+      // leave a stale errorCode from an earlier one behind.
+      if (patch.error !== undefined) {
+        data.error = patch.error.message
+        data.errorCode = patch.error.code ?? null
+      }
       if (patch.usage !== undefined)
         data.usageJson = JSON.stringify(patch.usage)
+      // The four durable-run fields use `'field' in patch`, NOT
+      // `!== undefined`: a reattach clears `detachedSince` by passing it
+      // explicitly as `undefined`, and that must still write NULL, not be
+      // silently dropped from the update. Checking `!== undefined` cannot
+      // tell "clear this" from "didn't mention this", and would leave every
+      // reattached run looking permanently detached to the reaper. Same
+      // reasoning for `cancelRequested` (`false` is a meaningful value).
+      if ('sandboxKey' in patch) data.sandboxKey = patch.sandboxKey ?? null
+      if ('detachedSince' in patch) {
+        data.detachedSince =
+          patch.detachedSince === undefined ? null : BigInt(patch.detachedSince)
+      }
+      if ('cancelRequested' in patch)
+        data.cancelRequested = patch.cancelRequested ?? null
+      if ('driverEpoch' in patch) data.driverEpoch = patch.driverEpoch ?? null
       if (Object.keys(data).length === 0) return
 
       await db.chatRun.updateMany({ where: { runId }, data })
@@ -253,6 +304,27 @@ function createRunStore(db: PrismaClient): RunStore {
         orderBy: { startedAt: 'desc' },
       })
       return row ? mapRun(row) : null
+    },
+    // Optional; every run for the thread, ascending by startedAt. Uses the
+    // (threadId, startedAt) index.
+    async listByThread(threadId) {
+      const rows = await db.chatRun.findMany({
+        where: { threadId },
+        orderBy: { startedAt: 'asc' },
+      })
+      return rows.map(mapRun)
+    },
+    // Optional; still-running runs detached at or before the cutoff. Uses
+    // the (status, detachedSince) index. The cutoff is inclusive.
+    async listReclaimable({ now, ttlMs }) {
+      const cutoff = BigInt(now - ttlMs)
+      const rows = await db.chatRun.findMany({
+        where: {
+          status: 'running',
+          detachedSince: { not: null, lte: cutoff },
+        },
+      })
+      return rows.map(mapRun)
     },
   }
 }
@@ -416,6 +488,12 @@ SQLite file is enough) and reset it between runs. All four state stores are
 provided; the suite also covers the three generation stores, so declare those as
 skipped until you add them. `skip` never accepts `'locks'`, which is not a
 store.
+
+If your recipe leaves an optional `runs` method
+(`listByThread`/`listReclaimable`) unimplemented, declare it
+with `skipMethods`, e.g. `{ skipMethods: ['runs.listByThread'] }`. An
+omitted method that is not declared fails the suite instead of silently
+passing.
 
 ## Only if you are publishing this as a package
 

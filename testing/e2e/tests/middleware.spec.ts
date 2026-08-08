@@ -189,6 +189,63 @@ test.describe('Middleware Lifecycle', () => {
     ).toBeUndefined()
   })
 
+  // #1054 — no-tools + outputSchema skips the agent loop. The only model
+  // call is structured-output finalization (`phase=structuredOutput`).
+  // otelMiddleware must open an iteration (CLIENT) span for that call so
+  // backends that key off generation spans (PostHog $ai_generation) and
+  // captureContent both work. Pin to claude-3-7-sonnet so we take the
+  // legacy finalization path, not native-combined (#605) which already
+  // emits a beforeModel iteration span.
+  test('otel middleware emits iteration span + captureContent for no-tools structured-output finalization', async ({
+    page,
+    testId,
+    aimockPort,
+    baseURL,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    if (aimockPort) params.set('aimockPort', String(aimockPort))
+    params.set('provider', 'anthropic')
+    params.set('model', 'claude-3-7-sonnet')
+    const qs = params.toString()
+    await page.goto(`/middleware-test?${qs}`)
+    await page.waitForTimeout(2000)
+    await page.locator('#mw-scenario-select').selectOption('structured-output')
+    await page.locator('#mw-mode-select').selectOption('otel')
+    await page.locator('#mw-run-button').click()
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#mw-metadata')
+          ?.getAttribute('data-test-complete') === 'true',
+      { timeout: 15000 },
+    )
+
+    const capture = await fetchOtelCapture(page, baseURL, testId)
+
+    const chatSpans = capture.spans.filter(
+      (s: any) => s.kind === SpanKind.INTERNAL,
+    )
+    expect(chatSpans).toHaveLength(1)
+
+    const iterationSpans = capture.spans.filter(
+      (s: any) => s.kind === SpanKind.CLIENT,
+    )
+    // Exactly one provider call on the skip-agent-loop path → one generation.
+    expect(iterationSpans).toHaveLength(1)
+    const iter = iterationSpans[0]
+    expect(iter.ended).toBe(true)
+    expect(iter.attributes['gen_ai.operation.name']).toBe('chat')
+    expect(iter.attributes['tanstack.ai.iteration']).toBe(0)
+
+    // captureContent is enabled on the harness otel middleware — prompt must
+    // land on the iteration span (the pre-fix silent no-op left this empty).
+    const inputMessages = iter.attributes['gen_ai.input.messages']
+    expect(typeof inputMessages).toBe('string')
+    expect(inputMessages.length).toBeGreaterThan(0)
+  })
+
   test('otel middleware nests tool spans under the iteration span that triggered them', async ({
     page,
     testId,

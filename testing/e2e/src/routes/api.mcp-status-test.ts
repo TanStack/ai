@@ -14,6 +14,10 @@ import {
  * result as JSON so a spec can validate the resource/prompt read+convert path
  * end-to-end against a real Streamable-HTTP MCP server, with no LLM involved.
  *
+ * `toolMeta` additionally carries each discovered tool's forwarded MCP
+ * metadata (display `title` + behavior `annotations`), proving the server's
+ * hints survive discovery and reach the host.
+ *
  * No aimock dependency: this exercises only the MCP client surface.
  */
 export const Route = createFileRoute('/api/mcp-status-test')({
@@ -27,7 +31,17 @@ export const Route = createFileRoute('/api/mcp-status-test')({
           transport: { type: 'http', url: mcpUrl },
         })
         try {
-          const tools = (await client.tools()).map((t) => t.name)
+          const discovered = await client.tools()
+          const tools = discovered.map((t) => t.name)
+          // The server's display title + behavior annotations, as forwarded
+          // onto `metadata.mcp` by discovery. `tools()` returns
+          // `McpServerTool`s, so this reads straight through — typed, no
+          // annotation, no cast.
+          const toolMeta = discovered.map((t) => ({
+            name: t.name,
+            title: t.metadata.mcp.title,
+            annotations: t.metadata.mcp.annotations,
+          }))
 
           const resourceList = await client.resources().catch(() => [])
           const resourceContent: Array<unknown> = []
@@ -47,6 +61,7 @@ export const Route = createFileRoute('/api/mcp-status-test')({
 
           return Response.json({
             tools,
+            toolMeta,
             resources: resourceList.map((r) => r.uri),
             prompts: promptList.map((p) => p.name),
             resourceContent,

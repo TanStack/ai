@@ -1,5 +1,5 @@
 ---
-title: Build a Generation Adapter
+title: Build a Generation Adapter (Advanced)
 id: build-your-own-generation-adapter
 ---
 

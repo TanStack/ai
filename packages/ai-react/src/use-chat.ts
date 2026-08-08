@@ -298,6 +298,26 @@ export function useChat<
     }
   }, [client, options.live])
 
+  // ONLY THE VIEW ON SCREEN HOLDS A STREAM.
+  //
+  // A page can own many chats — 40 sandboxes, 40 conversations — and a browser
+  // allows only ~6 connections per origin. One long-lived stream per chat reaches
+  // that ceiling after a handful of views, and every request after it QUEUES:
+  // measured, an in-page fetch took over two minutes while the same request from
+  // outside the browser took 17ms. So the connection follows the view.
+  //
+  // Immediate, not deferred: the deferred teardown below can be skipped when the
+  // same client remounts, which is right for disposal but useless for a
+  // connection. `attach` is idempotent and `detach` keeps the transcript and the
+  // resume pointer, so a Strict Mode remount is just detach-then-attach and the
+  // run is picked straight back up from the durable log.
+  useEffect(() => {
+    client.attach()
+    return () => {
+      client.detach()
+    }
+  }, [client])
+
   useEffect(() => {
     if (cleanupDisposalRef.current?.client === client) {
       clearTimeout(cleanupDisposalRef.current.timeout)

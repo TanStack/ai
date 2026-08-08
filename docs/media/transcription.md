@@ -2,7 +2,7 @@
 title: Transcription
 id: transcription
 order: 4
-description: "Transcribe audio to text with OpenAI Whisper and GPT-4o transcription models (including speaker diarization), Groq Whisper, and fal.ai STT models via TanStack AI's generateTranscription() API."
+description: "Transcribe audio to text with OpenAI Whisper and GPT-4o transcription models (including speaker diarization), Groq Whisper, BytePlus Seed Speech, and fal.ai STT models via TanStack AI's generateTranscription() API."
 keywords:
   - tanstack ai
   - transcription
@@ -26,6 +26,7 @@ Audio transcription is handled by transcription adapters that follow the same tr
 Currently supported:
 - **OpenAI**: Whisper-1, GPT-4o-transcribe, GPT-4o-mini-transcribe, GPT-4o-transcribe-diarize
 - **Groq**: whisper-large-v3-turbo, whisper-large-v3
+- **BytePlus**: Seed Speech ASR (`seed-asr`)
 - **fal.ai**: Whisper, Wizper, speech-to-text turbo, ElevenLabs speech-to-text
 
 ## Basic Usage
@@ -108,6 +109,31 @@ for (const segment of result.segments ?? []) {
 
 > **Note:** Groq supports `responseFormat` values `json`, `text`, and `verbose_json` (default). `srt` and `vtt` are not supported — passing them throws. Provider-specific `modelOptions` are `temperature` and `timestamp_granularities` (`['word']`, `['segment']`, or both).
 
+### BytePlus Transcription
+
+BytePlus Seed Speech ASR is synchronous — audio in, transcript out, no polling. It belongs to the Seed Speech product, so it reads `BYTEPLUS_VOICE_API_KEY` rather than the `ARK_API_KEY` used by the BytePlus chat, image and video adapters. Audio can be a `File`, base64, a data URL or a public URL, up to two hours and 100 MB.
+
+```typescript
+import { generateTranscription } from '@tanstack/ai'
+import { byteplusTranscription } from '@tanstack/ai-byteplus'
+
+const result = await generateTranscription({
+  adapter: byteplusTranscription('seed-asr'),
+  audio: 'https://example.com/recording.mp3',
+  language: 'en',
+  modelOptions: { enable_punc: true, enable_speaker_info: true },
+})
+
+console.log(result.text)
+
+// Speaker labels land on the segment when enable_speaker_info is set
+for (const segment of result.segments ?? []) {
+  console.log(`[${segment.speaker ?? 'unknown'}] ${segment.text}`)
+}
+```
+
+> **Note:** Provider-specific `modelOptions` are `enable_itn` (spoken numbers and dates as digits), `enable_punc` (punctuation), `enable_ddc` (drop fillers and stutters), `enable_speaker_info` (speaker labels) and `show_utterances` (per-utterance breakdown, on by default).
+
 ### fal.ai Transcription
 
 fal.ai offers Whisper, Wizper, and other STT models. The `audio` input accepts a URL, `File`, `Blob`, or `ArrayBuffer` (auto-wrapped in a `Blob`).
@@ -161,109 +187,6 @@ Whisper supports many languages. Common codes include:
 
 > **Tip:** Providing the correct language code improves accuracy and reduces latency.
 
-## Model Options
-
-### OpenAI Model Options
-
-```typescript
-import { generateTranscription } from '@tanstack/ai'
-import { openaiTranscription } from '@tanstack/ai-openai'
-import { audioFile } from './audio'
-
-const result = await generateTranscription({
-  adapter: openaiTranscription('whisper-1'),
-  audio: audioFile,
-  responseFormat: 'verbose_json', // Top-level: detailed output with timestamps
-  prompt: 'Technical terms: API, SDK, CLI', // Top-level: guide transcription
-  modelOptions: {
-    temperature: 0, // Lower = more deterministic (provider option)
-    timestamp_granularities: ['word', 'segment'],
-  },
-})
-```
-
-| Option | Type | Description |
-|--------|------|-------------|
-| `temperature` | `number` | Sampling temperature (0 to 1) |
-| `timestamp_granularities` | `Array<'word' \| 'segment'>` | Timestamp granularity to populate (`whisper-1` only; requires top-level `responseFormat: 'verbose_json'`) |
-| `include` | `string[]` | Additional values to include in the response (e.g., `logprobs`) |
-| `response_format` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt' \| 'diarized_json'` | Raw OpenAI response format. Use `diarized_json` here for speaker-labeled diarization output. |
-| `chunking_strategy` | `'auto' \| { type: 'server_vad', ... } \| null` | Audio chunking strategy (any model; unset transcribes the audio as a single block). Required by OpenAI for `gpt-4o-transcribe-diarize` inputs longer than 30 seconds — the adapter defaults it to `'auto'` for that model |
-| `known_speaker_names` | `string[]` | Up to four speaker labels for diarization |
-| `known_speaker_references` | `string[]` | 2-10 second data URL audio samples matching `known_speaker_names` |
-
-> `responseFormat` and `prompt` are **top-level** options on `generateTranscription`, not `modelOptions` keys.
-
-### Response Formats
-
-| Format | Description |
-|--------|-------------|
-| `json` | Simple JSON with text |
-| `text` | Plain text only |
-| `srt` | SubRip subtitle format |
-| `verbose_json` | Detailed JSON with timestamps and segments |
-| `vtt` | WebVTT subtitle format |
-
-OpenAI's `gpt-4o-transcribe-diarize` also supports `modelOptions.response_format: 'diarized_json'` for speaker-labeled segments.
-
-### Speaker Diarization
-
-Use `gpt-4o-transcribe-diarize` when you need speaker labels. When no response format is specified, TanStack AI defaults the request to `response_format: 'diarized_json'` and sends `chunking_strategy: 'auto'` unless you provide a chunking strategy yourself. Passing a top-level `responseFormat: 'json'` or `'text'` opts out of speaker segments.
-
-```typescript
-import { generateTranscription } from '@tanstack/ai'
-import { openaiTranscription } from '@tanstack/ai-openai'
-import { meetingAudioFile } from './audio'
-
-const result = await generateTranscription({
-  adapter: openaiTranscription('gpt-4o-transcribe-diarize'),
-  audio: meetingAudioFile,
-  modelOptions: {
-    known_speaker_names: ['agent', 'customer'],
-    known_speaker_references: [
-      'data:audio/wav;base64,...',
-      'data:audio/wav;base64,...',
-    ],
-  },
-})
-
-for (const segment of result.segments ?? []) {
-  console.log(segment.speaker, segment.start, segment.end, segment.text)
-}
-```
-
-Two constraints the adapter enforces before it calls the API:
-
-- Up to four known speaker references. `known_speaker_names` and `known_speaker_references` must be provided together, with matching lengths.
-- The diarization model does not support `prompt`, `include`, or `timestamp_granularities`. Those combinations are rejected.
-
-## Response Format
-
-The transcription result includes:
-
-```typescript
-interface TranscriptionResult {
-  id: string           // Unique identifier
-  model: string        // Model used
-  text: string         // Full transcribed text
-  language?: string    // Detected/specified language
-  duration?: number    // Audio duration in seconds
-  segments?: Array<{   // Timestamped segments
-    id: number         // Segment identifier
-    start: number      // Start time in seconds
-    end: number        // End time in seconds
-    text: string       // Segment text
-    confidence?: number // Confidence score (0-1), if available
-    speaker?: string    // Speaker identifier, if diarization is enabled
-  }>
-  words?: Array<{      // Word-level timestamps (top-level)
-    word: string
-    start: number
-    end: number
-  }>
-}
-```
-
 ## Complete Example
 
 ```typescript
@@ -307,33 +230,6 @@ async function transcribeAudio(filepath: string) {
 // Usage
 await transcribeAudio('./meeting-recording.mp3')
 ```
-
-## Model Availability
-
-### OpenAI Models
-
-| Model | Description | Use Case |
-|-------|-------------|----------|
-| `whisper-1` | Whisper large-v2 | General transcription |
-| `gpt-4o-transcribe` | GPT-4o-based transcription | Higher accuracy |
-| `gpt-4o-transcribe-diarize` | With speaker diarization | Multi-speaker audio |
-| `gpt-4o-mini-transcribe` | Faster, lighter model | Cost-effective |
-
-### Supported Audio Formats
-
-OpenAI supports these audio formats:
-
-- `mp3` - MPEG Audio Layer 3
-- `mp4` - MPEG-4 Audio
-- `mpeg` - MPEG Audio
-- `mpga` - MPEG Audio
-- `m4a` - MPEG-4 Audio
-- `wav` - Waveform Audio
-- `webm` - WebM Audio
-- `flac` - Free Lossless Audio Codec
-- `ogg` - Ogg Vorbis
-
-> **Note:** Maximum file size is 25 MB.
 
 ## Browser Usage
 
@@ -480,7 +376,42 @@ function AudioTranscriber() {
 }
 ```
 
-### Direct Mode (Server Function + Fetcher)
+The other two transports (a server function returning JSON, or one returning an
+SSE `Response`) work the same way here. They are in
+[Advanced: other transports](#other-transports), and explained once in
+[Generations](./generations#transports-in-full).
+
+### Hook API
+
+The `useTranscription` hook accepts:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
+| `fetcher` | `(input) => Promise<TranscriptionResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
+| `onResult` | `(result) => TOutput \| null \| void` | Callback when transcription completes. Optionally return a transformed value to store as `result` |
+| `onError` | `(error) => void` | Callback on error |
+| `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
+
+And returns:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `generate` | `(input: TranscriptionGenerateInput) => Promise<void>` | Trigger transcription |
+| `result` | `TranscriptionResult \| null` | The result with text and segments, or null |
+| `isLoading` | `boolean` | Whether transcription is in progress |
+| `error` | `Error \| undefined` | Current error, if any |
+| `status` | `GenerationClientState` | `'idle'` \| `'generating'` \| `'success'` \| `'error'` |
+| `stop` | `() => void` | Abort the current transcription |
+| `reset` | `() => void` | Clear result, error, and return to idle |
+
+## Advanced
+
+Reference detail you do not need to get this working.
+
+### Other transports
+
+#### Direct Mode (Server Function + Fetcher)
 
 For non-streaming usage with TanStack Start server functions:
 
@@ -513,7 +444,7 @@ function AudioTranscriber() {
 }
 ```
 
-### Server Function Streaming (Fetcher + Response)
+#### Server Function Streaming (Fetcher + Response)
 
 For TanStack Start server functions that stream results. The fetcher receives type-safe input and returns an SSE `Response` — the client parses it automatically:
 
@@ -556,31 +487,137 @@ function AudioTranscriber() {
 }
 ```
 
-### Hook API
+### Model Options
 
-The `useTranscription` hook accepts:
+#### OpenAI Model Options
+
+```typescript
+import { generateTranscription } from '@tanstack/ai'
+import { openaiTranscription } from '@tanstack/ai-openai'
+import { audioFile } from './audio'
+
+const result = await generateTranscription({
+  adapter: openaiTranscription('whisper-1'),
+  audio: audioFile,
+  responseFormat: 'verbose_json', // Top-level: detailed output with timestamps
+  prompt: 'Technical terms: API, SDK, CLI', // Top-level: guide transcription
+  modelOptions: {
+    temperature: 0, // Lower = more deterministic (provider option)
+    timestamp_granularities: ['word', 'segment'],
+  },
+})
+```
 
 | Option | Type | Description |
 |--------|------|-------------|
-| `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
-| `fetcher` | `(input) => Promise<TranscriptionResult \| Response>` | Direct async function, or server function returning an SSE `Response` |
-| `onResult` | `(result) => TOutput \| null \| void` | Callback when transcription completes. Optionally return a transformed value to store as `result` |
-| `onError` | `(error) => void` | Callback on error |
-| `onProgress` | `(progress, message?) => void` | Progress updates (0-100) |
+| `temperature` | `number` | Sampling temperature (0 to 1) |
+| `timestamp_granularities` | `Array<'word' \| 'segment'>` | Timestamp granularity to populate (`whisper-1` only; requires top-level `responseFormat: 'verbose_json'`) |
+| `include` | `string[]` | Additional values to include in the response (e.g., `logprobs`) |
+| `response_format` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt' \| 'diarized_json'` | Raw OpenAI response format. Use `diarized_json` here for speaker-labeled diarization output. |
+| `chunking_strategy` | `'auto' \| { type: 'server_vad', ... } \| null` | Audio chunking strategy (any model; unset transcribes the audio as a single block). Required by OpenAI for `gpt-4o-transcribe-diarize` inputs longer than 30 seconds — the adapter defaults it to `'auto'` for that model |
+| `known_speaker_names` | `string[]` | Up to four speaker labels for diarization |
+| `known_speaker_references` | `string[]` | 2-10 second data URL audio samples matching `known_speaker_names` |
 
-And returns:
+> `responseFormat` and `prompt` are **top-level** options on `generateTranscription`, not `modelOptions` keys.
 
-| Property | Type | Description |
-|----------|------|-------------|
-| `generate` | `(input: TranscriptionGenerateInput) => Promise<void>` | Trigger transcription |
-| `result` | `TranscriptionResult \| null` | The result with text and segments, or null |
-| `isLoading` | `boolean` | Whether transcription is in progress |
-| `error` | `Error \| undefined` | Current error, if any |
-| `status` | `GenerationClientState` | `'idle'` \| `'generating'` \| `'success'` \| `'error'` |
-| `stop` | `() => void` | Abort the current transcription |
-| `reset` | `() => void` | Clear result, error, and return to idle |
+#### Response Formats
 
-## Error Handling
+| Format | Description |
+|--------|-------------|
+| `json` | Simple JSON with text |
+| `text` | Plain text only |
+| `srt` | SubRip subtitle format |
+| `verbose_json` | Detailed JSON with timestamps and segments |
+| `vtt` | WebVTT subtitle format |
+
+OpenAI's `gpt-4o-transcribe-diarize` also supports `modelOptions.response_format: 'diarized_json'` for speaker-labeled segments.
+
+#### Speaker Diarization
+
+Use `gpt-4o-transcribe-diarize` when you need speaker labels. When no response format is specified, TanStack AI defaults the request to `response_format: 'diarized_json'` and sends `chunking_strategy: 'auto'` unless you provide a chunking strategy yourself. Passing a top-level `responseFormat: 'json'` or `'text'` opts out of speaker segments.
+
+```typescript
+import { generateTranscription } from '@tanstack/ai'
+import { openaiTranscription } from '@tanstack/ai-openai'
+import { meetingAudioFile } from './audio'
+
+const result = await generateTranscription({
+  adapter: openaiTranscription('gpt-4o-transcribe-diarize'),
+  audio: meetingAudioFile,
+  modelOptions: {
+    known_speaker_names: ['agent', 'customer'],
+    known_speaker_references: [
+      'data:audio/wav;base64,...',
+      'data:audio/wav;base64,...',
+    ],
+  },
+})
+
+for (const segment of result.segments ?? []) {
+  console.log(segment.speaker, segment.start, segment.end, segment.text)
+}
+```
+
+Two constraints the adapter enforces before it calls the API:
+
+- Up to four known speaker references. `known_speaker_names` and `known_speaker_references` must be provided together, with matching lengths.
+- The diarization model does not support `prompt`, `include`, or `timestamp_granularities`. Those combinations are rejected.
+
+### Response Format
+
+The transcription result includes:
+
+```typescript
+interface TranscriptionResult {
+  id: string           // Unique identifier
+  model: string        // Model used
+  text: string         // Full transcribed text
+  language?: string    // Detected/specified language
+  duration?: number    // Audio duration in seconds
+  segments?: Array<{   // Timestamped segments
+    id: number         // Segment identifier
+    start: number      // Start time in seconds
+    end: number        // End time in seconds
+    text: string       // Segment text
+    confidence?: number // Confidence score (0-1), if available
+    speaker?: string    // Speaker identifier, if diarization is enabled
+  }>
+  words?: Array<{      // Word-level timestamps (top-level)
+    word: string
+    start: number
+    end: number
+  }>
+}
+```
+
+### Model Availability
+
+#### OpenAI Models
+
+| Model | Description | Use Case |
+|-------|-------------|----------|
+| `whisper-1` | Whisper large-v2 | General transcription |
+| `gpt-4o-transcribe` | GPT-4o-based transcription | Higher accuracy |
+| `gpt-4o-transcribe-diarize` | With speaker diarization | Multi-speaker audio |
+| `gpt-4o-mini-transcribe` | Faster, lighter model | Cost-effective |
+
+#### Supported Audio Formats
+
+OpenAI supports these audio formats:
+
+- `mp3` - MPEG Audio Layer 3
+- `mp4` - MPEG-4 Audio
+- `mpeg` - MPEG Audio
+- `mpga` - MPEG Audio
+- `m4a` - MPEG-4 Audio
+- `wav` - Waveform Audio
+- `webm` - WebM Audio
+- `flac` - Free Lossless Audio Codec
+- `ogg` - Ogg Vorbis
+
+> **Note:** Maximum file size is 25 MB.
+
+### Error Handling
 
 ```typescript
 import { generateTranscription } from '@tanstack/ai'
@@ -609,13 +646,14 @@ try {
 
 > **Debugging:** When a transcription returns garbage, empty segments, or the provider rejects your audio format, pass `debug: true` on `generateTranscription({...})` to log the outgoing request and every raw provider chunk. See [Debug Logging](../advanced/debug-logging).
 
-## Environment Variables
+### Environment Variables
 
 The transcription adapter uses:
 
 - `OPENAI_API_KEY`: Your OpenAI API key
+- `BYTEPLUS_VOICE_API_KEY`: Your BytePlus Seed Speech key (not the ModelArk key)
 
-## Explicit API Keys
+### Explicit API Keys
 
 ```typescript
 import { createOpenaiTranscription } from '@tanstack/ai-openai'
@@ -623,7 +661,7 @@ import { createOpenaiTranscription } from '@tanstack/ai-openai'
 const adapter = createOpenaiTranscription('whisper-1', 'your-openai-api-key')
 ```
 
-## Best Practices
+### Best Practices
 
 1. **Audio Quality**: Better audio quality leads to more accurate transcriptions. Reduce background noise when possible.
 

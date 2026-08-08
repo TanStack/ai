@@ -91,10 +91,10 @@ describe('chat persistence error/abort hooks', () => {
 
     const run = await persistence.stores.runs!.get('r1')
     expect(run?.status).toBe('failed')
-    expect(run?.error).toBe('provider exploded')
+    expect(run?.error).toEqual({ message: 'provider exploded' })
   })
 
-  it('coerces a non-Error thrown value into the run error string', async () => {
+  it('coerces a non-Error thrown value into the run error message', async () => {
     const persistence = memoryPersistence()
 
     await expect(
@@ -111,7 +111,7 @@ describe('chat persistence error/abort hooks', () => {
 
     const run = await persistence.stores.runs!.get('r1')
     expect(run?.status).toBe('failed')
-    expect(run?.error).toBe('string failure')
+    expect(run?.error).toEqual({ message: 'string failure' })
   })
 
   it('propagates and does not swallow a store error thrown while recording an interrupt', async () => {
@@ -177,7 +177,7 @@ describe('chat persistence error/abort hooks', () => {
     expect(pending.map((p) => p.interruptId)).toEqual(['interrupt-1'])
   })
 
-  it('marks the run interrupted when the chat is aborted', async () => {
+  it('marks the run aborted when the chat is aborted', async () => {
     const persistence = memoryPersistence()
     const controller = new AbortController()
     // Adapter that hangs after RUN_STARTED so we can abort mid-stream.
@@ -225,8 +225,13 @@ describe('chat persistence error/abort hooks', () => {
     controller.abort()
     await reader
 
+    // Phase 3 Task 6: this used to assert 'interrupted'. That was asserting the
+    // bug — 'interrupted' is a human-in-the-loop PAUSE and is NOT terminal, so a
+    // cancelled run never reached a terminal status. No durability is wired here,
+    // so the run is not detachable and the abort is terminal: 'aborted'.
     const run = await persistence.stores.runs!.get('abort-run')
-    expect(run?.status).toBe('interrupted')
+    expect(run?.status).toBe('aborted')
+    expect(run?.finishedAt).toBeTypeOf('number')
   })
 })
 
@@ -314,7 +319,7 @@ describe('generation persistence error/abort hooks', () => {
     expect(job?.error).toEqual({ message: 'image string failure' })
   })
 
-  it('marks the job interrupted on generation abort', async () => {
+  it('marks the job aborted on generation abort', async () => {
     const persistence = memoryPersistence()
     const middleware = withGenerationPersistence(persistence, {
       threadId: 'thread-test',
@@ -337,9 +342,12 @@ describe('generation persistence error/abort hooks', () => {
     }
     await middleware.onAbort?.(generationContext('req-abort'), abortInfo)
 
+    // Phase 3 Task 6: this used to assert 'interrupted', which was asserting the
+    // bug. A generation job has no journal to reattach to, so an abort is always
+    // terminal for it.
     expect(
       (await persistence.stores.generationRuns.get('req-abort'))?.status,
-    ).toBe('interrupted')
+    ).toBe('aborted')
   })
 
   it('coerces a non-Error into the job error message via the onError handler', async () => {

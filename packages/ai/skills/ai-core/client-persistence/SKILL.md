@@ -14,7 +14,7 @@ description: >
   No extra package: the adapters ship in the framework packages.
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/persistence/client-persistence.md'
   - 'TanStack/ai:docs/persistence/overview.md'

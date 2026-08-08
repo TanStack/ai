@@ -278,6 +278,22 @@ export function useChat<
     }
   }, [client, options.live])
 
+  // ONLY THE VIEW ON SCREEN HOLDS A STREAM. See the same effect in
+  // `@tanstack/ai-react`. A page can own many chats and a browser allows only ~6
+  // connections per origin, so one long-lived stream per chat starves everything
+  // else once a handful of views have been open. `attach` is idempotent and
+  // `detach` keeps the transcript and the resume pointer, so a remount picks the
+  // run straight back up from the durable log.
+  //
+  // Immediate, unlike the deferred disposal below, which a remount can skip —
+  // correct for disposal, useless for a connection.
+  useEffect(() => {
+    client.attach()
+    return () => {
+      client.detach()
+    }
+  }, [client])
+
   // Cleanup on unmount: stop any in-flight requests
   // Note: We only cleanup when client changes or component unmounts.
   // DO NOT include isLoading in dependencies - that would cause the cleanup

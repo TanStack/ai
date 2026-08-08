@@ -149,6 +149,50 @@ describe('Fal Image Adapter', () => {
     })
   })
 
+  it('forwards request-specific abortSignal to fal.subscribe()', async () => {
+    const mockResponse = createMockImageResponse([
+      { url: 'https://fal.media/files/image.png' },
+    ])
+    mockSubscribe.mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+    const controller = new AbortController()
+
+    await generateImage({
+      adapter,
+      prompt: 'A landscape',
+      abortSignal: controller.signal,
+    })
+
+    expect(mockSubscribe).toHaveBeenCalledTimes(1)
+    const [, options] = mockSubscribe.mock.calls[0]!
+    expect(options.abortSignal).toBeInstanceOf(AbortSignal)
+    // Must be request-scoped options, not a side effect of fal.config().
+    expect(mockConfig).toHaveBeenCalled()
+    for (const call of mockConfig.mock.calls) {
+      expect(call[0]).not.toHaveProperty('abortSignal')
+    }
+  })
+
+  it('forwards activity timeout as abortSignal to fal.subscribe()', async () => {
+    const mockResponse = createMockImageResponse([
+      { url: 'https://fal.media/files/image.png' },
+    ])
+    mockSubscribe.mockResolvedValueOnce(mockResponse)
+
+    const adapter = createAdapter()
+
+    await generateImage({
+      adapter,
+      prompt: 'A landscape',
+      timeout: 60_000,
+    })
+
+    const [, options] = mockSubscribe.mock.calls[0]!
+    expect(options.abortSignal).toBeInstanceOf(AbortSignal)
+    expect(options.abortSignal.aborted).toBe(false)
+  })
+
   it('passes custom image_size through model options', async () => {
     const mockResponse = createMockImageResponse([
       { url: 'https://fal.media/files/image.png' },

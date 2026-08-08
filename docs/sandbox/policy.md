@@ -2,7 +2,7 @@
 title: Policy
 id: policy
 order: 7
-description: "Set allow/ask/deny guardrails over the commands and capabilities the in-sandbox agent may run, ask about, or never run — one portable description each harness maps onto its native permissions."
+description: "Set allow/ask/deny guardrails over the commands and capabilities the in-sandbox agent may run, ask about, or never run, in one portable description that each harness maps onto its native permissions."
 ---
 
 A policy is your guardrail layer: it decides which commands and capabilities the
@@ -42,11 +42,11 @@ Every command or capability resolves to one of three decisions:
 | --- | --- |
 | `allow` | The agent runs it without interruption. |
 | `ask`   | The agent pauses; the harness emits an approval request the client answers before the action proceeds. |
-| `deny`  | The action is blocked outright — the agent cannot run it. |
+| `deny`  | The action is blocked outright. The agent cannot run it. |
 
 ## Commands
 
-`commands` holds three lists of command patterns — `allow`, `ask`, and `deny`.
+`commands` holds three lists of command patterns: `allow`, `ask` and `deny`.
 A pattern matches against the command the agent is about to run:
 
 ```ts
@@ -67,13 +67,13 @@ Patterns support `*` globs, so you can gate a whole family of commands with one
 entry. `curl *` matches any `curl` invocation; `sudo *` matches anything run
 through `sudo`. An exact string like `pnpm test` matches only that command.
 Prefer the named [workspace scripts](./workspace) (`pnpm test`, `pnpm build`)
-in your `allow` list — they give the policy stable names to match rather than
+in your `allow` list. They give the policy stable names to match rather than
 freeform shell.
 
 ## Capabilities
 
 `capabilities` applies the same `allow` / `ask` / `deny` decisions to
-coarse-grained abilities rather than individual commands — for example
+coarse-grained abilities rather than individual commands, for example
 filesystem writes or outbound network access:
 
 ```ts
@@ -96,7 +96,7 @@ reaches out.
 When more than one rule could match an action, the strictest wins. The order is
 **`deny` > `ask` > `allow`**:
 
-- If any matching rule says `deny`, the action is blocked — no other rule
+- If any matching rule says `deny`, the action is blocked and no other rule
   overrides it.
 - Otherwise, if any matching rule says `ask`, the action requires approval.
 - Otherwise, if a rule says `allow`, it runs.
@@ -124,11 +124,11 @@ narrower `ask` / `deny` patterns, confident the exceptions take priority.
 `default` is the decision for anything none of your rules match. Set it to the
 posture you want at the edges:
 
-- `default: 'allow'` — permissive: only the things you explicitly `ask` about or
+- `default: 'allow'` is permissive: only the things you explicitly `ask` about or
   `deny` are gated. Reasonable for trusted dev loops.
-- `default: 'ask'` — cautious: unknown actions pause for approval. A good middle
+- `default: 'ask'` is cautious: unknown actions pause for approval. A good middle
   ground.
-- `default: 'deny'` — locked down: the agent can only run what you explicitly
+- `default: 'deny'`, locked down: the agent can only run what you explicitly
   `allow`. Strongest posture for untrusted or production runs.
 
 When omitted, treat the default as `ask` so unforeseen actions surface rather
@@ -136,7 +136,7 @@ than silently running.
 
 ## How `ask` surfaces
 
-An `ask` decision is not a guess the SDK makes — it's a question routed back to
+An `ask` decision is not a guess the SDK makes, it's a question routed back to
 you. When the agent attempts an `ask`-gated action, the harness pauses it and
 emits an **approval request** into the run stream. Your client answers that
 request (approve or reject), and the harness either lets the action proceed or
@@ -159,14 +159,14 @@ A policy is portable. Each harness adapter translates the same
 - Other harnesses map it onto whatever native gate they expose.
 
 Where a harness can't express a particular rule, it degrades rather than
-failing the run — the unsupported rule is skipped (with a warning) instead of
+failing the run, the unsupported rule is skipped (with a warning) instead of
 throwing. Because the mapping is the adapter's job, you write the policy once
 and it behaves consistently no matter which provider or harness runs the
 sandbox.
 
 ## Wiring it on
 
-A policy does nothing on its own — it takes effect when you attach it to a
+A policy does nothing on its own, it takes effect when you attach it to a
 sandbox. Pass it as `policy` on [`defineSandbox`](./providers); from there it
 guards every run that uses that sandbox, including the [workspace](./workspace)
 setup commands and any host [tools](./tools) bridged into the agent.
@@ -198,7 +198,7 @@ const sandbox = defineSandbox({
 
 ## Next steps
 
-- [Providers](./providers) — attach the policy via `defineSandbox`.
-- [Workspace](./workspace) — the setup commands and scripts the policy guards.
-- [Tools](./tools) — host tools bridged into the agent run under the same policy.
-- [Lifecycle](./lifecycle) — how a guarded sandbox resumes and tears down.
+- [Providers](./providers), attach the policy via `defineSandbox`.
+- [Workspace](./workspace), the setup commands and scripts the policy guards.
+- [Tools](./tools), host tools bridged into the agent run under the same policy.
+- [Lifecycle](./lifecycle), how a guarded sandbox resumes and tears down.

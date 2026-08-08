@@ -1996,6 +1996,12 @@ export interface SummarizationOptions<
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 export interface SummarizationResult {
@@ -2133,6 +2139,12 @@ export interface ImageGenerationOptions<
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -2246,6 +2258,12 @@ export interface AudioGenerationOptions<
    * catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -2315,6 +2333,12 @@ export interface VideoGenerationOptions<
    * call logger.request() before the SDK call and logger.errors() in catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -2400,6 +2424,12 @@ export interface TTSOptions<TProviderOptions extends object = object> {
    * catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**
@@ -2460,6 +2490,12 @@ export interface TranscriptionOptions<
    * in catch blocks.
    */
   logger: InternalLogger
+  /**
+   * Effective abort signal composed by the activity from caller `abortSignal`
+   * and/or `timeout`. Adapters should forward this to the provider SDK when
+   * supported. Request-specific — never store on a global client config.
+   */
+  abortSignal?: AbortSignal
 }
 
 /**

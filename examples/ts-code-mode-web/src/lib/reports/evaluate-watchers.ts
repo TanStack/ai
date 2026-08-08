@@ -46,7 +46,7 @@ export async function evaluateWatcher(
   collectedEffects: Array<{ type: string; params: Record<string, unknown> }>,
 ): Promise<WatcherResult> {
   const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
-  const driver = await createIsolateDriver('node')
+  const driver = await createIsolateDriver()
 
   // First, evaluate the condition
   const conditionContext = await driver.createContext({

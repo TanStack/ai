@@ -111,7 +111,12 @@ export {
   toHttpStream,
   toHttpResponse,
   resumeHttpResponse,
+  resolveResumeRunId,
+  RUN_ACCEPTED_EVENT,
 } from './stream-to-response'
+// `ResumeResponseOptions` is deliberately not exported (it is a local type
+// alias), so the driver block reaches consumers as its own named type.
+export type { RunDriverOptions } from './stream-to-response'
 
 // Delivery durability (transport layer)
 export { memoryStream, replayRunStream } from './stream-durability'
@@ -119,6 +124,7 @@ export type {
   MemoryStreamInit,
   MemoryStreamOptions,
   StreamDurability,
+  UpsertableStreamDurability,
 } from './stream-durability'
 
 // Tool call management
@@ -225,6 +231,46 @@ export type {
 } from './activities/chat/middleware/index'
 // Locks are a distributed-mutex primitive — coordination, not chat state — and
 // live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).
+
+// Run lifecycle types — shared by @tanstack/ai-persistence (the `runs` store)
+// and @tanstack/ai-sandbox (the run driver), so one record describes one run.
+export {
+  isRunStatus,
+  isTerminalRunStatus,
+  defineRunStore,
+  InMemoryRunStore,
+} from './activities/chat/middleware/index'
+export type {
+  RunStatus,
+  TerminalRunStatus,
+  RunRecord,
+  RunError,
+  RunStore,
+} from './activities/chat/middleware/index'
+// The detachable-run marker is a coordination fact `@tanstack/ai-sandbox`
+// provides and `@tanstack/ai-persistence` reads, so core owns it and neither
+// consumer package has to depend on the other.
+export {
+  DetachableRunCapability,
+  getDetachableRun,
+  provideDetachableRun,
+} from './activities/chat/middleware/run-store'
+// Its past-tense counterpart: the abort-path verdict that this run WAS detached.
+// `@tanstack/ai-sandbox`'s `onAbort` publishes it on its detach branch, and core's
+// durable delivery sink reads it to keep a detached run's log open for takeover.
+export {
+  RunDetachedCapability,
+  getRunDetached,
+  provideRunDetached,
+} from './activities/chat/middleware/run-store'
+// Out-of-band run cancellation: intent is recorded (durable) or carried on the
+// abort reason (in-process), never inferred from a disconnect.
+export {
+  RUN_CANCEL_REASON,
+  isCancelRequestedReason,
+  requestRunCancel,
+  wasCancelRequested,
+} from './activities/chat/cancel'
 
 // Well-known AG-UI CUSTOM event catalog (agent activity rides on CUSTOM events)
 export { CUSTOM_EVENT, isCustomEvent } from './custom-events'

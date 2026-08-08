@@ -72,6 +72,7 @@ const adapter = createGroqText('llama-3.3-70b-versatile', 'gsk_api_key')
 - ✅ Structured output (JSON Schema)
 - ✅ Function/tool calling
 - ✅ Multimodal input (text + images for vision models)
+- ✅ Summarization (`groqSummarize`)
 - ❌ Embeddings (not supported by Groq)
 - ❌ Image generation (not supported by Groq)
 
