@@ -350,6 +350,11 @@ describe('clientOptions', () => {
     const { clientTransport } = await makeServerWithStructuredTool()
     await using client = await createMCPClientFromTransport(clientTransport)
 
-    expect(client.getInfo().clientOptions).toBeUndefined()
+    // `toStrictEqual` rather than reading `.clientOptions`: the contract is that
+    // the key is OMITTED, and `toBeUndefined()` passes either way.
+    expect(client.getInfo()).toStrictEqual({
+      transport: undefined,
+      prefix: undefined,
+    })
   })
 })

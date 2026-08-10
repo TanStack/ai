@@ -47,6 +47,7 @@ export interface MCPClients<
     {
       transport: TransportConfig | undefined
       prefix: string | undefined
+      clientOptions?: ClientOptions
     }
   >
   /** Close every client. */
