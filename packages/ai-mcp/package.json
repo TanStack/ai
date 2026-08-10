@@ -64,7 +64,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",

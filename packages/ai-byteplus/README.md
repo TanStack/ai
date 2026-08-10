@@ -166,7 +166,8 @@ Result URLs expire after 24 hours; pass `response_format: 'b64_json'` in
 - **Chat** — `dola-seed-2-1-turbo-260628`, the `seed-2-0-*` family,
   `seed-1-8-251228`, the `seed-1-6-*` family, plus `glm-*`, `deepseek-*` and
   `gpt-oss-120b-250805`.
-- **Video** — `dreamina-seedance-2-0-260128` (and `-fast-`/`-mini-`),
+- **Video** — `dreamina-seedance-2-5-260628`,
+  `dreamina-seedance-2-0-260128` (and `-fast-`/`-mini-`),
   `seedance-1-5-pro-251215`, `seedance-1-0-pro-250528`,
   `seedance-1-0-pro-fast-251015`.
 - **Image** — `dola-seedream-5-0-pro-260628`, `seedream-5-0-260128`,

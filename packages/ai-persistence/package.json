@@ -49,10 +49,10 @@
     "test:oxlint": "oxlint src --type-aware"
   },
   "dependencies": {
-    "@tanstack/ai-utils": "workspace:*"
+    "@tanstack/ai-utils": "workspace:^"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai": "workspace:^",
     "vitest": "^4.1.10"
   },
   "peerDependenciesMeta": {

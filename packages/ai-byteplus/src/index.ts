@@ -21,11 +21,13 @@ export {
   parseBytePlusVideoSize,
   resolveBytePlusVideoResolution,
   resolveBytePlusVideoSize,
+  supportsAudioOnlyReference,
   supportsLastFrame,
   supportsReferenceMedia,
 } from './video/video-provider-options'
 export type {
   BytePlusVideoModelProviderOptionsByName,
+  BytePlusVideoOutputFormat,
   BytePlusVideoProviderOptions,
   BytePlusVideoServiceTier,
 } from './video/video-provider-options'

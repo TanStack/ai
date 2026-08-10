@@ -163,6 +163,7 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
 
     expect(convertMessagesToModelMessages(messages)).toEqual([
       {
+        id: 'assistant-approval',
         role: 'assistant',
         content: null,
         toolCalls: [

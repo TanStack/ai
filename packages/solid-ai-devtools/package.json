@@ -60,7 +60,7 @@
     "tool-calling"
   ],
   "dependencies": {
-    "@tanstack/ai-devtools-core": "workspace:*",
+    "@tanstack/ai-devtools-core": "workspace:^",
     "@tanstack/devtools-utils": "^0.4.0"
   },
   "peerDependencies": {

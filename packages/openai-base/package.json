@@ -53,7 +53,7 @@
     "structured-outputs"
   ],
   "dependencies": {
-    "@tanstack/ai-utils": "workspace:*",
+    "@tanstack/ai-utils": "workspace:^",
     "openai": "^6.41.0"
   },
   "peerDependencies": {

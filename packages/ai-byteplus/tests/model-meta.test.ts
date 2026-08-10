@@ -34,13 +34,14 @@ describe('model lists', () => {
   })
 
   it('keeps the prefixes the API requires', () => {
-    // Seedance 2.0 only resolves with the `dreamina-` prefix, and the 2.1
+    // Seedance 2.x only resolves with the `dreamina-` prefix, and the 2.1
     // turbo chat model / 5.0 Pro image model echo back the `dola-` prefix.
     for (const model of BYTEPLUS_VIDEO_MODELS) {
-      if (model.includes('seedance-2-0')) {
+      if (/seedance-2-[05]/.test(model)) {
         expect(model.startsWith('dreamina-')).toBe(true)
       }
     }
+    expect(BYTEPLUS_VIDEO_MODELS).toContain('dreamina-seedance-2-5-260628')
     expect(BYTEPLUS_CHAT_MODELS).toContain('dola-seed-2-1-turbo-260628')
     expect(BYTEPLUS_IMAGE_MODELS).toContain('dola-seedream-5-0-pro-260628')
   })
@@ -108,6 +109,9 @@ describe('video durations', () => {
   })
 
   it('encodes the per-family ranges', () => {
+    expect(
+      getBytePlusVideoDurationOptions('dreamina-seedance-2-5-260628'),
+    ).toMatchObject({ min: 4, max: 30 })
     expect(
       getBytePlusVideoDurationOptions('dreamina-seedance-2-0-260128'),
     ).toMatchObject({ min: 4, max: 15 })

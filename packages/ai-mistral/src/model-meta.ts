@@ -23,7 +23,7 @@ interface ModelMeta<TProviderOptions = unknown> {
     output?: { normal: number }
   }
   supports: {
-    input: Array<'text' | 'image' | 'audio'>
+    input: Array<'text' | 'image' | 'audio' | 'document'>
     output: Array<'text'>
     endpoints: Array<'chat' | 'embeddings'>
 
@@ -65,7 +65,7 @@ const MISTRAL_MEDIUM_LATEST = {
     output: { normal: 2 },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
@@ -81,7 +81,7 @@ const MISTRAL_SMALL_LATEST = {
     output: { normal: 0.3 },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
@@ -145,7 +145,7 @@ const PIXTRAL_LARGE_LATEST = {
     output: { normal: 6 },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
@@ -161,7 +161,7 @@ const PIXTRAL_12B_2409 = {
     output: { normal: 0.15 },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'vision'],

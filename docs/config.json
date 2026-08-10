@@ -442,7 +442,7 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-07"
         },
         {
           "label": "Generation Hooks",
@@ -460,6 +460,16 @@
           "to": "embeddings",
           "addedAt": "2026-07-10",
           "updatedAt": "2026-07-22"
+        }
+      ]
+    },
+    {
+      "label": "Reranking",
+      "children": [
+        {
+          "label": "Reranking",
+          "to": "rerank/rerank",
+          "addedAt": "2026-06-25"
         }
       ]
     },
@@ -814,8 +824,8 @@
         {
           "label": "Cohere",
           "to": "adapters/cohere",
-          "addedAt": "2026-07-10",
-          "updatedAt": "2026-07-22"
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-08-10"
         },
         {
           "label": "ElevenLabs",
@@ -830,7 +840,8 @@
         {
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-06-25"
         },
         {
           "label": "OpenAI-Compatible",
@@ -875,7 +886,8 @@
         {
           "label": "BytePlus",
           "to": "adapters/byteplus",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-07"
         }
       ]
     },

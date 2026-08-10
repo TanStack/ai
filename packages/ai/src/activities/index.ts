@@ -22,6 +22,7 @@ import type { AnyVideoAdapter } from './generateVideo/adapter'
 import type { AnyTTSAdapter } from './generateSpeech/adapter'
 import type { AnyTranscriptionAdapter } from './generateTranscription/adapter'
 import type { AnyEmbeddingAdapter } from './embed/adapter'
+import type { AnyRerankAdapter } from './rerank/adapter'
 
 // ===========================
 // Chat Activity
@@ -66,6 +67,25 @@ export {
   type ChatStreamCapable,
   type InferTextProviderOptions,
 } from './summarize/chat-stream-summarize'
+
+// ===========================
+// Rerank Activity
+// ===========================
+
+export {
+  kind as rerankKind,
+  rerank,
+  createRerankOptions,
+  type RerankActivityOptions,
+  type RerankProviderOptions,
+} from './rerank/index'
+
+export {
+  BaseRerankAdapter,
+  type RerankAdapter,
+  type RerankAdapterConfig,
+  type AnyRerankAdapter,
+} from './rerank/adapter'
 
 // ===========================
 // Image Activity
@@ -204,6 +224,7 @@ export type AIAdapter =
   | AnyTTSAdapter
   | AnyTranscriptionAdapter
   | AnyEmbeddingAdapter
+  | AnyRerankAdapter
 
 /** Union type of all adapter kinds */
 export type AdapterKind =
@@ -215,3 +236,4 @@ export type AdapterKind =
   | 'tts'
   | 'transcription'
   | 'embedding'
+  | 'rerank'

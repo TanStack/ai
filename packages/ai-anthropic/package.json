@@ -59,7 +59,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",
-    "@tanstack/ai-utils": "workspace:*"
+    "@tanstack/ai-utils": "workspace:^"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

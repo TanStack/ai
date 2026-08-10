@@ -488,10 +488,11 @@ export type BytePlusVideoRatio =
 /**
  * Resolution tiers accepted by the Seedance task API.
  *
- * All four are probe-verified per model (2026-07-31). Two findings contradict
- * the BytePlus prose docs: there is **no 2K tier on any Seedance model** —
- * `2k`/`2K` is rejected everywhere, including on the 2.0 flagship documented
- * as reaching 4K — and `4k` exists only on `dreamina-seedance-2-0-260128`.
+ * Resolution tiers are model-specific (see
+ * {@link BytePlusVideoModelResolutionByName}). Two findings that still
+ * contradict older BytePlus prose: there is **no 2K tier on any Seedance
+ * model**, and `4k` exists only on `dreamina-seedance-2-0-260128` (Seedance
+ * 2.5 is 480p/720p only, per the live ModelArk docs).
  *
  * The API matches this field case-insensitively (`4K`, `4k` and `1080P` are
  * all accepted), so this package standardizes on the lowercase spelling.
@@ -508,11 +509,18 @@ export type BytePlusVideoSize<
   TResolution extends BytePlusVideoResolution = BytePlusVideoResolution,
 > = BytePlusVideoRatio | `${BytePlusVideoRatio}_${TResolution}`
 
-// The Seedance 2.0 family's `audio` input modality is docs-derived, not
-// live-probed: the docs' multimodal-reference caps list `reference_audio`
-// parts (up to 3, never sent without a visual reference). Every 2.0 model id
-// below is itself probe-verified live; only the audio-reference capability
-// rests on the docs.
+// Multimodal reference-media capabilities (reference images / video / audio)
+// are docs-derived from the ModelArk create-task page. Model ids and the
+// resolution / duration tables for 2.0 were also live-probed on 2026-07-31;
+// 2.5 lands from the public docs once the model was fully opened (2026-08-07).
+const DREAMINA_SEEDANCE_2_5 = {
+  name: 'dreamina-seedance-2-5-260628',
+  supports: {
+    input: ['text', 'image', 'video', 'audio'],
+    output: ['video', 'audio'],
+  },
+} as const satisfies ModelMeta
+
 const DREAMINA_SEEDANCE_2_0 = {
   name: 'dreamina-seedance-2-0-260128',
   supports: {
@@ -565,6 +573,7 @@ const SEEDANCE_1_0_PRO_FAST = {
  * All supported Seedance video model identifiers.
  */
 export const BYTEPLUS_VIDEO_MODELS = [
+  DREAMINA_SEEDANCE_2_5.name,
   DREAMINA_SEEDANCE_2_0.name,
   DREAMINA_SEEDANCE_2_0_FAST.name,
   DREAMINA_SEEDANCE_2_0_MINI.name,
@@ -580,11 +589,12 @@ export type BytePlusVideoModel = (typeof BYTEPLUS_VIDEO_MODELS)[number]
 
 /**
  * Type-only map from video model name to the non-text prompt modalities it
- * accepts. The Seedance 2.0 family takes multimodal references (start/end
- * frames, reference images, reference video and audio); the 1.x models take
- * start/end frames only.
+ * accepts. Seedance 2.5 and the 2.0 family take multimodal references
+ * (start/end frames, reference images, reference video and audio); the 1.x
+ * models take start/end frames only.
  */
 export type BytePlusVideoModelInputModalitiesByName = {
+  [DREAMINA_SEEDANCE_2_5.name]: readonly ['image', 'video', 'audio']
   [DREAMINA_SEEDANCE_2_0.name]: readonly ['image', 'video', 'audio']
   [DREAMINA_SEEDANCE_2_0_FAST.name]: readonly ['image', 'video', 'audio']
   [DREAMINA_SEEDANCE_2_0_MINI.name]: readonly ['image', 'video', 'audio']
@@ -596,10 +606,13 @@ export type BytePlusVideoModelInputModalitiesByName = {
 /**
  * Type-only map from video model name to the resolutions it accepts.
  *
- * Probe-verified per model on 2026-07-31. Note `seedance-1-0-pro-fast-251015`
- * does accept `1080p`, despite the BytePlus docs listing it as 480p/720p.
+ * 2.0 / 1.x cells were probe-verified on 2026-07-31; 2.5 comes from the
+ * public ModelArk create-task docs (2026-08-07). Note
+ * `seedance-1-0-pro-fast-251015` does accept `1080p`, despite older BytePlus
+ * prose listing it as 480p/720p.
  */
 export type BytePlusVideoModelResolutionByName = {
+  [DREAMINA_SEEDANCE_2_5.name]: '480p' | '720p'
   [DREAMINA_SEEDANCE_2_0.name]: '480p' | '720p' | '1080p' | '4k'
   [DREAMINA_SEEDANCE_2_0_FAST.name]: '480p' | '720p'
   [DREAMINA_SEEDANCE_2_0_MINI.name]: '480p' | '720p'
@@ -621,24 +634,16 @@ export type BytePlusVideoModelSizeByName = {
  * A Seedance model id: one this package knows, or any other string.
  *
  * The open half is a deliberate escape hatch for models BytePlus ships between
- * releases of this package. **Seedance 2.5 is the live example.** Its real id
- * is `dreamina-seedance-2-5-260628` — note the June date suffix, which is why
- * guessing ids around its 2026-07-31 announcement never landed. It is absent
- * from the table below because its capability cells are unverified, not
- * because it is unreachable: probing it returns 404 `ModelNotOpen` ("your
- * account has not activated the model"), so no capability question can be
- * answered until someone enables it in the Ark Console. Passing it through
- * the escape hatch works today for an account that has.
- *
- * Adding a model here *narrows* it — the adapter's guards switch on and reject
- * against this file's tables. For a model whose real limits are unknown that
- * is strictly worse than the open path, which lets Ark judge. So an id lands
- * here only once probed.
+ * releases of this package. Adding a model to {@link BYTEPLUS_VIDEO_MODELS}
+ * *narrows* it — the adapter's guards switch on and reject against this
+ * file's tables. For a model whose real limits are unknown that is strictly
+ * worse than the open path, which lets Ark judge. So an id lands in the
+ * known table only once its capability cells are documented or probed.
  *
  * Discovering ids: `GET /models` on the Ark data plane enumerates the catalog
- * (id, `task_type`, `modalities`, `status`) and is how 2.5 was found. It is
- * not exhaustive — `seedream-5-0-lite-260128` answers requests but is missing
- * from the listing — so absence there is not evidence of absence. The ModelArk
+ * (id, `task_type`, `modalities`, `status`). It is not exhaustive —
+ * `seedream-5-0-lite-260128` answers requests but is missing from the
+ * listing — so absence there is not evidence of absence. The ModelArk
  * release notes (https://docs.byteplus.com/en/docs/ModelArk/1159178) are the
  * other watch surface.
  *
@@ -651,7 +656,7 @@ export type BytePlusVideoModelSizeByName = {
  * Unknown ids trade compile-time narrowing for reach: the full size surface is
  * accepted, provider options are ungated, and the adapter's model-specific
  * runtime guards stand down so a new model's legitimate request reaches Ark.
- * Known ids keep their probe-verified narrowing.
+ * Known ids keep their documented / probe-verified narrowing.
  */
 export type BytePlusVideoModelOrString = BytePlusVideoModel | (string & {})
 
@@ -694,8 +699,8 @@ export function isKnownBytePlusVideoModel(
  * Per-model duration type. Seedance accepts any integer second inside the
  * model's range, so this is a continuous range expressed as `number` — a
  * literal union cannot represent it. (The API also accepts `duration: -1` on
- * Seedance 2.0 and 1.5-pro to let the model choose; that is reachable through
- * provider options, not through the generic `duration`.)
+ * Seedance 2.5, 2.0 and 1.5-pro to let the model choose; that is reachable
+ * through provider options, not through the generic `duration`.)
  */
 export type BytePlusVideoModelDurationByName = {
   [K in BytePlusVideoModel]: number
@@ -709,6 +714,13 @@ export const BYTEPLUS_VIDEO_DURATIONS: {
     BytePlusVideoModelDurationByName[TModel]
   >
 } = {
+  'dreamina-seedance-2-5-260628': {
+    kind: 'range',
+    min: 4,
+    max: 30,
+    step: 1,
+    unit: 'seconds',
+  },
   'dreamina-seedance-2-0-260128': {
     kind: 'range',
     min: 4,
@@ -757,15 +769,15 @@ export const BYTEPLUS_VIDEO_DURATIONS: {
  * Duration hint for a model this package has no table for.
  *
  * Spans every range Seedance has shipped so far (2s on the 1.0 models through
- * 15s on the 2.0 family) so `availableDurations()` can still drive a UI. It is
+ * 30s on Seedance 2.5) so `availableDurations()` can still drive a UI. It is
  * a hint, not a contract: the adapter does **not** snap an unknown model's
- * duration against it, because clamping a future model's legitimate 20-second
- * request down to 15 would corrupt the request rather than protect it.
+ * duration against it, because clamping a future model's legitimate longer
+ * request down to 30 would corrupt the request rather than protect it.
  */
 export const BYTEPLUS_VIDEO_FALLBACK_DURATIONS: DurationOptions<number> = {
   kind: 'range',
   min: 2,
-  max: 15,
+  max: 30,
   step: 1,
   unit: 'seconds',
 }

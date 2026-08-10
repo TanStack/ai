@@ -63,7 +63,7 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "@tanstack/ai-event-client": "workspace:*"
+    "@tanstack/ai-event-client": "workspace:^"
   },
   "peerDependencies": {
     "@honcho-ai/sdk": ">=2.0.0",

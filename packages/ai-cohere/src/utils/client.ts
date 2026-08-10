@@ -25,6 +25,8 @@ export interface CohereClientConfig {
   timeout?: number
 }
 
+export const COHERE_DEFAULT_BASE_URL = 'https://api.cohere.com'
+
 /**
  * Gets Cohere API key from environment variables.
  *

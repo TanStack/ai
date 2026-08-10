@@ -2,9 +2,14 @@
  * @module @tanstack/ai-cohere
  *
  * Cohere provider adapter for TanStack AI.
- * Provides a tree-shakeable adapter for Cohere's v2/embed API
- * (multimodal embeddings) using plain fetch — no SDK dependency.
+ * Provides tree-shakeable adapters for Cohere's v2/embed API (multimodal
+ * embeddings) and v2/rerank API (document reranking) using plain fetch —
+ * no SDK dependency.
  */
+
+// ============================================================================
+// Cohere Adapters (tree-shakeable)
+// ============================================================================
 
 // Embedding adapter - for embedding vectors
 export {
@@ -15,13 +20,31 @@ export {
 } from './adapters/embedding'
 export type { CohereEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 
+// Rerank adapter - document reranking via Cohere's /v2/rerank endpoint
+export {
+  CohereRerankAdapter,
+  createCohereRerank,
+  cohereRerank,
+} from './adapters/rerank'
+
 // Client config + env helpers
 export { getCohereApiKeyFromEnv, type CohereClientConfig } from './utils/client'
 
-// Types
+// ============================================================================
+// Type Exports
+// ============================================================================
+
 export type {
   CohereEmbeddingModel,
   CohereEmbeddingModelProviderOptionsByName,
   CohereEmbeddingModelInputModalitiesByName,
 } from './model-meta'
 export { COHERE_EMBEDDING_MODELS } from './model-meta'
+
+export {
+  COHERE_RERANK_MODELS,
+  type CohereRerankModel,
+  type CohereRerankProviderOptions,
+  type CohereRerankModelProviderOptionsByName,
+  type InferCohereRerankProviderOptions,
+} from './model-meta'

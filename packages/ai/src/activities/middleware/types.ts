@@ -42,6 +42,7 @@ export type GenerationActivity =
   | 'tts'
   | 'transcription'
   | 'embedding'
+  | 'rerank'
   | 'summarize'
 
 /**
