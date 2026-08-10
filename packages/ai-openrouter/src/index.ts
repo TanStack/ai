@@ -41,6 +41,20 @@ export type {
   OpenRouterImageModelSizeByName,
 } from './image/image-provider-options'
 
+// Rerank adapter - document reranking via OpenRouter's /v1/rerank endpoint
+export {
+  OpenRouterRerankAdapter,
+  createOpenRouterRerank,
+  openRouterRerank,
+  type OpenRouterRerankConfig,
+} from './adapters/rerank'
+export {
+  OPENROUTER_RERANK_MODELS,
+  type OpenRouterRerankModel,
+  type KnownOpenRouterRerankModel,
+  type OpenRouterRerankProviderOptions,
+} from './rerank/rerank-provider-options'
+
 // ============================================================================
 // Type Exports
 // ============================================================================
