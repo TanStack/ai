@@ -186,6 +186,9 @@ function buildUserOrToolMessage(uiMessage: UIMessage): ModelMessage {
   return {
     role: uiMessage.role as 'user' | 'assistant' | 'tool',
     content: collapseContentParts(contentParts),
+    ...(uiMessage.createdAt !== undefined && {
+      createdAt: uiMessage.createdAt,
+    }),
   }
 }
 
@@ -248,6 +251,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         content,
         ...(hasToolCalls && { toolCalls: current.toolCalls }),
         ...(pendingThinking.length > 0 && { thinking: pendingThinking }),
+        ...(uiMessage.createdAt !== undefined && {
+          createdAt: uiMessage.createdAt,
+        }),
       })
       pendingThinking = []
     }
@@ -291,6 +297,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             role: 'tool',
             content: part.content,
             toolCallId: part.toolCallId,
+            ...(uiMessage.createdAt !== undefined && {
+              createdAt: uiMessage.createdAt,
+            }),
           })
           emittedToolResultIds.add(part.toolCallId)
         }
@@ -350,6 +359,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         role: 'tool',
         content: normalizeToolResult(part.output),
         toolCallId: part.id,
+        ...(uiMessage.createdAt !== undefined && {
+          createdAt: uiMessage.createdAt,
+        }),
       })
       emittedToolResultIds.add(part.id)
     }
@@ -372,6 +384,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             : 'User denied this action',
         }),
         toolCallId: part.id,
+        ...(uiMessage.createdAt !== undefined && {
+          createdAt: uiMessage.createdAt,
+        }),
       })
       emittedToolResultIds.add(part.id)
     }
@@ -382,6 +397,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     messageList.push({
       role: 'assistant',
       content: null,
+      ...(uiMessage.createdAt !== undefined && {
+        createdAt: uiMessage.createdAt,
+      }),
     })
   }
 
@@ -469,6 +487,9 @@ export function modelMessageToUIMessage(
     id: id || generateMessageId(),
     role: modelMessage.role === 'tool' ? 'assistant' : modelMessage.role,
     parts,
+    ...(modelMessage.createdAt !== undefined && {
+      createdAt: modelMessage.createdAt,
+    }),
   }
 }
 
@@ -659,7 +680,7 @@ export function normalizeToUIMessage(
     // ModelMessage - convert to UIMessage
     return {
       ...modelMessageToUIMessage(message, generateId()),
-      createdAt: new Date(),
+      createdAt: message.createdAt ?? new Date(),
     }
   }
 }
