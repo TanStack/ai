@@ -458,6 +458,7 @@ export class AnthropicTextAdapter<
     const validProviderOptions: Partial<InternalTextProviderOptions> = {}
     if (modelOptions) {
       const validKeys: Array<keyof AnthropicTextProviderOptions> = [
+        'cache_control',
         'container',
         'context_management',
         'effort',
