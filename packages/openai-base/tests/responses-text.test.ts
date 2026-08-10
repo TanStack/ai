@@ -2427,7 +2427,11 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
     const minimalStreamChunks = [
       {
         type: 'response.created',
-        response: { id: 'resp-doc-1', model: 'test-model', status: 'in_progress' },
+        response: {
+          id: 'resp-doc-1',
+          model: 'test-model',
+          status: 'in_progress',
+        },
       },
       {
         type: 'response.completed',

@@ -1898,7 +1898,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // rejected. MIME types are case-insensitive and can carry
         // ;parameters (RFC 2045), so the type is normalized before comparing.
         const documentValue = part.source.value
-        const documentMime = ((part.source.mimeType || 'application/pdf').split(';')[0] ?? '')
+        const documentMime = (
+          (part.source.mimeType || 'application/pdf').split(';')[0] ?? ''
+        )
           .trim()
           .toLowerCase()
         if (documentMime !== 'application/pdf') {
