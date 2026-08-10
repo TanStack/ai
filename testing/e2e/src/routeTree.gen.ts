@@ -35,6 +35,7 @@ import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
+import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
@@ -208,6 +209,12 @@ const ApiSandboxDurabilityRoute = ApiSandboxDurabilityRouteImport.update({
   path: '/api/sandbox-durability',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProviderToolDispatchWireRoute =
+  ApiProviderToolDispatchWireRouteImport.update({
+    id: '/api/provider-tool-dispatch-wire',
+    path: '/api/provider-tool-dispatch-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPersistenceDurabilityRoute =
   ApiPersistenceDurabilityRouteImport.update({
     id: '/api/persistence-durability',
@@ -463,6 +470,7 @@ export interface FileRoutesByFullPath {
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -530,6 +538,7 @@ export interface FileRoutesByTo {
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -598,6 +607,7 @@ export interface FileRoutesById {
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -667,6 +677,7 @@ export interface FileRouteTypes {
     | '/api/otel-media'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
@@ -734,6 +745,7 @@ export interface FileRouteTypes {
     | '/api/otel-media'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
@@ -801,6 +813,7 @@ export interface FileRouteTypes {
     | '/api/otel-media'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
@@ -869,6 +882,7 @@ export interface RootRouteChildren {
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
+  ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -1062,6 +1076,13 @@ declare module '@tanstack/react-router' {
       path: '/api/sandbox-durability'
       fullPath: '/api/sandbox-durability'
       preLoaderRoute: typeof ApiSandboxDurabilityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/provider-tool-dispatch-wire': {
+      id: '/api/provider-tool-dispatch-wire'
+      path: '/api/provider-tool-dispatch-wire'
+      fullPath: '/api/provider-tool-dispatch-wire'
+      preLoaderRoute: typeof ApiProviderToolDispatchWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/persistence-durability': {
@@ -1450,6 +1471,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
+  ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,

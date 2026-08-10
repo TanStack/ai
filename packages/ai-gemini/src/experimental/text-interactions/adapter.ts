@@ -126,9 +126,9 @@ type ResolveInputModalities<TModel extends string> =
 
 /**
  * Resolve tool capabilities for a specific model. Reuses the chat-model
- * capability map: `google_maps` / `google_search_retrieval` /
- * `mcp_server` are rejected at runtime by `convertToolsToInteractionsFormat`,
- * but per-model gating happens here at compile time.
+ * capability map: `google_maps` / `google_search_retrieval` are rejected at
+ * runtime by `convertToolsToInteractionsFormat`, but per-model gating happens
+ * here at compile time.
  */
 type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof GeminiChatModelToolCapabilitiesByName
@@ -157,8 +157,11 @@ type ResolveToolCapabilities<TModel extends string> =
  * corresponding per-tool variants) carrying the raw Interactions delta;
  * see {@link GeminiInteractionsCustomEvent}. `computer_use` is accepted
  * in the request but the Interactions API does not currently stream
- * per-delta CUSTOM events for it. `google_search_retrieval`,
- * `google_maps`, and `mcp_server` are not supported on this adapter.
+ * per-delta CUSTOM events for it. The `google_search_retrieval` and
+ * `google_maps` provider-tool factories are not supported on this adapter and
+ * throw a targeted error. There is no Gemini `mcp_server` factory, so a tool
+ * merely *named* `mcp_server` is an ordinary function and is sent as a function
+ * declaration like any other.
  *
  * @experimental Interactions API is in Beta per Google; shapes may change.
  * @see https://ai.google.dev/gemini-api/docs/interactions

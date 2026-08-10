@@ -4,11 +4,32 @@ import type { Tool } from '@tanstack/ai'
 import type { Provider } from '@/lib/types'
 import { createTextAdapter } from '@/lib/providers'
 
-type CollisionProvider = Extract<Provider, 'gemini' | 'openai'>
+/**
+ * Drives a provider with an ordinary function whose name collides with one of
+ * that provider's native tools, so the spec can assert what reached the wire.
+ *
+ * Gemini only, deliberately. The OpenAI half of the runtime-discriminator fix
+ * lives in `openai-base`'s `src/tools/tool-converter.ts`, and the only adapter
+ * that runs it is `ai-openai`'s `openaiText()` (it overrides
+ * `mapOptionsToRequest` to route through the full tool converter). Neither
+ * OpenAI-family provider in this app reaches that code:
+ *
+ *   - `openai`            -> `createOpenaiChat()`, the Chat Completions adapter,
+ *                            whose converter never dispatched on tool name.
+ *   - `openai-compatible` -> inherits `OpenAIBaseResponsesTextAdapter`'s
+ *                            `mapOptionsToRequest`, which sends every tool
+ *                            through `convertToolsToResponsesFormat` as a
+ *                            function tool — no native dispatch at all.
+ *
+ * So an OpenAI case here would pass with or without the fix. That leg is
+ * covered where the code actually lives, in
+ * `packages/openai-base/tests/provider-tool-dispatch.test.ts`. Adding true E2E
+ * coverage would mean adding an `openai-responses` provider to this app.
+ */
+type CollisionProvider = Extract<Provider, 'gemini'>
 
 const customTools = {
   gemini: createCustomTool('google_search'),
-  openai: createCustomTool('web_search'),
 } satisfies Record<CollisionProvider, Tool>
 
 export const Route = createFileRoute('/api/provider-tool-dispatch-wire')({
@@ -65,8 +86,5 @@ function createCustomTool(name: string): Tool {
 }
 
 function readProvider(value: string | null): CollisionProvider | undefined {
-  if (value === 'gemini' || value === 'openai') {
-    return value
-  }
-  return undefined
+  return value === 'gemini' ? value : undefined
 }
