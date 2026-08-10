@@ -86,6 +86,15 @@ export interface MCPClient<
   getInfo: () => {
     transport: TransportConfig | undefined
     prefix: string | undefined
+    /**
+     * The options this client was built with, so a caller that reconstructs it
+     * from this descriptor keeps them. Without it a rebuilt client silently
+     * reverts to the SDK defaults — including the AJV validator that edge
+     * runtimes cannot compile.
+     *
+     * Optional so an existing hand-rolled `MCPClient` keeps compiling.
+     */
+    clientOptions?: ClientOptions
   }
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -101,6 +110,10 @@ class MCPClientImpl<
   // The ORIGINAL serializable transport config (undefined for clients built
   // from a ready-made Transport instance, which is single-use / not reconnectable).
   readonly #transport: TransportConfig | undefined
+  // Retained for the same reason as #transport: the MCP Apps call handler
+  // rebuilds a client per call from getInfo(), and a rebuilt client that lost
+  // `jsonSchemaValidator` falls straight back to AJV.
+  readonly #clientOptions: ClientOptions | undefined
 
   constructor(
     prefix?: string,
@@ -111,6 +124,7 @@ class MCPClientImpl<
   ) {
     this.prefix = prefix
     this.#transport = transport
+    this.#clientOptions = clientOptions
     // `clientOptions` is spread rather than passed straight through so an
     // omitted option keeps the SDK's default. See MCPClientOptions.clientOptions
     // for why edge runtimes need `jsonSchemaValidator` in particular.
@@ -120,8 +134,13 @@ class MCPClientImpl<
   getInfo(): {
     transport: TransportConfig | undefined
     prefix: string | undefined
+    clientOptions?: ClientOptions
   } {
-    return { transport: this.#transport, prefix: this.prefix }
+    return {
+      transport: this.#transport,
+      prefix: this.prefix,
+      ...(this.#clientOptions ? { clientOptions: this.#clientOptions } : {}),
+    }
   }
 
   async connect(transport: Transport): Promise<void> {

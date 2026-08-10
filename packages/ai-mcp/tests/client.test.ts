@@ -327,4 +327,29 @@ describe('clientOptions', () => {
 
     expect(result.structuredContent).toEqual({ id: 'u-1', name: 'Ada' })
   })
+
+  it('reports clientOptions on getInfo so a rebuilt client keeps them', async () => {
+    // `createMcpAppCallHandler` reconnects per call from `getInfo()`. A
+    // descriptor that dropped `clientOptions` would hand the rebuilt client
+    // back to the SDK's AJV default — the exact failure this option exists to
+    // avoid, reintroduced for every MCP Apps widget call.
+    const { clientTransport } = await makeServerWithStructuredTool()
+    const { provider } = recordingValidator()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      prefix: 'weather',
+      clientOptions: { jsonSchemaValidator: provider },
+    })
+
+    expect(client.getInfo().clientOptions).toEqual({
+      jsonSchemaValidator: provider,
+    })
+  })
+
+  it('omits clientOptions from getInfo when none were given', async () => {
+    const { clientTransport } = await makeServerWithStructuredTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+
+    expect(client.getInfo().clientOptions).toBeUndefined()
+  })
 })
