@@ -22,20 +22,21 @@ import type {
 export interface SeedanceExtras {
   /**
    * `generate_audio` — accepted by every model at the validation layer, but
-   * only the Seedance 2.0 family and 1.5-pro actually produce an audio track.
+   * only Seedance 2.5, the 2.0 family and 1.5-pro actually produce an audio
+   * track.
    */
   generateAudio: boolean
-  /** `camera_fixed` — Seedance 1.x only; the 2.0 family rejects it. */
+  /** `camera_fixed` — Seedance 1.x only; the 2.x family rejects it. */
   cameraFixed: boolean
-  /** `service_tier: 'flex'` — Seedance 1.x only (no offline tier on 2.0). */
+  /** `service_tier: 'flex'` — Seedance 1.x only (no offline tier on 2.x). */
   serviceTier: boolean
   /** `frames` — Seedance 1.0-pro and 1.0-pro-fast only. */
   frames: boolean
   /** `draft` — Seedance 1.5-pro only. */
   draft: boolean
-  /** `priority` (0-9) — Seedance 2.0 family only. */
+  /** `priority` (0-9) — Seedance 2.5 and the 2.0 family. */
   priority: boolean
-  /** `duration: -1` (model picks the length) — Seedance 2.0 and 1.5-pro. */
+  /** `duration: -1` (model picks the length) — Seedance 2.5, 2.0 and 1.5-pro. */
   autoDuration: boolean
 }
 
@@ -50,16 +51,30 @@ export interface SeedanceModelEntry {
 type AssertNever<T extends never> = T
 
 /**
- * The six Seedance models, with the option applicability probed live against
- * Ark on 2026-07-31 and documented on `BytePlusVideoProviderOptions`. Ark 400s
- * on an inapplicable field rather than ignoring it, so these flags decide what
- * the studio is allowed to send — not just what it renders.
+ * The Seedance models, with option applicability from
+ * `BytePlusVideoProviderOptions` (2.0/1.x live-probed; 2.5 from ModelArk
+ * docs). Ark 400s on an inapplicable field rather than ignoring it, so these
+ * flags decide what the studio is allowed to send — not just what it renders.
  */
 export const SEEDANCE_MODELS = [
   {
+    id: 'dreamina-seedance-2-5-260628',
+    name: 'Seedance 2.5',
+    blurb: 'Current multimodal flagship — up to 30s, audio-only references',
+    extras: {
+      generateAudio: true,
+      cameraFixed: false,
+      serviceTier: false,
+      frames: false,
+      draft: false,
+      priority: true,
+      autoDuration: true,
+    },
+  },
+  {
     id: 'dreamina-seedance-2-0-260128',
     name: 'Seedance 2.0',
-    blurb: 'Flagship — the only Seedance model with a 4k tier',
+    blurb: '2.0 flagship — the only Seedance model with a 4k tier',
     extras: {
       generateAudio: true,
       cameraFixed: false,
@@ -143,10 +158,10 @@ export const SEEDANCE_MODELS = [
 ] as const satisfies ReadonlyArray<SeedanceModelEntry>
 
 /**
- * Compile-time link between this catalog and the package's model list: a
- * seventh model shipping in `@tanstack/ai-byteplus` fails the example's build
- * here — naming the id it is missing — instead of silently going absent from
- * the picker with no capability copy or option policy.
+ * Compile-time link between this catalog and the package's model list: a new
+ * model shipping in `@tanstack/ai-byteplus` fails the example's build here —
+ * naming the id it is missing — instead of silently going absent from the
+ * picker with no capability copy or option policy.
  */
 export type SeedanceCatalogCoversEveryModel = AssertNever<
   Exclude<BytePlusVideoModel, (typeof SEEDANCE_MODELS)[number]['id']>
@@ -182,14 +197,11 @@ export interface SeedanceCapability {
 }
 
 /**
- * Placeholder for the advanced custom-id field: the real Seedance 2.5 id.
- *
- * The June date suffix is the whole reason it needs typing out — guessing ids
- * around the 2026-07-31 announcement never landed on it. The id is reachable
- * but activation-gated: an account that has not enabled it in the Ark Console
- * gets 404 `ModelNotOpen`.
+ * Placeholder for the advanced custom-id field when trying an id this package
+ * has not catalogued yet. Known models (including Seedance 2.5) live in the
+ * picker above.
  */
-export const SEEDANCE_CUSTOM_MODEL_PLACEHOLDER = 'dreamina-seedance-2-5-260628'
+export const SEEDANCE_CUSTOM_MODEL_PLACEHOLDER = 'dreamina-seedance-…-yymmdd'
 
 /**
  * Option applicability for an id the package has no table for: everything on.
@@ -234,7 +246,7 @@ export interface SeedanceJobOptions {
    * unknown model's template shape before handing the values to Ark.
    */
   size?: string
-  /** Whole seconds, or `-1` to let the model choose (2.0 / 1.5-pro only). */
+  /** Whole seconds, or `-1` to let the model choose (2.5 / 2.0 / 1.5-pro). */
   duration?: number
   /** Frame count instead of seconds; wins over `duration` server-side. */
   frames?: number
