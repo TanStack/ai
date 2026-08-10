@@ -21,6 +21,7 @@ describe('Message Converters', () => {
 
       expect(result).toEqual([
         {
+          id: 'msg-1',
           role: 'user',
           content: 'Hello',
         },
@@ -41,6 +42,7 @@ describe('Message Converters', () => {
 
       expect(result).toEqual([
         {
+          id: 'msg-1',
           role: 'user',
           content: 'Hello world!',
         },
@@ -343,6 +345,74 @@ describe('Message Converters', () => {
       expect(result[1]?.role).toBe('tool')
       expect(result[1]?.toolCallId).toBe('tool-1')
       expect(result[1]?.content).toBe('{"temp": 72}')
+    })
+
+    it('should preserve the UI message id on every generated model message', () => {
+      const uiMessage: UIMessage = {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          { type: 'text', content: 'Let me check.' },
+          {
+            type: 'tool-call',
+            id: 'tc-explicit',
+            name: 'getWeather',
+            arguments: '{}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc-explicit',
+            content: '{}',
+            state: 'complete',
+          },
+          { type: 'text', content: 'I found it.' },
+          {
+            type: 'tool-call',
+            id: 'tc-output',
+            name: 'getForecast',
+            arguments: '{}',
+            state: 'complete',
+            output: { temperature: 72 },
+          },
+          {
+            type: 'tool-call',
+            id: 'tc-approval',
+            name: 'deleteForecast',
+            arguments: '{}',
+            state: 'approval-responded',
+            approval: {
+              id: 'approval-tc-approval',
+              needsApproval: true,
+              approved: false,
+            },
+          },
+        ],
+      }
+
+      const result = uiMessageToModelMessages(uiMessage)
+
+      expect(result).toHaveLength(5)
+      expect(result.every((message) => message.id === uiMessage.id)).toBe(true)
+      expect(result.map((message) => message.role)).toEqual([
+        'assistant',
+        'tool',
+        'assistant',
+        'tool',
+        'tool',
+      ])
+    })
+
+    it('should preserve the UI message id on an empty assistant fallback', () => {
+      const uiMessage: UIMessage = {
+        id: 'assistant-empty',
+        role: 'assistant',
+        parts: [],
+      }
+
+      expect(uiMessageToModelMessages(uiMessage)).toEqual([
+        { id: uiMessage.id, role: 'assistant', content: null },
+      ])
     })
 
     it('should preserve interleaving of text, tool calls, and tool results', () => {
@@ -1132,7 +1202,7 @@ describe('Message Converters', () => {
 
       const result = convertMessagesToModelMessages(messages)
 
-      expect(result).toEqual([{ role: 'user', content: 'Hello' }])
+      expect(result).toEqual([{ id: 'msg-1', role: 'user', content: 'Hello' }])
     })
 
     it('should handle mixed UIMessage and ModelMessage array', () => {
@@ -1148,7 +1218,7 @@ describe('Message Converters', () => {
       const result = convertMessagesToModelMessages(messages)
 
       expect(result).toEqual([
-        { role: 'user', content: 'Hello' },
+        { id: 'msg-1', role: 'user', content: 'Hello' },
         { role: 'assistant', content: 'Hi there!' },
       ])
     })
@@ -1361,8 +1431,8 @@ describe('Message Converters', () => {
   describe('Round-trip symmetry: Model -> UI -> Model', () => {
     it('should round-trip simple text messages', () => {
       const original: Array<ModelMessage> = [
-        { role: 'user', content: 'Hello' },
-        { role: 'assistant', content: 'Hi there!' },
+        { id: 'user-1', role: 'user', content: 'Hello' },
+        { id: 'assistant-1', role: 'assistant', content: 'Hi there!' },
       ]
 
       const uiMessages = modelMessagesToUIMessages(original)
@@ -1374,6 +1444,7 @@ describe('Message Converters', () => {
     it('should round-trip assistant with toolCalls + tool result', () => {
       const original: Array<ModelMessage> = [
         {
+          id: 'assistant-1',
           role: 'assistant',
           content: 'Let me check.',
           toolCalls: [
@@ -1385,6 +1456,7 @@ describe('Message Converters', () => {
           ],
         },
         {
+          id: 'assistant-1',
           role: 'tool',
           content: '{"temp": 72}',
           toolCallId: 'tc-1',
@@ -1400,6 +1472,7 @@ describe('Message Converters', () => {
     it('should round-trip multimodal content array', () => {
       const original: Array<ModelMessage> = [
         {
+          id: 'user-1',
           role: 'user',
           content: [
             { type: 'text', content: 'What is this?' },
@@ -1419,8 +1492,9 @@ describe('Message Converters', () => {
 
     it('should round-trip multi-round tool conversation', () => {
       const original: Array<ModelMessage> = [
-        { role: 'user', content: 'Check guitars' },
+        { id: 'user-1', role: 'user', content: 'Check guitars' },
         {
+          id: 'assistant-1',
           role: 'assistant',
           content: 'Checking.',
           toolCalls: [
@@ -1431,8 +1505,14 @@ describe('Message Converters', () => {
             },
           ],
         },
-        { role: 'tool', content: '[{"id":7}]', toolCallId: 'tc-1' },
         {
+          id: 'assistant-1',
+          role: 'tool',
+          content: '[{"id":7}]',
+          toolCallId: 'tc-1',
+        },
+        {
+          id: 'assistant-2',
           role: 'assistant',
           content: 'Found one!',
           toolCalls: [
@@ -1444,11 +1524,16 @@ describe('Message Converters', () => {
           ],
         },
         {
+          id: 'assistant-2',
           role: 'tool',
           content: '{"recommended":true}',
           toolCallId: 'tc-2',
         },
-        { role: 'assistant', content: 'Here is my recommendation.' },
+        {
+          id: 'assistant-3',
+          role: 'assistant',
+          content: 'Here is my recommendation.',
+        },
       ]
 
       const uiMessages = modelMessagesToUIMessages(original)
@@ -1460,6 +1545,7 @@ describe('Message Converters', () => {
     it('should round-trip assistant with null content and toolCalls', () => {
       const original: Array<ModelMessage> = [
         {
+          id: 'assistant-1',
           role: 'assistant',
           content: null,
           toolCalls: [
@@ -1470,7 +1556,12 @@ describe('Message Converters', () => {
             },
           ],
         },
-        { role: 'tool', content: '{"temp":72}', toolCallId: 'tc-1' },
+        {
+          id: 'assistant-1',
+          role: 'tool',
+          content: '{"temp":72}',
+          toolCallId: 'tc-1',
+        },
       ]
 
       const uiMessages = modelMessagesToUIMessages(original)

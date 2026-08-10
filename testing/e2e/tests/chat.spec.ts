@@ -7,6 +7,9 @@ import {
 } from './helpers'
 import { providersFor } from './test-matrix'
 
+// The server conversion test in this spec does not call a provider HTTP
+// endpoint, so it intentionally does not configure aimock.
+
 for (const provider of providersFor('chat')) {
   test.describe(`${provider} — chat`, () => {
     test('sends a message and receives a streaming response', async ({
@@ -52,6 +55,96 @@ for (const provider of providersFor('chat')) {
     })
   })
 }
+
+test('preserves UI message IDs at the server conversion boundary', async ({
+  request,
+}) => {
+  const response = await request.post('/api/message-ids', {
+    data: {
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+        },
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          parts: [
+            { type: 'text', content: 'Let me check.' },
+            {
+              type: 'tool-call',
+              id: 'tool-1',
+              name: 'getWeather',
+              arguments: '{}',
+              state: 'input-complete',
+            },
+            {
+              type: 'tool-result',
+              toolCallId: 'tool-1',
+              content: '{"temp":72}',
+              state: 'complete',
+            },
+          ],
+        },
+      ],
+    },
+  })
+
+  expect(response.ok()).toBe(true)
+  const modelMessages = await response.json()
+
+  expect(modelMessages).toEqual([
+    { id: 'user-1', role: 'user', content: 'Hello' },
+    {
+      id: 'assistant-1',
+      role: 'assistant',
+      content: 'Let me check.',
+      toolCalls: [
+        {
+          id: 'tool-1',
+          type: 'function',
+          function: { name: 'getWeather', arguments: '{}' },
+        },
+      ],
+    },
+    {
+      id: 'assistant-1',
+      role: 'tool',
+      content: '{"temp":72}',
+      toolCallId: 'tool-1',
+    },
+  ])
+})
+
+test('rejects malformed JSON at the server conversion boundary', async ({
+  request,
+}) => {
+  const response = await request.post('/api/message-ids', {
+    data: '{',
+    headers: { 'Content-Type': 'application/json' },
+  })
+
+  expect(response.status()).toBe(400)
+})
+
+test('rejects invalid message parts at the server conversion boundary', async ({
+  request,
+}) => {
+  const response = await request.post('/api/message-ids', {
+    data: {
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 42 }],
+        },
+      ],
+    },
+  })
+
+  expect(response.status()).toBe(400)
+})
 
 test.describe('openai chat persistence', () => {
   test('persists chat messages across browser reload with localStorage', async ({

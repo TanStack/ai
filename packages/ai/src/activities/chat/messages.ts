@@ -184,6 +184,7 @@ function buildUserOrToolMessage(uiMessage: UIMessage): ModelMessage {
   }
 
   return {
+    id: uiMessage.id,
     role: uiMessage.role as 'user' | 'assistant' | 'tool',
     content: collapseContentParts(contentParts),
   }
@@ -228,6 +229,8 @@ function isToolCallIncluded(part: ToolCallPart): boolean {
  * result is emitted as a tool message.
  */
 function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
+  // A single UI message can fan out into several model messages. Keep the
+  // shared UI id on each one so persistence can retain the original identity.
   const messageList: Array<ModelMessage> = []
   let current = createSegment()
   let pendingThinking: Array<{ content: string; signature?: string }> = []
@@ -244,6 +247,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
 
     if (hasContent || hasToolCalls) {
       messageList.push({
+        id: uiMessage.id,
         role: 'assistant',
         content,
         ...(hasToolCalls && { toolCalls: current.toolCalls }),
@@ -288,6 +292,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
           !emittedToolResultIds.has(part.toolCallId)
         ) {
           messageList.push({
+            id: uiMessage.id,
             role: 'tool',
             content: part.content,
             toolCallId: part.toolCallId,
@@ -347,6 +352,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     // emit the concrete output regardless of approval metadata.
     if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
       messageList.push({
+        id: uiMessage.id,
         role: 'tool',
         content: normalizeToolResult(part.output),
         toolCallId: part.id,
@@ -363,6 +369,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     ) {
       const approved = part.approval.approved
       messageList.push({
+        id: uiMessage.id,
         role: 'tool',
         content: JSON.stringify({
           approved,
@@ -380,6 +387,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   // If no messages were produced (e.g., empty parts), emit a minimal assistant message
   if (messageList.length === 0) {
     messageList.push({
+      id: uiMessage.id,
       role: 'assistant',
       content: null,
     })
