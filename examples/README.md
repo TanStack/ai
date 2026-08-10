@@ -94,6 +94,40 @@ Open `http://localhost:4000` in multiple browser tabs to test multi-user functio
 
 ---
 
+### Reranking (ts-react-rerank)
+
+A single-page app that reorders a fixed set of support articles by relevance to
+a query, showing the original order and the reranked order side by side.
+
+**Tech Stack:**
+
+- TanStack Start (full-stack React framework)
+- `@tanstack/ai` (the `rerank()` activity)
+- `@tanstack/ai-cohere` (Cohere rerank adapter)
+- `@tanstack/ai-openrouter` (OpenRouter rerank adapter)
+
+**Features:**
+
+- ✅ One `rerank()` call, two providers behind a dropdown
+- ✅ Object documents — the original typed object comes back on each result
+- ✅ Relevance scores and original position per document
+- ✅ `topN` control and search-unit usage reporting
+- ✅ API keys stay on the server
+
+**Getting Started:**
+
+```bash
+cd examples/ts-react-rerank
+pnpm install
+cp .env.example .env
+# Add COHERE_API_KEY and/or OPENROUTER_API_KEY — you only need the one you pick
+pnpm dev
+```
+
+📖 [Full Documentation](ts-react-rerank/README.md)
+
+---
+
 ### Vanilla Chat
 
 A framework-free chat application using pure JavaScript and `@tanstack/ai-client`.

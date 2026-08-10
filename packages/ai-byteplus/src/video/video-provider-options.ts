@@ -2,13 +2,15 @@
  * Provider options and per-model capability tables for the BytePlus Seedance
  * video models.
  *
- * Every applicability claim below was probed live against
+ * Applicability for Seedance 1.x / 2.0 was probed live against
  * `https://ark.ap-southeast.bytepluses.com/api/v3` on 2026-07-31. The probe
  * sent an out-of-range `seed` alongside the field under test, so requests that
  * passed validation still failed before a task was created (nothing billed):
  * an error naming the field under test means "rejected", an error naming
  * `seed` means "accepted". Ark reports only one arbitrary invalid parameter
- * per request, so each cell was retried until a verdict repeated.
+ * per request, so each cell was retried until a verdict repeated. Seedance 2.5
+ * cells come from the public ModelArk create-task docs once the model was
+ * fully opened (2026-08-07).
  *
  * Ark rejects an inapplicable field outright — "the specified parameter
  * `draft` is not supported for model seedance-1-0-pro in t2v, must be empty" —
@@ -17,15 +19,15 @@
  *
  * **Where the adapter guards, and where it doesn't** (deliberate, not an
  * oversight). Scalar applicability — `service_tier`, `draft`, `priority`,
- * `frames`, `camera_fixed` — is left to Ark, whose 400 names the offending
- * field and the model precisely enough to act on, and whose per-model rules
- * shift as BytePlus ships models. Duplicating that here would mean a table
- * that silently goes stale and starts rejecting requests the API would have
- * accepted. The adapter guards locally only where the API's own error is
- * misleading or arrives too late to be actionable: prompt media shape (role
- * vocabulary, frame-vs-reference exclusivity, frame cardinality) and the
- * resolution tier, both of which are derived from a caller's `prompt` /
- * `size` rather than passed through verbatim.
+ * `frames`, `camera_fixed`, `output_format` — is left to Ark, whose 400 names
+ * the offending field and the model precisely enough to act on, and whose
+ * per-model rules shift as BytePlus ships models. Duplicating that here would
+ * mean a table that silently goes stale and starts rejecting requests the API
+ * would have accepted. The adapter guards locally only where the API's own
+ * error is misleading or arrives too late to be actionable: prompt media shape
+ * (role vocabulary, frame-vs-reference exclusivity, frame cardinality,
+ * audio-only reference) and the resolution tier, both of which are derived
+ * from a caller's `prompt` / `size` rather than passed through verbatim.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -47,12 +49,23 @@ import type {
  *   price, with no latency guarantee. Task ids come back with a `cgt-batch-`
  *   prefix (live-verified).
  *
- * Only the Seedance 1.x models accept this field. The Seedance 2.0 family
- * rejects it ("service_tier is not supported … must be empty").
+ * Only the Seedance 1.x models accept this field. Seedance 2.5 and the 2.0
+ * family reject it ("service_tier is not supported … must be empty" / "not
+ * currently supported").
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export type BytePlusVideoServiceTier = 'default' | 'flex'
+
+/**
+ * Container format of the generated video.
+ *
+ * Seedance 2.5 documents `mp4` (default) and `mov`. Other models historically
+ * return `mp4` only; scalar applicability is left to Ark (see file header).
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type BytePlusVideoOutputFormat = 'mp4' | 'mov'
 
 /**
  * Provider-specific options for Seedance video generation. These map one-to-one
@@ -69,8 +82,8 @@ export interface BytePlusVideoProviderOptions {
   /**
    * Output aspect ratio. Overrides the ratio half of the generic `size`.
    *
-   * `adaptive` (follow the input frame) is the default on Seedance 2.0 and
-   * 1.5-pro but is rejected by Seedance 1.0-pro / 1.0-pro-fast for
+   * `adaptive` (follow the input frame) is the default on Seedance 2.5, 2.0
+   * and 1.5-pro but is rejected by Seedance 1.0-pro / 1.0-pro-fast for
    * text-to-video.
    */
   ratio?: BytePlusVideoRatio
@@ -78,8 +91,8 @@ export interface BytePlusVideoProviderOptions {
   /**
    * Output resolution tier. Overrides the resolution half of the generic
    * `size`. Matched case-insensitively by the API; this package uses
-   * lowercase throughout. `4k` exists only on `dreamina-seedance-2-0-260128`,
-   * and there is no 2K tier on any model.
+   * lowercase throughout. `4k` exists only on `dreamina-seedance-2-0-260128`
+   * (Seedance 2.5 is 480p/720p only), and there is no 2K tier on any model.
    */
   resolution?: BytePlusVideoResolution
 
@@ -87,8 +100,8 @@ export interface BytePlusVideoProviderOptions {
    * Whole seconds of output. Overrides the generic `duration`, and unlike it
    * is sent verbatim rather than snapped into the model's range.
    *
-   * `-1` asks the model to choose its own length; accepted by Seedance 2.0
-   * and 1.5-pro only.
+   * `-1` asks the model to choose its own length; accepted by Seedance 2.5,
+   * 2.0 and 1.5-pro only. On 2.5 video-editing tasks, `-1` is required.
    */
   duration?: number
 
@@ -111,7 +124,7 @@ export interface BytePlusVideoProviderOptions {
    * Appends a "fix the camera" instruction to the prompt. Best-effort — the
    * model is not constrained to obey it.
    *
-   * Seedance 1.5-pro, 1.0-pro and 1.0-pro-fast only; the 2.0 family rejects
+   * Seedance 1.5-pro, 1.0-pro and 1.0-pro-fast only; the 2.x family rejects
    * it.
    */
   camera_fixed?: boolean
@@ -125,12 +138,13 @@ export interface BytePlusVideoProviderOptions {
    * better results.
    *
    * Accepted by every model at the API's validation layer, but only Seedance
-   * 2.0 and 1.5-pro actually produce audio.
+   * 2.5, 2.0 and 1.5-pro actually produce audio.
    */
   generate_audio?: boolean
 
   /**
-   * Inference queue. Seedance 1.x only — the 2.0 family has no offline tier.
+   * Inference queue. Seedance 1.x only — Seedance 2.5 and the 2.0 family have
+   * no offline tier.
    */
   service_tier?: BytePlusVideoServiceTier
 
@@ -150,15 +164,21 @@ export interface BytePlusVideoProviderOptions {
   draft?: boolean
 
   /**
-   * Queue priority, `[0, 9]`. Seedance 2.0 family only — 1.5-pro rejects it,
-   * and the 1.0 models accept it without acting on it.
+   * Queue priority, `[0, 9]`. Seedance 2.5 and the 2.0 family — 1.5-pro
+   * rejects it, and the 1.0 models accept it without acting on it.
    */
   priority?: number
 
   /**
+   * Container of the generated video. Seedance 2.5 documents `mp4` (default)
+   * and `mov`; other models historically ship `mp4` only.
+   */
+  output_format?: BytePlusVideoOutputFormat
+
+  /**
    * Seconds after `created_at` at which an unfinished task is abandoned and
    * marked `expired`. Documented range `[3600, 259200]`, default 172800
-   * (48 hours). The floor is enforced on Seedance 1.x but not on the 2.0
+   * (48 hours). The floor is enforced on Seedance 1.x but not on the 2.x
    * family.
    */
   execution_expires_after?: number
@@ -206,17 +226,19 @@ const BYTEPLUS_VIDEO_RATIOS: ReadonlyArray<string> = [
 ]
 
 /**
- * Resolutions each model accepts, live-probed.
+ * Resolutions each model accepts.
  *
- * Two findings here contradict the BytePlus prose docs and are worth calling
- * out: there is no 2K tier on any Seedance model (`2k`/`2K` is rejected
- * everywhere, including on the 2.0 flagship whose docs advertise "up to 4K"),
- * and `seedance-1-0-pro-fast-251015` does accept `1080p` despite being
- * documented as 480p/720p only.
+ * 2.0 / 1.x cells were live-probed; 2.5 comes from the public ModelArk docs.
+ * Two findings still contradict older prose: there is no 2K tier on any
+ * Seedance model (`2k`/`2K` is rejected everywhere), and
+ * `seedance-1-0-pro-fast-251015` does accept `1080p` despite being documented
+ * as 480p/720p only. Seedance 2.5 is 480p/720p only — it does **not** offer
+ * the 2.0 flagship's 4k tier.
  */
 const BYTEPLUS_VIDEO_RESOLUTIONS: {
   readonly [K in BytePlusVideoModel]: ReadonlyArray<BytePlusVideoResolution>
 } = {
+  'dreamina-seedance-2-5-260628': ['480p', '720p'],
   'dreamina-seedance-2-0-260128': ['480p', '720p', '1080p', '4k'],
   'dreamina-seedance-2-0-fast-260128': ['480p', '720p'],
   'dreamina-seedance-2-0-mini-260615': ['480p', '720p'],
@@ -231,6 +253,7 @@ const BYTEPLUS_VIDEO_RESOLUTIONS: {
  * models reject it with "the specified task_type r2v does not support model …".
  */
 const BYTEPLUS_VIDEO_REFERENCE_MEDIA_MODELS: ReadonlySet<string> = new Set([
+  'dreamina-seedance-2-5-260628',
   'dreamina-seedance-2-0-260128',
   'dreamina-seedance-2-0-fast-260128',
   'dreamina-seedance-2-0-mini-260615',
@@ -242,12 +265,22 @@ const BYTEPLUS_VIDEO_REFERENCE_MEDIA_MODELS: ReadonlySet<string> = new Set([
  * does text-to-video and single-first-frame image-to-video only.
  */
 const BYTEPLUS_VIDEO_LAST_FRAME_MODELS: ReadonlySet<string> = new Set([
+  'dreamina-seedance-2-5-260628',
   'dreamina-seedance-2-0-260128',
   'dreamina-seedance-2-0-fast-260128',
   'dreamina-seedance-2-0-mini-260615',
   'seedance-1-5-pro-251215',
   'seedance-1-0-pro-250528',
 ])
+
+/**
+ * Models that accept a reference-audio input without a visual reference
+ * alongside it. Seedance 2.5 documents audio-only reference-to-video; the 2.0
+ * family rejects it with "reference_audio cannot be the only reference input".
+ */
+const BYTEPLUS_VIDEO_AUDIO_ONLY_REFERENCE_MODELS: ReadonlySet<string> = new Set(
+  ['dreamina-seedance-2-5-260628'],
+)
 
 /**
  * True when the model is *known* to support reference-media mode (reference
@@ -269,6 +302,16 @@ export function supportsReferenceMedia(model: string): boolean {
  */
 export function supportsLastFrame(model: string): boolean {
   return BYTEPLUS_VIDEO_LAST_FRAME_MODELS.has(model)
+}
+
+/**
+ * True when the model is *known* to accept a reference-audio input without a
+ * visual reference. Same unknown-id caveat as {@link supportsReferenceMedia}.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export function supportsAudioOnlyReference(model: string): boolean {
+  return BYTEPLUS_VIDEO_AUDIO_ONLY_REFERENCE_MODELS.has(model)
 }
 
 /**

@@ -870,9 +870,8 @@ export default function SeedanceStudio({
                   <p className="text-xs text-amber-200/90">
                     Capabilities unverified — every option below is enabled and
                     the API validates the request, because the adapter switches
-                    its per-model guards off for an id it has no table for.
-                    Seedance 2.5 additionally requires activation in the Ark
-                    Console; without it the task returns 404{' '}
+                    its per-model guards off for an id it has no table for. A
+                    model that is not activated on your Ark account returns 404{' '}
                     <code className="text-amber-300">ModelNotOpen</code>.
                   </p>
                 </div>
@@ -1110,7 +1109,7 @@ export default function SeedanceStudio({
         </div>
 
         {entry.extras.priority && (
-          <Control label="Queue priority" hint="0-9, Seedance 2.0 family only">
+          <Control label="Queue priority" hint="0-9, Seedance 2.5 / 2.0 family">
             <div className="flex items-center gap-3">
               <input
                 type="range"

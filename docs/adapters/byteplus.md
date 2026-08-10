@@ -321,42 +321,52 @@ Seedance options are model-specific, and **Ark rejects an inapplicable field wit
 
 | Option | Models that accept it |
 | --- | --- |
-| `service_tier` (`'default'` \| `'flex'`) | Seedance 1.x only — the 2.0 family rejects it |
+| `service_tier` (`'default'` \| `'flex'`) | Seedance 1.x only — Seedance 2.5 and the 2.0 family reject it |
 | `camera_fixed` | Seedance 1.x only |
 | `frames` (fractional-second output, `25 + 4n` in `[29, 289]`) | `seedance-1-0-pro-250528`, `seedance-1-0-pro-fast-251015` |
 | `draft` (cheap low-fidelity preview) | `seedance-1-5-pro-251215` only |
-| `priority` (`0`–`9`) | the `dreamina-seedance-2-0-*` family only |
-| `duration: -1` (model picks the length) | Seedance 2.0 and `seedance-1-5-pro-251215` |
+| `priority` (`0`–`9`) | Seedance 2.5 and the `dreamina-seedance-2-0-*` family |
+| `duration: -1` (model picks the length) | Seedance 2.5, 2.0 and `seedance-1-5-pro-251215` |
+| `output_format` (`'mp4'` \| `'mov'`) | Seedance 2.5 (default `mp4`) |
 | `seed`, `watermark`, `generate_audio`, `return_last_frame`, `callback_url` | every model |
 
-`watermark` defaults to `false` for video (the opposite of Seedream images). `generate_audio` is accepted everywhere but only Seedance 2.0 and 1.5-pro actually produce an audio track.
+`watermark` defaults to `false` for video (the opposite of Seedream images). `generate_audio` is accepted everywhere but only Seedance 2.5, 2.0 and 1.5-pro actually produce an audio track.
 
-Resolutions are per model too, and the shipped table comes from live probes rather than the published docs: there is **no 2K tier on any Seedance model**, `4k` exists only on `dreamina-seedance-2-0-260128`, and `seedance-1-0-pro-fast-251015` does accept `1080p` despite being documented as 480p/720p only. An unsupported combination is caught locally with a clear error before the request goes out.
+Resolutions are per model too: there is **no 2K tier on any Seedance model**, `4k` exists only on `dreamina-seedance-2-0-260128`, Seedance 2.5 is **480p/720p only**, and `seedance-1-0-pro-fast-251015` does accept `1080p` despite older prose listing it as 480p/720p only. An unsupported combination is caught locally with a clear error before the request goes out.
 
-Reference media follows the shared [role hints](../media/video-generation#role-hints) — `start_frame`, `end_frame` and `reference`. The Seedance 2.0 family takes full multimodal references (reference images, video and audio); the 1.x models take start/end frames only, and `seedance-1-0-pro-fast-251015` takes a start frame only.
+Reference media follows the shared [role hints](../media/video-generation#role-hints) — `start_frame`, `end_frame` and `reference`. Seedance 2.5 and the 2.0 family take full multimodal references (reference images, video and audio); Seedance 2.5 additionally accepts **audio-only** reference input and up to 30 reference images / 10 videos / 10 audio clips (2.0 is 9 / 3 / 3). The 1.x models take start/end frames only, and `seedance-1-0-pro-fast-251015` takes a start frame only.
 
 ### Seedance 2.5
 
-Seedance 2.5 was announced on 2026-07-31, initially on BytePlus's consumer surfaces. Its Ark id — `dreamina-seedance-2-5-260628` — is real and reachable, but it is **activation-gated per account**: until the model is switched on in the Ark Console, Ark answers `404 ModelNotOpen`.
-
-Because its capabilities could not be probed from a non-activated account, 2.5 is **deliberately absent from the typed model tables** above. It is still usable today — `byteplusVideo()`'s model parameter accepts any string, so an id BytePlus publishes after this release works without upgrading the package:
+Seedance 2.5 (`dreamina-seedance-2-5-260628`) is a first-class model in this package. It is the current multimodal flagship for longer clips (up to **30 seconds**), audio-only reference input, and `output_format: 'mov'`. Like the 2.0 series it may still require model activation / a resource pack in the Ark Console before the account can call it (`404 ModelNotOpen` until then).
 
 ```typescript
 import { generateVideo } from '@tanstack/ai'
 import { byteplusVideo } from '@tanstack/ai-byteplus'
 
-// Activate Seedance 2.5 in the Ark Console first, or this 404s.
 const { jobId } = await generateVideo({
   adapter: byteplusVideo('dreamina-seedance-2-5-260628'),
   prompt: 'a guitar being played in a store',
   size: '16:9_720p',
-  duration: 5,
+  duration: 10,
+  modelOptions: {
+    generate_audio: true,
+    priority: 5,
+    output_format: 'mp4',
+  },
 })
 ```
 
-An unknown id relaxes both halves of the adapter: `size` widens to any string, provider options are ungated, and the local runtime guards that encode per-model capabilities — resolution tiers, closing-frame and reference-media support, frame cardinality and mode exclusivity, duration snapping — stand down so Ark validates the request instead. Known ids keep their probe-verified narrowing. Typed narrowing for 2.5 follows in a package update once its capabilities can be verified.
+| Capability | Seedance 2.5 |
+| --- | --- |
+| Duration | 4–30s, or `-1` (model chooses; required for video-editing tasks) |
+| Resolution | `480p`, `720p` (default `720p`) — no 1080p / 4k |
+| Reference media | images 1–30, videos 0–10, audio 0–10; **audio-only allowed** |
+| First + last frame | yes |
+| `priority` / `generate_audio` | yes |
+| `service_tier` / `camera_fixed` / `frames` / `draft` | no |
 
-The quickest way to try a newly-released id is the [Seedance Studio example](https://github.com/TanStack/ai/tree/main/examples/ts-react-media): its **Advanced: custom model id** field (placeholder `dreamina-seedance-2-5-260628`) takes an arbitrary id, switches the studio into unknown-model mode with every option enabled, and spells the activation caveat out in the UI — so a `ModelNotOpen` response reads as expected rather than broken.
+`byteplusVideo()` still accepts any string for ids BytePlus ships between package releases. An unknown id relaxes local guards so Ark validates the request; known ids (including 2.5) keep their documented narrowing.
 
 ### Seedance here vs. Seedance via fal
 
@@ -495,7 +505,7 @@ Audio can be a `File`, base64, a data URL or a public URL, up to two hours and 1
 ## Supported models
 
 - **Chat** — `dola-seed-2-1-turbo-260628`, `seed-2-0-lite-260428`, `seed-2-0-mini-260428`, `seed-2-0-pro-260328`, `seed-2-0-lite-260228`, `seed-2-0-mini-260215`, `seed-2-0-code-preview-260328`, `seed-1-8-251228`, `seed-1-6-250915`, `seed-1-6-250615`, `seed-1-6-flash-250715`, `seed-1-6-flash-250615`, `glm-5-2-260617`, `glm-4-7-251222`, `deepseek-v4-pro-260425`, `deepseek-v4-flash-260425`, `deepseek-v3-2-251201`, `gpt-oss-120b-250805`.
-- **Video** — `dreamina-seedance-2-0-260128`, `dreamina-seedance-2-0-fast-260128`, `dreamina-seedance-2-0-mini-260615`, `seedance-1-5-pro-251215`, `seedance-1-0-pro-250528`, `seedance-1-0-pro-fast-251015`. (Seedance 2.5, `dreamina-seedance-2-5-260628`, is untyped-but-usable pending account activation — see [Seedance 2.5](#seedance-25).)
+- **Video** — `dreamina-seedance-2-5-260628`, `dreamina-seedance-2-0-260128`, `dreamina-seedance-2-0-fast-260128`, `dreamina-seedance-2-0-mini-260615`, `seedance-1-5-pro-251215`, `seedance-1-0-pro-250528`, `seedance-1-0-pro-fast-251015`.
 - **Image** — `dola-seedream-5-0-pro-260628`, `seedream-5-0-260128`, `seedream-5-0-lite-260128`, `seedream-4-5-251128`, `seedream-4-0-250828`.
 - **Speech** — `seed-audio-1.0` (TTS) and `seed-asr` (transcription).
 

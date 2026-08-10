@@ -571,7 +571,7 @@ describe('createVideoJob content roles', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('rejects a reference audio that is the only reference input', async () => {
+  it('rejects a reference audio that is the only reference input on 2.0', async () => {
     const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
     const adapter = adapterWithFetch(fetchMock, 'dreamina-seedance-2-0-260128')
 
@@ -588,6 +588,60 @@ describe('createVideoJob content roles', () => {
         }),
       ),
     ).rejects.toThrow(/cannot be the only reference/)
+  })
+
+  it('accepts audio-only reference input on Seedance 2.5', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'dreamina-seedance-2-5-260628')
+
+    await adapter.createVideoJob(
+      createOptions({
+        prompt: [
+          { type: 'text', content: 'use this score' },
+          {
+            type: 'audio',
+            source: { type: 'url', value: 'https://x/a.mp3' },
+          },
+        ],
+      }),
+    )
+
+    expect(sentRequest(fetchMock).content).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'audio_url',
+          role: 'reference_audio',
+        }),
+      ]),
+    )
+  })
+
+  it('rejects 1080p and 4k on Seedance 2.5', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'dreamina-seedance-2-5-260628')
+
+    await expect(
+      adapter.createVideoJob(
+        createOptions({ size: '16:9_1080p' as '16:9_720p' }),
+      ),
+    ).rejects.toThrow(/resolution "1080p" is not supported.*480p, 720p/s)
+    await expect(
+      adapter.createVideoJob(createOptions({ size: '16:9_4k' as '16:9_720p' })),
+    ).rejects.toThrow(/resolution "4k" is not supported/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('forwards output_format on Seedance 2.5', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'dreamina-seedance-2-5-260628')
+
+    await adapter.createVideoJob(
+      createOptions({
+        modelOptions: { output_format: 'mov' },
+      }),
+    )
+
+    expect(sentRequest(fetchMock).output_format).toBe('mov')
   })
 
   it('rejects reference images on a model without reference mode', async () => {
@@ -991,12 +1045,11 @@ describe('getVideoUrl', () => {
   })
 })
 
-// Seedance 2.5 was announced 2026-07-31 as a consumer product with the Ark
-// API "available soon"; no 2.5 id resolves on the data plane yet. Rather than
-// ship a guessed id, the factories accept any string so the real id works the
-// day BytePlus publishes it. These cover that path.
+// The factories accept any string so an id BytePlus ships between package
+// releases still works. Seedance 2.5 used to be this example; it is now a
+// first-class known model. These cover the still-open unknown-id path.
 describe('unknown model ids', () => {
-  const FUTURE = 'dreamina-seedance-2-5-260901'
+  const FUTURE = 'dreamina-seedance-9-9-999999'
 
   it('accepts a bare string through the factories', async () => {
     const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
@@ -1032,11 +1085,11 @@ describe('unknown model ids', () => {
       fetch: fetchMock,
     })
 
-    // 20s is outside every range shipping today; clamping to 15 would corrupt
+    // 45s is outside every range shipping today; clamping to 30 would corrupt
     // a legitimate request for a model with a longer ceiling.
-    await adapter.createVideoJob(createOptions({ duration: 20 }))
+    await adapter.createVideoJob(createOptions({ duration: 45 }))
 
-    expect(sentRequest(fetchMock).duration).toBe(20)
+    expect(sentRequest(fetchMock).duration).toBe(45)
   })
 
   it('passes provider options through ungated', async () => {
@@ -1045,7 +1098,7 @@ describe('unknown model ids', () => {
       fetch: fetchMock,
     })
 
-    // draft is 1.5-pro-only and priority is 2.0-only today; on an unknown
+    // draft is 1.5-pro-only and priority is 2.x-only today; on an unknown
     // model neither is second-guessed.
     await adapter.createVideoJob(
       createOptions({ modelOptions: { draft: true, priority: 3 } }),
@@ -1060,8 +1113,8 @@ describe('unknown model ids', () => {
       fetch: fetchMock,
     })
 
-    // Frame + reference is mutually exclusive on every model today. If 2.5
-    // relaxes it, blocking the request locally would defeat the escape hatch.
+    // Frame + reference is mutually exclusive on every known model. A future
+    // model that relaxes it must not be blocked by today's tables.
     await adapter.createVideoJob(
       createOptions({
         prompt: [
@@ -1106,7 +1159,7 @@ describe('unknown model ids', () => {
     expect(adapter.availableDurations()).toEqual({
       kind: 'range',
       min: 2,
-      max: 15,
+      max: 30,
       step: 1,
       unit: 'seconds',
     })
@@ -1114,6 +1167,7 @@ describe('unknown model ids', () => {
 
   it('knows which ids it has metadata for', () => {
     expect(isKnownBytePlusVideoModel('seedance-1-5-pro-251215')).toBe(true)
+    expect(isKnownBytePlusVideoModel('dreamina-seedance-2-5-260628')).toBe(true)
     expect(isKnownBytePlusVideoModel(FUTURE)).toBe(false)
   })
 })
@@ -1123,12 +1177,15 @@ describe('model id typing', () => {
     // A plain string compiles through both factories — the escape hatch's
     // whole point. `toBeCallableWith` checks the signature without running
     // byteplusVideo, which would need ARK_API_KEY.
-    expectTypeOf(byteplusVideo).toBeCallableWith('dreamina-seedance-2-5-260901')
-    const adapter = createBytePlusVideo('dreamina-seedance-2-5-260901', 'k')
-    expectTypeOf(adapter.model).toEqualTypeOf<'dreamina-seedance-2-5-260901'>()
+    expectTypeOf(byteplusVideo).toBeCallableWith('dreamina-seedance-9-9-999999')
+    const adapter = createBytePlusVideo('dreamina-seedance-9-9-999999', 'k')
+    expectTypeOf(adapter.model).toEqualTypeOf<'dreamina-seedance-9-9-999999'>()
 
     // Known ids keep their probe-verified size union, so a tier the model
     // does not offer stays a compile error.
+    expectTypeOf<
+      ResolveBytePlusVideoSize<'dreamina-seedance-2-5-260628'>
+    >().toEqualTypeOf<BytePlusVideoSize<'480p' | '720p'>>()
     expectTypeOf<
       ResolveBytePlusVideoSize<'dreamina-seedance-2-0-fast-260128'>
     >().toEqualTypeOf<BytePlusVideoSize<'480p' | '720p'>>()
@@ -1145,6 +1202,7 @@ describe('model id typing', () => {
 
 describe('durations', () => {
   it.each([
+    ['dreamina-seedance-2-5-260628', 4, 30],
     ['dreamina-seedance-2-0-260128', 4, 15],
     ['dreamina-seedance-2-0-fast-260128', 4, 15],
     ['dreamina-seedance-2-0-mini-260615', 4, 15],

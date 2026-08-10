@@ -2,6 +2,7 @@
 export {
   chat,
   summarize,
+  rerank,
   generateImage,
   generateAudio,
   generateVideo,
@@ -13,6 +14,7 @@ export {
 // Create options functions - for pre-defining typed configurations
 export { createChatOptions } from './activities/chat/index'
 export { createSummarizeOptions } from './activities/summarize/index'
+export { createRerankOptions } from './activities/rerank/index'
 export { createImageOptions } from './activities/generateImage/index'
 export { createAudioOptions } from './activities/generateAudio/index'
 export { createVideoOptions } from './activities/generateVideo/index'
@@ -36,7 +38,12 @@ export type {
   TranscriptionAdapter,
   AnyVideoAdapter,
   VideoAdapter,
+  AnyRerankAdapter,
+  RerankAdapter,
 } from './activities/index'
+
+// Rerank adapter base + types
+export { BaseRerankAdapter } from './activities/rerank/adapter'
 
 // Tool definition
 export {

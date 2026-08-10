@@ -558,8 +558,7 @@ export const getSeedanceCapabilitiesFn = createServerFn({
 interface SeedanceRequest {
   prompt: MediaPrompt
   // Open by design: the studio's advanced field takes an id this package
-  // has no metadata for (Seedance 2.5 today), which the adapter forwards
-  // ungated for Ark to judge.
+  // has no metadata for, which the adapter forwards ungated for Ark to judge.
   model: BytePlusVideoModelOrString
   options?: SeedanceJobOptions
 }

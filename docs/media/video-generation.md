@@ -392,7 +392,7 @@ await generateVideo({
 | **OpenAI**   | Sora-2 / Sora-2-Pro → the image part goes to `input_reference`; flattened text is the prompt. Single image only — throws if more than one. |
 | **fal.ai**   | Field names resolve per endpoint from a map generated from the fal SDK's endpoint types — e.g. `role: 'start_frame'` lands on `image_url` for Kling/Veo image-to-video, `first_frame_url` for first-last-frame endpoints, and `start_image_url` otherwise. Defaults: single input → `image_url` (start frame); `role: 'end_frame'` → `end_image_url`; `role: 'reference'` / `'character'` → `reference_image_urls`. Override per-endpoint via `modelOptions` — the media-conditioning fields are typed optional there (even when the endpoint requires them) since they usually arrive as prompt parts. |
 | **Gemini**   | Veo → the first un-roled / `'start_frame'` image becomes the input image; `'end_frame'` → `lastFrame`; `'reference'` / `'character'` → `referenceImages` (asset references, Veo 3.1). Throws on multiple starting images. |
-| **BytePlus** | Seedance → a single un-roled or `'start_frame'` image becomes `first_frame`; `'end_frame'` → `last_frame` (needs a first frame alongside it, and is rejected by `seedance-1-0-pro-fast-251015`); `'reference'` / `'character'` → `reference_image`, video parts → `reference_video`, audio parts → `reference_audio` (Seedance 2.0 family only). Frame roles and reference roles are mutually exclusive modes — mixing them throws. |
+| **BytePlus** | Seedance → a single un-roled or `'start_frame'` image becomes `first_frame`; `'end_frame'` → `last_frame` (needs a first frame alongside it, and is rejected by `seedance-1-0-pro-fast-251015`); `'reference'` / `'character'` → `reference_image`, video parts → `reference_video`, audio parts → `reference_audio` (Seedance 2.5 and 2.0 family; 2.5 also accepts audio-only reference input). Frame roles and reference roles are mutually exclusive modes — mixing them throws. |
 
 Adapters whose underlying API can't accept image inputs throw a clear
 runtime error so calls fail fast.
@@ -739,7 +739,7 @@ Generated clips include an audio track. When the job completes, the adapter repo
 
 #### BytePlus (Seedance) Model Options
 
-Seedance is aspect-ratio sized like Grok Imagine — `size` takes a `ratio` or `ratio_resolution` template. Ratios are `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, `21:9` and `adaptive`; resolutions are `480p`, `720p`, `1080p` and (on `dreamina-seedance-2-0-260128` only) `4k`. There is no 2K tier on any Seedance model:
+Seedance is aspect-ratio sized like Grok Imagine — `size` takes a `ratio` or `ratio_resolution` template. Ratios are `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, `21:9` and `adaptive`; resolutions are `480p`, `720p`, `1080p` and (on `dreamina-seedance-2-0-260128` only) `4k`. Seedance 2.5 (`dreamina-seedance-2-5-260628`) is 480p/720p only and runs up to 30 seconds. There is no 2K tier on any Seedance model:
 
 ```typescript
 import { generateVideo } from '@tanstack/ai'
@@ -753,12 +753,12 @@ const { jobId } = await generateVideo({
   modelOptions: {
     seed: 42,
     generate_audio: true,
-    priority: 5, // Seedance 2.0 family only — queue priority, 0-9
+    priority: 5, // Seedance 2.5 / 2.0 family — queue priority, 0-9
   },
 })
 ```
 
-Options are **model-specific and validated server-side**: Ark rejects an inapplicable field with a `400` instead of ignoring it. `service_tier` and `camera_fixed` are Seedance 1.x only, `frames` works on the 1.0-pro models, `draft` on 1.5-pro, `priority` on the 2.0 family, and `duration: -1` (let the model choose) on 2.0 and 1.5-pro. Durations are 4–15s on the 2.0 family, 4–12s on 1.5-pro and 2–12s on the 1.0-pro models.
+Options are **model-specific and validated server-side**: Ark rejects an inapplicable field with a `400` instead of ignoring it. `service_tier` and `camera_fixed` are Seedance 1.x only, `frames` works on the 1.0-pro models, `draft` on 1.5-pro, `priority` on Seedance 2.5 and the 2.0 family, and `duration: -1` (let the model choose) on 2.5, 2.0 and 1.5-pro. Durations are 4–30s on Seedance 2.5, 4–15s on the 2.0 family, 4–12s on 1.5-pro and 2–12s on the 1.0-pro models.
 
 **Seedance video URLs expire 24 hours after the task completes** (the task record is kept for seven days), so persist the bytes rather than the link. See the [BytePlus adapter](../adapters/byteplus#video-generation-seedance) for the full option table.
 

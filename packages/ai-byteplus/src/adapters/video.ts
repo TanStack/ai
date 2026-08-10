@@ -17,6 +17,7 @@ import {
 import {
   resolveBytePlusVideoResolution,
   resolveBytePlusVideoSize,
+  supportsAudioOnlyReference,
   supportsLastFrame,
   supportsReferenceMedia,
 } from '../video/video-provider-options'
@@ -161,7 +162,8 @@ function describeTaskFailure(task: BytePlusVideoTask): string {
  *   `seedance-1-0-pro-fast-251015` does not support it at all.
  * - `'reference'` / `'character'` → `reference_image`, video parts →
  *   `reference_video`, audio parts → `reference_audio` — subject and style
- *   references the model draws on (`r2v`, Seedance 2.0 family only).
+ *   references the model draws on (`r2v`, Seedance 2.5 and 2.0 family).
+ *   Seedance 2.5 also accepts audio-only reference input; 2.0 does not.
  *
  * Frame roles and reference roles cannot be combined in one request, so the
  * adapter rejects a mix up front rather than surfacing a raw 400.
@@ -232,18 +234,18 @@ export class BytePlusVideoAdapter<
     if (resolved.text) content.push({ type: 'text', text: resolved.text })
 
     // Every rule below except the role vocabulary itself is a claim about a
-    // *specific* model's capabilities, drawn from probing the six models that
-    // exist today. None of it can be true of a model that does not exist yet,
-    // so for an unknown id the guards stand down and Ark rules — otherwise the
-    // escape hatch would block exactly the requests it exists to enable (see
+    // *specific* model's capabilities, drawn from the known Seedance catalog.
+    // None of it can be true of a model that does not exist yet, so for an
+    // unknown id the guards stand down and Ark rules — otherwise the escape
+    // hatch would block exactly the requests it exists to enable (see
     // BytePlusVideoModelOrString). 'mask' / 'control' still throw: Seedance's
     // wire format has no field to carry them on any model.
     const gated = isKnownBytePlusVideoModel(model)
 
     let firstFrames = 0
     let lastFrames = 0
-    // Audio counts as a reference for the mode-exclusivity check but not for
-    // the "audio can't be the only reference" rule, which wants a visual.
+    // Audio counts as a reference for the mode-exclusivity check. On Seedance
+    // 2.0 it also needs a visual reference; 2.5 allows audio-only.
     let visualReferences = 0
     let audioReferences = 0
 
@@ -277,8 +279,8 @@ export class BytePlusVideoAdapter<
           if (gated && !supportsReferenceMedia(model)) {
             throw new Error(
               `byteplus: ${model} does not support reference images. Reference ` +
-                `media is available on the Seedance 2.0 family; on this model use ` +
-                `'start_frame' / 'end_frame' images instead.`,
+                `media is available on Seedance 2.5 and the 2.0 family; on this ` +
+                `model use 'start_frame' / 'end_frame' images instead.`,
             )
           }
           visualReferences++
@@ -311,7 +313,7 @@ export class BytePlusVideoAdapter<
       if (gated && !supportsReferenceMedia(model)) {
         throw new Error(
           `byteplus: ${model} does not accept video prompt parts. Reference ` +
-            `video is available on the Seedance 2.0 family only.`,
+            `video is available on Seedance 2.5 and the 2.0 family only.`,
         )
       }
       visualReferences++
@@ -326,7 +328,7 @@ export class BytePlusVideoAdapter<
       if (gated && !supportsReferenceMedia(model)) {
         throw new Error(
           `byteplus: ${model} does not accept audio prompt parts. Reference ` +
-            `audio is available on the Seedance 2.0 family only.`,
+            `audio is available on Seedance 2.5 and the 2.0 family only.`,
         )
       }
       audioReferences++
@@ -372,10 +374,16 @@ export class BytePlusVideoAdapter<
       )
     }
 
-    if (gated && audioReferences > 0 && visualReferences === 0) {
+    if (
+      gated &&
+      audioReferences > 0 &&
+      visualReferences === 0 &&
+      !supportsAudioOnlyReference(model)
+    ) {
       throw new Error(
         `byteplus: a reference audio input cannot be the only reference on ` +
-          `model ${model}. Pair it with a reference image or video.`,
+          `model ${model}. Pair it with a reference image or video, or use ` +
+          `Seedance 2.5 which accepts audio-only reference input.`,
       )
     }
 

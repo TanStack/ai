@@ -85,8 +85,11 @@ export interface BytePlusVideoVideoContent {
 }
 
 /**
- * An audio input. Live-verified: audio can only accompany another reference
- * input — "reference_audio cannot be the only reference input".
+ * An audio input.
+ *
+ * On Seedance 2.0, audio can only accompany another reference input —
+ * "reference_audio cannot be the only reference input". Seedance 2.5
+ * documents audio-only reference-to-video.
  */
 export interface BytePlusVideoAudioContent {
   type: 'audio_url'
@@ -98,9 +101,10 @@ export interface BytePlusVideoAudioContent {
  * One entry of the `content[]` array.
  *
  * The create schema declares `maxItems: 5`, but the live API does not enforce
- * it — 7 entries (6 reference images plus text) were accepted on
- * `dreamina-seedance-2-0-260128`. The adapter therefore does not cap the array
- * locally; a genuinely over-long request gets whatever Ark decides to say.
+ * it — Seedance 2.5 accepts up to 30 reference images plus videos and audio,
+ * and 7 entries were accepted on `dreamina-seedance-2-0-260128`. The adapter
+ * therefore does not cap the array locally; a genuinely over-long request
+ * gets whatever Ark decides to say.
  */
 export type BytePlusVideoContentPart =
   | BytePlusVideoTextContent
@@ -115,14 +119,13 @@ export type BytePlusVideoContentPart =
  * model-dependent — Ark rejects an inapplicable field outright ("the
  * specified parameter `draft` is not supported for model … must be empty")
  * rather than ignoring it, so the adapter only sends what the caller asked
- * for. See `video-provider-options.ts` for the live-probed applicability
- * matrix.
+ * for. See `video-provider-options.ts` for the applicability matrix.
  */
 export interface BytePlusVideoCreateRequest {
   /** Seedance model id (or a preconfigured endpoint id). */
   model: string
 
-  /** Prompt text plus any image / video / audio inputs, max 5 entries. */
+  /** Prompt text plus any image / video / audio inputs. */
   content: Array<BytePlusVideoContentPart>
 
   /** Output aspect ratio, e.g. `16:9`. `adaptive` follows the input frame. */
@@ -131,7 +134,10 @@ export interface BytePlusVideoCreateRequest {
   /** Resolution tier, e.g. `720p`. Matched case-insensitively by the API. */
   resolution?: string
 
-  /** Whole seconds of output. `-1` lets the model choose (Seedance 2.0 / 1.5). */
+  /**
+   * Whole seconds of output. `-1` lets the model choose (Seedance 2.5 / 2.0 /
+   * 1.5-pro).
+   */
   duration?: number
 
   /** Frame count, an alternative to `duration` that allows fractional seconds. */
@@ -160,6 +166,9 @@ export interface BytePlusVideoCreateRequest {
 
   /** Queue priority `[0, 9]`. */
   priority?: number
+
+  /** Container of the generated video, e.g. `mp4` or `mov`. */
+  output_format?: string
 
   /** Seconds from `created_at` after which the task is marked `expired`. */
   execution_expires_after?: number
