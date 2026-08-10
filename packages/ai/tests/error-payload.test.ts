@@ -117,7 +117,10 @@ describe('toRunErrorPayload', () => {
         status: 'PERMISSION_DENIED',
       },
     })
-    const err = Object.assign(new Error(body), { name: 'ApiError', status: 403 })
+    const err = Object.assign(new Error(body), {
+      name: 'ApiError',
+      status: 403,
+    })
     expect(toRunErrorPayload(err)).toEqual({
       message: body,
       code: '403',
