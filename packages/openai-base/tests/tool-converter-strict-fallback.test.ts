@@ -82,7 +82,6 @@ describe('responses tool converter — strict fallback', () => {
       (out.parameters as any).properties.labels.additionalProperties,
     ).toEqual({ type: 'string' })
   })
-
 })
 
 describe('chat-completions tool converter — strict fallback', () => {
@@ -103,7 +102,6 @@ describe('chat-completions tool converter — strict fallback', () => {
     const out = convertFunctionToolToChatCompletionsFormat(freeFormMapTool)
     expect(out.function.strict).toBe(false)
   })
-
 })
 
 // This is the converter the provider tool-dispatcher (`convertToolsToProviderFormat`)
@@ -133,5 +131,4 @@ describe('function-tool adapter converter — strict fallback', () => {
     const out = convertFunctionToolToAdapterFormat(freeFormMapTool)
     expect(out.strict).toBe(false)
   })
-
 })

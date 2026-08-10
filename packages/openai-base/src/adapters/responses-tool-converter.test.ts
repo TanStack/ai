@@ -10,10 +10,7 @@ describe('responses tool converter', () => {
     expect(out.parameters).toMatchObject({
       properties: {
         value: {
-          anyOf: [
-            { required: ['kind'] },
-            { required: ['kind', 'note'] },
-          ],
+          anyOf: [{ required: ['kind'] }, { required: ['kind', 'note'] }],
         },
       },
     })

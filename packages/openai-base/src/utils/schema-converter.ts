@@ -331,11 +331,7 @@ function coerceStrictSchema(
         prop = nested.schema
         childMap = nested.nullWideningMap
         hasUntrackableAnyOfWidening ||= nested.hasUntrackableAnyOfWidening
-      } else if (
-        isSchemaObject(prop) &&
-        prop.type === 'array' &&
-        prop.items
-      ) {
+      } else if (isSchemaObject(prop) && prop.type === 'array' && prop.items) {
         const nested = coerceStrictSchema(prop.items, prop.items.required || [])
         prop = {
           ...prop,
