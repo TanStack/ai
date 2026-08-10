@@ -1,4 +1,5 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
 import {
   DuplicateToolNameError,
   MCPConnectionError,
@@ -106,10 +107,14 @@ class MCPClientImpl<
     name = 'tanstack-ai-mcp',
     version = '0.0.1',
     transport?: TransportConfig,
+    clientOptions?: ClientOptions,
   ) {
     this.prefix = prefix
     this.#transport = transport
-    this.#client = new Client({ name, version })
+    // `clientOptions` is spread rather than passed straight through so an
+    // omitted option keeps the SDK's default. See MCPClientOptions.clientOptions
+    // for why edge runtimes need `jsonSchemaValidator` in particular.
+    this.#client = new Client({ name, version }, clientOptions)
   }
 
   getInfo(): {
@@ -260,6 +265,7 @@ export async function createMCPClient<
     // Only a serializable config is reconnectable; a ready-made Transport
     // instance is single-use, so it is not retained as a descriptor.
     isTransportInstance(options.transport) ? undefined : options.transport,
+    options.clientOptions,
   )
   await impl.connect(transport)
   return impl
@@ -268,8 +274,18 @@ export async function createMCPClient<
 /** Test-only: connect directly from a transport instance (skips resolveTransport). */
 export async function createMCPClientFromTransport<
   TServer extends ServerDescriptor = AutomaticDescriptor,
->(transport: Transport, prefix?: string): Promise<MCPClient<TServer>> {
-  const impl = new MCPClientImpl<TServer>(prefix)
+>(
+  transport: Transport,
+  prefix?: string,
+  clientOptions?: ClientOptions,
+): Promise<MCPClient<TServer>> {
+  const impl = new MCPClientImpl<TServer>(
+    prefix,
+    undefined,
+    undefined,
+    undefined,
+    clientOptions,
+  )
   await impl.connect(transport)
   return impl
 }
