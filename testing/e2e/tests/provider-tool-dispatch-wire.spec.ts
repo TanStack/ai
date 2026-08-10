@@ -27,12 +27,6 @@ import type { APIRequestContext } from '@playwright/test'
  * covered instead.
  */
 test.describe('provider tools — custom-name wire dispatch', () => {
-  test.beforeEach(async ({ request, aimockPort }) => {
-    // Clear the aimock journal so we only assert against the request this
-    // test triggers — adjacent specs share the same aimock instance.
-    await request.delete(`http://127.0.0.1:${aimockPort}/v1/_requests`)
-  })
-
   test('Gemini preserves google_search as a function declaration', async ({
     request,
     aimockPort,
@@ -45,7 +39,7 @@ test.describe('provider tools — custom-name wire dispatch', () => {
     const result = (await response.json()) as { ok: boolean; error?: string }
     expect(result, result.error).toMatchObject({ ok: true })
 
-    const tools = await readCapturedTools(request, aimockPort)
+    const tools = await readCapturedTools(request, aimockPort, testId)
 
     expect(tools).toContainEqual(
       expect.objectContaining({
@@ -62,15 +56,39 @@ test.describe('provider tools — custom-name wire dispatch', () => {
   })
 })
 
+/**
+ * Reads the tools this test's own request carried.
+ *
+ * aimock is a singleton shared by every Playwright worker, so neither clearing
+ * the journal nor taking `entries[0]` is safe: a parallel spec can wipe the
+ * journal between our write and our read, or land its own entry first.
+ * `createTextAdapter` tags every provider call with an `X-Test-Id` header and
+ * aimock stores request headers next to the body, so select this test's entry by
+ * that id rather than mutating state other workers depend on.
+ */
 async function readCapturedTools(
   request: APIRequestContext,
   aimockPort: number,
+  testId: string,
 ): Promise<Array<Record<string, unknown>>> {
   const response = await request.get(
     `http://127.0.0.1:${aimockPort}/v1/_requests`,
   )
   const entries = (await response.json()) as Array<{
+    headers?: Record<string, string>
     body: { tools?: Array<Record<string, unknown>> } | null
   }>
-  return entries[0]?.body?.tools ?? []
+
+  const mine = entries.filter((entry) =>
+    Object.entries(entry.headers ?? {}).some(
+      ([key, value]) => key.toLowerCase() === 'x-test-id' && value === testId,
+    ),
+  )
+
+  expect(
+    mine,
+    `no aimock journal entry carried X-Test-Id "${testId}"`,
+  ).not.toHaveLength(0)
+
+  return mine.flatMap((entry) => entry.body?.tools ?? [])
 }
