@@ -66,8 +66,8 @@
     "zod": "^4.0.0"
   },
   "dependencies": {
-    "@tanstack/ai-utils": "workspace:*",
-    "@tanstack/openai-base": "workspace:*",
+    "@tanstack/ai-utils": "workspace:^",
+    "@tanstack/openai-base": "workspace:^",
     "openai": "^6.41.0"
   }
 }

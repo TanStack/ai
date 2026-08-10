@@ -274,8 +274,24 @@ pnpm dev      # start dev server
 
 ### Workspace Dependencies
 
-- Use `workspace:*` protocol for internal package dependencies in `package.json`
-- Example: `"@tanstack/ai": "workspace:*"`
+Use the `workspace:` protocol for internal package dependencies in
+`package.json`. Which suffix to use depends on whether the field is published:
+
+- **`dependencies`, `peerDependencies`, `optionalDependencies` → `workspace:^`**
+  Example: `"@tanstack/ai": "workspace:^"`
+  These fields reach consumers. At publish time pnpm rewrites the specifier to
+  a real range, so `workspace:^` becomes `^0.43.1` while `workspace:*` becomes
+  the exact pin `0.43.1`. An exact pin stops consumers from deduping and makes
+  a peer dependency unsatisfiable the moment the internal package releases its
+  next patch. Because every package here is still `0.x`, `^0.43.1` resolves to
+  `0.43.x` only — it permits patches without allowing a breaking minor.
+- **`devDependencies` → `workspace:*`**
+  Example: `"@tanstack/ai": "workspace:*"`
+  Never published, so the specifier has no effect on consumers, and `*` is the
+  correct intent: always build against the local copy.
+
+Private packages (`examples/`, `testing/`) are never published, so `workspace:*`
+is fine there in any field.
 
 ### Tree-Shakeable Exports
 

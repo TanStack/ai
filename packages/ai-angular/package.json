@@ -53,7 +53,7 @@
     "build": "ng-packagr -p ng-package.json -c tsconfig.build.json && premove ./dist/package.json"
   },
   "dependencies": {
-    "@tanstack/ai-client": "workspace:*",
+    "@tanstack/ai-client": "workspace:^",
     "tslib": "^2.8.1"
   },
   "peerDependencies": {

@@ -70,12 +70,12 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-code-mode": "workspace:*"
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-code-mode": "workspace:^"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-code-mode": "workspace:*",
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-code-mode": "workspace:^",
     "zod": "^3.0.0 || ^4.0.0"
   },
   "devDependencies": {

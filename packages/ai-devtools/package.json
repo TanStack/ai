@@ -90,8 +90,8 @@
     "streaming"
   ],
   "dependencies": {
-    "@tanstack/ai": "workspace:*",
-    "@tanstack/ai-event-client": "workspace:*",
+    "@tanstack/ai": "workspace:^",
+    "@tanstack/ai-event-client": "workspace:^",
     "@tanstack/devtools-ui": "^0.5.1",
     "@tanstack/devtools-utils": "^0.4.0",
     "goober": "^2.1.18",

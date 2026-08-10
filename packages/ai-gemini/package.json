@@ -65,7 +65,7 @@
   ],
   "dependencies": {
     "@google/genai": "^2.10.0",
-    "@tanstack/ai-utils": "workspace:*",
+    "@tanstack/ai-utils": "workspace:^",
     "partial-json": "^0.1.7"
   },
   "peerDependencies": {
