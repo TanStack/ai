@@ -42,7 +42,9 @@ type BuiltOpenRouterRequest = Record<string, unknown> & {
 }
 
 type RequestBuilder = {
-  mapOptionsToRequest: (options: Record<string, unknown>) => BuiltOpenRouterRequest
+  mapOptionsToRequest: (
+    options: Record<string, unknown>,
+  ) => BuiltOpenRouterRequest
 }
 
 function asRequestBuilder(adapter: unknown): RequestBuilder {
