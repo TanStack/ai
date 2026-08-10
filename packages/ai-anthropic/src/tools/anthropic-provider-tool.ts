@@ -58,9 +58,7 @@ export function getAnthropicProviderToolKind(
 }
 
 /** Returns adapter metadata without the internal runtime discriminator. */
-export function getAnthropicProviderToolMetadata(
-  tool: Tool,
-): Tool['metadata'] {
+export function getAnthropicProviderToolMetadata(tool: Tool): Tool['metadata'] {
   if (!tool.metadata) {
     return undefined
   }
