@@ -376,6 +376,11 @@ export interface ModelMessage<
    * resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
    */
   id?: string
+  /**
+   * Optional message creation timestamp. When present, message converters
+   * preserve it across persist → hydrate round-trips.
+   */
+  createdAt?: Date
 }
 
 /**
