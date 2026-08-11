@@ -220,6 +220,8 @@ export interface SandboxCreateInput {
   policy?: SandboxPolicy
   env?: Record<string, string>
   signal?: AbortSignal
+  /** Harness adapter name. Optional. Providers that do not use it ignore it. */
+  adapterName?: string
 }
 
 /** Input passed to {@link SandboxProvider.resume}. */

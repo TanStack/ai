@@ -293,6 +293,7 @@ function buildEnsureCtx(
     locks: options?.locks ?? ctx.getOptional(LocksCapability),
     tenant: tenantFrom(ctx.context),
     signal: ctx.signal,
+    adapterName: ctx.provider,
   }
 }
 

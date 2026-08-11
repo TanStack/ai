@@ -76,6 +76,8 @@ export interface SandboxEnsureContext {
   locks?: LockStore
   tenant?: { userId?: string; orgId?: string }
   signal?: AbortSignal
+  /** Harness adapter name (`grok-build`, `claude-code`, `codex`, `opencode`). Optional. */
+  adapterName?: string
 }
 
 export interface SandboxDefinition {
@@ -208,6 +210,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
             ? resolveAllSecrets(config.workspace.secrets)
             : undefined,
         signal: ctx.signal,
+        adapterName: ctx.adapterName,
       })
 
       if (config.workspace) {
