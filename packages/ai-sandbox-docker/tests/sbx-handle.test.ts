@@ -198,3 +198,52 @@ describe('fs.exists', () => {
     ).resolves.toBe(true)
   })
 })
+
+function recordingSpawn(): {
+  spawn: SbxSpawn
+  calls: Array<Array<string>>
+} {
+  const calls: Array<Array<string>> = []
+  const spawn: SbxSpawn = (_bin, args, opts) => {
+    calls.push(args)
+    queueMicrotask(() =>
+      opts.onClose({ stdout: 'should-not-run', stderr: '', exitCode: 0 }),
+    )
+    return { kill: () => {} }
+  }
+  return { spawn, calls }
+}
+
+describe('already-aborted signal does not start a command', () => {
+  it('exec already-aborted signal does not start sbx', async () => {
+    const { spawn, calls } = recordingSpawn()
+    const handle = new SbxHandle({
+      name: 'deadbeefdeadbeef',
+      workspaceRoot: '/home/user/work',
+      binary: 'sbx',
+      spawn,
+    })
+    const ac = new AbortController()
+    ac.abort()
+    await expect(
+      handle.process.exec('echo hi', { signal: ac.signal }),
+    ).rejects.toThrow(/aborted/i)
+    expect(calls).toEqual([])
+  })
+
+  it('spawn already-aborted signal does not start sbx', async () => {
+    const { spawn, calls } = recordingSpawn()
+    const handle = new SbxHandle({
+      name: 'deadbeefdeadbeef',
+      workspaceRoot: '/home/user/work',
+      binary: 'sbx',
+      spawn,
+    })
+    const ac = new AbortController()
+    ac.abort()
+    await expect(
+      handle.process.spawn('echo hi', { signal: ac.signal }),
+    ).rejects.toThrow(/aborted/i)
+    expect(calls).toEqual([])
+  })
+})

@@ -377,19 +377,20 @@ export class SbxHandle implements SandboxHandle {
     command: string,
     opts?: ProcessOptions,
   ): Promise<ExecResult> {
-    const pidFile = opts?.signal
+    const signal = opts?.signal
+    // Already aborted: do not start a kill waiter or the in-VM command.
+    signal?.throwIfAborted()
+    const pidFile = signal
       ? `/tmp/.tanstack-sandbox-exec-${randomUUID()}.pid`
       : undefined
     const wrapped =
       pidFile === undefined ? command : pidRecordingCommand(command, pidFile)
     const state: PidFileState = { exited: false, killRequested: false }
-    const signal = opts?.signal
     const onAbort = (): void => {
       if (pidFile !== undefined) void this.killRecordedPid(pidFile, state)
     }
     if (signal) {
-      if (signal.aborted) onAbort()
-      else signal.addEventListener('abort', onAbort, { once: true })
+      signal.addEventListener('abort', onAbort, { once: true })
     }
     try {
       const result = await runSbx(this.execArgs(wrapped, opts), {
@@ -415,6 +416,9 @@ export class SbxHandle implements SandboxHandle {
     command: string,
     opts?: ProcessOptions,
   ): Promise<SpawnHandle> {
+    const signal = opts?.signal
+    // Already aborted: do not start a kill waiter or the in-VM command.
+    signal?.throwIfAborted()
     const pidFile = `/tmp/.tanstack-sandbox-spawn-${randomUUID()}.pid`
     const state: PidFileState = { exited: false, killRequested: false }
     const stdoutChunks: Array<Buffer> = []
@@ -444,7 +448,7 @@ export class SbxHandle implements SandboxHandle {
       this.execArgs(pidRecordingCommand(command, pidFile), opts),
       {
         ...this.runOptions(),
-        ...(opts?.signal ? { signal: opts.signal } : {}),
+        ...(signal ? { signal } : {}),
         onStdout: (chunk) => push(stdoutChunks, stdoutWaiters, chunk),
         onStderr: (chunk) => push(stderrChunks, stderrWaiters, chunk),
       },
@@ -483,14 +487,12 @@ export class SbxHandle implements SandboxHandle {
       }
     }
 
-    const signal = opts?.signal
     const onAbort = (): void => {
       void this.killRecordedPid(pidFile, state)
       child.kill()
     }
     if (signal) {
-      if (signal.aborted) onAbort()
-      else signal.addEventListener('abort', onAbort, { once: true })
+      signal.addEventListener('abort', onAbort, { once: true })
       void waitResult.finally(() => {
         signal.removeEventListener('abort', onAbort)
       })
