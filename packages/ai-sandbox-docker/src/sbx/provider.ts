@@ -1,4 +1,4 @@
-import { rm } from 'node:fs/promises'
+import { access, rm, writeFile } from 'node:fs/promises'
 import { parseSbxLs, runSbx, sbxExecArgs } from './cli'
 import type { SbxSpawn } from './cli'
 import { isAlreadyGone, SbxHandle, SBX_CAPS } from './handle'
@@ -84,6 +84,24 @@ function isOpenMachinePreset(stdout: string): boolean {
 
 function isDenyAskAllowlist(plan: SbxPolicyPlan): boolean {
   return plan.kind === 'per-sandbox' && !plan.allow.includes('**')
+}
+
+function ownedCloneMarkerPath(id: string): string {
+  return `${ownedHostRepoDir(id)}.owned`
+}
+
+async function ownedCloneMarkerExists(id: string): Promise<boolean> {
+  try {
+    await access(ownedCloneMarkerPath(id))
+    return true
+  } catch {
+    return false
+  }
+}
+
+async function removeOwnedClone(id: string): Promise<void> {
+  await rm(ownedHostRepoDir(id), { recursive: true, force: true })
+  await rm(ownedCloneMarkerPath(id), { force: true })
 }
 
 function isAlreadyInitialized(error: unknown): boolean {
@@ -207,6 +225,9 @@ class SbxProvider implements SandboxProvider {
     ]
 
     try {
+      if (host.owned) {
+        await writeFile(ownedCloneMarkerPath(id), '')
+      }
       await this.run(createArgs, input.signal)
       if (plan.kind === 'per-sandbox') {
         for (const args of policyArgs(plan, id)) {
@@ -226,7 +247,7 @@ class SbxProvider implements SandboxProvider {
         rmError = caught
       }
       if (host.owned) {
-        await rm(ownedHostRepoDir(id), { recursive: true, force: true })
+        await removeOwnedClone(id)
       }
       if (rmError) throw rmError
       throw error
@@ -239,12 +260,17 @@ class SbxProvider implements SandboxProvider {
     const hit = entries.find((entry) => entry.name === id)
     if (!hit) return null
     const workspaceRoot = await this.resolveWorkspaceRoot(id)
-    return this.makeHandle(id, workspaceRoot, !this.config.workspaceDir)
+    const owned = this.config.workspaceDir
+      ? false
+      : await ownedCloneMarkerExists(id)
+    return this.makeHandle(id, workspaceRoot, owned)
   }
 
   async destroy(input: SandboxDestroyInput): Promise<void> {
     const id = sandboxNameFromId(input.id)
-    const owned = !this.config.workspaceDir
+    const owned = this.config.workspaceDir
+      ? false
+      : await ownedCloneMarkerExists(id)
     let rmError: unknown
     try {
       await this.run(['rm', '--force', id])
@@ -252,7 +278,7 @@ class SbxProvider implements SandboxProvider {
       rmError = error
     }
     if (owned) {
-      await rm(ownedHostRepoDir(id), { recursive: true, force: true })
+      await removeOwnedClone(id)
     }
     if (rmError && !isAlreadyGone(rmError)) {
       this.config.logger?.warn('sbx rm failed', {

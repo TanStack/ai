@@ -11,6 +11,7 @@ import {
   defineSandboxPolicy,
   defineWorkspace,
   gitSource,
+  localSource,
 } from '@tanstack/ai-sandbox'
 import { dockerSandbox, sbxSandbox as sbxSandboxFromBarrel } from '../src/index'
 
@@ -731,6 +732,7 @@ describe('sbxSandbox', () => {
       }),
     })
     const owned = path.join(tmpdir(), 'tanstack-sbx', id)
+    scratch.push(owned, `${owned}.owned`)
     await access(owned)
     await handle.destroy()
     await expect(access(owned)).rejects.toMatchObject({ code: 'ENOENT' })
@@ -938,7 +940,7 @@ describe('sbxSandbox', () => {
     const source = await makeGitRepo()
     const id = 'a21ownedclone0001'
     const dest = ownedHostRepoDir(id)
-    scratch.push(dest)
+    scratch.push(dest, `${dest}.owned`)
     const { spawn } = scriptedSpawn([
       {
         match: (args) =>
@@ -974,7 +976,7 @@ describe('sbxSandbox', () => {
     const source = await makeGitRepo()
     const id = 'a21clonermfail001'
     const dest = ownedHostRepoDir(id)
-    scratch.push(dest)
+    scratch.push(dest, `${dest}.owned`)
     const { spawn } = scriptedSpawn([
       {
         match: (args) =>
@@ -1149,7 +1151,8 @@ describe('sbxSandbox', () => {
     const dest = ownedHostRepoDir(id)
     await mkdir(dest, { recursive: true })
     await writeFile(path.join(dest, 'marker.txt'), 'owned\n')
-    scratch.push(dest)
+    await writeFile(`${dest}.owned`, '')
+    scratch.push(dest, `${dest}.owned`)
     const { spawn } = scriptedSpawn([
       {
         match: (args) => args[0] === 'rm',
@@ -1166,7 +1169,8 @@ describe('sbxSandbox', () => {
     const dest = ownedHostRepoDir(id)
     await mkdir(dest, { recursive: true })
     await writeFile(path.join(dest, 'marker.txt'), 'owned\n')
-    scratch.push(dest)
+    await writeFile(`${dest}.owned`, '')
+    scratch.push(dest, `${dest}.owned`)
     const { spawn } = scriptedSpawn([
       {
         match: (args) => args[0] === 'rm',
@@ -1176,6 +1180,217 @@ describe('sbxSandbox', () => {
     const provider = sbxSandbox({ spawn })
     await provider.destroy({ id })
     await expect(access(dest)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('destroy does not delete a leftover clone for localSource', async () => {
+    const repo = await makeGitRepo()
+    const createId = 'a23leftcreate001'
+    const createDest = ownedHostRepoDir(createId)
+    await mkdir(createDest, { recursive: true })
+    await writeFile(path.join(createDest, 'leftover.txt'), 'keep\n')
+    scratch.push(createDest)
+    const { spawn: createSpawn } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const createProvider = sbxSandbox({ spawn: createSpawn })
+    await createProvider.create({
+      id: createId,
+      workspace: defineWorkspace({ source: localSource(repo) }),
+    })
+    await createProvider.destroy({ id: createId })
+    await access(createDest)
+    await access(path.join(createDest, 'leftover.txt'))
+
+    const resumeId = 'a23leftresume001'
+    const resumeDest = ownedHostRepoDir(resumeId)
+    await mkdir(resumeDest, { recursive: true })
+    await writeFile(path.join(resumeDest, 'leftover.txt'), 'keep\n')
+    scratch.push(resumeDest)
+    const { spawn: resumeSpawn } = scriptedSpawn([
+      {
+        match: (args) => args[0] === 'ls',
+        result: {
+          stdout: JSON.stringify([{ name: resumeId, status: 'stopped' }]),
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const resumeProvider = sbxSandbox({ spawn: resumeSpawn })
+    await resumeProvider.resume({ id: resumeId })
+    await resumeProvider.destroy({ id: resumeId })
+    await access(resumeDest)
+    await access(path.join(resumeDest, 'leftover.txt'))
+  })
+
+  it('destroy deletes the clone for an owned git create', async () => {
+    const source = await makeGitRepo()
+    const id = 'a23ownedgitdest01'
+    const dest = ownedHostRepoDir(id)
+    scratch.push(dest, `${dest}.owned`)
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ spawn })
+    await provider.create({
+      id,
+      workspace: defineWorkspace({
+        source: gitSource({ url: source }),
+      }),
+    })
+    await access(dest)
+    await provider.destroy({ id })
+    await expect(access(dest)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('owned clone delete fail on provider.destroy throws', async () => {
+    const source = await makeGitRepo()
+    const id = 'a23owneddelfail01'
+    const dest = ownedHostRepoDir(id)
+    scratch.push(dest, `${dest}.owned`)
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ spawn })
+    await provider.create({
+      id,
+      workspace: defineWorkspace({
+        source: gitSource({ url: source }),
+      }),
+    })
+    cloneDeleteFail.dest = dest
+    await expect(provider.destroy({ id })).rejects.toThrow(/clone delete failed/)
+  })
+
+  it('resume handle.destroy uses the same owned flag', async () => {
+    const leftoverId = 'a23resumeleft001'
+    const leftoverDest = ownedHostRepoDir(leftoverId)
+    await mkdir(leftoverDest, { recursive: true })
+    await writeFile(path.join(leftoverDest, 'leftover.txt'), 'keep\n')
+    scratch.push(leftoverDest)
+    const leftover = scriptedSpawn([
+      {
+        match: (args) => args[0] === 'ls',
+        result: {
+          stdout: JSON.stringify([{ name: leftoverId, status: 'stopped' }]),
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const leftoverProvider = sbxSandbox({ spawn: leftover.spawn })
+    const leftoverHandle = await leftoverProvider.resume({ id: leftoverId })
+    expect(leftoverHandle).not.toBeNull()
+    await leftoverHandle?.destroy()
+    await access(leftoverDest)
+    await access(path.join(leftoverDest, 'leftover.txt'))
+
+    const source = await makeGitRepo()
+    const ownedId = 'a23resumeowned01'
+    const ownedDest = ownedHostRepoDir(ownedId)
+    scratch.push(ownedDest, `${ownedDest}.owned`)
+    const owned = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'ls',
+        result: {
+          stdout: JSON.stringify([{ name: ownedId, status: 'running' }]),
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const ownedProvider = sbxSandbox({ spawn: owned.spawn })
+    await ownedProvider.create({
+      id: ownedId,
+      workspace: defineWorkspace({
+        source: gitSource({ url: source }),
+      }),
+    })
+    const resumed = await ownedProvider.resume({ id: ownedId })
+    expect(resumed).not.toBeNull()
+    await resumed?.destroy()
+    await expect(access(ownedDest)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('fails loud when create has no Git repo', async () => {
