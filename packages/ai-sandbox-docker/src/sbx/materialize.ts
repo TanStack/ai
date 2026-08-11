@@ -27,7 +27,7 @@ async function hasGitDir(dir: string): Promise<boolean> {
   }
 }
 
-function ownedDirFor(id: string): string {
+export function ownedHostRepoDir(id: string): string {
   return path.join(tmpdir(), 'tanstack-sbx', id)
 }
 
@@ -40,7 +40,7 @@ async function cloneGitSource(
     depth?: number | 'full'
   },
 ): Promise<string> {
-  const dest = ownedDirFor(id)
+  const dest = ownedHostRepoDir(id)
   await mkdir(path.dirname(dest), { recursive: true })
   if (await hasGitDir(dest)) {
     return dest

@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { defaultSpawn, mapSbxError, parseSbxLs, runSbx } from '../src/sbx/cli'
+import {
+  defaultSpawn,
+  mapSbxError,
+  parseSbxLs,
+  runSbx,
+  sbxExecArgs,
+} from '../src/sbx/cli'
 import type { SbxSpawn } from '../src/sbx/cli'
 
 function trackingSignal(): { signal: AbortSignal; wasRemoved: () => boolean } {
@@ -47,6 +53,39 @@ function fakeSpawn(result: {
     return { kill: () => {} }
   }
 }
+
+describe('sbxExecArgs', () => {
+  it('puts flags before the sandbox name', () => {
+    expect(
+      sbxExecArgs('deadbeefdeadbeef', 'pwd', {
+        cwd: '/home/user/work',
+        env: { XAI_API_KEY: 'secret' },
+      }),
+    ).toEqual([
+      'exec',
+      '-w',
+      '/home/user/work',
+      '-e',
+      'XAI_API_KEY=secret',
+      '--',
+      'deadbeefdeadbeef',
+      'sh',
+      '-c',
+      'pwd',
+    ])
+  })
+
+  it('omits -w and -e when cwd and env are unset', () => {
+    expect(sbxExecArgs('deadbeefdeadbeef', 'pwd')).toEqual([
+      'exec',
+      '--',
+      'deadbeefdeadbeef',
+      'sh',
+      '-c',
+      'pwd',
+    ])
+  })
+})
 
 describe('runSbx', () => {
   it('returns stdout on exit 0', async () => {

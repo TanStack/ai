@@ -224,6 +224,24 @@ function readEntry(value: unknown): SbxLsEntry | null {
   }
 }
 
+/**
+ * Real CLI: `sbx exec [flags] SANDBOX COMMAND`. Flags after the name are
+ * treated as the command, so `-w` / `-e` must come first.
+ */
+export function sbxExecArgs(
+  name: string,
+  command: string,
+  opts?: { cwd?: string; env?: Record<string, string> },
+): Array<string> {
+  const args = ['exec']
+  if (opts?.cwd) args.push('-w', opts.cwd)
+  for (const [key, value] of Object.entries(opts?.env ?? {})) {
+    args.push('-e', `${key}=${value}`)
+  }
+  args.push('--', name, 'sh', '-c', command)
+  return args
+}
+
 export function parseSbxLs(stdout: string): Array<SbxLsEntry> {
   const parsed: unknown = JSON.parse(stdout)
   const list = Array.isArray(parsed)

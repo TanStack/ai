@@ -6,7 +6,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { SbxHandle, SBX_CAPS } from '../src/sbx/handle'
 import { sbxSandbox } from '../src/sbx/provider'
 import type { SbxRunResult, SbxSpawn } from '../src/sbx/cli'
-import { defineSandboxPolicy, defineWorkspace } from '@tanstack/ai-sandbox'
+import {
+  defineSandboxPolicy,
+  defineWorkspace,
+  gitSource,
+} from '@tanstack/ai-sandbox'
 import { dockerSandbox, sbxSandbox as sbxSandboxFromBarrel } from '../src/index'
 
 function scriptedSpawn(
@@ -279,6 +283,83 @@ describe('sbxSandbox', () => {
           args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
       ),
     ).toBe(true)
+  })
+
+  it('resolves workspace root with exec flags before the sandbox name', async () => {
+    const repo = await makeGitRepo()
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'ls',
+        result: {
+          stdout: JSON.stringify([{ name: 'aabbccddeeff0011' }]),
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    const handle = await provider.create({ id: 'aabbccddeeff0011' })
+    expect(handle.workspaceRoot).toBe('/home/user/work')
+    expect(calls).toContainEqual([
+      'exec',
+      '--',
+      'aabbccddeeff0011',
+      'sh',
+      '-c',
+      'pwd',
+    ])
+  })
+
+  it('handle.destroy deletes an owned host clone', async () => {
+    const source = await makeGitRepo()
+    const id = 'cafebabedeadbeef'
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'ls',
+        result: {
+          stdout: JSON.stringify([{ name: id, workspace: '/home/user/work' }]),
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ spawn })
+    const handle = await provider.create({
+      id,
+      workspace: defineWorkspace({
+        source: gitSource({ url: source }),
+      }),
+    })
+    const owned = path.join(tmpdir(), 'tanstack-sbx', id)
+    await access(owned)
+    await handle.destroy()
+    await expect(access(owned)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('create applies per-sandbox policy after create', async () => {

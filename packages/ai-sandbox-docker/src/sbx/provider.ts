@@ -1,10 +1,8 @@
 import { rm } from 'node:fs/promises'
-import path from 'node:path'
-import { tmpdir } from 'node:os'
-import { parseSbxLs, runSbx } from './cli'
+import { parseSbxLs, runSbx, sbxExecArgs } from './cli'
 import type { SbxSpawn } from './cli'
 import { SbxHandle, SBX_CAPS } from './handle'
-import { resolveHostRepo } from './materialize'
+import { ownedHostRepoDir, resolveHostRepo } from './materialize'
 import { planSbxPolicy, policyArgs } from './policy'
 import type {
   SandboxCapabilities,
@@ -101,7 +99,7 @@ class SbxProvider implements SandboxProvider {
     const entries = await listEntries(this.binary, this.config.spawn)
     const hit = entries.find((entry) => entry.name === name)
     if (hit?.workspace) return hit.workspace
-    const pwd = await this.run(['exec', name, '--', 'pwd'])
+    const pwd = await this.run(sbxExecArgs(name, 'pwd'))
     return pwd.stdout.trim()
   }
 
@@ -120,16 +118,16 @@ class SbxProvider implements SandboxProvider {
     if (!id) {
       throw new Error('sbxSandbox.create requires input.id')
     }
-    const host = await resolveHostRepo({
-      id,
-      workspaceDir: this.config.workspaceDir,
-      workspace: input.workspace,
-    })
     const plan = planSbxPolicy({
       policy: input.policy,
       adapterName: input.adapterName,
       allowNetwork: this.config.allowNetwork,
       denyNetwork: this.config.denyNetwork,
+    })
+    const host = await resolveHostRepo({
+      id,
+      workspaceDir: this.config.workspaceDir,
+      workspace: input.workspace,
     })
 
     await this.ensureGlobalPreset()
@@ -186,7 +184,7 @@ class SbxProvider implements SandboxProvider {
       })
     }
     if (!this.config.workspaceDir) {
-      await rm(path.join(tmpdir(), 'tanstack-sbx', input.id), {
+      await rm(ownedHostRepoDir(input.id), {
         recursive: true,
         force: true,
       })

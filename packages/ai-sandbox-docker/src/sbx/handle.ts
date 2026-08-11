@@ -8,8 +8,10 @@
  * Task 8 measures them.
  */
 import { randomUUID } from 'node:crypto'
+import { rm } from 'node:fs/promises'
 import { createExecBackedGit } from '@tanstack/ai-sandbox'
-import { runSbx, runSbxStreaming } from './cli'
+import { runSbx, runSbxStreaming, sbxExecArgs } from './cli'
+import { ownedHostRepoDir } from './materialize'
 import type {
   ExecResult,
   ProcessOptions,
@@ -280,17 +282,11 @@ export class SbxHandle implements SandboxHandle {
   }
 
   private execArgs(command: string, opts?: ProcessOptions): Array<string> {
-    // Real CLI: `sbx exec [flags] SANDBOX COMMAND`. Flags after the name are
-    // treated as the command, so -w/-e must come first.
-    const args = ['exec']
     const cwd = opts?.cwd ? this.abs(opts.cwd) : this.workspaceRoot
-    args.push('-w', cwd)
-    const env = { ...this.envVars, ...opts?.env }
-    for (const [key, value] of Object.entries(env)) {
-      args.push('-e', `${key}=${value}`)
-    }
-    args.push('--', this.name, 'sh', '-c', command)
-    return args
+    return sbxExecArgs(this.name, command, {
+      cwd,
+      env: { ...this.envVars, ...opts?.env },
+    })
   }
 
   private killRecordedPid(
@@ -503,5 +499,11 @@ export class SbxHandle implements SandboxHandle {
 
   async destroy(): Promise<void> {
     await runSbx(['rm', '--force', this.name], this.runOptions())
+    // Same owned dest as materialize / provider.destroy. force:true is a no-op
+    // when create used a user workspaceDir.
+    await rm(ownedHostRepoDir(this.name), {
+      recursive: true,
+      force: true,
+    })
   }
 }
