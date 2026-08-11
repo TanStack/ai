@@ -99,6 +99,25 @@ function isUnexpectedGitProbeError(error: unknown): boolean {
   return typeof error.code !== 'number'
 }
 
+const GIT_SHA_RE = /^[0-9a-f]{7,40}$/i
+
+function isGitSha(ref: string): boolean {
+  return GIT_SHA_RE.test(ref)
+}
+
+async function probeGit(
+  args: ReadonlyArray<string>,
+  cwd: string,
+): Promise<string | undefined> {
+  try {
+    const out = await runGit(args, { cwd })
+    return out === '' ? undefined : out
+  } catch (error) {
+    if (isUnexpectedGitProbeError(error)) throw error
+    return undefined
+  }
+}
+
 async function ownedGitDestMatchesSource(
   dest: string,
   source: { url: string; ref?: string },
@@ -110,21 +129,33 @@ async function ownedGitDestMatchesSource(
       return false
     }
 
-    const currentRef = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], {
-      cwd: dest,
-    })
-    if (currentRef === '') return false
+    // Origin-only match is not enough. A leftover clone of the same URL on
+    // another branch (or any HEAD) must reclone when the caller omitted ref.
+    if (!source.ref) return false
 
-    if (source.ref) {
-      if (currentRef === source.ref) return true
-      const headSha = await runGit(['rev-parse', 'HEAD'], { cwd: dest })
-      const wantedSha = await runGit(['rev-parse', '--verify', source.ref], {
-        cwd: dest,
-      })
-      return headSha !== '' && headSha === wantedSha
+    const currentRef = await probeGit(
+      ['rev-parse', '--abbrev-ref', 'HEAD'],
+      dest,
+    )
+    if (currentRef === source.ref) return true
+
+    const headSha = await probeGit(['rev-parse', 'HEAD'], dest)
+    if (headSha === undefined) return false
+
+    if (isGitSha(source.ref)) {
+      const wanted = source.ref.toLowerCase()
+      const head = headSha.toLowerCase()
+      return head === wanted || head.startsWith(wanted)
     }
 
-    return true
+    const peeled = await probeGit(['rev-parse', `${source.ref}^{}`], dest)
+    if (peeled === headSha) return true
+
+    const described = await probeGit(
+      ['describe', '--exact-match', '--tags'],
+      dest,
+    )
+    return described === source.ref
   } catch (error) {
     if (isUnexpectedGitProbeError(error)) throw error
     return false
@@ -168,7 +199,9 @@ async function cloneGitSource(
   if (resolvedDepth !== 'full') {
     args.push('--depth', String(resolvedDepth))
   }
-  if (source.ref) args.push('--branch', source.ref)
+  if (source.ref && !isGitSha(source.ref)) {
+    args.push('--branch', source.ref)
+  }
   args.push('--', source.url, dest)
   const env = { ...process.env }
   if (source.auth?.token) {
@@ -181,6 +214,15 @@ async function cloneGitSource(
   }
   try {
     await runGit(args, { env })
+    if (source.ref && isGitSha(source.ref)) {
+      const fetchArgs = ['fetch']
+      if (resolvedDepth !== 'full') {
+        fetchArgs.push('--depth', String(resolvedDepth))
+      }
+      fetchArgs.push('--', 'origin', source.ref)
+      await runGit(fetchArgs, { cwd: dest, env })
+      await runGit(['checkout', '--detach', source.ref], { cwd: dest, env })
+    }
   } catch (error) {
     await rm(dest, { recursive: true, force: true }).catch(() => {})
     if (

@@ -4,10 +4,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { defineWorkspace, gitSource, localSource } from '@tanstack/ai-sandbox'
-import type {
-  ExecFileException,
-  ExecFileOptions,
-} from 'node:child_process'
+import type { ExecFileException, ExecFileOptions } from 'node:child_process'
 
 interface CloneExecCall {
   file: string
@@ -50,7 +47,11 @@ vi.mock('node:child_process', async (importOriginal) => {
         callback?.(error, '', 'git probe failed')
         return
       }
-      if (cloneExec.intercept && file === 'git' && verb === 'clone') {
+      if (
+        cloneExec.intercept &&
+        file === 'git' &&
+        (verb === 'clone' || verb === 'fetch' || verb === 'checkout')
+      ) {
         cloneExec.calls.push({
           file,
           args: args ?? [],
@@ -64,9 +65,8 @@ vi.mock('node:child_process', async (importOriginal) => {
   }
 })
 
-const { ownedHostRepoDir, resolveHostRepo, sandboxNameFromId } = await import(
-  '../src/sbx/materialize'
-)
+const { ownedHostRepoDir, resolveHostRepo, sandboxNameFromId } =
+  await import('../src/sbx/materialize')
 
 const scratch: Array<string> = []
 
@@ -115,7 +115,7 @@ describe('sandboxNameFromId / ownedHostRepoDir', () => {
   })
 })
 
-describe('resolveHostRepo', () => {
+describe('resolveHostRepo', { timeout: 30_000 }, () => {
   it('uses workspaceDir when it contains .git', async () => {
     const repo = await makeGitRepo()
     const result = await resolveHostRepo({
@@ -208,7 +208,7 @@ describe('resolveHostRepo', () => {
     )
   })
 
-  it('reuses the owned dest when resolveHostRepo is called again with the same id', async () => {
+  it('reclones a no-ref source even when origin matches on the second call', async () => {
     const repo = await makeGitRepo()
     const id = 'retry000000000001'
     const workspace = defineWorkspace({
@@ -218,11 +218,15 @@ describe('resolveHostRepo', () => {
     scratch.push(first.hostDir)
     expect(first.owned).toBe(true)
     expect(await stat(path.join(first.hostDir, '.git'))).toBeTruthy()
+    await writeFile(path.join(first.hostDir, 'local-only.txt'), 'gone\n')
 
     const second = await resolveHostRepo({ id, workspace })
     expect(second.hostDir).toBe(first.hostDir)
     expect(second.owned).toBe(true)
     expect(await stat(path.join(second.hostDir, '.git'))).toBeTruthy()
+    await expect(
+      stat(path.join(second.hostDir, 'local-only.txt')),
+    ).rejects.toThrow()
   })
 
   it('replaces a non-git leftover at the owned dest then clones', async () => {
@@ -270,10 +274,12 @@ describe('resolveHostRepo', () => {
     expect(result.hostDir).toBe(dest)
     expect(result.owned).toBe(true)
     expect(await stat(path.join(result.hostDir, 'from-b.txt'))).toBeTruthy()
-    await expect(stat(path.join(result.hostDir, 'from-a.txt'))).rejects.toThrow()
+    await expect(
+      stat(path.join(result.hostDir, 'from-a.txt')),
+    ).rejects.toThrow()
   })
 
-  it('reuses the owned dest when url and ref both match', async () => {
+  it('reuses the owned dest when url and branch both match', async () => {
     const repo = await makeGitRepo()
     execFileSync('git', ['branch', 'feature'], { cwd: repo })
     const id = 'retry000000000004'
@@ -335,7 +341,7 @@ describe('resolveHostRepo', () => {
     expect(await stat(path.join(result.hostDir, 'marker.txt'))).toBeTruthy()
   })
 
-  it('reclones the owned dest when the git ref does not match', async () => {
+  it('reclones when the branch does not match', async () => {
     const repo = await makeGitRepo()
     await writeFile(path.join(repo, 'on-default.txt'), 'd\n')
     execFileSync('git', ['add', '.'], { cwd: repo })
@@ -361,6 +367,52 @@ describe('resolveHostRepo', () => {
     expect(result.hostDir).toBe(dest)
     expect(result.owned).toBe(true)
     expect(await stat(path.join(result.hostDir, 'on-other.txt'))).toBeTruthy()
+  })
+
+  it('reuses when an annotated tag matches HEAD', async () => {
+    const repo = await makeGitRepo()
+    execFileSync('git', ['tag', '-a', 'v1.0.0', '-m', 'release'], { cwd: repo })
+    const id = 'retry000000000010'
+    const workspace = defineWorkspace({
+      source: gitSource({ url: repo, ref: 'v1.0.0' }),
+    })
+    const first = await resolveHostRepo({ id, workspace })
+    scratch.push(first.hostDir)
+    await writeFile(path.join(first.hostDir, 'dirty.txt'), 'keep\n')
+
+    const second = await resolveHostRepo({ id, workspace })
+    expect(second.hostDir).toBe(first.hostDir)
+    expect(second.owned).toBe(true)
+    expect(await stat(path.join(second.hostDir, 'dirty.txt'))).toBeTruthy()
+  })
+
+  it('no-ref does not reuse any matching origin', async () => {
+    const repo = await makeGitRepo()
+    execFileSync('git', ['checkout', '-b', 'other'], { cwd: repo })
+    await writeFile(path.join(repo, 'on-other.txt'), 'o\n')
+    execFileSync('git', ['add', '.'], { cwd: repo })
+    execFileSync('git', ['commit', '-m', 'other'], { cwd: repo })
+    execFileSync('git', ['checkout', '-'], { cwd: repo })
+
+    const id = 'retry000000000011'
+    const dest = path.join(tmpdir(), 'tanstack-sbx', id)
+    await mkdir(path.dirname(dest), { recursive: true })
+    execFileSync('git', ['clone', '--branch', 'other', '--', repo, dest])
+    scratch.push(dest)
+    await writeFile(path.join(dest, 'local-only.txt'), 'gone\n')
+
+    const result = await resolveHostRepo({
+      id,
+      workspace: defineWorkspace({
+        source: gitSource({ url: repo }),
+      }),
+    })
+    expect(result.hostDir).toBe(dest)
+    expect(result.owned).toBe(true)
+    expect(await stat(path.join(result.hostDir, '.git'))).toBeTruthy()
+    await expect(
+      stat(path.join(result.hostDir, 'local-only.txt')),
+    ).rejects.toThrow()
   })
 
   it('probe throw does not rm -rf the dest', async () => {
@@ -415,7 +467,9 @@ describe('resolveHostRepo', () => {
     expect(result.hostDir).toBe(dest)
     expect(result.owned).toBe(true)
     expect(await stat(path.join(result.hostDir, 'from-b.txt'))).toBeTruthy()
-    await expect(stat(path.join(result.hostDir, 'from-a.txt'))).rejects.toThrow()
+    await expect(
+      stat(path.join(result.hostDir, 'from-a.txt')),
+    ).rejects.toThrow()
     await expect(
       stat(path.join(result.hostDir, 'local-only.txt')),
     ).rejects.toThrow()
@@ -508,6 +562,46 @@ describe('cloneGitSource auth and depth', () => {
     expect(env.GIT_CONFIG_VALUE_0).toBe(
       '!f() { echo "username=${GIT_ASKPASS_USER}"; echo "password=${GIT_ASKPASS_TOKEN}"; }; f',
     )
+  })
+
+  it('clones a SHA without --branch', async () => {
+    const sha = '0123456789abcdef0123456789abcdef01234567'
+    const id = 'sha000000000000001'
+    scratch.push(path.join(tmpdir(), 'tanstack-sbx', id))
+
+    await resolveHostRepo({
+      id,
+      workspace: defineWorkspace({
+        source: gitSource({
+          url: 'https://github.com/org/repo.git',
+          ref: sha,
+        }),
+      }),
+    })
+
+    const cloneCall = cloneExec.calls.find((call) => call.args[0] === 'clone')
+    expect(cloneCall).toBeDefined()
+    if (cloneCall === undefined) {
+      throw new Error('expected clone exec call')
+    }
+    expect(cloneCall.args).not.toContain('--branch')
+    expect(cloneCall.args).not.toContain(sha)
+
+    const fetchCall = cloneExec.calls.find((call) => call.args[0] === 'fetch')
+    expect(fetchCall).toBeDefined()
+    if (fetchCall === undefined) {
+      throw new Error('expected fetch exec call')
+    }
+    expect(fetchCall.args).toContain(sha)
+
+    const checkoutCall = cloneExec.calls.find(
+      (call) => call.args[0] === 'checkout',
+    )
+    expect(checkoutCall).toBeDefined()
+    if (checkoutCall === undefined) {
+      throw new Error('expected checkout exec call')
+    }
+    expect(checkoutCall.args).toContain(sha)
   })
 
   it('clone rejects a bad depth before git runs', async () => {
