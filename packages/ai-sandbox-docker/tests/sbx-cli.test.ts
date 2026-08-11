@@ -142,6 +142,18 @@ describe('runSbx', () => {
       }),
     ).rejects.toThrow(/unknown template/)
   })
+
+  it('does not treat guest exec stdout 401 Unauthorized as a login error', async () => {
+    const result = await runSbx(sbxExecArgs('name', 'echo unauthorized'), {
+      allowNonZero: true,
+      spawn: fakeSpawn({
+        exitCode: 1,
+        stdout: '401 Unauthorized',
+      }),
+    })
+    expect(result.exitCode).toBe(1)
+    expect(result.stdout).toBe('401 Unauthorized')
+  })
 })
 
 describe('parseSbxLs', () => {

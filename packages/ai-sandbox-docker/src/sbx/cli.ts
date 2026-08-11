@@ -94,6 +94,13 @@ export function mapSbxError(error: unknown, binary: string): Error {
   return new Error(`${binary} failed: ${String(error)}`)
 }
 
+const HOST_CLI_COMMANDS = new Set(['ls', 'create', 'policy', 'rm', 'ports'])
+
+function isHostCliCommand(args: Array<string>): boolean {
+  const command = args[0]
+  return command !== undefined && HOST_CLI_COMMANDS.has(command)
+}
+
 function throwIfFailed(
   result: SbxRunResult,
   binary: string,
@@ -101,8 +108,7 @@ function throwIfFailed(
 ): SbxRunResult {
   if (result.exitCode === 0) return result
   const stderr = result.stderr.trim()
-  const combined = `${stderr}\n${result.stdout}`.toLowerCase()
-  if (isLoginError(combined)) {
+  if (isLoginError(stderr.toLowerCase())) {
     throw new Error(`${LOGIN_HELP}\n${stderr}`)
   }
   throw new Error(
@@ -112,12 +118,12 @@ function throwIfFailed(
   )
 }
 
-function isLoginError(combined: string): boolean {
+function isLoginError(text: string): boolean {
   return (
-    combined.includes('not logged in') ||
-    combined.includes('not authenticated') ||
-    combined.includes('unauthoriz') ||
-    combined.includes('login required')
+    text.includes('not logged in') ||
+    text.includes('not authenticated') ||
+    text.includes('unauthoriz') ||
+    text.includes('login required')
   )
 }
 
@@ -141,10 +147,10 @@ export async function runSbx(
     })
   })
   if (options.allowNonZero) {
-    // A command inside the VM can exit 1. Login and auth errors still fail loud.
+    // Guest exec can print "unauthorized" on stdout. Only host CLI
+    // stderr on host commands is a login error. Never scan `exec`.
     const stderr = result.stderr.trim()
-    const combined = `${stderr}\n${result.stdout}`.toLowerCase()
-    if (isLoginError(combined)) {
+    if (isHostCliCommand(args) && isLoginError(stderr.toLowerCase())) {
       throw new Error(`${LOGIN_HELP}\n${stderr}`)
     }
     return result
