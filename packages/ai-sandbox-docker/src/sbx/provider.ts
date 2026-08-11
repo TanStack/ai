@@ -28,6 +28,29 @@ export interface SbxSandboxConfig {
   spawn?: SbxSpawn
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function hasPolicyRows(stdout: string): boolean {
+  const text = stdout.trim()
+  if (text === '') return false
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (Array.isArray(parsed)) return parsed.length > 0
+    if (isRecord(parsed)) {
+      for (const key of ['policies', 'items', 'rules']) {
+        const val = parsed[key]
+        if (Array.isArray(val)) return val.length > 0
+      }
+      return Object.keys(parsed).length > 0
+    }
+  } catch {
+    return true
+  }
+  return false
+}
+
 async function listEntries(
   binary: string,
   spawn: SbxSpawn | undefined,
@@ -65,10 +88,13 @@ class SbxProvider implements SandboxProvider {
 
   private async ensureGlobalPreset(): Promise<void> {
     try {
-      await this.run(['policy', '--json'])
+      const listed = await this.run(['policy', 'ls', '--json'])
+      if (hasPolicyRows(listed.stdout)) return
     } catch {
-      await this.run(['policy', 'init', 'deny-all'])
+      // Probe failed or returned nothing usable. Init once; a real login
+      // error will fail again on init and stay loud.
     }
+    await this.run(['policy', 'init', 'deny-all'])
   }
 
   private async resolveWorkspaceRoot(name: string): Promise<string> {

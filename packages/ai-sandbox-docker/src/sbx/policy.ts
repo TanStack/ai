@@ -62,10 +62,24 @@ export function policyArgs(
 ): Array<Array<string>> {
   const commands: Array<Array<string>> = []
   for (const host of plan.allow) {
-    commands.push(['policy', 'allow', host, '--sandbox', sandboxName])
+    commands.push([
+      'policy',
+      'allow',
+      'network',
+      '--sandbox',
+      sandboxName,
+      host,
+    ])
   }
   for (const host of plan.deny) {
-    commands.push(['policy', 'deny', host, '--sandbox', sandboxName])
+    commands.push([
+      'policy',
+      'deny',
+      'network',
+      '--sandbox',
+      sandboxName,
+      host,
+    ])
   }
   return commands
 }

@@ -280,14 +280,16 @@ export class SbxHandle implements SandboxHandle {
   }
 
   private execArgs(command: string, opts?: ProcessOptions): Array<string> {
-    const args = ['exec', this.name]
+    // Real CLI: `sbx exec [flags] SANDBOX COMMAND`. Flags after the name are
+    // treated as the command, so -w/-e must come first.
+    const args = ['exec']
     const cwd = opts?.cwd ? this.abs(opts.cwd) : this.workspaceRoot
     args.push('-w', cwd)
     const env = { ...this.envVars, ...opts?.env }
     for (const [key, value] of Object.entries(env)) {
       args.push('-e', `${key}=${value}`)
     }
-    args.push('--', 'sh', '-c', command)
+    args.push('--', this.name, 'sh', '-c', command)
     return args
   }
 

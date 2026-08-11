@@ -102,17 +102,22 @@ function throwIfFailed(
   if (result.exitCode === 0) return result
   const stderr = result.stderr.trim()
   const combined = `${stderr}\n${result.stdout}`.toLowerCase()
-  if (
-    combined.includes('not logged in') ||
-    combined.includes('unauthoriz') ||
-    combined.includes('login required')
-  ) {
+  if (isLoginError(combined)) {
     throw new Error(`${LOGIN_HELP}\n${stderr}`)
   }
   throw new Error(
     stderr === ''
       ? `${binary} ${args.join(' ')} exited ${result.exitCode}`
       : stderr,
+  )
+}
+
+function isLoginError(combined: string): boolean {
+  return (
+    combined.includes('not logged in') ||
+    combined.includes('not authenticated') ||
+    combined.includes('unauthoriz') ||
+    combined.includes('login required')
   )
 }
 
@@ -139,11 +144,7 @@ export async function runSbx(
     // A command inside the VM can exit 1. Login and auth errors still fail loud.
     const stderr = result.stderr.trim()
     const combined = `${stderr}\n${result.stdout}`.toLowerCase()
-    if (
-      combined.includes('not logged in') ||
-      combined.includes('unauthoriz') ||
-      combined.includes('login required')
-    ) {
+    if (isLoginError(combined)) {
       throw new Error(`${LOGIN_HELP}\n${stderr}`)
     }
     return result

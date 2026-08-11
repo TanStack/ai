@@ -71,6 +71,18 @@ describe('runSbx', () => {
     ).rejects.toThrow(/sbx login --password-stdin/)
   })
 
+  it('throws with login help when stderr says not authenticated', async () => {
+    await expect(
+      runSbx(['ls', '--json'], {
+        binary: 'sbx',
+        spawn: fakeSpawn({
+          exitCode: 1,
+          stderr: 'ERROR: Not authenticated to Docker\n\nSign in with: sbx login',
+        }),
+      }),
+    ).rejects.toThrow(/sbx login --password-stdin/)
+  })
+
   it('throws with stderr on any other non-zero exit', async () => {
     await expect(
       runSbx(['create'], {

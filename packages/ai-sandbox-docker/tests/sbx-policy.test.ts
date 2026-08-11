@@ -114,8 +114,22 @@ describe('planSbxPolicy', () => {
     })
     if (plan.kind !== 'per-sandbox') throw new Error('expected per-sandbox')
     expect(policyArgs(plan, 'deadbeefdeadbeef')).toEqual([
-      ['policy', 'allow', 'api.x.ai', '--sandbox', 'deadbeefdeadbeef'],
-      ['policy', 'deny', 'ads.example.com', '--sandbox', 'deadbeefdeadbeef'],
+      [
+        'policy',
+        'allow',
+        'network',
+        '--sandbox',
+        'deadbeefdeadbeef',
+        'api.x.ai',
+      ],
+      [
+        'policy',
+        'deny',
+        'network',
+        '--sandbox',
+        'deadbeefdeadbeef',
+        'ads.example.com',
+      ],
     ])
   })
 })
