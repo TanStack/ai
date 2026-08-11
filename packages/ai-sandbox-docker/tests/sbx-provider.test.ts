@@ -7,6 +7,7 @@ import { SbxHandle, SBX_CAPS } from '../src/sbx/handle'
 import { sbxSandbox } from '../src/sbx/provider'
 import type { SbxRunResult, SbxSpawn } from '../src/sbx/cli'
 import { defineSandboxPolicy, defineWorkspace } from '@tanstack/ai-sandbox'
+import { dockerSandbox, sbxSandbox as sbxSandboxFromBarrel } from '../src/index'
 
 function scriptedSpawn(
   scripts: Array<{
@@ -341,5 +342,14 @@ describe('sbxSandbox', () => {
         workspace: defineWorkspace({ source: { type: 'none' } }),
       }),
     ).rejects.toThrow(/sbxSandbox needs a Git repository/)
+  })
+})
+
+describe('package exports', () => {
+  it('exports both dockerSandbox and sbxSandbox from the barrel', () => {
+    expect(typeof dockerSandbox).toBe('function')
+    expect(typeof sbxSandboxFromBarrel).toBe('function')
+    expect(sbxSandboxFromBarrel().name).toBe('sbx')
+    expect(dockerSandbox({ image: 'alpine:3' }).name).toBe('docker')
   })
 })
