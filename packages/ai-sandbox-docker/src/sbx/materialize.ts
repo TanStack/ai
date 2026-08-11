@@ -31,6 +31,12 @@ export function ownedHostRepoDir(id: string): string {
   return path.join(tmpdir(), 'tanstack-sbx', id)
 }
 
+// Credential helper that prints creds read from the child ENV. The helper
+// string references ${GIT_ASKPASS_*} only — the raw token never lands in
+// GIT_CONFIG_VALUE_0 (process listings / git config dumps).
+const CREDENTIAL_HELPER =
+  '!f() { echo username=${GIT_ASKPASS_USER}; echo password=${GIT_ASKPASS_TOKEN}; }; f'
+
 async function cloneGitSource(
   id: string,
   source: {
@@ -41,14 +47,23 @@ async function cloneGitSource(
   },
 ): Promise<string> {
   const dest = ownedHostRepoDir(id)
+  const resolvedDepth = source.depth ?? 1
+  if (
+    resolvedDepth !== 'full' &&
+    (!Number.isInteger(resolvedDepth) || resolvedDepth <= 0)
+  ) {
+    throw new Error(
+      'sbxSandbox: git clone depth must be a positive integer or "full".',
+    )
+  }
   await mkdir(path.dirname(dest), { recursive: true })
   if (await hasGitDir(dest)) {
     return dest
   }
   await rm(dest, { recursive: true, force: true })
   const args = ['clone']
-  if (source.depth !== 'full') {
-    args.push('--depth', String(source.depth ?? 1))
+  if (resolvedDepth !== 'full') {
+    args.push('--depth', String(resolvedDepth))
   }
   if (source.ref) args.push('--branch', source.ref)
   args.push('--', source.url, dest)
@@ -56,9 +71,11 @@ async function cloneGitSource(
   if (source.auth?.token) {
     env.GIT_ASKPASS = 'echo'
     env.GIT_TERMINAL_PROMPT = '0'
+    env.GIT_ASKPASS_USER = source.auth.username ?? 'x-access-token'
+    env.GIT_ASKPASS_TOKEN = source.auth.token
     env.GIT_CONFIG_COUNT = '1'
     env.GIT_CONFIG_KEY_0 = 'credential.helper'
-    env.GIT_CONFIG_VALUE_0 = `!f() { echo username=${source.auth.username ?? 'x-access-token'}; echo password=${source.auth.token}; }; f`
+    env.GIT_CONFIG_VALUE_0 = CREDENTIAL_HELPER
   }
   try {
     await execFileAsync('git', args, { env })
