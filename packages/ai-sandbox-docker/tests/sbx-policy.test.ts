@@ -7,6 +7,34 @@ describe('planSbxPolicy', () => {
     expect(planSbxPolicy({})).toEqual({ kind: 'machine-preset' })
   })
 
+  it('adds auto API hosts for grok-build with no policy and no host lists', () => {
+    expect(planSbxPolicy({ adapterName: 'grok-build' })).toEqual({
+      kind: 'per-sandbox',
+      allow: ['api.x.ai'],
+      deny: [],
+    })
+  })
+
+  it('adds auto API hosts for claude-code and codex with no policy', () => {
+    expect(planSbxPolicy({ adapterName: 'claude-code' })).toEqual({
+      kind: 'per-sandbox',
+      allow: ['api.anthropic.com'],
+      deny: [],
+    })
+    expect(planSbxPolicy({ adapterName: 'codex' })).toEqual({
+      kind: 'per-sandbox',
+      allow: ['api.openai.com'],
+      deny: [],
+    })
+  })
+
+  it('stays on the machine preset for opencode or unknown adapter with no policy', () => {
+    expect(planSbxPolicy({ adapterName: 'opencode' })).toEqual({
+      kind: 'machine-preset',
+    })
+    expect(planSbxPolicy({})).toEqual({ kind: 'machine-preset' })
+  })
+
   it('maps allow to allow ** then denyNetwork', () => {
     expect(
       planSbxPolicy({

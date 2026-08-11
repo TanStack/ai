@@ -34,7 +34,11 @@ export function planSbxPolicy(input: {
   const hasHostLists =
     (input.allowNetwork?.length ?? 0) > 0 ||
     (input.denyNetwork?.length ?? 0) > 0
+  const auto = autoApiHosts(input.adapterName)
   if (!input.policy && !hasHostLists) {
+    if (auto.length > 0) {
+      return { kind: 'per-sandbox', allow: auto, deny: [] }
+    }
     return { kind: 'machine-preset' }
   }
 
