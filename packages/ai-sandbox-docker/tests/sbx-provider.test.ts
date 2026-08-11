@@ -1094,6 +1094,40 @@ describe('sbxSandbox', () => {
     expect(calls).toContainEqual(['rm', '--force', id])
   })
 
+  it('resume forwards input.signal to sbx ls and exec pwd', async () => {
+    const controller = new AbortController()
+    const signals: Array<AbortSignal | undefined> = []
+    const spawn: SbxSpawn = (_bin, args, opts) => {
+      signals.push(opts.signal)
+      const result: SbxRunResult =
+        args[0] === 'ls'
+          ? {
+              stdout: JSON.stringify([
+                { name: 'deadbeefdeadbeef', workspace: '/home/user/work' },
+              ]),
+              stderr: '',
+              exitCode: 0,
+            }
+          : args[0] === 'exec' && args.includes('pwd')
+            ? { stdout: '/home/user/work\n', stderr: '', exitCode: 0 }
+            : {
+                stdout: '',
+                stderr: `unexpected sbx ${args.join(' ')}`,
+                exitCode: 1,
+              }
+      queueMicrotask(() => opts.onClose(result))
+      return { kill: () => {} }
+    }
+    const provider = sbxSandbox({ spawn })
+    await provider.resume({
+      id: 'deadbeefdeadbeef',
+      signal: controller.signal,
+    })
+    expect(signals).toHaveLength(2)
+    expect(signals[0]).toBe(controller.signal)
+    expect(signals[1]).toBe(controller.signal)
+  })
+
   it('resume returns a handle when ls lists the name, including stopped', async () => {
     const { spawn } = scriptedSpawn([
       {

@@ -118,10 +118,12 @@ function isAlreadyInitialized(error: unknown): boolean {
 async function listEntries(
   binary: string,
   spawn: SbxSpawn | undefined,
+  signal?: AbortSignal,
 ): Promise<ReturnType<typeof parseSbxLs>> {
   const result = await runSbx(['ls', '--json'], {
     binary,
     ...(spawn ? { spawn } : {}),
+    ...(signal ? { signal } : {}),
   })
   return parseSbxLs(result.stdout)
 }
@@ -166,8 +168,11 @@ class SbxProvider implements SandboxProvider {
     }
   }
 
-  private async resolveWorkspaceRoot(name: string): Promise<string> {
-    const pwd = await this.run(sbxExecArgs(name, 'pwd'))
+  private async resolveWorkspaceRoot(
+    name: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    const pwd = await this.run(sbxExecArgs(name, 'pwd'), signal)
     const root = pwd.stdout.trim()
     if (!root) throw new Error(`sbx exec pwd returned empty stdout for ${name}`)
     return root
@@ -235,7 +240,7 @@ class SbxProvider implements SandboxProvider {
         }
       }
 
-      const workspaceRoot = await this.resolveWorkspaceRoot(id)
+      const workspaceRoot = await this.resolveWorkspaceRoot(id, input.signal)
       const handle = this.makeHandle(id, workspaceRoot, host.owned)
       if (input.env) await handle.env.set(input.env)
       return handle
@@ -256,10 +261,14 @@ class SbxProvider implements SandboxProvider {
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
     const id = sandboxNameFromId(input.id)
-    const entries = await listEntries(this.binary, this.config.spawn)
+    const entries = await listEntries(
+      this.binary,
+      this.config.spawn,
+      input.signal,
+    )
     const hit = entries.find((entry) => entry.name === id)
     if (!hit) return null
-    const workspaceRoot = await this.resolveWorkspaceRoot(id)
+    const workspaceRoot = await this.resolveWorkspaceRoot(id, input.signal)
     const owned = this.config.workspaceDir
       ? false
       : await ownedCloneMarkerExists(id)
