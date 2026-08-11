@@ -239,6 +239,10 @@ describe('sbxSandbox', () => {
           exitCode: 0,
         },
       },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
     ])
     const provider = sbxSandbox({
       workspaceDir: repo,
@@ -258,6 +262,41 @@ describe('sbxSandbox', () => {
       'shell',
       repo,
     ])
+  })
+
+  it('create sets workspaceRoot from in-VM pwd even when ls has a workspace field', async () => {
+    const repo = await makeGitRepo()
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'ls',
+        result: {
+          stdout: JSON.stringify([
+            { name: 'deadbeefdeadbeef', workspace: 'C:\\host\\repo' },
+          ]),
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({
+      workspaceDir: repo,
+      spawn,
+    })
+    const handle = await provider.create({ id: 'deadbeefdeadbeef' })
+    expect(handle.workspaceRoot).toBe('/home/user/work')
   })
 
   it('create does not init deny-all when policy ls fails', async () => {
@@ -448,6 +487,10 @@ describe('sbxSandbox', () => {
           exitCode: 0,
         },
       },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
     ])
     const provider = sbxSandbox({ workspaceDir: repo, spawn })
     const handle = await provider.create({ id: 'aabbccddeeff0011' })
@@ -521,6 +564,10 @@ describe('sbxSandbox', () => {
         },
       },
       {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+      {
         match: (args) => args[0] === 'rm',
         result: { stdout: '', stderr: '', exitCode: 0 },
       },
@@ -563,6 +610,10 @@ describe('sbxSandbox', () => {
           stderr: '',
           exitCode: 0,
         },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
       },
     ])
     const provider = sbxSandbox({
@@ -648,10 +699,6 @@ describe('sbxSandbox', () => {
         result: { stdout: '', stderr: '', exitCode: 0 },
       },
       {
-        match: (args) => args[0] === 'ls',
-        result: { stdout: '', stderr: 'ls failed', exitCode: 1 },
-      },
-      {
         match: (args) => args[0] === 'exec' && args.includes('pwd'),
         result: { stdout: '', stderr: 'pwd failed', exitCode: 1 },
       },
@@ -661,7 +708,7 @@ describe('sbxSandbox', () => {
       },
     ])
     const provider = sbxSandbox({ workspaceDir: repo, spawn })
-    await expect(provider.create({ id })).rejects.toThrow(/ls failed/)
+    await expect(provider.create({ id })).rejects.toThrow(/pwd failed/)
     expect(calls).toContainEqual(['rm', '--force', id])
   })
 
@@ -694,6 +741,10 @@ describe('sbxSandbox', () => {
         },
       },
       {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+      {
         match: (args) => args[0] === 'rm',
         result: { stdout: '', stderr: '', exitCode: 0 },
       },
@@ -719,8 +770,8 @@ describe('sbxSandbox', () => {
         result: { stdout: '', stderr: '', exitCode: 0 },
       },
       {
-        match: (args) => args[0] === 'ls',
-        result: { stdout: '', stderr: 'ls failed', exitCode: 1 },
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '', stderr: 'pwd failed', exitCode: 1 },
       },
       {
         match: (args) => args[0] === 'rm',
@@ -728,7 +779,7 @@ describe('sbxSandbox', () => {
       },
     ])
     const provider = sbxSandbox({ workspaceDir: repo, spawn })
-    await expect(provider.create({ id })).rejects.toThrow(/ls failed/)
+    await expect(provider.create({ id })).rejects.toThrow(/pwd failed/)
     expect(calls).toContainEqual(['rm', '--force', id])
   })
 
@@ -741,12 +792,16 @@ describe('sbxSandbox', () => {
             {
               name: 'deadbeefdeadbeef',
               status: 'stopped',
-              workspace: '/home/user/work',
+              workspace: 'C:\\host\\repo',
             },
           ]),
           stderr: '',
           exitCode: 0,
         },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
       },
     ])
     const provider = sbxSandbox({ spawn })

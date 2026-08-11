@@ -92,11 +92,10 @@ class SbxProvider implements SandboxProvider {
   }
 
   private async resolveWorkspaceRoot(name: string): Promise<string> {
-    const entries = await listEntries(this.binary, this.config.spawn)
-    const hit = entries.find((entry) => entry.name === name)
-    if (hit?.workspace) return hit.workspace
     const pwd = await this.run(sbxExecArgs(name, 'pwd'))
-    return pwd.stdout.trim()
+    const root = pwd.stdout.trim()
+    if (!root) throw new Error(`sbx exec pwd returned empty stdout for ${name}`)
+    return root
   }
 
   private makeHandle(name: string, workspaceRoot: string): SandboxHandle {
@@ -174,8 +173,7 @@ class SbxProvider implements SandboxProvider {
     const entries = await listEntries(this.binary, this.config.spawn)
     const hit = entries.find((entry) => entry.name === id)
     if (!hit) return null
-    const workspaceRoot =
-      hit.workspace ?? (await this.resolveWorkspaceRoot(id))
+    const workspaceRoot = await this.resolveWorkspaceRoot(id)
     return this.makeHandle(id, workspaceRoot)
   }
 
