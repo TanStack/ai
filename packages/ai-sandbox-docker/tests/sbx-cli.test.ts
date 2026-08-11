@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest'
-import { mapSbxError, parseSbxLs, runSbx } from '../src/sbx/cli'
+import { defaultSpawn, mapSbxError, parseSbxLs, runSbx } from '../src/sbx/cli'
 import type { SbxSpawn } from '../src/sbx/cli'
+
+function trackingSignal(): { signal: AbortSignal; wasRemoved: () => boolean } {
+  const real = new AbortController()
+  let removed = false
+  const signal = Object.create(real.signal) as AbortSignal
+  const origAdd = real.signal.addEventListener.bind(real.signal)
+  const origRemove = real.signal.removeEventListener.bind(real.signal)
+  signal.addEventListener = ((type, listener, opts) => {
+    origAdd(type, listener as EventListener, opts)
+  }) as AbortSignal['addEventListener']
+  signal.removeEventListener = ((type, listener, opts) => {
+    removed = true
+    origRemove(type, listener as EventListener, opts)
+  }) as AbortSignal['removeEventListener']
+  return { signal, wasRemoved: () => removed }
+}
 
 function fakeSpawn(result: {
   stdout?: string
@@ -85,5 +101,30 @@ describe('parseSbxLs', () => {
 describe('mapSbxError', () => {
   it('does not swallow a generic Error', () => {
     expect(mapSbxError(new Error('boom'), 'sbx').message).toContain('boom')
+  })
+})
+
+describe('defaultSpawn', () => {
+  it('removes the abort listener after close', async () => {
+    const { signal, wasRemoved } = trackingSignal()
+    await new Promise<void>((resolve, reject) => {
+      defaultSpawn('node', ['-e', 'process.exit(0)'], {
+        signal,
+        onClose: () => resolve(),
+        onError: (err) => reject(err),
+      })
+    })
+    expect(wasRemoved()).toBe(true)
+  })
+
+  it('removes the abort listener when kill() is called before close', async () => {
+    const { signal, wasRemoved } = trackingSignal()
+    const handle = defaultSpawn('node', ['-e', 'setTimeout(() => {}, 30_000)'], {
+      signal,
+      onClose: () => {},
+      onError: () => {},
+    })
+    handle.kill()
+    expect(wasRemoved()).toBe(true)
   })
 })

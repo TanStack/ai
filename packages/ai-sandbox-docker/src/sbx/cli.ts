@@ -43,24 +43,31 @@ export function defaultSpawn(
   const stderr: Array<Buffer> = []
   child.stdout?.on('data', (chunk: Buffer) => stdout.push(chunk))
   child.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk))
-  child.on('error', (error) => opts.onError(error))
+  const onAbort = (): void => {
+    child.kill()
+  }
+  const detach = (): void => {
+    if (opts.signal) opts.signal.removeEventListener('abort', onAbort)
+  }
+  child.on('error', (error) => {
+    detach()
+    opts.onError(error)
+  })
   child.on('close', (code) => {
+    detach()
     opts.onClose({
       stdout: Buffer.concat(stdout).toString('utf8'),
       stderr: Buffer.concat(stderr).toString('utf8'),
       exitCode: code ?? 1,
     })
   })
-  const onAbort = (): void => {
-    child.kill()
-  }
   if (opts.signal) {
     if (opts.signal.aborted) child.kill()
     else opts.signal.addEventListener('abort', onAbort, { once: true })
   }
   return {
     kill: () => {
-      if (opts.signal) opts.signal.removeEventListener('abort', onAbort)
+      detach()
       child.kill()
     },
   }
