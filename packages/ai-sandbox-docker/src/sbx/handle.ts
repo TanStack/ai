@@ -160,7 +160,9 @@ function hostPortFromPortsJson(stdout: string, port: number): number | null {
 
 export function isAlreadyGone(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
-  return /not found|no such|does not exist/i.test(message)
+  return /(?:sandbox|vm|container)\s+not found|not found\s+(?:sandbox|vm|container)|no such\s+(?:sandbox|vm|container)/i.test(
+    message,
+  )
 }
 
 export interface SbxHandleDeps {

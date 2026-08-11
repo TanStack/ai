@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { SbxHandle } from '../src/sbx/handle'
+import { isAlreadyGone, SbxHandle } from '../src/sbx/handle'
 import type { SbxRunResult, SbxSpawn } from '../src/sbx/cli'
 
 function scriptedSpawn(
@@ -79,5 +79,47 @@ describe('SbxHandle ports.connect JSON shapes', () => {
     )
     const pascalChannel = await pascalHandle.ports.connect(3000)
     expect(pascalChannel.url).toBe('http://localhost:41000')
+  })
+})
+
+function handleWithRmStderr(stderr: string): SbxHandle {
+  const { spawn } = scriptedSpawn([
+    {
+      match: (args) => args[0] === 'rm',
+      result: { stdout: '', stderr, exitCode: 1 },
+    },
+  ])
+  return new SbxHandle({
+    name: 'deadbeefdeadbeef',
+    workspaceRoot: '/home/user/work',
+    binary: 'sbx',
+    spawn,
+  })
+}
+
+describe('isAlreadyGone / destroy already-gone', () => {
+  it('destroy sandbox not found is gone', async () => {
+    expect(isAlreadyGone(new Error('sandbox not found'))).toBe(true)
+    await expect(
+      handleWithRmStderr('sandbox not found').destroy(),
+    ).resolves.toBeUndefined()
+  })
+
+  it('destroy file does not exist in a login page is NOT gone', async () => {
+    const loginPage =
+      '<html><head><title>Login</title></head><body>file does not exist</body></html>'
+    expect(isAlreadyGone(new Error(loginPage))).toBe(false)
+    await expect(handleWithRmStderr(loginPage).destroy()).rejects.toThrow(
+      /file does not exist/,
+    )
+  })
+
+  it('generic does not exist is NOT gone', () => {
+    expect(isAlreadyGone('file does not exist')).toBe(false)
+  })
+
+  it('no such sandbox / not found sandbox still gone', () => {
+    expect(isAlreadyGone(new Error('no such sandbox'))).toBe(true)
+    expect(isAlreadyGone(new Error('not found sandbox'))).toBe(true)
   })
 })
