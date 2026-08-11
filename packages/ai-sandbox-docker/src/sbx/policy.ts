@@ -15,6 +15,7 @@ const EMPTY_ALLOWLIST =
 
 export function autoApiHosts(adapterName: string | undefined): Array<string> {
   if (!adapterName) return []
+  if (!Object.hasOwn(AUTO_HOSTS, adapterName)) return []
   return AUTO_HOSTS[adapterName] ?? []
 }
 

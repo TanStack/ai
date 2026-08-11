@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
-import { planSbxPolicy, policyArgs } from '../src/sbx/policy'
+import { autoApiHosts, planSbxPolicy, policyArgs } from '../src/sbx/policy'
 import { defineSandboxPolicy } from '@tanstack/ai-sandbox'
+
+describe('autoApiHosts', () => {
+  it('returns grok-build hosts for a known adapter', () => {
+    expect(autoApiHosts('grok-build')).toEqual(['api.x.ai'])
+  })
+
+  it('returns [] for Object.prototype keys that are not adapters', () => {
+    expect(autoApiHosts('constructor')).toEqual([])
+    expect(autoApiHosts('toString')).toEqual([])
+  })
+})
 
 describe('planSbxPolicy', () => {
   it('uses the machine preset when there is no policy and no host lists', () => {
