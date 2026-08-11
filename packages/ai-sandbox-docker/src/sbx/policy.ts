@@ -49,12 +49,13 @@ export function planSbxPolicy(input: {
     return { kind: 'per-sandbox', allow: ['**'], deny }
   }
 
-  // deny, ask, or host lists with no policy: allowlist
+  // deny/ask (including default-ask from a real policy): allowlist + auto hosts.
+  // No policy: host lists only. denyNetwork-only stays { allow: [], deny }.
   const allow = [
-    ...autoApiHosts(input.adapterName),
+    ...(input.policy ? auto : []),
     ...(input.allowNetwork ?? []),
   ]
-  if (allow.length === 0) {
+  if (allow.length === 0 && (decision === 'deny' || decision === 'ask')) {
     throw new Error(EMPTY_ALLOWLIST)
   }
   return { kind: 'per-sandbox', allow, deny }

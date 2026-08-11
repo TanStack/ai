@@ -114,7 +114,45 @@ describe('planSbxPolicy', () => {
     })
   })
 
-  it('throws on an empty allowlist for deny/ask', () => {
+  it('denyNetwork only with no policy writes deny rules and does not throw', () => {
+    expect(() =>
+      planSbxPolicy({ denyNetwork: ['ads.example.com'] }),
+    ).not.toThrow(/allowNetwork/)
+    expect(planSbxPolicy({ denyNetwork: ['ads.example.com'] })).toEqual({
+      kind: 'per-sandbox',
+      allow: [],
+      deny: ['ads.example.com'],
+    })
+  })
+
+  it('known adapter + denyNetwork only is additive deny on the preset, not an allowlist of only the model host', () => {
+    expect(
+      planSbxPolicy({
+        adapterName: 'grok-build',
+        denyNetwork: ['ads.example.com'],
+      }),
+    ).toEqual({
+      kind: 'per-sandbox',
+      allow: [],
+      deny: ['ads.example.com'],
+    })
+  })
+
+  it('known adapter + deny policy still builds a real allowlist with auto hosts', () => {
+    expect(
+      planSbxPolicy({
+        policy: defineSandboxPolicy({ capabilities: { network: 'deny' } }),
+        adapterName: 'grok-build',
+        denyNetwork: ['ads.example.com'],
+      }),
+    ).toEqual({
+      kind: 'per-sandbox',
+      allow: ['api.x.ai'],
+      deny: ['ads.example.com'],
+    })
+  })
+
+  it('still throws empty allowlist when decision is really deny or ask', () => {
     expect(() =>
       planSbxPolicy({
         policy: defineSandboxPolicy({ capabilities: { network: 'deny' } }),
