@@ -1,5 +1,13 @@
 # @tanstack/ai-mistral
 
+## 0.3.1
+
+### Patch Changes
+
+- [#1077](https://github.com/TanStack/ai/pull/1077) [`022d406`](https://github.com/TanStack/ai/commit/022d406fec4e9c3d61b47d50cb02f8872d9076b1) - fix: populate StructuredOutputResult.usage from non-stream structuredOutput()
+
+  Adapters that already returned tokens/cost on streaming structured paths were dropping response.usage on the non-stream structuredOutput() method. OpenRouter now forwards tokens and cost; openai-base, Mistral, and Bedrock Converse do the same for tokens so fallbackStructuredOutputStream and middleware can observe usage.
+
 ## 0.3.0
 
 ### Minor Changes
