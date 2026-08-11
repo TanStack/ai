@@ -237,13 +237,19 @@ export class SbxHandle implements SandboxHandle {
           })
       },
       mkdir: async (p) => {
-        await this.exec(`mkdir -p ${q(this.abs(p))}`)
+        const r = await this.exec(`mkdir -p ${q(this.abs(p))}`)
+        if (r.exitCode !== 0)
+          throw new Error(`mkdir failed: ${r.stderr.trim()}`)
       },
       remove: async (p) => {
-        await this.exec(`rm -rf ${q(this.abs(p))}`)
+        const r = await this.exec(`rm -rf ${q(this.abs(p))}`)
+        if (r.exitCode !== 0)
+          throw new Error(`remove failed: ${r.stderr.trim()}`)
       },
       rename: async (from, to) => {
-        await this.exec(`mv ${q(this.abs(from))} ${q(this.abs(to))}`)
+        const r = await this.exec(`mv ${q(this.abs(from))} ${q(this.abs(to))}`)
+        if (r.exitCode !== 0)
+          throw new Error(`rename failed: ${r.stderr.trim()}`)
       },
       exists: async (p) => {
         const r = await this.exec(`test -e ${q(this.abs(p))}`)

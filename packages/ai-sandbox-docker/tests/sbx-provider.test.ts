@@ -136,6 +136,48 @@ describe('SbxHandle', () => {
     expect(SBX_CAPS.exec).toBe(true)
     expect(SBX_CAPS.durableFilesystem).toBe(true)
   })
+
+  function handleWithFailedCommand(commandPrefix: string, stderr: string) {
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) => args.some((arg) => arg.startsWith(commandPrefix)),
+        result: { stdout: '', stderr, exitCode: 1 },
+      },
+    ])
+    return new SbxHandle({
+      name: 'deadbeefdeadbeef',
+      workspaceRoot: '/home/user/work',
+      binary: 'sbx',
+      spawn,
+    })
+  }
+
+  it('fs.mkdir throws when exec exits non-zero', async () => {
+    const handle = handleWithFailedCommand(
+      'mkdir -p',
+      'mkdir: cannot create directory\n',
+    )
+    await expect(handle.fs.mkdir('/workspace/dir')).rejects.toThrow(
+      /mkdir failed: mkdir: cannot create directory/,
+    )
+  })
+
+  it('fs.remove throws when exec exits non-zero', async () => {
+    const handle = handleWithFailedCommand(
+      'rm -rf',
+      'rm: cannot remove path\n',
+    )
+    await expect(handle.fs.remove('/workspace/dir')).rejects.toThrow(
+      /remove failed: rm: cannot remove path/,
+    )
+  })
+
+  it('fs.rename throws when exec exits non-zero', async () => {
+    const handle = handleWithFailedCommand('mv ', 'mv: cannot move path\n')
+    await expect(
+      handle.fs.rename('/workspace/from', '/workspace/to'),
+    ).rejects.toThrow(/rename failed: mv: cannot move path/)
+  })
 })
 
 const scratch: Array<string> = []
