@@ -90,6 +90,15 @@ function normalizeGitUrl(url: string): string {
   return value
 }
 
+function isUnexpectedGitProbeError(error: unknown): boolean {
+  // git exits with a number when the dest/remote/ref does not match.
+  // Spawn/syscall failures use a string code (ENOENT, EACCES, ...).
+  if (typeof error !== 'object' || error === null || !('code' in error)) {
+    return true
+  }
+  return typeof error.code !== 'number'
+}
+
 async function ownedGitDestMatchesSource(
   dest: string,
   source: { url: string; ref?: string },
@@ -109,15 +118,15 @@ async function ownedGitDestMatchesSource(
     if (source.ref) {
       if (currentRef === source.ref) return true
       const headSha = await runGit(['rev-parse', 'HEAD'], { cwd: dest })
-      const wantedSha = await runGit(
-        ['rev-parse', '--verify', source.ref],
-        { cwd: dest },
-      )
+      const wantedSha = await runGit(['rev-parse', '--verify', source.ref], {
+        cwd: dest,
+      })
       return headSha !== '' && headSha === wantedSha
     }
 
     return true
-  } catch {
+  } catch (error) {
+    if (isUnexpectedGitProbeError(error)) throw error
     return false
   }
 }

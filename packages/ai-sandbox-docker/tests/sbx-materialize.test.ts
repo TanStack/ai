@@ -18,6 +18,7 @@ interface CloneExecCall {
 const { cloneExec } = vi.hoisted(() => ({
   cloneExec: {
     intercept: false,
+    probeThrow: false,
     calls: [] as Array<CloneExecCall>,
   },
 }))
@@ -36,11 +37,20 @@ vi.mock('node:child_process', async (importOriginal) => {
         stderr: string | Buffer,
       ) => void,
     ) => {
+      const verb = (args ?? [])[0]
       if (
-        cloneExec.intercept &&
+        cloneExec.probeThrow &&
         file === 'git' &&
-        (args ?? [])[0] === 'clone'
+        (verb === 'remote' || verb === 'rev-parse')
       ) {
+        const error: ExecFileException = Object.assign(
+          new Error('git probe failed'),
+          { code: 'EFAIL' },
+        )
+        callback?.(error, '', 'git probe failed')
+        return
+      }
+      if (cloneExec.intercept && file === 'git' && verb === 'clone') {
         cloneExec.calls.push({
           file,
           args: args ?? [],
@@ -61,6 +71,7 @@ const { ownedHostRepoDir, resolveHostRepo, sandboxNameFromId } = await import(
 const scratch: Array<string> = []
 
 afterEach(async () => {
+  cloneExec.probeThrow = false
   await Promise.all(
     scratch.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
   )
@@ -350,6 +361,64 @@ describe('resolveHostRepo', () => {
     expect(result.hostDir).toBe(dest)
     expect(result.owned).toBe(true)
     expect(await stat(path.join(result.hostDir, 'on-other.txt'))).toBeTruthy()
+  })
+
+  it('probe throw does not rm -rf the dest', async () => {
+    const repo = await makeGitRepo()
+    const id = 'retry000000000008'
+    const dest = path.join(tmpdir(), 'tanstack-sbx', id)
+    await mkdir(path.dirname(dest), { recursive: true })
+    execFileSync('git', ['clone', '--', repo, dest])
+    scratch.push(dest)
+    const localOnly = path.join(dest, 'local-only.txt')
+    await writeFile(localOnly, 'keep\n')
+
+    cloneExec.probeThrow = true
+    await expect(
+      resolveHostRepo({
+        id,
+        workspace: defineWorkspace({
+          source: gitSource({ url: repo }),
+        }),
+      }),
+    ).rejects.toThrow(/git probe failed/)
+    cloneExec.probeThrow = false
+
+    expect(await stat(dest)).toBeTruthy()
+    expect(await stat(localOnly)).toBeTruthy()
+  })
+
+  it('still reclones when origin url really does not match', async () => {
+    const repoA = await makeGitRepo()
+    await writeFile(path.join(repoA, 'from-a.txt'), 'a\n')
+    execFileSync('git', ['add', '.'], { cwd: repoA })
+    execFileSync('git', ['commit', '-m', 'a'], { cwd: repoA })
+
+    const repoB = await makeGitRepo()
+    await writeFile(path.join(repoB, 'from-b.txt'), 'b\n')
+    execFileSync('git', ['add', '.'], { cwd: repoB })
+    execFileSync('git', ['commit', '-m', 'b'], { cwd: repoB })
+
+    const id = 'retry000000000009'
+    const dest = path.join(tmpdir(), 'tanstack-sbx', id)
+    await mkdir(path.dirname(dest), { recursive: true })
+    execFileSync('git', ['clone', '--', repoA, dest])
+    scratch.push(dest)
+    await writeFile(path.join(dest, 'local-only.txt'), 'gone\n')
+
+    const result = await resolveHostRepo({
+      id,
+      workspace: defineWorkspace({
+        source: gitSource({ url: repoB }),
+      }),
+    })
+    expect(result.hostDir).toBe(dest)
+    expect(result.owned).toBe(true)
+    expect(await stat(path.join(result.hostDir, 'from-b.txt'))).toBeTruthy()
+    await expect(stat(path.join(result.hostDir, 'from-a.txt'))).rejects.toThrow()
+    await expect(
+      stat(path.join(result.hostDir, 'local-only.txt')),
+    ).rejects.toThrow()
   })
 })
 
