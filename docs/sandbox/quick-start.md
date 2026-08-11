@@ -27,7 +27,8 @@ npm i @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-san
 
 You'll also need Docker running locally, and the **`grok` CLI available in your
 sandbox image** (the Grok Build harness spawns it inside the sandbox). No Docker?
-See [the local-process alternative](#no-docker-run-on-your-host) below.
+See [the local-process alternative](#no-docker-run-on-your-host) below. For a
+microVM instead of a container, see [Docker Sandboxes](#docker-sandboxes-microvm-sbx).
 
 ## 2. Define the sandbox
 
@@ -152,11 +153,14 @@ Because local-process inherits your host environment, you can drop the
 `XAI_API_KEY` secret and let Grok Build fall back to your grok.com login. For that
 (and for Daytona, Vercel, Sprites, and Cloudflare runtimes), see [Providers](./providers).
 
-### Optional: Docker Sandboxes (`sbx`)
+## Docker Sandboxes microVM (sbx)
 
-If you want a microVM instead of a container:
+If you want a hypervisor microVM, use `sbxSandbox()`. This is not a Docker container.
 
 1. Install Docker Sandboxes so `sbx` is on `PATH`.
+   - macOS: `brew install docker/tap/sbx`
+   - Windows: `winget install Docker.sbx`
+   - Debian or Ubuntu: `apt-get install docker-sbx`
 2. Run `sbx login`.
 3. Swap the provider:
 

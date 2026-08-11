@@ -101,9 +101,17 @@ describe('runSbx', () => {
     const err = Object.assign(new Error('spawn sbx ENOENT'), {
       code: 'ENOENT',
     })
-    await expect(
-      runSbx(['ls'], { binary: 'sbx', spawn: fakeSpawn({ err }) }),
-    ).rejects.toThrow(/brew|winget|apt/)
+    const error = await runSbx(['ls'], {
+      binary: 'sbx',
+      spawn: fakeSpawn({ err }),
+    }).catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(Error)
+    if (!(error instanceof Error)) {
+      throw new Error('expected Error')
+    }
+    expect(error.message).toContain('brew install docker/tap/sbx')
+    expect(error.message).toContain('winget install Docker.sbx')
+    expect(error.message).toContain('apt-get install docker-sbx')
   })
 
   it('throws with login help when stderr says not logged in', async () => {

@@ -99,7 +99,7 @@ Most providers leave `capabilities.network` to the harness. `sbxSandbox()` also 
 
 | TanStack `capabilities.network` | What `sbxSandbox()` writes |
 | --- | --- |
-| No policy and no `allowNetwork` / `denyNetwork` | Nothing. The machine preset is the whole policy. |
+| No policy and no `allowNetwork` / `denyNetwork` | If the policy list is empty, `sbxSandbox()` runs `sbx policy init deny-all`. After that, the machine preset is the policy. |
 | `allow` | Allow `**`, then apply `denyNetwork`. |
 | `deny` | Allow only the model API host plus `allowNetwork`, then apply `denyNetwork`. |
 | `ask` (or the policy `default` when `network` is unset) | Same allowlist as `deny`. The harness still asks for tools and commands. |

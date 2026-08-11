@@ -27,7 +27,7 @@ export interface SbxLsEntry {
 }
 
 const INSTALL_HELP =
-  'sbx is not on PATH. Install Docker Sandboxes (brew install docker-sandboxes, winget install Docker.Sandboxes, or apt), then retry.'
+  'sbx is not on PATH. Install Docker Sandboxes (`brew install docker/tap/sbx`, `winget install Docker.sbx`, or `apt-get install docker-sbx`), then retry.'
 
 const LOGIN_HELP =
   'sbx is not logged in. Run `sbx login`, or in CI pipe a PAT to `sbx login --password-stdin`.'
