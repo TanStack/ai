@@ -53,7 +53,10 @@ function captureRestoreEnvSet(provider: FakeProvider) {
   return seen
 }
 
-function wrapEnvSet(handle: SandboxHandle, seen: Array<Record<string, string>>) {
+function wrapEnvSet(
+  handle: SandboxHandle,
+  seen: Array<Record<string, string>>,
+) {
   const original = handle.env.set
   handle.env.set = (vars) => {
     seen.push(vars)

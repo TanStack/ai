@@ -143,7 +143,9 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
    * whose process env is empty unless we set it here. sbx in particular
    * has no Docker Env on resume, so this is the only way secrets come back.
    */
-  const applyWorkspaceSecrets = async (handle: SandboxHandle): Promise<void> => {
+  const applyWorkspaceSecrets = async (
+    handle: SandboxHandle,
+  ): Promise<void> => {
     if (config.workspace?.secrets === undefined) return
     await handle.env.set(resolveAllSecrets(config.workspace.secrets))
   }

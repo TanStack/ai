@@ -7,7 +7,8 @@ import {
   resolveHostRepo,
   sandboxNameFromId,
 } from './materialize'
-import { planSbxPolicy, policyArgs, type SbxPolicyPlan } from './policy'
+import { planSbxPolicy, policyArgs } from './policy'
+import type { SbxPolicyPlan } from './policy'
 import type {
   SandboxCapabilities,
   SandboxCreateInput,
@@ -77,7 +78,7 @@ function isOpenMachinePreset(stdout: string): boolean {
   } catch {
     const lower = text.toLowerCase()
     if (lower.includes('allow-all') || lower.includes('allowall')) return true
-    if (/(^|[\s,"'\[])\*\*(:[\w]+)?($|[\s,"'\]])/.test(text)) return true
+    if (/(^|[\s,"'[])\*\*(:[\w]+)?($|[\s,"'\]])/.test(text)) return true
     return /(^|[\s:"'{,])open($|[\s,"'}])/i.test(text)
   }
 }

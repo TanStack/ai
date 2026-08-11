@@ -52,10 +52,7 @@ export function planSbxPolicy(input: {
 
   // deny/ask (including default-ask from a real policy): allowlist + auto hosts.
   // No policy: host lists only. denyNetwork-only stays { allow: [], deny }.
-  const allow = [
-    ...(input.policy ? auto : []),
-    ...(input.allowNetwork ?? []),
-  ]
+  const allow = [...(input.policy ? auto : []), ...(input.allowNetwork ?? [])]
   if (allow.length === 0 && (decision === 'deny' || decision === 'ask')) {
     throw new Error(EMPTY_ALLOWLIST)
   }

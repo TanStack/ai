@@ -242,10 +242,7 @@ describe('SbxHandle', () => {
   })
 
   it('fs.remove throws when exec exits non-zero', async () => {
-    const handle = handleWithFailedCommand(
-      'rm -rf',
-      'rm: cannot remove path\n',
-    )
+    const handle = handleWithFailedCommand('rm -rf', 'rm: cannot remove path\n')
     await expect(handle.fs.remove('/workspace/dir')).rejects.toThrow(
       /remove failed: rm: cannot remove path/,
     )
@@ -1349,7 +1346,9 @@ describe('sbxSandbox', () => {
       }),
     })
     cloneDeleteFail.dest = dest
-    await expect(provider.destroy({ id })).rejects.toThrow(/clone delete failed/)
+    await expect(provider.destroy({ id })).rejects.toThrow(
+      /clone delete failed/,
+    )
   })
 
   it('resume handle.destroy uses the same owned flag', async () => {
@@ -1495,7 +1494,9 @@ describe('sbxSandbox', () => {
 
   it('destroy rejects a path-traversal id and does not rm outside tanstack-sbx', async () => {
     const probeName = `sbx-a3-destroy-${Date.now()}`
-    const escaped = path.resolve(path.join(tmpdir(), 'tanstack-sbx', '..', probeName))
+    const escaped = path.resolve(
+      path.join(tmpdir(), 'tanstack-sbx', '..', probeName),
+    )
     const { spawn, calls } = scriptedSpawn([
       {
         match: (args) => args[0] === 'rm',

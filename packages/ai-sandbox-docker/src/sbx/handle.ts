@@ -283,7 +283,9 @@ export class SbxHandle implements SandboxHandle {
         const r = await this.exec(`test -e ${q(this.abs(p))}`)
         // `exec` uses allowNonZero, so login/transport must not look like a miss.
         if (isLoginOrTransportError(r.stderr)) {
-          throw new Error(r.stderr.trim() || `exists failed: exit ${r.exitCode}`)
+          throw new Error(
+            r.stderr.trim() || `exists failed: exit ${r.exitCode}`,
+          )
         }
         if (r.exitCode === 0) return true
         if (r.exitCode === 1 && isNormalTestMiss(r.stderr)) return false
