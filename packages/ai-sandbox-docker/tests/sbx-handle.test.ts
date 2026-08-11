@@ -247,3 +247,72 @@ describe('already-aborted signal does not start a command', () => {
     expect(calls).toEqual([])
   })
 })
+
+function streamingSpawn(plan: {
+  stdout: Array<string>
+  stderr: Array<string>
+  exitCode?: number
+}): SbxSpawn {
+  let started = false
+  return (_bin, _args, opts) => {
+    if (started) {
+      queueMicrotask(() =>
+        opts.onClose({ stdout: '', stderr: '', exitCode: 0 }),
+      )
+      return { kill: () => {} }
+    }
+    started = true
+    let i = 0
+    const total = Math.max(plan.stdout.length, plan.stderr.length)
+    const emitNext = (): void => {
+      const out = plan.stdout[i]
+      const err = plan.stderr[i]
+      if (out !== undefined) opts.onStdout?.(Buffer.from(out))
+      if (err !== undefined) opts.onStderr?.(Buffer.from(err))
+      i += 1
+      if (i < total) {
+        queueMicrotask(emitNext)
+        return
+      }
+      queueMicrotask(() =>
+        opts.onClose({
+          stdout: plan.stdout.join(''),
+          stderr: plan.stderr.join(''),
+          exitCode: plan.exitCode ?? 0,
+        }),
+      )
+    }
+    queueMicrotask(emitNext)
+    return { kill: () => {} }
+  }
+}
+
+async function collectText(stream: AsyncIterable<string>): Promise<string> {
+  let out = ''
+  for await (const chunk of stream) out += chunk
+  return out
+}
+
+describe('spawn output chunks', () => {
+  it('yields every stdout and stderr chunk in order across sequential reads', async () => {
+    const handle = new SbxHandle({
+      name: 'deadbeefdeadbeef',
+      workspaceRoot: '/home/user/work',
+      binary: 'sbx',
+      spawn: streamingSpawn({
+        stdout: ['hel', 'lo', ' world'],
+        stderr: ['e1', 'e2'],
+        exitCode: 0,
+      }),
+    })
+    const proc = await handle.process.spawn('echo hi')
+    const [stdout, stderr, code] = await Promise.all([
+      collectText(proc.stdout),
+      collectText(proc.stderr),
+      proc.wait(),
+    ])
+    expect(stdout).toBe('hello world')
+    expect(stderr).toBe('e1e2')
+    expect(code).toBe(0)
+  })
+})

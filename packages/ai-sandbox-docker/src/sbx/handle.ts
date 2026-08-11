@@ -472,12 +472,10 @@ export class SbxHandle implements SandboxHandle {
       waiters: Array<() => void>,
       isDone: () => boolean,
     ): AsyncIterable<Buffer> {
-      let index = 0
       while (true) {
-        if (index < list.length) {
-          const next = list[index]
-          index += 1
-          if (next !== undefined) yield next
+        const next = list.shift()
+        if (next !== undefined) {
+          yield next
           continue
         }
         if (isDone()) return
