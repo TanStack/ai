@@ -1,4 +1,4 @@
-import { mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -85,5 +85,41 @@ describe('resolveHostRepo', () => {
     await expect(
       resolveHostRepo({ id: 'aabbccddeeff0011' }),
     ).rejects.toThrow(/sbxSandbox needs a Git repository/)
+  })
+
+  it('reuses the owned dest when resolveHostRepo is called again with the same id', async () => {
+    const repo = await makeGitRepo()
+    const id = 'retry000000000001'
+    const workspace = defineWorkspace({
+      source: gitSource({ url: repo }),
+    })
+    const first = await resolveHostRepo({ id, workspace })
+    scratch.push(first.hostDir)
+    expect(first.owned).toBe(true)
+    expect(await stat(path.join(first.hostDir, '.git'))).toBeTruthy()
+
+    const second = await resolveHostRepo({ id, workspace })
+    expect(second.hostDir).toBe(first.hostDir)
+    expect(second.owned).toBe(true)
+    expect(await stat(path.join(second.hostDir, '.git'))).toBeTruthy()
+  })
+
+  it('replaces a non-git leftover at the owned dest then clones', async () => {
+    const repo = await makeGitRepo()
+    const id = 'retry000000000002'
+    const dest = path.join(tmpdir(), 'tanstack-sbx', id)
+    await mkdir(dest, { recursive: true })
+    await writeFile(path.join(dest, 'leftover.txt'), 'stale\n')
+    scratch.push(dest)
+
+    const result = await resolveHostRepo({
+      id,
+      workspace: defineWorkspace({
+        source: gitSource({ url: repo }),
+      }),
+    })
+    expect(result.hostDir).toBe(dest)
+    expect(result.owned).toBe(true)
+    expect(await stat(path.join(result.hostDir, '.git'))).toBeTruthy()
   })
 })

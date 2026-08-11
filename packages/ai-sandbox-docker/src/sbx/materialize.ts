@@ -1,4 +1,4 @@
-import { access, mkdir } from 'node:fs/promises'
+import { access, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
@@ -42,6 +42,10 @@ async function cloneGitSource(
 ): Promise<string> {
   const dest = ownedDirFor(id)
   await mkdir(path.dirname(dest), { recursive: true })
+  if (await hasGitDir(dest)) {
+    return dest
+  }
+  await rm(dest, { recursive: true, force: true })
   const args = ['clone']
   if (source.depth !== 'full') {
     args.push('--depth', String(source.depth ?? 1))
@@ -59,6 +63,7 @@ async function cloneGitSource(
   try {
     await execFileAsync('git', args, { env })
   } catch (error) {
+    await rm(dest, { recursive: true, force: true }).catch(() => {})
     if (
       error &&
       typeof error === 'object' &&
