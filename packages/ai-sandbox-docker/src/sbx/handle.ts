@@ -471,7 +471,12 @@ export class SbxHandle implements SandboxHandle {
         readSide(stderrChunks, stderrWaiters, () => stderrDone),
       ),
       stdin: {
-        write: () => Promise.resolve(),
+        write: () =>
+          Promise.reject(
+            new Error(
+              'sbx: background process stdin is not writable (see capabilities.writableStdin)',
+            ),
+          ),
         end: () => Promise.resolve(),
       },
       wait: async () => {

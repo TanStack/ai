@@ -178,6 +178,23 @@ describe('SbxHandle', () => {
       handle.fs.rename('/workspace/from', '/workspace/to'),
     ).rejects.toThrow(/rename failed: mv: cannot move path/)
   })
+
+  it('stdin.write rejects because writableStdin is false', async () => {
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) => args[0] === 'exec',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const handle = new SbxHandle({
+      name: 'deadbeefdeadbeef',
+      workspaceRoot: '/home/user/work',
+      binary: 'sbx',
+      spawn,
+    })
+    const proc = await handle.process.spawn('true')
+    await expect(proc.stdin.write('x')).rejects.toThrow(/writableStdin/)
+  })
 })
 
 const scratch: Array<string> = []
