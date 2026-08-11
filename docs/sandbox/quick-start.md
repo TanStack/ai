@@ -152,6 +152,39 @@ Because local-process inherits your host environment, you can drop the
 `XAI_API_KEY` secret and let Grok Build fall back to your grok.com login. For that
 (and for Daytona, Vercel, Sprites, and Cloudflare runtimes), see [Providers](./providers).
 
+### Optional: Docker Sandboxes (`sbx`)
+
+If you want a microVM instead of a container:
+
+1. Install Docker Sandboxes so `sbx` is on `PATH`.
+2. Run `sbx login`.
+3. Swap the provider:
+
+```ts
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+} from '@tanstack/ai-sandbox'
+import { sbxSandbox } from '@tanstack/ai-sandbox-docker'
+
+export const repoSandbox = defineSandbox({
+  id: 'bug-fixer',
+  provider: sbxSandbox(),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/buggy-app' }),
+    setup: ['pnpm install'],
+    secrets: createSecrets({
+      XAI_API_KEY: process.env.XAI_API_KEY ?? '',
+    }),
+  }),
+  lifecycle: { reuse: 'thread' },
+})
+```
+
+`sbxSandbox()` always clones a Git repo into the VM. It does not snapshot. Resume is by sandbox name.
+
 ## Run the working example
 
 A complete, runnable app ships at

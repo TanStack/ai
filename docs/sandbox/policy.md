@@ -91,6 +91,46 @@ This is the broad backstop: even if a specific network command isn't in your
 `commands` lists, `network: 'ask'` still forces an approval for anything that
 reaches out.
 
+## Network policy on Docker Sandboxes
+
+Most providers leave `capabilities.network` to the harness. `sbxSandbox()` also enforces it on the host HTTP/HTTPS proxy (`networkPolicy: true`).
+
+`sbx policy` can allow or deny hosts. It has no `ask`. Deny wins over allow, so `network: 'deny'` is an allowlist, not a full deny.
+
+| TanStack `capabilities.network` | What `sbxSandbox()` writes |
+| --- | --- |
+| No policy and no `allowNetwork` / `denyNetwork` | Nothing. The machine preset is the whole policy. |
+| `allow` | Allow `**`, then apply `denyNetwork`. |
+| `deny` | Allow only the model API host plus `allowNetwork`, then apply `denyNetwork`. |
+| `ask` (or the policy `default` when `network` is unset) | Same allowlist as `deny`. The harness still asks for tools and commands. |
+
+Auto-allowed model hosts:
+
+- `grok-build` → `api.x.ai`
+- `claude-code` → `api.anthropic.com`
+- `codex` → `api.openai.com`
+- `opencode` or an unknown adapter → none
+
+If the allowlist would be empty under `deny` or `ask`, create throws. Pass `allowNetwork`, or use `grokBuildText` / `claudeCodeText` / `codexText`.
+
+```ts
+import { sbxSandbox } from '@tanstack/ai-sandbox-docker'
+import { defineSandbox, defineSandboxPolicy } from '@tanstack/ai-sandbox'
+
+const sandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: sbxSandbox({
+    allowNetwork: ['*.npmjs.org', 'registry.npmjs.org'],
+  }),
+  policy: defineSandboxPolicy({
+    capabilities: { network: 'deny' },
+    commands: { allow: ['pnpm test'], deny: ['sudo *'] },
+  }),
+})
+```
+
+Command rules and `fileWrite` stay with the harness. `sbx` does not see command lines.
+
 ## Precedence: deny > ask > allow
 
 When more than one rule could match an action, the strictest wins. The order is
