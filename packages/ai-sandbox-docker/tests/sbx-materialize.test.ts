@@ -364,9 +364,10 @@ describe('cloneGitSource auth and depth', () => {
     cloneExec.calls.length = 0
   })
 
-  it('clone keeps the auth token in env vars, not in GIT_CONFIG_VALUE_0', async () => {
-    const token = 'super-secret-token'
-    const id = 'auth00000000000001'
+  async function cloneWithAuth(
+    token = 'super-secret-token',
+    id = 'auth00000000000001',
+  ): Promise<CloneExecCall> {
     const dest = path.join(tmpdir(), 'tanstack-sbx', id)
     scratch.push(dest)
 
@@ -381,7 +382,17 @@ describe('cloneGitSource auth and depth', () => {
     })
 
     expect(cloneExec.calls).toHaveLength(1)
-    const env = cloneExec.calls[0]?.env
+    const call = cloneExec.calls[0]
+    if (call === undefined) {
+      throw new Error('expected clone exec call')
+    }
+    return call
+  }
+
+  it('clone keeps the auth token in env vars, not in GIT_CONFIG_VALUE_0', async () => {
+    const token = 'super-secret-token'
+    const call = await cloneWithAuth(token)
+    const env = call.env
     expect(env).toBeDefined()
     if (env === undefined) {
       throw new Error('expected clone env')
@@ -392,6 +403,42 @@ describe('cloneGitSource auth and depth', () => {
     expect(env.GIT_CONFIG_VALUE_0).not.toContain(token)
     expect(env.GIT_CONFIG_VALUE_0).toContain('${GIT_ASKPASS_TOKEN}')
     expect(env.GIT_CONFIG_VALUE_0).toContain('${GIT_ASKPASS_USER}')
+  })
+
+  it('clone keeps the auth token in GIT_ASKPASS_* only', async () => {
+    const token = 'super-secret-token'
+    const call = await cloneWithAuth(token, 'auth00000000000002')
+    const env = call.env
+    expect(env).toBeDefined()
+    if (env === undefined) {
+      throw new Error('expected clone env')
+    }
+    expect(env.GIT_ASKPASS_USER).toBe('x-access-token')
+    expect(env.GIT_ASKPASS_TOKEN).toBe(token)
+    expect(call.args.join(' ')).not.toContain(token)
+    expect(env.GIT_CONFIG_VALUE_0).not.toContain(token)
+  })
+
+  it('does not set GIT_ASKPASS to echo', async () => {
+    const call = await cloneWithAuth('super-secret-token', 'auth00000000000003')
+    const env = call.env
+    expect(env).toBeDefined()
+    if (env === undefined) {
+      throw new Error('expected clone env')
+    }
+    expect(env.GIT_ASKPASS).not.toBe('echo')
+  })
+
+  it('quotes the credential helper like git-exec', async () => {
+    const call = await cloneWithAuth('super-secret-token', 'auth00000000000004')
+    const env = call.env
+    expect(env).toBeDefined()
+    if (env === undefined) {
+      throw new Error('expected clone env')
+    }
+    expect(env.GIT_CONFIG_VALUE_0).toBe(
+      '!f() { echo "username=${GIT_ASKPASS_USER}"; echo "password=${GIT_ASKPASS_TOKEN}"; }; f',
+    )
   })
 
   it('clone rejects a bad depth before git runs', async () => {

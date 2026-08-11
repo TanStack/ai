@@ -126,7 +126,7 @@ async function ownedGitDestMatchesSource(
 // string references ${GIT_ASKPASS_*} only — the raw token never lands in
 // GIT_CONFIG_VALUE_0 (process listings / git config dumps).
 const CREDENTIAL_HELPER =
-  '!f() { echo username=${GIT_ASKPASS_USER}; echo password=${GIT_ASKPASS_TOKEN}; }; f'
+  '!f() { echo "username=${GIT_ASKPASS_USER}"; echo "password=${GIT_ASKPASS_TOKEN}"; }; f'
 
 async function cloneGitSource(
   id: string,
@@ -163,7 +163,6 @@ async function cloneGitSource(
   args.push('--', source.url, dest)
   const env = { ...process.env }
   if (source.auth?.token) {
-    env.GIT_ASKPASS = 'echo'
     env.GIT_TERMINAL_PROMPT = '0'
     env.GIT_ASKPASS_USER = source.auth.username ?? 'x-access-token'
     env.GIT_ASKPASS_TOKEN = source.auth.token
