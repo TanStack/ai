@@ -176,6 +176,18 @@ describe('parseSbxLs', () => {
       parseSbxLs('{"sandboxes":[{"Name":"xyz","State":"stopped"}]}'),
     ).toEqual([{ name: 'xyz', status: 'stopped' }])
   })
+
+  it('strips a sandboxd banner then parses a JSON array', () => {
+    expect(parseSbxLs('sandboxd starting...\n[{"name":"abc"}]')).toEqual([
+      { name: 'abc' },
+    ])
+  })
+
+  it('strips a banner then parses { sandboxes: [...] }', () => {
+    expect(
+      parseSbxLs('sandboxd starting...\n{"sandboxes":[{"Name":"xyz"}]}'),
+    ).toEqual([{ name: 'xyz' }])
+  })
 })
 
 describe('mapSbxError', () => {

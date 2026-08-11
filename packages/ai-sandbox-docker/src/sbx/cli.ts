@@ -249,14 +249,30 @@ export function sbxExecArgs(
 }
 
 export function parseSbxLs(stdout: string): Array<SbxLsEntry> {
-  const parsed: unknown = JSON.parse(stdout)
+  // sandboxd may print a banner before the JSON (docker/sbx-releases#201).
+  const brace = stdout.indexOf('{')
+  const bracket = stdout.indexOf('[')
+  const starts = [brace, bracket].filter((i) => i >= 0).sort((a, b) => a - b)
+  const originalSlice =
+    starts[0] === undefined ? stdout : stdout.slice(starts[0])
+  let parsed: unknown
+  for (const start of starts.length === 0 ? [0] : starts) {
+    try {
+      parsed = JSON.parse(stdout.slice(start))
+      break
+    } catch {
+      // The first `{`/`[` may sit in the banner; try the next one.
+    }
+  }
   const list = Array.isArray(parsed)
     ? parsed
     : (asRecord(parsed)?.sandboxes ??
       asRecord(parsed)?.Sandboxes ??
       asRecord(parsed)?.items)
   if (!Array.isArray(list)) {
-    throw new Error(`sbx ls --json: unexpected shape: ${stdout.slice(0, 200)}`)
+    throw new Error(
+      `sbx ls --json: unexpected shape: ${originalSlice.slice(0, 200)}`,
+    )
   }
   const entries: Array<SbxLsEntry> = []
   for (const item of list) {
