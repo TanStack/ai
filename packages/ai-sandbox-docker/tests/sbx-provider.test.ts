@@ -2,7 +2,7 @@ import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { SbxHandle, SBX_CAPS } from '../src/sbx/handle'
 import { sbxSandbox } from '../src/sbx/provider'
 import { ownedHostRepoDir } from '../src/sbx/materialize'
@@ -13,6 +13,32 @@ import {
   gitSource,
 } from '@tanstack/ai-sandbox'
 import { dockerSandbox, sbxSandbox as sbxSandboxFromBarrel } from '../src/index'
+
+const { cloneDeleteFail } = vi.hoisted(() => ({
+  cloneDeleteFail: {
+    dest: undefined as string | undefined,
+  },
+}))
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  const { resolve } = await import('node:path')
+  return {
+    ...actual,
+    rm: async (
+      target: Parameters<typeof actual.rm>[0],
+      options?: Parameters<typeof actual.rm>[1],
+    ) => {
+      if (
+        cloneDeleteFail.dest !== undefined &&
+        resolve(String(target)) === resolve(cloneDeleteFail.dest)
+      ) {
+        throw new Error('clone delete failed')
+      }
+      return actual.rm(target, options)
+    },
+  }
+})
 
 function scriptedSpawn(
   scripts: Array<{
@@ -251,6 +277,7 @@ describe('SbxHandle', () => {
 
 const scratch: Array<string> = []
 afterEach(async () => {
+  cloneDeleteFail.dest = undefined
   await Promise.all(
     scratch.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
   )
@@ -880,9 +907,110 @@ describe('sbxSandbox', () => {
     expect(calls).toContainEqual(['rm', '--force', id])
   })
 
-  it('create rethrows the setup error when rm after a failed setup also fails', async () => {
+  it('create success then next host call throws runs sbx rm', async () => {
     const repo = await makeGitRepo()
-    const id = 'deadbeefdeadbeef'
+    const id = 'a21rmafterpwd0001'
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '', stderr: 'pwd failed', exitCode: 1 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(provider.create({ id })).rejects.toThrow(/pwd failed/)
+    expect(calls).toContainEqual(['rm', '--force', id])
+  })
+
+  it('create setup throw deletes the owned clone', async () => {
+    const source = await makeGitRepo()
+    const id = 'a21ownedclone0001'
+    const dest = ownedHostRepoDir(id)
+    scratch.push(dest)
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '', stderr: 'pwd failed', exitCode: 1 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ spawn })
+    await expect(
+      provider.create({
+        id,
+        workspace: defineWorkspace({
+          source: gitSource({ url: source }),
+        }),
+      }),
+    ).rejects.toThrow(/pwd failed/)
+    await expect(access(dest)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('owned clone delete fail surfaces', async () => {
+    const source = await makeGitRepo()
+    const id = 'a21clonermfail001'
+    const dest = ownedHostRepoDir(id)
+    scratch.push(dest)
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: () => {
+          cloneDeleteFail.dest = dest
+          return { stdout: '', stderr: '', exitCode: 0 }
+        },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '', stderr: 'pwd failed', exitCode: 1 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ spawn })
+    await expect(
+      provider.create({
+        id,
+        workspace: defineWorkspace({
+          source: gitSource({ url: source }),
+        }),
+      }),
+    ).rejects.toThrow(/clone delete failed/)
+  })
+
+  it('sbx rm fail is not swallowed', async () => {
+    const repo = await makeGitRepo()
+    const id = 'a21rmfailnoswal01'
     const { spawn, calls } = scriptedSpawn([
       {
         match: (args) =>
@@ -903,7 +1031,64 @@ describe('sbxSandbox', () => {
       },
     ])
     const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(provider.create({ id })).rejects.toThrow(/rm failed/)
+    expect(calls).toContainEqual(['rm', '--force', id])
+  })
+
+  it('does not delete workspaceDir on cleanup', async () => {
+    const repo = await makeGitRepo()
+    const id = 'a21keepuserrepo01'
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '', stderr: 'pwd failed', exitCode: 1 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
     await expect(provider.create({ id })).rejects.toThrow(/pwd failed/)
+    await access(repo)
+    await access(path.join(repo, 'README.md'))
+  })
+
+  it('create that registers then throws still runs sbx rm', async () => {
+    const repo = await makeGitRepo()
+    const id = 'a21createthrowrm1'
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: {
+          stdout: '',
+          stderr: 'create registered then failed',
+          exitCode: 1,
+        },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(provider.create({ id })).rejects.toThrow(
+      /create registered then failed/,
+    )
     expect(calls).toContainEqual(['rm', '--force', id])
   })
 
