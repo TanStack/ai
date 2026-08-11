@@ -43,7 +43,7 @@ describe('sbx provider (gated on sbx ls --json)', () => {
     }
   }, 180_000)
 
-  it('resume returns a handle after stop, and the next exec works', async () => {
+  it('resume keeps files written before resume, and the next exec works', async () => {
     const repo = await makeSbxFixtureRepo()
     const id = sbxTestId()
     const provider = sbxSandbox({ workspaceDir: repo })
@@ -53,12 +53,15 @@ describe('sbx provider (gated on sbx ls --json)', () => {
         id,
         workspace: defineWorkspace({ source: localSource(repo) }),
       })
-      await handle.process.exec('echo seeded > /tmp/seeded')
-      // Stop without destroy. There is no sbx start in our API; resume + exec must wake it.
-      await handle.process.exec('true')
+      const root = handle.workspaceRoot ?? '.'
+      await handle.fs.write(`${root}/note.txt`, 'keep after resume')
+      // Do not destroy. Resume by id and check the file is still there.
       const resumed = await provider.resume({ id })
       expect(resumed).not.toBeNull()
       if (!resumed) throw new Error('expected resume handle')
+      expect(await resumed.fs.read(`${root}/note.txt`)).toBe(
+        'keep after resume',
+      )
       const echo = await resumed.process.exec('echo resumed')
       expect(echo.stdout.trim()).toBe('resumed')
       await resumed.destroy()
