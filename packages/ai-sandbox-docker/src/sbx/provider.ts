@@ -37,20 +37,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function hasPolicyRows(stdout: string): boolean {
   const text = stdout.trim()
   if (text === '') return false
-  try {
-    const parsed: unknown = JSON.parse(text)
-    if (Array.isArray(parsed)) return parsed.length > 0
-    if (isRecord(parsed)) {
-      for (const key of ['policies', 'items', 'rules']) {
-        const val = parsed[key]
-        if (Array.isArray(val)) return val.length > 0
-      }
-      return Object.keys(parsed).length > 0
+  const parsed: unknown = JSON.parse(text)
+  if (Array.isArray(parsed)) return parsed.length > 0
+  if (isRecord(parsed)) {
+    for (const key of ['policies', 'items', 'rules']) {
+      const val = parsed[key]
+      if (Array.isArray(val)) return val.length > 0
     }
-  } catch {
-    return true
   }
-  return false
+  throw new Error(
+    `sbx policy ls --json returned no policy list: ${text.slice(0, 200)}`,
+  )
 }
 
 async function listEntries(
@@ -89,13 +86,8 @@ class SbxProvider implements SandboxProvider {
   }
 
   private async ensureGlobalPreset(): Promise<void> {
-    try {
-      const listed = await this.run(['policy', 'ls', '--json'])
-      if (hasPolicyRows(listed.stdout)) return
-    } catch {
-      // Probe failed or returned nothing usable. Init once; a real login
-      // error will fail again on init and stay loud.
-    }
+    const listed = await this.run(['policy', 'ls', '--json'])
+    if (hasPolicyRows(listed.stdout)) return
     await this.run(['policy', 'init', 'deny-all'])
   }
 

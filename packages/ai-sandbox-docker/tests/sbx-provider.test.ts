@@ -260,7 +260,7 @@ describe('sbxSandbox', () => {
     ])
   })
 
-  it('create inits deny-all only when no global preset exists', async () => {
+  it('create does not init deny-all when policy ls fails', async () => {
     const repo = await makeGitRepo()
     const { spawn, calls } = scriptedSpawn([
       {
@@ -281,27 +281,18 @@ describe('sbxSandbox', () => {
         match: (args) => args[0] === 'create',
         result: { stdout: '', stderr: '', exitCode: 0 },
       },
-      {
-        match: (args) => args[0] === 'ls',
-        result: {
-          stdout: JSON.stringify([{ name: 'aabbccddeeff0011' }]),
-          stderr: '',
-          exitCode: 0,
-        },
-      },
-      {
-        match: (args) => args[0] === 'exec' && args.includes('pwd'),
-        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
-      },
     ])
     const provider = sbxSandbox({ workspaceDir: repo, spawn })
-    await provider.create({ id: 'aabbccddeeff0011' })
+    await expect(provider.create({ id: 'aabbccddeeff0011' })).rejects.toThrow(
+      /no policy configured/,
+    )
     expect(
       calls.some(
         (args) =>
           args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
       ),
-    ).toBe(true)
+    ).toBe(false)
+    expect(calls.some((args) => args[0] === 'create')).toBe(false)
   })
 
   it('create inits deny-all when policy ls --json is an empty list', async () => {
@@ -342,6 +333,132 @@ describe('sbxSandbox', () => {
           args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
       ),
     ).toBe(true)
+  })
+
+  it('create does not treat a JSON error object as an existing policy', async () => {
+    const repo = await makeGitRepo()
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '{"error":"boom"}', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(provider.create({ id: 'aabbccddeeff0011' })).rejects.toThrow(
+      /no policy list/,
+    )
+    expect(
+      calls.some(
+        (args) =>
+          args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
+      ),
+    ).toBe(false)
+    expect(calls.some((args) => args[0] === 'create')).toBe(false)
+  })
+
+  it.each([
+    { stdout: '{ "policies": [] }', label: '{ policies: [] }' },
+    { stdout: '{ "items": [] }', label: '{ items: [] }' },
+    { stdout: '{ "rules": [] }', label: '{ rules: [] }' },
+  ])(
+    'create inits deny-all when policy ls --json is $label',
+    async ({ stdout }) => {
+      const repo = await makeGitRepo()
+      const { spawn, calls } = scriptedSpawn([
+        {
+          match: (args) =>
+            args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+          result: { stdout, stderr: '', exitCode: 0 },
+        },
+        {
+          match: (args) =>
+            args[0] === 'policy' &&
+            args[1] === 'init' &&
+            args[2] === 'deny-all',
+          result: { stdout: '', stderr: '', exitCode: 0 },
+        },
+        {
+          match: (args) => args[0] === 'create',
+          result: { stdout: '', stderr: '', exitCode: 0 },
+        },
+        {
+          match: (args) => args[0] === 'ls',
+          result: {
+            stdout: JSON.stringify([{ name: 'aabbccddeeff0011' }]),
+            stderr: '',
+            exitCode: 0,
+          },
+        },
+        {
+          match: (args) => args[0] === 'exec' && args.includes('pwd'),
+          result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+        },
+      ])
+      const provider = sbxSandbox({ workspaceDir: repo, spawn })
+      await provider.create({ id: 'aabbccddeeff0011' })
+      expect(
+        calls.some(
+          (args) =>
+            args[0] === 'policy' &&
+            args[1] === 'init' &&
+            args[2] === 'deny-all',
+        ),
+      ).toBe(true)
+    },
+  )
+
+  it('create does not init deny-all when policy ls --json has policy rows', async () => {
+    const repo = await makeGitRepo()
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: {
+          stdout: '{ "policies": [{ "name": "local" }] }',
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'ls',
+        result: {
+          stdout: JSON.stringify([
+            { name: 'aabbccddeeff0011', workspace: '/home/user/work' },
+          ]),
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    const handle = await provider.create({ id: 'aabbccddeeff0011' })
+    expect(handle.id).toBe('aabbccddeeff0011')
+    expect(
+      calls.some(
+        (args) =>
+          args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
+      ),
+    ).toBe(false)
+    expect(calls.some((args) => args[0] === 'create')).toBe(true)
   })
 
   it('resolves workspace root with exec flags before the sandbox name', async () => {
