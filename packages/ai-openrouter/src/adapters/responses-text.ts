@@ -262,9 +262,27 @@ export class OpenRouterResponsesTextAdapter<
       // OpenRouter override: pass nulls through unchanged.
       const transformed = this.transformStructuredOutput(parsed)
 
+      // Responses API reports usage as inputTokens/outputTokens (not the
+      // chat-completions promptTokens/completionTokens shape). Map to
+      // TokenUsage and attach OpenRouter cost when present — same contract
+      // as structuredOutputStream / processStreamChunks.
+      const usage = response.usage
+      const hasUsage =
+        usage != null &&
+        (usage.inputTokens != null ||
+          usage.outputTokens != null ||
+          usage.totalTokens != null)
       return {
         data: transformed,
         rawText,
+        ...(hasUsage && {
+          usage: {
+            promptTokens: usage.inputTokens ?? 0,
+            completionTokens: usage.outputTokens ?? 0,
+            totalTokens: usage.totalTokens ?? 0,
+            ...extractUsageCost(usage),
+          },
+        }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {

@@ -791,6 +791,47 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
       )
     })
 
+    it('forwards response.usage on structuredOutput', async () => {
+      setupMockSdkClient([], {
+        choices: [
+          {
+            message: {
+              content: '{"name":"Alice","age":30}',
+            },
+          },
+        ],
+        usage: {
+          prompt_tokens: 11,
+          completion_tokens: 5,
+          total_tokens: 16,
+        },
+      })
+
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+
+      const result = await adapter.structuredOutput({
+        chatOptions: {
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Give me a person object' }],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            age: { type: 'number' },
+          },
+          required: ['name', 'age'],
+        },
+      })
+
+      expect(result.usage).toEqual({
+        promptTokens: 11,
+        completionTokens: 5,
+        totalTokens: 16,
+      })
+    })
+
     it('passes provider nulls through unchanged (engine un-widens, not the adapter)', async () => {
       const nonStreamResponse = {
         choices: [

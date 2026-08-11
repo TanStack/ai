@@ -271,9 +271,17 @@ export class MistralTextAdapter<
       )
     }
 
+    const usage = response.usage
     return {
       data: transformNullsToUndefined(parsed),
       rawText: textContent,
+      ...(usage && {
+        usage: {
+          promptTokens: usage.promptTokens ?? 0,
+          completionTokens: usage.completionTokens ?? 0,
+          totalTokens: usage.totalTokens ?? 0,
+        },
+      }),
     }
   }
 

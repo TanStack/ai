@@ -261,9 +261,17 @@ export class BedrockConverseTextAdapter<
           `${this.name}.structuredOutput: response contained no forced-tool output`,
         )
       }
+      const usage = res.usage
       return {
         data: structured,
         rawText: JSON.stringify(structured),
+        ...(usage && {
+          usage: {
+            promptTokens: usage.inputTokens ?? 0,
+            completionTokens: usage.outputTokens ?? 0,
+            totalTokens: usage.totalTokens ?? 0,
+          },
+        }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {

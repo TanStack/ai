@@ -1276,6 +1276,54 @@ describe('OpenRouter responses adapter — structured output', () => {
     // Critical: nickname should be `null`, not `undefined`.
     expect((result.data as any).nickname).toBeNull()
   })
+
+  it('forwards response.usage tokens and cost on structuredOutput (#1076)', async () => {
+    // Regression: non-stream structuredOutput dropped Responses usage/cost,
+    // so consumers never saw TokenUsage after outputSchema finalization.
+    setupMockSdkClient([], {
+      output: [
+        {
+          type: 'message',
+          content: [
+            {
+              type: 'output_text',
+              text: JSON.stringify({ title: 'Hello' }),
+            },
+          ],
+        },
+      ],
+      usage: {
+        inputTokens: 10,
+        outputTokens: 3,
+        totalTokens: 13,
+        cost: 0.0011,
+        costDetails: { upstreamInferenceCost: 0.0009 },
+      },
+    })
+
+    const adapter = createAdapter()
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini' as any,
+        messages: [{ role: 'user', content: 'title?' }],
+        logger: testLogger,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { title: { type: 'string' } },
+        required: ['title'],
+      },
+    })
+
+    expect(result.data).toEqual({ title: 'Hello' })
+    expect(result.usage).toEqual({
+      promptTokens: 10,
+      completionTokens: 3,
+      totalTokens: 13,
+      cost: 0.0011,
+      costDetails: { upstreamCost: 0.0009 },
+    })
+  })
 })
 
 describe('OpenRouter responses adapter — SDK constructor wiring', () => {
