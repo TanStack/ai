@@ -123,3 +123,78 @@ describe('isAlreadyGone / destroy already-gone', () => {
     expect(isAlreadyGone(new Error('not found sandbox'))).toBe(true)
   })
 })
+
+function handleWithTestE(result: SbxRunResult): SbxHandle {
+  const { spawn } = scriptedSpawn([
+    {
+      match: (args) =>
+        args[0] === 'exec' && args.some((arg) => arg.includes('test -e')),
+      result,
+    },
+  ])
+  return new SbxHandle({
+    name: 'deadbeefdeadbeef',
+    workspaceRoot: '/home/user/work',
+    binary: 'sbx',
+    spawn,
+  })
+}
+
+describe('fs.exists', () => {
+  it('exists path missing returns false', async () => {
+    await expect(
+      handleWithTestE({ stdout: '', stderr: '', exitCode: 1 }).fs.exists(
+        '/workspace/missing',
+      ),
+    ).resolves.toBe(false)
+    await expect(
+      handleWithTestE({
+        stdout: '',
+        stderr: "test: '/home/user/work/missing': No such file or directory",
+        exitCode: 1,
+      }).fs.exists('/workspace/missing'),
+    ).resolves.toBe(false)
+  })
+
+  it('exists unauthorized throws', async () => {
+    await expect(
+      handleWithTestE({
+        stdout: '',
+        stderr: 'Error: unauthorized: not logged in',
+        exitCode: 1,
+      }).fs.exists('/workspace/note.txt'),
+    ).rejects.toThrow(/unauthorized|not logged in/)
+    await expect(
+      handleWithTestE({
+        stdout: '',
+        stderr: 'not authenticated',
+        exitCode: 1,
+      }).fs.exists('/workspace/note.txt'),
+    ).rejects.toThrow(/not authenticated/)
+  })
+
+  it('exists connection refused throws', async () => {
+    await expect(
+      handleWithTestE({
+        stdout: '',
+        stderr: 'connection refused',
+        exitCode: 1,
+      }).fs.exists('/workspace/note.txt'),
+    ).rejects.toThrow(/connection refused/)
+    await expect(
+      handleWithTestE({
+        stdout: '',
+        stderr: 'dial tcp: connect: ECONNREFUSED',
+        exitCode: 1,
+      }).fs.exists('/workspace/note.txt'),
+    ).rejects.toThrow(/ECONNREFUSED/)
+  })
+
+  it('exists exit 0 returns true', async () => {
+    await expect(
+      handleWithTestE({ stdout: '', stderr: '', exitCode: 0 }).fs.exists(
+        '/workspace/note.txt',
+      ),
+    ).resolves.toBe(true)
+  })
+})

@@ -165,6 +165,24 @@ export function isAlreadyGone(error: unknown): boolean {
   )
 }
 
+/** Host login or transport text that `test -e` never prints for a missing path. */
+function isLoginOrTransportError(stderr: string): boolean {
+  const text = stderr.toLowerCase()
+  return (
+    text.includes('unauthorized') ||
+    text.includes('not logged in') ||
+    text.includes('not authenticated') ||
+    text.includes('connection refused') ||
+    text.includes('econnrefused')
+  )
+}
+
+/** Quiet `test -e` miss, or the usual one-line diagnostic. */
+function isNormalTestMiss(stderr: string): boolean {
+  const text = stderr.trim()
+  return text === '' || text.toLowerCase().includes('no such file or directory')
+}
+
 export interface SbxHandleDeps {
   name: string
   workspaceRoot: string
@@ -263,7 +281,13 @@ export class SbxHandle implements SandboxHandle {
       },
       exists: async (p) => {
         const r = await this.exec(`test -e ${q(this.abs(p))}`)
-        return r.exitCode === 0
+        // `exec` uses allowNonZero, so login/transport must not look like a miss.
+        if (isLoginOrTransportError(r.stderr)) {
+          throw new Error(r.stderr.trim() || `exists failed: exit ${r.exitCode}`)
+        }
+        if (r.exitCode === 0) return true
+        if (r.exitCode === 1 && isNormalTestMiss(r.stderr)) return false
+        throw new Error(r.stderr.trim() || `exists failed: exit ${r.exitCode}`)
       },
     }
 
