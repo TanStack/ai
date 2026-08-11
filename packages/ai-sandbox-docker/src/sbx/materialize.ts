@@ -2,10 +2,22 @@ import { access, mkdir, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { execFile } from 'node:child_process'
-import { promisify } from 'node:util'
 import type { WorkspaceDefinition } from '@tanstack/ai-sandbox'
 
-const execFileAsync = promisify(execFile)
+function runGit(
+  args: ReadonlyArray<string>,
+  options: { cwd?: string; env?: NodeJS.ProcessEnv } = {},
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile('git', [...args], options, (error, stdout) => {
+      if (error) {
+        reject(error)
+        return
+      }
+      resolve(String(stdout ?? '').trim())
+    })
+  })
+}
 
 export interface HostRepo {
   hostDir: string
@@ -29,6 +41,51 @@ async function hasGitDir(dir: string): Promise<boolean> {
 
 export function ownedHostRepoDir(id: string): string {
   return path.join(tmpdir(), 'tanstack-sbx', id)
+}
+
+function normalizeGitUrl(url: string): string {
+  let value = url.trim().replaceAll('\\', '/')
+  value = value.replace(/\/+$/, '')
+  if (value.toLowerCase().endsWith('.git')) {
+    value = value.slice(0, -4)
+  }
+  if (/^[A-Za-z]:\//.test(value)) {
+    const drive = value.slice(0, 1).toLowerCase()
+    value = drive + value.slice(1)
+  }
+  return value
+}
+
+async function ownedGitDestMatchesSource(
+  dest: string,
+  source: { url: string; ref?: string },
+): Promise<boolean> {
+  try {
+    const origin = await runGit(['remote', 'get-url', 'origin'], { cwd: dest })
+    if (origin === '') return false
+    if (normalizeGitUrl(origin) !== normalizeGitUrl(source.url)) {
+      return false
+    }
+
+    const currentRef = await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], {
+      cwd: dest,
+    })
+    if (currentRef === '') return false
+
+    if (source.ref) {
+      if (currentRef === source.ref) return true
+      const headSha = await runGit(['rev-parse', 'HEAD'], { cwd: dest })
+      const wantedSha = await runGit(
+        ['rev-parse', '--verify', source.ref],
+        { cwd: dest },
+      )
+      return headSha !== '' && headSha === wantedSha
+    }
+
+    return true
+  } catch {
+    return false
+  }
 }
 
 // Credential helper that prints creds read from the child ENV. The helper
@@ -57,7 +114,10 @@ async function cloneGitSource(
     )
   }
   await mkdir(path.dirname(dest), { recursive: true })
-  if (await hasGitDir(dest)) {
+  if (
+    (await hasGitDir(dest)) &&
+    (await ownedGitDestMatchesSource(dest, source))
+  ) {
     return dest
   }
   await rm(dest, { recursive: true, force: true })
@@ -78,7 +138,7 @@ async function cloneGitSource(
     env.GIT_CONFIG_VALUE_0 = CREDENTIAL_HELPER
   }
   try {
-    await execFileAsync('git', args, { env })
+    await runGit(args, { env })
   } catch (error) {
     await rm(dest, { recursive: true, force: true }).catch(() => {})
     if (

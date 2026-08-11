@@ -36,7 +36,11 @@ vi.mock('node:child_process', async (importOriginal) => {
         stderr: string | Buffer,
       ) => void,
     ) => {
-      if (cloneExec.intercept) {
+      if (
+        cloneExec.intercept &&
+        file === 'git' &&
+        (args ?? [])[0] === 'clone'
+      ) {
         cloneExec.calls.push({
           file,
           args: args ?? [],
@@ -186,6 +190,125 @@ describe('resolveHostRepo', () => {
     expect(result.hostDir).toBe(dest)
     expect(result.owned).toBe(true)
     expect(await stat(path.join(result.hostDir, '.git'))).toBeTruthy()
+  })
+
+  it('reclone the owned dest when the git url does not match', async () => {
+    const repoA = await makeGitRepo()
+    await writeFile(path.join(repoA, 'from-a.txt'), 'a\n')
+    execFileSync('git', ['add', '.'], { cwd: repoA })
+    execFileSync('git', ['commit', '-m', 'a'], { cwd: repoA })
+
+    const repoB = await makeGitRepo()
+    await writeFile(path.join(repoB, 'from-b.txt'), 'b\n')
+    execFileSync('git', ['add', '.'], { cwd: repoB })
+    execFileSync('git', ['commit', '-m', 'b'], { cwd: repoB })
+
+    const id = 'retry000000000003'
+    const dest = path.join(tmpdir(), 'tanstack-sbx', id)
+    await mkdir(path.dirname(dest), { recursive: true })
+    execFileSync('git', ['clone', '--', repoA, dest])
+    scratch.push(dest)
+
+    const result = await resolveHostRepo({
+      id,
+      workspace: defineWorkspace({
+        source: gitSource({ url: repoB }),
+      }),
+    })
+    expect(result.hostDir).toBe(dest)
+    expect(result.owned).toBe(true)
+    expect(await stat(path.join(result.hostDir, 'from-b.txt'))).toBeTruthy()
+    await expect(stat(path.join(result.hostDir, 'from-a.txt'))).rejects.toThrow()
+  })
+
+  it('reuses the owned dest when url and ref both match', async () => {
+    const repo = await makeGitRepo()
+    execFileSync('git', ['branch', 'feature'], { cwd: repo })
+    const id = 'retry000000000004'
+    const workspace = defineWorkspace({
+      source: gitSource({ url: repo, ref: 'feature' }),
+    })
+    const first = await resolveHostRepo({ id, workspace })
+    scratch.push(first.hostDir)
+    await writeFile(path.join(first.hostDir, 'local-only.txt'), 'keep\n')
+
+    const second = await resolveHostRepo({ id, workspace })
+    expect(second.hostDir).toBe(first.hostDir)
+    expect(second.owned).toBe(true)
+    expect(await stat(path.join(second.hostDir, 'local-only.txt'))).toBeTruthy()
+  })
+
+  it('reclones the owned dest when leftover git has no origin remote', async () => {
+    const repo = await makeGitRepo()
+    await writeFile(path.join(repo, 'marker.txt'), 'ok\n')
+    execFileSync('git', ['add', '.'], { cwd: repo })
+    execFileSync('git', ['commit', '-m', 'marker'], { cwd: repo })
+
+    const id = 'retry000000000005'
+    const dest = path.join(tmpdir(), 'tanstack-sbx', id)
+    await mkdir(dest, { recursive: true })
+    scratch.push(dest)
+    await initGitRepo(dest)
+
+    const result = await resolveHostRepo({
+      id,
+      workspace: defineWorkspace({
+        source: gitSource({ url: repo }),
+      }),
+    })
+    expect(result.hostDir).toBe(dest)
+    expect(result.owned).toBe(true)
+    expect(await stat(path.join(result.hostDir, 'marker.txt'))).toBeTruthy()
+  })
+
+  it('reclones the owned dest when leftover git dir is incomplete', async () => {
+    const repo = await makeGitRepo()
+    await writeFile(path.join(repo, 'marker.txt'), 'ok\n')
+    execFileSync('git', ['add', '.'], { cwd: repo })
+    execFileSync('git', ['commit', '-m', 'marker'], { cwd: repo })
+
+    const id = 'retry000000000006'
+    const dest = path.join(tmpdir(), 'tanstack-sbx', id)
+    await mkdir(path.join(dest, '.git'), { recursive: true })
+    scratch.push(dest)
+
+    const result = await resolveHostRepo({
+      id,
+      workspace: defineWorkspace({
+        source: gitSource({ url: repo }),
+      }),
+    })
+    expect(result.hostDir).toBe(dest)
+    expect(result.owned).toBe(true)
+    expect(await stat(path.join(result.hostDir, 'marker.txt'))).toBeTruthy()
+  })
+
+  it('reclones the owned dest when the git ref does not match', async () => {
+    const repo = await makeGitRepo()
+    await writeFile(path.join(repo, 'on-default.txt'), 'd\n')
+    execFileSync('git', ['add', '.'], { cwd: repo })
+    execFileSync('git', ['commit', '-m', 'default'], { cwd: repo })
+    execFileSync('git', ['checkout', '-b', 'other'], { cwd: repo })
+    await writeFile(path.join(repo, 'on-other.txt'), 'o\n')
+    execFileSync('git', ['add', '.'], { cwd: repo })
+    execFileSync('git', ['commit', '-m', 'other'], { cwd: repo })
+    execFileSync('git', ['checkout', '-'], { cwd: repo })
+
+    const id = 'retry000000000007'
+    const dest = path.join(tmpdir(), 'tanstack-sbx', id)
+    await mkdir(path.dirname(dest), { recursive: true })
+    execFileSync('git', ['clone', '--', repo, dest])
+    scratch.push(dest)
+
+    const result = await resolveHostRepo({
+      id,
+      workspace: defineWorkspace({
+        source: gitSource({ url: repo, ref: 'other' }),
+      }),
+    })
+    expect(result.hostDir).toBe(dest)
+    expect(result.owned).toBe(true)
+    expect(await stat(path.join(result.hostDir, 'on-other.txt'))).toBeTruthy()
   })
 })
 
