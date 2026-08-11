@@ -1324,6 +1324,51 @@ describe('OpenRouter responses adapter — structured output', () => {
       costDetails: { upstreamCost: 0.0009 },
     })
   })
+
+  it('forwards cost-only usage on structuredOutput (no token fields)', async () => {
+    // Regression: hasUsage used to require input/output/total tokens, so a
+    // usage object with only OpenRouter cost was dropped entirely.
+    setupMockSdkClient([], {
+      output: [
+        {
+          type: 'message',
+          content: [
+            {
+              type: 'output_text',
+              text: JSON.stringify({ title: 'Hello' }),
+            },
+          ],
+        },
+      ],
+      usage: {
+        cost: 0.0025,
+        costDetails: { upstreamInferenceCost: 0.002 },
+      },
+    })
+
+    const adapter = createAdapter()
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini' as any,
+        messages: [{ role: 'user', content: 'title?' }],
+        logger: testLogger,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { title: { type: 'string' } },
+        required: ['title'],
+      },
+    })
+
+    expect(result.data).toEqual({ title: 'Hello' })
+    expect(result.usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cost: 0.0025,
+      costDetails: { upstreamCost: 0.002 },
+    })
+  })
 })
 
 describe('OpenRouter responses adapter — SDK constructor wiring', () => {
