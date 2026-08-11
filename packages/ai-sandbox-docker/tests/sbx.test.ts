@@ -101,15 +101,11 @@ describe('sbx provider (gated on sbx ls --json)', () => {
         await new Promise((resolve) => setTimeout(resolve, 250))
         survivors = await probeRows()
       }
-      // This test documents the measurement. Do NOT flip SBX_CAPS here.
-      // If survivors === '', set killableProcesses true in a follow-up edit in this task.
-      // If survivors !== '', leave the flag false and keep the test as documentation
-      // by expecting the measured value, not an assumed true.
-      if (survivors === '') {
-        expect(survivors).toBe('')
-      } else {
-        expect(handle.capabilities.killableProcesses).toBe(false)
-      }
+      // Live measurement: kill() does not clear the in-VM sleep. Do NOT flip
+      // SBX_CAPS.killableProcesses — it stays false until a later change
+      // proves kill actually stops the process.
+      expect(handle.capabilities.killableProcesses).toBe(false)
+      expect(survivors).not.toBe('')
     } finally {
       await handle?.destroy()
       await rm(repo, { recursive: true, force: true })
