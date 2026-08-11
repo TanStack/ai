@@ -27,11 +27,6 @@ export async function sbxGate(suite: string): Promise<SbxGate> {
   }
 }
 
-export async function sbxAvailable(suite: string): Promise<boolean> {
-  const gate = await sbxGate(suite)
-  return !('unsupported' in gate)
-}
-
 /** 16 hex chars — a valid `sbx create --name`. */
 export function sbxTestId(): string {
   return randomBytes(8).toString('hex')
