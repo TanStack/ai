@@ -397,6 +397,29 @@ describe('Anthropic adapter option mapping', () => {
     expect(payload.max_tokens).toBe(2048)
   })
 
+  it('forwards context_management and attaches the required beta (issue #1074)', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+    const contextManagement = {
+      edits: [{ type: 'clear_tool_uses_20250919' as const }],
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        context_management: contextManagement,
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.context_management).toEqual(contextManagement)
+    expect(payload.betas).toEqual(['context-management-2025-06-27'])
+  })
+
   it('forwards top-level cache_control from modelOptions instead of dropping it', async () => {
     mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
 

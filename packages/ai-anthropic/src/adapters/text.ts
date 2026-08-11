@@ -148,7 +148,8 @@ function buildServerToolResultBlock(
  * Computes the `betas` array for a Messages request. Unions:
  * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
  * - `code-execution-2025-08-25` when a `code_execution` tool is present,
- * - `skills-2025-10-02` when that tool carries skills.
+ * - `skills-2025-10-02` when that tool carries skills,
+ * - `context-management-2025-06-27` when `context_management` is set.
  * Returns `undefined` when none apply (so the call site omits `betas`).
  */
 export function computeAnthropicBetas(
@@ -159,6 +160,7 @@ export function computeAnthropicBetas(
           type?: 'enabled' | 'disabled' | 'adaptive'
           budget_tokens?: number
         }
+        context_management?: unknown | null
       }
     | undefined,
 ): Array<AnthropicBeta> | undefined {
@@ -169,6 +171,12 @@ export function computeAnthropicBetas(
     typeof modelOptions.thinking.budget_tokens === 'number' &&
     modelOptions.thinking.budget_tokens > 0
   if (useInterleavedThinking) betas.add('interleaved-thinking-2025-05-14')
+
+  // Context editing requires the beta header; the body field alone is not
+  // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
+  if (modelOptions?.context_management != null) {
+    betas.add('context-management-2025-06-27')
+  }
 
   // Code-execution beta is version-aware: select from the FIRST code_execution
   // tool's config type.
