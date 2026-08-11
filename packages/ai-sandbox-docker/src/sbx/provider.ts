@@ -154,16 +154,27 @@ class SbxProvider implements SandboxProvider {
     ]
     await this.run(createArgs, input.signal)
 
-    if (plan.kind === 'per-sandbox') {
-      for (const args of policyArgs(plan, id)) {
-        await this.run(args, input.signal)
+    try {
+      if (plan.kind === 'per-sandbox') {
+        for (const args of policyArgs(plan, id)) {
+          await this.run(args, input.signal)
+        }
       }
-    }
 
-    const workspaceRoot = await this.resolveWorkspaceRoot(id)
-    const handle = this.makeHandle(id, workspaceRoot)
-    if (input.env) await handle.env.set(input.env)
-    return handle
+      const workspaceRoot = await this.resolveWorkspaceRoot(id)
+      const handle = this.makeHandle(id, workspaceRoot)
+      if (input.env) await handle.env.set(input.env)
+      return handle
+    } catch (error) {
+      try {
+        await this.run(['rm', '--force', id])
+      } catch {
+        this.config.logger?.warn('sbx rm failed after create setup error', {
+          id,
+        })
+      }
+      throw error
+    }
   }
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {

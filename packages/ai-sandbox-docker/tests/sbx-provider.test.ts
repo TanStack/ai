@@ -476,6 +476,145 @@ describe('sbxSandbox', () => {
     ])
   })
 
+  it('create rms the sandbox when per-sandbox policy apply fails', async () => {
+    const repo = await makeGitRepo()
+    const id = 'deadbeefdeadbeef'
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'policy' && args.includes('--sandbox'),
+        result: {
+          stdout: '',
+          stderr: 'policy apply failed',
+          exitCode: 1,
+        },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({
+      workspaceDir: repo,
+      allowNetwork: ['*.npmjs.org'],
+      spawn,
+    })
+    await expect(
+      provider.create({
+        id,
+        adapterName: 'grok-build',
+        policy: defineSandboxPolicy({ capabilities: { network: 'deny' } }),
+      }),
+    ).rejects.toThrow(/policy apply failed/)
+    expect(calls).toContainEqual(['rm', '--force', id])
+  })
+
+  it('create rms the sandbox when workspace resolve fails', async () => {
+    const repo = await makeGitRepo()
+    const id = 'deadbeefdeadbeef'
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'ls',
+        result: { stdout: '', stderr: 'ls failed', exitCode: 1 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '', stderr: 'pwd failed', exitCode: 1 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(provider.create({ id })).rejects.toThrow(/ls failed/)
+    expect(calls).toContainEqual(['rm', '--force', id])
+  })
+
+  it('create rms the sandbox when env.set fails', async () => {
+    const repo = await makeGitRepo()
+    const id = 'deadbeefdeadbeef'
+    const envWrite: Record<string, string> = {}
+    Object.defineProperty(envWrite, 'FOO', {
+      enumerable: true,
+      get() {
+        throw new Error('env write failed')
+      },
+    })
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'ls',
+        result: {
+          stdout: JSON.stringify([{ name: id, workspace: '/home/user/work' }]),
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(provider.create({ id, env: envWrite })).rejects.toThrow(
+      /env write failed/,
+    )
+    expect(calls).toContainEqual(['rm', '--force', id])
+  })
+
+  it('create rethrows the setup error when rm after a failed setup also fails', async () => {
+    const repo = await makeGitRepo()
+    const id = 'deadbeefdeadbeef'
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'ls',
+        result: { stdout: '', stderr: 'ls failed', exitCode: 1 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: 'rm failed', exitCode: 1 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(provider.create({ id })).rejects.toThrow(/ls failed/)
+    expect(calls).toContainEqual(['rm', '--force', id])
+  })
+
   it('resume returns a handle when ls lists the name, including stopped', async () => {
     const { spawn } = scriptedSpawn([
       {
