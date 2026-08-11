@@ -60,15 +60,19 @@ afterEach(async () => {
   )
 })
 
-async function makeGitRepo(): Promise<string> {
-  const dir = await mkdtemp(path.join(tmpdir(), 'sbx-fix-'))
-  scratch.push(dir)
+async function initGitRepo(dir: string): Promise<void> {
   execFileSync('git', ['init'], { cwd: dir })
   execFileSync('git', ['config', 'user.email', 't@t.test'], { cwd: dir })
   execFileSync('git', ['config', 'user.name', 't'], { cwd: dir })
   await writeFile(path.join(dir, 'README.md'), 'hi\n')
   execFileSync('git', ['add', '.'], { cwd: dir })
   execFileSync('git', ['commit', '-m', 'init'], { cwd: dir })
+}
+
+async function makeGitRepo(): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'sbx-fix-'))
+  scratch.push(dir)
+  await initGitRepo(dir)
   return dir
 }
 
@@ -98,6 +102,21 @@ describe('resolveHostRepo', () => {
       workspace: defineWorkspace({ source: localSource(repo) }),
     })
     expect(result.hostDir).toBe(repo)
+    expect(result.owned).toBe(false)
+  })
+
+  it('local source path is resolved against process cwd', async () => {
+    const relativePath = 'rel-repo'
+    const absRepo = path.resolve(relativePath)
+    await mkdir(absRepo)
+    scratch.push(absRepo)
+    await initGitRepo(absRepo)
+
+    const result = await resolveHostRepo({
+      id: 'aabbccddeeff0011',
+      workspace: defineWorkspace({ source: localSource(relativePath) }),
+    })
+    expect(result.hostDir).toBe(absRepo)
     expect(result.owned).toBe(false)
   })
 

@@ -111,10 +111,11 @@ export async function resolveHostRepo(input: {
     return { hostDir, owned: true }
   }
   if (source?.type === 'local') {
-    if (!(await hasGitDir(source.path))) {
+    const hostDir = path.resolve(source.path)
+    if (!(await hasGitDir(hostDir))) {
       throw new Error(MISSING_GIT)
     }
-    return { hostDir: source.path, owned: false }
+    return { hostDir, owned: false }
   }
   throw new Error(MISSING_GIT)
 }
