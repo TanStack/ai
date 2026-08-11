@@ -13,7 +13,7 @@ export interface HostRepo {
 }
 
 const MISSING_GIT =
-  'sbxSandbox needs a Git repository to pass to `sbx create --clone`. Pass `workspaceDir` that contains `.git`, or set `workspace.source` to a git URL (for example `githubRepo({ repo: \'owner/repo\' })`).'
+  "sbxSandbox needs a Git repository to pass to `sbx create --clone`. Pass `workspaceDir` that contains `.git`, or set `workspace.source` to a git URL (for example `githubRepo({ repo: 'owner/repo' })`)."
 
 const MISSING_GIT_BIN =
   'git is not on PATH. Install git, or pass `workspaceDir` that already contains `.git`.'

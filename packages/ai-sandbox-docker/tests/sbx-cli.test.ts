@@ -8,12 +8,20 @@ function trackingSignal(): { signal: AbortSignal; wasRemoved: () => boolean } {
   const signal = Object.create(real.signal) as AbortSignal
   const origAdd = real.signal.addEventListener.bind(real.signal)
   const origRemove = real.signal.removeEventListener.bind(real.signal)
-  signal.addEventListener = ((type, listener, opts) => {
-    origAdd(type, listener as EventListener, opts)
+  signal.addEventListener = ((
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    opts?: boolean | AddEventListenerOptions,
+  ) => {
+    if (listener) origAdd(type, listener, opts)
   }) as AbortSignal['addEventListener']
-  signal.removeEventListener = ((type, listener, opts) => {
+  signal.removeEventListener = ((
+    type: string,
+    listener: EventListenerOrEventListenerObject | null,
+    opts?: boolean | EventListenerOptions,
+  ) => {
     removed = true
-    origRemove(type, listener as EventListener, opts)
+    if (listener) origRemove(type, listener, opts)
   }) as AbortSignal['removeEventListener']
   return { signal, wasRemoved: () => removed }
 }
@@ -77,7 +85,8 @@ describe('runSbx', () => {
         binary: 'sbx',
         spawn: fakeSpawn({
           exitCode: 1,
-          stderr: 'ERROR: Not authenticated to Docker\n\nSign in with: sbx login',
+          stderr:
+            'ERROR: Not authenticated to Docker\n\nSign in with: sbx login',
         }),
       }),
     ).rejects.toThrow(/sbx login --password-stdin/)
@@ -131,11 +140,15 @@ describe('defaultSpawn', () => {
 
   it('removes the abort listener when kill() is called before close', async () => {
     const { signal, wasRemoved } = trackingSignal()
-    const handle = defaultSpawn('node', ['-e', 'setTimeout(() => {}, 30_000)'], {
-      signal,
-      onClose: () => {},
-      onError: () => {},
-    })
+    const handle = defaultSpawn(
+      'node',
+      ['-e', 'setTimeout(() => {}, 30_000)'],
+      {
+        signal,
+        onClose: () => {},
+        onError: () => {},
+      },
+    )
     handle.kill()
     expect(wasRemoved()).toBe(true)
   })

@@ -345,9 +345,7 @@ export class SbxHandle implements SandboxHandle {
       ? `/tmp/.tanstack-sandbox-exec-${randomUUID()}.pid`
       : undefined
     const wrapped =
-      pidFile === undefined
-        ? command
-        : pidRecordingCommand(command, pidFile)
+      pidFile === undefined ? command : pidRecordingCommand(command, pidFile)
     const state: PidFileState = { exited: false, killRequested: false }
     const signal = opts?.signal
     const onAbort = (): void => {
@@ -437,7 +435,9 @@ export class SbxHandle implements SandboxHandle {
       let index = 0
       while (true) {
         if (index < list.length) {
-          yield list[index++]
+          const next = list[index]
+          index += 1
+          if (next !== undefined) yield next
           continue
         }
         if (isDone()) return
@@ -462,8 +462,12 @@ export class SbxHandle implements SandboxHandle {
 
     return {
       pid: -1,
-      stdout: decodeStream(readSide(stdoutChunks, stdoutWaiters, () => stdoutDone)),
-      stderr: decodeStream(readSide(stderrChunks, stderrWaiters, () => stderrDone)),
+      stdout: decodeStream(
+        readSide(stdoutChunks, stdoutWaiters, () => stdoutDone),
+      ),
+      stderr: decodeStream(
+        readSide(stderrChunks, stderrWaiters, () => stderrDone),
+      ),
       stdin: {
         write: () => Promise.resolve(),
         end: () => Promise.resolve(),

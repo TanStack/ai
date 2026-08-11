@@ -50,7 +50,7 @@ export function planSbxPolicy(input: {
     ...autoApiHosts(input.adapterName),
     ...(input.allowNetwork ?? []),
   ]
-  if (allow.length === 0 && decision !== 'allow') {
+  if (allow.length === 0) {
     throw new Error(EMPTY_ALLOWLIST)
   }
   return { kind: 'per-sandbox', allow, deny }
@@ -72,14 +72,7 @@ export function policyArgs(
     ])
   }
   for (const host of plan.deny) {
-    commands.push([
-      'policy',
-      'deny',
-      'network',
-      '--sandbox',
-      sandboxName,
-      host,
-    ])
+    commands.push(['policy', 'deny', 'network', '--sandbox', sandboxName, host])
   }
   return commands
 }

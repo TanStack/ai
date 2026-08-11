@@ -82,9 +82,9 @@ describe('resolveHostRepo', () => {
   })
 
   it('throws when workspace is missing', async () => {
-    await expect(
-      resolveHostRepo({ id: 'aabbccddeeff0011' }),
-    ).rejects.toThrow(/sbxSandbox needs a Git repository/)
+    await expect(resolveHostRepo({ id: 'aabbccddeeff0011' })).rejects.toThrow(
+      /sbxSandbox needs a Git repository/,
+    )
   })
 
   it('reuses the owned dest when resolveHostRepo is called again with the same id', async () => {

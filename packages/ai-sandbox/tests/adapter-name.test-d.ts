@@ -1,8 +1,5 @@
 import { expectTypeOf } from 'vitest'
-import type {
-  SandboxCreateInput,
-  SandboxEnsureContext,
-} from '../src'
+import type { SandboxCreateInput, SandboxEnsureContext } from '../src'
 
 const ensureWithoutName: SandboxEnsureContext = {
   threadId: 't',

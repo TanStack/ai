@@ -13,7 +13,9 @@ import { execFileSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
 import { runSbx } from '../src/sbx/cli'
 
-export type SbxGate = Record<string, never> | { unsupported: { reason: string } }
+export type SbxGate =
+  | Record<string, never>
+  | { unsupported: { reason: string } }
 
 export async function sbxGate(suite: string): Promise<SbxGate> {
   try {
