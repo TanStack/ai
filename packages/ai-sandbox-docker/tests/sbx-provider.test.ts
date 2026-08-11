@@ -17,18 +17,22 @@ import { dockerSandbox, sbxSandbox as sbxSandboxFromBarrel } from '../src/index'
 function scriptedSpawn(
   scripts: Array<{
     match: (args: Array<string>) => boolean
-    result: SbxRunResult
+    result: SbxRunResult | (() => SbxRunResult)
   }>,
 ): { spawn: SbxSpawn; calls: Array<Array<string>> } {
   const calls: Array<Array<string>> = []
   const spawn: SbxSpawn = (_bin, args, opts) => {
     calls.push(args)
     const hit = scripts.find((s) => s.match(args))
-    const result = hit?.result ?? {
-      stdout: '',
-      stderr: `unexpected sbx ${args.join(' ')}`,
-      exitCode: 1,
-    }
+    const resolved = hit?.result
+    const result =
+      typeof resolved === 'function'
+        ? resolved()
+        : (resolved ?? {
+            stdout: '',
+            stderr: `unexpected sbx ${args.join(' ')}`,
+            exitCode: 1,
+          })
     queueMicrotask(() => opts.onClose(result))
     return { kill: () => {} }
   }
@@ -382,7 +386,7 @@ describe('sbxSandbox', () => {
     expect(calls.some((args) => args[0] === 'create')).toBe(false)
   })
 
-  it('create inits deny-all when policy ls --json is an empty list', async () => {
+  it('first create with empty policy list inits deny-all', async () => {
     const repo = await makeGitRepo()
     const { spawn, calls } = scriptedSpawn([
       {
@@ -420,6 +424,78 @@ describe('sbxSandbox', () => {
           args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
       ),
     ).toBe(true)
+  })
+
+  it('second create with empty policy list treats already-initialized as success', async () => {
+    const repo = await makeGitRepo()
+    let initCalls = 0
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
+        result: () => {
+          initCalls += 1
+          if (initCalls === 1) {
+            return { stdout: '', stderr: '', exitCode: 0 }
+          }
+          return {
+            stdout: '',
+            stderr: 'policy already initialized',
+            exitCode: 1,
+          }
+        },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await provider.create({ id: 'aabbccddeeff0011' })
+    await expect(
+      provider.create({ id: 'bbccddeeff001122' }),
+    ).resolves.toMatchObject({ id: 'bbccddeeff001122' })
+  })
+
+  it('deny/ask allowlist on an Open machine fails closed', async () => {
+    const repo = await makeGitRepo()
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: {
+          stdout: JSON.stringify([{ name: 'open', resources: ['**'] }]),
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({
+      workspaceDir: repo,
+      allowNetwork: ['*.npmjs.org'],
+      spawn,
+    })
+    await expect(
+      provider.create({
+        id: 'deadbeefdeadbeef',
+        adapterName: 'grok-build',
+        policy: defineSandboxPolicy({ capabilities: { network: 'deny' } }),
+      }),
+    ).rejects.toThrow(/open|allow-all|\*\*/i)
+    expect(calls.some((args) => args[0] === 'create')).toBe(false)
   })
 
   it('create does not treat a JSON error object as an existing policy', async () => {

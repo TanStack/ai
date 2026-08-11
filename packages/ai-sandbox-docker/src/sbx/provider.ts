@@ -7,7 +7,7 @@ import {
   resolveHostRepo,
   sandboxNameFromId,
 } from './materialize'
-import { planSbxPolicy, policyArgs } from './policy'
+import { planSbxPolicy, policyArgs, type SbxPolicyPlan } from './policy'
 import type {
   SandboxCapabilities,
   SandboxCreateInput,
@@ -50,6 +50,53 @@ function hasPolicyRows(stdout: string): boolean {
   )
 }
 
+function isOpenHost(value: string): boolean {
+  const host = value.trim()
+  return host === '**' || host.startsWith('**:')
+}
+
+function isOpenPresetName(value: string): boolean {
+  const name = value.trim().toLowerCase()
+  return name === 'open' || name === 'allow-all' || name === 'allowall'
+}
+
+function looksOpenPolicy(value: unknown): boolean {
+  if (typeof value === 'string') {
+    return isOpenHost(value) || isOpenPresetName(value)
+  }
+  if (Array.isArray(value)) return value.some(looksOpenPolicy)
+  if (isRecord(value)) return Object.values(value).some(looksOpenPolicy)
+  return false
+}
+
+function isOpenMachinePreset(stdout: string): boolean {
+  const text = stdout.trim()
+  if (text === '') return false
+  try {
+    return looksOpenPolicy(JSON.parse(text))
+  } catch {
+    const lower = text.toLowerCase()
+    if (lower.includes('allow-all') || lower.includes('allowall')) return true
+    if (/(^|[\s,"'\[])\*\*(:[\w]+)?($|[\s,"'\]])/.test(text)) return true
+    return /(^|[\s:"'{,])open($|[\s,"'}])/i.test(text)
+  }
+}
+
+function isDenyAskAllowlist(plan: SbxPolicyPlan): boolean {
+  return plan.kind === 'per-sandbox' && !plan.allow.includes('**')
+}
+
+function isAlreadyInitialized(error: unknown): boolean {
+  const message = (
+    error instanceof Error ? error.message : String(error)
+  ).toLowerCase()
+  return (
+    message.includes('already initialized') ||
+    message.includes('already set') ||
+    message.includes('already exists')
+  )
+}
+
 async function listEntries(
   binary: string,
   spawn: SbxSpawn | undefined,
@@ -85,10 +132,20 @@ class SbxProvider implements SandboxProvider {
     })
   }
 
-  private async ensureGlobalPreset(): Promise<void> {
+  private async ensureGlobalPreset(plan: SbxPolicyPlan): Promise<void> {
     const listed = await this.run(['policy', 'ls', '--json'])
+    if (isOpenMachinePreset(listed.stdout) && isDenyAskAllowlist(plan)) {
+      throw new Error(
+        'sbxSandbox: the machine policy is Open (allow-all / **). A deny/ask allowlist cannot be enforced on that preset. Run `sbx policy reset` then `sbx policy init deny-all`, or drop the allowlist.',
+      )
+    }
     if (hasPolicyRows(listed.stdout)) return
-    await this.run(['policy', 'init', 'deny-all'])
+    try {
+      await this.run(['policy', 'init', 'deny-all'])
+    } catch (error) {
+      if (isAlreadyInitialized(error)) return
+      throw error
+    }
   }
 
   private async resolveWorkspaceRoot(name: string): Promise<string> {
@@ -127,7 +184,7 @@ class SbxProvider implements SandboxProvider {
       workspace: input.workspace,
     })
 
-    await this.ensureGlobalPreset()
+    await this.ensureGlobalPreset(plan)
 
     const createArgs = [
       'create',
