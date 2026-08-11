@@ -159,12 +159,19 @@ function hostPortFromPortsJson(stdout: string, port: number): number | null {
   return null
 }
 
+export function isAlreadyGone(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /not found|no such|does not exist/i.test(message)
+}
+
 export interface SbxHandleDeps {
   name: string
   workspaceRoot: string
   binary?: string
   spawn?: SbxSpawn
   logger?: SbxLogger
+  /** When true, destroy also deletes `tmpdir/tanstack-sbx/<name>`. Default false. */
+  owned?: boolean
 }
 
 export class SbxHandle implements SandboxHandle {
@@ -182,6 +189,7 @@ export class SbxHandle implements SandboxHandle {
   private readonly binary: string
   private readonly spawnFn: SbxSpawn | undefined
   private readonly logger: SbxLogger | undefined
+  private readonly owned: boolean
   private readonly envVars: Record<string, string> = {}
 
   constructor(deps: SbxHandleDeps) {
@@ -191,6 +199,7 @@ export class SbxHandle implements SandboxHandle {
     this.binary = deps.binary ?? 'sbx'
     this.spawnFn = deps.spawn
     this.logger = deps.logger
+    this.owned = deps.owned ?? false
 
     this.process = {
       exec: (command, opts) => this.exec(command, opts),
@@ -510,12 +519,15 @@ export class SbxHandle implements SandboxHandle {
 
   async destroy(): Promise<void> {
     const name = sandboxNameFromId(this.name)
-    await runSbx(['rm', '--force', name], this.runOptions())
-    // Same owned dest as materialize / provider.destroy. force:true is a no-op
-    // when create used a user workspaceDir.
-    await rm(ownedHostRepoDir(name), {
-      recursive: true,
-      force: true,
-    })
+    let rmError: unknown
+    try {
+      await runSbx(['rm', '--force', name], this.runOptions())
+    } catch (error) {
+      rmError = error
+    }
+    if (this.owned) {
+      await rm(ownedHostRepoDir(name), { recursive: true, force: true })
+    }
+    if (rmError && !isAlreadyGone(rmError)) throw rmError
   }
 }

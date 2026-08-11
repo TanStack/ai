@@ -1,10 +1,11 @@
-import { access, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SbxHandle, SBX_CAPS } from '../src/sbx/handle'
 import { sbxSandbox } from '../src/sbx/provider'
+import { ownedHostRepoDir } from '../src/sbx/materialize'
 import type { SbxRunResult, SbxSpawn } from '../src/sbx/cli'
 import {
   defineSandboxPolicy,
@@ -124,6 +125,53 @@ describe('SbxHandle', () => {
     })
     await handle.destroy()
     expect(calls[0]).toEqual(['rm', '--force', 'deadbeefdeadbeef'])
+  })
+
+  it('handle.destroy does not delete the host dest when owned is false', async () => {
+    const id = 'a12unownedfalse1'
+    const dest = ownedHostRepoDir(id)
+    await mkdir(dest, { recursive: true })
+    await writeFile(path.join(dest, 'marker.txt'), 'keep\n')
+    scratch.push(dest)
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const handle = new SbxHandle({
+      name: id,
+      workspaceRoot: '/home/user/work',
+      binary: 'sbx',
+      spawn,
+      owned: false,
+    })
+    await handle.destroy()
+    await access(dest)
+    await access(path.join(dest, 'marker.txt'))
+  })
+
+  it('handle.destroy deletes the owned dest then rethrows when sbx rm fails', async () => {
+    const id = 'a12ownedrmfail01'
+    const dest = ownedHostRepoDir(id)
+    await mkdir(dest, { recursive: true })
+    await writeFile(path.join(dest, 'marker.txt'), 'owned\n')
+    scratch.push(dest)
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: 'rm failed', exitCode: 1 },
+      },
+    ])
+    const handle = new SbxHandle({
+      name: id,
+      workspaceRoot: '/home/user/work',
+      binary: 'sbx',
+      spawn,
+      owned: true,
+    })
+    await expect(handle.destroy()).rejects.toThrow(/rm failed/)
+    await expect(access(dest)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('declares networkPolicy true and kill/stdin false until measured', () => {
@@ -833,6 +881,40 @@ describe('sbxSandbox', () => {
     await provider.destroy({ id: 'deadbeefdeadbeef' })
     expect(calls[0]).toEqual(['rm', '--force', 'deadbeefdeadbeef'])
     await access(repo)
+  })
+
+  it('provider.destroy rethrows sbx rm errors that are not already-gone', async () => {
+    const id = 'a12provrmfail001'
+    const dest = ownedHostRepoDir(id)
+    await mkdir(dest, { recursive: true })
+    await writeFile(path.join(dest, 'marker.txt'), 'owned\n')
+    scratch.push(dest)
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: 'rm failed', exitCode: 1 },
+      },
+    ])
+    const provider = sbxSandbox({ spawn })
+    await expect(provider.destroy({ id })).rejects.toThrow(/rm failed/)
+    await expect(access(dest)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+
+  it('provider.destroy does not throw when sbx rm says the sandbox is already gone', async () => {
+    const id = 'a12provgone00001'
+    const dest = ownedHostRepoDir(id)
+    await mkdir(dest, { recursive: true })
+    await writeFile(path.join(dest, 'marker.txt'), 'owned\n')
+    scratch.push(dest)
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: 'sandbox not found', exitCode: 1 },
+      },
+    ])
+    const provider = sbxSandbox({ spawn })
+    await provider.destroy({ id })
+    await expect(access(dest)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('fails loud when create has no Git repo', async () => {

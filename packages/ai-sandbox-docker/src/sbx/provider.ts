@@ -1,7 +1,7 @@
 import { rm } from 'node:fs/promises'
 import { parseSbxLs, runSbx, sbxExecArgs } from './cli'
 import type { SbxSpawn } from './cli'
-import { SbxHandle, SBX_CAPS } from './handle'
+import { isAlreadyGone, SbxHandle, SBX_CAPS } from './handle'
 import {
   ownedHostRepoDir,
   resolveHostRepo,
@@ -98,12 +98,17 @@ class SbxProvider implements SandboxProvider {
     return root
   }
 
-  private makeHandle(name: string, workspaceRoot: string): SandboxHandle {
+  private makeHandle(
+    name: string,
+    workspaceRoot: string,
+    owned: boolean,
+  ): SandboxHandle {
     return new SbxHandle({
       name,
       workspaceRoot,
       binary: this.binary,
       logger: this.config.logger,
+      owned,
       ...(this.config.spawn ? { spawn: this.config.spawn } : {}),
     })
   }
@@ -153,7 +158,7 @@ class SbxProvider implements SandboxProvider {
       }
 
       const workspaceRoot = await this.resolveWorkspaceRoot(id)
-      const handle = this.makeHandle(id, workspaceRoot)
+      const handle = this.makeHandle(id, workspaceRoot, host.owned)
       if (input.env) await handle.env.set(input.env)
       return handle
     } catch (error) {
@@ -174,24 +179,27 @@ class SbxProvider implements SandboxProvider {
     const hit = entries.find((entry) => entry.name === id)
     if (!hit) return null
     const workspaceRoot = await this.resolveWorkspaceRoot(id)
-    return this.makeHandle(id, workspaceRoot)
+    return this.makeHandle(id, workspaceRoot, !this.config.workspaceDir)
   }
 
   async destroy(input: SandboxDestroyInput): Promise<void> {
     const id = sandboxNameFromId(input.id)
+    const owned = !this.config.workspaceDir
+    let rmError: unknown
     try {
       await this.run(['rm', '--force', id])
     } catch (error) {
+      rmError = error
+    }
+    if (owned) {
+      await rm(ownedHostRepoDir(id), { recursive: true, force: true })
+    }
+    if (rmError && !isAlreadyGone(rmError)) {
       this.config.logger?.warn('sbx rm failed', {
         id,
-        error: error instanceof Error ? error.message : String(error),
+        error: rmError instanceof Error ? rmError.message : String(rmError),
       })
-    }
-    if (!this.config.workspaceDir) {
-      await rm(ownedHostRepoDir(id), {
-        recursive: true,
-        force: true,
-      })
+      throw rmError
     }
   }
 }
