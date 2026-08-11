@@ -39,8 +39,42 @@ async function hasGitDir(dir: string): Promise<boolean> {
   }
 }
 
+const HOST_REPO_ROOT_NAME = 'tanstack-sbx'
+
+function ownedHostRepoRoot(): string {
+  return path.join(tmpdir(), HOST_REPO_ROOT_NAME)
+}
+
+function invalidSandboxId(id: string): Error {
+  return new Error(
+    `sbxSandbox: invalid sandbox id ${JSON.stringify(id)}. Use a single path segment (not empty, '.', or '..', and with no / or \\) that stays inside tmpdir()/${HOST_REPO_ROOT_NAME}/.`,
+  )
+}
+
+/**
+ * One source of truth for ids used as `sbx --name` and as the owned dest
+ * folder under `tmpdir()/tanstack-sbx/`. Rejects empty, `.`, `..`, path
+ * separators, and any value that would resolve outside that directory.
+ * Does not rewrite a bad id into a safe name.
+ */
+export function sandboxNameFromId(id: string): string {
+  if (typeof id !== 'string' || id.trim() === '' || id === '.' || id === '..') {
+    throw invalidSandboxId(typeof id === 'string' ? id : String(id))
+  }
+  if (id.includes('/') || id.includes('\\') || id.includes('\0')) {
+    throw invalidSandboxId(id)
+  }
+  const root = path.resolve(ownedHostRepoRoot())
+  const dest = path.resolve(path.join(root, id))
+  const prefix = root.endsWith(path.sep) ? root : root + path.sep
+  if (dest === root || !dest.startsWith(prefix)) {
+    throw invalidSandboxId(id)
+  }
+  return id
+}
+
 export function ownedHostRepoDir(id: string): string {
-  return path.join(tmpdir(), 'tanstack-sbx', id)
+  return path.join(ownedHostRepoRoot(), sandboxNameFromId(id))
 }
 
 function normalizeGitUrl(url: string): string {

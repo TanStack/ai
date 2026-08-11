@@ -535,6 +535,77 @@ describe('sbxSandbox', () => {
       }),
     ).rejects.toThrow(/sbxSandbox needs a Git repository/)
   })
+
+  it('create without input.id mints a non-empty id and uses it as --name', async () => {
+    const repo = await makeGitRepo()
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'ls',
+        result: { stdout: '[]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    const handle = await provider.create({})
+    expect(handle.id).toEqual(expect.any(String))
+    expect(handle.id.length).toBeGreaterThan(0)
+    expect(handle.id).not.toMatch(/[/\\]/)
+    const create = calls.find((args) => args[0] === 'create')
+    expect(create?.[2]).toBe(handle.id)
+    expect(create).toEqual([
+      'create',
+      '--name',
+      handle.id,
+      '--clone',
+      '--quiet',
+      'shell',
+      repo,
+    ])
+  })
+
+  it('create rejects a path-traversal id and does not call sbx create', async () => {
+    const repo = await makeGitRepo()
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: () => true,
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(
+      provider.create({ id: `..${path.sep}..${path.sep}Windows` }),
+    ).rejects.toThrow(/sandbox id/)
+    expect(calls.some((args) => args[0] === 'create')).toBe(false)
+  })
+
+  it('destroy rejects a path-traversal id and does not rm outside tanstack-sbx', async () => {
+    const probeName = `sbx-a3-destroy-${Date.now()}`
+    const escaped = path.resolve(path.join(tmpdir(), 'tanstack-sbx', '..', probeName))
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ spawn })
+    await expect(
+      provider.destroy({ id: `..${path.sep}${probeName}` }),
+    ).rejects.toThrow(/sandbox id/)
+    expect(calls.some((args) => args[0] === 'rm')).toBe(false)
+    await expect(access(escaped)).rejects.toMatchObject({ code: 'ENOENT' })
+  })
 })
 
 describe('package exports', () => {

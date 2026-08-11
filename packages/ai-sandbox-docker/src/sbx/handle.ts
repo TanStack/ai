@@ -11,7 +11,7 @@ import { randomUUID } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import { createExecBackedGit } from '@tanstack/ai-sandbox'
 import { runSbx, runSbxStreaming, sbxExecArgs } from './cli'
-import { ownedHostRepoDir } from './materialize'
+import { ownedHostRepoDir, sandboxNameFromId } from './materialize'
 import type {
   ExecResult,
   ProcessOptions,
@@ -509,10 +509,11 @@ export class SbxHandle implements SandboxHandle {
   }
 
   async destroy(): Promise<void> {
-    await runSbx(['rm', '--force', this.name], this.runOptions())
+    const name = sandboxNameFromId(this.name)
+    await runSbx(['rm', '--force', name], this.runOptions())
     // Same owned dest as materialize / provider.destroy. force:true is a no-op
     // when create used a user workspaceDir.
-    await rm(ownedHostRepoDir(this.name), {
+    await rm(ownedHostRepoDir(name), {
       recursive: true,
       force: true,
     })

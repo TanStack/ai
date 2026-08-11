@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
+import { access, mkdir, mkdtemp, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { execFileSync } from 'node:child_process'
@@ -54,7 +54,9 @@ vi.mock('node:child_process', async (importOriginal) => {
   }
 })
 
-const { resolveHostRepo } = await import('../src/sbx/materialize')
+const { ownedHostRepoDir, resolveHostRepo, sandboxNameFromId } = await import(
+  '../src/sbx/materialize'
+)
 
 const scratch: Array<string> = []
 
@@ -79,6 +81,28 @@ async function makeGitRepo(): Promise<string> {
   await initGitRepo(dir)
   return dir
 }
+
+describe('sandboxNameFromId / ownedHostRepoDir', () => {
+  it('rejects a path-traversal id and does not leave tanstack-sbx', () => {
+    const root = path.resolve(path.join(tmpdir(), 'tanstack-sbx'))
+    expect(() => ownedHostRepoDir('..\\..\\Windows')).toThrow(/sandbox id/)
+    expect(() => ownedHostRepoDir('../../etc')).toThrow(/sandbox id/)
+    expect(() => ownedHostRepoDir('..')).toThrow(/sandbox id/)
+    expect(() => ownedHostRepoDir('.')).toThrow(/sandbox id/)
+    expect(() => ownedHostRepoDir('')).toThrow(/sandbox id/)
+    expect(() => ownedHostRepoDir('foo/bar')).toThrow(/sandbox id/)
+    expect(() => ownedHostRepoDir('foo\\bar')).toThrow(/sandbox id/)
+    expect(() => sandboxNameFromId('..\\..\\Windows')).toThrow(/sandbox id/)
+    expect(() => sandboxNameFromId('../../etc')).toThrow(/sandbox id/)
+    const dest = ownedHostRepoDir('aabbccddeeff0011')
+    const resolved = path.resolve(dest)
+    expect(resolved === root || resolved.startsWith(root + path.sep)).toBe(true)
+    expect(path.basename(dest)).toBe('aabbccddeeff0011')
+    expect(sandboxNameFromId('deadbeef-dead-beef-dead-beefdeadbeef')).toBe(
+      'deadbeef-dead-beef-dead-beefdeadbeef',
+    )
+  })
+})
 
 describe('resolveHostRepo', () => {
   it('uses workspaceDir when it contains .git', async () => {
@@ -139,6 +163,23 @@ describe('resolveHostRepo', () => {
       /tanstack-sbx\/aabbccddeeff0011$/,
     )
     expect(await stat(path.join(result.hostDir, '.git'))).toBeTruthy()
+  })
+
+  it('rejects a path-traversal id and does not clone outside tanstack-sbx', async () => {
+    const repo = await makeGitRepo()
+    const probeName = `sbx-a3-probe-${Date.now()}`
+    const id = `..${path.sep}${probeName}`
+    const escaped = path.resolve(path.join(tmpdir(), 'tanstack-sbx', id))
+    scratch.push(escaped)
+    await expect(
+      resolveHostRepo({
+        id,
+        workspace: defineWorkspace({
+          source: gitSource({ url: repo }),
+        }),
+      }),
+    ).rejects.toThrow(/sandbox id/)
+    await expect(access(escaped)).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   it('throws when there is no git source and no workspaceDir', async () => {

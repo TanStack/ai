@@ -2,7 +2,11 @@ import { rm } from 'node:fs/promises'
 import { parseSbxLs, runSbx, sbxExecArgs } from './cli'
 import type { SbxSpawn } from './cli'
 import { SbxHandle, SBX_CAPS } from './handle'
-import { ownedHostRepoDir, resolveHostRepo } from './materialize'
+import {
+  ownedHostRepoDir,
+  resolveHostRepo,
+  sandboxNameFromId,
+} from './materialize'
 import { planSbxPolicy, policyArgs } from './policy'
 import type {
   SandboxCapabilities,
@@ -114,10 +118,7 @@ class SbxProvider implements SandboxProvider {
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
-    const id = input.id
-    if (!id) {
-      throw new Error('sbxSandbox.create requires input.id')
-    }
+    const id = sandboxNameFromId(input.id ?? crypto.randomUUID())
     const plan = planSbxPolicy({
       policy: input.policy,
       adapterName: input.adapterName,
@@ -166,25 +167,27 @@ class SbxProvider implements SandboxProvider {
   }
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
+    const id = sandboxNameFromId(input.id)
     const entries = await listEntries(this.binary, this.config.spawn)
-    const hit = entries.find((entry) => entry.name === input.id)
+    const hit = entries.find((entry) => entry.name === id)
     if (!hit) return null
     const workspaceRoot =
-      hit.workspace ?? (await this.resolveWorkspaceRoot(input.id))
-    return this.makeHandle(input.id, workspaceRoot)
+      hit.workspace ?? (await this.resolveWorkspaceRoot(id))
+    return this.makeHandle(id, workspaceRoot)
   }
 
   async destroy(input: SandboxDestroyInput): Promise<void> {
+    const id = sandboxNameFromId(input.id)
     try {
-      await this.run(['rm', '--force', input.id])
+      await this.run(['rm', '--force', id])
     } catch (error) {
       this.config.logger?.warn('sbx rm failed', {
-        id: input.id,
+        id,
         error: error instanceof Error ? error.message : String(error),
       })
     }
     if (!this.config.workspaceDir) {
-      await rm(ownedHostRepoDir(input.id), {
+      await rm(ownedHostRepoDir(id), {
         recursive: true,
         force: true,
       })
