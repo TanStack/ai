@@ -9,6 +9,8 @@ export interface SbxRunResult {
 export interface SbxSpawnOptions {
   onClose: (result: SbxRunResult) => void
   onError: (error: Error) => void
+  onStdout?: (chunk: Buffer) => void
+  onStderr?: (chunk: Buffer) => void
   signal?: AbortSignal
 }
 
@@ -41,8 +43,14 @@ export function defaultSpawn(
   })
   const stdout: Array<Buffer> = []
   const stderr: Array<Buffer> = []
-  child.stdout?.on('data', (chunk: Buffer) => stdout.push(chunk))
-  child.stderr?.on('data', (chunk: Buffer) => stderr.push(chunk))
+  child.stdout?.on('data', (chunk: Buffer) => {
+    stdout.push(chunk)
+    opts.onStdout?.(chunk)
+  })
+  child.stderr?.on('data', (chunk: Buffer) => {
+    stderr.push(chunk)
+    opts.onStderr?.(chunk)
+  })
   const onAbort = (): void => {
     child.kill()
   }
@@ -86,23 +94,11 @@ export function mapSbxError(error: unknown, binary: string): Error {
   return new Error(`${binary} failed: ${String(error)}`)
 }
 
-export async function runSbx(
+function throwIfFailed(
+  result: SbxRunResult,
+  binary: string,
   args: Array<string>,
-  options: {
-    binary?: string
-    spawn?: SbxSpawn
-    signal?: AbortSignal
-  } = {},
-): Promise<SbxRunResult> {
-  const binary = options.binary ?? 'sbx'
-  const spawnFn = options.spawn ?? defaultSpawn
-  const result = await new Promise<SbxRunResult>((resolve, reject) => {
-    spawnFn(binary, args, {
-      ...(options.signal ? { signal: options.signal } : {}),
-      onClose: resolve,
-      onError: (error) => reject(mapSbxError(error, binary)),
-    })
-  })
+): SbxRunResult {
   if (result.exitCode === 0) return result
   const stderr = result.stderr.trim()
   const combined = `${stderr}\n${result.stdout}`.toLowerCase()
@@ -118,6 +114,75 @@ export async function runSbx(
       ? `${binary} ${args.join(' ')} exited ${result.exitCode}`
       : stderr,
   )
+}
+
+export async function runSbx(
+  args: Array<string>,
+  options: {
+    binary?: string
+    spawn?: SbxSpawn
+    signal?: AbortSignal
+    /** When true, return the raw result even on a non-zero exit. */
+    allowNonZero?: boolean
+  } = {},
+): Promise<SbxRunResult> {
+  const binary = options.binary ?? 'sbx'
+  const spawnFn = options.spawn ?? defaultSpawn
+  const result = await new Promise<SbxRunResult>((resolve, reject) => {
+    spawnFn(binary, args, {
+      ...(options.signal ? { signal: options.signal } : {}),
+      onClose: resolve,
+      onError: (error) => reject(mapSbxError(error, binary)),
+    })
+  })
+  if (options.allowNonZero) {
+    // A command inside the VM can exit 1. Login and auth errors still fail loud.
+    const stderr = result.stderr.trim()
+    const combined = `${stderr}\n${result.stdout}`.toLowerCase()
+    if (
+      combined.includes('not logged in') ||
+      combined.includes('unauthoriz') ||
+      combined.includes('login required')
+    ) {
+      throw new Error(`${LOGIN_HELP}\n${stderr}`)
+    }
+    return result
+  }
+  return throwIfFailed(result, binary, args)
+}
+
+export function runSbxStreaming(
+  args: Array<string>,
+  options: {
+    binary?: string
+    spawn?: SbxSpawn
+    signal?: AbortSignal
+    onStdout?: (chunk: Buffer) => void
+    onStderr?: (chunk: Buffer) => void
+  } = {},
+): {
+  wait: () => Promise<SbxRunResult>
+  kill: () => void
+} {
+  const binary = options.binary ?? 'sbx'
+  const spawnFn = options.spawn ?? defaultSpawn
+  let childKill: (() => void) | undefined
+  const wait = new Promise<SbxRunResult>((resolve, reject) => {
+    const handle = spawnFn(binary, args, {
+      ...(options.signal ? { signal: options.signal } : {}),
+      ...(options.onStdout ? { onStdout: options.onStdout } : {}),
+      ...(options.onStderr ? { onStderr: options.onStderr } : {}),
+      onClose: resolve,
+      onError: (error) => reject(mapSbxError(error, binary)),
+    })
+    childKill = handle.kill
+  })
+  return {
+    wait: () => wait,
+    kill: () => {
+      childKill?.()
+    },
+  }
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
