@@ -162,6 +162,36 @@ describe('runSbx', () => {
     expect(result.exitCode).toBe(1)
     expect(result.stdout).toBe('401 Unauthorized')
   })
+
+  it('exec stderr unauthorized is NOT a login error', async () => {
+    const error = await runSbx(
+      sbxExecArgs('name', 'curl https://example.invalid'),
+      {
+        spawn: fakeSpawn({
+          exitCode: 1,
+          stderr: '401 unauthorized',
+        }),
+      },
+    ).catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(Error)
+    if (!(error instanceof Error)) {
+      throw new Error('expected Error')
+    }
+    expect(error.message).toMatch(/unauthorized/)
+    expect(error.message).not.toContain('sbx login --password-stdin')
+  })
+
+  it('host ls stderr auth phrase IS a login error', async () => {
+    await expect(
+      runSbx(['ls'], {
+        binary: 'sbx',
+        spawn: fakeSpawn({
+          exitCode: 1,
+          stderr: 'Not authenticated to Docker',
+        }),
+      }),
+    ).rejects.toThrow(/sbx login --password-stdin/)
+  })
 })
 
 describe('parseSbxLs', () => {

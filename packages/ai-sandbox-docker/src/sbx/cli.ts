@@ -108,7 +108,9 @@ function throwIfFailed(
 ): SbxRunResult {
   if (result.exitCode === 0) return result
   const stderr = result.stderr.trim()
-  if (isLoginError(stderr.toLowerCase())) {
+  // Guest exec can print "unauthorized" on stderr. Only host CLI
+  // stderr on host commands is a login error. Never scan `exec`.
+  if (isHostCliCommand(args) && isLoginError(stderr.toLowerCase())) {
     throw new Error(`${LOGIN_HELP}\n${stderr}`)
   }
   throw new Error(
