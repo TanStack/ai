@@ -217,9 +217,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       // from strict mode is undone by the engine, not here.
       const transformed = this.transformStructuredOutput(parsed)
 
+      // Surface usage so non-stream structured paths (and
+      // fallbackStructuredOutputStream) can forward tokens to middleware.
+      const usage = buildChatCompletionsUsage(response.usage)
       return {
         data: transformed,
         rawText,
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata

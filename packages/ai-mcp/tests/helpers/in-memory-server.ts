@@ -213,3 +213,30 @@ export async function makeFullServer() {
   await server.connect(serverTransport)
   return { server, clientTransport }
 }
+
+/**
+ * A tool that declares an `outputSchema` and returns `structuredContent`.
+ *
+ * The SDK validates that payload against the schema on every call, which is the
+ * only path that reaches `ClientOptions.jsonSchemaValidator` — a tool without an
+ * output schema never builds a validator at all.
+ */
+export async function makeServerWithStructuredTool() {
+  const server = new McpServer({ name: 'structured', version: '1.0.0' })
+  server.registerTool(
+    'lookup_user',
+    {
+      description: 'Look a user up by id',
+      inputSchema: { id: z.string() },
+      outputSchema: { id: z.string(), name: z.string() },
+    },
+    async ({ id }) => ({
+      content: [{ type: 'text' as const, text: `user ${id}` }],
+      structuredContent: { id, name: 'Ada' },
+    }),
+  )
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}

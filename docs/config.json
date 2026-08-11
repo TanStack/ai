@@ -453,6 +453,17 @@
       ]
     },
     {
+      "label": "Embeddings",
+      "children": [
+        {
+          "label": "Embeddings",
+          "to": "embeddings",
+          "addedAt": "2026-07-10",
+          "updatedAt": "2026-07-22"
+        }
+      ]
+    },
+    {
       "label": "Reranking",
       "children": [
         {
@@ -690,13 +701,14 @@
         {
           "label": "Migration Guide",
           "to": "migration/migration",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "From Vercel AI SDK",
           "to": "migration/migration-from-vercel-ai",
           "addedAt": "2026-04-20",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "AG-UI Client Compliance",
@@ -771,7 +783,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "Anthropic",
@@ -783,12 +795,13 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-01"
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "Ollama",
           "to": "adapters/ollama",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "Grok (xAI)",
@@ -804,7 +817,15 @@
         },
         {
           "label": "Mistral",
-          "to": "adapters/mistral"
+          "to": "adapters/mistral",
+          "addedAt": "2026-06-30",
+          "updatedAt": "2026-07-22"
+        },
+        {
+          "label": "Cohere",
+          "to": "adapters/cohere",
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-08-10"
         },
         {
           "label": "ElevenLabs",
@@ -827,11 +848,6 @@
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
           "updatedAt": "2026-07-20"
-        },
-        {
-          "label": "Cohere",
-          "to": "adapters/cohere",
-          "addedAt": "2026-06-25"
         },
         {
           "label": "Claude Code",
@@ -864,7 +880,8 @@
         {
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
-          "addedAt": "2026-06-25"
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "BytePlus",

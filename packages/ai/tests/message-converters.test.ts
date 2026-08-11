@@ -1334,6 +1334,7 @@ describe('Message Converters', () => {
 
       expect(modelMessages).toEqual([
         {
+          id: 'msg-1',
           role: 'assistant',
           content: 'Checking inventory.',
           toolCalls: [
@@ -1346,6 +1347,7 @@ describe('Message Converters', () => {
           createdAt,
         },
         {
+          id: 'msg-1',
           role: 'tool',
           content: '{"ok":true}',
           toolCallId: 'tc-1',

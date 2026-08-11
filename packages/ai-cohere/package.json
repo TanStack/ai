@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-cohere",
-  "version": "0.0.0",
-  "description": "Cohere adapter for TanStack AI — document reranking.",
+  "version": "0.1.0",
+  "description": "Cohere adapter for TanStack AI — multimodal embeddings and document reranking.",
   "author": "Tanner Linsley",
   "license": "MIT",
   "homepage": "https://tanstack.com/ai",
@@ -24,6 +24,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./adapters/embedding": {
+      "types": "./dist/esm/adapters/embedding.d.ts",
+      "import": "./dist/esm/adapters/embedding.js"
     }
   },
   "files": [
@@ -46,11 +50,13 @@
     "typescript",
     "tanstack",
     "cohere",
+    "adapter",
+    "embeddings",
+    "multimodal",
     "rerank",
     "reranking",
     "search",
-    "retrieval",
-    "adapter"
+    "retrieval"
   ],
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"
@@ -59,5 +65,8 @@
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^8.1.4"
+  },
+  "dependencies": {
+    "@tanstack/ai-utils": "workspace:^"
   }
 }

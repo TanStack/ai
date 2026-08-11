@@ -86,6 +86,7 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   audio: 'audio_generation',
   tts: 'text_to_speech',
   transcription: 'transcription',
+  embedding: 'embeddings',
   rerank: 'rerank',
   summarize: 'summarize',
 }

@@ -262,6 +262,37 @@ const stream = chat({
 > All sampling parameters — including `temperature`, `top_p`, and `max_tokens` —
 > go inside `modelOptions` using Mistral's native (snake_case) names.
 
+## Embeddings
+
+Generate embedding vectors with mistral-embed or codestral-embed:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { mistralEmbedding } from "@tanstack/ai-mistral";
+
+const result = await embed({
+  adapter: mistralEmbedding("mistral-embed"),
+  input: ["a red guitar", "a blue drum kit"],
+});
+
+console.log(result.embeddings[0]?.vector); // 1024 dimensions
+```
+
+`mistral-embed` has fixed 1024-dimension output; `codestral-embed` (tuned for code) supports the top-level `dimensions` option:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { mistralEmbedding } from "@tanstack/ai-mistral";
+
+const result = await embed({
+  adapter: mistralEmbedding("codestral-embed"),
+  input: "function add(a, b) { return a + b }",
+  dimensions: 512,
+});
+```
+
+See the [Embeddings guide](../embeddings.md) for the full API.
+
 ## Environment Variables
 
 Set your API key in environment variables:

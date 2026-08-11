@@ -36,6 +36,15 @@ export type {
   ImagePromptLanguage,
 } from './image/image-provider-options'
 
+// Embedding adapter - for embedding vectors
+export {
+  GeminiEmbeddingAdapter,
+  createGeminiEmbedding,
+  geminiEmbedding,
+  type GeminiEmbeddingConfig,
+} from './adapters/embedding'
+export type { GeminiEmbeddingProviderOptions } from './embedding/embedding-provider-options'
+
 // TTS adapter (experimental)
 /**
  * @experimental Gemini TTS is an experimental feature and may change.
@@ -100,6 +109,7 @@ export { GEMINI_TTS_VOICES as GeminiTTSVoices } from './model-meta'
 export { GEMINI_AUDIO_MODELS as GeminiAudioModels } from './model-meta'
 export { GEMINI_VIDEO_MODELS as GeminiVideoModels } from './model-meta'
 export { GEMINI_INTERACTIONS_VIDEO_MODELS as GeminiInteractionsVideoModels } from './model-meta'
+export { GEMINI_EMBEDDING_MODELS } from './model-meta'
 export type { GeminiModels as GeminiTextModel } from './model-meta'
 export type { GeminiImageModels as GeminiImageModel } from './model-meta'
 export type { GeminiTTSVoice } from './model-meta'
@@ -112,6 +122,9 @@ export type {
   GeminiChatModelProviderOptionsByName,
   GeminiChatModelToolCapabilitiesByName,
   GeminiModelInputModalitiesByName,
+  GeminiEmbeddingModel,
+  GeminiEmbeddingModelProviderOptionsByName,
+  GeminiEmbeddingModelInputModalitiesByName,
 } from './model-meta'
 export type {
   GeminiStructuredOutputOptions,

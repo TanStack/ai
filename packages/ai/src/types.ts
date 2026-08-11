@@ -2618,6 +2618,119 @@ export interface TranscriptionResult {
   artifacts?: Array<PersistedArtifactRef>
 }
 
+// ============================================================================
+// Embedding Types
+// ============================================================================
+
+/**
+ * Input modalities an embedding model can accept. Unlike
+ * {@link MediaPromptModality}, `'text'` is listed explicitly because
+ * text-only embedding models are the common case and the modality list
+ * drives compile-time narrowing of {@link EmbeddingInputItem}.
+ */
+export type EmbeddingModality = 'text' | 'image'
+
+/**
+ * Per-model map from model name to the input modalities it accepts, used as
+ * an adapter type parameter (`TModelInputModalitiesByName`). Models absent
+ * from the map fall back to the unconstrained {@link EmbeddingInputItem}.
+ */
+export type EmbeddingModelInputModalitiesByName = Record<
+  string,
+  ReadonlyArray<EmbeddingModality>
+>
+
+/**
+ * A fused multi-part embedding item: all parts are embedded together into a
+ * single vector (e.g. a product photo plus its caption). Written as a nested
+ * array of content parts — the same `Array<ContentPart>` convention chat
+ * messages use — so a fused item is visually distinct from the top-level
+ * `input` list, where each element produces its own vector. Supported by
+ * multimodal embedding models such as Cohere embed-v4 and Amazon Titan
+ * Multimodal.
+ */
+export type EmbeddingContentParts = Array<TextPart | ImagePart>
+
+/**
+ * One embeddable item, producing exactly one vector. A bare string is
+ * shorthand for a text part; a nested {@link EmbeddingContentParts} array
+ * fuses its parts into a single vector. Note that a bare array at the top
+ * level of `input` is the *list of items* (one vector each) — fuse by
+ * nesting, e.g. `input: [[textPart, imagePart]]`.
+ */
+export type EmbeddingInputItem =
+  | string
+  | TextPart
+  | ImagePart
+  | EmbeddingContentParts
+
+/** Maps an embedding modality to the item types it admits. @internal */
+interface EmbeddingItemByModality {
+  text: TextPart
+  image: ImagePart | EmbeddingContentParts
+}
+
+/**
+ * Embedding item type narrowed to the modalities a specific model supports.
+ * `EmbeddingInputItemFor<'text'>` (a text-only model) is `string | TextPart`;
+ * `'text' | 'image'` additionally admits image parts and fused
+ * {@link EmbeddingContentParts} arrays. Used by the activity option types
+ * together with the adapter's per-model modality map so unsupported inputs
+ * fail at compile time.
+ */
+export type EmbeddingInputItemFor<
+  TModalities extends EmbeddingModality = EmbeddingModality,
+> = string | TextPart | EmbeddingItemByModality[TModalities]
+
+/**
+ * Options for embedding generation, as received by adapters. The `embed()`
+ * entry point normalizes a single input item to an array before calling the
+ * adapter, so `input` is always an array here.
+ */
+export interface EmbeddingOptions<TProviderOptions extends object = object> {
+  /** The model to use for embedding generation */
+  model: string
+  /** The items to embed — one vector per item */
+  input: Array<EmbeddingInputItem>
+  /**
+   * Requested output dimensionality. Adapters for models with fixed
+   * dimensions throw a clear runtime error when this is set.
+   */
+  dimensions?: number
+  /** Model-specific options for embedding generation */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the embed() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch
+   * blocks.
+   */
+  logger: InternalLogger
+}
+
+/**
+ * A single embedding vector.
+ */
+export interface Embedding {
+  /** The embedding vector */
+  vector: Array<number>
+  /** Position of the source item in the (normalized) input array */
+  index: number
+}
+
+/**
+ * Result of embedding generation.
+ */
+export interface EmbeddingResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** One embedding per input item, in input order */
+  embeddings: Array<Embedding>
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
+}
+
 /**
  * Default metadata type for adapters that don't define custom metadata.
  * Uses unknown for all modalities.
