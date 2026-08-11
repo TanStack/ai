@@ -127,32 +127,31 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return null
 }
 
+function numericPort(value: unknown): number | undefined {
+  if (typeof value === 'number') return value
+  if (typeof value === 'string' && /^\d+$/.test(value)) return Number(value)
+  return undefined
+}
+
 function hostPortFromPortsJson(stdout: string, port: number): number | null {
   const parsed: unknown = JSON.parse(stdout)
   const rec = asRecord(parsed)
   if (rec) {
-    const direct = rec[String(port)]
-    if (typeof direct === 'number') return direct
-    if (typeof direct === 'string' && /^\d+$/.test(direct)) {
-      return Number(direct)
-    }
+    const host = numericPort(rec[String(port)])
+    if (host !== undefined) return host
   }
   if (Array.isArray(parsed)) {
     for (const item of parsed) {
       const entry = asRecord(item)
       if (!entry) continue
       const guest =
-        typeof entry.port === 'number'
-          ? entry.port
-          : typeof entry.Port === 'number'
-            ? entry.Port
-            : undefined
+        numericPort(entry.sandbox_port) ??
+        numericPort(entry.port) ??
+        numericPort(entry.Port)
       const host =
-        typeof entry.hostPort === 'number'
-          ? entry.hostPort
-          : typeof entry.HostPort === 'number'
-            ? entry.HostPort
-            : undefined
+        numericPort(entry.host_port) ??
+        numericPort(entry.hostPort) ??
+        numericPort(entry.HostPort)
       if (guest === port && host !== undefined) return host
     }
   }
