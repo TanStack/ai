@@ -91,6 +91,9 @@ This is the broad backstop: even if a specific network command isn't in your
 `commands` lists, `network: 'ask'` still forces an approval for anything that
 reaches out.
 
+Some providers also enforce network at create time when `network: 'deny'`. See
+[Providers](./providers) for that mapping.
+
 ## Network policy on Docker Sandboxes
 
 Most providers leave `capabilities.network` to the harness. `sbxSandbox()` also enforces it on the host HTTP/HTTPS proxy (`networkPolicy: true`).
@@ -207,6 +210,15 @@ failing the run, the unsupported rule is skipped (with a warning) instead of
 throwing. Because the mapping is the adapter's job, you write the policy once
 and it behaves consistently no matter which provider or harness runs the
 sandbox.
+
+A deny-only list with `default: 'allow'` stays permissive on Grok Build and
+Codex. Those harnesses keep auto-approve. They do not enforce
+`commands.deny`. Isolation is the outer sandbox. Use Claude Code when you
+need command-level deny.
+
+Some providers run as a non-root user, so package installs in `setup` need
+`sudo`. Do not deny `sudo *` on those providers. See [Providers](./providers)
+for the list, and [Workspace](./workspace) for how to write setup commands.
 
 ## Wiring it on
 

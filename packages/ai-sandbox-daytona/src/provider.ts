@@ -10,6 +10,7 @@ import type {
   SandboxDestroyInput,
   SandboxHandle,
   SandboxProvider,
+  SandboxRestoreInput,
   SandboxResumeInput,
 } from '@tanstack/ai-sandbox'
 
@@ -32,6 +33,15 @@ export interface DaytonaSandboxConfig {
    * here. Defaults to `/home/daytona/workspace`.
    */
   workdir?: string
+  /**
+   * Minutes of idle time before Daytona stops the sandbox. `0` turns auto-stop
+   * off. Daytona defaults to 15 minutes when this is omitted.
+   */
+  autoStopInterval?: number
+  /**
+   * When true, Daytona deletes the sandbox as soon as it stops.
+   */
+  ephemeral?: boolean
 }
 
 const DEFAULT_WORKDIR = '/home/daytona/workspace'
@@ -61,26 +71,79 @@ class DaytonaProvider implements SandboxProvider {
     return this.config.workdir ?? DEFAULT_WORKDIR
   }
 
-  async create(input: SandboxCreateInput): Promise<SandboxHandle> {
-    const sandbox = await this.daytona.create({
-      language: this.config.language ?? 'typescript',
-      ...(this.config.snapshot !== undefined
-        ? { snapshot: this.config.snapshot }
-        : {}),
-      ...(input.env ? { envVars: input.env } : {}),
-    })
-    // A fresh Daytona sandbox has no workdir yet. Create it with the sandbox's
-    // DEFAULT cwd (the home dir) — `executeCommand` with a not-yet-existing
-    // `cwd` fails inside the toolbox ("fork/exec …: no such file or directory"),
-    // so we must NOT route this through the handle (which runs every command in
-    // `workdir`). After this, every cwd-bound command works.
+  /**
+   * A fresh Daytona sandbox has no workdir yet. Create it with the sandbox's
+   * DEFAULT cwd (the home dir) — `executeCommand` with a not-yet-existing
+   * `cwd` fails inside the toolbox ("fork/exec …: no such file or directory"),
+   * so we must NOT route this through the handle (which runs every command in
+   * `workdir`). After this, every cwd-bound command works.
+   */
+  private async wrapCreated(
+    sandbox: Awaited<ReturnType<Daytona['create']>>,
+  ): Promise<SandboxHandle> {
     await sandbox.process.executeCommand(`mkdir -p ${shQuote(this.workdir)}`)
     return new DaytonaHandle({ sandbox, workdir: this.workdir })
+  }
+
+  private createParams(input: {
+    snapshot?: string
+    id?: string
+    policy?: SandboxCreateInput['policy']
+  }): CreateSandboxFromSnapshotParams {
+    return {
+      language: this.config.language ?? 'typescript',
+      ...(input.snapshot !== undefined ? { snapshot: input.snapshot } : {}),
+      ...(input.id !== undefined ? { name: input.id } : {}),
+      ...(this.config.autoStopInterval !== undefined
+        ? { autoStopInterval: this.config.autoStopInterval }
+        : {}),
+      ...(this.config.ephemeral !== undefined
+        ? { ephemeral: this.config.ephemeral }
+        : {}),
+      ...(input.policy?.capabilities?.network === 'deny'
+        ? { networkBlockAll: true }
+        : {}),
+    }
+  }
+
+  private async wrapReady(
+    sandbox: Awaited<ReturnType<Daytona['create']>>,
+    env?: Record<string, string>,
+  ): Promise<SandboxHandle> {
+    const handle = await this.wrapCreated(sandbox)
+    if (env !== undefined) await handle.env.set(env)
+    return handle
+  }
+
+  async create(input: SandboxCreateInput): Promise<SandboxHandle> {
+    const sandbox = await this.daytona.create(
+      this.createParams({
+        snapshot: this.config.snapshot,
+        id: input.id,
+        policy: input.policy,
+      }),
+    )
+    return this.wrapReady(sandbox, input.env)
+  }
+
+  async restoreSnapshot(input: SandboxRestoreInput): Promise<SandboxHandle> {
+    const sandbox = await this.daytona.create(
+      this.createParams({
+        snapshot: input.snapshotId,
+        policy: input.policy,
+      }),
+    )
+    return this.wrapReady(sandbox, input.env)
   }
 
   async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
     try {
       const sandbox = await this.daytona.get(input.id)
+      // Idle sandboxes auto-stop. get() still returns them, but exec fails
+      // until they are started again.
+      if (sandbox.state === 'stopped' || sandbox.state === 'archived') {
+        await sandbox.start()
+      }
       return new DaytonaHandle({ sandbox, workdir: this.workdir })
     } catch {
       // Gone / not found.

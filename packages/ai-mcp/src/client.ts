@@ -1,4 +1,5 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
 import {
   DuplicateToolNameError,
   MCPConnectionError,
@@ -85,6 +86,15 @@ export interface MCPClient<
   getInfo: () => {
     transport: TransportConfig | undefined
     prefix: string | undefined
+    /**
+     * The options this client was built with, so a caller that reconstructs it
+     * from this descriptor keeps them. Without it a rebuilt client silently
+     * reverts to the SDK defaults — including the AJV validator that edge
+     * runtimes cannot compile.
+     *
+     * Optional so an existing hand-rolled `MCPClient` keeps compiling.
+     */
+    clientOptions?: ClientOptions
   }
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -100,23 +110,37 @@ class MCPClientImpl<
   // The ORIGINAL serializable transport config (undefined for clients built
   // from a ready-made Transport instance, which is single-use / not reconnectable).
   readonly #transport: TransportConfig | undefined
+  // Retained for the same reason as #transport: the MCP Apps call handler
+  // rebuilds a client per call from getInfo(), and a rebuilt client that lost
+  // `jsonSchemaValidator` falls straight back to AJV.
+  readonly #clientOptions: ClientOptions | undefined
 
   constructor(
     prefix?: string,
     name = 'tanstack-ai-mcp',
     version = '0.0.1',
     transport?: TransportConfig,
+    clientOptions?: ClientOptions,
   ) {
     this.prefix = prefix
     this.#transport = transport
-    this.#client = new Client({ name, version })
+    this.#clientOptions = clientOptions
+    // `clientOptions` is spread rather than passed straight through so an
+    // omitted option keeps the SDK's default. See MCPClientOptions.clientOptions
+    // for why edge runtimes need `jsonSchemaValidator` in particular.
+    this.#client = new Client({ name, version }, clientOptions)
   }
 
   getInfo(): {
     transport: TransportConfig | undefined
     prefix: string | undefined
+    clientOptions?: ClientOptions
   } {
-    return { transport: this.#transport, prefix: this.prefix }
+    return {
+      transport: this.#transport,
+      prefix: this.prefix,
+      ...(this.#clientOptions ? { clientOptions: this.#clientOptions } : {}),
+    }
   }
 
   async connect(transport: Transport): Promise<void> {
@@ -260,6 +284,7 @@ export async function createMCPClient<
     // Only a serializable config is reconnectable; a ready-made Transport
     // instance is single-use, so it is not retained as a descriptor.
     isTransportInstance(options.transport) ? undefined : options.transport,
+    options.clientOptions,
   )
   await impl.connect(transport)
   return impl
@@ -268,8 +293,18 @@ export async function createMCPClient<
 /** Test-only: connect directly from a transport instance (skips resolveTransport). */
 export async function createMCPClientFromTransport<
   TServer extends ServerDescriptor = AutomaticDescriptor,
->(transport: Transport, prefix?: string): Promise<MCPClient<TServer>> {
-  const impl = new MCPClientImpl<TServer>(prefix)
+>(
+  transport: Transport,
+  prefix?: string,
+  clientOptions?: ClientOptions,
+): Promise<MCPClient<TServer>> {
+  const impl = new MCPClientImpl<TServer>(
+    prefix,
+    undefined,
+    undefined,
+    undefined,
+    clientOptions,
+  )
   await impl.connect(transport)
   return impl
 }

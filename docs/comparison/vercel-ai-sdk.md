@@ -30,7 +30,7 @@ Versions referenced below: TanStack AI as of this writing; Vercel AI SDK `ai@6.x
 |---------|------------|---------------|
 | License | MIT | Apache 2.0 |
 | Hosting | Works anywhere | Works anywhere |
-| Providers | 9 official + community; OpenRouter routes to 100s of models and the `openaiCompatible` adapter connects to any OpenAI-compatible endpoint | ~38 first-party provider packages (plus community providers); 100+ models via AI Gateway |
+| Providers | 9 official + community; OpenRouter and the first-party Vercel AI Gateway adapter route to 100s of models, and `openaiCompatible` connects to any OpenAI-compatible endpoint | ~38 first-party provider packages (plus community providers); 100+ models via AI Gateway |
 | Framework Hooks | React, Solid, Svelte, Vue, Preact (+ React Native) | React, Vue, Svelte, Angular (Solid is community-maintained) |
 | Generation UI Hooks | One hook per activity: chat, structured output, image, audio, speech, transcription, summarize, video, realtime | `useChat`, `useCompletion`, `useObject` |
 | Wire Protocol | Native AG-UI events end to end | Proprietary UI Message Stream; AG-UI via external translation layer |

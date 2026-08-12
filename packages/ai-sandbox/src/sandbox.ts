@@ -125,6 +125,24 @@ const DESTROY_TIMEOUT_MS = 60 * 1000
 const fallbackStore = new InMemorySandboxInstanceStore()
 const fallbackLocks = new InMemoryLockStore()
 
+/**
+ * Put workspace secrets onto a live handle. Resume and snapshot restore skip
+ * bootstrap, so this is the only path that re-injects them after reconnect.
+ * Create injects secrets via `provider.create({ env })`, but resume/restore
+ * return a handle whose process env is empty unless we set it here. sbx in
+ * particular has no Docker Env on resume, so this is the only way secrets
+ * come back for that provider.
+ */
+async function applyWorkspaceSecrets(
+  handle: SandboxHandle,
+  workspace: WorkspaceDefinition | undefined,
+): Promise<void> {
+  if (workspace?.secrets === undefined) return
+  const resolved = resolveAllSecrets(workspace.secrets)
+  if (Object.keys(resolved).length === 0) return
+  await handle.env.set(resolved)
+}
+
 export function defineSandbox(config: SandboxConfig): SandboxDefinition {
   const keyInputFor = (ctx: SandboxEnsureContext): SandboxKeyInput => ({
     threadId:
@@ -136,19 +154,6 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     workspace: config.workspace,
     tenant: ctx.tenant,
   })
-
-  /**
-   * Re-apply workspace secrets onto a live handle. Create injects them via
-   * `provider.create({ env })`, but resume (and restore) return a handle
-   * whose process env is empty unless we set it here. sbx in particular
-   * has no Docker Env on resume, so this is the only way secrets come back.
-   */
-  const applyWorkspaceSecrets = async (
-    handle: SandboxHandle,
-  ): Promise<void> => {
-    if (config.workspace?.secrets === undefined) return
-    await handle.env.set(resolveAllSecrets(config.workspace.secrets))
-  }
 
   const ensure = async (ctx: SandboxEnsureContext): Promise<SandboxHandle> => {
     const store = ctx.store ?? fallbackStore
@@ -175,7 +180,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
             signal: ctx.signal,
           })
           if (resumed) {
-            await applyWorkspaceSecrets(resumed)
+            await applyWorkspaceSecrets(resumed, config.workspace)
             await store.upsert({
               ...existing,
               latestRunId: ctx.runId,
@@ -199,7 +204,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
                   : undefined,
               signal: ctx.signal,
             })
-            await applyWorkspaceSecrets(restored)
+            await applyWorkspaceSecrets(restored, config.workspace)
             await store.upsert({
               ...existing,
               providerSandboxId: restored.id,

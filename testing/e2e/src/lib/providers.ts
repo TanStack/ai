@@ -12,6 +12,7 @@ import {
   createOpenRouterResponsesText,
   createOpenRouterText,
 } from '@tanstack/ai-openrouter'
+import { createVercelGatewayText } from '@tanstack/ai-vercel-gateway'
 import { createMistralText } from '@tanstack/ai-mistral'
 import { createBytePlusText } from '@tanstack/ai-byteplus'
 import { HTTPClient } from '@openrouter/sdk'
@@ -33,6 +34,8 @@ const defaultModels: Record<Provider, string> = {
   'bedrock-responses': 'openai.gpt-oss-120b-1:0',
   openrouter: 'openai/gpt-4o',
   'openrouter-responses': 'openai/gpt-4o',
+  'vercel-gateway': 'openai/gpt-5.5',
+  'vercel-gateway-responses': 'openai/gpt-5.5',
   'openai-compatible': 'gpt-4o',
   mistral: 'mistral-large-latest',
   // Structured-output features override this in `features.ts`:
@@ -203,6 +206,22 @@ export function createTextAdapter(
         ),
       })
     },
+    'vercel-gateway': () =>
+      createChatOptions({
+        adapter: createVercelGatewayText(model as 'openai/gpt-5.5', DUMMY_KEY, {
+          api: 'chat',
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    'vercel-gateway-responses': () =>
+      createChatOptions({
+        adapter: createVercelGatewayText(model as 'openai/gpt-5.5', DUMMY_KEY, {
+          api: 'responses',
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
     'openai-compatible': () =>
       createChatOptions({
         adapter: openaiCompatibleText(model, {

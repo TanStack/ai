@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-preact",
-  "version": "0.12.1",
+  "version": "0.12.2",
   "description": "Preact hooks for TanStack AI streaming chat and typed messages.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -56,7 +56,7 @@
     "tool-calling"
   ],
   "dependencies": {
-    "@tanstack/ai-client": "workspace:*"
+    "@tanstack/ai-client": "workspace:^"
   },
   "devDependencies": {
     "@mcp-ui/client": "^7.1.1",

@@ -1798,6 +1798,51 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       )
     })
 
+    it('forwards response.usage on structuredOutput', async () => {
+      setupMockResponsesClient([], {
+        output: [
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: '{"name":"Alice","age":30}',
+              },
+            ],
+          },
+        ],
+        usage: {
+          input_tokens: 9,
+          output_tokens: 4,
+          total_tokens: 13,
+        },
+      })
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const result = await adapter.structuredOutput({
+        chatOptions: {
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Give me a person object' }],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            age: { type: 'number' },
+          },
+          required: ['name', 'age'],
+        },
+      })
+
+      expect(result.usage).toEqual({
+        promptTokens: 9,
+        completionTokens: 4,
+        totalTokens: 13,
+      })
+    })
+
     it('passes provider nulls through unchanged (engine un-widens, not the adapter)', async () => {
       const nonStreamResponse = {
         output: [

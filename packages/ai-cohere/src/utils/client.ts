@@ -1,45 +1,41 @@
+import { getApiKeyFromEnv } from '@tanstack/ai-utils'
+
 /**
- * Cohere client configuration shared by the rerank adapter.
+ * Configuration for the Cohere HTTP client used by the adapters in this
+ * package. Requests are made with plain `fetch` — no Cohere SDK dependency.
  */
 export interface CohereClientConfig {
-  /** Cohere API key. Required by the adapter factories. */
+  /** Cohere API key. */
   apiKey: string
-  /** Override the API base URL. Defaults to `https://api.cohere.com`. */
+
+  /** Optional base URL override (defaults to `https://api.cohere.com`). */
   baseUrl?: string
-  /** Extra headers merged into every request. */
+
+  /** Optional default headers to include with every request. */
   headers?: Record<string, string>
+
+  /**
+   * Cohere's embed API does not fetch remote image URLs itself. When this is
+   * enabled the adapter downloads http(s) image URLs and inlines them as
+   * base64 `data:` URIs before sending the request. Disabled by default.
+   */
+  allowUrlFetch?: boolean
+
+  /** Request timeout in milliseconds for API and image URL fetches (default: 30_000). */
+  timeout?: number
 }
 
 export const COHERE_DEFAULT_BASE_URL = 'https://api.cohere.com'
 
 /**
- * Reads the Cohere API key from the environment.
+ * Gets Cohere API key from environment variables.
  *
- * Looks for `COHERE_API_KEY` in `process.env` (Node) or `window.env`
- * (browser with injected env).
+ * Looks for `COHERE_API_KEY` in:
+ * - `process.env` (Node.js)
+ * - `window.env` (Browser with injected env)
  *
- * @throws Error if `COHERE_API_KEY` is not found.
+ * @throws Error if COHERE_API_KEY is not found
  */
 export function getCohereApiKeyFromEnv(): string {
-  const windowEnv =
-    typeof globalThis !== 'undefined' &&
-    (globalThis as Record<string, unknown>).window
-      ? ((
-          (globalThis as Record<string, unknown>).window as Record<
-            string,
-            unknown
-          >
-        ).env as Record<string, string> | undefined)
-      : undefined
-  const processEnv = typeof process !== 'undefined' ? process.env : undefined
-  // Prefer an injected `window.env` (browser builds) but fall back to
-  // `process.env` — bundlers and Electron can populate it even when `window`
-  // exists.
-  const key = windowEnv?.['COHERE_API_KEY'] ?? processEnv?.['COHERE_API_KEY']
-  if (!key) {
-    throw new Error(
-      'COHERE_API_KEY not found in environment. Pass an API key explicitly via createCohereRerank(model, apiKey).',
-    )
-  }
-  return key
+  return getApiKeyFromEnv('COHERE_API_KEY')
 }

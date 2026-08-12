@@ -121,6 +121,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  embedding: {
+    tools: [],
+    modelOptions: {},
+  },
   'image-gen': {
     tools: [],
     modelOptions: {},

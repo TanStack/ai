@@ -18,6 +18,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -32,6 +33,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -51,6 +53,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -66,6 +69,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openrouter-responses',
+    'vercel-gateway',
+    'vercel-gateway-responses',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -79,6 +84,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -93,6 +99,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -107,6 +114,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -121,6 +129,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -136,6 +145,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'byteplus',
   ]),
@@ -166,6 +176,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'byteplus',
   ]),
@@ -179,6 +190,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -229,6 +241,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'mistral',
   ]),
   'summarize-stream': new Set([
@@ -241,10 +254,29 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'mistral',
   ]),
+  // Embedding (Promise-based `embed()` activity, no streaming). aimock 1.34
+  // natively mocks OpenAI's /v1/embeddings (JSON fixture in
+  // fixtures/embedding/). The other providers run through custom mounts in
+  // global-setup.ts: Gemini because @google/genai posts to
+  // `:batchEmbedContents` (aimock only handles `:embedContent`); Ollama
+  // because aimock's /api/embed handler returns the legacy singular
+  // `embedding` field, not the `embeddings: number[][]` shape the ollama SDK
+  // `embed()` expects; Mistral because its SDK Zod-validates the response and
+  // requires an `id` field aimock's OpenAI-format builder omits.
+  embedding: new Set([
+    'openai',
+    'gemini',
+    'ollama',
+    'mistral',
+    'vercel-gateway',
+  ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
-  'image-gen': new Set(['openai', 'grok', 'byteplus']),
+  // vercel-gateway uses POST /v1/images/generations, the same path aimock
+  // already mocks for openai. Drop this entry if the first run has no fixture.
+  'image-gen': new Set(['openai', 'grok', 'byteplus', 'vercel-gateway']),
   // image-to-image (image parts in the generateImage prompt). aimock 1.29
   // mocks OpenAI's multipart `/v1/images/edits` (matches on the `prompt` form
   // field, ignores the binary image/mask fields), so the OpenAI route runs

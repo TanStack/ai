@@ -337,6 +337,47 @@ describe('workspace skill projection', () => {
     )
     await sbx.destroy()
   })
+
+  // Nested packs (skills/foo/SKILL.md) must be copied by the skill folder
+  // name, not the clone basename. Issue #1081 item 3.
+  it('copies each nested SKILL.md folder by its skill name', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write(
+      '/workspace/.tanstack-skills/skills-pack/skills/foo/SKILL.md',
+      'foo-skill',
+    )
+    await sbx.fs.write(
+      '/workspace/.tanstack-skills/skills-pack/skills/bar/SKILL.md',
+      'bar-skill',
+    )
+
+    const projection: WorkspaceProjection = {
+      skills: [
+        gitSkill({
+          repo: 'owner/skills-pack',
+          into: '/workspace/.tanstack-skills/skills-pack',
+        }),
+      ],
+      plugins: [],
+      resolveSecret: () => '',
+      markerPath: '/workspace/.tanstack-projected-nested',
+      root: '/workspace',
+    }
+
+    await projectAcpWorkspace(sbx, projection, {
+      skillsDir: '.pi/skills',
+      harnessName: 'pi',
+    })
+
+    expect(await sbx.fs.read('/workspace/.pi/skills/foo/SKILL.md')).toBe(
+      'foo-skill',
+    )
+    expect(await sbx.fs.read('/workspace/.pi/skills/bar/SKILL.md')).toBe(
+      'bar-skill',
+    )
+    expect(await sbx.fs.exists('/workspace/.pi/skills/skills-pack')).toBe(false)
+    await sbx.destroy()
+  })
 })
 
 describe('workspaceMcpServers', () => {

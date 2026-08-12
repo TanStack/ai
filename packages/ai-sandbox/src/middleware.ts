@@ -48,6 +48,7 @@ import {
 } from './tool-history'
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
+import { resolveHarnessCwd } from './harness-cwd'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { LockStore } from '@tanstack/ai/locks'
 import type {
@@ -571,7 +572,8 @@ export function withSandbox<TOffset extends string = string>(
 
       const workspace = definition.workspace
       if (workspace !== undefined) {
-        const root = workspace.root ?? DEFAULT_WORKSPACE_ROOT
+        const virtualRoot = workspace.root ?? DEFAULT_WORKSPACE_ROOT
+        const root = resolveHarnessCwd(handle, virtualRoot)
         const workspaceHash = computeWorkspaceHash(workspace)
         const secrets = workspace.secrets
         provideWorkspaceProjection(ctx, {
