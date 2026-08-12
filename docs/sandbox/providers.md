@@ -182,6 +182,7 @@ import {
   defineSandboxPolicy,
   defineWorkspace,
   gitSkill,
+  githubRepo,
   withSandbox,
 } from '@tanstack/ai-sandbox'
 import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
@@ -193,6 +194,7 @@ const sandbox = defineSandbox({
     snapshot: 'daytona-medium',
   }),
   workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
     skills: [gitSkill({ repo: 'owner/skills-pack' })],
   }),
   policy: defineSandboxPolicy({
