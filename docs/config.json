@@ -66,7 +66,7 @@
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-01"
+          "updatedAt": "2026-08-12"
         }
       ]
     },
@@ -459,7 +459,7 @@
           "label": "Embeddings",
           "to": "embeddings",
           "addedAt": "2026-07-10",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-08-12"
         }
       ]
     },
@@ -844,10 +844,15 @@
           "updatedAt": "2026-06-25"
         },
         {
+          "label": "Vercel AI Gateway",
+          "to": "adapters/vercel-gateway",
+          "addedAt": "2026-08-12"
+        },
+        {
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-07-20"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Claude Code",
