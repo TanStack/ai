@@ -1,3 +1,5 @@
+// This test uses the local adapter and does not call an LLM provider, so aimock
+// is intentionally not configured.
 import { test, expect } from './fixtures'
 
 test.describe('chat() unknown top-level options (#1073)', () => {
