@@ -1,9 +1,6 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
-import {
-  getVercelGatewayApiKeyFromEnv,
-  withVercelGatewayDefaults,
-} from '../utils/client'
+import { withVercelGatewayDefaults } from '../utils/client'
 import { mapGatewayModelOptions } from '../utils/map-gateway-options'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type {
@@ -68,23 +65,4 @@ export class VercelGatewayTextAdapter<
     void _gateway
     return rest
   }
-}
-
-export function createVercelGatewayText<
-  TModel extends (typeof VERCEL_GATEWAY_CHAT_MODELS)[number],
->(
-  model: TModel,
-  apiKey: string,
-  config?: Omit<VercelGatewayTextConfig, 'apiKey'>,
-): VercelGatewayTextAdapter<TModel> {
-  return new VercelGatewayTextAdapter({ apiKey, ...config }, model)
-}
-
-export function vercelGatewayText<
-  TModel extends (typeof VERCEL_GATEWAY_CHAT_MODELS)[number],
->(
-  model: TModel,
-  config?: Omit<VercelGatewayTextConfig, 'apiKey'>,
-): VercelGatewayTextAdapter<TModel> {
-  return createVercelGatewayText(model, getVercelGatewayApiKeyFromEnv(), config)
 }

@@ -20,6 +20,12 @@ export interface VercelGatewayCatalogModel {
   created?: number
   owned_by?: string
   type?: string
+  tags?: Array<string>
+  modalities?: {
+    input?: Array<string>
+    output?: Array<string>
+  }
+  supported_parameters?: Array<string>
   [key: string]: unknown
 }
 

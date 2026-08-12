@@ -12,7 +12,7 @@ import { EventType } from '@tanstack/ai'
 import {
   createVercelGatewayText as _realCreateVercelGatewayText,
   vercelGatewayText as _realVercelGatewayText,
-} from '../src/adapters/text'
+} from '../src/adapters/factory'
 import type { StreamChunk } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
@@ -70,13 +70,14 @@ function applyPendingMock<T extends object>(adapter: T): T {
   return adapter
 }
 
-const createVercelGatewayText: typeof _realCreateVercelGatewayText = (
-  model,
-  apiKey,
-  config,
-) => applyPendingMock(_realCreateVercelGatewayText(model, apiKey, config))
-const vercelGatewayText: typeof _realVercelGatewayText = (model, config) =>
-  applyPendingMock(_realVercelGatewayText(model, config))
+const createVercelGatewayText = (
+  model: Parameters<typeof _realCreateVercelGatewayText>[0],
+  apiKey: string,
+) =>
+  applyPendingMock(_realCreateVercelGatewayText(model, apiKey, { api: 'chat' }))
+const vercelGatewayText = (
+  model: Parameters<typeof _realVercelGatewayText>[0],
+) => applyPendingMock(_realVercelGatewayText(model, { api: 'chat' }))
 
 describe('Vercel Gateway text adapter', () => {
   beforeEach(() => {

@@ -11,6 +11,7 @@ import type {
   VERCEL_GATEWAY_CHAT_MODELS,
   VercelGatewayChatModelToolCapabilitiesByName,
   ResolveInputModalities,
+  ResolveProviderOptions,
 } from '../model-meta'
 import type { VercelGatewayMessageMetadataByModality } from '../message-types'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
@@ -34,8 +35,7 @@ type ResolveToolCapabilities<TModel extends string> =
  */
 export class VercelGatewayResponsesTextAdapter<
   TModel extends (typeof VERCEL_GATEWAY_CHAT_MODELS)[number],
-  TProviderOptions extends Record<string, any> =
-    VercelGatewayResponsesTextProviderOptions,
+  TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
   TToolCapabilities extends ReadonlyArray<string> =

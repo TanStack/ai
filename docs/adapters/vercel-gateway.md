@@ -44,7 +44,7 @@ const adapter = createVercelGatewayText(
 
 ## Chat
 
-The default adapter uses Chat Completions at `https://ai-gateway.vercel.sh/v1`. Model ids use the `creator/model` form.
+The default adapter uses the OpenAI Responses API at `https://ai-gateway.vercel.sh/v1`. Model ids use the `creator/model` form.
 
 **Server.** An endpoint that streams the reply over SSE:
 
@@ -106,19 +106,21 @@ export function Chat() {
 }
 ```
 
-## Responses adapter
+## Chat Completions
 
-Use `vercelGatewayResponsesText` when the model must talk to the OpenAI Responses API through the Gateway. Chat Completions stays the default.
+Pass `{ api: "chat" }` when the model must talk to Chat Completions. The default is Responses.
 
 ```typescript
 import { chat } from "@tanstack/ai"
-import { vercelGatewayResponsesText } from "@tanstack/ai-vercel-gateway"
+import { vercelGatewayText } from "@tanstack/ai-vercel-gateway"
 
 const stream = chat({
-  adapter: vercelGatewayResponsesText("openai/gpt-5.5"),
+  adapter: vercelGatewayText("openai/gpt-5.5", { api: "chat" }),
   messages: [{ role: "user", content: "Hello" }],
 })
 ```
+
+`api: "responses"` is the same as the default. `api: "chat-completions"` is the same as `api: "chat"`.
 
 ## Gateway routing
 
@@ -145,6 +147,8 @@ const stream = chat({
 ```
 
 `order` is the provider try list. `only` limits which providers can run. `sort` picks cost, time to first token, or tokens per second. `models` is the fallback model list.
+
+`order` and `only` accept catalog provider ids such as `"anthropic"`. `models` accepts catalog chat model ids. Each chat model also has its own `modelOptions` keys and input types from the catalog. A text-only model does not accept image parts. A model without `temperature` in the catalog does not accept `temperature`.
 
 ## Embeddings
 

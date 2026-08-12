@@ -1,11 +1,10 @@
-import type { VercelGatewayRoutingOptions } from './text-provider-options'
+import type {
+  VercelGatewayBaseOptions,
+  VercelGatewayCommonOptions,
+} from './text-provider-options'
 
-export interface VercelGatewayResponsesProviderOptions {
-  temperature?: number | null
-  top_p?: number | null
-  max_output_tokens?: number | null
-  gateway?: VercelGatewayRoutingOptions
-}
+export type VercelGatewayResponsesProviderOptions = VercelGatewayCommonOptions &
+  Pick<VercelGatewayBaseOptions, 'temperature' | 'top_p' | 'max_output_tokens'>
 
 export type ExternalResponsesProviderOptions =
   VercelGatewayResponsesProviderOptions

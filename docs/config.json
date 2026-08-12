@@ -846,7 +846,8 @@
         {
           "label": "Vercel AI Gateway",
           "to": "adapters/vercel-gateway",
-          "addedAt": "2026-08-12"
+          "addedAt": "2026-08-12",
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "OpenAI-Compatible",

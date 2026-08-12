@@ -12,10 +12,7 @@ import {
   createOpenRouterResponsesText,
   createOpenRouterText,
 } from '@tanstack/ai-openrouter'
-import {
-  createVercelGatewayResponsesText,
-  createVercelGatewayText,
-} from '@tanstack/ai-vercel-gateway'
+import { createVercelGatewayText } from '@tanstack/ai-vercel-gateway'
 import { createMistralText } from '@tanstack/ai-mistral'
 import { createBytePlusText } from '@tanstack/ai-byteplus'
 import { HTTPClient } from '@openrouter/sdk'
@@ -212,17 +209,18 @@ export function createTextAdapter(
     'vercel-gateway': () =>
       createChatOptions({
         adapter: createVercelGatewayText(model as 'openai/gpt-5.5', DUMMY_KEY, {
+          api: 'chat',
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,
         }),
       }),
     'vercel-gateway-responses': () =>
       createChatOptions({
-        adapter: createVercelGatewayResponsesText(
-          model as 'openai/gpt-5.5',
-          DUMMY_KEY,
-          { baseURL: openaiUrl, defaultHeaders: testHeaders },
-        ),
+        adapter: createVercelGatewayText(model as 'openai/gpt-5.5', DUMMY_KEY, {
+          api: 'responses',
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
       }),
     'openai-compatible': () =>
       createChatOptions({

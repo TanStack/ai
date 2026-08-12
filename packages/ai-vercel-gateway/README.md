@@ -32,4 +32,6 @@ const stream = chat({
 })
 ```
 
-See [docs/adapters/vercel-gateway.md](../../docs/adapters/vercel-gateway.md) for chat, Responses, summarize, embeddings, image generation, and gateway routing.
+The default text adapter uses the Responses API. Pass `{ api: 'chat' }` for Chat Completions.
+
+See [docs/adapters/vercel-gateway.md](../../docs/adapters/vercel-gateway.md) for chat, summarize, embeddings, image generation, and gateway routing.
