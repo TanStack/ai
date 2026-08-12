@@ -38,6 +38,7 @@ import {
   discoverSkillDirs,
   isSecretRef,
   resolveGitSkillDir,
+  resolveHarnessCwd,
 } from '@tanstack/ai-sandbox'
 import type {
   BearerRef,
@@ -260,14 +261,20 @@ async function projectGitSkills(
       await handle.fs.mkdir(skillsDir)
       madeDir = true
     }
-    const source = skill.into ?? resolveGitSkillDir(projection.root, skill)
+    // Remap `/workspace` the same way bootstrap remaps clone dirs, so shell
+    // `ln`/`cp` targets match the real provider workdir (e.g. Daytona).
+    const source = resolveHarnessCwd(
+      handle,
+      skill.into ?? resolveGitSkillDir(projection.root, skill),
+    )
     const discovered = await discoverSkillDirs(handle, source)
     for (const { name, dir } of discovered) {
-      const target = `${skillsDir}/${name}`
-      const lnCmd = `ln -s ${shellQuote(dir)} ${shellQuote(target)}`
+      const target = resolveHarnessCwd(handle, `${skillsDir}/${name}`)
+      const realDir = resolveHarnessCwd(handle, dir)
+      const lnCmd = `ln -s ${shellQuote(realDir)} ${shellQuote(target)}`
       const result = await handle.process.exec(lnCmd, { cwd: projection.root })
       if (result.exitCode !== 0) {
-        const cpCmd = `cp -r ${shellQuote(dir)} ${shellQuote(target)}`
+        const cpCmd = `cp -r ${shellQuote(realDir)} ${shellQuote(target)}`
         const copied = await handle.process.exec(cpCmd, {
           cwd: projection.root,
         })

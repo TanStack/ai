@@ -1,6 +1,6 @@
 ---
 '@tanstack/ai-sandbox': patch
-'@tanstack/ai-sandbox-daytona': patch
+'@tanstack/ai-sandbox-daytona': minor
 '@tanstack/ai-grok-build': patch
 '@tanstack/ai-codex': patch
 '@tanstack/ai-acp': patch

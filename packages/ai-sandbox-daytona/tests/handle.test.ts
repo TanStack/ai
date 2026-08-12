@@ -132,9 +132,11 @@ describe('DaytonaHandle.ports.connect', () => {
 describe('DaytonaHandle.git.clone remaps /workspace', () => {
   it('clones a virtual /workspace dir into the real workdir', async () => {
     const clone = vi.fn(async () => {})
+    const createFolder = vi.fn(async () => {})
     const sandbox = {
       id: 'sbx-1',
       git: { clone },
+      fs: { createFolder, uploadFile: vi.fn(async () => {}) },
       process: {
         executeCommand: vi.fn(async () => ({ result: '', exitCode: 0 })),
       },
@@ -150,6 +152,10 @@ describe('DaytonaHandle.git.clone remaps /workspace', () => {
       dir: '/workspace/.tanstack-skills/skills-pack',
     })
 
+    expect(createFolder).toHaveBeenCalledWith(
+      '/home/daytona/workspace/.tanstack-skills',
+      '755',
+    )
     expect(clone).toHaveBeenCalledWith(
       'https://github.com/owner/skills-pack',
       '/home/daytona/workspace/.tanstack-skills/skills-pack',
@@ -332,8 +338,11 @@ describe('DaytonaHandle spawn stream and stdin', () => {
         cmdId: 'cmd-1',
       }),
     )
+    const uploadFile = vi.fn(async (_data: Buffer, _path: string) => {})
+    const createFolder = vi.fn(async () => {})
     const sandbox = {
       id: 'sbx-1',
+      fs: { createFolder, uploadFile },
       process: {
         createSession: vi.fn(async () => {}),
         executeSessionCommand,
@@ -361,8 +370,18 @@ describe('DaytonaHandle spawn stream and stdin', () => {
     const proc = await handle.process.spawn('echo hi')
     await proc.wait()
 
+    expect(uploadFile).toHaveBeenCalledWith(
+      expect.any(Buffer),
+      '/home/daytona/workspace/.tanstack-ai-env',
+    )
+    const uploaded = uploadFile.mock.calls[0]?.[0]
+    expect(uploaded).toBeInstanceOf(Buffer)
+    expect(uploaded?.toString('utf8')).toContain(
+      "ANTHROPIC_API_KEY='sk-secret-value'",
+    )
     const request = executeSessionCommand.mock.calls[0]?.[1]
     expect(request).toBeDefined()
+    expect(request?.command).toContain('.tanstack-ai-env')
     expect(request?.command).not.toContain('sk-secret-value')
     expect(request?.command).not.toContain('export ANTHROPIC_API_KEY')
   })

@@ -207,11 +207,10 @@ rename/exists), `git` (clone/status/add/commit/push/pull/branch), `process`
 ```typescript
 import { defineSandboxPolicy } from '@tanstack/ai-sandbox'
 
-// Headless Grok Build / Codex: stay on auto-approve. These harnesses do
-// not enforce `commands.deny`. Isolation is the outer sandbox.
+// Headless Grok Build / Codex: stay on auto-approve. Isolation is the
+// outer sandbox (Docker, Daytona, …), not commands.deny on this policy.
 const policy = defineSandboxPolicy({
   default: 'allow',
-  commands: { deny: ['rm -rf /'] },
 })
 // pass to defineSandbox({ policy }); harness adapters map it to native permissions
 ```

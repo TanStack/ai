@@ -13,10 +13,10 @@
  *   (`'allow'` → true, `'deny'` → false; unset leaves Codex's default).
  * - `approval_policy`: a fully-permissive policy (`default: 'allow'` with no
  *   `ask` rules) → `never`; a `default: 'deny'` policy → `untrusted`;
- *   anything with `ask` rules → `on-request`. A deny list alone is a hard
- *   block, not a human prompt, so it does not flip `on-request`. In `exec`
- *   mode Codex will refuse (rather than prompt for) actions that need
- *   approval.
+ *   `default: 'ask'` or any `commands.ask` rules → `on-request`. A deny list
+ *   alone is a hard block, not a human prompt, so it does not flip
+ *   `on-request`. In `exec` mode Codex will refuse (rather than prompt for)
+ *   actions that need approval.
  *
  * Returns only the knobs the policy actually constrains; the adapter merges
  * these with its own config (config/modelOptions still take precedence).
@@ -46,7 +46,7 @@ export function mapPolicyToCodexFlags(
   }
 
   const hasAsk = (policy.commands?.ask?.length ?? 0) > 0
-  if (hasAsk) {
+  if (hasAsk || policy.default === 'ask') {
     flags.approvalPolicy = 'on-request'
   } else if (policy.default === 'deny') {
     flags.approvalPolicy = 'untrusted'

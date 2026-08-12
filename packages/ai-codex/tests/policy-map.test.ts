@@ -49,6 +49,13 @@ describe('mapPolicyToCodexFlags', () => {
     ).toBe('on-request')
   })
 
+  it('maps default ask without ask command rules to on-request', () => {
+    expect(
+      mapPolicyToCodexFlags(defineSandboxPolicy({ default: 'ask' }))
+        .approvalPolicy,
+    ).toBe('on-request')
+  })
+
   // Headless `codex exec` refuses tools when approval_policy is on-request.
   // A deny list is a hard block, not a human prompt, so default: allow +
   // deny stays never. Issue #1081 item 1.

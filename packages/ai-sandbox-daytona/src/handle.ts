@@ -344,12 +344,16 @@ export class DaytonaHandle implements SandboxHandle {
 
     // Stream logs over the WebSocket form. Still poll command status so
     // `kill()` can stop the client wait without waiting for the stream.
-    void this.sandbox.process.getSessionCommandLogs(
-      sessionId,
-      cmdId,
-      (chunk) => stdoutQ.push(chunk),
-      (chunk) => stderrQ.push(chunk),
-    )
+    // Keep the promise so we can drain trailing chunks and so a dropped
+    // socket cannot become an unhandled rejection.
+    const logStream = this.sandbox.process
+      .getSessionCommandLogs(
+        sessionId,
+        cmdId,
+        (chunk) => stdoutQ.push(chunk),
+        (chunk) => stderrQ.push(chunk),
+      )
+      .catch(() => undefined)
 
     const pump = (async (): Promise<void> => {
       try {
@@ -366,6 +370,8 @@ export class DaytonaHandle implements SandboxHandle {
         }
       } finally {
         opts?.signal?.removeEventListener('abort', onAbort)
+        // Let the log stream finish so trailing output is not dropped.
+        await Promise.race([logStream, sleep(1000)])
         stdoutQ.end()
         stderrQ.end()
         await this.sandbox.process.deleteSession(sessionId).catch(() => {})

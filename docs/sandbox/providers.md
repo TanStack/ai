@@ -199,7 +199,6 @@ const sandbox = defineSandbox({
   }),
   policy: defineSandboxPolicy({
     default: 'allow',
-    commands: { deny: ['rm -rf /'] },
   }),
 })
 
@@ -210,8 +209,8 @@ const stream = chat({
 })
 ```
 
-Grok Build and Codex do not enforce `commands.deny`. Isolation is the Daytona
-VM. Use Claude Code when you need command-level deny.
+Headless Grok Build and Codex stay on auto-approve with `default: 'allow'`.
+Isolation is the Daytona VM. Use Claude Code when you need command-level deny.
 
 ## Vercel
 

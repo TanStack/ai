@@ -103,13 +103,12 @@ Guard what the agent may run:
 ```typescript
 const policy = defineSandboxPolicy({
   default: 'allow',
-  commands: { deny: ['rm -rf /'] },
 })
 
 defineSandbox({ id: 'agent', provider, workspace, policy })
 ```
 
-Headless Grok Build and Codex stay on auto-approve when `default` is `'allow'` and there is no `ask` list. Those harnesses do not enforce `commands.deny`. Isolation is the outer sandbox. Use Claude Code when you need command-level deny.
+Headless Grok Build and Codex stay on auto-approve when `default` is `'allow'` and there is no `ask` list. Isolation is the outer sandbox (Docker, Daytona, and so on). Use Claude Code when you need command-level deny.
 
 Claude Code can use an interactive policy:
 
