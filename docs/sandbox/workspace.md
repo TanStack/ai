@@ -170,9 +170,8 @@ subshell (like the Grok CLI installer, `(curl … || curl …) | bash`) is not a
 valid argument to another command, and `sh` then fails at parse time with
 `syntax error: unexpected "("` (exit `2`) without running anything.
 
-On [Daytona](./providers) the user is not root. Write a package install as
-`sudo -n apt-get install …`. Do not deny `sudo *` on that provider. See
-[Policy](./policy).
+Some providers run as a non-root user. Package installs on those providers
+need `sudo` in `setup`. See [Providers](./providers) and [Policy](./policy).
 
 ## Scripts
 

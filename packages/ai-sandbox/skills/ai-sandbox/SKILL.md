@@ -190,11 +190,10 @@ Providers without snapshot support skip the step silently.
 - `localProcessSandbox()` — runs on the host (no isolation; dev loop only).
 - `dockerSandbox({ image })` — isolated container; snapshots, fork, resume-by-id.
 - `daytonaSandbox({ apiKey, snapshot, autoStopInterval, ephemeral })` —
-  Daytona cloud sandbox; snapshots after setup; resume starts a stopped or
-  archived sandbox. `/workspace` maps to `/home/daytona/workspace`. Secrets
-  stay on the handle and per-command env, not create-time `envVars`.
-  `network: 'deny'` sets `networkBlockAll`. Setup that installs packages must
-  use `sudo -n`. Do not deny `sudo *`.
+  Daytona cloud sandbox; snapshots after setup; resume starts stopped or
+  archived sandboxes. `/workspace` maps to `/home/daytona/workspace`. Setup
+  that installs packages must use `sudo -n` (do not deny `sudo *`). See
+  `docs/sandbox/providers.md` for network and secret injection details.
 
 All implement the same `SandboxHandle`: `fs` (read/write/list/mkdir/remove/
 rename/exists), `git` (clone/status/add/commit/push/pull/branch), `process`
@@ -217,8 +216,9 @@ const policy = defineSandboxPolicy({
 // pass to defineSandbox({ policy }); harness adapters map it to native permissions
 ```
 
-Claude Code can use `default: 'ask'` plus allow/ask/deny lists (including
-`deny: ['sudo *']` on Docker). Use Claude Code when you need command-level deny.
+Claude Code can use `default: 'ask'` plus allow/ask/deny lists. Use Claude Code
+when you need command-level deny. Provider privilege rules (non-root users,
+network block at create) live in `docs/sandbox/providers.md`.
 
 ## Lifecycle &amp; resume
 

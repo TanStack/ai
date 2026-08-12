@@ -64,9 +64,10 @@ defineWorkspace({
 })
 ```
 
-`secrets` is [declared on the workspace](./workspace). `ensure()` puts the
-values onto the live handle at create, resume, and snapshot restore. They
-never stay on the Daytona sandbox record as create-time `envVars`.
+`secrets` is [declared on the workspace](./workspace). At create, resume, and
+snapshot restore, the sandbox layer resolves them onto the live handle env.
+Providers never write those values into snapshots, the sandbox store, or the
+event log.
 
 ### Why the values never leak
 
@@ -78,7 +79,7 @@ non-enumerable:
 - `Object.keys(secrets)`, spreads, and `JSON.stringify(secrets)` never expose
   the values.
 - The values are **never written to snapshots, the sandbox store, or the event
-  log**. They are resolved only at the moment the sandbox env is built.
+  log**. They are resolved only when the live sandbox env is built.
 
 This is what makes the workspace definition safe to hash, persist, and replay
 for resume bookkeeping without ever persisting a credential.
@@ -179,9 +180,9 @@ sandbox**, controlling where the repo is cloned. It defaults to
 `.tanstack-skills/<repo-basename>`. Bootstrap creates the parent directory
 before the clone.
 
-Paths that start with `/workspace` map to the provider workdir. On Daytona
-that workdir is `/home/daytona/workspace` by default. You can keep the
-portable `/workspace/...` path in `into`.
+Paths that start with `/workspace` use the portable workspace root. The
+provider maps that root onto its real workdir. Keep `/workspace/...` in
+`into` unless you have a reason to pin a provider-specific path.
 
 ```ts
 import { createSecrets, defineWorkspace, gitSkill, githubRepo } from '@tanstack/ai-sandbox'

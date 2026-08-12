@@ -147,34 +147,32 @@ const daytona = daytonaSandbox({
 ```
 
 - **Isolation:** a managed cloud sandbox on a remote VM you do not run yourself.
-- **Auth / env:** needs `DAYTONA_API_KEY`. Harness credentials are workspace
-  secrets. They go onto the live handle and into each `exec` call through the
-  SDK env argument. Spawn sources a workdir env file. Secret values never
-  enter create-time `envVars` or the stored command string. Git clone auth
-  uses the native username and password arguments.
-- **Snapshot / resume:** point-in-time snapshots and restore.
-  `daytonaSandbox({ snapshot })` selects the Daytona image to create from
-  (for example `'daytona-medium'`). After `setup`, the sandbox layer takes its
-  own snapshot when `lifecycle.snapshot` is `'after-setup'` (the default on
-  this provider). That snapshot stops the sandbox, captures the filesystem,
-  then starts it again. Resume-by-id starts a `stopped` or `archived`
-  sandbox, then returns the handle. Daytona stops an idle sandbox after 15
-  minutes unless you set `autoStopInterval` (minutes; `0` turns auto-stop
-  off). Set `ephemeral: true` to delete the sandbox when it stops.
-- **Network:** `policy.capabilities.network === 'deny'` sets
-  `networkBlockAll` on create. The provider reports `networkPolicy: true`.
-- **Working directory:** the virtual root `/workspace` maps to
-  `/home/daytona/workspace` by default. Set `workdir` on `daytonaSandbox()` if
-  you need a different path. Native `sandbox.fs` and `sandbox.git` use that
-  mapped path.
-- **Stdin:** spawned processes accept stdin through
-  `sendSessionCommandInput`. `writableStdin` is `true`.
-- **Privileges:** the Daytona user is not root. Setup commands that install
-  packages must use `sudo -n`. Do not deny `sudo *` on a Daytona
-  [policy](./policy).
-- **Bridge:** the sandbox is remote, so a [bridged tool](./tools) call can't reach
-  your laptop's `localhost`. In local dev, tunnel the bridge (see [tools](./tools));
-  a deployed orchestrator is reachable out of the box.
+- **Auth / env:** needs `DAYTONA_API_KEY`. Put harness credentials in
+  [workspace secrets](./provisioning). They are applied to the live sandbox
+  at create, resume, and restore. They are not stored on the Daytona create
+  record, and they are not written into command history.
+- **Snapshot / resume:** point-in-time snapshots after setup (default when
+  `lifecycle.snapshot` is `'after-setup'`). Pass `snapshot` on
+  `daytonaSandbox()` to pick the Daytona image (for example
+  `'daytona-medium'`). Resume starts a `stopped` or `archived` sandbox, then
+  returns the handle.
+- **Idle stop:** Daytona stops an idle sandbox after 15 minutes by default.
+  Set `autoStopInterval` in minutes to change that. Pass `0` to turn auto-stop
+  off. Set `ephemeral: true` to delete the sandbox when it stops.
+- **Network:** `policy.capabilities.network: 'deny'` blocks all outbound
+  network on create.
+- **Working directory:** the portable root `/workspace` maps to
+  `/home/daytona/workspace` by default. Override with `workdir` on
+  `daytonaSandbox()` if you need another path.
+- **Stdin:** spawned processes accept host stdin (`writableStdin: true`).
+- **Privileges:** the Daytona user is not root. Package installs in `setup`
+  must use `sudo -n` (for example `sudo -n apt-get install …`). Do not put
+  `sudo *` in a [policy](./policy) deny list for this provider.
+- **Bridge:** the sandbox is remote, so a [bridged tool](./tools) call cannot
+  reach your laptop's `localhost`. In local dev, tunnel the bridge (see
+  [tools](./tools)). A deployed orchestrator is reachable without a tunnel.
+
+Default headless path on Daytona:
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -211,7 +209,7 @@ const stream = chat({
 ```
 
 Grok Build and Codex do not enforce `commands.deny`. Isolation is the Daytona
-sandbox. Use Claude Code when you need command-level deny.
+VM. Use Claude Code when you need command-level deny.
 
 ## Vercel
 

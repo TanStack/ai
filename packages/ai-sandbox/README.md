@@ -125,9 +125,7 @@ defineSandboxPolicy({
 })
 ```
 
-Precedence is `deny` > `ask` > `allow`. Each harness adapter maps policy onto its native permission system (coarse flags for Grok Build/Codex; full interactive `approval-requested` on Claude Code).
-
-On Daytona the user is not root. Write setup as `sudo -n apt-get …`. Do not deny `sudo *` on that provider. A Docker sandbox that runs as root can still deny `sudo *`. `network: 'deny'` on Daytona also sets `networkBlockAll` at create time.
+Precedence is `deny` > `ask` > `allow`. Each harness adapter maps policy onto its native permission system (coarse flags for Grok Build/Codex; full interactive `approval-requested` on Claude Code). Provider-specific privilege and network rules live in the [providers](../../docs/sandbox/providers.md) guide.
 
 ### Lifecycle
 
@@ -142,7 +140,7 @@ lifecycle: {
 
 ### Secrets
 
-Use `createSecrets()` so values stay behind opaque `SecretRef` tokens. They are never written to snapshots, the sandbox store, event logs, or Daytona create-time `envVars`. `ensure()` puts them back on the handle after resume:
+Use `createSecrets()` so values stay behind opaque `SecretRef` tokens. They are never written to snapshots, the sandbox store, or event logs. The sandbox layer resolves them onto the live handle at create, resume, and snapshot restore:
 
 ```typescript
 const secrets = createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' })
