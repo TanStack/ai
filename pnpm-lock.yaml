@@ -2561,6 +2561,31 @@ importers:
         specifier: ^8.1.4
         version: 8.1.4(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0)
 
+  packages/ai-vercel-gateway:
+    dependencies:
+      '@tanstack/ai':
+        specifier: workspace:^
+        version: link:../ai
+      '@tanstack/ai-utils':
+        specifier: workspace:^
+        version: link:../ai-utils
+      '@tanstack/openai-base':
+        specifier: workspace:^
+        version: link:../openai-base
+      openai:
+        specifier: ^6.41.0
+        version: 6.41.0(ws@8.21.0)(zod@4.3.6)
+      zod:
+        specifier: ^4.0.0
+        version: 4.3.6
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 4.0.14
+        version: 4.0.14(supports-color@7.2.0)(vitest@4.1.10)
+      vite:
+        specifier: ^8.1.4
+        version: 8.1.4(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.21.0)(yaml@2.9.0)
+
   packages/ai-vue:
     dependencies:
       '@tanstack/ai-client':
