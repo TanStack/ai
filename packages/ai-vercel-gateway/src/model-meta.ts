@@ -59,7 +59,7 @@ export type VercelGatewayImageModelSizeByName = {
 }
 
 export type VercelGatewayImageModelInputModalitiesByName = {
-  [K in VercelGatewayImageModel]: readonly ['text']
+  [K in VercelGatewayImageModel]: readonly []
 }
 
 export type ResolveProviderOptions<TModel extends string> =
