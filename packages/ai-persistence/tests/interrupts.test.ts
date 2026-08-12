@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, chat } from '@tanstack/ai'
+import { EventType, chat, defineChatMiddleware } from '@tanstack/ai'
 import type { AnyTextAdapter, StreamChunk, Tool } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
@@ -775,6 +775,13 @@ describe('interrupt persistence', () => {
     })
 
     const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
+    const resumeStates: Array<ReadonlySet<string> | undefined> = []
+    const observeResumeState = defineChatMiddleware({
+      name: 'observe-resume-state',
+      onConfig(_ctx, config) {
+        resumeStates.push(config.resumeToolState?.cancelledToolCallIds)
+      },
+    })
     await collect(
       chat({
         adapter: run.adapter,
@@ -782,7 +789,7 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         resume: [{ interruptId: 'approval-1', status: 'cancelled' }],
-        middleware: [withPersistence(persistence)],
+        middleware: [withPersistence(persistence), observeResumeState],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -790,6 +797,7 @@ describe('interrupt persistence', () => {
       run.calls[0] as { approvals?: ReadonlyMap<string, boolean> }
     ).approvals
     expect(approvals?.get('approval-1')).toBe(false)
+    expect(resumeStates[0]?.has('tc1')).toBe(true)
     expect(
       (await persistence.stores.interrupts!.get('approval-1'))?.status,
     ).toBe('cancelled')
@@ -806,6 +814,13 @@ describe('interrupt persistence', () => {
     })
 
     const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
+    const resumeStates: Array<ReadonlySet<string> | undefined> = []
+    const observeResumeState = defineChatMiddleware({
+      name: 'observe-resume-state',
+      onConfig(_ctx, config) {
+        resumeStates.push(config.resumeToolState?.cancelledToolCallIds)
+      },
+    })
     await collect(
       chat({
         adapter: run.adapter,
@@ -819,7 +834,7 @@ describe('interrupt persistence', () => {
             payload: { answer: 99 },
           },
         ],
-        middleware: [withPersistence(persistence)],
+        middleware: [withPersistence(persistence), observeResumeState],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -829,6 +844,7 @@ describe('interrupt persistence', () => {
       run.calls[0] as { clientToolResults?: ReadonlyMap<string, unknown> }
     ).clientToolResults
     expect(clientToolResults?.get('tc1')).toBeUndefined()
+    expect(resumeStates[0]?.has('tc1')).toBe(true)
     expect((await persistence.stores.interrupts!.get('client-1'))?.status).toBe(
       'cancelled',
     )

@@ -396,6 +396,7 @@ function resumeToolStateFromPending(
 ): ChatResumeToolState | undefined {
   const approvals = new Map<string, ToolApprovalResolution>()
   const clientToolResults = new Map<string, unknown>()
+  const cancelledToolCallIds = new Set<string>()
 
   for (const interrupt of pending) {
     const entry = resumeByInterruptId.get(interrupt.interruptId)
@@ -404,6 +405,10 @@ function resumeToolStateFromPending(
     const kind = interruptKind(interrupt)
     const reason = stringField(interrupt.payload, 'reason')
     const toolCallId = stringField(interrupt.payload, 'toolCallId')
+
+    if (entry.status === 'cancelled' && toolCallId) {
+      cancelledToolCallIds.add(toolCallId)
+    }
 
     if (kind === 'approval' || reason === 'approval_required') {
       approvals.set(interrupt.interruptId, resolvedApprovalDecision(entry))
@@ -419,8 +424,14 @@ function resumeToolStateFromPending(
     }
   }
 
-  if (approvals.size === 0 && clientToolResults.size === 0) return undefined
-  return { approvals, clientToolResults }
+  if (
+    approvals.size === 0 &&
+    clientToolResults.size === 0 &&
+    cancelledToolCallIds.size === 0
+  ) {
+    return undefined
+  }
+  return { approvals, clientToolResults, cancelledToolCallIds }
 }
 
 /**
