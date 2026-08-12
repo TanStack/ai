@@ -54,6 +54,16 @@
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
+  "nx": {
+    "targets": {
+      "test:types": {
+        "dependsOn": [
+          "build",
+          "^build"
+        ]
+      }
+    }
+  },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0"
   },
