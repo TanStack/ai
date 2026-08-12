@@ -70,8 +70,8 @@ export function defaultSpawn(
     })
   })
   if (opts.signal) {
+    opts.signal.addEventListener('abort', onAbort, { once: true })
     if (opts.signal.aborted) child.kill()
-    else opts.signal.addEventListener('abort', onAbort, { once: true })
   }
   return {
     kill: () => {
@@ -255,21 +255,22 @@ export function sbxExecArgs(
  * Walk every `{` / `[` until one slice parses.
  */
 export function parseJsonAfterBanner(stdout: string): unknown {
-  const brace = stdout.indexOf('{')
-  const bracket = stdout.indexOf('[')
-  const starts = [brace, bracket].filter((i) => i >= 0).sort((a, b) => a - b)
-  if (starts.length === 0) {
-    throw new SyntaxError(
-      `sbx JSON: no object or array in: ${stdout.slice(0, 200)}`,
-    )
-  }
   let lastError: unknown
-  for (const start of starts) {
+  let sawStart = false
+  for (let i = 0; i < stdout.length; i++) {
+    const ch = stdout[i]
+    if (ch !== '{' && ch !== '[') continue
+    sawStart = true
     try {
-      return JSON.parse(stdout.slice(start)) as unknown
+      return JSON.parse(stdout.slice(i)) as unknown
     } catch (error) {
       lastError = error
     }
+  }
+  if (!sawStart) {
+    throw new SyntaxError(
+      `sbx JSON: no object or array in: ${stdout.slice(0, 200)}`,
+    )
   }
   throw lastError instanceof Error
     ? lastError

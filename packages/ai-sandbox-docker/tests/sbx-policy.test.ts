@@ -21,7 +21,7 @@ describe('planSbxPolicy', () => {
   it('adds auto API hosts for grok-build with no policy and no host lists', () => {
     expect(planSbxPolicy({ adapterName: 'grok-build' })).toEqual({
       kind: 'per-sandbox',
-      allow: ['api.x.ai'],
+      allow: ['api.x.ai', 'localhost'],
       deny: [],
     })
   })
@@ -29,12 +29,12 @@ describe('planSbxPolicy', () => {
   it('adds auto API hosts for claude-code and codex with no policy', () => {
     expect(planSbxPolicy({ adapterName: 'claude-code' })).toEqual({
       kind: 'per-sandbox',
-      allow: ['api.anthropic.com'],
+      allow: ['api.anthropic.com', 'localhost'],
       deny: [],
     })
     expect(planSbxPolicy({ adapterName: 'codex' })).toEqual({
       kind: 'per-sandbox',
-      allow: ['api.openai.com'],
+      allow: ['api.openai.com', 'localhost'],
       deny: [],
     })
   })
@@ -68,7 +68,7 @@ describe('planSbxPolicy', () => {
       }),
     ).toEqual({
       kind: 'per-sandbox',
-      allow: ['api.x.ai', '*.npmjs.org'],
+      allow: ['api.x.ai', '*.npmjs.org', 'localhost'],
       deny: [],
     })
   })
@@ -81,7 +81,7 @@ describe('planSbxPolicy', () => {
       }),
     ).toEqual({
       kind: 'per-sandbox',
-      allow: ['api.anthropic.com'],
+      allow: ['api.anthropic.com', 'localhost'],
       deny: [],
     })
   })
@@ -94,7 +94,7 @@ describe('planSbxPolicy', () => {
       }),
     ).toEqual({
       kind: 'per-sandbox',
-      allow: ['api.openai.com'],
+      allow: ['api.openai.com', 'localhost'],
       deny: [],
     })
   })
@@ -106,7 +106,7 @@ describe('planSbxPolicy', () => {
       }),
     ).toEqual({
       kind: 'per-sandbox',
-      allow: ['registry.npmjs.org'],
+      allow: ['registry.npmjs.org', 'localhost'],
       deny: [],
     })
   })
@@ -120,7 +120,7 @@ describe('planSbxPolicy', () => {
       }),
     ).toEqual({
       kind: 'per-sandbox',
-      allow: ['example.com'],
+      allow: ['example.com', 'localhost'],
       deny: [],
     })
   })
@@ -158,7 +158,7 @@ describe('planSbxPolicy', () => {
       }),
     ).toEqual({
       kind: 'per-sandbox',
-      allow: ['api.x.ai'],
+      allow: ['api.x.ai', 'localhost'],
       deny: ['ads.example.com'],
     })
   })
@@ -201,6 +201,14 @@ describe('planSbxPolicy', () => {
       ],
       [
         'policy',
+        'allow',
+        'network',
+        '--sandbox',
+        'deadbeefdeadbeef',
+        'localhost',
+      ],
+      [
+        'policy',
         'deny',
         'network',
         '--sandbox',
@@ -218,7 +226,7 @@ describe('planSbxPolicy', () => {
       }),
     ).toEqual({
       kind: 'per-sandbox',
-      allow: ['api.x.ai', '*.npmjs.org'],
+      allow: ['api.x.ai', '*.npmjs.org', 'localhost'],
       deny: [],
     })
   })
@@ -233,6 +241,58 @@ describe('planSbxPolicy', () => {
       kind: 'per-sandbox',
       allow: [],
       deny: ['ads.example.com'],
+    })
+  })
+
+  it('deny + grok-build allowlist includes localhost for the host proxy rewrite', () => {
+    const plan = planSbxPolicy({
+      policy: defineSandboxPolicy({ capabilities: { network: 'deny' } }),
+      adapterName: 'grok-build',
+    })
+    expect(plan).toMatchObject({ kind: 'per-sandbox' })
+    if (plan.kind !== 'per-sandbox') throw new Error('expected per-sandbox')
+    expect(plan.allow).toContain('localhost')
+    expect(plan.allow).toContain('api.x.ai')
+  })
+
+  it('known adapter with no policy still allows localhost for the bridge', () => {
+    const plan = planSbxPolicy({ adapterName: 'grok-build' })
+    expect(plan).toMatchObject({ kind: 'per-sandbox' })
+    if (plan.kind !== 'per-sandbox') throw new Error('expected per-sandbox')
+    expect(plan.allow).toContain('localhost')
+    expect(plan.allow).toContain('api.x.ai')
+  })
+
+  it('allowNetwork-only allowlist includes localhost', () => {
+    const plan = planSbxPolicy({
+      allowNetwork: ['registry.npmjs.org'],
+    })
+    expect(plan).toMatchObject({ kind: 'per-sandbox' })
+    if (plan.kind !== 'per-sandbox') throw new Error('expected per-sandbox')
+    expect(plan.allow).toContain('localhost')
+    expect(plan.allow).toContain('registry.npmjs.org')
+  })
+
+  it('denyNetwork-only still does not add localhost', () => {
+    const plan = planSbxPolicy({ denyNetwork: ['ads.example.com'] })
+    expect(plan).toEqual({
+      kind: 'per-sandbox',
+      allow: [],
+      deny: ['ads.example.com'],
+    })
+    if (plan.kind !== 'per-sandbox') throw new Error('expected per-sandbox')
+    expect(plan.allow).not.toContain('localhost')
+  })
+
+  it('allow ** does not add localhost beside the open host', () => {
+    expect(
+      planSbxPolicy({
+        policy: defineSandboxPolicy({ capabilities: { network: 'allow' } }),
+      }),
+    ).toEqual({
+      kind: 'per-sandbox',
+      allow: ['**'],
+      deny: [],
     })
   })
 })

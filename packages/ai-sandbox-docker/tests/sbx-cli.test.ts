@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   defaultSpawn,
   mapSbxError,
+  parseJsonAfterBanner,
   parseSbxLs,
   runSbx,
   sbxExecArgs,
@@ -230,7 +231,59 @@ describe('mapSbxError', () => {
   })
 })
 
+describe('parseJsonAfterBanner', () => {
+  it('skips a brace in the banner and parses the later object', () => {
+    expect(
+      parseJsonAfterBanner(
+        'sandboxd starting {pid: 12}...\n{"sandboxes":[{"name":"abc"}]}',
+      ),
+    ).toEqual({ sandboxes: [{ name: 'abc' }] })
+  })
+
+  it('skips a bracket in the banner and parses the later array', () => {
+    expect(
+      parseJsonAfterBanner('log: saw [warn] token\n[{"name":"abc"}]'),
+    ).toEqual([{ name: 'abc' }])
+  })
+})
+
 describe('defaultSpawn', () => {
+  it('adds the abort listener before it reads signal.aborted', () => {
+    const order: Array<string> = []
+    const real = new AbortController()
+    real.abort()
+    const signal = Object.create(real.signal) as AbortSignal
+    Object.defineProperty(signal, 'aborted', {
+      get() {
+        order.push('check-aborted')
+        return true
+      },
+    })
+    signal.addEventListener = ((
+      type: string,
+      listener: EventListenerOrEventListenerObject | null,
+      opts?: boolean | AddEventListenerOptions,
+    ) => {
+      order.push('add-listener')
+      if (listener) real.signal.addEventListener(type, listener, opts)
+    }) as AbortSignal['addEventListener']
+    signal.removeEventListener = real.signal.removeEventListener.bind(
+      real.signal,
+    )
+    const handle = defaultSpawn(
+      'node',
+      ['-e', 'setTimeout(() => {}, 30_000)'],
+      {
+        signal,
+        onClose: () => {},
+        onError: () => {},
+      },
+    )
+    handle.kill()
+    expect(order[0]).toBe('add-listener')
+    expect(order).toContain('check-aborted')
+  })
+
   it('removes the abort listener after close', async () => {
     const { signal, wasRemoved } = trackingSignal()
     await new Promise<void>((resolve, reject) => {

@@ -194,12 +194,12 @@ export const repoSandbox = defineSandbox({
 ## Run the working example
 
 A complete, runnable app ships at
-[`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web)
-a "build me an app" agent (Claude Code on a Docker sandbox) with durable,
-refresh-surviving runs; it scaffolds an app in the sandbox, runs the dev
-server, and streams back a live preview URL. For a coding agent running at the
-edge, with the harness (Claude Code, Codex, Grok Build) picked per run from
-the UI, see
+[`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web).
+That app is a "build me an app" agent (Claude Code on a Docker sandbox) with
+durable, refresh-surviving runs. It scaffolds an app in the sandbox, runs the
+dev server, and streams back a live preview URL. For a coding agent running at
+the edge, with the harness (Claude Code, Codex, Grok Build) picked per run
+from the UI, see
 [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare).
 
 From here:

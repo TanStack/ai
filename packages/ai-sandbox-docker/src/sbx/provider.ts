@@ -111,9 +111,7 @@ function isAlreadyInitialized(error: unknown): boolean {
     error instanceof Error ? error.message : String(error)
   ).toLowerCase()
   return (
-    message.includes('already initialized') ||
-    message.includes('already set') ||
-    message.includes('already exists')
+    message.includes('already initialized') || message.includes('already set')
   )
 }
 
@@ -247,15 +245,15 @@ class SbxProvider implements SandboxProvider {
       if (input.env) await handle.env.set(input.env)
       return handle
     } catch (error) {
+      if (host.owned) {
+        await removeOwnedClone(id)
+      }
       if (isNameAlreadyExists(error)) throw error
       let rmError: unknown
       try {
         await this.run(['rm', '--force', id])
       } catch (caught) {
         rmError = caught
-      }
-      if (host.owned) {
-        await removeOwnedClone(id)
       }
       if (rmError && !isAlreadyGone(rmError)) throw rmError
       throw error

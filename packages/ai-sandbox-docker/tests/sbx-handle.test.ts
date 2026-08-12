@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { isAlreadyGone, SbxHandle } from '../src/sbx/handle'
+import {
+  isAlreadyGone,
+  isNameAlreadyExists,
+  SbxHandle,
+} from '../src/sbx/handle'
 import type { SbxRunResult, SbxSpawn } from '../src/sbx/cli'
 
 function scriptedSpawn(
@@ -333,5 +337,52 @@ describe('SbxHandle ports.connect banner-prefixed JSON', () => {
     )
     const channel = await handle.ports.connect(3000)
     expect(channel.url).toBe('http://localhost:41000')
+  })
+})
+
+describe('isNameAlreadyExists', () => {
+  it('matches sandbox already exists with no name between the words', () => {
+    expect(isNameAlreadyExists(new Error('sandbox already exists'))).toBe(true)
+    expect(
+      isNameAlreadyExists(
+        new Error('Error: a sandbox named deadbeef already exists'),
+      ),
+    ).toBe(true)
+    expect(
+      isNameAlreadyExists(
+        new Error('sandbox already exists for this workspace'),
+      ),
+    ).toBe(true)
+  })
+
+  it('still matches quoted and unquoted names between sandbox and already exists', () => {
+    expect(
+      isNameAlreadyExists(
+        new Error("Error: sandbox 'deadbeef' already exists"),
+      ),
+    ).toBe(true)
+    expect(
+      isNameAlreadyExists(new Error('Error: sandbox deadbeef already exists')),
+    ).toBe(true)
+  })
+
+  it('does not match an unrelated already exists', () => {
+    expect(isNameAlreadyExists(new Error('file already exists'))).toBe(false)
+    expect(isNameAlreadyExists(new Error('policy already initialized'))).toBe(
+      false,
+    )
+  })
+})
+
+describe('connectPort error after a live publish', () => {
+  it('does not tell the caller to pass publishPorts after ports --publish already ran', async () => {
+    const handle = handleWithPortsJson(JSON.stringify([]))
+    const error = await handle.ports
+      .connect(3000)
+      .catch((caught: unknown) => caught)
+    expect(error).toBeInstanceOf(Error)
+    if (!(error instanceof Error)) throw new Error('expected Error')
+    expect(error.message).toMatch(/port 3000/)
+    expect(error.message).not.toMatch(/publishPorts/)
   })
 })

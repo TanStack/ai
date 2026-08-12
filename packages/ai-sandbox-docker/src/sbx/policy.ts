@@ -13,10 +13,18 @@ const AUTO_HOSTS: Record<string, Array<string>> = {
 const EMPTY_ALLOWLIST =
   'sbxSandbox: network deny/ask has an empty allowlist. Pass allowNetwork, or use grokBuildText / claudeCodeText / codexText so the model API host is added.'
 
+/** Guest URLs use host.docker.internal; the sbx proxy rewrites that to localhost. */
+const BRIDGE_HOST = 'localhost'
+
 export function autoApiHosts(adapterName: string | undefined): Array<string> {
   if (!adapterName) return []
   if (!Object.hasOwn(AUTO_HOSTS, adapterName)) return []
   return AUTO_HOSTS[adapterName] ?? []
+}
+
+function withBridgeHost(hosts: Array<string>): Array<string> {
+  if (hosts.includes(BRIDGE_HOST) || hosts.includes('**')) return hosts
+  return [...hosts, BRIDGE_HOST]
 }
 
 function networkDecision(
@@ -38,7 +46,7 @@ export function planSbxPolicy(input: {
   const auto = autoApiHosts(input.adapterName)
   if (!input.policy && !hasHostLists) {
     if (auto.length > 0) {
-      return { kind: 'per-sandbox', allow: auto, deny: [] }
+      return { kind: 'per-sandbox', allow: withBridgeHost(auto), deny: [] }
     }
     return { kind: 'machine-preset' }
   }
@@ -59,7 +67,14 @@ export function planSbxPolicy(input: {
   if (allow.length === 0 && (decision === 'deny' || decision === 'ask')) {
     throw new Error(EMPTY_ALLOWLIST)
   }
-  return { kind: 'per-sandbox', allow, deny }
+  // Real allowlists must include localhost. The proxy rewrites
+  // host.docker.internal to localhost before the policy match.
+  // denyNetwork-only keeps allow=[] (A19). Open ** stays ** only.
+  return {
+    kind: 'per-sandbox',
+    allow: mergeAuto && allow.length > 0 ? withBridgeHost(allow) : allow,
+    deny,
+  }
 }
 
 export function policyArgs(

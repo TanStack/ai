@@ -4,8 +4,8 @@
  * fs is the same base64-over-exec design as the container handle. Kill uses
  * the same in-VM pid file. Do not only kill the host `sbx exec` process.
  *
- * `writableStdin` and `killableProcesses` stay false until the live test in
- * Task 8 measures them.
+ * `writableStdin` and `killableProcesses` stay false until a live
+ * measurement after `sbx login`.
  */
 import { randomUUID } from 'node:crypto'
 import { createExecBackedGit } from '@tanstack/ai-sandbox'
@@ -32,9 +32,9 @@ export const SBX_CAPS: SandboxCapabilities = {
   env: true,
   ports: true,
   backgroundProcesses: true,
-  // Stay false until the live test in Task 8 proves stdin works.
+  // Stay false until a live measurement after `sbx login` proves stdin works.
   writableStdin: false,
-  // Stay false until the live test in Task 8 proves in-VM kill works.
+  // Stay false until a live measurement after `sbx login` proves in-VM kill.
   killableProcesses: false,
   snapshots: false,
   networkPolicy: true,
@@ -171,9 +171,7 @@ export function isAlreadyGone(error: unknown): boolean {
 
 export function isNameAlreadyExists(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
-  return /(?:sandbox|vm|container)\s+(?:'[^']+'|"[^"]+"|\S+)\s+already exists/i.test(
-    message,
-  )
+  return /(?:sandbox|vm|container).{0,80}already exists/i.test(message)
 }
 
 /** Host login or transport text that `test -e` never prints for a missing path. */
@@ -549,7 +547,7 @@ export class SbxHandle implements SandboxHandle {
     const hostPort = hostPortFromPortsJson(listed.stdout, port)
     if (hostPort === null) {
       throw new Error(
-        `sbx: sandbox port ${port} is not published. Pass publishPorts: [${port}] to sbxSandbox() to reach it from the host.`,
+        `sbx: sandbox port ${port} is not in sbx ports --json after publish.`,
       )
     }
     return { url: `http://localhost:${hostPort}` }

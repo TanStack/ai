@@ -790,6 +790,14 @@ describe('sbxSandbox', () => {
       'network',
       '--sandbox',
       'deadbeefdeadbeef',
+      'localhost',
+    ])
+    expect(calls).toContainEqual([
+      'policy',
+      'allow',
+      'network',
+      '--sandbox',
+      'deadbeefdeadbeef',
       '*.npmjs.org',
     ])
   })
@@ -1689,5 +1697,75 @@ describe('round-3 recurrence: create fail, banner, owned sidecar, deny-only', ()
           args.includes('ads.example.com'),
       ),
     ).toBe(true)
+  })
+})
+
+describe('round-4 recurrence: already-exists owned cleanup and policy init', () => {
+  it('owned git create + already-exists deletes dest and .owned and does not rm', async () => {
+    const source = await makeGitRepo()
+    const id = 'a48ownedexists001'
+    const dest = ownedHostRepoDir(id)
+    scratch.push(dest, `${dest}.owned`)
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: {
+          stdout: '',
+          stderr: 'sandbox already exists',
+          exitCode: 1,
+        },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ spawn })
+    await expect(
+      provider.create({
+        id,
+        workspace: defineWorkspace({
+          source: gitSource({ url: source }),
+        }),
+      }),
+    ).rejects.toThrow(/already exists/)
+    expect(calls.some((args) => args[0] === 'rm')).toBe(false)
+    await expect(access(dest)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(access(`${dest}.owned`)).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+  })
+
+  it('policy init fail with sandbox already exists throws and does not create', async () => {
+    const repo = await makeGitRepo()
+    const id = 'a50initexists0001'
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
+        result: {
+          stdout: '',
+          stderr: `Error: sandbox '${id}' already exists`,
+          exitCode: 1,
+        },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(provider.create({ id })).rejects.toThrow(/already exists/)
+    expect(calls.some((args) => args[0] === 'create')).toBe(false)
   })
 })

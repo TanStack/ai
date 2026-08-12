@@ -498,7 +498,7 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-08-11"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Quick Start",
@@ -528,7 +528,7 @@
           "label": "Tools",
           "to": "sandbox/tools",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Policy",

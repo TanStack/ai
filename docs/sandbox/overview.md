@@ -108,8 +108,8 @@ shell.
 [Quick Start](./quick-start) gets an agent fixing a bug in a sandbox on your laptop.
 After that, pick the piece you need:
 
-- [Providers](./providers): local process, Docker, Daytona, Vercel, Sprites, and what
-  each one can do.
+- [Providers](./providers): local process, Docker container, Docker Sandboxes
+  (`sbxSandbox`), Daytona, Vercel, Sprites, and what each one can do.
 - [Harnesses](./harnesses): which agent runs. Grok Build, Claude Code, Codex,
   OpenCode, or any ACP agent.
 - [Workspace](./workspace): the source repo, clone depth, and setup commands.
