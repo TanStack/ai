@@ -117,7 +117,10 @@ function convertModels(): string {
  */
 
 import type { VercelGatewayEmbeddingProviderOptions } from './embedding/embedding-provider-options'
-import type { VercelGatewayImageProviderOptions } from './image/image-provider-options'
+import type {
+  VercelGatewayImageProviderOptions,
+  VercelGatewayImageSize,
+} from './image/image-provider-options'
 import type { VercelGatewayTextProviderOptions } from './text/text-provider-options'
 
 export const VERCEL_GATEWAY_CHAT_MODELS = ${formatStringArray(chat)}
@@ -159,11 +162,7 @@ export type VercelGatewayImageModelProviderOptionsByName = {
 }
 
 export type VercelGatewayImageModelSizeByName = {
-  [K in VercelGatewayImageModel]:
-    | '1024x1024'
-    | '1536x1024'
-    | '1024x1536'
-    | 'auto'
+  [K in VercelGatewayImageModel]: VercelGatewayImageSize
 }
 
 export type VercelGatewayImageModelInputModalitiesByName = {
@@ -171,8 +170,8 @@ export type VercelGatewayImageModelInputModalitiesByName = {
 }
 
 export type ResolveProviderOptions<TModel extends string> =
-  TModel extends VercelGatewayChatModel
-    ? VercelGatewayTextProviderOptions
+  TModel extends keyof VercelGatewayChatModelProviderOptionsByName
+    ? VercelGatewayChatModelProviderOptionsByName[TModel]
     : TModel extends VercelGatewayEmbeddingModel
       ? VercelGatewayEmbeddingProviderOptions
       : TModel extends VercelGatewayImageModel

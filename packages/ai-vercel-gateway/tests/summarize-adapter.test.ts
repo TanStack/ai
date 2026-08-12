@@ -10,10 +10,7 @@ describe('Vercel Gateway summarize adapter', () => {
   })
 
   it('creates a summarize adapter with kind summarize', () => {
-    const adapter = createVercelGatewaySummarize(
-      'anthropic/claude-opus-5',
-      'k',
-    )
+    const adapter = createVercelGatewaySummarize('anthropic/claude-opus-5', 'k')
 
     expect(adapter.kind).toBe('summarize')
     expect(adapter.name).toBe('vercel-gateway')

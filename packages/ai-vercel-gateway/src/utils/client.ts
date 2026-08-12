@@ -1,8 +1,10 @@
 import { getApiKeyFromEnv } from '@tanstack/ai-utils'
 import type { ClientOptions } from 'openai'
 
-export interface VercelGatewayClientConfig
-  extends Omit<ClientOptions, 'apiKey'> {
+export interface VercelGatewayClientConfig extends Omit<
+  ClientOptions,
+  'apiKey'
+> {
   apiKey: string
   httpReferer?: string
   xTitle?: string

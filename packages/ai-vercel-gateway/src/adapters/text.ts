@@ -86,9 +86,5 @@ export function vercelGatewayText<
   model: TModel,
   config?: Omit<VercelGatewayTextConfig, 'apiKey'>,
 ): VercelGatewayTextAdapter<TModel> {
-  return createVercelGatewayText(
-    model,
-    getVercelGatewayApiKeyFromEnv(),
-    config,
-  )
+  return createVercelGatewayText(model, getVercelGatewayApiKeyFromEnv(), config)
 }

@@ -16,8 +16,7 @@ import type { VercelGatewayMessageMetadataByModality } from '../message-types'
 import type { ExternalResponsesProviderOptions } from '../text/responses-provider-options'
 import type { VercelGatewayClientConfig } from '../utils/client'
 
-export interface VercelGatewayResponsesTextConfig
-  extends VercelGatewayClientConfig {}
+export interface VercelGatewayResponsesTextConfig extends VercelGatewayClientConfig {}
 
 export type VercelGatewayResponsesTextProviderOptions =
   ExternalResponsesProviderOptions

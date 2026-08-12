@@ -5,8 +5,7 @@ import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { VERCEL_GATEWAY_CHAT_MODELS } from '../model-meta'
 import type { VercelGatewayClientConfig } from '../utils/client'
 
-export interface VercelGatewaySummarizeConfig
-  extends VercelGatewayClientConfig {}
+export interface VercelGatewaySummarizeConfig extends VercelGatewayClientConfig {}
 
 export type VercelGatewaySummarizeModel =
   (typeof VERCEL_GATEWAY_CHAT_MODELS)[number]

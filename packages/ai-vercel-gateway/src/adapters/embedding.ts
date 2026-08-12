@@ -22,8 +22,7 @@ import type {
 import type { VercelGatewayEmbeddingProviderOptions } from '../embedding/embedding-provider-options'
 import type { VercelGatewayClientConfig } from '../utils/client'
 
-export interface VercelGatewayEmbeddingConfig
-  extends VercelGatewayClientConfig {}
+export interface VercelGatewayEmbeddingConfig extends VercelGatewayClientConfig {}
 
 /**
  * Vercel AI Gateway embedding adapter.

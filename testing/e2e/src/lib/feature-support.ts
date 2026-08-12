@@ -266,7 +266,13 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // `embedding` field, not the `embeddings: number[][]` shape the ollama SDK
   // `embed()` expects; Mistral because its SDK Zod-validates the response and
   // requires an `id` field aimock's OpenAI-format builder omits.
-  embedding: new Set(['openai', 'gemini', 'ollama', 'mistral', 'vercel-gateway']),
+  embedding: new Set([
+    'openai',
+    'gemini',
+    'ollama',
+    'mistral',
+    'vercel-gateway',
+  ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   // vercel-gateway uses POST /v1/images/generations, the same path aimock
   // already mocks for openai. Drop this entry if the first run has no fixture.
