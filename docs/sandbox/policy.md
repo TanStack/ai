@@ -91,6 +91,9 @@ This is the broad backstop: even if a specific network command isn't in your
 `commands` lists, `network: 'ask'` still forces an approval for anything that
 reaches out.
 
+On Daytona, `network: 'deny'` also sets `networkBlockAll` when the sandbox is
+created. The sandbox then has no outbound network.
+
 ## Precedence: deny > ask > allow
 
 When more than one rule could match an action, the strictest wins. The order is
@@ -163,6 +166,20 @@ failing the run, the unsupported rule is skipped (with a warning) instead of
 throwing. Because the mapping is the adapter's job, you write the policy once
 and it behaves consistently no matter which provider or harness runs the
 sandbox.
+
+A deny-only list with `default: 'allow'` stays permissive on Grok Build and
+Codex. Those harnesses keep auto-approve. They do not enforce
+`commands.deny`. Isolation is the outer sandbox. Use Claude Code when you
+need command-level deny.
+
+## Daytona setup needs sudo
+
+The Daytona user is not root. Package installs in `setup` must run as
+`sudo -n apt-get install …`. Do not put `sudo *` in `deny` for a Daytona
+sandbox. That pattern blocks the setup commands.
+
+A Docker sandbox with `default: 'ask'` can still deny `sudo *`. The container
+often runs as root, so setup does not need sudo.
 
 ## Wiring it on
 

@@ -30,7 +30,11 @@
  *   - AGENTS.md is written universally by bootstrap (codex reads it natively),
  *     so it is NOT rewritten here.
  */
-import { isSecretRef, resolveGitSkillDir } from '@tanstack/ai-sandbox'
+import {
+  discoverSkillDirs,
+  isSecretRef,
+  resolveGitSkillDir,
+} from '@tanstack/ai-sandbox'
 import type {
   BearerRef,
   SandboxHandle,
@@ -42,12 +46,6 @@ import type {
 /** POSIX single-quote escape for embedding a value in a shell command. */
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
-}
-
-/** Last path segment of a `gitSkill` clone dir, used as the skills-dir name. */
-function basenameOf(path: string): string {
-  const segments = path.split('/').filter((segment) => segment !== '')
-  return segments[segments.length - 1] ?? path
 }
 
 /** True when `value` is a `bearer(ref)` marker created by `@tanstack/ai-sandbox`. */
@@ -177,16 +175,21 @@ async function projectGitSkills(
       madeDir = true
     }
     const source = skill.into ?? resolveGitSkillDir(projection.root, skill)
-    const target = `${skillsDir}/${basenameOf(source)}`
-    const lnCmd = `ln -s ${shellQuote(source)} ${shellQuote(target)}`
-    const result = await handle.process.exec(lnCmd, { cwd: projection.root })
-    if (result.exitCode !== 0) {
-      const cpCmd = `cp -r ${shellQuote(source)} ${shellQuote(target)}`
-      const copied = await handle.process.exec(cpCmd, { cwd: projection.root })
-      if (copied.exitCode !== 0) {
-        console.warn(
-          `[codex] failed to link gitSkill "${skill.repo}" into ${target}: ${copied.stderr.trim()}`,
-        )
+    const discovered = await discoverSkillDirs(handle, source)
+    for (const { name, dir } of discovered) {
+      const target = `${skillsDir}/${name}`
+      const lnCmd = `ln -s ${shellQuote(dir)} ${shellQuote(target)}`
+      const result = await handle.process.exec(lnCmd, { cwd: projection.root })
+      if (result.exitCode !== 0) {
+        const cpCmd = `cp -r ${shellQuote(dir)} ${shellQuote(target)}`
+        const copied = await handle.process.exec(cpCmd, {
+          cwd: projection.root,
+        })
+        if (copied.exitCode !== 0) {
+          console.warn(
+            `[codex] failed to link gitSkill "${skill.repo}" into ${target}: ${copied.stderr.trim()}`,
+          )
+        }
       }
     }
   }

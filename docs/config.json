@@ -521,7 +521,7 @@
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Harnesses",
@@ -533,7 +533,7 @@
           "label": "Workspace",
           "to": "sandbox/workspace",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Tools",
@@ -545,13 +545,13 @@
           "label": "Policy",
           "to": "sandbox/policy",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Lifecycle & Snapshots",
           "to": "sandbox/lifecycle",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Instance Durability",
@@ -596,7 +596,7 @@
           "label": "Provisioning",
           "to": "sandbox/provisioning",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Observability",
@@ -859,7 +859,7 @@
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "OpenCode",
@@ -870,7 +870,8 @@
         {
           "label": "Grok Build",
           "to": "adapters/grok-build",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "ACP-Compatible",

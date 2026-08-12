@@ -64,8 +64,9 @@ defineWorkspace({
 })
 ```
 
-`secrets` is [declared on the workspace](./workspace), and the values are
-injected into the sandbox env at create/resume time.
+`secrets` is [declared on the workspace](./workspace). `ensure()` puts the
+values onto the live handle at create, resume, and snapshot restore. They
+never stay on the Daytona sandbox record as create-time `envVars`.
 
 ### Why the values never leak
 
@@ -175,7 +176,12 @@ defineWorkspace({
 
 `gitSkill` takes an optional `into` field, an **absolute path inside the
 sandbox**, controlling where the repo is cloned. It defaults to
-`.tanstack-skills/<repo-basename>`:
+`.tanstack-skills/<repo-basename>`. Bootstrap creates the parent directory
+before the clone.
+
+Paths that start with `/workspace` map to the provider workdir. On Daytona
+that workdir is `/home/daytona/workspace` by default. You can keep the
+portable `/workspace/...` path in `into`.
 
 ```ts
 import { createSecrets, defineWorkspace, gitSkill, githubRepo } from '@tanstack/ai-sandbox'
@@ -205,6 +211,11 @@ format:
 | Claude Code | `.mcp.json`              |
 | Codex       | `.codex/config.toml`     |
 | OpenCode    | `opencode.json`          |
+
+Each projector walks the cloned repo for folders that contain `SKILL.md`. A
+nested pack (`skills/foo/SKILL.md`) is linked under the skill name `foo`. A
+flat clone with `SKILL.md` at the root uses the clone name. You do not write
+`ln -s` by hand.
 
 A concept a given CLI lacks (for example, `plugins` on Codex) **emits a
 warning and is silently skipped** rather than throwing. The same applies to

@@ -120,6 +120,8 @@ describe('grok-build in-sandbox adapter', () => {
     expect(argv).toContain('grok-build-0.1')
     expect(argv).not.toContain('--mcp-config')
     expect(argv).toContain('--always-approve')
+    expect(argv).toContain('--no-plan')
+    expect(argv).toContain('--no-auto-update')
     expect(argv).toContain('--cwd')
     // local-process: harness cwd must be the real host dir, not virtual /workspace.
     expect(argv).toContain(sbx.id)

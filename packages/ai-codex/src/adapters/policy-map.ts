@@ -12,9 +12,11 @@
  * - `capabilities.network` → `sandbox_workspace_write.network_access`
  *   (`'allow'` → true, `'deny'` → false; unset leaves Codex's default).
  * - `approval_policy`: a fully-permissive policy (`default: 'allow'` with no
- *   `ask`/`deny` rules) → `never`; a `default: 'deny'` policy → `untrusted`;
- *   anything with `ask`/`deny` rules → `on-request`. In `exec` mode Codex will
- *   refuse (rather than prompt for) actions that need approval.
+ *   `ask` rules) → `never`; a `default: 'deny'` policy → `untrusted`;
+ *   anything with `ask` rules → `on-request`. A deny list alone is a hard
+ *   block, not a human prompt, so it does not flip `on-request`. In `exec`
+ *   mode Codex will refuse (rather than prompt for) actions that need
+ *   approval.
  *
  * Returns only the knobs the policy actually constrains; the adapter merges
  * these with its own config (config/modelOptions still take precedence).
@@ -43,10 +45,8 @@ export function mapPolicyToCodexFlags(
     flags.networkAccessEnabled = false
   }
 
-  const hasAskOrDeny =
-    (policy.commands?.ask?.length ?? 0) > 0 ||
-    (policy.commands?.deny?.length ?? 0) > 0
-  if (hasAskOrDeny) {
+  const hasAsk = (policy.commands?.ask?.length ?? 0) > 0
+  if (hasAsk) {
     flags.approvalPolicy = 'on-request'
   } else if (policy.default === 'deny') {
     flags.approvalPolicy = 'untrusted'

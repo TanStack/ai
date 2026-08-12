@@ -41,16 +41,25 @@ describe('mapPolicyToCodexFlags', () => {
     ).toBe('untrusted')
   })
 
-  it('maps ask/deny command rules to approval_policy=on-request', () => {
+  it('maps ask command rules to approval_policy=on-request', () => {
     expect(
       mapPolicyToCodexFlags(
         defineSandboxPolicy({ commands: { ask: ['pnpm *'] } }),
       ).approvalPolicy,
     ).toBe('on-request')
+  })
+
+  // Headless `codex exec` refuses tools when approval_policy is on-request.
+  // A deny list is a hard block, not a human prompt, so default: allow +
+  // deny stays never. Issue #1081 item 1.
+  it('does not treat a deny list as on-request when default is allow', () => {
     expect(
       mapPolicyToCodexFlags(
-        defineSandboxPolicy({ default: 'allow', commands: { deny: ['rm *'] } }),
+        defineSandboxPolicy({
+          default: 'allow',
+          commands: { deny: ['rm -rf /'] },
+        }),
       ).approvalPolicy,
-    ).toBe('on-request')
+    ).toBe('never')
   })
 })

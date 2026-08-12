@@ -22,7 +22,7 @@ same.
 | --- | --- | --- | --- |
 | Local process | `@tanstack/ai-sandbox-local-process` | none (host) | The fast, no-Docker dev loop. Trusted/dev use only. |
 | Docker | `@tanstack/ai-sandbox-docker` | container | Real isolation; commit-based snapshots, fork, resume-by-id. |
-| Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
+| Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; snapshots after setup, port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
 | Vercel | `@tanstack/ai-sandbox-vercel` | microVM | Managed [Vercel Sandbox](https://vercel.com/docs/sandbox) microVMs; exposed-port domains, resume-by-id (persistent). Needs `VERCEL_TOKEN` + team/project. |
 | Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
 
@@ -139,18 +139,79 @@ const isolated = dockerSandbox({ image: 'node:22' })
 ```ts
 import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 
-const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY })
+const daytona = daytonaSandbox({
+  apiKey: process.env.DAYTONA_API_KEY,
+  snapshot: 'daytona-medium',
+  autoStopInterval: 0,
+})
 ```
 
 - **Isolation:** a managed cloud sandbox on a remote VM you do not run yourself.
-- **Auth / env:** needs `DAYTONA_API_KEY`. Harness credentials are injected as
-  workspace secrets; there is no host login to fall back on.
-- **Snapshot / resume:** no snapshots; resume-by-id reconnects to a still-running
-  sandbox (not a restored point-in-time snapshot), plus port preview links for
-  live previews.
+- **Auth / env:** needs `DAYTONA_API_KEY`. Harness credentials are workspace
+  secrets. They go onto the live handle and into each `exec` call through the
+  SDK env argument. Spawn sources a workdir env file. Secret values never
+  enter create-time `envVars` or the stored command string. Git clone auth
+  uses the native username and password arguments.
+- **Snapshot / resume:** point-in-time snapshots and restore.
+  `daytonaSandbox({ snapshot })` selects the Daytona image to create from
+  (for example `'daytona-medium'`). After `setup`, the sandbox layer takes its
+  own snapshot when `lifecycle.snapshot` is `'after-setup'` (the default on
+  this provider). That snapshot stops the sandbox, captures the filesystem,
+  then starts it again. Resume-by-id starts a `stopped` or `archived`
+  sandbox, then returns the handle. Daytona stops an idle sandbox after 15
+  minutes unless you set `autoStopInterval` (minutes; `0` turns auto-stop
+  off). Set `ephemeral: true` to delete the sandbox when it stops.
+- **Network:** `policy.capabilities.network === 'deny'` sets
+  `networkBlockAll` on create. The provider reports `networkPolicy: true`.
+- **Working directory:** the virtual root `/workspace` maps to
+  `/home/daytona/workspace` by default. Set `workdir` on `daytonaSandbox()` if
+  you need a different path. Native `sandbox.fs` and `sandbox.git` use that
+  mapped path.
+- **Stdin:** spawned processes accept stdin through
+  `sendSessionCommandInput`. `writableStdin` is `true`.
+- **Privileges:** the Daytona user is not root. Setup commands that install
+  packages must use `sudo -n`. Do not deny `sudo *` on a Daytona
+  [policy](./policy).
 - **Bridge:** the sandbox is remote, so a [bridged tool](./tools) call can't reach
   your laptop's `localhost`. In local dev, tunnel the bridge (see [tools](./tools));
   a deployed orchestrator is reachable out of the box.
+
+```ts
+import { chat } from '@tanstack/ai'
+import { grokBuildText } from '@tanstack/ai-grok-build'
+import {
+  defineSandbox,
+  defineSandboxPolicy,
+  defineWorkspace,
+  gitSkill,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
+import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
+
+const sandbox = defineSandbox({
+  id: 'daytona-agent',
+  provider: daytonaSandbox({
+    apiKey: process.env.DAYTONA_API_KEY,
+    snapshot: 'daytona-medium',
+  }),
+  workspace: defineWorkspace({
+    skills: [gitSkill({ repo: 'owner/skills-pack' })],
+  }),
+  policy: defineSandboxPolicy({
+    default: 'allow',
+    commands: { deny: ['rm -rf /'] },
+  }),
+})
+
+const stream = chat({
+  adapter: grokBuildText('grok-build'),
+  messages: [{ role: 'user', content: 'List the project files.' }],
+  middleware: [withSandbox(sandbox)],
+})
+```
+
+Grok Build and Codex do not enforce `commands.deny`. Isolation is the Daytona
+sandbox. Use Claude Code when you need command-level deny.
 
 ## Vercel
 
@@ -211,7 +272,7 @@ Providers declare what they support via `capabilities()`. The flags are:
 | `env` | Inject environment variables. |
 | `ports` | Expose/forward ports (preview URLs). |
 | `backgroundProcesses` | Keep long-running processes alive between calls. |
-| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process and Docker; `false` on remote/edge providers (Daytona, Vercel, Cloudflare), where stdin-fed harnesses deliver the prompt via a file + shell redirection instead. |
+| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker, and Daytona. `false` on Vercel and Cloudflare, where stdin-fed harnesses deliver the prompt via a file + shell redirection. |
 | `killableProcesses` | A spawned process can be forcibly stopped via `SpawnHandle.kill()` **and** aborted mid-flight via the `signal` passed to `spawn`. |
 | `snapshots` | Capture and restore point-in-time snapshots. |
 | `networkPolicy` | Enforce network allow/deny rules. |

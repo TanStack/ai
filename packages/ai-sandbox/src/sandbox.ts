@@ -123,6 +123,20 @@ const DESTROY_TIMEOUT_MS = 60 * 1000
 const fallbackStore = new InMemorySandboxInstanceStore()
 const fallbackLocks = new InMemoryLockStore()
 
+/**
+ * Put workspace secrets onto a live handle. Resume and snapshot restore skip
+ * bootstrap, so this is the only path that re-injects them after reconnect.
+ */
+async function applyWorkspaceSecrets(
+  handle: SandboxHandle,
+  workspace: WorkspaceDefinition | undefined,
+): Promise<void> {
+  if (workspace?.secrets === undefined) return
+  const resolved = resolveAllSecrets(workspace.secrets)
+  if (Object.keys(resolved).length === 0) return
+  await handle.env.set(resolved)
+}
+
 export function defineSandbox(config: SandboxConfig): SandboxDefinition {
   const keyInputFor = (ctx: SandboxEnsureContext): SandboxKeyInput => ({
     threadId:
@@ -160,6 +174,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
             signal: ctx.signal,
           })
           if (resumed) {
+            await applyWorkspaceSecrets(resumed, config.workspace)
             await store.upsert({
               ...existing,
               latestRunId: ctx.runId,
@@ -183,6 +198,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
                   : undefined,
               signal: ctx.signal,
             })
+            await applyWorkspaceSecrets(restored, config.workspace)
             await store.upsert({
               ...existing,
               providerSandboxId: restored.id,
