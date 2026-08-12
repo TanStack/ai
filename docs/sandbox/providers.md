@@ -241,7 +241,7 @@ Providers declare what they support via `capabilities()`. The flags are:
 | `env` | Inject environment variables. |
 | `ports` | Expose/forward ports (preview URLs). |
 | `backgroundProcesses` | Keep long-running processes alive between calls. |
-| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process and Docker; `false` on remote/edge providers (Daytona, Vercel, Cloudflare), where stdin-fed harnesses deliver the prompt via a file + shell redirection instead. |
+| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process. `false` for Docker (container and `sbx`), Daytona, Vercel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
 | `killableProcesses` | A spawned process can be forcibly stopped via `SpawnHandle.kill()` **and** aborted mid-flight via the `signal` passed to `spawn`. |
 | `snapshots` | Capture and restore point-in-time snapshots. |
 | `networkPolicy` | Enforce network allow/deny rules. |

@@ -27,7 +27,7 @@ export interface SbxLsEntry {
 }
 
 const INSTALL_HELP =
-  'sbx is not on PATH. Install Docker Sandboxes (`brew install docker/tap/sbx`, `winget install Docker.sbx`, or `apt-get install docker-sbx`), then retry.'
+  'sbx is not on PATH. Install Docker Sandboxes: macOS `brew trust docker/tap` then `brew install docker/tap/sbx`; Windows enable HypervisorPlatform then `winget install -h Docker.sbx`; Linux `curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh` then `apt-get install docker-sbx` and add your user to the kvm group. Then retry.'
 
 const LOGIN_HELP =
   'sbx is not logged in. Run `sbx login`, or in CI pipe a PAT to `sbx login --password-stdin`.'
@@ -250,22 +250,34 @@ export function sbxExecArgs(
   return args
 }
 
-export function parseSbxLs(stdout: string): Array<SbxLsEntry> {
-  // sandboxd may print a banner before the JSON (docker/sbx-releases#201).
+/**
+ * sandboxd may print a start banner before JSON (docker/sbx-releases#201).
+ * Walk every `{` / `[` until one slice parses.
+ */
+export function parseJsonAfterBanner(stdout: string): unknown {
   const brace = stdout.indexOf('{')
   const bracket = stdout.indexOf('[')
   const starts = [brace, bracket].filter((i) => i >= 0).sort((a, b) => a - b)
-  const originalSlice =
-    starts[0] === undefined ? stdout : stdout.slice(starts[0])
-  let parsed: unknown
-  for (const start of starts.length === 0 ? [0] : starts) {
+  if (starts.length === 0) {
+    throw new SyntaxError(
+      `sbx JSON: no object or array in: ${stdout.slice(0, 200)}`,
+    )
+  }
+  let lastError: unknown
+  for (const start of starts) {
     try {
-      parsed = JSON.parse(stdout.slice(start))
-      break
-    } catch {
-      // The first `{`/`[` may sit in the banner; try the next one.
+      return JSON.parse(stdout.slice(start)) as unknown
+    } catch (error) {
+      lastError = error
     }
   }
+  throw lastError instanceof Error
+    ? lastError
+    : new SyntaxError(`sbx JSON: ${stdout.slice(0, 200)}`)
+}
+
+export function parseSbxLs(stdout: string): Array<SbxLsEntry> {
+  const parsed = parseJsonAfterBanner(stdout)
   const list = Array.isArray(parsed)
     ? parsed
     : (asRecord(parsed)?.sandboxes ??
@@ -273,7 +285,7 @@ export function parseSbxLs(stdout: string): Array<SbxLsEntry> {
       asRecord(parsed)?.items)
   if (!Array.isArray(list)) {
     throw new Error(
-      `sbx ls --json: unexpected shape: ${originalSlice.slice(0, 200)}`,
+      `sbx ls --json: unexpected shape: ${stdout.trim().slice(0, 200)}`,
     )
   }
   const entries: Array<SbxLsEntry> = []

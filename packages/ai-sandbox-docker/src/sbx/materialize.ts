@@ -77,6 +77,15 @@ export function ownedHostRepoDir(id: string): string {
   return path.join(ownedHostRepoRoot(), sandboxNameFromId(id))
 }
 
+export function ownedCloneMarkerPath(id: string): string {
+  return `${ownedHostRepoDir(id)}.owned`
+}
+
+export async function removeOwnedClone(id: string): Promise<void> {
+  await rm(ownedHostRepoDir(id), { recursive: true, force: true })
+  await rm(ownedCloneMarkerPath(id), { force: true })
+}
+
 function normalizeGitUrl(url: string): string {
   let value = url.trim().replaceAll('\\', '/')
   value = value.replace(/\/+$/, '')

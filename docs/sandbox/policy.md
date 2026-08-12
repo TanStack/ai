@@ -100,6 +100,7 @@ Most providers leave `capabilities.network` to the harness. `sbxSandbox()` also 
 | TanStack `capabilities.network` | What `sbxSandbox()` writes |
 | --- | --- |
 | No policy and no `allowNetwork` / `denyNetwork` | If the policy list is empty, `sbxSandbox()` runs `sbx policy init deny-all`. A known adapter (`grok-build`, `claude-code`, `codex`) then writes its model API host as a per-sandbox allow on top of that deny-all. Unknown adapters stay on the machine preset. |
+| No policy and `allowNetwork` | Per-sandbox allow of the model API host (when the adapter is known) plus `allowNetwork`, then apply `denyNetwork`. |
 | `allow` | Allow `**`, then apply `denyNetwork`. |
 | `deny` | Allow only the model API host plus `allowNetwork`, then apply `denyNetwork`. |
 | `ask` (or the policy `default` when `network` is unset) | Same allowlist as `deny`. The harness still asks for tools and commands. |

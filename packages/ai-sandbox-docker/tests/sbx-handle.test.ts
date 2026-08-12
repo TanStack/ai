@@ -122,6 +122,15 @@ describe('isAlreadyGone / destroy already-gone', () => {
     expect(isAlreadyGone(new Error('no such sandbox'))).toBe(true)
     expect(isAlreadyGone(new Error('not found sandbox'))).toBe(true)
   })
+
+  it("sandbox 'name' not found is gone", () => {
+    expect(
+      isAlreadyGone(new Error("Error: sandbox 'deadbeef' not found")),
+    ).toBe(true)
+    expect(
+      isAlreadyGone(new Error('Error: sandbox "deadbeef" not found')),
+    ).toBe(true)
+  })
 })
 
 function handleWithTestE(result: SbxRunResult): SbxHandle {
@@ -314,5 +323,15 @@ describe('spawn output chunks', () => {
     expect(stdout).toBe('hello world')
     expect(stderr).toBe('e1e2')
     expect(code).toBe(0)
+  })
+})
+
+describe('SbxHandle ports.connect banner-prefixed JSON', () => {
+  it('ports.connect strips a sandboxd banner before JSON', async () => {
+    const handle = handleWithPortsJson(
+      `sandboxd starting...\n${JSON.stringify([{ sandbox_port: 3000, host_port: 41000 }])}`,
+    )
+    const channel = await handle.ports.connect(3000)
+    expect(channel.url).toBe('http://localhost:41000')
   })
 })

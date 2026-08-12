@@ -1520,3 +1520,174 @@ describe('package exports', () => {
     expect(dockerSandbox({ image: 'alpine:3' }).name).toBe('docker')
   })
 })
+
+describe('round-3 recurrence: create fail, banner, owned sidecar, deny-only', () => {
+  it('create name-already-exists does not run sbx rm', async () => {
+    const repo = await makeGitRepo()
+    const id = 'a38nameexists0001'
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: {
+          stdout: '',
+          stderr: `Error: sandbox '${id}' already exists`,
+          exitCode: 1,
+        },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(provider.create({ id })).rejects.toThrow(/already exists/)
+    expect(calls.some((args) => args[0] === 'rm')).toBe(false)
+  })
+
+  it('create leftover cleanup prefers the create error when rm is already-gone', async () => {
+    const repo = await makeGitRepo()
+    const id = 'a38rmalreadygone1'
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: { stdout: '[{"name":"local"}]', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '', stderr: 'pwd failed after create', exitCode: 1 },
+      },
+      {
+        match: (args) => args[0] === 'rm',
+        result: {
+          stdout: '',
+          stderr: `Error: sandbox '${id}' not found`,
+          exitCode: 1,
+        },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(provider.create({ id })).rejects.toThrow(
+      /pwd failed after create/,
+    )
+    expect(calls).toContainEqual(['rm', '--force', id])
+  })
+
+  it('create inits deny-all when policy ls --json has a sandboxd banner', async () => {
+    const repo = await makeGitRepo()
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: {
+          stdout: 'sandboxd starting...\n[]',
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({ workspaceDir: repo, spawn })
+    await expect(
+      provider.create({ id: 'a39bannerls000001' }),
+    ).resolves.toMatchObject({ id: 'a39bannerls000001' })
+    expect(
+      calls.some(
+        (args) =>
+          args[0] === 'policy' && args[1] === 'init' && args[2] === 'deny-all',
+      ),
+    ).toBe(true)
+  })
+
+  it('handle.destroy deletes the owned dest and the .owned sidecar', async () => {
+    const id = 'a41sidecardest001'
+    const dest = ownedHostRepoDir(id)
+    await mkdir(dest, { recursive: true })
+    await writeFile(path.join(dest, 'marker.txt'), 'owned\n')
+    await writeFile(`${dest}.owned`, '')
+    scratch.push(dest, `${dest}.owned`)
+    const { spawn } = scriptedSpawn([
+      {
+        match: (args) => args[0] === 'rm',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+    ])
+    const handle = new SbxHandle({
+      name: id,
+      workspaceRoot: '/home/user/work',
+      binary: 'sbx',
+      spawn,
+      owned: true,
+    })
+    await handle.destroy()
+    await expect(access(dest)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(access(`${dest}.owned`)).rejects.toMatchObject({
+      code: 'ENOENT',
+    })
+  })
+
+  it('Open machine + denyNetwork-only does not fail closed', async () => {
+    const repo = await makeGitRepo()
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: {
+          stdout: JSON.stringify([{ name: 'open', resources: ['**'] }]),
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'policy' && args.includes('--sandbox'),
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({
+      workspaceDir: repo,
+      denyNetwork: ['ads.example.com'],
+      spawn,
+    })
+    await expect(
+      provider.create({ id: 'a42denyonlyopen01' }),
+    ).resolves.toMatchObject({ id: 'a42denyonlyopen01' })
+    expect(calls.some((args) => args[0] === 'create')).toBe(true)
+    expect(
+      calls.some(
+        (args) =>
+          args[0] === 'policy' &&
+          args[1] === 'deny' &&
+          args.includes('ads.example.com'),
+      ),
+    ).toBe(true)
+  })
+})

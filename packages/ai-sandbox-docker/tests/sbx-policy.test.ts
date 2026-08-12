@@ -209,4 +209,30 @@ describe('planSbxPolicy', () => {
       ],
     ])
   })
+
+  it('known adapter + allowNetwork and no policy still adds auto API hosts', () => {
+    expect(
+      planSbxPolicy({
+        adapterName: 'grok-build',
+        allowNetwork: ['*.npmjs.org'],
+      }),
+    ).toEqual({
+      kind: 'per-sandbox',
+      allow: ['api.x.ai', '*.npmjs.org'],
+      deny: [],
+    })
+  })
+
+  it('denyNetwork-only with no policy still adds no auto hosts', () => {
+    expect(
+      planSbxPolicy({
+        adapterName: 'grok-build',
+        denyNetwork: ['ads.example.com'],
+      }),
+    ).toEqual({
+      kind: 'per-sandbox',
+      allow: [],
+      deny: ['ads.example.com'],
+    })
+  })
 })

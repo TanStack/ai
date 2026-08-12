@@ -158,11 +158,11 @@ Because local-process inherits your host environment, you can drop the
 If you want a hypervisor microVM, use `sbxSandbox()`. This is not a Docker container.
 
 1. Install Docker Sandboxes so `sbx` is on `PATH`.
-   - macOS: `brew install docker/tap/sbx`
-   - Windows: `winget install Docker.sbx`
-   - Debian or Ubuntu: `apt-get install docker-sbx`
+   - macOS: `brew trust docker/tap`, then `brew install docker/tap/sbx`
+   - Windows: enable HypervisorPlatform, then `winget install -h Docker.sbx`
+   - Debian or Ubuntu: `curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh`, then `apt-get install docker-sbx`. Add your user to the `kvm` group.
 2. Run `sbx login`.
-3. Swap the provider:
+3. Swap the provider. Pass `allowNetwork` so `pnpm install` can reach the npm registry. A known adapter such as `grok-build` also adds its model API host.
 
 ```ts
 import {
@@ -175,7 +175,9 @@ import { sbxSandbox } from '@tanstack/ai-sandbox-docker'
 
 export const repoSandbox = defineSandbox({
   id: 'bug-fixer',
-  provider: sbxSandbox(),
+  provider: sbxSandbox({
+    allowNetwork: ['*.npmjs.org', 'registry.npmjs.org'],
+  }),
   workspace: defineWorkspace({
     source: githubRepo({ repo: 'owner/buggy-app' }),
     setup: ['pnpm install'],

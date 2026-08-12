@@ -8,10 +8,14 @@
  * Task 8 measures them.
  */
 import { randomUUID } from 'node:crypto'
-import { rm } from 'node:fs/promises'
 import { createExecBackedGit } from '@tanstack/ai-sandbox'
-import { runSbx, runSbxStreaming, sbxExecArgs } from './cli'
-import { ownedHostRepoDir, sandboxNameFromId } from './materialize'
+import {
+  parseJsonAfterBanner,
+  runSbx,
+  runSbxStreaming,
+  sbxExecArgs,
+} from './cli'
+import { removeOwnedClone, sandboxNameFromId } from './materialize'
 import type {
   ExecResult,
   ProcessOptions,
@@ -134,7 +138,7 @@ function numericPort(value: unknown): number | undefined {
 }
 
 function hostPortFromPortsJson(stdout: string, port: number): number | null {
-  const parsed: unknown = JSON.parse(stdout)
+  const parsed: unknown = parseJsonAfterBanner(stdout)
   const rec = asRecord(parsed)
   if (rec) {
     const host = numericPort(rec[String(port)])
@@ -160,7 +164,14 @@ function hostPortFromPortsJson(stdout: string, port: number): number | null {
 
 export function isAlreadyGone(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error)
-  return /(?:sandbox|vm|container)\s+not found|not found\s+(?:sandbox|vm|container)|no such\s+(?:sandbox|vm|container)/i.test(
+  return /(?:sandbox|vm|container)(?:\s+(?:'[^']+'|"[^"]+"|\S+))?\s+not found|not found\s+(?:sandbox|vm|container)|no such\s+(?:sandbox|vm|container)/i.test(
+    message,
+  )
+}
+
+export function isNameAlreadyExists(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error)
+  return /(?:sandbox|vm|container)\s+(?:'[^']+'|"[^"]+"|\S+)\s+already exists/i.test(
     message,
   )
 }
@@ -553,7 +564,7 @@ export class SbxHandle implements SandboxHandle {
       rmError = error
     }
     if (this.owned) {
-      await rm(ownedHostRepoDir(name), { recursive: true, force: true })
+      await removeOwnedClone(name)
     }
     if (rmError && !isAlreadyGone(rmError)) throw rmError
   }

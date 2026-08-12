@@ -504,13 +504,13 @@
           "label": "Quick Start",
           "to": "sandbox/quick-start",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-11"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-11"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Harnesses",
@@ -534,7 +534,7 @@
           "label": "Policy",
           "to": "sandbox/policy",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-11"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Lifecycle & Snapshots",

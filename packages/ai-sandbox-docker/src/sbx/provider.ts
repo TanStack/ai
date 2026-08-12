@@ -1,9 +1,15 @@
-import { access, rm, writeFile } from 'node:fs/promises'
-import { parseSbxLs, runSbx, sbxExecArgs } from './cli'
+import { access, writeFile } from 'node:fs/promises'
+import { parseJsonAfterBanner, parseSbxLs, runSbx, sbxExecArgs } from './cli'
 import type { SbxSpawn } from './cli'
-import { isAlreadyGone, SbxHandle, SBX_CAPS } from './handle'
 import {
-  ownedHostRepoDir,
+  isAlreadyGone,
+  isNameAlreadyExists,
+  SbxHandle,
+  SBX_CAPS,
+} from './handle'
+import {
+  ownedCloneMarkerPath,
+  removeOwnedClone,
   resolveHostRepo,
   sandboxNameFromId,
 } from './materialize'
@@ -38,7 +44,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 function hasPolicyRows(stdout: string): boolean {
   const text = stdout.trim()
   if (text === '') return false
-  const parsed: unknown = JSON.parse(text)
+  const parsed: unknown = parseJsonAfterBanner(text)
   if (Array.isArray(parsed)) return parsed.length > 0
   if (isRecord(parsed)) {
     for (const key of ['policies', 'items', 'rules']) {
@@ -74,7 +80,7 @@ function isOpenMachinePreset(stdout: string): boolean {
   const text = stdout.trim()
   if (text === '') return false
   try {
-    return looksOpenPolicy(JSON.parse(text))
+    return looksOpenPolicy(parseJsonAfterBanner(text))
   } catch {
     const lower = text.toLowerCase()
     if (lower.includes('allow-all') || lower.includes('allowall')) return true
@@ -84,11 +90,11 @@ function isOpenMachinePreset(stdout: string): boolean {
 }
 
 function isDenyAskAllowlist(plan: SbxPolicyPlan): boolean {
-  return plan.kind === 'per-sandbox' && !plan.allow.includes('**')
-}
-
-function ownedCloneMarkerPath(id: string): string {
-  return `${ownedHostRepoDir(id)}.owned`
+  return (
+    plan.kind === 'per-sandbox' &&
+    plan.allow.length > 0 &&
+    !plan.allow.includes('**')
+  )
 }
 
 async function ownedCloneMarkerExists(id: string): Promise<boolean> {
@@ -98,11 +104,6 @@ async function ownedCloneMarkerExists(id: string): Promise<boolean> {
   } catch {
     return false
   }
-}
-
-async function removeOwnedClone(id: string): Promise<void> {
-  await rm(ownedHostRepoDir(id), { recursive: true, force: true })
-  await rm(ownedCloneMarkerPath(id), { force: true })
 }
 
 function isAlreadyInitialized(error: unknown): boolean {
@@ -246,6 +247,7 @@ class SbxProvider implements SandboxProvider {
       if (input.env) await handle.env.set(input.env)
       return handle
     } catch (error) {
+      if (isNameAlreadyExists(error)) throw error
       let rmError: unknown
       try {
         await this.run(['rm', '--force', id])
@@ -255,7 +257,7 @@ class SbxProvider implements SandboxProvider {
       if (host.owned) {
         await removeOwnedClone(id)
       }
-      if (rmError) throw rmError
+      if (rmError && !isAlreadyGone(rmError)) throw rmError
       throw error
     }
   }

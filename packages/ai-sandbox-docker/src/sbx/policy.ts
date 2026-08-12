@@ -51,8 +51,11 @@ export function planSbxPolicy(input: {
   }
 
   // deny/ask (including default-ask from a real policy): allowlist + auto hosts.
-  // No policy: host lists only. denyNetwork-only stays { allow: [], deny }.
-  const allow = [...(input.policy ? auto : []), ...(input.allowNetwork ?? [])]
+  // No policy + allowNetwork: still merge auto hosts (README / Quick Start).
+  // denyNetwork-only stays { allow: [], deny } with no auto hosts (A19).
+  const mergeAuto =
+    Boolean(input.policy) || (input.allowNetwork?.length ?? 0) > 0
+  const allow = [...(mergeAuto ? auto : []), ...(input.allowNetwork ?? [])]
   if (allow.length === 0 && (decision === 'deny' || decision === 'ask')) {
     throw new Error(EMPTY_ALLOWLIST)
   }

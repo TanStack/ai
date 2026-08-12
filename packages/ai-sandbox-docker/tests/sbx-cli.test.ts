@@ -109,9 +109,13 @@ describe('runSbx', () => {
     if (!(error instanceof Error)) {
       throw new Error('expected Error')
     }
+    expect(error.message).toContain('brew trust docker/tap')
     expect(error.message).toContain('brew install docker/tap/sbx')
-    expect(error.message).toContain('winget install Docker.sbx')
+    expect(error.message).toContain('HypervisorPlatform')
+    expect(error.message).toContain('winget install -h Docker.sbx')
+    expect(error.message).toContain('REPO_ONLY=1')
     expect(error.message).toContain('apt-get install docker-sbx')
+    expect(error.message).toContain('kvm')
   })
 
   it('throws with login help when stderr says not logged in', async () => {
