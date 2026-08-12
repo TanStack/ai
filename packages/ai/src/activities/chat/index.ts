@@ -5,6 +5,7 @@
  * This is a self-contained module with implementation, types, and JSDoc.
  */
 
+import { z } from 'zod'
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import { undoNullWidening } from '@tanstack/ai-utils'
 import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
@@ -565,29 +566,32 @@ export interface TextActivityOptions<
   debug?: DebugOption
 }
 
-const CHAT_OPTION_KEYS = new Set([
-  'adapter',
-  'messages',
-  'systemPrompts',
-  'tools',
-  'mcp',
-  'metadata',
-  'modelOptions',
-  'abortController',
-  'agentLoopStrategy',
-  'lazyToolsConfig',
-  'conversationId',
-  'threadId',
-  'runId',
-  'parentRunId',
-  'state',
-  'resume',
-  'outputSchema',
-  'stream',
-  'middleware',
-  'context',
-  'debug',
-])
+const CHAT_OPTIONS_SCHEMA = z.object({
+  adapter: z.unknown(),
+  messages: z.unknown(),
+  systemPrompts: z.unknown(),
+  tools: z.unknown(),
+  mcp: z.unknown(),
+  metadata: z.unknown(),
+  modelOptions: z.unknown(),
+  abortController: z.unknown(),
+  agentLoopStrategy: z.unknown(),
+  lazyToolsConfig: z.unknown(),
+  conversationId: z.unknown(),
+  threadId: z.unknown(),
+  runId: z.unknown(),
+  parentRunId: z.unknown(),
+  state: z.unknown(),
+  resume: z.unknown(),
+  outputSchema: z.unknown(),
+  stream: z.unknown(),
+  middleware: z.unknown(),
+  context: z.unknown(),
+  debug: z.unknown(),
+})
+const CHAT_OPTION_KEYS: ReadonlySet<string> = new Set(
+  CHAT_OPTIONS_SCHEMA.keyof().options,
+)
 
 function warnOnUnknownChatOptions(
   options: Pick<
