@@ -10,6 +10,9 @@ const config = defineConfig({
 
     globals: true,
     environment: 'node',
+    // Stdio ACP fixtures spawn a real local-process sandbox + node agent.
+    // Under Nx parallel load the default 5s budget is too tight.
+    testTimeout: 30_000,
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',
