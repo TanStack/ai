@@ -523,6 +523,73 @@ describe('sbxSandbox', () => {
     expect(calls.some((args) => args[0] === 'create')).toBe(false)
   })
 
+  it('deny/ask allowlist is allowed when deny-all has filesystem ** but network deny **', async () => {
+    // Real `sbx policy init deny-all` emits fs allow ** plus network deny **.
+    // Open detection must ignore non-network `**` resources.
+    const repo = await makeGitRepo()
+    const denyAllShape = {
+      rules: [
+        {
+          id: 'default-fs-read-allow-all',
+          name: 'default-fs-read-allow-all',
+          resource_type: 'filesystem:read',
+          decision: 'allow',
+          resources: ['**'],
+        },
+        {
+          id: 'default-fs-write-allow-all',
+          name: 'default-fs-write-allow-all',
+          resource_type: 'filesystem:write',
+          decision: 'allow',
+          resources: ['**'],
+        },
+        {
+          id: 'default-deny-all',
+          name: 'default-deny-all',
+          resource_type: 'network',
+          decision: 'deny',
+          resources: ['**'],
+        },
+      ],
+    }
+    const { spawn, calls } = scriptedSpawn([
+      {
+        match: (args) =>
+          args[0] === 'policy' && args[1] === 'ls' && args.includes('--json'),
+        result: {
+          stdout: JSON.stringify(denyAllShape),
+          stderr: '',
+          exitCode: 0,
+        },
+      },
+      {
+        match: (args) => args[0] === 'create',
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'policy' && args.includes('--sandbox'),
+        result: { stdout: '', stderr: '', exitCode: 0 },
+      },
+      {
+        match: (args) => args[0] === 'exec' && args.includes('pwd'),
+        result: { stdout: '/home/user/work\n', stderr: '', exitCode: 0 },
+      },
+    ])
+    const provider = sbxSandbox({
+      workspaceDir: repo,
+      allowNetwork: ['*.npmjs.org'],
+      spawn,
+    })
+    await expect(
+      provider.create({
+        id: 'a55denyallfsstar1',
+        adapterName: 'codex',
+        policy: defineSandboxPolicy({ capabilities: { network: 'deny' } }),
+      }),
+    ).resolves.toMatchObject({ id: 'a55denyallfsstar1' })
+    expect(calls.some((args) => args[0] === 'create')).toBe(true)
+  })
+
   it('create does not treat a JSON error object as an existing policy', async () => {
     const repo = await makeGitRepo()
     const { spawn, calls } = scriptedSpawn([

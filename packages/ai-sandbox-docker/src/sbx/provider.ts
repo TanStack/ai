@@ -67,24 +67,77 @@ function isOpenPresetName(value: string): boolean {
   return name === 'open' || name === 'allow-all' || name === 'allowall'
 }
 
-function looksOpenPolicy(value: unknown): boolean {
-  if (typeof value === 'string') {
-    return isOpenHost(value) || isOpenPresetName(value)
+function resourceTypeOf(rule: Record<string, unknown>): string | undefined {
+  const raw = rule.resource_type ?? rule.resourceType ?? rule.type
+  return typeof raw === 'string' ? raw.toLowerCase() : undefined
+}
+
+function isNetworkResourceType(resourceType: string | undefined): boolean {
+  return resourceType !== undefined && resourceType.includes('network')
+}
+
+/**
+ * True when a rule object means "network allow-all / Open".
+ * Real `sbx policy init deny-all` also has filesystem rules with resources
+ * `**` — those must NOT count as Open.
+ */
+function ruleIsOpenNetwork(rule: Record<string, unknown>): boolean {
+  const resourceType = resourceTypeOf(rule)
+  if (resourceType !== undefined && !isNetworkResourceType(resourceType)) {
+    return false
   }
-  if (Array.isArray(value)) return value.some(looksOpenPolicy)
-  if (isRecord(value)) return Object.values(value).some(looksOpenPolicy)
+
+  const name = rule.name ?? rule.preset ?? rule.id
+  if (typeof name === 'string' && isOpenPresetName(name)) return true
+
+  const decision = String(rule.decision ?? rule.action ?? 'allow').toLowerCase()
+  if (decision === 'deny' || decision === 'ask' || decision === 'prompt') {
+    return false
+  }
+
+  const resources = rule.resources ?? rule.hosts ?? rule.allow
+  if (Array.isArray(resources)) {
+    return resources.some(
+      (entry) => typeof entry === 'string' && isOpenHost(entry),
+    )
+  }
+  if (typeof resources === 'string') return isOpenHost(resources)
   return false
+}
+
+function collectPolicyRules(parsed: unknown): Array<Record<string, unknown>> {
+  if (Array.isArray(parsed)) {
+    return parsed.filter(isRecord)
+  }
+  if (!isRecord(parsed)) return []
+  for (const key of ['rules', 'policies', 'items']) {
+    const val = parsed[key]
+    if (Array.isArray(val)) return val.filter(isRecord)
+  }
+  return [parsed]
 }
 
 function isOpenMachinePreset(stdout: string): boolean {
   const text = stdout.trim()
   if (text === '') return false
   try {
-    return looksOpenPolicy(parseJsonAfterBanner(text))
+    const rules = collectPolicyRules(parseJsonAfterBanner(text))
+    if (rules.length === 0) return false
+    return rules.some(ruleIsOpenNetwork)
   } catch {
     const lower = text.toLowerCase()
+    // Text fallback: only treat as Open when network wording is present.
+    // Bare `**` is not enough — deny-all uses `**` for filesystem allow and
+    // for network deny.
     if (lower.includes('allow-all') || lower.includes('allowall')) return true
-    if (/(^|[\s,"'[])\*\*(:[\w]+)?($|[\s,"'\]])/.test(text)) return true
+    if (
+      /network[^\\n]{0,80}\*\*/i.test(text) &&
+      !/network[^\\n]{0,80}("decision"\s*:\s*"deny"|decision\s*[:=]\s*deny)/i.test(
+        text,
+      )
+    ) {
+      return true
+    }
     return /(^|[\s:"'{,])open($|[\s,"'}])/i.test(text)
   }
 }
