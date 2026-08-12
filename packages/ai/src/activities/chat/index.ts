@@ -574,6 +574,51 @@ export interface TextActivityOptions<
   debug?: DebugOption
 }
 
+const CHAT_OPTION_KEYS = new Set([
+  'adapter',
+  'messages',
+  'systemPrompts',
+  'tools',
+  'mcp',
+  'metadata',
+  'modelOptions',
+  'abortController',
+  'agentLoopStrategy',
+  'lazyToolsConfig',
+  'conversationId',
+  'threadId',
+  'runId',
+  'parentRunId',
+  'state',
+  'resume',
+  'outputSchema',
+  'stream',
+  'middleware',
+  'context',
+  'debug',
+])
+
+function warnOnUnknownChatOptions(
+  options: Pick<
+    TextActivityOptions<AnyTextAdapter, SchemaInput, boolean>,
+    'debug'
+  > &
+    object,
+): void {
+  const unknownKeys = Object.keys(options).filter(
+    (key) => !CHAT_OPTION_KEYS.has(key),
+  )
+  if (unknownKeys.length === 0) return
+
+  const hint = unknownKeys.includes('providerOptions')
+    ? ' Did you mean `modelOptions`?'
+    : ''
+  resolveDebugOption(options.debug).warn(
+    `chat() received unknown top-level option(s): ${unknownKeys.join(', ')}.${hint}`,
+    { unknownKeys },
+  )
+}
+
 // ===========================
 // Chat Options Helper
 // ===========================
@@ -4666,6 +4711,7 @@ export function chat<
     TMiddleware
   >,
 ): TextActivityResult<TSchema, TStream, TTools> {
+  warnOnUnknownChatOptions(options)
   validateInterruptDefinitions(options.interrupts)
   validateCapabilities(
     readRuntimeMiddleware(options.middleware) ?? [],
