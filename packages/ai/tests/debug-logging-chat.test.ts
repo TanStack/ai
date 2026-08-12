@@ -172,6 +172,46 @@ describe('debug logging — chat integration', () => {
     expect(logger.warn).not.toHaveBeenCalled()
   })
 
+  it('warns when an unknown top-level option is spread into chat()', async () => {
+    const logger = makeSpyLogger()
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+    })
+
+    const misplacedOptions = {
+      providerOptions: { thinking: { type: 'enabled' } },
+    }
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hello' }],
+      ...misplacedOptions,
+      debug: { logger: logger as unknown as Logger },
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+    expect(logger.warn).toHaveBeenCalledTimes(1)
+    const warning = logPrefixes(logger.warn.mock.calls)[0]!
+    expect(warning).toContain('providerOptions')
+    expect(warning).toContain('modelOptions')
+  })
+
+  it('silences unknown-option warnings when the errors category is disabled', async () => {
+    const logger = makeSpyLogger()
+    const { adapter } = createMockAdapter({
+      iterations: [[ev.runStarted(), ev.runFinished('stop')]],
+    })
+
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hello' }],
+      ...{ providerOptions: { thinking: { type: 'enabled' } } },
+      debug: { logger: logger as unknown as Logger, errors: false },
+    })
+    await collectChunks(stream as AsyncIterable<StreamChunk>)
+
+    expect(logger.warn).not.toHaveBeenCalled()
+  })
+
   it('omitted debug — errors still log via default ConsoleLogger', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
     const debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {})
