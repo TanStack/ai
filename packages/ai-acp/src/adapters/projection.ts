@@ -128,16 +128,14 @@ export async function projectAcpWorkspace(
       // so the shell command resolves on every provider.
       await handle.fs.mkdir(`${projection.root}/${skillsDir}`)
       for (const skill of gitSkills) {
-        // Match bootstrap's remapped clone path so discovery and shell copy
-        // use the real provider workdir (e.g. Daytona).
-        const source = resolveHarnessCwd(
-          handle,
-          skill.into ?? resolveGitSkillDir(projection.root, skill),
-        )
+        // Keep virtual `/workspace` paths for fs discovery. handle.fs remaps
+        // them. Remap only when building shell-relative paths so Daytona and
+        // local-process both resolve the same clone.
+        const source = skill.into ?? resolveGitSkillDir(projection.root, skill)
         const discovered = await discoverSkillDirs(handle, source)
         for (const { name, dir } of discovered) {
-          const realDir = resolveHarnessCwd(handle, dir)
           const realRoot = resolveHarnessCwd(handle, projection.root)
+          const realDir = resolveHarnessCwd(handle, dir)
           const relSource = relativeToRoot(realRoot, realDir)
           const relTarget = `${skillsDir}/${name}`
           const cp = await handle.process.exec(

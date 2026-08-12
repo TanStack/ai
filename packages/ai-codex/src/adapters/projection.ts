@@ -175,12 +175,9 @@ async function projectGitSkills(
       await handle.fs.mkdir(skillsDir)
       madeDir = true
     }
-    // Remap `/workspace` the same way bootstrap remaps clone dirs, so shell
-    // `ln`/`cp` targets match the real provider workdir (e.g. Daytona).
-    const source = resolveHarnessCwd(
-      handle,
-      skill.into ?? resolveGitSkillDir(projection.root, skill),
-    )
+    // Discover over virtual `/workspace` paths (handle.fs remaps). Remap only
+    // for shell `ln`/`cp`, where absolute paths must match the real workdir.
+    const source = skill.into ?? resolveGitSkillDir(projection.root, skill)
     const discovered = await discoverSkillDirs(handle, source)
     for (const { name, dir } of discovered) {
       const target = resolveHarnessCwd(handle, `${skillsDir}/${name}`)
