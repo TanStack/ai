@@ -23,17 +23,21 @@ const inputSchema = z.object({
     .describe(
       'Restrict results by domain (max 20). Use bare hostnames to allowlist (e.g. ["nytimes.com"]) or "-domain.com" to denylist. Allow and deny entries must NOT be mixed.',
     ),
-  search_recency_filter: searchRecency.optional().describe(
-    'Only include results from the given recency window.',
-  ),
+  search_recency_filter: searchRecency
+    .optional()
+    .describe('Only include results from the given recency window.'),
   search_after_date_filter: z
     .string()
     .optional()
-    .describe('Only include results published on or after this date (m/d/yyyy).'),
+    .describe(
+      'Only include results published on or after this date (m/d/yyyy).',
+    ),
   search_before_date_filter: z
     .string()
     .optional()
-    .describe('Only include results published on or before this date (m/d/yyyy).'),
+    .describe(
+      'Only include results published on or before this date (m/d/yyyy).',
+    ),
 })
 
 const outputSchema = z.object({
@@ -74,12 +78,7 @@ export function perplexitySearchTool(
     defaultMaxResults?: number
   } = {},
 ) {
-  const {
-    name,
-    description,
-    defaultMaxResults,
-    ...clientConfig
-  } = config
+  const { name, description, defaultMaxResults, ...clientConfig } = config
   if (
     defaultMaxResults !== undefined &&
     (!Number.isInteger(defaultMaxResults) ||

@@ -41,14 +41,14 @@ const stream = chat({
 
 The tool input schema accepts:
 
-| field                       | type                                                | notes                                                              |
-| --------------------------- | --------------------------------------------------- | ------------------------------------------------------------------ |
-| `query`                     | `string` (required)                                 | The search query.                                                  |
-| `max_results`               | `integer` (1–20)                                    | Defaults to `defaultMaxResults` when set, otherwise the API default (10). |
-| `search_domain_filter`      | `string[]`                                          | Max 20. Allowlist (`"nytimes.com"`) **or** denylist (`"-pinterest.com"`) — never both. |
-| `search_recency_filter`     | `"hour" \| "day" \| "week" \| "month" \| "year"`    | Recency window.                                                    |
-| `search_after_date_filter`  | `string`                                            | `m/d/yyyy` — only results on/after this date.                       |
-| `search_before_date_filter` | `string`                                            | `m/d/yyyy` — only results on/before this date.                      |
+| field                       | type                                             | notes                                                                                  |
+| --------------------------- | ------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| `query`                     | `string` (required)                              | The search query.                                                                      |
+| `max_results`               | `integer` (1–20)                                 | Defaults to `defaultMaxResults` when set, otherwise the API default (10).              |
+| `search_domain_filter`      | `string[]`                                       | Max 20. Allowlist (`"nytimes.com"`) **or** denylist (`"-pinterest.com"`) — never both. |
+| `search_recency_filter`     | `"hour" \| "day" \| "week" \| "month" \| "year"` | Recency window.                                                                        |
+| `search_after_date_filter`  | `string`                                         | `m/d/yyyy` — only results on/after this date.                                          |
+| `search_before_date_filter` | `string`                                         | `m/d/yyyy` — only results on/before this date.                                         |
 
 Output: `{ results: Array<{ title, url, snippet, date?, last_updated? }> }`.
 
@@ -84,7 +84,9 @@ const perplexity = openaiCompatible({
 
 const stream = chat({
   adapter: perplexity('sonar'),
-  messages: [{ role: 'user', content: 'What is the latest on the Mars rover?' }],
+  messages: [
+    { role: 'user', content: 'What is the latest on the Mars rover?' },
+  ],
 })
 ```
 

@@ -139,7 +139,10 @@ describe('PerplexitySearchClient', () => {
     await expect(
       client.search({
         query: 'x',
-        search_domain_filter: Array.from({ length: 21 }, (_, i) => `ex${i}.com`),
+        search_domain_filter: Array.from(
+          { length: 21 },
+          (_, i) => `ex${i}.com`,
+        ),
       }),
     ).rejects.toThrow(/at most 20/)
     expect(fetchMock).not.toHaveBeenCalled()
@@ -176,9 +179,9 @@ describe('PerplexitySearchClient', () => {
   it('throws when max_results is outside 1–20', async () => {
     const fetchMock = mockFetch({ results: [] })
     const client = new PerplexitySearchClient({ fetch: fetchMock })
-    await expect(client.search({ query: 'q', max_results: 99 })).rejects.toThrow(
-      /integer between 1 and 20/,
-    )
+    await expect(
+      client.search({ query: 'q', max_results: 99 }),
+    ).rejects.toThrow(/integer between 1 and 20/)
     await expect(client.search({ query: 'q', max_results: 0 })).rejects.toThrow(
       /integer between 1 and 20/,
     )
@@ -277,8 +280,6 @@ describe('PerplexitySearchClient', () => {
       fetch: fetchMock,
     })
     await client.search({ query: 'q' })
-    expect(firstFetchCall(fetchMock).url).toBe(
-      'https://example.com/api/search',
-    )
+    expect(firstFetchCall(fetchMock).url).toBe('https://example.com/api/search')
   })
 })

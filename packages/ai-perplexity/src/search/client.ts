@@ -137,7 +137,9 @@ function normalizeQuery(
     )
   }
   if (query.length > MAX_QUERY_BATCH) {
-    throw new Error(`query array must contain at most ${MAX_QUERY_BATCH} entries.`)
+    throw new Error(
+      `query array must contain at most ${MAX_QUERY_BATCH} entries.`,
+    )
   }
 
   return query.map((entry) => {
