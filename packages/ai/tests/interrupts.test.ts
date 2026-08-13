@@ -62,7 +62,12 @@ describe('first-party interrupt definitions', () => {
     })
     expect(() =>
       Reflect.apply(definition.interrupt, definition, [
-        { key: 'simple-2', payload: undefined, reason: 'test', message: 'Test' },
+        {
+          key: 'simple-2',
+          payload: undefined,
+          reason: 'test',
+          message: 'Test',
+        },
       ]),
     ).toThrow()
   })

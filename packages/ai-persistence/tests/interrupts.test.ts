@@ -1099,7 +1099,9 @@ describe('interrupt persistence', () => {
     expect(observed).toEqual([
       expect.objectContaining({
         status: 'resolved',
-        request: expect.objectContaining({ payload: 'Review this plan'.length }),
+        request: expect.objectContaining({
+          payload: 'Review this plan'.length,
+        }),
         response: { count: 2 },
       }),
     ])

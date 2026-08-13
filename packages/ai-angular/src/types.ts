@@ -68,7 +68,8 @@ export type InjectChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = DistributedOmit<
   ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
@@ -108,7 +109,8 @@ export type InjectChatOptions<
 export type InjectChatResult<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = BaseInjectChatResult<
   TTools,
   TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
@@ -126,7 +128,8 @@ export type InjectChatResult<
 interface BaseInjectChatResult<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /** Current messages in the conversation. */
   messages: Signal<Array<UIMessage<TTools, TData>>>
@@ -171,12 +174,18 @@ interface BaseInjectChatResult<
   /** @deprecated Use `interrupts`. */
   pendingInterrupts: Signal<BoundInterrupts<TTools, TInterrupts>>
   /** Batch-level interrupt errors. */
-  interruptErrors: Signal<ChatInterruptState<TTools, TInterrupts>['interruptErrors']>
+  interruptErrors: Signal<
+    ChatInterruptState<TTools, TInterrupts>['interruptErrors']
+  >
   /** Whether the client is submitting an interrupt batch. */
   resuming: Signal<boolean>
   resolveInterrupts: {
     (approved: boolean): void
-    (resolver: (interrupt: ResolvableChatInterrupt<TTools, TInterrupts>) => undefined): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
   }
   cancelInterrupts: () => void
   retryInterrupts: () => void

@@ -2,10 +2,7 @@ import { expectTypeOf } from 'vitest'
 import { z } from 'zod'
 import { defineInterrupt, toolDefinition } from '../src'
 import { defineInterrupt as defineClientInterrupt } from '../src/client'
-import type {
-  GenericInterruptRequest,
-  InferSchemaType,
-} from '../src'
+import type { GenericInterruptRequest, InferSchemaType } from '../src'
 import type { GenericInterruptRequest as ClientGenericInterruptRequest } from '../src/client'
 import type {
   ApprovalCapabilityOf,
@@ -151,27 +148,29 @@ const clientInterrupt = defineClientInterrupt({
   id: 'client-interrupt',
   responseSchema: z.object({ ok: z.boolean() }),
 })
-expectTypeOf<InferSchemaType<typeof interruptWithPayload.payloadSchema>>().toEqualTypeOf<
-  { label: string }
->()
+expectTypeOf<
+  InferSchemaType<typeof interruptWithPayload.payloadSchema>
+>().toEqualTypeOf<{ label: string }>()
 expectTypeOf<typeof payloadRequest.definition.payloadSchema>().toEqualTypeOf<
   typeof interruptWithPayload.payloadSchema
 >()
 expectTypeOf<typeof interruptWithPayload.id>().toEqualTypeOf<'with-payload'>()
-expectTypeOf<keyof GenericInterruptRequest<typeof payloadRequest.definition>>().toEqualTypeOf<
+expectTypeOf<
+  keyof GenericInterruptRequest<typeof payloadRequest.definition>
+>().toEqualTypeOf<
   'definition' | 'key' | 'payload' | 'reason' | 'message' | 'expiresAt'
 >()
-expectTypeOf<keyof GenericInterruptRequest<typeof noPayloadRequest.definition>>().toEqualTypeOf<
-  'definition' | 'key' | 'reason' | 'message' | 'expiresAt'
->()
+expectTypeOf<
+  keyof GenericInterruptRequest<typeof noPayloadRequest.definition>
+>().toEqualTypeOf<'definition' | 'key' | 'reason' | 'message' | 'expiresAt'>()
 const clientRequest = clientInterrupt.interrupt({
   key: 'client',
   reason: 'test',
   message: 'Test',
 })
-expectTypeOf<keyof ClientGenericInterruptRequest<typeof clientRequest.definition>>().toEqualTypeOf<
-  'definition' | 'key' | 'reason' | 'message' | 'expiresAt'
->()
+expectTypeOf<
+  keyof ClientGenericInterruptRequest<typeof clientRequest.definition>
+>().toEqualTypeOf<'definition' | 'key' | 'reason' | 'message' | 'expiresAt'>()
 const extraIdInput = {
   key: 'extra-id',
   reason: 'test',

@@ -83,8 +83,8 @@ function assertUniqueInterruptDefinitions(
 
 type ChatClientUpdateOptionsWithoutContext<
   TTools extends ReadonlyArray<AnyClientTool>,
-  TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = {
   connection?: ConnectionAdapter
   fetcher?: ChatFetcher
@@ -289,8 +289,8 @@ const REJOIN_REBUILD_TRIGGERS = new Set<string>([
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
-  TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = any,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    any,
 > {
   private readonly processor: StreamProcessor
   private connection: SubscribeConnectionAdapter

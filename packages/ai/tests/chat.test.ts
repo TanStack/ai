@@ -3750,9 +3750,7 @@ describe('chat()', () => {
         ],
       })
       expect(
-        chunks.findIndex(
-          (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
-        ),
+        chunks.findIndex((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT),
       ).toBeLessThan(
         chunks.findIndex((chunk) => chunk.type === EventType.RUN_FINISHED),
       )

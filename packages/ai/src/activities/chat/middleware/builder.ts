@@ -90,11 +90,11 @@ export interface ChatMiddlewareBuilder<
           TMiddlewareInterruptDefinitions
         >
       : DefinedChatMiddleware<
-            TContext,
-            TRequires,
-            TProvides,
-            TMiddlewareInterruptDefinitions
-          > &
+          TContext,
+          TRequires,
+          TProvides,
+          TMiddlewareInterruptDefinitions
+        > &
           MissingCapabilities<Exclude<NamesOf<TRequires>, TProvided>>,
   ) => ChatMiddlewareBuilder<
     readonly [

@@ -37,8 +37,9 @@ export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
-  const TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
   options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TSchema, TInterrupts> {
@@ -92,9 +93,8 @@ export function useChat<
   messagesRef.current = messages
 
   // Track current options in a ref to avoid recreating client when options change
-  const optionsRef = useRef<
-    UseChatOptions<TTools, TSchema, TContext, TInterrupts>
-  >(options)
+  const optionsRef =
+    useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts>>(options)
   optionsRef.current = options
 
   const syncResumeState = useCallback((target: ChatClient | null) => {

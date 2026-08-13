@@ -43,8 +43,9 @@ export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
-  const TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
   options: UseChatOptions<
     TTools,
@@ -327,7 +328,11 @@ export function useChat<
   const resuming = computed(() => interruptState.value.resuming)
 
   const resolveInterrupts = (
-    resolution: boolean | ((interrupt: ResolvableChatInterrupt<TTools, TInterrupts>) => undefined),
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
   ) => {
     if (typeof resolution === 'boolean') {
       client.resolveInterrupts(resolution)

@@ -190,7 +190,9 @@ const acknowledge = defineInterrupt({
 
 const payloadOnlyReview = defineInterrupt({
   id: 'payload-only-review',
-  payloadSchema: z.object({ title: z.string().transform((value) => value.toUpperCase()) }),
+  payloadSchema: z.object({
+    title: z.string().transform((value) => value.toUpperCase()),
+  }),
 })
 
 type RegisteredInterrupts = readonly [
@@ -207,7 +209,9 @@ declare const reviewInterrupt: Extract<
 expectTypeOf(reviewInterrupt).toMatchTypeOf<
   RegisteredGenericInterrupt<RegisteredInterrupts>
 >()
-expectTypeOf(reviewInterrupt).toEqualTypeOf<GenericInterrupt<typeof reviewPlan>>()
+expectTypeOf(reviewInterrupt).toEqualTypeOf<
+  GenericInterrupt<typeof reviewPlan>
+>()
 expectTypeOf(reviewInterrupt.payload).toEqualTypeOf<
   { title: string } | undefined
 >()

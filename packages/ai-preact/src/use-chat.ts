@@ -38,8 +38,9 @@ const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = InferredClientContext<TTools>,
-  const TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
   options: UseChatOptions<TTools, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TInterrupts> {
@@ -84,9 +85,8 @@ export function useChat<
     client: ChatClient
     timeout: ReturnType<typeof setTimeout>
   } | null>(null)
-  const optionsRef = useRef<UseChatOptions<TTools, TContext, TInterrupts>>(
-    options,
-  )
+  const optionsRef =
+    useRef<UseChatOptions<TTools, TContext, TInterrupts>>(options)
 
   optionsRef.current = options
 

@@ -60,7 +60,8 @@ export type {
 export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = InferredClientContext<TTools>,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = DistributedOmit<
   ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
@@ -94,7 +95,8 @@ export type UseChatOptions<
 
 export interface UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /**
    * Current messages in the conversation
@@ -163,7 +165,11 @@ export interface UseChatReturn<
   resuming: boolean
   resolveInterrupts: {
     (approved: boolean): void
-    (resolver: (interrupt: ResolvableChatInterrupt<TTools, TInterrupts>) => undefined): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
   }
   cancelInterrupts: () => void
   retryInterrupts: () => void

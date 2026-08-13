@@ -34,6 +34,11 @@ export function defineChatMiddleware<
     requires?: TRequires
     provides?: TProvides
   },
-): DefinedChatMiddleware<TContext, TRequires, TProvides, TInterruptDefinitions> {
+): DefinedChatMiddleware<
+  TContext,
+  TRequires,
+  TProvides,
+  TInterruptDefinitions
+> {
   return middleware
 }

@@ -264,12 +264,12 @@ describe('useChat() registered generic interrupt types', () => {
       expectTypeOf<Review['payload']>().toEqualTypeOf<
         { title: string } | undefined
       >()
-      expectTypeOf<Parameters<Review['resolveInterrupt']>[0]>().toEqualTypeOf<
-        string
-      >()
-      expectTypeOf<Parameters<External['resolveInterrupt']>[0]>().toEqualTypeOf<
-        unknown
-      >()
+      expectTypeOf<
+        Parameters<Review['resolveInterrupt']>[0]
+      >().toEqualTypeOf<string>()
+      expectTypeOf<
+        Parameters<External['resolveInterrupt']>[0]
+      >().toEqualTypeOf<unknown>()
       expectTypeOf<Unbound['canResolve']>().toEqualTypeOf<false>()
       expectTypeOf<
         Extract<CallbackInterrupt, { kind: 'unbound' }>
@@ -301,12 +301,12 @@ describe('useChat() registered generic interrupt types', () => {
         { kind: 'tool-approval' }
       >
       type UnregisteredGeneric = Extract<WithoutRegistry, { kind: 'generic' }>
-      expectTypeOf<ExistingToolInterrupt['toolName']>().toEqualTypeOf<
-        'preact-unregistered-tool'
-      >()
-      expectTypeOf<Parameters<UnregisteredGeneric['resolveInterrupt']>[0]>().toEqualTypeOf<
-        unknown
-      >()
+      expectTypeOf<
+        ExistingToolInterrupt['toolName']
+      >().toEqualTypeOf<'preact-unregistered-tool'>()
+      expectTypeOf<
+        Parameters<UnregisteredGeneric['resolveInterrupt']>[0]
+      >().toEqualTypeOf<unknown>()
     }
     void check
   })

@@ -107,18 +107,14 @@ export type InterruptToolResume = (typeof INTERRUPT_TOOL_RESUMES)[number]
 
 type AnyInterruptDefinition = InterruptDefinition<any, any, any, any>
 
-type InterruptResponse<TDefinition> = TDefinition extends InterruptDefinition<
-  any,
-  any,
-  infer TResponseSchema,
-  any
->
-  ? TResponseSchema extends StandardSchemaV1<any, infer TResponse>
-    ? TResponse
-    : TResponseSchema extends StandardJSONSchemaV1<any, infer TResponse>
+type InterruptResponse<TDefinition> =
+  TDefinition extends InterruptDefinition<any, any, infer TResponseSchema, any>
+    ? TResponseSchema extends StandardSchemaV1<any, infer TResponse>
       ? TResponse
-      : unknown
-  : unknown
+      : TResponseSchema extends StandardJSONSchemaV1<any, infer TResponse>
+        ? TResponse
+        : unknown
+    : unknown
 
 export type GenericInterruptResolution<
   TDefinition extends AnyInterruptDefinition,
@@ -140,9 +136,9 @@ export interface InterruptResolutionCollection<
   TDefinitions extends AnyInterruptDefinition = AnyInterruptDefinition,
 > {
   for: <
-    TDefinition extends [TDefinitions] extends [never]
+    TDefinition extends ([TDefinitions] extends [never]
       ? AnyInterruptDefinition
-      : TDefinitions,
+      : TDefinitions),
   >(
     definition: TDefinition,
   ) => ReadonlyArray<GenericInterruptResolution<TDefinition>>
@@ -177,9 +173,9 @@ export type InterruptBoundaryResult<
       readonly interrupts: ReadonlyArray<GenericInterruptRequest<TDefinitions>>
     }
 
-export type InterruptResolutionResult =
-  | void
-  | { readonly toolResume: InterruptToolResume }
+export type InterruptResolutionResult = void | {
+  readonly toolResume: InterruptToolResume
+}
 
 /**
  * Stable context object passed to all middleware hooks.

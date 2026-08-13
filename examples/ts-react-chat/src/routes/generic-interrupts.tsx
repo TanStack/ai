@@ -106,10 +106,11 @@ function GenericInterruptPlayground() {
                   role="radio"
                   aria-checked={policy === nextPolicy}
                   onClick={() => setPolicy(nextPolicy)}
-                  className={`flex-1 px-3 py-1 text-sm transition-colors ${policy === nextPolicy
-                    ? 'bg-cyan-600 text-white'
-                    : 'bg-transparent text-gray-400 hover:text-gray-200'
-                    }`}
+                  className={`flex-1 px-3 py-1 text-sm transition-colors ${
+                    policy === nextPolicy
+                      ? 'bg-cyan-600 text-white'
+                      : 'bg-transparent text-gray-400 hover:text-gray-200'
+                  }`}
                 >
                   {nextPolicy}
                 </button>
@@ -134,10 +135,11 @@ function GenericInterruptPlayground() {
                   onClick={() => runScenario(scenario)}
                   disabled={chat.isLoading || chat.resuming}
                   aria-pressed={active?.id === scenario.id}
-                  className={`w-full rounded-lg border p-3 text-left transition-colors enabled:hover:border-cyan-500/50 enabled:hover:bg-gray-800/60 disabled:opacity-50 ${active?.id === scenario.id
-                    ? 'border-cyan-500/60 bg-gray-800'
-                    : 'border-gray-700 bg-gray-800'
-                    }`}
+                  className={`w-full rounded-lg border p-3 text-left transition-colors enabled:hover:border-cyan-500/50 enabled:hover:bg-gray-800/60 disabled:opacity-50 ${
+                    active?.id === scenario.id
+                      ? 'border-cyan-500/60 bg-gray-800'
+                      : 'border-gray-700 bg-gray-800'
+                  }`}
                 >
                   <div className="font-semibold">{scenario.title}</div>
                   <div className="text-xs text-gray-400">{scenario.blurb}</div>

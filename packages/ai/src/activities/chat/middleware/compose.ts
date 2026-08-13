@@ -52,13 +52,8 @@ function instrumentCtx(ctx: ChatMiddlewareContext<any>) {
  */
 export class MiddlewareRunner<
   TContext = unknown,
-  TInterruptDefinitions extends
-    InterruptDefinition<any, any, any, any> = InterruptDefinition<
-    any,
-    any,
-    any,
-    any
-  >,
+  TInterruptDefinitions extends InterruptDefinition<any, any, any, any> =
+    InterruptDefinition<any, any, any, any>,
 > {
   private readonly middlewares: ReadonlyArray<
     ChatMiddleware<TContext, TInterruptDefinitions>
@@ -66,9 +61,7 @@ export class MiddlewareRunner<
   private readonly logger: InternalLogger
 
   constructor(
-    middlewares: ReadonlyArray<
-      ChatMiddleware<TContext, TInterruptDefinitions>
-    >,
+    middlewares: ReadonlyArray<ChatMiddleware<TContext, TInterruptDefinitions>>,
     logger: InternalLogger,
   ) {
     this.middlewares = middlewares

@@ -49,7 +49,8 @@ export interface InterruptManagerSubmission {
 
 export interface InterruptManagerOptions<
   TTools extends ReadonlyArray<AnyClientTool>,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   tools?: TTools
   interrupts?: TInterrupts
@@ -215,7 +216,9 @@ function readBinding(value: unknown): InterruptBinding | undefined {
       value['batchIndex'],
       value['payloadSchemaHash'],
     ]
-    const hasFirstPartyFields = firstPartyFields.some((field) => field !== undefined)
+    const hasFirstPartyFields = firstPartyFields.some(
+      (field) => field !== undefined,
+    )
     if (
       hasFirstPartyFields &&
       (typeof value['definitionId'] !== 'string' ||
@@ -594,11 +597,13 @@ function baseSnapshot(
 
 export class InterruptManager<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   private hydration: InterruptManagerHydration | undefined
   private items: Array<RuntimeInterrupt> = []
-  private snapshot: ReadonlyArray<ChatInterrupt<TTools, TInterrupts>> = Object.freeze([])
+  private snapshot: ReadonlyArray<ChatInterrupt<TTools, TInterrupts>> =
+    Object.freeze([])
   private rootErrors: ReadonlyArray<BatchInterruptError> = Object.freeze([])
   private submissionRootErrors: ReadonlyArray<BatchInterruptError> =
     Object.freeze([])
@@ -617,9 +622,14 @@ export class InterruptManager<
     InterruptDefinition<any, any, any, any>
   >
 
-  constructor(private readonly options: InterruptManagerOptions<TTools, TInterrupts>) {
+  constructor(
+    private readonly options: InterruptManagerOptions<TTools, TInterrupts>,
+  ) {
     this.tools = options.tools
-    const definitions = new Map<string, InterruptDefinition<any, any, any, any>>()
+    const definitions = new Map<
+      string,
+      InterruptDefinition<any, any, any, any>
+    >()
     for (const definition of options.interrupts ?? []) {
       if (definitions.has(definition.id)) {
         throw new Error(`Duplicate interrupt definition id: ${definition.id}`)
@@ -684,23 +694,40 @@ export class InterruptManager<
   }
 
   matchesValidatedFirstPartyGenericContinuation(value: unknown): boolean {
-    if (!isUnknownObject(value) || value['v'] !== 1 || !Array.isArray(value['interrupts'])) {
+    if (
+      !isUnknownObject(value) ||
+      value['v'] !== 1 ||
+      !Array.isArray(value['interrupts'])
+    ) {
       return false
     }
     const expected = this.items.filter(
-      (item): item is RuntimeInterrupt & {
+      (
+        item,
+      ): item is RuntimeInterrupt & {
         definition: InterruptDefinition<any, any, any, any>
         binding: Extract<InterruptBinding, { kind: 'generic' }>
-      } => item.kind === 'generic' && item.definition !== undefined && item.binding?.kind === 'generic',
+      } =>
+        item.kind === 'generic' &&
+        item.definition !== undefined &&
+        item.binding?.kind === 'generic',
     )
-    if (expected.length === 0 || value['interrupts'].length !== expected.length) {
+    if (
+      expected.length === 0 ||
+      value['interrupts'].length !== expected.length
+    ) {
       return false
     }
     const pending = new Map(expected.map((item) => [item.descriptor.id, item]))
     for (const raw of value['interrupts']) {
       if (!isUnknownObject(raw) || typeof raw['id'] !== 'string') return false
       const item = pending.get(raw['id'])
-      if (!item || item.binding.definitionId === undefined || item.binding.key === undefined || item.binding.batchIndex === undefined) {
+      if (
+        !item ||
+        item.binding.definitionId === undefined ||
+        item.binding.key === undefined ||
+        item.binding.batchIndex === undefined
+      ) {
         return false
       }
       if (
@@ -997,7 +1024,7 @@ export class InterruptManager<
         (definition.payloadSchema === undefined
           ? candidate.payloadSchemaHash === undefined
           : candidate.payloadSchemaHash ===
-              definitionSchemaHash(definition.payloadSchema))
+            definitionSchemaHash(definition.payloadSchema))
       ) {
         const rawPayload = getInterruptPayload(interrupt)
         // First-party display payloads are parsed by definition.interrupt()
@@ -1084,7 +1111,8 @@ export class InterruptManager<
             toolCallId: item.binding.toolCallId,
             originalArgs: cloneAndDeepFreezeJson(item.binding.originalArgs),
             cancel: () => this.cancelItem(item.descriptor.id, transaction),
-            clearResolution: () => this.clearItem(item.descriptor.id, transaction),
+            clearResolution: () =>
+              this.clearItem(item.descriptor.id, transaction),
             resolveInterrupt: (approved: boolean, options?: unknown) => {
               const details = isUnknownObject(options) ? options : undefined
               this.resolveItem(
@@ -1126,7 +1154,8 @@ export class InterruptManager<
             payload: item.payload,
             binding: boundGeneric,
             cancel: () => this.cancelItem(item.descriptor.id, transaction),
-            clearResolution: () => this.clearItem(item.descriptor.id, transaction),
+            clearResolution: () =>
+              this.clearItem(item.descriptor.id, transaction),
             resolveInterrupt: (response: unknown) =>
               this.resolveItem(item.descriptor.id, response, transaction),
           }
@@ -1137,7 +1166,8 @@ export class InterruptManager<
           kind: 'generic',
           binding: boundGeneric,
           cancel: () => this.cancelItem(item.descriptor.id, transaction),
-          clearResolution: () => this.clearItem(item.descriptor.id, transaction),
+          clearResolution: () =>
+            this.clearItem(item.descriptor.id, transaction),
           resolveInterrupt: (payload) =>
             this.resolveItem(item.descriptor.id, payload, transaction),
         }

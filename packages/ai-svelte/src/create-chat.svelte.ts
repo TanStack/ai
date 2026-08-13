@@ -66,8 +66,9 @@ export function createChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
-  const TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
   options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
 ): CreateChatReturn<TTools, TSchema, TContext, TInterrupts> {
@@ -310,7 +311,11 @@ export function createChat<
   }
 
   const resolveInterrupts = (
-    resolution: boolean | ((interrupt: ResolvableChatInterrupt<TTools, TInterrupts>) => undefined),
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
   ) => {
     if (typeof resolution === 'boolean') {
       client.resolveInterrupts(resolution)

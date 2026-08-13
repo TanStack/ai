@@ -79,7 +79,8 @@ export type CreateChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = DistributedOmit<
   ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
@@ -118,7 +119,8 @@ export type CreateChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = unknown,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = BaseCreateChatReturn<
   TTools,
   TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
@@ -145,7 +147,8 @@ interface BaseCreateChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
   TContext = unknown,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /**
    * Current messages in the conversation (reactive getter). When
@@ -213,11 +216,18 @@ interface BaseCreateChatReturn<
   readonly interrupts: BoundInterrupts<TTools, TInterrupts>
   /** @deprecated Use `interrupts`. */
   readonly pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
-  readonly interruptErrors: ChatInterruptState<TTools, TInterrupts>['interruptErrors']
+  readonly interruptErrors: ChatInterruptState<
+    TTools,
+    TInterrupts
+  >['interruptErrors']
   readonly resuming: boolean
   resolveInterrupts: {
     (approved: boolean): void
-    (resolver: (interrupt: ResolvableChatInterrupt<TTools, TInterrupts>) => undefined): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
   }
   cancelInterrupts: () => void
   retryInterrupts: () => void

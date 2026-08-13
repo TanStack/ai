@@ -91,11 +91,11 @@ async function handle(request: Request): Promise<Response> {
   const needsTool = boundary === 'beforeTools' || boundary === 'afterTools'
   const tools = needsTool
     ? [
-      inspectPlan.server(async ({ planId }) => ({
-        inspected: true,
-        planId,
-      })),
-    ]
+        inspectPlan.server(async ({ planId }) => ({
+          inspected: true,
+          planId,
+        })),
+      ]
     : []
   const abortController = new AbortController()
 
@@ -114,10 +114,10 @@ async function handle(request: Request): Promise<Response> {
     middleware: [createLifecycleMiddleware(boundary, policy)],
     ...(!isResume && needsTool
       ? {
-        modelOptions: {
-          tool_choice: { type: 'function', name: inspectPlan.name },
-        },
-      }
+          modelOptions: {
+            tool_choice: { type: 'function', name: inspectPlan.name },
+          },
+        }
       : {}),
     abortController,
   })

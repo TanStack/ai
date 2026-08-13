@@ -32,18 +32,13 @@ describe('connection-adapters', () => {
     const adapter = fetcherToConnectionAdapter(fetcher)
     const signal = new AbortController().signal
 
-    for await (const _chunk of adapter.connect(
-      [],
-      { source: 'test' },
-      signal,
-      {
-        threadId: 'thread-1',
-        runId: 'resume-run',
-        parentRunId: 'interrupted-run',
-        resume: [{ interruptId: 'generic-1', status: 'cancelled' }],
-        interruptContinuation: { v: 1, interrupts: [{ id: 'generic-1' }] },
-      },
-    )) {
+    for await (const _chunk of adapter.connect([], { source: 'test' }, signal, {
+      threadId: 'thread-1',
+      runId: 'resume-run',
+      parentRunId: 'interrupted-run',
+      resume: [{ interruptId: 'generic-1', status: 'cancelled' }],
+      interruptContinuation: { v: 1, interrupts: [{ id: 'generic-1' }] },
+    })) {
       // Consume the terminal event.
     }
 

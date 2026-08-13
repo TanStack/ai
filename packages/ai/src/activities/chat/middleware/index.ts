@@ -26,10 +26,7 @@ export type {
   InterruptResolutionResult,
 } from './types'
 
-export {
-  INTERRUPT_BOUNDARY_PHASES,
-  INTERRUPT_TOOL_RESUMES,
-} from './types'
+export { INTERRUPT_BOUNDARY_PHASES, INTERRUPT_TOOL_RESUMES } from './types'
 
 export {
   GenericInterruptDefinitionRegistryCapability,

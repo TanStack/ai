@@ -84,7 +84,8 @@ export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = DistributedOmit<
   ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
@@ -128,7 +129,8 @@ export type UseChatOptions<
 export type UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = BaseUseChatReturn<
   TTools,
   TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
@@ -155,7 +157,8 @@ export type UseChatReturn<
 interface BaseUseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
-  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /**
    * Current messages in the conversation. When `outputSchema` is supplied,
@@ -230,7 +233,11 @@ interface BaseUseChatReturn<
   resuming: boolean
   resolveInterrupts: {
     (approved: boolean): void
-    (resolver: (interrupt: ResolvableChatInterrupt<TTools, TInterrupts>) => undefined): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
   }
   cancelInterrupts: () => void
   retryInterrupts: () => void

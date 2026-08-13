@@ -96,27 +96,30 @@ type InterruptResponseInput<TDefinition> =
 
 type RegisteredGenericInterruptFor<
   TDefinition extends InterruptDefinition<any, any, any, any>,
-> = TDefinition extends InterruptDefinition<
-  infer TDefinitionId,
-  any,
-  any,
-  infer TPayload
->
-  ? BoundInterruptBase & {
-      readonly kind: 'generic'
-      readonly definitionId: TDefinitionId
-      readonly key: string
-      readonly payload: TPayload | undefined
-      readonly binding: Readonly<
-        Extract<InterruptBinding, { kind: 'generic' }> & {
-          definitionId: TDefinitionId
-          key: string
-          batchIndex: number
-        }
-      >
-      resolveInterrupt: (response: InterruptResponseInput<TDefinition>) => void
-    }
-  : never
+> =
+  TDefinition extends InterruptDefinition<
+    infer TDefinitionId,
+    any,
+    any,
+    infer TPayload
+  >
+    ? BoundInterruptBase & {
+        readonly kind: 'generic'
+        readonly definitionId: TDefinitionId
+        readonly key: string
+        readonly payload: TPayload | undefined
+        readonly binding: Readonly<
+          Extract<InterruptBinding, { kind: 'generic' }> & {
+            definitionId: TDefinitionId
+            key: string
+            batchIndex: number
+          }
+        >
+        resolveInterrupt: (
+          response: InterruptResponseInput<TDefinition>,
+        ) => void
+      }
+    : never
 
 export type RegisteredGenericInterrupt<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
@@ -143,8 +146,10 @@ export type GenericInterrupt<
  * send an answer no one is waiting for. Render it, or route it to whatever
  * actually owns the pause.
  */
-export interface UnboundInterrupt
-  extends Omit<BoundInterruptBase, 'cancel' | 'clearResolution'> {
+export interface UnboundInterrupt extends Omit<
+  BoundInterruptBase,
+  'cancel' | 'clearResolution'
+> {
   readonly kind: 'unbound'
   readonly binding?: undefined
   readonly canResolve: false
@@ -234,8 +239,8 @@ type ApprovalInterrupts<TTools extends ReadonlyArray<AnyClientTool>> =
 // union.
 export type ChatInterrupt<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
-  TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > =
   | GenericAGUIInterrupt
   | RegisteredGenericInterrupt<TInterrupts>
@@ -244,8 +249,8 @@ export type ChatInterrupt<
 
 export type ResolvableChatInterrupt<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
-  TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > =
   | GenericAGUIInterrupt
   | RegisteredGenericInterrupt<TInterrupts>
@@ -253,14 +258,14 @@ export type ResolvableChatInterrupt<
 
 export type BoundInterrupts<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
-  TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = ReadonlyArray<ChatInterrupt<TTools, TInterrupts>>
 
 export interface ChatInterruptState<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
-  TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   readonly interrupts: BoundInterrupts<TTools, TInterrupts>
   /** @deprecated Use `interrupts`. Same snapshot today. */
@@ -779,8 +784,8 @@ export type ClientContextOptionFromTools<TTools, TContext> = [
 export interface ChatClientBaseOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
-  TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /**
    * Initial messages to populate the chat
@@ -1011,8 +1016,8 @@ export interface ChatClientBaseOptions<
 export type ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = InferredClientContext<TTools>,
-  TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = DistributedOmit<
   ChatClientBaseOptions<TTools, TContext, TInterrupts>,
   'context'
@@ -1065,8 +1070,9 @@ export function clientTools<const T extends Array<AnyClientTool>>(
 export function createChatClientOptions<
   const TTools extends ReadonlyArray<AnyClientTool>,
   TContext = InferredClientContext<TTools>,
-  const TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
   options: ChatClientOptions<TTools, TContext, TInterrupts>,
 ): ChatClientOptions<TTools, TContext, TInterrupts> {

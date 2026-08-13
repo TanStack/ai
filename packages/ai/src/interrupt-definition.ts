@@ -12,7 +12,8 @@ import {
   isStandardJSONSchema,
 } from './activities/chat/tools/schema-converter'
 
-export const INTERRUPT_PAYLOAD_METADATA_KEY = 'tanstack:interruptPayload' as const
+export const INTERRUPT_PAYLOAD_METADATA_KEY =
+  'tanstack:interruptPayload' as const
 export const INTERRUPT_BINDING_KIND = 'generic' as const
 export const INTERRUPT_BINDING_VERSION = 1 as const
 
@@ -21,13 +22,17 @@ type PortableSchema =
   | StandardSchemaV1<any, any>
 
 type InferSchemaOutput<TSchema> =
-  TSchema extends StandardSchemaV1<any, infer TOutput> ? TOutput
-  : TSchema extends StandardJSONSchemaV1<any, infer TOutput> ? TOutput
-  : never
+  TSchema extends StandardSchemaV1<any, infer TOutput>
+    ? TOutput
+    : TSchema extends StandardJSONSchemaV1<any, infer TOutput>
+      ? TOutput
+      : never
 type InferSchemaInput<TSchema> =
-  TSchema extends StandardSchemaV1<infer TInput, any> ? TInput
-  : TSchema extends StandardJSONSchemaV1<infer TInput, any> ? TInput
-  : never
+  TSchema extends StandardSchemaV1<infer TInput, any>
+    ? TInput
+    : TSchema extends StandardJSONSchemaV1<infer TInput, any>
+      ? TInput
+      : never
 type DefinitionSchemaState = {
   responseSchemaCanonicalJson?: string
   responseSchemaHash?: string
@@ -74,9 +79,7 @@ type InterruptInput<
   reason: string
   message: string
   expiresAt?: string
-} & ([TPayloadSchema] extends [undefined]
-  ? {}
-  : { payload?: TPayload })
+} & ([TPayloadSchema] extends [undefined] ? {} : { payload?: TPayload })
 
 type GenericInterruptRequestBase<
   TDefinition extends InterruptDefinition<any, any, any, any>,
@@ -97,25 +100,24 @@ type GenericInterruptRequestFor<
     ? {}
     : { readonly payload: TPayload | undefined })
 
-export type GenericInterruptRequest<TDefinition extends InterruptDefinition<any, any, any, any>> =
-  [TDefinition] extends [never]
-    ? never
-    : TDefinition extends InterruptDefinition<
+export type GenericInterruptRequest<
+  TDefinition extends InterruptDefinition<any, any, any, any>,
+> = [TDefinition] extends [never]
+  ? never
+  : TDefinition extends InterruptDefinition<
         any,
         infer TPayloadSchema,
         any,
         infer TPayload
       >
-      ? GenericInterruptRequestFor<TDefinition, TPayloadSchema, TPayload>
-      : GenericInterruptRequestBase<TDefinition>
+    ? GenericInterruptRequestFor<TDefinition, TPayloadSchema, TPayload>
+    : GenericInterruptRequestBase<TDefinition>
 
 type InterruptInputKey = 'key' | 'reason' | 'message' | 'expiresAt' | 'payload'
-type RejectUnexpectedInputKeys<TInput> = Exclude<
-  keyof TInput,
-  InterruptInputKey
-> extends never
-  ? unknown
-  : { [K in Exclude<keyof TInput, InterruptInputKey>]: never }
+type RejectUnexpectedInputKeys<TInput> =
+  Exclude<keyof TInput, InterruptInputKey> extends never
+    ? unknown
+    : { [K in Exclude<keyof TInput, InterruptInputKey>]: never }
 type RejectUnexpectedPayload<TInput> = 'payload' extends keyof TInput
   ? { payload: never }
   : unknown
@@ -123,12 +125,13 @@ type ValidInterruptInput<
   TInput,
   TPayloadSchema extends PortableSchema | undefined,
   TPayload = unknown,
-> = TInput extends InterruptInput<TPayloadSchema, TPayload>
-  ? RejectUnexpectedInputKeys<TInput> &
-      ([TPayloadSchema] extends [undefined]
-        ? RejectUnexpectedPayload<TInput>
-        : unknown)
-  : never
+> =
+  TInput extends InterruptInput<TPayloadSchema, TPayload>
+    ? RejectUnexpectedInputKeys<TInput> &
+        ([TPayloadSchema] extends [undefined]
+          ? RejectUnexpectedPayload<TInput>
+          : unknown)
+    : never
 
 /**
  * Extracting a class method preserves the intentional bivariant assignment
@@ -143,8 +146,7 @@ declare abstract class InterruptRequestMethodSignature<
   TPayloadInput,
 > {
   abstract call<TInput>(
-    input: TInput &
-      ValidInterruptInput<TInput, TPayloadSchema, TPayloadInput>,
+    input: TInput & ValidInterruptInput<TInput, TPayloadSchema, TPayloadInput>,
   ): GenericInterruptRequestFor<
     InterruptDefinition<
       TId,
@@ -185,7 +187,7 @@ type DefinedInterruptDefinition<
     TResponseSchema,
     TPayload,
     TPayloadInput
->,
+  >,
   'interrupt'
 > & {
   interrupt: InterruptRequestMethod<
@@ -218,7 +220,10 @@ export interface InterruptDefinition<
 
 export function createInterruptBinding(
   request: GenericInterruptRequest<InterruptDefinition<any, any, any, any>>,
-  fields: Pick<InterruptBindingDescriptor, 'threadId' | 'interruptedRunId' | 'generation' | 'batchIndex'> = {},
+  fields: Pick<
+    InterruptBindingDescriptor,
+    'threadId' | 'interruptedRunId' | 'generation' | 'batchIndex'
+  > = {},
 ): InterruptPreEmissionData {
   const schemaState = definitionSchemaState.get(request.definition)
   if (!schemaState) {
@@ -236,7 +241,10 @@ export function createInterruptBinding(
       ...(generation !== undefined ? { generation } : {}),
       ...(batchIndex !== undefined ? { batchIndex } : {}),
       ...(schemaState.responseSchemaCanonicalJson
-        ? { responseSchemaCanonicalJson: schemaState.responseSchemaCanonicalJson }
+        ? {
+            responseSchemaCanonicalJson:
+              schemaState.responseSchemaCanonicalJson,
+          }
         : {}),
       ...(schemaState.payloadSchemaCanonicalJson
         ? { payloadSchemaCanonicalJson: schemaState.payloadSchemaCanonicalJson }
@@ -268,7 +276,10 @@ type InterruptRequestFactory = (
 ) => GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
 
 const interruptRequestFactories = new WeakMap<object, InterruptRequestFactory>()
-const interruptRequestInputs = new WeakMap<object, Readonly<ParsedInterruptInput>>()
+const interruptRequestInputs = new WeakMap<
+  object,
+  Readonly<ParsedInterruptInput>
+>()
 
 /**
  * Returns the schema input captured for a newly emitted request. This is
@@ -313,7 +324,9 @@ function schemaJson(schema: unknown, name: string): CanonicalSchemaJson {
     )
   }
   try {
-    const exported = schema['~standard'].jsonSchema.input({ target: 'draft-07' })
+    const exported = schema['~standard'].jsonSchema.input({
+      target: 'draft-07',
+    })
     if (exported === undefined) {
       throw new TypeError('The exported schema is undefined.')
     }
@@ -376,11 +389,16 @@ function isPromiseLike(value: unknown): value is PromiseLike<unknown> {
   )
 }
 
-function parseInterruptPayload(schema: PortableSchema, value: unknown): unknown {
+function parseInterruptPayload(
+  schema: PortableSchema,
+  value: unknown,
+): unknown {
   if (!isStandardSchema(schema)) return value
   const result = schema['~standard'].validate(value)
   if (isPromiseLike(result)) {
-    throw new TypeError('Interrupt payloadSchema validation must be synchronous.')
+    throw new TypeError(
+      'Interrupt payloadSchema validation must be synchronous.',
+    )
   }
   if (result.issues !== undefined) {
     throw new TypeError(
@@ -397,13 +415,11 @@ export function defineInterrupt<
   const TId extends string,
   const TPayloadSchema extends PortableSchema,
   const TResponseSchema extends PortableSchema,
->(
-  options: {
-    id: TId
-    payloadSchema: TPayloadSchema
-    responseSchema: TResponseSchema
-  },
-): DefinedInterruptDefinition<
+>(options: {
+  id: TId
+  payloadSchema: TPayloadSchema
+  responseSchema: TResponseSchema
+}): DefinedInterruptDefinition<
   TId,
   TPayloadSchema,
   TResponseSchema,
@@ -413,13 +429,11 @@ export function defineInterrupt<
 export function defineInterrupt<
   const TId extends string,
   const TPayloadSchema extends PortableSchema,
->(
-  options: {
-    id: TId
-    payloadSchema: TPayloadSchema
-    responseSchema?: never
-  },
-): DefinedInterruptDefinition<
+>(options: {
+  id: TId
+  payloadSchema: TPayloadSchema
+  responseSchema?: never
+}): DefinedInterruptDefinition<
   TId,
   TPayloadSchema,
   undefined,
@@ -429,13 +443,11 @@ export function defineInterrupt<
 export function defineInterrupt<
   const TId extends string,
   const TResponseSchema extends PortableSchema,
->(
-  options: {
-    id: TId
-    responseSchema: TResponseSchema
-    payloadSchema?: never
-  },
-): DefinedInterruptDefinition<
+>(options: {
+  id: TId
+  responseSchema: TResponseSchema
+  payloadSchema?: never
+}): DefinedInterruptDefinition<
   TId,
   undefined,
   TResponseSchema,
@@ -498,7 +510,9 @@ export function defineInterrupt<
   const parsePayload = (payload: unknown): unknown => {
     const payloadSchema = options.payloadSchema
     if (payloadSchema === undefined) {
-      throw new TypeError('This interrupt definition does not accept a payload.')
+      throw new TypeError(
+        'This interrupt definition does not accept a payload.',
+      )
     }
     return parseInterruptPayload(payloadSchema, payload)
   }
@@ -513,16 +527,16 @@ export function defineInterrupt<
     const message = validateNonEmptyString(input.message, 'Interrupt message')
     if ('payload' in input) {
       if (!hasPayloadSchema) {
-        throw new TypeError('This interrupt definition does not accept a payload.')
+        throw new TypeError(
+          'This interrupt definition does not accept a payload.',
+        )
       }
       validateJson(input.payload, 'Interrupt payload')
     }
     const payload =
       'payload' in input
         ? cloneAndDeepFreezeJson(
-            payloadIsParsed
-              ? input.payload
-              : parsePayload(input.payload),
+            payloadIsParsed ? input.payload : parsePayload(input.payload),
           )
         : undefined
     const expiresAt =
@@ -532,9 +546,7 @@ export function defineInterrupt<
     const request = Object.freeze({
       definition,
       key,
-      ...(hasPayloadSchema && 'payload' in input
-        ? { payload }
-        : {}),
+      ...(hasPayloadSchema && 'payload' in input ? { payload } : {}),
       reason,
       message,
       ...(expiresAt !== undefined ? { expiresAt } : {}),

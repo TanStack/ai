@@ -114,9 +114,7 @@ import type {
   SandboxFileHookEvent,
   StructuredOutputMiddlewareConfig,
 } from './middleware/types'
-import {
-  provideGenericInterruptDefinitionRegistry,
-} from './middleware/generic-interrupts'
+import { provideGenericInterruptDefinitionRegistry } from './middleware/generic-interrupts'
 import type { CheckCoverage } from './middleware/builder'
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
@@ -414,20 +412,21 @@ type IsAny<TValue> = 0 extends 1 & TValue ? true : false
 type CheckInterruptRegistry<
   TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
   TMiddleware,
-> = IsAny<MiddlewareInterruptDefinitions<TMiddleware>> extends true
-  ? unknown
-  : [MiddlewareInterruptDefinitions<TMiddleware>] extends [never]
+> =
+  IsAny<MiddlewareInterruptDefinitions<TMiddleware>> extends true
     ? unknown
-    : [
-          Exclude<
-            MiddlewareInterruptDefinitions<TMiddleware>,
-            RegistryInterrupt<TInterrupts>
-          >,
-        ] extends [never]
+    : [MiddlewareInterruptDefinitions<TMiddleware>] extends [never]
       ? unknown
-      : {
-          readonly '✖ Middleware emits an interrupt definition that is not registered in chat({ interrupts }).': never
-        }
+      : [
+            Exclude<
+              MiddlewareInterruptDefinitions<TMiddleware>,
+              RegistryInterrupt<TInterrupts>
+            >,
+          ] extends [never]
+        ? unknown
+        : {
+            readonly '✖ Middleware emits an interrupt definition that is not registered in chat({ interrupts }).': never
+          }
 
 type RuntimeContextOption<TTools, TMiddleware, TContext> = [
   MergeContext<ContextFromInputs<TTools, TMiddleware>, TContext>,
@@ -477,8 +476,8 @@ type TextActivityOptionsWithContext<
   TSchema extends SchemaInput | undefined,
   TStream extends boolean,
   TTools extends TextActivityOptions<TAdapter, TSchema, TStream, any>['tools'],
-  TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = [],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    [],
   TContext = unknown,
   TMiddleware extends Array<unknown> | undefined = undefined,
 > = Omit<
@@ -691,8 +690,9 @@ export function createChatOptions<
     TStream,
     any
   >['tools'] = TextActivityOptions<TAdapter, TSchema, TStream, any>['tools'],
-  const TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = [],
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = [],
   TContext = unknown,
   const TMiddleware extends Array<unknown> | undefined = undefined,
 >(
@@ -2488,8 +2488,7 @@ class TextEngine<
               : {}),
             ...(preEmission.descriptor.responseSchemaHash !== undefined
               ? {
-                  responseSchemaHash:
-                    preEmission.descriptor.responseSchemaHash,
+                  responseSchemaHash: preEmission.descriptor.responseSchemaHash,
                 }
               : {}),
           },
@@ -4018,7 +4017,9 @@ class TextEngine<
           resolutions.filter(
             (resolution) => resolution.request.definition === definition,
           ) as never,
-        all: (...definitions: Array<InterruptDefinition<any, any, any, any>>) =>
+        all: (
+          ...definitions: Array<InterruptDefinition<any, any, any, any>>
+        ) =>
           definitions.length === 0
             ? resolutions
             : resolutions.filter((resolution) =>
@@ -4103,7 +4104,8 @@ class TextEngine<
         entry.batchIndex < 0 ||
         (entry.responseSchemaHash !== undefined &&
           typeof entry.responseSchemaHash !== 'string') ||
-        (entry.expiresAt !== undefined && typeof entry.expiresAt !== 'string') ||
+        (entry.expiresAt !== undefined &&
+          typeof entry.expiresAt !== 'string') ||
         (entry.payloadSchemaHash !== undefined &&
           typeof entry.payloadSchemaHash !== 'string')
       ) {
@@ -4116,7 +4118,9 @@ class TextEngine<
         )
       }
       if (ids.has(entry.id) || batchIndexes.has(entry.batchIndex)) {
-        return fail('Generic interrupt continuation contains duplicate entries.')
+        return fail(
+          'Generic interrupt continuation contains duplicate entries.',
+        )
       }
       ids.add(entry.id)
       batchIndexes.add(entry.batchIndex)
@@ -4227,20 +4231,21 @@ class TextEngine<
 
   private async applyDurableGenericInterruptResolution(): Promise<void> {
     if (this.resumeGenericInterruptRequests.size === 0) return
-    const resolutions = [...this.resumeGenericInterruptRequests.entries()]
-      .flatMap(([interruptId, request]) => {
-        const resolution = this.resumeGenericInterrupts.get(interruptId)
-        if (!resolution) return []
-        return [
-          resolution.status === 'resolved'
-            ? {
-                request,
-                status: 'resolved' as const,
-                response: resolution.payload,
-              }
-            : { request, status: 'cancelled' as const },
-        ]
-      })
+    const resolutions = [
+      ...this.resumeGenericInterruptRequests.entries(),
+    ].flatMap(([interruptId, request]) => {
+      const resolution = this.resumeGenericInterrupts.get(interruptId)
+      if (!resolution) return []
+      return [
+        resolution.status === 'resolved'
+          ? {
+              request,
+              status: 'resolved' as const,
+              response: resolution.payload,
+            }
+          : { request, status: 'cancelled' as const },
+      ]
+    })
     const collection: InterruptResolutionCollection = {
       for: (definition) =>
         resolutions.filter(
@@ -4444,8 +4449,9 @@ export function chat<
     TStream,
     any
   >['tools'] = TextActivityOptions<TAdapter, TSchema, TStream, any>['tools'],
-  const TInterrupts extends
-    ReadonlyArray<InterruptDefinition<any, any, any, any>> = [],
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = [],
   TContext = unknown,
   const TMiddleware extends Array<unknown> | undefined = undefined,
 >(
@@ -4506,10 +4512,7 @@ type RuntimeTextActivityOptions<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined,
   TStream extends boolean,
-> = Omit<
-  TextActivityOptions<TAdapter, TSchema, TStream, any>,
-  'middleware'
-> & {
+> = Omit<TextActivityOptions<TAdapter, TSchema, TStream, any>, 'middleware'> & {
   middleware?: Array<AnyChatMiddleware>
 }
 
