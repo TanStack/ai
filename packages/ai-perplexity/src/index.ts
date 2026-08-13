@@ -5,7 +5,7 @@ export {
   type PerplexitySearchRequest,
   type PerplexitySearchResponse,
   type PerplexitySearchResult,
-} from './search'
+} from './search/index'
 
 export { getPerplexityApiKeyFromEnv } from './utils/api-key'
 export {
