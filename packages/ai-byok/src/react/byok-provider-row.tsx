@@ -119,7 +119,11 @@ export function ByokProviderRow({
           type="password"
           autoComplete="off"
           spellCheck={false}
-          placeholder={hasKey ? 'Replace key…' : `Paste ${provider} key…`}
+          placeholder={
+            hasKey
+              ? 'Replace key…'
+              : `Paste ${BYOK_PROVIDERS[provider].label} key…`
+          }
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           style={resolvedStyles.input}

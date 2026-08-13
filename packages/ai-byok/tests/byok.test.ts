@@ -32,6 +32,7 @@ import {
   exchangeOpenRouterCode,
   generateCodeVerifier,
   loadOpenRouterPkcePending,
+  startOpenRouterPkceLogin,
   storeOpenRouterPkcePending,
 } from '../src/openrouter'
 
@@ -343,5 +344,62 @@ describe('OpenRouter PKCE', () => {
     expect(key).toBe('sk-or-returned')
     expect(loadOpenRouterPkcePending()).toBeNull()
     clearOpenRouterPkcePending()
+  })
+
+  it('useS256:false omits the auth challenge and the exchange verifier', async () => {
+    await startOpenRouterPkceLogin({
+      callbackUrl: 'https://app.test/chat',
+      useS256: false,
+      navigate: (url) => {
+        expect(url).toContain('callback_url=https%3A%2F%2Fapp.test%2Fchat')
+        expect(url).not.toContain('code_challenge')
+      },
+    })
+    expect(loadOpenRouterPkcePending()?.codeChallengeMethod).toBe('plain')
+
+    let postedBody = ''
+    const fetchImpl = vi.fn(async (_url: string, init?: RequestInit) => {
+      postedBody = String(init?.body ?? '')
+      return Response.json({ key: 'sk-or-plain' })
+    }) as typeof fetch
+    const key = await completeOpenRouterPkceFromUrl({
+      url: 'https://app.test/chat?code=plain-code',
+      fetchImpl,
+      cleanUrl: false,
+    })
+    expect(key).toBe('sk-or-plain')
+    expect(JSON.parse(postedBody)).toEqual({ code: 'plain-code' })
+  })
+
+  it('completeOpenRouterPkceFromUrl shares one exchange for the same code', async () => {
+    storeOpenRouterPkcePending({
+      codeVerifier: 'verifier-xyz',
+      codeChallengeMethod: 'S256',
+      callbackUrl: 'https://app.test/',
+    })
+    let resolveFetch!: (value: Response) => void
+    const fetchImpl = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveFetch = resolve
+        }),
+    )
+    const url = 'https://app.test/?code=same-code'
+    const first = completeOpenRouterPkceFromUrl({
+      url,
+      fetchImpl,
+      cleanUrl: false,
+    })
+    const second = completeOpenRouterPkceFromUrl({
+      url,
+      fetchImpl,
+      cleanUrl: false,
+    })
+    resolveFetch(Response.json({ key: 'sk-or-shared' }))
+    expect(await Promise.all([first, second])).toEqual([
+      'sk-or-shared',
+      'sk-or-shared',
+    ])
+    expect(fetchImpl).toHaveBeenCalledTimes(1)
   })
 })

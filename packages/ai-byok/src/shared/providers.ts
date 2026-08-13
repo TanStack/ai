@@ -63,7 +63,7 @@ export const BYOK_PROVIDERS = {
     id: 'gemini',
     label: 'Google Gemini',
     validate: {
-      // Gemini authenticates the models list via a query param, not a header.
+      // Gemini models list accepts `x-goog-api-key` (header) or `?key=` (query).
       url: 'https://generativelanguage.googleapis.com/v1beta/models',
       headers: (key) => ({ 'x-goog-api-key': key }),
     },

@@ -323,7 +323,7 @@ Modal wrapper around `<ByokKeyManager>` with a trigger button. Supports custom `
 
 Every present provider key is sent as:
 
-```
+```http
 x-byok-<provider>: <api-key>
 ```
 

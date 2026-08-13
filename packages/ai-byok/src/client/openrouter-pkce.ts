@@ -166,15 +166,10 @@ export async function startOpenRouterPkceLogin(
   options: StartOpenRouterPkceOptions,
 ): Promise<void> {
   const useS256 = options.useS256 !== false
-  const codeVerifier = generateCodeVerifier()
+  const codeVerifier = useS256 ? generateCodeVerifier() : ''
   const codeChallengeMethod: OpenRouterPkceChallengeMethod = useS256
     ? 'S256'
     : 'plain'
-
-  let codeChallenge: string | undefined
-  if (useS256) {
-    codeChallenge = await createS256CodeChallenge(codeVerifier)
-  }
 
   storeOpenRouterPkcePending({
     codeVerifier,
@@ -184,7 +179,9 @@ export async function startOpenRouterPkceLogin(
 
   const authUrl = buildOpenRouterAuthUrl({
     callbackUrl: options.callbackUrl,
-    codeChallenge,
+    codeChallenge: useS256
+      ? await createS256CodeChallenge(codeVerifier)
+      : undefined,
     codeChallengeMethod: useS256 ? 'S256' : undefined,
   })
 
@@ -256,8 +253,11 @@ export function stripOpenRouterCodeFromUrl(href?: string): void {
 /**
  * If the current URL carries an OpenRouter `code` and pending PKCE state exists,
  * exchange the code for an API key. Returns `null` when there is nothing to
- * complete (no code, or no pending verifier).
+ * complete (no code, or no pending verifier). Concurrent callers with the same
+ * code share one exchange — authorization codes are single-use.
  */
+const inflightByCode = new Map<string, Promise<string | null>>()
+
 export async function completeOpenRouterPkceFromUrl(
   options: CompleteOpenRouterPkceFromUrlOptions = {},
 ): Promise<string | null> {
@@ -269,6 +269,9 @@ export async function completeOpenRouterPkceFromUrl(
   const code = new URL(href).searchParams.get('code')
   if (!code) return null
 
+  const existing = inflightByCode.get(code)
+  if (existing) return existing
+
   const pending = loadOpenRouterPkcePending()
   if (!pending) {
     throw new Error(
@@ -276,15 +279,25 @@ export async function completeOpenRouterPkceFromUrl(
     )
   }
 
-  const key = await exchangeOpenRouterCode({
+  const exchange = exchangeOpenRouterCode({
     code,
-    codeVerifier: pending.codeVerifier,
-    codeChallengeMethod: pending.codeChallengeMethod,
+    ...(pending.codeChallengeMethod === 'S256'
+      ? {
+          codeVerifier: pending.codeVerifier,
+          codeChallengeMethod: pending.codeChallengeMethod,
+        }
+      : {}),
     fetchImpl: options.fetchImpl,
+  }).then((key) => {
+    if (options.clearPending !== false) clearOpenRouterPkcePending()
+    if (options.cleanUrl !== false) stripOpenRouterCodeFromUrl(href)
+    return key
   })
 
-  if (options.clearPending !== false) clearOpenRouterPkcePending()
-  if (options.cleanUrl !== false) stripOpenRouterCodeFromUrl(href)
-
-  return key
+  inflightByCode.set(code, exchange)
+  try {
+    return await exchange
+  } finally {
+    inflightByCode.delete(code)
+  }
 }
