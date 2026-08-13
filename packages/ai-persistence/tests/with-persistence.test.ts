@@ -186,7 +186,12 @@ describe('withPersistence (state-only)', () => {
     // tagged with its stream messageId so a reload resumes the same bubble.
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
       { role: 'user', content: 'hi' },
-      { role: 'assistant', content: 'Half a stor', id: 'm1' },
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Half a stor',
+        id: 'm1',
+        createdAt: expect.any(Date),
+      }),
     ])
   })
 
@@ -220,7 +225,12 @@ describe('withPersistence (state-only)', () => {
     // `modelMessagesToUIMessages` reuses it and a reload can resume in place.
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
       { role: 'user', content: 'hi' },
-      { role: 'assistant', content: 'hello', id: 'assistant-42' },
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'hello',
+        id: 'assistant-42',
+        createdAt: expect.any(Date),
+      }),
     ])
   })
 

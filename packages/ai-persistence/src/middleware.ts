@@ -265,6 +265,7 @@ interface RunStateEntry {
    * bubble in place.
    */
   streamingMessageId?: string
+  streamingMessageCreatedAt?: Date
 }
 
 const runState = new WeakMap<object, RunStateEntry>()
@@ -450,6 +451,7 @@ function finishedTranscript(
   messages: ReadonlyArray<ModelMessage>,
   info: FinishInfo,
   messageId: string | undefined,
+  createdAt: Date | undefined,
 ): Array<ModelMessage> {
   const transcript = [...messages]
   const last = transcript[transcript.length - 1]
@@ -464,6 +466,7 @@ function finishedTranscript(
       role: 'assistant',
       content: info.content,
       ...(messageId ? { id: messageId } : {}),
+      ...(createdAt ? { createdAt } : {}),
     })
   }
   return transcript
@@ -1540,6 +1543,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         const s = runState.get(ctx)
         if (s) {
           s.streamingMessageId = chunk.messageId
+          s.streamingMessageCreatedAt = new Date()
           s.streamingText = ''
         }
       }
@@ -1570,6 +1574,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
                   content: snapshotState.streamingText,
                   ...(snapshotState.streamingMessageId
                     ? { id: snapshotState.streamingMessageId }
+                    : {}),
+                  ...(snapshotState.streamingMessageCreatedAt
+                    ? { createdAt: snapshotState.streamingMessageCreatedAt }
                     : {}),
                 },
               ])
@@ -1620,7 +1627,12 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // "finished" run whose transcript is missing the terminal turn.
       await messageStore.saveThread(
         ctx.threadId,
-        finishedTranscript(ctx.messages, info, state?.streamingMessageId),
+        finishedTranscript(
+          ctx.messages,
+          info,
+          state?.streamingMessageId,
+          state?.streamingMessageCreatedAt,
+        ),
       )
       await completeRun(runs, ctx.runId, info.usage)
       await commitPendingResumes(state, persistence.stores.interrupts)

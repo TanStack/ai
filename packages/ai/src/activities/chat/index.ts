@@ -729,6 +729,7 @@ class TextEngine<
   private streamStartTime = 0
   private totalChunkCount = 0
   private currentMessageId: string | null = null
+  private currentMessageCreatedAt: Date | null = null
   private accumulatedContent = ''
   private accumulatedThinking: Array<{ content: string; signature?: string }> =
     []
@@ -1268,6 +1269,7 @@ class TextEngine<
 
   private async beginIteration(): Promise<void> {
     this.currentMessageId = this.createId('msg')
+    this.currentMessageCreatedAt = new Date()
     this.accumulatedContent = ''
     this.accumulatedThinking = []
     this.currentThinkingContent = ''
@@ -1954,6 +1956,8 @@ class TextEngine<
         role: 'assistant',
         content: this.accumulatedContent || null,
         toolCalls,
+        id: this.currentMessageId ?? undefined,
+        createdAt: this.currentMessageCreatedAt ?? undefined,
         ...(this.accumulatedThinking.length > 0 && {
           thinking: this.accumulatedThinking,
         }),

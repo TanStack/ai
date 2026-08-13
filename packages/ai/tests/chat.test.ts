@@ -3086,6 +3086,8 @@ describe('chat()', () => {
       expect(assistantToolMessage?.thinking).toEqual([
         { content: 'Need inventory.', signature: 'sig-think-1' },
       ])
+      expect(assistantToolMessage?.id).toBeTruthy()
+      expect(assistantToolMessage?.createdAt).toBeInstanceOf(Date)
     })
 
     it('should execute tool calls that only provide the deprecated toolName field', async () => {
