@@ -4,6 +4,7 @@ import { createOpenaiEmbedding } from '@tanstack/ai-openai'
 import { createGeminiEmbedding } from '@tanstack/ai-gemini'
 import { createMistralEmbedding } from '@tanstack/ai-mistral'
 import { createOllamaEmbedding } from '@tanstack/ai-ollama'
+import { createVercelGatewayEmbedding } from '@tanstack/ai-vercel-gateway'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -63,6 +64,11 @@ function createEmbeddingAdapter(
       createOllamaEmbedding('nomic-embed-text', {
         host: llmockBase(aimockPort),
         headers,
+      }),
+    'vercel-gateway': () =>
+      createVercelGatewayEmbedding('openai/text-embedding-3-small', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
       }),
   }
   return factories[provider]?.()

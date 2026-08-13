@@ -189,8 +189,13 @@ Providers without snapshot support skip the step silently.
 
 - `localProcessSandbox()` — runs on the host (no isolation; dev loop only).
 - `dockerSandbox({ image })` — isolated container; snapshots, fork, resume-by-id.
+- `daytonaSandbox({ apiKey, snapshot, autoStopInterval, ephemeral })` —
+  Daytona cloud sandbox; snapshots after setup; resume starts stopped or
+  archived sandboxes. `/workspace` maps to `/home/daytona/workspace`. Setup
+  that installs packages must use `sudo -n` (do not deny `sudo *`). See
+  `docs/sandbox/providers.md` for network and secret injection details.
 
-Both implement the same `SandboxHandle`: `fs` (read/write/list/mkdir/remove/
+All implement the same `SandboxHandle`: `fs` (read/write/list/mkdir/remove/
 rename/exists), `git` (clone/status/add/commit/push/pull/branch), `process`
 (`exec` + duplex `spawn`), `ports.connect(port)`, `env.set`, optional
 `snapshot()`/`fork()`, `destroy()`. Providers advertise support via
@@ -202,17 +207,17 @@ rename/exists), `git` (clone/status/add/commit/push/pull/branch), `process`
 ```typescript
 import { defineSandboxPolicy } from '@tanstack/ai-sandbox'
 
+// Headless Grok Build / Codex: stay on auto-approve. Isolation is the
+// outer sandbox (Docker, Daytona, …), not commands.deny on this policy.
 const policy = defineSandboxPolicy({
-  commands: {
-    allow: ['pnpm test'],
-    ask: ['curl *'],
-    deny: ['sudo *', 'rm -rf *'],
-  },
-  capabilities: { fileWrite: 'allow', network: 'ask' },
-  default: 'ask', // deny > ask > allow
+  default: 'allow',
 })
 // pass to defineSandbox({ policy }); harness adapters map it to native permissions
 ```
+
+Claude Code can use `default: 'ask'` plus allow/ask/deny lists. Use Claude Code
+when you need command-level deny. Provider privilege rules (non-root users,
+network block at create) live in `docs/sandbox/providers.md`.
 
 ## Lifecycle &amp; resume
 

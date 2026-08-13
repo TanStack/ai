@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-acp",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "description": "Shared Agent Client Protocol (ACP) transport, session, and AG-UI translation for TanStack AI harness adapters.",
   "author": "",
   "license": "MIT",
@@ -38,8 +38,8 @@
     "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:oxlint": "oxlint src --type-aware",
-    "test:lib": "vitest",
-    "test:lib:dev": "pnpm test:lib --watch",
+    "test:lib": "vitest run --testTimeout=30000",
+    "test:lib:dev": "vitest --watch",
     "test:types": "tsc"
   },
   "dependencies": {

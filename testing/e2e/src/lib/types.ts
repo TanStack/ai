@@ -11,6 +11,8 @@ export type Provider =
   | 'bedrock-responses'
   | 'openrouter'
   | 'openrouter-responses'
+  | 'vercel-gateway'
+  | 'vercel-gateway-responses'
   | 'openai-compatible'
   | 'mistral'
   | 'byteplus'
@@ -58,6 +60,8 @@ export const ALL_PROVIDERS: Provider[] = [
   'bedrock-responses',
   'openrouter',
   'openrouter-responses',
+  'vercel-gateway',
+  'vercel-gateway-responses',
   'openai-compatible',
   'mistral',
   'byteplus',

@@ -27,6 +27,7 @@ import {
   createBytePlusTranscription,
   createBytePlusVideo,
 } from '@tanstack/ai-byteplus'
+import { createVercelGatewayImage } from '@tanstack/ai-vercel-gateway'
 import type { TranscriptionResponseFormat } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 
@@ -103,6 +104,11 @@ export function createImageAdapter(
     byteplus: () =>
       createBytePlusImage('seedream-4-0-250828', DUMMY_KEY, {
         baseURL: bytePlusArkUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    'vercel-gateway': () =>
+      createVercelGatewayImage('openai/gpt-image-1', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
   }

@@ -51,6 +51,19 @@ export type CodexApprovalMode =
 
 const DEFAULT_WORKDIR = '/workspace'
 
+/**
+ * Providers that already isolate the agent in a VM or container where Codex
+ * cannot create a nested bubblewrap user namespace. Isolation is then the
+ * outer sandbox plus `defineSandboxPolicy`. Issue #1081 item 8.
+ */
+const NESTED_BWRAP_UNSUPPORTED = new Set(['daytona', 'cloudflare'])
+
+function defaultSandboxMode(provider: string): CodexSandboxMode {
+  return NESTED_BWRAP_UNSUPPORTED.has(provider)
+    ? 'danger-full-access'
+    : 'workspace-write'
+}
+
 export interface CodexTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
@@ -132,18 +145,20 @@ export class CodexTextAdapter<
     resume: string | undefined,
     bridge: HostToolBridge | undefined,
     policyFlags: CodexPolicyFlags,
+    provider: string,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exe = config.codexExecutable ?? 'codex'
     const args: Array<string> = ['exec', '--experimental-json']
 
-    // Precedence: per-call modelOptions > adapter config > sandbox policy > default.
+    // Precedence: per-call modelOptions > adapter config > sandbox policy >
+    // provider default. Daytona/Cloudflare cannot nest bubblewrap.
     const sandboxMode =
       modelOptions?.sandboxMode ??
       config.sandboxMode ??
       policyFlags.sandboxMode ??
-      'workspace-write'
+      defaultSandboxMode(provider)
     const approvalPolicy =
       modelOptions?.approvalPolicy ??
       config.approvalPolicy ??
@@ -294,6 +309,7 @@ export class CodexTextAdapter<
         resume,
         bridge,
         mapPolicyToCodexFlags(policy),
+        sandbox.provider,
       )
 
       logger.request(

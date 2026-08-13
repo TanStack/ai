@@ -2,7 +2,7 @@
 title: Embeddings
 id: embeddings
 order: 1
-description: "Generate text and multimodal embedding vectors with OpenAI, Cohere, Gemini, Mistral, Amazon Bedrock, and Ollama via TanStack AI's embed() API."
+description: "Generate text and multimodal embedding vectors with OpenAI, Cohere, Gemini, Mistral, Amazon Bedrock, Ollama, and Vercel AI Gateway via TanStack AI's embed() API."
 keywords:
   - tanstack ai
   - embeddings
@@ -17,6 +17,7 @@ keywords:
   - mistral
   - bedrock
   - ollama
+  - vercel ai gateway
 ---
 
 # Embeddings
@@ -33,6 +34,7 @@ Currently supported:
 - **Mistral**: mistral-embed, codestral-embed (text)
 - **Amazon Bedrock**: Titan Text Embeddings V2 (text), Titan Multimodal Embeddings G1 (text + image), Cohere Embed v3 on Bedrock (text)
 - **Ollama**: nomic-embed-text, mxbai-embed-large, and any local embedding model (text)
+- **Vercel AI Gateway**: OpenAI-compatible embedding models such as openai/text-embedding-3-small (text)
 
 ## Basic Usage
 
@@ -46,6 +48,18 @@ const result = await embed({
 });
 
 console.log(result.embeddings[0]?.vector); // number[]
+```
+
+Vercel AI Gateway uses the same `embed()` call. Pass a `creator/model` id such as `openai/text-embedding-3-small`:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { vercelGatewayEmbedding } from "@tanstack/ai-vercel-gateway";
+
+const result = await embed({
+  adapter: vercelGatewayEmbedding("openai/text-embedding-3-small"),
+  input: "a red guitar",
+});
 ```
 
 `input` accepts a single item or an array of items; the result always carries an `embeddings` array with one vector per input item, in input order:
