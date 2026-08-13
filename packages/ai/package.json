@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai",
-  "version": "0.43.1",
+  "version": "0.44.0",
   "description": "Type-safe TypeScript AI SDK for streaming chat, tool calling, agents, structured outputs, and multimodal generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -91,8 +91,8 @@
   "dependencies": {
     "@ag-ui/core": "0.1.1-canary.beta.0",
     "@standard-schema/spec": "^1.1.0",
-    "@tanstack/ai-event-client": "workspace:*",
-    "@tanstack/ai-utils": "workspace:*",
+    "@tanstack/ai-event-client": "workspace:^",
+    "@tanstack/ai-utils": "workspace:^",
     "partial-json": "^0.1.7"
   },
   "peerDependencies": {

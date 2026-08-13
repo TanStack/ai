@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-byteplus",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "BytePlus ModelArk adapter for TanStack AI: Seed LLM chat, Seedance video, Seedream image, and Seed Speech TTS/ASR.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -67,8 +67,8 @@
     "zod": "^4.0.0"
   },
   "dependencies": {
-    "@tanstack/ai-utils": "workspace:*",
-    "@tanstack/openai-base": "workspace:*",
+    "@tanstack/ai-utils": "workspace:^",
+    "@tanstack/openai-base": "workspace:^",
     "openai": "^6.41.0"
   }
 }

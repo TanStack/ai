@@ -66,7 +66,7 @@
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-01"
+          "updatedAt": "2026-08-12"
         }
       ]
     },
@@ -436,19 +436,30 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-08"
+          "updatedAt": "2026-08-13"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-08"
+          "updatedAt": "2026-08-13"
         },
         {
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-07-30"
+        }
+      ]
+    },
+    {
+      "label": "Embeddings",
+      "children": [
+        {
+          "label": "Embeddings",
+          "to": "embeddings",
+          "addedAt": "2026-07-10",
+          "updatedAt": "2026-08-12"
         }
       ]
     },
@@ -498,19 +509,19 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Quick Start",
           "to": "sandbox/quick-start",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Harnesses",
@@ -522,25 +533,25 @@
           "label": "Workspace",
           "to": "sandbox/workspace",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Tools",
           "to": "sandbox/tools",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Policy",
           "to": "sandbox/policy",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Lifecycle & Snapshots",
           "to": "sandbox/lifecycle",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Instance Durability",
@@ -585,7 +596,7 @@
           "label": "Provisioning",
           "to": "sandbox/provisioning",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "Observability",
@@ -690,13 +701,14 @@
         {
           "label": "Migration Guide",
           "to": "migration/migration",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "From Vercel AI SDK",
           "to": "migration/migration-from-vercel-ai",
           "addedAt": "2026-04-20",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "AG-UI Client Compliance",
@@ -771,7 +783,7 @@
           "label": "OpenAI",
           "to": "adapters/openai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-03"
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "Anthropic",
@@ -783,12 +795,13 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-01"
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "Ollama",
           "to": "adapters/ollama",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "Grok (xAI)",
@@ -804,7 +817,15 @@
         },
         {
           "label": "Mistral",
-          "to": "adapters/mistral"
+          "to": "adapters/mistral",
+          "addedAt": "2026-06-30",
+          "updatedAt": "2026-07-22"
+        },
+        {
+          "label": "Cohere",
+          "to": "adapters/cohere",
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-08-10"
         },
         {
           "label": "ElevenLabs",
@@ -820,18 +841,24 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-25"
+          "updatedAt": "2026-08-13"
+        },
+        {
+          "label": "Perplexity Search",
+          "to": "adapters/perplexity",
+          "addedAt": "2026-08-13"
+        },
+        {
+          "label": "Vercel AI Gateway",
+          "to": "adapters/vercel-gateway",
+          "addedAt": "2026-08-12",
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-07-20"
-        },
-        {
-          "label": "Cohere",
-          "to": "adapters/cohere",
-          "addedAt": "2026-06-25"
+          "updatedAt": "2026-08-13"
         },
         {
           "label": "Claude Code",
@@ -843,7 +870,7 @@
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "OpenCode",
@@ -854,7 +881,8 @@
         {
           "label": "Grok Build",
           "to": "adapters/grok-build",
-          "addedAt": "2026-06-29"
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-12"
         },
         {
           "label": "ACP-Compatible",
@@ -864,7 +892,8 @@
         {
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
-          "addedAt": "2026-06-25"
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-07-22"
         },
         {
           "label": "BytePlus",

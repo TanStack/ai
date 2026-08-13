@@ -75,8 +75,10 @@ export interface GrokBuildTextConfig {
   /** Extra raw CLI flags appended verbatim (advanced). */
   extraArgs?: Array<string>
   /**
-   * Harness wire protocol. Defaults to `'acp'`. Use `'streaming-json'` for the
-   * legacy headless NDJSON path.
+   * Harness wire protocol. Defaults to `'acp'`. A durable sandbox run
+   * (durability wired, no explicit protocol) uses `'streaming-json'` so the
+   * run can journal and recover. Set `'streaming-json'` yourself for the
+   * headless NDJSON path without durability.
    */
   protocol?: GrokBuildProtocol
   /** ACP transport when `protocol` is `'acp'`. Defaults to `'auto'`. */
@@ -174,7 +176,9 @@ export class GrokBuildTextAdapter<
     const alwaysApprove = !policyFlags.readOnly && !policyFlags.conservative
     if (alwaysApprove) {
       // Headless runs auto-approve tool calls only when sandbox policy is permissive.
-      args.push('--always-approve')
+      // `--no-plan` and `--no-auto-update` keep Plan Mode and the CLI update
+      // check from blocking an unattended run. Issue #1081 item 6.
+      args.push('--always-approve', '--no-plan', '--no-auto-update')
     } else {
       // Restrictive policy: headless `-p` auto-denies prompts under `default` mode.
       args.push('--permission-mode', 'default')
@@ -196,9 +200,16 @@ export class GrokBuildTextAdapter<
   private protocol(
     options: TextOptions<GrokBuildTextProviderOptions>,
   ): GrokBuildProtocol {
-    return (
-      options.modelOptions?.protocol ?? this.adapterConfig.protocol ?? 'acp'
-    )
+    const explicit =
+      options.modelOptions?.protocol ?? this.adapterConfig.protocol
+    if (explicit !== undefined) return explicit
+    // ACP never journals. A durable run with no protocol must take the
+    // NDJSON path so a host restart can recover. Issue #1081 item 5.
+    const durability = options.capabilities
+      ? getSandboxDurability(options.capabilities, { optional: true })
+      : undefined
+    if (durability !== undefined) return 'streaming-json'
+    return 'acp'
   }
 
   async *chatStream(

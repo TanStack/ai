@@ -1272,14 +1272,29 @@ describe('Message Converters', () => {
       expect(result.parts).toEqual([{ type: 'text', content: 'Hello' }])
       expect(result.createdAt).toBeTruthy()
     })
+
+    it('should preserve createdAt when converting a ModelMessage', () => {
+      const createdAt = new Date('2025-01-01')
+      const message: ModelMessage = {
+        role: 'user',
+        content: 'Hello',
+        createdAt,
+      }
+
+      const result = normalizeToUIMessage(message, () => 'generated-id')
+
+      expect(result.createdAt).toBe(createdAt)
+    })
   })
 
   describe('Round-trip symmetry: UI -> Model -> UI', () => {
     it('should round-trip simple text user message', () => {
+      const createdAt = new Date('2025-01-01')
       const original: UIMessage = {
         id: 'msg-1',
         role: 'user',
         parts: [{ type: 'text', content: 'Hello world' }],
+        createdAt,
       }
 
       const modelMessages = uiMessageToModelMessages(original)
@@ -1288,6 +1303,61 @@ describe('Message Converters', () => {
       expect(uiMessages.length).toBe(1)
       expect(uiMessages[0]?.role).toBe(original.role)
       expect(uiMessages[0]?.parts).toEqual(original.parts)
+      expect(uiMessages[0]?.createdAt).toBe(createdAt)
+    })
+
+    it('should preserve createdAt for assistant segments and tool results', () => {
+      const createdAt = new Date('2025-01-01')
+      const original: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        parts: [
+          { type: 'text', content: 'Checking inventory.' },
+          {
+            type: 'tool-call',
+            id: 'tc-1',
+            name: 'getInventory',
+            arguments: '{}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc-1',
+            content: '{"ok":true}',
+            state: 'complete',
+          },
+        ],
+        createdAt,
+      }
+
+      const modelMessages = uiMessageToModelMessages(original)
+
+      expect(modelMessages).toEqual([
+        {
+          id: 'msg-1',
+          role: 'assistant',
+          content: 'Checking inventory.',
+          toolCalls: [
+            {
+              id: 'tc-1',
+              type: 'function',
+              function: { name: 'getInventory', arguments: '{}' },
+            },
+          ],
+          createdAt,
+        },
+        {
+          id: 'msg-1',
+          role: 'tool',
+          content: '{"ok":true}',
+          toolCallId: 'tc-1',
+          createdAt,
+        },
+      ])
+
+      const uiMessages = modelMessagesToUIMessages(modelMessages)
+      expect(uiMessages).toHaveLength(1)
+      expect(uiMessages[0]?.createdAt).toBe(createdAt)
     })
 
     it('should round-trip assistant with tool-call + tool-result', () => {
