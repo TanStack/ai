@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-isolate-daytona",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Daytona sandbox driver for TanStack AI Code Mode TypeScript execution.",
   "author": "",
   "license": "MIT",
@@ -49,7 +49,7 @@
     "code-execution"
   ],
   "peerDependencies": {
-    "@tanstack/ai-code-mode": "workspace:*"
+    "@tanstack/ai-code-mode": "workspace:^"
   },
   "devDependencies": {
     "@daytona/sdk": "^0.191.0",

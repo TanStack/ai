@@ -9,6 +9,14 @@ export interface OpenRouterImageProviderOptions {
    * '1K' = 1024x1024, '2K' = 2048x2048, '4K' = 4096x4096
    */
   image_size?: '1K' | '2K' | '4K'
+  /**
+   * Image-to-image influence (0.0–1.0): how strongly the input image
+   * constrains the output. Lower values stay closer to the input; higher
+   * values give the model more freedom. Only meaningful for
+   * image-to-image-capable models that document `image_config.strength`
+   * (e.g. Recraft) — other providers ignore it.
+   */
+  strength?: number
 }
 
 /**
@@ -26,15 +34,15 @@ export type OpenRouterImageModelProviderOptionsByName = {
 export type OpenRouterImageModelSizeByName = {
   [K in (typeof OPENROUTER_IMAGE_MODELS)[number]]:
     | '1024x1024' // "1:1"
-    | '832×1248' // "2:3"
-    | '1248×832' // "3:2"
-    | '864×1184' // "3:4"
-    | '1184×864' // "4:3"
-    | '896×1152' // "4:5"
-    | '1152×896' // "5:4"
-    | '768×1344' // "9:16"
-    | '1344×768' // "16:9"
-    | '1536×672' // "21:9"
+    | '832x1248' // "2:3"
+    | '1248x832' // "3:2"
+    | '864x1184' // "3:4"
+    | '1184x864' // "4:3"
+    | '896x1152' // "4:5"
+    | '1152x896' // "5:4"
+    | '768x1344' // "9:16"
+    | '1344x768' // "16:9"
+    | '1536x672' // "21:9"
 }
 
 /**

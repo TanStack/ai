@@ -1,8 +1,10 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { chat, createChatOptions } from '@tanstack/ai'
+import { chat, createChatOptions, toolDefinition } from '@tanstack/ai'
 import { otelMiddleware } from '@tanstack/ai/middlewares/otel'
 import { createOpenaiChatCompletions } from '@tanstack/ai-openai'
 import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import { z } from 'zod'
+import { createTextAdapter } from '@/lib/providers'
 import type {
   AttributeValue,
   Context,
@@ -13,6 +15,11 @@ import type {
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
+const weatherTool = toolDefinition({
+  name: 'get_weather',
+  description: 'Get weather',
+  inputSchema: z.object({ city: z.string() }),
+}).server(async ({ city }) => ({ city, temperature: 72, condition: 'sunny' }))
 
 interface CapturedSpan {
   name: string
@@ -121,28 +128,42 @@ export const Route = createFileRoute('/api/otel-usage')({
     handlers: {
       POST: async ({ request }) => {
         let provider = 'openai'
+        let testId: string | undefined
         try {
-          const body = (await request.json()) as { provider?: string }
+          const body = (await request.json()) as {
+            provider?: string
+            testId?: string
+          }
           if (typeof body.provider === 'string') provider = body.provider
+          if (typeof body.testId === 'string') testId = body.testId
         } catch {
           // No/invalid body — default provider.
         }
 
         const adapter =
-          provider === 'openrouter'
-            ? createOpenRouterText('openai/gpt-4o', DUMMY_KEY, {
-                serverURL: `${LLMOCK_DEFAULT_BASE}/openrouter-cost/v1`,
-              })
-            : createOpenaiChatCompletions('gpt-4o', DUMMY_KEY, {
-                baseURL: `${LLMOCK_DEFAULT_BASE}/openai-usage-details/v1`,
-              })
+          provider === 'tool-loop'
+            ? createTextAdapter('openai', undefined, undefined, testId).adapter
+            : provider === 'openrouter'
+              ? createOpenRouterText('openai/gpt-4o', DUMMY_KEY, {
+                  serverURL: `${LLMOCK_DEFAULT_BASE}/openrouter-cost/v1`,
+                })
+              : createOpenaiChatCompletions('gpt-4o', DUMMY_KEY, {
+                  baseURL: `${LLMOCK_DEFAULT_BASE}/openai-usage-details/v1`,
+                })
 
         const { tracer, spans } = createLocalCaptureTracer()
 
         try {
           for await (const _chunk of chat({
             ...createChatOptions({ adapter }),
-            messages: [{ role: 'user', content: 'hi' }],
+            messages: [
+              {
+                role: 'user',
+                content:
+                  provider === 'tool-loop' ? '[with-tool] run test' : 'hi',
+              },
+            ],
+            ...(provider === 'tool-loop' ? { tools: [weatherTool] } : {}),
             middleware: [otelMiddleware({ tracer })],
           })) {
             // Drain — the assertions live on the captured spans.

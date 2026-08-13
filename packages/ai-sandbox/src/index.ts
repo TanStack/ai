@@ -130,9 +130,11 @@ export type { BootstrapResult } from './bootstrap'
 export {
   writeAgentsFile,
   resolveGitSkillDir,
+  discoverSkillDirs,
   formatWorkspaceScriptsSection,
   mergeAgentsContent,
 } from './agents-file'
+export type { DiscoveredSkillDir } from './agents-file'
 
 // Exec-backed git helper (for providers without native git)
 export { createExecBackedGit } from './git-exec'

@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-sandbox-docker",
-  "version": "0.2.1",
-  "description": "Docker sandbox provider for TanStack AI — run harness adapters inside isolated Docker containers through the uniform SandboxHandle.",
+  "version": "0.3.0",
+  "description": "Docker sandbox providers for TanStack AI — dockerSandbox() runs a container; sbxSandbox() runs a Docker Sandboxes microVM.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -14,6 +14,7 @@
     "tanstack",
     "sandbox",
     "docker",
+    "sbx",
     "harness",
     "agent",
     "isolation"

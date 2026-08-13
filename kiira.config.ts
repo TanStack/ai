@@ -27,12 +27,13 @@ export default defineConfig({
   // AI SDK migration, community adapters, redis/pino/otel/express/hono, other
   // schema libs) are validated instead of `ignore`d.
   externalPackages: {
-    // Vercel AI SDK (migration / comparison "before" examples)
-    ai: '^6.0.0',
-    '@ai-sdk/openai': '^3.0.0',
-    '@ai-sdk/anthropic': '^3.0.0',
-    '@ai-sdk/google': '^3.0.0',
-    '@ai-sdk/react': '^3.0.0',
+    // Vercel AI SDK (comparison is v7; migration "before" fences stay on
+    // APIs that v7 still exports, including deprecated aliases)
+    ai: '^7.0.0',
+    '@ai-sdk/openai': '^4.0.0',
+    '@ai-sdk/anthropic': '^4.0.0',
+    '@ai-sdk/google': '^4.0.0',
+    '@ai-sdk/react': '^4.0.0',
     // Provider SDKs / schema libraries shown in examples
     openai: '^6.0.0',
     arktype: '^2.0.0',

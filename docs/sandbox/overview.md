@@ -49,6 +49,8 @@ chat({
 })
 ```
 
+`sbxSandbox()` from the same package runs the agent in a Docker Sandboxes microVM. See [Providers](./providers).
+
 ## The three moving parts
 
 A sandboxed run is the composition of three independent pieces. You can change
@@ -56,7 +58,7 @@ any one without touching the others.
 
 | Part | What it is | You pick it with |
 | --- | --- | --- |
-| **Provider** | *Where* the agent runs (your host, a container, a cloud VM). | A provider package (`dockerSandbox`, `localProcessSandbox`, …) |
+| **Provider** | *Where* the agent runs (your host, a container, a microVM, a cloud VM). | A provider package (`dockerSandbox`, `sbxSandbox`, `localProcessSandbox`, …) |
 | **Workspace** | *What the agent sees*: the source repo, package manager, setup commands, secrets. | `defineWorkspace({ … })` |
 | **Harness adapter** | *Which agent runs* and how its output is translated to chat chunks. | `grokBuildText`, `claudeCodeText`, `codexText`, `opencodeText`, or `acpCompatible` for [any ACP agent](./harnesses) |
 
@@ -106,8 +108,8 @@ shell.
 [Quick Start](./quick-start) gets an agent fixing a bug in a sandbox on your laptop.
 After that, pick the piece you need:
 
-- [Providers](./providers): local process, Docker, Daytona, Vercel, Sprites, and what
-  each one can do.
+- [Providers](./providers): local process, Docker container, Docker Sandboxes
+  (`sbxSandbox`), Daytona, Vercel, Sprites, and what each one can do.
 - [Harnesses](./harnesses): which agent runs. Grok Build, Claude Code, Codex,
   OpenCode, or any ACP agent.
 - [Workspace](./workspace): the source repo, clone depth, and setup commands.

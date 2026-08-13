@@ -7,6 +7,7 @@ import type {
   ServerDescriptor,
   ToolsOptions,
 } from './types'
+import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
 import type { TransportConfig } from './transport'
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js'
 
@@ -46,6 +47,7 @@ export interface MCPClients<
     {
       transport: TransportConfig | undefined
       prefix: string | undefined
+      clientOptions?: ClientOptions
     }
   >
   /** Close every client. */
@@ -151,6 +153,7 @@ export async function createMCPClients<
       {
         transport: TransportConfig | undefined
         prefix: string | undefined
+        clientOptions?: ClientOptions
       }
     > {
       // Keyed by config key (serverId / default prefix). Read each underlying

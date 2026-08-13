@@ -22,8 +22,9 @@ export interface GrokBuildTextProviderOptions {
   /** Per-call override of the max harness turns. */
   maxTurns?: number
   /**
-   * Harness wire protocol. Defaults to `'acp'`. Use `'streaming-json'` for the
-   * legacy headless NDJSON path.
+   * Harness wire protocol. Defaults to `'acp'`. A durable sandbox run
+   * (durability wired, no explicit protocol) uses `'streaming-json'` so the
+   * run can journal and recover.
    */
   protocol?: GrokBuildProtocol
   /** ACP transport when `protocol` is `'acp'`. Defaults to `'auto'`. */

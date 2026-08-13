@@ -41,16 +41,25 @@ describe('mapPolicyToGrokBuildFlags', () => {
     ).toBe(true)
   })
 
-  it('maps ask/deny command rules to conservative', () => {
+  it('maps ask command rules to conservative', () => {
     expect(
       mapPolicyToGrokBuildFlags(
         defineSandboxPolicy({ commands: { ask: ['pnpm *'] } }),
       ).conservative,
     ).toBe(true)
+  })
+
+  // Headless grok -p auto-cancels tools when conservative is true. A deny
+  // list is a hard block, not a human prompt, so it must not flip the
+  // approval flag. Issue #1081 item 1.
+  it('does not treat a deny list as conservative when default is allow', () => {
     expect(
       mapPolicyToGrokBuildFlags(
-        defineSandboxPolicy({ default: 'allow', commands: { deny: ['rm *'] } }),
+        defineSandboxPolicy({
+          default: 'allow',
+          commands: { deny: ['rm -rf /'] },
+        }),
       ).conservative,
-    ).toBe(true)
+    ).toBeUndefined()
   })
 })

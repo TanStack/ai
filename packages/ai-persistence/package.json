@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-persistence",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "Composable state persistence for TanStack AI messages, runs, interrupts, metadata, and locks.",
   "author": "",
   "license": "MIT",
@@ -49,10 +49,10 @@
     "test:oxlint": "oxlint src --type-aware"
   },
   "dependencies": {
-    "@tanstack/ai-utils": "workspace:*"
+    "@tanstack/ai-utils": "workspace:^"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai": "workspace:^",
     "vitest": "^4.1.10"
   },
   "peerDependenciesMeta": {

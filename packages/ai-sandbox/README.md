@@ -51,7 +51,7 @@ Pick a **provider** package for where the sandbox runs:
 | `@tanstack/ai-sandbox-docker`        | Isolated containers, snapshots, resume |
 | `@tanstack/ai-sandbox-cloudflare`    | Cloudflare Workers + Containers        |
 | `@tanstack/ai-sandbox-vercel`        | Vercel Sandbox                         |
-| `@tanstack/ai-sandbox-daytona`       | Daytona dev environments               |
+| `@tanstack/ai-sandbox-daytona`       | Daytona cloud sandboxes, snapshots     |
 | `@tanstack/ai-sandbox-sprites`       | Sprites stateful sandboxes             |
 
 **Harness adapters** are separate packages. The default path is **Grok Build** (`@tanstack/ai-grok-build`); others include `@tanstack/ai-claude-code`, `@tanstack/ai-codex`, and `@tanstack/ai-opencode`. All require `withSandbox(...)` middleware — `chat()` fails fast without it.
@@ -102,6 +102,18 @@ Guard what the agent may run:
 
 ```typescript
 const policy = defineSandboxPolicy({
+  default: 'allow',
+})
+
+defineSandbox({ id: 'agent', provider, workspace, policy })
+```
+
+Headless Grok Build and Codex stay on auto-approve when `default` is `'allow'` and there is no `ask` list. Isolation is the outer sandbox (Docker, Daytona, and so on). Use Claude Code when you need command-level deny.
+
+Claude Code can use an interactive policy:
+
+```typescript
+defineSandboxPolicy({
   commands: {
     allow: ['pnpm test', 'git diff'],
     ask: ['pnpm install'],
@@ -110,11 +122,9 @@ const policy = defineSandboxPolicy({
   capabilities: { fileWrite: 'allow', network: 'ask' },
   default: 'ask',
 })
-
-defineSandbox({ id: 'agent', provider, workspace, policy })
 ```
 
-Precedence is `deny` > `ask` > `allow`. Each harness adapter maps policy onto its native permission system (coarse flags for Grok Build/Codex; full interactive `approval-requested` on Claude Code).
+Precedence is `deny` > `ask` > `allow`. Each harness adapter maps policy onto its native permission system (coarse flags for Grok Build/Codex; full interactive `approval-requested` on Claude Code). Provider-specific privilege and network rules live in the [providers](../../docs/sandbox/providers.md) guide.
 
 ### Lifecycle
 
@@ -129,7 +139,7 @@ lifecycle: {
 
 ### Secrets
 
-Use `createSecrets()` so values stay behind opaque `SecretRef` tokens — never written to snapshots, the sandbox store, or event logs:
+Use `createSecrets()` so values stay behind opaque `SecretRef` tokens. They are never written to snapshots, the sandbox store, or event logs. The sandbox layer resolves them onto the live handle at create, resume, and snapshot restore:
 
 ```typescript
 const secrets = createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' })

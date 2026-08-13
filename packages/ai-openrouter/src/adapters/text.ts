@@ -280,9 +280,16 @@ export class OpenRouterTextAdapter<
       // this).
       const transformed = this.transformStructuredOutput(parsed)
 
+      // Forward provider usage (tokens + OpenRouter cost) so middleware
+      // onFinish/onUsage and fallbackStructuredOutputStream see real cost.
+      // Matches the stream path and StructuredOutputResult.usage contract.
+      const baseUsage = buildOpenRouterUsage(response.usage)
       return {
         data: transformed,
         rawText,
+        ...(baseUsage && {
+          usage: { ...baseUsage, ...extractUsageCost(response.usage) },
+        }),
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
