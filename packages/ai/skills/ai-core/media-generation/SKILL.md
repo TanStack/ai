@@ -12,16 +12,16 @@ description: >
   TanStack Start server function integration with toServerSentEventsResponse.
 type: sub-skill
 library: tanstack-ai
-library_version: '0.42.0'
+library_version: "0.42.0"
 sources:
-  - 'TanStack/ai:docs/media/generations.md'
-  - 'TanStack/ai:docs/media/generation-hooks.md'
-  - 'TanStack/ai:docs/media/image-generation.md'
-  - 'TanStack/ai:docs/media/audio-generation.md'
-  - 'TanStack/ai:docs/media/video-generation.md'
-  - 'TanStack/ai:docs/media/text-to-speech.md'
-  - 'TanStack/ai:docs/media/transcription.md'
-  - 'TanStack/ai:docs/advanced/debug-logging.md'
+  - "TanStack/ai:docs/media/generations.md"
+  - "TanStack/ai:docs/media/generation-hooks.md"
+  - "TanStack/ai:docs/media/image-generation.md"
+  - "TanStack/ai:docs/media/audio-generation.md"
+  - "TanStack/ai:docs/media/video-generation.md"
+  - "TanStack/ai:docs/media/text-to-speech.md"
+  - "TanStack/ai:docs/media/transcription.md"
+  - "TanStack/ai:docs/advanced/debug-logging.md"
 ---
 
 # Media Generation
@@ -39,35 +39,35 @@ client.
 
 ```typescript
 // routes/api/generate/image.ts
-import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
+import { generateImage, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiImage } from "@tanstack/ai-openai";
 
 export async function POST(req: Request) {
-  const { prompt, size, numberOfImages } = await req.json()
+  const { prompt, size, numberOfImages } = await req.json();
 
   const stream = generateImage({
-    adapter: openaiImage('gpt-image-1'),
+    adapter: openaiImage("gpt-image-1"),
     prompt,
     size,
     numberOfImages,
     stream: true,
-  })
+  });
 
-  return toServerSentEventsResponse(stream)
+  return toServerSentEventsResponse(stream);
 }
 ```
 
 ### Client (React)
 
 ```tsx
-import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
-import { useState } from 'react'
+import { useGenerateImage, fetchServerSentEvents } from "@tanstack/ai-react";
+import { useState } from "react";
 
 function ImageGenerator() {
-  const [prompt, setPrompt] = useState('')
+  const [prompt, setPrompt] = useState("");
   const { generate, result, isLoading, error, reset } = useGenerateImage({
-    connection: fetchServerSentEvents('/api/generate/image'),
-  })
+    connection: fetchServerSentEvents("/api/generate/image"),
+  });
 
   return (
     <div>
@@ -80,7 +80,7 @@ function ImageGenerator() {
         onClick={() => generate({ prompt })}
         disabled={isLoading || !prompt.trim()}
       >
-        {isLoading ? 'Generating...' : 'Generate'}
+        {isLoading ? "Generating..." : "Generate"}
       </button>
 
       {error && <p>Error: {error.message}</p>}
@@ -89,13 +89,13 @@ function ImageGenerator() {
         <img
           key={i}
           src={img.url || `data:image/png;base64,${img.b64Json}`}
-          alt={img.revisedPrompt || 'Generated image'}
+          alt={img.revisedPrompt || "Generated image"}
         />
       ))}
 
       {result && <button onClick={reset}>Clear</button>}
     </div>
-  )
+  );
 }
 ```
 
@@ -107,40 +107,40 @@ parses it as SSE automatically:
 
 ```typescript
 // lib/server-functions.ts
-import { createServerFn } from '@tanstack/react-start'
-import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
+import { createServerFn } from "@tanstack/react-start";
+import { generateImage, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiImage } from "@tanstack/ai-openai";
 
-export const generateImageStreamFn = createServerFn({ method: 'POST' })
+export const generateImageStreamFn = createServerFn({ method: "POST" })
   .inputValidator((data: { prompt: string; model?: string }) => data)
   .handler(({ data }) => {
     return toServerSentEventsResponse(
       generateImage({
-        adapter: openaiImage(data.model ?? 'gpt-image-1'),
+        adapter: openaiImage(data.model ?? "gpt-image-1"),
         prompt: data.prompt,
         stream: true,
       }),
-    )
-  })
+    );
+  });
 ```
 
 ```tsx
-import { useGenerateImage } from '@tanstack/ai-react'
-import { generateImageStreamFn } from '../lib/server-functions'
+import { useGenerateImage } from "@tanstack/ai-react";
+import { generateImageStreamFn } from "../lib/server-functions";
 
 function ImageGenerator() {
   const { generate, result, isLoading } = useGenerateImage({
     fetcher: (input) => generateImageStreamFn({ data: input }),
-  })
+  });
 
   return (
     <button
-      onClick={() => generate({ prompt: 'A sunset over mountains' })}
+      onClick={() => generate({ prompt: "A sunset over mountains" })}
       disabled={isLoading}
     >
-      {isLoading ? 'Generating...' : 'Generate'}
+      {isLoading ? "Generating..." : "Generate"}
     </button>
-  )
+  );
 }
 ```
 
@@ -163,36 +163,36 @@ gemini-3.1-flash-lite-image, imagen-4.0-generate-001, etc.) and `byteplusImage`
 > `ARK_API_KEY`.
 
 ```typescript
-import { generateImage } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
-import { geminiImage } from '@tanstack/ai-gemini'
+import { generateImage } from "@tanstack/ai";
+import { openaiImage } from "@tanstack/ai-openai";
+import { geminiImage } from "@tanstack/ai-gemini";
 
 // OpenAI with quality/background options
 const openaiResult = await generateImage({
-  adapter: openaiImage('gpt-image-1'),
-  prompt: 'A cat wearing a hat',
-  size: '1024x1024',
+  adapter: openaiImage("gpt-image-1"),
+  prompt: "A cat wearing a hat",
+  size: "1024x1024",
   numberOfImages: 2,
   modelOptions: {
-    quality: 'high',
-    background: 'transparent',
-    outputFormat: 'png',
+    quality: "high",
+    background: "transparent",
+    outputFormat: "png",
   },
-})
+});
 
 // Gemini native model with aspect-ratio sizes
 const geminiResult = await generateImage({
-  adapter: geminiImage('gemini-3.1-flash-image-preview'),
-  prompt: 'A futuristic cityscape at night',
-  size: '16:9_4K',
-})
+  adapter: geminiImage("gemini-3.1-flash-image-preview"),
+  prompt: "A futuristic cityscape at night",
+  size: "16:9_4K",
+});
 
 // Gemini Imagen model
 const imagenResult = await generateImage({
-  adapter: geminiImage('imagen-4.0-generate-001'),
-  prompt: 'A landscape photo',
-  modelOptions: { aspectRatio: '16:9' },
-})
+  adapter: geminiImage("imagen-4.0-generate-001"),
+  prompt: "A landscape photo",
+  modelOptions: { aspectRatio: "16:9" },
+});
 ```
 
 Result shape: `ImageGenerationResult` with `images` array where each entry
@@ -215,60 +215,60 @@ provider-specific field. The accepted part types are narrowed per model at
 compile time via the adapter's input-modality map.
 
 ```typescript
-import { generateImage } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
+import { generateImage } from "@tanstack/ai";
+import { openaiImage } from "@tanstack/ai-openai";
 
 // Image-to-image (OpenAI gpt-image-2 / gpt-image-1, dall-e-2)
 await generateImage({
-  adapter: openaiImage('gpt-image-2'),
+  adapter: openaiImage("gpt-image-2"),
   prompt: [
-    { type: 'text', content: 'Turn this into a cinematic product photo' },
-    { type: 'image', source: { type: 'url', value: 'https://…/product.png' } },
+    { type: "text", content: "Turn this into a cinematic product photo" },
+    { type: "image", source: { type: "url", value: "https://…/product.png" } },
   ],
-})
+});
 
 // Multi-reference (up to 16 for gpt-image models; up to ~14 for Gemini native
 // — a provider limit, not enforced by the SDK)
 await generateImage({
-  adapter: openaiImage('gpt-image-2'),
+  adapter: openaiImage("gpt-image-2"),
   prompt: [
-    { type: 'text', content: 'Apply the second image as style to the first' },
-    { type: 'image', source: { type: 'url', value: 'https://…/product.png' } },
-    { type: 'image', source: { type: 'url', value: 'https://…/style.png' } },
+    { type: "text", content: "Apply the second image as style to the first" },
+    { type: "image", source: { type: "url", value: "https://…/product.png" } },
+    { type: "image", source: { type: "url", value: "https://…/style.png" } },
   ],
-})
+});
 
 // Inpaint via metadata.role === 'mask' (OpenAI gpt-image models, dall-e-2; fal mask_url)
 await generateImage({
-  adapter: openaiImage('gpt-image-2'),
+  adapter: openaiImage("gpt-image-2"),
   prompt: [
-    { type: 'text', content: 'Replace the masked region with a tree' },
-    { type: 'image', source: { type: 'url', value: photoUrl } },
+    { type: "text", content: "Replace the masked region with a tree" },
+    { type: "image", source: { type: "url", value: photoUrl } },
     {
-      type: 'image',
-      source: { type: 'url', value: maskUrl },
-      metadata: { role: 'mask' },
+      type: "image",
+      source: { type: "url", value: maskUrl },
+      metadata: { role: "mask" },
     },
   ],
-})
+});
 
 // Image-to-video (OpenAI Sora: single input_reference; fal: image_url + optional
 // end_image_url; OpenRouter: frame_images + input_references)
-import { generateVideo } from '@tanstack/ai'
-import { falVideo } from '@tanstack/ai-fal'
+import { generateVideo } from "@tanstack/ai";
+import { falVideo } from "@tanstack/ai-fal";
 
 await generateVideo({
-  adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
+  adapter: falVideo("fal-ai/kling-video/v3/pro/image-to-video"),
   prompt: [
-    { type: 'image', source: { type: 'url', value: firstFrameUrl } },
-    { type: 'text', content: 'Slow cinematic push-in' },
+    { type: "image", source: { type: "url", value: firstFrameUrl } },
+    { type: "text", content: "Slow cinematic push-in" },
     {
-      type: 'image',
-      source: { type: 'url', value: lastFrameUrl },
-      metadata: { role: 'end_frame' },
+      type: "image",
+      source: { type: "url", value: lastFrameUrl },
+      metadata: { role: "end_frame" },
     },
   ],
-})
+});
 ```
 
 **URL inputs that require an upload throw by default.** Most adapters pass a
@@ -284,21 +284,21 @@ with `allowUrlFetch: true` on the adapter config
 
 **Role hints** (`metadata.role`):
 
-| Role            | Maps to                                                                                                                                          |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `'reference'`   | fal `reference_image_urls`; OpenRouter video `input_references[]`; Gemini multimodal part; positional otherwise                                  |
-| `'character'`   | Same as `'reference'`; Veo `referenceImages` slot (planned — no Veo adapter yet)                                                                 |
-| `'mask'`        | OpenAI `mask` (gpt-image-2, gpt-image-1, dall-e-2); fal `mask_url`                                                                               |
-| `'control'`     | fal `control_image_url` (ControlNet / depth / pose)                                                                                              |
-| `'start_frame'` | fal `start_image_url` (or the endpoint's field, e.g. `image_url` on Kling i2v); OpenRouter `frame_images[]` `first_frame`; Veo `image` (planned) |
-| `'end_frame'`   | fal `end_image_url` (or e.g. `tail_image_url` / `last_frame_url`); OpenRouter `frame_images[]` `last_frame`; Veo `lastFrame` (planned)           |
+| Role            | Maps to                                                                                                                                |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `'reference'`   | fal `reference_image_urls`; OpenRouter video `input_references[]`; Gemini multimodal part; positional otherwise                        |
+| `'character'`   | Same as `'reference'`; Veo `referenceImages`; OpenRouter `input_references[]`                                                          |
+| `'mask'`        | OpenAI `mask` (gpt-image-2, gpt-image-1, dall-e-2); fal `mask_url`                                                                     |
+| `'control'`     | fal `control_image_url` (ControlNet / depth / pose)                                                                                    |
+| `'start_frame'` | fal `start_image_url` (or the endpoint's field, e.g. `image_url` on Kling i2v); OpenRouter `frame_images[]` `first_frame`; Veo `image` |
+| `'end_frame'`   | fal `end_image_url` (or e.g. `tail_image_url` / `last_frame_url`); OpenRouter `frame_images[]` `last_frame`; Veo `lastFrame`           |
 
 **Provider support matrix:**
 
 | Provider   | `generateImage` image parts                                                                                                                                                                              | `generateVideo` image parts                                                                                                                                                                                                                                                                    |
 | ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | OpenAI     | gpt-image-2 / gpt-image-1 / -mini → `images.edit()` (up to 16). dall-e-2 → edit (1). dall-e-3 throws.                                                                                                    | Sora-2 / -pro → `input_reference` (single). Throws if >1.                                                                                                                                                                                                                                      |
-| Gemini     | Native (gemini-\*-flash-image, "nano-banana") → multimodal `contents`. Imagen throws.                                                                                                                    | No native Veo adapter yet — deferred to a follow-up.                                                                                                                                                                                                                                           |
+| Gemini     | Native (gemini-\*-flash-image, "nano-banana") → multimodal `contents`. Imagen throws.                                                                                                                    | Veo → first un-roled / `'start_frame'` image is the input image; `'end_frame'` → `lastFrame`; `'reference'` / `'character'` → `referenceImages`. Omni Flash sends image/video parts as interaction content blocks (no role routing).                                                           |
 | fal        | Per-endpoint field names from a generated map (`pnpm generate:fal-image-fields`). Defaults: 1 input → `image_url`; >1 → `image_urls`; roles → `mask_url` / `control_image_url` / `reference_image_urls`. | Per-endpoint map (e.g. Kling i2v start frame → `image_url`). Defaults: 1 input → `image_url`; `start_frame`/`end_frame` → `start_image_url`/`end_image_url`; `reference` → `reference_image_urls`.                                                                                             |
 | Grok       | grok-imagine models → `/v1/images/edits` JSON endpoint (≤3 sources, addressed by xAI in request order; prompt sent verbatim; mask/control throw). grok-2-image-1212 throws.                              | n/a                                                                                                                                                                                                                                                                                            |
 | OpenRouter | Prompt parts map 1:1 onto multimodal `text` / `image_url` content parts, preserving interleaved order.                                                                                                   | Dedicated async API (`openRouterVideo`): `start_frame`/`end_frame` → `frame_images[]` (`first_frame`/`last_frame`); `reference`/`character` → `input_references[]`; an unroled image defaults to the start frame. Frame roles validated against the model's `supported_frame_images` metadata. |
@@ -315,14 +315,14 @@ Supported adapters: `geminiAudio` (Lyria 3 Pro / Lyria 3 Clip) and
 `falAudio` (MiniMax Music, DiffRhythm, Stable Audio, ElevenLabs SFX, etc.).
 
 ```typescript
-import { generateAudio } from '@tanstack/ai'
-import { falAudio } from '@tanstack/ai-fal'
+import { generateAudio } from "@tanstack/ai";
+import { falAudio } from "@tanstack/ai-fal";
 
 const result = await generateAudio({
-  adapter: falAudio('fal-ai/diffrhythm'),
-  prompt: 'An upbeat electronic track with synths',
+  adapter: falAudio("fal-ai/diffrhythm"),
+  prompt: "An upbeat electronic track with synths",
   duration: 10,
-})
+});
 
 // result.audio.url or result.audio.b64Json (provider-dependent)
 // result.audio.contentType e.g. "audio/mpeg"
@@ -331,11 +331,11 @@ const result = await generateAudio({
 Client hook:
 
 ```tsx
-import { useGenerateAudio, fetchServerSentEvents } from '@tanstack/ai-react'
+import { useGenerateAudio, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { generate, result, isLoading } = useGenerateAudio({
-  connection: fetchServerSentEvents('/api/generate/audio'),
-})
+  connection: fetchServerSentEvents("/api/generate/audio"),
+});
 
 // Trigger: generate({ prompt: 'Upbeat synths', duration: 10 })
 // Play:    <audio src={result.audio.url} controls />
@@ -358,16 +358,16 @@ Adapters: `openaiSpeech` (tts-1, tts-1-hd, gpt-4o-audio-preview) and
 > `watermark` is also available on `modelOptions`.
 
 ```typescript
-import { generateSpeech } from '@tanstack/ai'
-import { openaiSpeech } from '@tanstack/ai-openai'
+import { generateSpeech } from "@tanstack/ai";
+import { openaiSpeech } from "@tanstack/ai-openai";
 
 const result = await generateSpeech({
-  adapter: openaiSpeech('tts-1-hd'),
-  text: 'Hello, welcome to TanStack AI!',
-  voice: 'alloy', // alloy | echo | fable | onyx | nova | shimmer | ash | ballad | coral | sage | verse
-  format: 'mp3', // mp3 | opus | aac | flac | wav | pcm
+  adapter: openaiSpeech("tts-1-hd"),
+  text: "Hello, welcome to TanStack AI!",
+  voice: "alloy", // alloy | echo | fable | onyx | nova | shimmer | ash | ballad | coral | sage | verse
+  format: "mp3", // mp3 | opus | aac | flac | wav | pcm
   speed: 1.0, // 0.25 to 4.0
-})
+});
 
 // result.audio is base64-encoded audio
 // result.format is the output format string
@@ -377,11 +377,11 @@ const result = await generateSpeech({
 Client hook:
 
 ```tsx
-import { useGenerateSpeech, fetchServerSentEvents } from '@tanstack/ai-react'
+import { useGenerateSpeech, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { generate, result, isLoading } = useGenerateSpeech({
-  connection: fetchServerSentEvents('/api/generate/speech'),
-})
+  connection: fetchServerSentEvents("/api/generate/speech"),
+});
 
 // Trigger: generate({ text: 'Hello!', voice: 'alloy' })
 // Play:   <audio src={`data:audio/${result.format};base64,${result.audio}`} controls />
@@ -397,29 +397,29 @@ gpt-4o-mini-transcribe, gpt-4o-transcribe-diarize) and `byteplusTranscription`
 > **Capturing audio in the browser:** Use `useAudioRecorder` from `@tanstack/ai-react` to record directly in the browser, then pass the recording as the `audio` input to `generate()`, or use `recording.part` as a prompt part in chat/generation calls. No transcoding or extra dependencies required — the recorder returns the native browser format (`audio/webm` or `audio/mp4`). For transcription, wrap it as a `data:` URL so the provider gets the real content type; passing raw `recording.base64` makes the adapter assume `audio/mpeg` and mislabel the webm/mp4 bytes.
 >
 > ```typescript
-> const { isRecording, start, stop } = useAudioRecorder()
+> const { isRecording, start, stop } = useAudioRecorder();
 > const { generate } = useTranscription({
->   connection: fetchServerSentEvents('/api/transcribe'),
-> })
+>   connection: fetchServerSentEvents("/api/transcribe"),
+> });
 > // ...
-> const recording = await stop()
-> const mimeType = recording.mimeType.split(';')[0] // strip ;codecs=...
-> await generate({ audio: `data:${mimeType};base64,${recording.base64}` })
+> const recording = await stop();
+> const mimeType = recording.mimeType.split(";")[0]; // strip ;codecs=...
+> await generate({ audio: `data:${mimeType};base64,${recording.base64}` });
 > ```
 
 ```typescript
-import { generateTranscription } from '@tanstack/ai'
-import { openaiTranscription } from '@tanstack/ai-openai'
+import { generateTranscription } from "@tanstack/ai";
+import { openaiTranscription } from "@tanstack/ai-openai";
 
 const result = await generateTranscription({
-  adapter: openaiTranscription('whisper-1'),
+  adapter: openaiTranscription("whisper-1"),
   audio: audioFile, // File, Blob, base64 string, or data URL
-  language: 'en',
-  responseFormat: 'verbose_json',
+  language: "en",
+  responseFormat: "verbose_json",
   modelOptions: {
-    timestamp_granularities: ['word', 'segment'],
+    timestamp_granularities: ["word", "segment"],
   },
-})
+});
 
 // result.text       -- full transcribed text
 // result.language   -- detected/specified language
@@ -435,11 +435,11 @@ speaker segments); do not pass `prompt`, `include`, or `timestamp_granularities`
 Client hook:
 
 ```tsx
-import { useTranscription, fetchServerSentEvents } from '@tanstack/ai-react'
+import { useTranscription, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { generate, result, isLoading } = useTranscription({
-  connection: fetchServerSentEvents('/api/transcribe'),
-})
+  connection: fetchServerSentEvents("/api/transcribe"),
+});
 
 // Trigger: generate({ audio: dataUrl, language: 'en' })
 ```
@@ -448,7 +448,8 @@ const { generate, result, isLoading } = useTranscription({
 
 Video generation uses a jobs/polling architecture. The server creates a job,
 polls for status, and streams updates to the client. Adapters: `openaiVideo`
-(Sora), `falVideo` (Kling, MiniMax, Hunyuan, …), and `openRouterVideo`
+(Sora), `geminiVideo` (Veo / Omni Flash), `grokVideo`, `byteplusVideo`
+(Seedance), `falVideo` (Kling, MiniMax, Hunyuan, …), and `openRouterVideo`
 (OpenRouter's dedicated `POST /api/v1/videos` gateway — Seedance, Veo, Wan,
 Kling, Sora 2 Pro and others through one API key; `getVideoJobStatus()`
 returns the video as a `data:` URL since OpenRouter's download URLs require
@@ -459,32 +460,32 @@ import {
   generateVideo,
   getVideoJobStatus,
   toServerSentEventsResponse,
-} from '@tanstack/ai'
-import { openaiVideo } from '@tanstack/ai-openai'
+} from "@tanstack/ai";
+import { openaiVideo } from "@tanstack/ai-openai";
 
 // Non-streaming: manual polling loop
 const { jobId } = await generateVideo({
-  adapter: openaiVideo('sora-2'),
-  prompt: 'A golden retriever playing in sunflowers',
-  size: '1280x720',
+  adapter: openaiVideo("sora-2"),
+  prompt: "A golden retriever playing in sunflowers",
+  size: "1280x720",
   duration: 8,
-})
+});
 
-let status = await getVideoJobStatus({ adapter: openaiVideo('sora-2'), jobId })
-while (status.status !== 'completed' && status.status !== 'failed') {
-  await new Promise((r) => setTimeout(r, 5000))
-  status = await getVideoJobStatus({ adapter: openaiVideo('sora-2'), jobId })
+let status = await getVideoJobStatus({ adapter: openaiVideo("sora-2"), jobId });
+while (status.status !== "completed" && status.status !== "failed") {
+  await new Promise((r) => setTimeout(r, 5000));
+  status = await getVideoJobStatus({ adapter: openaiVideo("sora-2"), jobId });
 }
 
 // Streaming: server handles polling, client gets real-time updates
 const stream = generateVideo({
-  adapter: openaiVideo('sora-2'),
-  prompt: 'A flying car over a city',
+  adapter: openaiVideo("sora-2"),
+  prompt: "A flying car over a city",
   stream: true,
   pollingInterval: 3000,
   maxDuration: 600_000,
-})
-return toServerSentEventsResponse(stream)
+});
+return toServerSentEventsResponse(stream);
 ```
 
 Google Veo (`@tanstack/ai-gemini`) uses the same jobs/polling flow. Its
@@ -496,18 +497,18 @@ Image prompt parts route by `metadata.role`: first un-roled /
 `'reference'` / `'character'` → `referenceImages`:
 
 ```typescript
-import { geminiVideo } from '@tanstack/ai-gemini'
+import { geminiVideo } from "@tanstack/ai-gemini";
 
-const adapter = geminiVideo('veo-3.1-generate-preview')
-adapter.availableDurations() // { kind: 'discrete', values: [4, 6, 8] }
+const adapter = geminiVideo("veo-3.1-generate-preview");
+adapter.availableDurations(); // { kind: 'discrete', values: [4, 6, 8] }
 
 const { jobId } = await generateVideo({
   adapter,
-  prompt: 'A golden retriever playing in sunflowers',
-  size: '16:9', // Veo sizes are aspect ratios: '16:9' | '9:16'
+  prompt: "A golden retriever playing in sunflowers",
+  size: "16:9", // Veo sizes are aspect ratios: '16:9' | '9:16'
   duration: adapter.snapDuration(7), // 6
-  modelOptions: { resolution: '1080p', generateAudio: true },
-})
+  modelOptions: { resolution: "1080p", generateAudio: true },
+});
 // Note: Veo result URLs require the Google API key to download
 // (x-goog-api-key header or ?key= query parameter).
 ```
@@ -526,19 +527,19 @@ media). For conversational editing, pass a prior generation's `jobId` as
 `modelOptions.previous_interaction_id` with a prompt describing the change:
 
 ```typescript
-import { geminiVideo } from '@tanstack/ai-gemini'
+import { geminiVideo } from "@tanstack/ai-gemini";
 
-const omni = geminiVideo('gemini-omni-flash-preview')
+const omni = geminiVideo("gemini-omni-flash-preview");
 const first = await generateVideo({
   adapter: omni,
-  prompt: 'A violinist outdoors',
-})
+  prompt: "A violinist outdoors",
+});
 // …poll first.jobId to completion, then edit it:
 const edited = await generateVideo({
   adapter: omni,
-  prompt: 'Make the violin invisible',
+  prompt: "Make the violin invisible",
   modelOptions: { previous_interaction_id: first.jobId },
-})
+});
 ```
 
 Other video adapters: `openaiVideo('sora-2')` (pixel sizes like `'1280x720'`,
@@ -569,32 +570,33 @@ from OpenRouter's published metadata, with the same `availableDurations()` /
 `snapDuration()` helpers:
 
 ```typescript
-import { openRouterVideo } from '@tanstack/ai-openrouter'
+import { openRouterVideo } from "@tanstack/ai-openrouter";
 
-const adapter = openRouterVideo('bytedance/seedance-2.0')
-adapter.availableDurations()
+const adapter = openRouterVideo("bytedance/seedance-2.0");
+adapter.availableDurations();
 // { kind: 'discrete', values: [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15] }
-adapter.snapDuration(7.4) // 7
+adapter.snapDuration(7.4); // 7
 
+const sliderSeconds = 7; // raw seconds from a UI control
 const { jobId } = await generateVideo({
   adapter,
-  prompt: 'A timelapse of clouds',
+  prompt: "A timelapse of clouds",
   duration: adapter.snapDuration(sliderSeconds),
-})
+});
 // Completed url is a data: URL; usage.cost carries the real billed cost.
 ```
 
 Client hook with job tracking:
 
 ```tsx
-import { useGenerateVideo, fetchServerSentEvents } from '@tanstack/ai-react'
+import { useGenerateVideo, fetchServerSentEvents } from "@tanstack/ai-react";
 
 const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
-  connection: fetchServerSentEvents('/api/generate/video'),
-  onJobCreated: (id) => console.log('Job created:', id),
+  connection: fetchServerSentEvents("/api/generate/video"),
+  onJobCreated: (id) => console.log("Job created:", id),
   onStatusUpdate: (status) =>
     console.log(`${status.status} (${status.progress}%)`),
-})
+});
 
 // videoStatus: { jobId, status, progress?, url?, error?, usage? }
 // result (on completion): { url }
@@ -610,18 +612,18 @@ needed. It rides on the canonical `TokenUsage` shape (token fields are `0` for
 media), mirroring how duration-billed transcription surfaces `durationSeconds`.
 
 ```typescript
-import { generateImage } from '@tanstack/ai'
-import { falImage } from '@tanstack/ai-fal'
+import { generateImage } from "@tanstack/ai";
+import { falImage } from "@tanstack/ai-fal";
 
 const result = await generateImage({
-  adapter: falImage('fal-ai/flux/dev'),
-  prompt: 'a serene mountain lake',
-})
+  adapter: falImage("fal-ai/flux/dev"),
+  prompt: "a serene mountain lake",
+});
 
 // usage.unitsBilled is the priced quantity. Multiply by the endpoint unit
 // price (GET https://api.fal.ai/v1/models/pricing?endpoint_id=…) for exact cost.
 if (result.usage?.unitsBilled != null) {
-  const cost = result.usage.unitsBilled * unitPrice
+  const cost = result.usage.unitsBilled * unitPrice;
 }
 ```
 
@@ -640,23 +642,23 @@ at blob key `artifacts/<runId>/<artifactId>` with an `ArtifactRecord` per file.
 `memoryPersistence()` ships all three for dev/tests.
 
 ```typescript
-import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
+import { generateImage, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiImage } from "@tanstack/ai-openai";
 import {
   withGenerationPersistence,
   memoryPersistence,
   retrieveArtifact,
   retrieveBlob,
   reconstructGeneration,
-} from '@tanstack/ai-persistence'
+} from "@tanstack/ai-persistence";
 
-const persistence = memoryPersistence() // swap for your DB/object-store adapter
+const persistence = memoryPersistence(); // swap for your DB/object-store adapter
 
 export async function POST(req: Request) {
-  const { prompt, threadId } = await req.json()
+  const { prompt, threadId } = await req.json();
   return toServerSentEventsResponse(
     generateImage({
-      adapter: openaiImage('gpt-image-1'),
+      adapter: openaiImage("gpt-image-1"),
       prompt,
       threadId, // the slot recorded on the job + artifacts
       stream: true,
@@ -669,19 +671,19 @@ export async function POST(req: Request) {
         }),
       ],
     }),
-  )
+  );
 }
 
 // Serve the stored bytes back (GET /api/artifacts?id=…):
 export async function GET(req: Request) {
-  const id = new URL(req.url).searchParams.get('id') ?? ''
-  const record = await retrieveArtifact(persistence, id)
-  if (!record) return new Response('Not found', { status: 404 })
-  const blob = await retrieveBlob(persistence, record)
-  if (!blob?.body) return new Response('Not found', { status: 404 })
+  const id = new URL(req.url).searchParams.get("id") ?? "";
+  const record = await retrieveArtifact(persistence, id);
+  if (!record) return new Response("Not found", { status: 404 });
+  const blob = await retrieveBlob(persistence, record);
+  if (!blob?.body) return new Response("Not found", { status: 404 });
   return new Response(blob.body, {
-    headers: { 'content-type': record.mimeType },
-  })
+    headers: { "content-type": record.mimeType },
+  });
 }
 ```
 
@@ -747,12 +749,12 @@ to transform what is stored:
 
 ```tsx
 const { result } = useGenerateSpeech({
-  connection: fetchServerSentEvents('/api/generate/speech'),
+  connection: fetchServerSentEvents("/api/generate/speech"),
   onResult: (raw) => ({
     audioUrl: `data:${raw.contentType};base64,${raw.audio}`,
     duration: raw.duration,
   }),
-})
+});
 // result is typed as { audioUrl: string; duration?: number } | null
 ```
 
@@ -768,27 +770,27 @@ Agents trained on older code may still generate this pattern.
 **Wrong:**
 
 ```typescript
-import { embedding } from '@tanstack/ai'
-import { openaiEmbed } from '@tanstack/ai-openai'
+import { embedding } from "@tanstack/ai";
+import { openaiEmbed } from "@tanstack/ai-openai";
 
 const result = await embedding({
   adapter: openaiEmbed(),
-  model: 'text-embedding-3-small',
-  input: 'Hello, world!',
-})
+  model: "text-embedding-3-small",
+  input: "Hello, world!",
+});
 ```
 
 **Correct -- use the provider SDK directly:**
 
 ```typescript
-import OpenAI from 'openai'
+import OpenAI from "openai";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 const result = await openai.embeddings.create({
-  model: 'text-embedding-3-small',
-  input: 'Hello, world!',
-})
+  model: "text-embedding-3-small",
+  input: "Hello, world!",
+});
 ```
 
 > Source: docs/migration/migration.md. Note: Fixed in v0.5.0 but agents
@@ -803,35 +805,35 @@ stream from a server function will not work.
 **Wrong:**
 
 ```typescript
-export const generateImageStreamFn = createServerFn({ method: 'POST' }).handler(
+export const generateImageStreamFn = createServerFn({ method: "POST" }).handler(
   ({ data }) => {
     // BUG: returning raw stream -- client cannot parse this
     return generateImage({
-      adapter: openaiImage('gpt-image-1'),
+      adapter: openaiImage("gpt-image-1"),
       prompt: data.prompt,
       stream: true,
-    })
+    });
   },
-)
+);
 ```
 
 **Correct:**
 
 ```typescript
-import { generateImage, toServerSentEventsResponse } from '@tanstack/ai'
-import { openaiImage } from '@tanstack/ai-openai'
+import { generateImage, toServerSentEventsResponse } from "@tanstack/ai";
+import { openaiImage } from "@tanstack/ai-openai";
 
-export const generateImageStreamFn = createServerFn({ method: 'POST' }).handler(
+export const generateImageStreamFn = createServerFn({ method: "POST" }).handler(
   ({ data }) => {
     return toServerSentEventsResponse(
       generateImage({
-        adapter: openaiImage('gpt-image-1'),
+        adapter: openaiImage("gpt-image-1"),
         prompt: data.prompt,
         stream: true,
       }),
-    )
+    );
   },
-)
+);
 ```
 
 > Source: maintainer interview.
@@ -844,15 +846,15 @@ immediately, or convert to base64 for persistence.
 
 ```typescript
 const result = await generateImage({
-  adapter: openaiImage('dall-e-3'),
-  prompt: 'A mountain landscape',
-})
+  adapter: openaiImage("dall-e-3"),
+  prompt: "A mountain landscape",
+});
 
 // GOOD: download immediately
 for (const img of result.images) {
   if (img.url) {
-    const response = await fetch(img.url)
-    const blob = await response.blob()
+    const response = await fetch(img.url);
+    const blob = await response.blob();
     // Save blob to storage...
   }
 }
@@ -884,19 +886,19 @@ are not in `GeminiAudioProviderOptions` — don't reach for them via `as any`.
 ```typescript
 // WRONG — both fields are silently ignored or rejected by the SDK
 generateAudio({
-  adapter: geminiAudio('lyria-3-pro-preview'),
-  prompt: 'ambient piano',
+  adapter: geminiAudio("lyria-3-pro-preview"),
+  prompt: "ambient piano",
   modelOptions: {
-    responseMimeType: 'audio/wav', // unsupported
-    negativePrompt: 'vocals', // unsupported
+    responseMimeType: "audio/wav", // unsupported
+    negativePrompt: "vocals", // unsupported
   } as any,
-})
+});
 
 // CORRECT — shape the prompt itself for what you want
 generateAudio({
-  adapter: geminiAudio('lyria-3-pro-preview'),
-  prompt: 'ambient piano, no vocals',
-})
+  adapter: geminiAudio("lyria-3-pro-preview"),
+  prompt: "ambient piano, no vocals",
+});
 ```
 
 > Source: Gemini API `GenerateContentConfig` type; docs/media/audio-generation.md.
@@ -913,17 +915,17 @@ for Lyria.
 ```typescript
 // For Lyria: put length guidance in the prompt
 generateAudio({
-  adapter: geminiAudio('lyria-3-pro-preview'),
-  prompt: 'A 2-minute ambient piano piece with gentle strings',
+  adapter: geminiAudio("lyria-3-pro-preview"),
+  prompt: "A 2-minute ambient piano piece with gentle strings",
   // duration: 120  // ← does nothing; rely on the prompt
-})
+});
 
 // For fal: duration works and is translated per-model
 generateAudio({
-  adapter: falAudio('fal-ai/minimax-music/v2'),
-  prompt: 'upbeat synth melody',
+  adapter: falAudio("fal-ai/minimax-music/v2"),
+  prompt: "upbeat synth melody",
   duration: 60, // → music_length_ms: 60_000
-})
+});
 ```
 
 > Source: Google Lyria 3 docs; docs/media/audio-generation.md.
@@ -936,23 +938,23 @@ generateAudio({
 
 ```typescript
 generateSpeech({
-  adapter: geminiSpeech('gemini-2.5-pro-preview-tts'),
-  text: '[Alice] Hi. [Bob] Hello!',
+  adapter: geminiSpeech("gemini-2.5-pro-preview-tts"),
+  text: "[Alice] Hi. [Bob] Hello!",
   modelOptions: {
     multiSpeakerVoiceConfig: {
       speakerVoiceConfigs: [
         {
-          speaker: 'Alice',
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } },
+          speaker: "Alice",
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: "Kore" } },
         },
         {
-          speaker: 'Bob',
-          voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Puck' } },
+          speaker: "Bob",
+          voiceConfig: { prebuiltVoiceConfig: { voiceName: "Puck" } },
         },
       ],
     },
   },
-})
+});
 ```
 
 > Source: Gemini TTS adapter validation; CodeRabbit review of PR #463.
@@ -968,38 +970,38 @@ time rather than getting silently wrong output.
 ```typescript
 // WRONG — dall-e-3 has no edit/inputs API; image parts are a type error
 generateImage({
-  adapter: openaiImage('dall-e-3'),
+  adapter: openaiImage("dall-e-3"),
   prompt: [
-    { type: 'text', content: 'Edit this' },
-    { type: 'image', source: { type: 'url', value: url } }, // ❌ type error
+    { type: "text", content: "Edit this" },
+    { type: "image", source: { type: "url", value: url } }, // ❌ type error
   ],
-})
+});
 
 // WRONG — Imagen is text-to-image only; same compile-time rejection
 generateImage({
-  adapter: geminiImage('imagen-4.0-generate-001'),
+  adapter: geminiImage("imagen-4.0-generate-001"),
   prompt: [
-    { type: 'text', content: 'Edit this' },
-    { type: 'image', source: { type: 'url', value: url } }, // ❌ type error
+    { type: "text", content: "Edit this" },
+    { type: "image", source: { type: "url", value: url } }, // ❌ type error
   ],
-})
+});
 
 // CORRECT — use a model that supports image-conditioned generation
 generateImage({
-  adapter: openaiImage('gpt-image-2'), // edits up to 16 images
+  adapter: openaiImage("gpt-image-2"), // edits up to 16 images
   prompt: [
-    { type: 'text', content: 'Edit this' },
-    { type: 'image', source: { type: 'url', value: url } },
+    { type: "text", content: "Edit this" },
+    { type: "image", source: { type: "url", value: url } },
   ],
-})
+});
 
 generateImage({
-  adapter: geminiImage('gemini-3.1-flash-image-preview'), // native multimodal
+  adapter: geminiImage("gemini-3.1-flash-image-preview"), // native multimodal
   prompt: [
-    { type: 'text', content: 'Edit this' },
-    { type: 'image', source: { type: 'url', value: url } },
+    { type: "text", content: "Edit this" },
+    { type: "image", source: { type: "url", value: url } },
   ],
-})
+});
 ```
 
 > Source: docs/media/image-generation.md, docs/media/video-generation.md.
@@ -1014,10 +1016,10 @@ instead of wiring up logging middleware.
 ```typescript
 // When a speech generation sounds wrong or a transcription returns garbage
 generateSpeech({
-  adapter: openaiSpeech('tts-1'),
-  text: 'Hello',
+  adapter: openaiSpeech("tts-1"),
+  text: "Hello",
   debug: { provider: true, output: true }, // raw SDK chunks + yielded chunks
-})
+});
 ```
 
 See the `ai-core/debug-logging` sub-skill for full details on categories

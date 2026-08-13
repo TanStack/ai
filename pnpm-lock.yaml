@@ -884,6 +884,9 @@ importers:
       '@tanstack/ai-grok':
         specifier: workspace:*
         version: link:../../packages/ai-grok
+      '@tanstack/ai-openrouter':
+        specifier: workspace:*
+        version: link:../../packages/ai-openrouter
       '@tanstack/ai-react':
         specifier: workspace:*
         version: link:../../packages/ai-react

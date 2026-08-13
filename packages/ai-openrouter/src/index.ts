@@ -9,7 +9,7 @@ export {
   openRouterText,
   type OpenRouterConfig,
   type OpenRouterTextModelOptions,
-} from './adapters/text'
+} from "./adapters/text";
 
 // Responses (beta) adapter - for the OpenRouter beta Responses API
 export {
@@ -18,7 +18,7 @@ export {
   openRouterResponsesText,
   type OpenRouterResponsesConfig,
   type OpenRouterResponsesTextProviderOptions,
-} from './adapters/responses-text'
+} from "./adapters/responses-text";
 
 // Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
 export {
@@ -26,7 +26,7 @@ export {
   openRouterSummarize,
   type OpenRouterSummarizeConfig,
   type OpenRouterTextModels as OpenRouterSummarizeModel,
-} from './adapters/summarize'
+} from "./adapters/summarize";
 
 // Image adapter - for image generation
 export {
@@ -34,12 +34,12 @@ export {
   createOpenRouterImage,
   openRouterImage,
   type OpenRouterImageConfig,
-} from './adapters/image'
+} from "./adapters/image";
 export type {
   OpenRouterImageProviderOptions,
   OpenRouterImageModelProviderOptionsByName,
   OpenRouterImageModelSizeByName,
-} from './image/image-provider-options'
+} from "./image/image-provider-options";
 
 // Rerank adapter - document reranking via OpenRouter's /v1/rerank endpoint
 export {
@@ -47,13 +47,13 @@ export {
   createOpenRouterRerank,
   openRouterRerank,
   type OpenRouterRerankConfig,
-} from './adapters/rerank'
+} from "./adapters/rerank";
 export {
   OPENROUTER_RERANK_MODELS,
   type OpenRouterRerankModel,
   type KnownOpenRouterRerankModel,
   type OpenRouterRerankProviderOptions,
-} from './rerank/rerank-provider-options'
+} from "./rerank/rerank-provider-options";
 
 // Video adapter - for async video generation (POST /api/v1/videos)
 export {
@@ -61,7 +61,7 @@ export {
   createOpenRouterVideo,
   openRouterVideo,
   type OpenRouterVideoConfig,
-} from './adapters/video'
+} from "./adapters/video";
 export type {
   OpenRouterVideoModel,
   OpenRouterVideoProviderOptions,
@@ -69,7 +69,7 @@ export type {
   OpenRouterVideoModelSizeByName,
   OpenRouterVideoModelInputModalitiesByName,
   OpenRouterVideoModelDurationByName,
-} from './video/video-provider-options'
+} from "./video/video-provider-options";
 
 // ============================================================================
 // Type Exports
@@ -79,7 +79,7 @@ export type {
   OpenRouterModelOptionsByName,
   OpenRouterModelInputModalitiesByName,
   OpenRouterChatModelToolCapabilitiesByName,
-} from './model-meta'
+} from "./model-meta";
 export type {
   OpenRouterTextMetadata,
   OpenRouterImageMetadata,
@@ -88,7 +88,7 @@ export type {
   OpenRouterDocumentMetadata,
   OpenRouterMessageMetadataByModality,
   OpenRouterResponsesToolCallMetadata,
-} from './message-types'
+} from "./message-types";
 export type {
   WebPlugin,
   PluginResponseHealing,
@@ -102,7 +102,7 @@ export type {
   StreamOptions,
   ImageConfig,
   OpenRouterSystemPromptMetadata,
-} from './text/text-provider-options'
+} from "./text/text-provider-options";
 
 // ============================================================================
 // Utils Exports
@@ -113,15 +113,19 @@ export {
   generateId,
   buildHeaders,
   type OpenRouterClientConfig,
-} from './utils/client'
+} from "./utils/client";
 
 // ============================================================================
 // Tool Exports
 // ============================================================================
 
-export { convertToolsToProviderFormat } from './tools/tool-converter'
+export { convertToolsToProviderFormat } from "./tools/tool-converter";
 
-export type { OpenRouterTool, FunctionTool, WebSearchTool } from './tools/index'
+export type {
+  OpenRouterTool,
+  FunctionTool,
+  WebSearchTool,
+} from "./tools/index";
 
 // Export provider usage types
-export type { OpenRouterProviderUsageDetails } from './usage'
+export type { OpenRouterProviderUsageDetails } from "./usage";

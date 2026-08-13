@@ -25,10 +25,10 @@ npm install @tanstack/ai-openrouter
 ```typescript
 import { chat } from "@tanstack/ai";
 import { openRouterText } from "@tanstack/ai-openrouter";
- 
+
 const stream = chat({
   adapter: openRouterText("openai/gpt-5"),
-  messages: [{ role: "user", content: "Hello!" }], 
+  messages: [{ role: "user", content: "Hello!" }],
 });
 ```
 
@@ -67,13 +67,13 @@ See the full list at [openrouter.ai/models](https://openrouter.ai/models).
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { openRouterText } from "@tanstack/ai-openrouter";
- 
+
 export async function POST(request: Request) {
   const { messages } = await request.json();
 
   const stream = chat({
     adapter: openRouterText("openai/gpt-5"),
-    messages, 
+    messages,
   });
 
   return toServerSentEventsResponse(stream);
@@ -111,8 +111,6 @@ export async function POST(request: Request) {
   return toServerSentEventsResponse(stream);
 }
 ```
- 
- 
 
 ## Environment Variables
 
@@ -181,10 +179,10 @@ export async function POST(request: Request) {
 OpenRouter exposes two OpenAI-compatible wire formats, and the adapter
 package ships one of each:
 
-| Adapter                    | Endpoint                  | Status   | When to use                                                                  |
-| -------------------------- | ------------------------- | -------- | ---------------------------------------------------------------------------- |
-| `openRouterText`           | `/v1/chat/completions`    | Stable   | Default for almost everything. Broadest model + tool support.                |
-| `openRouterResponsesText`  | `/v1/responses`           | Beta     | OpenAI Responses-shaped request/response; richer multi-turn state on OpenAI-style models. |
+| Adapter                   | Endpoint               | Status | When to use                                                                               |
+| ------------------------- | ---------------------- | ------ | ----------------------------------------------------------------------------------------- |
+| `openRouterText`          | `/v1/chat/completions` | Stable | Default for almost everything. Broadest model + tool support.                             |
+| `openRouterResponsesText` | `/v1/responses`        | Beta   | OpenAI Responses-shaped request/response; richer multi-turn state on OpenAI-style models. |
 
 Both adapters route to any underlying model OpenRouter supports
 (`anthropic/...`, `google/...`, `meta-llama/...`, etc.) — the wire format
@@ -450,4 +448,3 @@ const stream = chat({
 ```
 
 **Supported models:** all OpenRouter chat models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
-

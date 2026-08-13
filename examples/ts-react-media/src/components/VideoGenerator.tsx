@@ -1,19 +1,19 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { Film, Loader2, Shuffle, Upload, Wand2, X } from 'lucide-react'
-import { useGenerateVideo } from '@tanstack/ai-react'
-import type { VideoModel, VideoMode } from '@/lib/models'
-import type { AttachedMedia } from '@/lib/media'
-import type { MediaPrompt, MediaPromptPart } from '@tanstack/ai/client'
-import type { VideoBilling } from '@/lib/billing'
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Film, Loader2, Shuffle, Upload, Wand2, X } from "lucide-react";
+import { useGenerateVideo } from "@tanstack/ai-react";
+import type { VideoModel, VideoMode } from "@/lib/models";
+import type { AttachedMedia } from "@/lib/media";
+import type { MediaPrompt, MediaPromptPart } from "@tanstack/ai/client";
+import type { VideoBilling } from "@/lib/billing";
 
-import { generateVideoFn } from '@/lib/server-functions'
-import { VIDEO_MODELS } from '@/lib/models'
-import { getRandomVideoPrompt } from '@/lib/prompts'
-import { imageUrlToPart, readMediaFile, toVideoPart } from '@/lib/media'
-import { readVideoBilling } from '@/lib/billing'
+import { generateVideoFn } from "@/lib/server-functions";
+import { VIDEO_MODELS } from "@/lib/models";
+import { getRandomVideoPrompt } from "@/lib/prompts";
+import { imageUrlToPart, readMediaFile, toVideoPart } from "@/lib/media";
+import { readVideoBilling } from "@/lib/billing";
 
 interface VideoGeneratorProps {
-  initialImageUrl?: string | null
+  initialImageUrl?: string | null;
 }
 
 /**
@@ -22,16 +22,16 @@ interface VideoGeneratorProps {
  * part.
  */
 interface VideoRequest {
-  prompt: string
-  mode: VideoMode
-  imageUrl: string | null
-  video: AttachedMedia | null
+  prompt: string;
+  mode: VideoMode;
+  imageUrl: string | null;
+  video: AttachedMedia | null;
 }
 
 /** What each card hands the parent so it can drive that card's hook. */
 interface VideoCardHandle {
-  run: (request: VideoRequest) => void
-  clear: () => void
+  run: (request: VideoRequest) => void;
+  clear: () => void;
 }
 
 /**
@@ -46,156 +46,163 @@ function buildVideoPrompt(
   model: VideoModel,
 ): MediaPrompt {
   const parts: Array<MediaPromptPart> = [
-    { type: 'text', content: request.prompt },
-  ]
-  if (request.mode === 'image-to-video' && request.imageUrl) {
-    parts.push(imageUrlToPart(request.imageUrl, { role: 'start_frame' }))
+    { type: "text", content: request.prompt },
+  ];
+  if (request.mode === "image-to-video" && request.imageUrl) {
+    parts.push(imageUrlToPart(request.imageUrl, { role: "start_frame" }));
   }
-  if (request.video && model.provider === 'gemini') {
-    parts.push(toVideoPart(request.video))
+  if (request.video && model.provider === "gemini") {
+    parts.push(toVideoPart(request.video));
   }
-  return parts.length === 1 ? request.prompt : parts
+  return parts.length === 1 ? request.prompt : parts;
 }
 
 export default function VideoGenerator({
   initialImageUrl,
 }: VideoGeneratorProps) {
-  const [mode, setMode] = useState<VideoMode>('text-to-video')
-  const [prompt, setPrompt] = useState('')
-  const [selectedModel, setSelectedModel] = useState<string>('all')
+  const [mode, setMode] = useState<VideoMode>("text-to-video");
+  const [prompt, setPrompt] = useState("");
+  const [selectedModel, setSelectedModel] = useState<string>("all");
   const [imagePreview, setImagePreview] = useState<string | null>(
     initialImageUrl ?? null,
-  )
-  const [attachedVideo, setAttachedVideo] = useState<AttachedMedia | null>(null)
+  );
+  const [attachedVideo, setAttachedVideo] = useState<AttachedMedia | null>(
+    null,
+  );
   /** Whether anything has been generated for the current model selection. */
-  const [submitted, setSubmitted] = useState(false)
-  const [running, setRunning] = useState<Record<string, boolean>>({})
-  const fileInputRef = useRef<HTMLInputElement>(null)
-  const videoInputRef = useRef<HTMLInputElement>(null)
+  const [submitted, setSubmitted] = useState(false);
+  const [running, setRunning] = useState<Record<string, boolean>>({});
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
   // Generation is started from the click, not from an effect on the cards:
   // a hook only exists inside a mounted component, so the cards mount with
   // the picker and hand the parent a way to run and clear them.
-  const cardsRef = useRef(new Map<string, VideoCardHandle>())
+  const cardsRef = useRef(new Map<string, VideoCardHandle>());
 
   const filteredModels: ReadonlyArray<VideoModel> = VIDEO_MODELS.filter(
     (m) => m.mode === mode,
-  )
-  const falModels = filteredModels.filter((m) => m.provider === 'fal')
-  const xaiModels = filteredModels.filter((m) => m.provider === 'xai')
-  const geminiModels = filteredModels.filter((m) => m.provider === 'gemini')
-  const byteplusModels = filteredModels.filter((m) => m.provider === 'byteplus')
+  );
+  const falModels = filteredModels.filter((m) => m.provider === "fal");
+  const xaiModels = filteredModels.filter((m) => m.provider === "xai");
+  const geminiModels = filteredModels.filter((m) => m.provider === "gemini");
+  const byteplusModels = filteredModels.filter(
+    (m) => m.provider === "byteplus",
+  );
+  const openrouterModels = filteredModels.filter(
+    (m) => m.provider === "openrouter",
+  );
   const activeModels =
-    selectedModel === 'all'
+    selectedModel === "all"
       ? filteredModels
-      : filteredModels.filter((model) => model.id === selectedModel)
+      : filteredModels.filter((model) => model.id === selectedModel);
 
   // Gemini Omni Flash additionally accepts video prompt parts (a reference
   // clip or a video to edit). Offer the upload whenever an Omni model is in
   // the running — other providers never receive the video part.
   const omniInRun =
-    selectedModel === 'all'
+    selectedModel === "all"
       ? geminiModels.length > 0
-      : selectedModel.startsWith('gemini-omni-flash-preview')
+      : selectedModel.startsWith("gemini-omni-flash-preview");
 
   // Each card runs its own generation, so the form is busy while any of them
   // reports that it is.
-  const isGenerating = Object.values(running).some(Boolean)
+  const isGenerating = Object.values(running).some(Boolean);
 
   useEffect(() => {
     if (initialImageUrl) {
-      setImagePreview(initialImageUrl)
+      setImagePreview(initialImageUrl);
     }
-  }, [initialImageUrl])
+  }, [initialImageUrl]);
 
   useEffect(() => {
     // When mode changes, reset to "all" or first available model — and with
     // it the results, which belong to the models that produced them.
-    setSelectedModel('all')
-    setSubmitted(false)
-    setRunning({})
-  }, [mode])
+    setSelectedModel("all");
+    setSubmitted(false);
+    setRunning({});
+  }, [mode]);
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (fileInputRef.current) fileInputRef.current.value = ''
-    if (!file) return
-    const attached = await readMediaFile(file)
-    setImagePreview(attached.dataUrl)
-  }
+    const file = e.target.files?.[0];
+    if (fileInputRef.current) fileInputRef.current.value = "";
+    if (!file) return;
+    const attached = await readMediaFile(file);
+    setImagePreview(attached.dataUrl);
+  };
 
   const clearImage = () => {
-    setImagePreview(null)
-    if (fileInputRef.current) fileInputRef.current.value = ''
-  }
+    setImagePreview(null);
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
 
   const handleVideoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (videoInputRef.current) videoInputRef.current.value = ''
-    if (!file) return
-    setAttachedVideo(await readMediaFile(file))
-  }
+    const file = e.target.files?.[0];
+    if (videoInputRef.current) videoInputRef.current.value = "";
+    if (!file) return;
+    setAttachedVideo(await readMediaFile(file));
+  };
 
   const clearVideo = () => {
-    setAttachedVideo(null)
-    if (videoInputRef.current) videoInputRef.current.value = ''
-  }
+    setAttachedVideo(null);
+    if (videoInputRef.current) videoInputRef.current.value = "";
+  };
 
   const handleRunningChange = useCallback((modelId: string, value: boolean) => {
     setRunning((prev) =>
       prev[modelId] === value ? prev : { ...prev, [modelId]: value },
-    )
-  }, [])
+    );
+  }, []);
 
   const registerCard = useCallback(
     (modelId: string, card: VideoCardHandle | null) => {
-      if (card) cardsRef.current.set(modelId, card)
-      else cardsRef.current.delete(modelId)
+      if (card) cardsRef.current.set(modelId, card);
+      else cardsRef.current.delete(modelId);
     },
     [],
-  )
+  );
 
   const handleGenerate = () => {
-    if (!prompt.trim()) return
-    if (mode === 'image-to-video' && !imagePreview) return
+    if (!prompt.trim()) return;
+    if (mode === "image-to-video" && !imagePreview) return;
 
     const request: VideoRequest = {
       prompt,
       mode,
       imageUrl: imagePreview,
       video: attachedVideo,
-    }
-    setSubmitted(true)
+    };
+    setSubmitted(true);
     for (const model of activeModels) {
-      cardsRef.current.get(model.id)?.run(request)
+      cardsRef.current.get(model.id)?.run(request);
     }
-  }
+  };
 
   /** "Generate another": drop the results themselves, not just their panel. */
   const clearResults = () => {
-    for (const card of cardsRef.current.values()) card.clear()
-    setSubmitted(false)
-    setRunning({})
-  }
+    for (const card of cardsRef.current.values()) card.clear();
+    setSubmitted(false);
+    setRunning({});
+  };
 
   return (
     <div className="space-y-6">
       <div className="flex gap-2">
         <button
-          onClick={() => setMode('text-to-video')}
+          onClick={() => setMode("text-to-video")}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            mode === 'text-to-video'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            mode === "text-to-video"
+              ? "bg-blue-600 text-white"
+              : "bg-gray-700 text-gray-300 hover:bg-gray-600"
           }`}
         >
           Text-to-Video
         </button>
         <button
-          onClick={() => setMode('image-to-video')}
+          onClick={() => setMode("image-to-video")}
           className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-            mode === 'image-to-video'
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+            mode === "image-to-video"
+              ? "bg-blue-600 text-white"
+              : "bg-gray-700 text-gray-300 hover:bg-gray-600"
           }`}
         >
           Image-to-Video
@@ -210,9 +217,9 @@ export default function VideoGenerator({
           <select
             value={selectedModel}
             onChange={(e) => {
-              setSelectedModel(e.target.value)
-              setSubmitted(false)
-              setRunning({})
+              setSelectedModel(e.target.value);
+              setSubmitted(false);
+              setRunning({});
             }}
             disabled={isGenerating}
             className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
@@ -246,10 +253,17 @@ export default function VideoGenerator({
                 </option>
               ))}
             </optgroup>
+            <optgroup label="OpenRouter">
+              {openrouterModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
           </select>
         </div>
 
-        {mode === 'image-to-video' && (
+        {mode === "image-to-video" && (
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
               Source Image
@@ -291,7 +305,7 @@ export default function VideoGenerator({
         {omniInRun && (
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-2">
-              Reference video{' '}
+              Reference video{" "}
               <span className="text-gray-500 font-normal">
                 (optional — Gemini Omni Flash only, clips of 3s or less)
               </span>
@@ -347,9 +361,9 @@ export default function VideoGenerator({
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             placeholder={
-              mode === 'image-to-video'
-                ? 'Describe how you want the image to animate...'
-                : 'Describe the video you want to generate...'
+              mode === "image-to-video"
+                ? "Describe how you want the image to animate..."
+                : "Describe the video you want to generate..."
             }
             className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
             rows={3}
@@ -362,7 +376,7 @@ export default function VideoGenerator({
           disabled={
             isGenerating ||
             !prompt.trim() ||
-            (mode === 'image-to-video' && !imagePreview)
+            (mode === "image-to-video" && !imagePreview)
           }
           className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-700 disabled:cursor-not-allowed text-white font-medium rounded-lg transition-colors flex items-center justify-center gap-2"
         >
@@ -374,7 +388,7 @@ export default function VideoGenerator({
           ) : (
             <>
               <Film className="w-5 h-5" />
-              Generate Video{selectedModel === 'all' ? 's' : ''}
+              Generate Video{selectedModel === "all" ? "s" : ""}
             </>
           )}
         </button>
@@ -384,7 +398,7 @@ export default function VideoGenerator({
         {submitted && (
           <div className="flex items-center justify-between">
             <h3 className="text-lg font-medium text-white">
-              {activeModels.length > 1 ? 'Generated Videos' : 'Generated Video'}
+              {activeModels.length > 1 ? "Generated Videos" : "Generated Video"}
             </h3>
             {!isGenerating && (
               <button
@@ -408,7 +422,7 @@ export default function VideoGenerator({
         ))}
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -423,18 +437,18 @@ function VideoModelCard({
   onRegister,
   onRunningChange,
 }: {
-  model: VideoModel
-  visible: boolean
-  showTitle: boolean
-  onRegister: (modelId: string, card: VideoCardHandle | null) => void
-  onRunningChange: (modelId: string, running: boolean) => void
+  model: VideoModel;
+  visible: boolean;
+  showTitle: boolean;
+  onRegister: (modelId: string, card: VideoCardHandle | null) => void;
+  onRunningChange: (modelId: string, running: boolean) => void;
 }) {
-  const [editPrompt, setEditPrompt] = useState('')
-  const [billing, setBilling] = useState<VideoBilling | undefined>(undefined)
+  const [editPrompt, setEditPrompt] = useState("");
+  const [billing, setBilling] = useState<VideoBilling | undefined>(undefined);
   // The hook builds its client once, so the fetcher closure is created once
   // too: anything that changes between runs (here, the Omni interaction being
   // continued) has to be read from a ref at call time rather than captured.
-  const previousInteractionRef = useRef<string | undefined>(undefined)
+  const previousInteractionRef = useRef<string | undefined>(undefined);
 
   const { generate, reset, result, jobId, videoStatus, isLoading, error } =
     useGenerateVideo({
@@ -454,16 +468,16 @@ function VideoModelCard({
           signal: options?.signal,
         }),
       onChunk: (chunk) => {
-        const usage = readVideoBilling(chunk)
-        if (usage) setBilling(usage)
+        const usage = readVideoBilling(chunk);
+        if (usage) setBilling(usage);
       },
-    })
+    });
 
   const clear = useCallback(() => {
-    previousInteractionRef.current = undefined
-    setBilling(undefined)
-    reset()
-  }, [reset])
+    previousInteractionRef.current = undefined;
+    setBilling(undefined);
+    reset();
+  }, [reset]);
 
   const run = useCallback(
     (request: VideoRequest) => {
@@ -473,23 +487,23 @@ function VideoModelCard({
       // `generate()` a no-op — that guard is what swallows a double-click.
       // The stale result a failed re-run leaves behind is handled by the
       // render gate below instead.
-      previousInteractionRef.current = undefined
-      setBilling(undefined)
-      void generate({ prompt: buildVideoPrompt(request, model) })
+      previousInteractionRef.current = undefined;
+      setBilling(undefined);
+      void generate({ prompt: buildVideoPrompt(request, model) });
     },
     [generate, model],
-  )
+  );
 
   useEffect(() => {
-    onRegister(model.id, { run, clear })
-    return () => onRegister(model.id, null)
-  }, [model.id, run, clear, onRegister])
+    onRegister(model.id, { run, clear });
+    return () => onRegister(model.id, null);
+  }, [model.id, run, clear, onRegister]);
 
   useEffect(() => {
-    onRunningChange(model.id, isLoading)
-  }, [model.id, isLoading, onRunningChange])
+    onRunningChange(model.id, isLoading);
+  }, [model.id, isLoading, onRunningChange]);
 
-  if (!visible) return null
+  if (!visible) return null;
 
   /**
    * Gemini Omni Flash conversational editing: chain a new prompt onto the
@@ -497,15 +511,15 @@ function VideoModelCard({
    * applies the change while preserving everything else in the video.
    */
   const handleEditVideo = () => {
-    const edit = editPrompt.trim()
-    if (!edit || !result || isLoading) return
-    previousInteractionRef.current = result.jobId
-    setBilling(undefined)
-    setEditPrompt('')
-    void generate({ prompt: edit })
-  }
+    const edit = editPrompt.trim();
+    if (!edit || !result || isLoading) return;
+    previousInteractionRef.current = result.jobId;
+    setBilling(undefined);
+    setEditPrompt("");
+    void generate({ prompt: edit });
+  };
 
-  const status = videoStatus?.status
+  const status = videoStatus?.status;
 
   return (
     <div className="space-y-2">
@@ -517,14 +531,14 @@ function VideoModelCard({
           <Loader2 className="w-5 h-5 animate-spin text-blue-400" />
           <span className="text-gray-400">
             {!jobId
-              ? 'Submitting...'
-              : status === 'processing'
+              ? "Submitting..."
+              : status === "processing"
                 ? `Processing${
                     videoStatus?.progress != null
                       ? ` (${videoStatus.progress}%)`
-                      : '...'
+                      : "..."
                   }`
-                : 'Queued...'}
+                : "Queued..."}
           </span>
         </div>
       )}
@@ -550,26 +564,26 @@ function VideoModelCard({
             <p className="text-xs text-gray-500">
               Billed ${billing.cost.toFixed(3)}
               {billing.unitsBilled != null
-                ? ` for ${billing.unitsBilled} second${billing.unitsBilled === 1 ? '' : 's'} of video`
-                : ''}
+                ? ` for ${billing.unitsBilled} second${billing.unitsBilled === 1 ? "" : "s"} of video`
+                : ""}
             </p>
           ) : (
             billing?.unitsBilled != null && (
               <p className="text-xs text-gray-500">
                 Billed {billing.unitsBilled} fal unit
-                {billing.unitsBilled === 1 ? '' : 's'} — multiply by the
+                {billing.unitsBilled === 1 ? "" : "s"} — multiply by the
                 endpoint unit price for USD cost
               </p>
             )
           )}
-          {model.provider === 'gemini' && (
+          {model.provider === "gemini" && (
             <div className="flex gap-2">
               <input
                 type="text"
                 value={editPrompt}
                 onChange={(e) => setEditPrompt(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleEditVideo()
+                  if (e.key === "Enter") handleEditVideo();
                 }}
                 placeholder="Describe an edit — e.g. 'make it nighttime'..."
                 className="flex-1 px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white text-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
@@ -587,5 +601,5 @@ function VideoModelCard({
         </>
       )}
     </div>
-  )
+  );
 }
