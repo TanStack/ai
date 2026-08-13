@@ -226,6 +226,9 @@ const job = await generateVideo({
 | `fal-ai/hunyuan-video-v1.5/text-to-video` | not accepted (`num_frames`) | `{ kind: 'none' }` |
 
 ```typescript
+import { generateVideo } from "@tanstack/ai";
+import { falVideo } from "@tanstack/ai-fal";
+
 const adapter = falVideo("fal-ai/veo3");
 adapter.availableDurations(); // { kind: 'discrete', values: ['4s', '6s', '8s'] }
 adapter.snapDuration(7); // '6s'
