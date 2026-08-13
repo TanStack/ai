@@ -28,13 +28,24 @@ export {
 } from './adapters/image'
 export type {
   GeminiImageProviderOptions,
+  GeminiNativeImageProviderOptions,
+  GeminiAnyImageProviderOptions,
   GeminiImageModelProviderOptionsByName,
   GeminiAspectRatio,
   // Re-export SDK types for convenience
   PersonGeneration,
   SafetyFilterLevel,
   ImagePromptLanguage,
+  SafetySetting,
+  ThinkingConfig,
+  ImageConfig,
+  ContentUnion,
 } from './image/image-provider-options'
+// `SafetySetting` is built from two SDK enums, and enums are values — they
+// cannot travel through `export type`. Re-exported here so `safetySettings`
+// is usable with only `@tanstack/ai-gemini` installed, without the consumer
+// having to add `@google/genai` to their own dependencies.
+export { HarmBlockThreshold, HarmCategory } from '@google/genai'
 
 // Embedding adapter - for embedding vectors
 export {

@@ -494,6 +494,10 @@ const result = await generateImage({
 
 ### Image Model Options
 
+`modelOptions` is typed per model family, because the two families hit different APIs.
+
+Imagen models (`generateImages`) take `GenerateImagesConfig` fields:
+
 ```typescript ignore
 import { generateImage } from "@tanstack/ai";
 import { geminiImage } from "@tanstack/ai-gemini";
@@ -508,6 +512,26 @@ const result = await generateImage({
   },
 });
 ```
+
+Gemini native models (`generateContent`) take `GenerateContentConfig` fields instead — `seed`, `safetySettings`, `thinkingConfig`, `imageConfig`, and `systemInstruction`:
+
+```typescript
+import { generateImage } from "@tanstack/ai";
+import { geminiImage } from "@tanstack/ai-gemini";
+
+const result = await generateImage({
+  adapter: geminiImage("gemini-3.1-flash-image-preview"),
+  prompt: "...",
+  size: "16:9_4K",
+  modelOptions: {
+    thinkingConfig: { thinkingBudget: 512 },
+    // Merged over the imageConfig derived from `size`, per field.
+    imageConfig: { imageSize: "2K" },
+  },
+});
+```
+
+See [Image Generation](../media/image-generation) for the full native option list.
 
 ## Text-to-Speech (Experimental)
 

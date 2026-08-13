@@ -7,6 +7,7 @@ import {
 } from '../utils'
 import { buildGeminiUsage } from '../usage'
 import {
+  isGeminiNativeImageModel,
   parseNativeImageSize,
   sizeToAspectRatio,
   validateImageSize,
@@ -15,10 +16,11 @@ import {
 } from '../image/image-provider-options'
 import type { GEMINI_IMAGE_MODELS } from '../model-meta'
 import type {
+  GeminiAnyImageProviderOptions,
   GeminiImageModelInputModalitiesByName,
   GeminiImageModelProviderOptionsByName,
   GeminiImageModelSizeByName,
-  GeminiImageProviderOptions,
+  GeminiNativeImageProviderOptions,
 } from '../image/image-provider-options'
 import type {
   GeneratedImage,
@@ -35,6 +37,7 @@ import type {
   GenerateImagesConfig,
   GenerateImagesResponse,
   GoogleGenAI,
+  ImageConfig,
   Part,
 } from '@google/genai'
 import type { GeminiClientConfig } from '../utils/client'
@@ -65,7 +68,7 @@ export class GeminiImageAdapter<
   TModel extends GeminiImageModel,
 > extends BaseImageAdapter<
   TModel,
-  GeminiImageProviderOptions,
+  GeminiAnyImageProviderOptions,
   GeminiImageModelProviderOptionsByName,
   GeminiImageModelSizeByName,
   GeminiImageModelInputModalitiesByName
@@ -75,7 +78,7 @@ export class GeminiImageAdapter<
 
   // Type-only property - never assigned at runtime
   declare '~types': {
-    providerOptions: GeminiImageProviderOptions
+    providerOptions: GeminiAnyImageProviderOptions
     modelProviderOptionsByName: GeminiImageModelProviderOptionsByName
     modelSizeByName: GeminiImageModelSizeByName
     modelInputModalitiesByName: GeminiImageModelInputModalitiesByName
@@ -89,7 +92,7 @@ export class GeminiImageAdapter<
   }
 
   async generateImages(
-    options: ImageGenerationOptions<GeminiImageProviderOptions>,
+    options: ImageGenerationOptions<GeminiAnyImageProviderOptions>,
   ): Promise<ImageGenerationResult> {
     const { model, logger } = options
 
@@ -121,7 +124,7 @@ export class GeminiImageAdapter<
         )
       }
 
-      if (this.isGeminiImageModel(model)) {
+      if (isGeminiNativeImageModel(model)) {
         return await this.generateWithGeminiApi(options, resolved)
       }
 
@@ -155,29 +158,40 @@ export class GeminiImageAdapter<
     }
   }
 
-  private isGeminiImageModel(model: string): boolean {
-    return model.startsWith('gemini-')
-  }
-
   private async generateWithGeminiApi(
-    options: ImageGenerationOptions<GeminiImageProviderOptions>,
+    options: ImageGenerationOptions<GeminiNativeImageProviderOptions>,
     resolved: ResolvedMediaPrompt,
   ): Promise<ImageGenerationResult> {
     const { model, size, numberOfImages, modelOptions } = options
 
     const parsedSize = size ? parseNativeImageSize(size) : undefined
 
-    // GeminiImageProviderOptions is Imagen-shaped — most fields
-    // (personGeneration, safetyFilterLevel, addWatermark, outputMimeType,
-    // outputCompressionQuality, guidanceScale, enhancePrompt,
-    // includeSafetyAttributes, includeRaiReason, outputGcsUri, labels,
-    // negativePrompt, language) are only valid on GenerateImagesConfig and
-    // would be rejected by the Gemini-native generateContent path. Pick only
-    // the fields that are valid on GenerateContentConfig instead of spreading
-    // the whole options object.
-    const nativeConfig: GenerateContentConfig = {}
-    if (modelOptions?.seed !== undefined) {
-      nativeConfig.seed = modelOptions.seed
+    // The portable `size` option is the baseline; modelOptions.imageConfig is
+    // the provider escape hatch and wins per field, so a caller passing only
+    // `imageConfig.imageSize` keeps the aspectRatio derived from `size`.
+    const imageConfig: ImageConfig = {
+      ...(parsedSize?.aspectRatio && { aspectRatio: parsedSize.aspectRatio }),
+      ...(parsedSize?.resolution && { imageSize: parsedSize.resolution }),
+      ...modelOptions?.imageConfig,
+    }
+
+    // Named picks, never a wholesale spread: the Imagen-shaped fields of
+    // GeminiImageProviderOptions (personGeneration, safetyFilterLevel,
+    // addWatermark, outputMimeType, …) are only valid on GenerateImagesConfig
+    // and would be rejected by generateContent. Picking by name means no
+    // Imagen field can reach this path even if one slips past the per-model
+    // provider-options map.
+    const nativeConfig: GenerateContentConfig = {
+      ...(modelOptions?.seed !== undefined && { seed: modelOptions.seed }),
+      ...(modelOptions?.safetySettings !== undefined && {
+        safetySettings: modelOptions.safetySettings,
+      }),
+      ...(modelOptions?.thinkingConfig !== undefined && {
+        thinkingConfig: modelOptions.thinkingConfig,
+      }),
+      ...(modelOptions?.systemInstruction !== undefined && {
+        systemInstruction: modelOptions.systemInstruction,
+      }),
     }
 
     const config: GenerateContentConfig = {
@@ -186,16 +200,7 @@ export class GeminiImageAdapter<
       // IMPORTANT: responseModalities is a protected default — set it AFTER
       // nativeConfig so nothing can silently disable image output.
       responseModalities: ['TEXT', 'IMAGE'],
-      ...(parsedSize && {
-        imageConfig: {
-          ...(parsedSize.aspectRatio && {
-            aspectRatio: parsedSize.aspectRatio,
-          }),
-          ...(parsedSize.resolution && {
-            imageSize: parsedSize.resolution,
-          }),
-        },
-      }),
+      ...(Object.keys(imageConfig).length > 0 && { imageConfig }),
     }
 
     const contents = this.buildContents(resolved, numberOfImages)
@@ -321,7 +326,7 @@ export class GeminiImageAdapter<
   }
 
   private buildImagenConfig(
-    options: ImageGenerationOptions<GeminiImageProviderOptions>,
+    options: ImageGenerationOptions<GeminiAnyImageProviderOptions>,
   ): GenerateImagesConfig {
     const { size, numberOfImages, modelOptions } = options
 
@@ -329,11 +334,62 @@ export class GeminiImageAdapter<
     // vendor `GenerateImagesConfig` fields are `field?: T` (no `| undefined`),
     // so we can only assign the property when we actually have a value.
     const sizeAspectRatio = size ? sizeToAspectRatio(size) : undefined
+
+    // Named picks, never a wholesale spread — the mirror image of the native
+    // path below. A native-only field (safetySettings, thinkingConfig,
+    // imageConfig, systemInstruction) belongs to GenerateContentConfig and is
+    // rejected by generateImages with 400 INVALID_ARGUMENT, so it must not be
+    // able to reach here even when the caller's `modelOptions` was typed
+    // against both shapes at once (e.g. an adapter inferred from a union of
+    // model names).
     return {
       numberOfImages: numberOfImages ?? 1,
-      // Map size to aspect ratio if provided (modelOptions.aspectRatio will override)
+      // Map size to aspect ratio if provided; modelOptions.aspectRatio,
+      // picked after it, overrides.
       ...(sizeAspectRatio !== undefined && { aspectRatio: sizeAspectRatio }),
-      ...modelOptions,
+      ...(modelOptions?.aspectRatio !== undefined && {
+        aspectRatio: modelOptions.aspectRatio,
+      }),
+      ...(modelOptions?.personGeneration !== undefined && {
+        personGeneration: modelOptions.personGeneration,
+      }),
+      ...(modelOptions?.safetyFilterLevel !== undefined && {
+        safetyFilterLevel: modelOptions.safetyFilterLevel,
+      }),
+      ...(modelOptions?.seed !== undefined && { seed: modelOptions.seed }),
+      ...(modelOptions?.addWatermark !== undefined && {
+        addWatermark: modelOptions.addWatermark,
+      }),
+      ...(modelOptions?.language !== undefined && {
+        language: modelOptions.language,
+      }),
+      ...(modelOptions?.negativePrompt !== undefined && {
+        negativePrompt: modelOptions.negativePrompt,
+      }),
+      ...(modelOptions?.outputMimeType !== undefined && {
+        outputMimeType: modelOptions.outputMimeType,
+      }),
+      ...(modelOptions?.outputCompressionQuality !== undefined && {
+        outputCompressionQuality: modelOptions.outputCompressionQuality,
+      }),
+      ...(modelOptions?.guidanceScale !== undefined && {
+        guidanceScale: modelOptions.guidanceScale,
+      }),
+      ...(modelOptions?.enhancePrompt !== undefined && {
+        enhancePrompt: modelOptions.enhancePrompt,
+      }),
+      ...(modelOptions?.includeSafetyAttributes !== undefined && {
+        includeSafetyAttributes: modelOptions.includeSafetyAttributes,
+      }),
+      ...(modelOptions?.includeRaiReason !== undefined && {
+        includeRaiReason: modelOptions.includeRaiReason,
+      }),
+      ...(modelOptions?.outputGcsUri !== undefined && {
+        outputGcsUri: modelOptions.outputGcsUri,
+      }),
+      ...(modelOptions?.labels !== undefined && {
+        labels: modelOptions.labels,
+      }),
     }
   }
 

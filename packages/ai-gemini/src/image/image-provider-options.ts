@@ -1,12 +1,24 @@
 import type { GeminiImageModels } from '../model-meta'
 import type {
+  ContentUnion,
+  ImageConfig,
   ImagePromptLanguage,
   PersonGeneration,
   SafetyFilterLevel,
+  SafetySetting,
+  ThinkingConfig,
 } from '@google/genai'
 
 // Re-export SDK types so users can use them directly
-export type { ImagePromptLanguage, PersonGeneration, SafetyFilterLevel }
+export type {
+  ContentUnion,
+  ImageConfig,
+  ImagePromptLanguage,
+  PersonGeneration,
+  SafetyFilterLevel,
+  SafetySetting,
+  ThinkingConfig,
+}
 
 /**
  * Gemini Imagen aspect ratio options
@@ -121,11 +133,77 @@ export interface GeminiImageProviderOptions {
 }
 
 /**
- * Model-specific provider options mapping
- * Currently all Imagen models use the same options structure
+ * Provider options for Gemini native image models (Nano Banana and friends).
+ *
+ * These models are served by `generateContent`, not `generateImages`, so they
+ * are configured by @google/genai's `GenerateContentConfig` — a different
+ * shape from the Imagen-only {@link GeminiImageProviderOptions} above. Only
+ * the `GenerateContentConfig` fields with clear image-generation semantics are
+ * surfaced; sampling knobs (`temperature`, `topK`, …) and chat-only plumbing
+ * (`tools`, `responseSchema`, …) are deliberately left out.
+ *
+ * `responseModalities` is intentionally absent: the adapter always requests
+ * `['TEXT', 'IMAGE']`, and letting a caller override it would silently disable
+ * image output on an image-generation call.
+ */
+export interface GeminiNativeImageProviderOptions {
+  /**
+   * Optional seed for reproducible image generation
+   * When the same seed is used with the same prompt and settings,
+   * you should get similar (though not identical) results
+   */
+  seed?: number
+
+  /**
+   * Per-category safety thresholds applied to the request
+   * Each entry pairs a HarmCategory with a HarmBlockThreshold
+   */
+  safetySettings?: Array<SafetySetting>
+
+  /**
+   * Controls the model's internal reasoning before it emits an image
+   * Use to raise or disable the thinking budget on models that support it
+   */
+  thinkingConfig?: ThinkingConfig
+
+  /**
+   * Native image output controls (aspect ratio, resolution tier, …)
+   * Merged over the values derived from the portable `size` option, so
+   * fields set here win per field while the rest of `size` is preserved
+   */
+  imageConfig?: ImageConfig
+
+  /**
+   * System-level instructions that steer the model for the whole request,
+   * e.g. a house art direction applied on top of the per-call prompt
+   */
+  systemInstruction?: ContentUnion
+}
+
+/**
+ * Every provider-option field this adapter understands, across both API
+ * paths. Used as the adapter's base (model-agnostic) option type; the
+ * per-model map below is what narrows a given model to the half that
+ * actually applies to it.
+ */
+export type GeminiAnyImageProviderOptions = GeminiImageProviderOptions &
+  GeminiNativeImageProviderOptions
+
+/**
+ * Model-specific provider options mapping.
+ * Gemini native image models go through `generateContent` and take
+ * `GenerateContentConfig` fields; Imagen models go through `generateImages`
+ * and take `GenerateImagesConfig` fields. Mirrors the native/Imagen split in
+ * {@link GeminiImageModelSizeByName} and
+ * {@link GeminiImageModelInputModalitiesByName}.
  */
 export type GeminiImageModelProviderOptionsByName = {
-  [K in GeminiImageModels]: GeminiImageProviderOptions
+  [K in GeminiNativeImageModels]: GeminiNativeImageProviderOptions
+} & {
+  [K in Exclude<
+    GeminiImageModels,
+    GeminiNativeImageModels
+  >]: GeminiImageProviderOptions
 }
 
 /**
@@ -173,12 +251,47 @@ export type GeminiNativeImageSize =
 /**
  * Gemini native image models that use the generateContent API path.
  * These models support template literal sizes (aspectRatio_resolution).
+ *
+ * This array is the single source of truth for the native/Imagen split: the
+ * `GeminiNativeImageModels` union and the per-model option/size/modality maps
+ * all derive from it. The `satisfies` clause makes a typo (or a name that
+ * isn't a known image model) a build error rather than a phantom key on every
+ * per-model map.
+ *
+ * It is also the single source of truth for the adapter's *runtime* routing
+ * — see {@link isGeminiNativeImageModel}. Adding a new `gemini-*` image model
+ * means adding it here as well as to `GEMINI_IMAGE_MODELS` in model-meta;
+ * until it is listed here it routes to the Imagen API instead and fails
+ * loudly on the first call, rather than silently taking the wrong option
+ * shape.
  */
+export const GEMINI_NATIVE_IMAGE_MODELS = [
+  'gemini-3.1-flash-image-preview',
+  'gemini-3.1-flash-lite-image',
+  'gemini-3-pro-image-preview',
+  'gemini-2.5-flash-image',
+] as const satisfies ReadonlyArray<GeminiImageModels>
+
 export type GeminiNativeImageModels =
-  | 'gemini-3.1-flash-image-preview'
-  | 'gemini-3.1-flash-lite-image'
-  | 'gemini-3-pro-image-preview'
-  | 'gemini-2.5-flash-image'
+  (typeof GEMINI_NATIVE_IMAGE_MODELS)[number]
+
+const NATIVE_IMAGE_MODEL_NAMES: ReadonlySet<string> = new Set(
+  GEMINI_NATIVE_IMAGE_MODELS,
+)
+
+/**
+ * Runtime counterpart to {@link GeminiNativeImageModels} — decides which of
+ * the two Gemini image APIs a model goes to.
+ *
+ * Membership in {@link GEMINI_NATIVE_IMAGE_MODELS}, not a `gemini-` prefix
+ * test, so the runtime route and the type-level split cannot drift apart. An
+ * id this package does not know about reaches the Imagen endpoint and fails
+ * there, which is the intended signal to add the model here rather than to
+ * have it silently take the native path with Imagen-shaped option types.
+ */
+export function isGeminiNativeImageModel(model: string): boolean {
+  return NATIVE_IMAGE_MODEL_NAMES.has(model)
+}
 
 /**
  * Model-specific size options mapping.

@@ -1,4 +1,11 @@
 import { describe, it, expect, vi } from 'vitest'
+import {
+  HarmBlockThreshold,
+  HarmCategory,
+  ImagePromptLanguage,
+  PersonGeneration,
+  SafetyFilterLevel,
+} from '@google/genai'
 import { generateImage } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { GeminiImageAdapter, createGeminiImage } from '../src/adapters/image'
@@ -9,6 +16,55 @@ import {
   validateNumberOfImages,
   validatePrompt,
 } from '../src/image/image-provider-options'
+
+const mockImageResponse = {
+  candidates: [
+    {
+      content: {
+        parts: [{ inlineData: { mimeType: 'image/png', data: 'out' } }],
+      },
+    },
+  ],
+}
+
+/**
+ * A native-path adapter whose `client.models.generateContent` is stubbed, so
+ * tests can assert the exact config object handed to the SDK.
+ */
+function mockedNativeAdapter() {
+  const mockGenerateContent = vi.fn().mockResolvedValueOnce(mockImageResponse)
+  const adapter = createGeminiImage(
+    'gemini-3.1-flash-image-preview',
+    'test-api-key',
+  )
+  ;(
+    adapter as unknown as {
+      client: { models: { generateContent: unknown } }
+    }
+  ).client = {
+    models: { generateContent: mockGenerateContent },
+  }
+  return { adapter, mockGenerateContent }
+}
+
+/**
+ * An Imagen-path adapter whose `client.models.generateImages` is stubbed, so
+ * tests can assert the exact GenerateImagesConfig handed to the SDK.
+ */
+function mockedImagenAdapter() {
+  const mockGenerateImages = vi.fn().mockResolvedValueOnce({
+    generatedImages: [{ image: { imageBytes: 'imagen-b64' } }],
+  })
+  const adapter = createGeminiImage('imagen-4.0-generate-001', 'test-api-key')
+  ;(
+    adapter as unknown as {
+      client: { models: { generateImages: unknown } }
+    }
+  ).client = {
+    models: { generateImages: mockGenerateImages },
+  }
+  return { adapter, mockGenerateImages }
+}
 
 describe('Gemini Image Adapter', () => {
   describe('createGeminiImage', () => {
@@ -721,35 +777,199 @@ describe('Gemini Image Adapter', () => {
     })
   })
 
+  describe('native modelOptions (GenerateContentConfig)', () => {
+    // Regression: GeminiImageModelProviderOptionsByName used to map every
+    // image model — native ones included — to the Imagen-shaped
+    // GeminiImageProviderOptions, so these fields were a compile error and the
+    // adapter whitelisted only `seed`.
+    const safetySettings = [
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+      },
+    ]
+
+    it('forwards safetySettings to generateContent', async () => {
+      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+
+      await generateImage({
+        adapter,
+        prompt: 'A quiet harbour',
+        modelOptions: { safetySettings },
+      })
+
+      const args = mockGenerateContent.mock.calls[0]![0]
+      expect(args.config.safetySettings).toEqual(safetySettings)
+    })
+
+    it('forwards thinkingConfig to generateContent', async () => {
+      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+
+      await generateImage({
+        adapter,
+        prompt: 'A quiet harbour',
+        modelOptions: { thinkingConfig: { thinkingBudget: 512 } },
+      })
+
+      const args = mockGenerateContent.mock.calls[0]![0]
+      expect(args.config.thinkingConfig).toEqual({ thinkingBudget: 512 })
+    })
+
+    it('forwards systemInstruction to generateContent', async () => {
+      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+
+      await generateImage({
+        adapter,
+        prompt: 'A quiet harbour',
+        modelOptions: { systemInstruction: 'Always render in watercolor.' },
+      })
+
+      const args = mockGenerateContent.mock.calls[0]![0]
+      expect(args.config.systemInstruction).toBe('Always render in watercolor.')
+    })
+
+    it('merges modelOptions.imageConfig over the size-derived imageConfig', async () => {
+      // `size` is the portable API, `imageConfig` the provider escape hatch:
+      // the overriding field wins, the untouched one survives.
+      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+
+      await generateImage({
+        adapter,
+        prompt: 'A quiet harbour',
+        size: '16:9_4K',
+        modelOptions: { imageConfig: { imageSize: '2K' } },
+      })
+
+      const args = mockGenerateContent.mock.calls[0]![0]
+      expect(args.config.imageConfig).toEqual({
+        aspectRatio: '16:9',
+        imageSize: '2K',
+      })
+    })
+
+    it('applies modelOptions.imageConfig when no size is given', async () => {
+      const { adapter, mockGenerateContent } = mockedNativeAdapter()
+
+      await generateImage({
+        adapter,
+        prompt: 'A quiet harbour',
+        modelOptions: { imageConfig: { aspectRatio: '21:9' } },
+      })
+
+      const args = mockGenerateContent.mock.calls[0]![0]
+      expect(args.config.imageConfig).toEqual({ aspectRatio: '21:9' })
+    })
+
+    it('keeps Imagen models on GenerateImagesConfig with no native fields', async () => {
+      const { adapter, mockGenerateImages } = mockedImagenAdapter()
+
+      await generateImage({
+        adapter,
+        prompt: 'A quiet harbour',
+        size: '1920x1080',
+        modelOptions: {
+          personGeneration: PersonGeneration.ALLOW_ADULT,
+          negativePrompt: 'blurry',
+          // Native-only fields. The per-model type rejects them (hence the
+          // cast, as in the responseModalities regression test above), but an
+          // adapter inferred from a union of model names widens modelOptions
+          // to both shapes, so they can still arrive here at runtime — and
+          // generateImages answers a GenerateContentConfig field with
+          // 400 INVALID_ARGUMENT. The named picks must drop them.
+          safetySettings: [
+            {
+              category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+              threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+            },
+          ],
+          thinkingConfig: { thinkingBudget: 512 },
+          imageConfig: { imageSize: '2K' },
+          systemInstruction: 'Always render in watercolor.',
+        } as unknown as never,
+      })
+
+      // Exact match: the Imagen path gets its own GenerateImagesConfig fields
+      // and nothing else.
+      expect(mockGenerateImages).toHaveBeenCalledWith({
+        model: 'imagen-4.0-generate-001',
+        prompt: 'A quiet harbour',
+        config: {
+          numberOfImages: 1,
+          aspectRatio: '16:9',
+          personGeneration: PersonGeneration.ALLOW_ADULT,
+          negativePrompt: 'blurry',
+        },
+      })
+    })
+
+    it('forwards the whole Imagen option set to generateImages', async () => {
+      // The Imagen path picks fields by name, so this guards against a field
+      // being forgotten in that list.
+      const { adapter, mockGenerateImages } = mockedImagenAdapter()
+
+      await generateImage({
+        adapter,
+        prompt: 'A quiet harbour',
+        modelOptions: {
+          aspectRatio: '21:9',
+          personGeneration: PersonGeneration.ALLOW_ADULT,
+          safetyFilterLevel: SafetyFilterLevel.BLOCK_ONLY_HIGH,
+          seed: 42,
+          addWatermark: false,
+          language: ImagePromptLanguage.en,
+          negativePrompt: 'blurry',
+          outputMimeType: 'image/jpeg',
+          outputCompressionQuality: 80,
+          guidanceScale: 12,
+          enhancePrompt: true,
+          includeSafetyAttributes: true,
+          includeRaiReason: true,
+          outputGcsUri: 'gs://bucket/out',
+          labels: { team: 'design' },
+        },
+      })
+
+      expect(mockGenerateImages).toHaveBeenCalledWith({
+        model: 'imagen-4.0-generate-001',
+        prompt: 'A quiet harbour',
+        config: {
+          numberOfImages: 1,
+          aspectRatio: '21:9',
+          personGeneration: PersonGeneration.ALLOW_ADULT,
+          safetyFilterLevel: SafetyFilterLevel.BLOCK_ONLY_HIGH,
+          seed: 42,
+          addWatermark: false,
+          language: ImagePromptLanguage.en,
+          negativePrompt: 'blurry',
+          outputMimeType: 'image/jpeg',
+          outputCompressionQuality: 80,
+          guidanceScale: 12,
+          enhancePrompt: true,
+          includeSafetyAttributes: true,
+          includeRaiReason: true,
+          outputGcsUri: 'gs://bucket/out',
+          labels: { team: 'design' },
+        },
+      })
+    })
+
+    it('lets modelOptions.aspectRatio override the size-derived one', async () => {
+      const { adapter, mockGenerateImages } = mockedImagenAdapter()
+
+      await generateImage({
+        adapter,
+        prompt: 'A quiet harbour',
+        size: '1920x1080',
+        modelOptions: { aspectRatio: '9:16' },
+      })
+
+      const args = mockGenerateImages.mock.calls[0]![0]
+      expect(args.config.aspectRatio).toBe('9:16')
+    })
+  })
+
   describe('multimodal prompt (image-conditioned generation)', () => {
     const testLogger = resolveDebugOption(false)
-    const mockImageResponse = {
-      candidates: [
-        {
-          content: {
-            parts: [{ inlineData: { mimeType: 'image/png', data: 'out' } }],
-          },
-        },
-      ],
-    }
-
-    function mockedNativeAdapter() {
-      const mockGenerateContent = vi
-        .fn()
-        .mockResolvedValueOnce(mockImageResponse)
-      const adapter = createGeminiImage(
-        'gemini-3.1-flash-image-preview',
-        'test-api-key',
-      )
-      ;(
-        adapter as unknown as {
-          client: { models: { generateContent: unknown } }
-        }
-      ).client = {
-        models: { generateContent: mockGenerateContent },
-      }
-      return { adapter, mockGenerateContent }
-    }
 
     it('maps interleaved prompt parts onto multimodal contents in order', async () => {
       const { adapter, mockGenerateContent } = mockedNativeAdapter()
