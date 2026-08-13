@@ -127,7 +127,7 @@ type ImageProvider = 'openai' | 'gemini'
 
 const imageAdapters: Record<ImageProvider, () => ReturnType<typeof openaiImage | typeof geminiImage>> = {
   openai: () => openaiImage('gpt-image-2'),
-  gemini: () => geminiImage('gemini-3.1-flash-image-preview'),
+  gemini: () => geminiImage('gemini-3.1-flash-image'),
 }
 
 export async function POST(request: Request) {

@@ -151,9 +151,16 @@ function ImageGenerator() {
 ### 1. Image Generation
 
 Supported adapters: `openaiImage` (dall-e-2, dall-e-3, gpt-image-1,
-gpt-image-1-mini, gpt-image-2), `geminiImage` (gemini-3.1-flash-image-preview,
-gemini-3.1-flash-lite-image, imagen-4.0-generate-001, etc.) and `byteplusImage`
-(Seedream — `seedream-4-0-250828`, `seedream-4-5-251128`, the 5.0 family).
+gpt-image-1-mini, gpt-image-2), `geminiImage` (gemini-3.1-flash-image,
+gemini-3.1-flash-lite-image, gemini-3-pro-image, imagen-4.0-generate-001, etc.)
+and `byteplusImage` (Seedream — `seedream-4-0-250828`, `seedream-4-5-251128`,
+the 5.0 family).
+
+> **Use the GA Gemini image ids.** `gemini-3.1-flash-image-preview` and
+> `gemini-3-pro-image-preview` were shut down on 2026-06-25 and now 404. They
+> survive in the type union only as deprecated aliases so existing code keeps
+> compiling — a call to them typechecks and then fails at runtime. Use
+> `gemini-3.1-flash-image` / `gemini-3-pro-image` instead.
 
 > **Seedream quirks:** `watermark` defaults to **`true`** (pass
 > `modelOptions: { watermark: false }` for a clean image), `size` is a token
@@ -182,7 +189,7 @@ const openaiResult = await generateImage({
 
 // Gemini native model with aspect-ratio sizes
 const geminiResult = await generateImage({
-  adapter: geminiImage('gemini-3.1-flash-image-preview'),
+  adapter: geminiImage('gemini-3.1-flash-image'),
   prompt: 'A futuristic cityscape at night',
   size: '16:9_4K',
 })
@@ -996,7 +1003,7 @@ generateImage({
 })
 
 generateImage({
-  adapter: geminiImage('gemini-3.1-flash-image-preview'), // native multimodal
+  adapter: geminiImage('gemini-3.1-flash-image'), // native multimodal
   prompt: [
     { type: 'text', content: 'Edit this' },
     { type: 'image', source: { type: 'url', value: url } },

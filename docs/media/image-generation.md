@@ -54,7 +54,7 @@ import { geminiImage } from "@tanstack/ai-gemini";
 
 // Gemini native model (NanoBanana) — uses generateContent API
 const result = await generateImage({
-  adapter: geminiImage("gemini-3.1-flash-image-preview"),
+  adapter: geminiImage("gemini-3.1-flash-image"),
   prompt: "A futuristic cityscape at night",
   size: "16:9_4K",
 });
@@ -121,18 +121,26 @@ All image adapters support these common options:
 
 #### Gemini Native Models (NanoBanana)
 
-Gemini native image models use a template literal size format: `"aspectRatio_resolution"`.
+Gemini native image models use a template literal size format: `"aspectRatio_resolution"`. Each model accepts its own set, narrowed at compile time:
 
-| Aspect Ratios                                             | Resolutions      |
-| --------------------------------------------------------- | ---------------- |
-| `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `9:16`, `16:9`, `21:9` | `1K`, `2K`, `4K` |
+| Model                         | Aspect Ratios                                                                                          | Resolutions             |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------- |
+| `gemini-3.1-flash-image`      | `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`, `1:4`, `4:1`, `1:8`, `8:1` | `512`, `1K`, `2K`, `4K` |
+| `gemini-3.1-flash-lite-image` | same 14 as above (see note)                                                                             | `1K`                    |
+| `gemini-3-pro-image`          | `1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`                            | `1K`, `2K`, `4K`        |
+| `gemini-2.5-flash-image`      | same 10 as above                                                                                        | none — bare ratio       |
 
 ```typescript ignore
 // Examples
 size: "16:9_4K"; // Widescreen at 4K resolution
 size: "1:1_2K"; // Square at 2K resolution
-size: "9:16_1K"; // Portrait at 1K resolution
+size: "1:8_512"; // Tall banner at the 512 (0.5K) tier — Flash Image only
+size: "16:9"; // gemini-2.5-flash-image: bare ratio, no resolution suffix
 ```
+
+The `K` is case-sensitive (`1k` is rejected by the API), the smallest tier's token is `512` (not `512px` or `0.5K`), and `9:21` is Vertex/Cloud-only so it is not accepted. Google documents no `image_size` for `gemini-2.5-flash-image`, so that model takes a bare aspect ratio and the adapter sends no `imageSize`.
+
+> **Note on `gemini-3.1-flash-lite-image`.** The four extreme banner ratios (`1:4`, `4:1`, `1:8`, `8:1`) are partially inferred for this model. Unlike the other three, Flash Lite has no per-model ratio table in Google's Gemini API guide; the 14-value set comes from the Cloud model page's explicit enumeration plus the guide's bare "a discrete set of 14 aspect ratios" assertion. The only Gemini-API enumeration for it is a 10-item bullet headed "New aspect ratios", which we read as a what's-new list rather than an exhaustive one. If the API rejects those four in practice, prefer the 10 standard ratios on this model.
 
 #### Gemini Imagen Models
 
@@ -191,7 +199,7 @@ import { geminiImage } from "@tanstack/ai-gemini";
 import { badExampleUrl, goodExampleUrl } from "./urls";
 
 await generateImage({
-  adapter: geminiImage("gemini-3.1-flash-image-preview"),
+  adapter: geminiImage("gemini-3.1-flash-image"),
   prompt: [
     { type: "text", content: "Not like this" },
     { type: "image", source: { type: "url", value: badExampleUrl } },
@@ -334,7 +342,7 @@ import { generateImage } from "@tanstack/ai";
 import { geminiImage } from "@tanstack/ai-gemini";
 
 await generateImage({
-  adapter: geminiImage("gemini-3.1-flash-image-preview"),
+  adapter: geminiImage("gemini-3.1-flash-image"),
   prompt: [
     {
       type: "text",
@@ -641,7 +649,7 @@ import { generateImage } from "@tanstack/ai";
 import { geminiImage } from "@tanstack/ai-gemini";
 
 const result = await generateImage({
-  adapter: geminiImage("gemini-3.1-flash-image-preview"),
+  adapter: geminiImage("gemini-3.1-flash-image"),
   prompt: "A beautiful garden",
   size: "16:9_4K",
 });
@@ -709,12 +717,14 @@ if (result.usage?.unitsBilled != null) {
 
 #### Gemini Native Models (NanoBanana)
 
-| Model                            | Description                                                       |
-| -------------------------------- | ----------------------------------------------------------------- |
-| `gemini-3.1-flash-image-preview` | Latest and fastest Gemini native image generation                 |
-| `gemini-3.1-flash-lite-image`    | Nano Banana 2 Lite — ultra-low-latency, low-cost image generation |
-| `gemini-3-pro-image-preview`     | Higher quality Gemini native image generation                     |
-| `gemini-2.5-flash-image`         | Gemini 2.5 Flash with image generation                            |
+| Model                         | Description                                                                |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `gemini-3.1-flash-image`      | Nano Banana 2 — latest and fastest Gemini native image generation          |
+| `gemini-3.1-flash-lite-image` | Nano Banana 2 Lite — ultra-low-latency, low-cost image generation          |
+| `gemini-3-pro-image`          | Nano Banana Pro — higher quality Gemini native image generation            |
+| `gemini-2.5-flash-image`      | Nano Banana — legacy; shuts down 2026-10-02                                |
+
+The `gemini-3.1-flash-image-preview` and `gemini-3-pro-image-preview` ids were shut down on 2026-06-25. They remain in the type union as deprecated aliases so existing code compiles, but calls to them fail — use the GA ids above.
 
 #### Gemini Imagen Models
 
