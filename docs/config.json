@@ -844,9 +844,9 @@
           "updatedAt": "2026-06-25"
         },
         {
-          "label": "Perplexity",
+          "label": "Perplexity Search",
           "to": "adapters/perplexity",
-          "addedAt": "2026-04-29"
+          "addedAt": "2026-08-13"
         },
         {
           "label": "Vercel AI Gateway",

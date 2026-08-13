@@ -1,17 +1,18 @@
 # @tanstack/ai-perplexity
 
-[Perplexity](https://www.perplexity.ai) integration for [TanStack AI](https://tanstack.com/ai):
+[Perplexity](https://www.perplexity.ai) Search API for [TanStack AI](https://tanstack.com/ai).
 
-- **Search API tool** — call `POST https://api.perplexity.ai/search` from an LLM agent loop and get back ranked web results (`title`, `url`, `snippet`, `date?`) suitable for grounding/citation.
-- **OpenAI-compatible chat client** — a thin factory that points the `openai` SDK at Perplexity's chat-completions endpoint so you can reuse existing OpenAI code paths.
+Wraps `POST https://api.perplexity.ai/search` as a tool (and a low-level HTTP client) so an agent can fetch ranked web results (`title`, `url`, `snippet`, `date?`) for grounding.
+
+This package does **not** ship a TanStack text adapter. For Sonar `chat()`, use [`openaiCompatible`](https://tanstack.com/ai/latest/docs/adapters/openai-compatible) from `@tanstack/ai-openai`.
 
 ## Install
 
 ```bash
-pnpm add @tanstack/ai-perplexity
+pnpm add @tanstack/ai @tanstack/ai-perplexity
 ```
 
-Set your API key (get one at <https://www.perplexity.ai/account/api/keys>):
+Set your API key (get one at <https://console.perplexity.ai/group/keys>):
 
 ```bash
 export PERPLEXITY_API_KEY=...
@@ -20,20 +21,32 @@ export PERPLEXITY_API_KEY=...
 
 ## Search tool
 
-Wrap the Search API as a TanStack AI tool and pass it to a chat agent:
-
 ```ts
-import { perplexitySearchTool } from '@tanstack/ai-perplexity'
+import { chat } from '@tanstack/ai'
+import { openaiCompatible } from '@tanstack/ai-openai/compatible'
+import {
+  getPerplexityIntegrationHeaders,
+  perplexitySearchTool,
+} from '@tanstack/ai-perplexity'
 
 const search = perplexitySearchTool({
-  // optional defaults
   defaultMaxResults: 5,
 })
 
-// Use directly with chat()
-chat({
+const perplexity = openaiCompatible({
+  name: 'perplexity',
+  baseURL: 'https://api.perplexity.ai',
+  apiKey: process.env.PERPLEXITY_API_KEY!,
+  models: ['sonar', 'sonar-pro'],
+  defaultHeaders: getPerplexityIntegrationHeaders(),
+})
+
+const stream = chat({
+  adapter: perplexity('sonar-pro'),
   tools: [search],
-  // ...
+  messages: [
+    { role: 'user', content: 'What were the top AI papers this week?' },
+  ],
 })
 ```
 
@@ -52,8 +65,6 @@ Output: `{ results: Array<{ title, url, snippet, date? }> }`.
 
 ### Direct client usage
 
-If you don't need the tool wrapping, call the Search API directly:
-
 ```ts
 import { PerplexitySearchClient } from '@tanstack/ai-perplexity'
 
@@ -65,23 +76,22 @@ const { results } = await client.search({
 })
 ```
 
-## Chat (OpenAI-compatible)
+## Chat (Sonar)
 
-Perplexity's chat completions endpoint is OpenAI-compatible, so you can target it by swapping the `baseURL`:
+Use `openaiCompatible` from `@tanstack/ai-openai`. Pass `getPerplexityIntegrationHeaders()` if you want the same `X-Pplx-Integration` attribution header the Search client sends automatically.
 
 ```ts
-import { createPerplexityChatClient } from '@tanstack/ai-perplexity/chat'
+import { openaiCompatible } from '@tanstack/ai-openai/compatible'
+import { getPerplexityIntegrationHeaders } from '@tanstack/ai-perplexity'
 
-const client = createPerplexityChatClient()
-const completion = await client.chat.completions.create({
-  model: 'sonar',
-  messages: [
-    { role: 'user', content: 'What is the latest on the Mars rover?' },
-  ],
+const perplexity = openaiCompatible({
+  name: 'perplexity',
+  baseURL: 'https://api.perplexity.ai',
+  apiKey: process.env.PERPLEXITY_API_KEY!,
+  models: ['sonar', 'sonar-pro'],
+  defaultHeaders: getPerplexityIntegrationHeaders(),
 })
 ```
-
-Env vars: `PERPLEXITY_API_KEY` (preferred) or `PPLX_API_KEY`.
 
 ## Docs
 

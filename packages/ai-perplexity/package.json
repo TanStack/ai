@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-perplexity",
   "version": "0.1.0",
-  "description": "Perplexity adapter for TanStack AI — Search API and OpenAI-compatible chat",
+  "description": "Perplexity Search API client and tool for TanStack AI",
   "author": "Tanner Linsley",
   "license": "MIT",
   "homepage": "https://tanstack.com/ai",
@@ -25,21 +25,9 @@
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
     },
-    "./adapters/search": {
-      "types": "./dist/esm/search/index.d.ts",
-      "import": "./dist/esm/search/index.js"
-    },
-    "./adapters/chat": {
-      "types": "./dist/esm/chat/index.d.ts",
-      "import": "./dist/esm/chat/index.js"
-    },
     "./search": {
       "types": "./dist/esm/search/index.d.ts",
       "import": "./dist/esm/search/index.js"
-    },
-    "./chat": {
-      "types": "./dist/esm/chat/index.d.ts",
-      "import": "./dist/esm/chat/index.js"
     }
   },
   "files": [
@@ -62,8 +50,7 @@
     "typescript",
     "tanstack",
     "perplexity",
-    "search",
-    "adapter"
+    "search"
   ],
   "devDependencies": {
     "@vitest/coverage-v8": "4.0.14",
@@ -71,8 +58,5 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^"
-  },
-  "dependencies": {
-    "openai": "^6.41.0"
   }
 }

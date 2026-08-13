@@ -1,4 +1,3 @@
-// Search API
 export {
   PerplexitySearchClient,
   perplexitySearchTool,
@@ -8,11 +7,9 @@ export {
   type PerplexitySearchResult,
 } from './search'
 
-// OpenAI-compatible chat client (Perplexity chat completions endpoint)
-export {
-  createPerplexityChatClient,
-  type PerplexityChatClientConfig,
-} from './chat'
-
-// Utilities
 export { getPerplexityApiKeyFromEnv } from './utils/api-key'
+export {
+  getPerplexityIntegrationHeaders,
+  PERPLEXITY_INTEGRATION_HEADER,
+  PERPLEXITY_INTEGRATION_HEADER_VALUE,
+} from './utils/attribution'

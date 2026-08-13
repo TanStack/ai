@@ -8,14 +8,15 @@ import type {
 /**
  * Build a TanStack AI tool that performs real-time web search via Perplexity.
  *
- * The tool returns an array of `{title, url, snippet, date?}` results suitable
- * for citation/grounding in an LLM agent loop.
+ * Returns `{ results: Array<{ title, url, snippet, date? }> }` for
+ * citation/grounding in an LLM agent loop.
  *
  * @example
  * ```ts
  * import { perplexitySearchTool } from '@tanstack/ai-perplexity'
  *
- * const search = perplexitySearchTool().server(async (args) => args)
+ * const search = perplexitySearchTool({ defaultMaxResults: 5 })
+ * // pass to chat({ tools: [search], adapter, messages })
  * ```
  */
 export function perplexitySearchTool(
