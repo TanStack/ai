@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { defineSandbox } from '../src/sandbox'
+import { createSecrets } from '../src/secrets'
 import { defineWorkspace, githubRepo } from '../src/workspace'
 import { InMemoryLockStore } from '@tanstack/ai/locks'
 import { InMemorySandboxInstanceStore } from '../src/instance-store'
@@ -231,5 +232,72 @@ describe('ensureSandbox algorithm', () => {
     await def.ensure({ ...ctx, runId: 'run-2' })
     expect(provider.calls.create).toBe(2)
     expect(provider.calls.resume).toBe(0)
+  })
+
+  // Secrets live in handle memory and per-command env. Resume does not
+  // re-run bootstrap, so ensure() must put them back on the live handle.
+  it('re-applies workspace secrets onto a resumed handle', async () => {
+    const provider = makeFakeProvider()
+    const def = defineSandbox({
+      id: 'repo',
+      provider,
+      workspace: defineWorkspace({
+        source: { type: 'none' },
+        secrets: createSecrets({ ANTHROPIC_API_KEY: 'sk-secret-value' }),
+      }),
+      fileEvents: false,
+    })
+    const ctx = baseCtx()
+    await def.ensure(ctx)
+
+    const applied: Array<Record<string, string>> = []
+    const originalResume = provider.resume.bind(provider)
+    provider.resume = async (input) => {
+      const handle = await originalResume(input)
+      if (!handle) return null
+      const originalSet = handle.env.set.bind(handle.env)
+      handle.env.set = async (vars) => {
+        applied.push(vars)
+        return originalSet(vars)
+      }
+      return handle
+    }
+
+    await def.ensure({ ...ctx, runId: 'run-2' })
+
+    expect(applied).toEqual([{ ANTHROPIC_API_KEY: 'sk-secret-value' }])
+  })
+
+  it('re-applies workspace secrets onto a restored snapshot handle', async () => {
+    const provider = makeFakeProvider({ resumeReturnsNull: true })
+    const def = defineSandbox({
+      id: 'repo',
+      provider,
+      workspace: defineWorkspace({
+        source: { type: 'none' },
+        secrets: createSecrets({ ANTHROPIC_API_KEY: 'sk-secret-value' }),
+      }),
+      lifecycle: { reuse: 'thread', snapshot: 'after-setup' },
+      fileEvents: false,
+    })
+    const ctx = baseCtx()
+    await def.ensure(ctx)
+
+    const applied: Array<Record<string, string>> = []
+    const restoreSnapshot = provider.restoreSnapshot
+    if (!restoreSnapshot) throw new Error('expected restoreSnapshot')
+    provider.restoreSnapshot = async (input) => {
+      const handle = await restoreSnapshot(input)
+      const originalSet = handle.env.set.bind(handle.env)
+      handle.env.set = async (vars) => {
+        applied.push(vars)
+        return originalSet(vars)
+      }
+      return handle
+    }
+
+    await def.ensure({ ...ctx, runId: 'run-2' })
+
+    expect(applied).toEqual([{ ANTHROPIC_API_KEY: 'sk-secret-value' }])
   })
 })

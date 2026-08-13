@@ -370,7 +370,10 @@ interface WriteCall {
  * - exec always resolves with exit 0 (symlinks succeed).
  * - No persistent shell needed: workspace has no `setup`.
  */
-function makeProvisioningHandle(): {
+function makeProvisioningHandle(identity?: {
+  provider?: string
+  workspaceRoot?: string
+}): {
   handle: SandboxHandle
   cloneCalls: Array<CloneCall>
   writeCalls: Array<WriteCall>
@@ -382,7 +385,10 @@ function makeProvisioningHandle(): {
 
   const handle: SandboxHandle = {
     id: 'prov',
-    provider: 'fake',
+    provider: identity?.provider ?? 'fake',
+    ...(identity?.workspaceRoot !== undefined
+      ? { workspaceRoot: identity.workspaceRoot }
+      : {}),
     capabilities: {
       fs: true,
       exec: true,
@@ -502,6 +508,27 @@ describe('bootstrapWorkspace gitSkill cloning', () => {
     await bootstrapWorkspace(handle, workspace)
 
     expect(cloneCalls[0]?.url).toBe('https://example.com/org/repo.git')
+  })
+
+  // Daytona (and other remapped providers) cannot interpolate a virtual
+  // `/workspace` dir into a shell `git clone`. Clone against the real
+  // workspaceRoot instead. Issue #1081 item 4.
+  it('remaps a virtual gitSkill dir onto handle.workspaceRoot', async () => {
+    const { handle, cloneCalls } = makeProvisioningHandle({
+      provider: 'daytona',
+      workspaceRoot: '/home/daytona/workspace',
+    })
+
+    const workspace: WorkspaceDefinition = {
+      source: { type: 'git', url: 'https://github.com/me/app' },
+      skills: [gitSkill({ repo: 'owner/skills-pack' })],
+    }
+
+    await bootstrapWorkspace(handle, workspace)
+
+    expect(cloneCalls[0]?.dir).toBe(
+      '/home/daytona/workspace/.tanstack-skills/skills-pack',
+    )
   })
 })
 

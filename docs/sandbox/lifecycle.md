@@ -36,7 +36,7 @@ const sandbox = defineSandbox({
 | ------------------- | ------------------------------------------------------------------------------------------- |
 | `reuse`             | `'thread'` keeps one sandbox per `threadId`; `'none'` provisions a fresh sandbox per run.    |
 | `snapshot`          | `'after-setup'` snapshots the workspace once bootstrap finishes, on snapshot-capable providers. |
-| `keepAlive`         | Duration hint (e.g. `'30m'`) for how long the sandbox should stay warm between runs. Nothing in `@tanstack/ai-sandbox` reads it today; it is carried for providers and host apps that implement their own idle GC. |
+| `keepAlive`         | Duration hint (e.g. `'30m'`) for how long the sandbox should stay warm between runs. Nothing in `@tanstack/ai-sandbox` reads it today; it is a hint for providers and host apps. Provider idle timers live on the [provider](./providers) config. |
 | `destroyOnComplete` | When `false`, the sandbox survives the run so the next one can resume it.                    |
 | `snapshotMaxAge`    | Duration (e.g. `'24h'`) after which a stored snapshot is treated as stale and re-created.   |
 
@@ -58,7 +58,7 @@ destroys, exactly as an abort does. See
 
 ## Snapshot after setup
 
-When the provider supports snapshots (e.g. [Docker](./providers)), bootstrap
+When the provider supports snapshots (see [Providers](./providers)), bootstrap
 automatically takes a snapshot after `setup` completes. The snapshot caches the
 fully bootstrapped [workspace](./workspace) (the cloned repo with dependencies
 installed) so subsequent runs resume from it instead of re-running the setup

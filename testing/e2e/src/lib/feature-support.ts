@@ -18,6 +18,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -32,6 +33,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -51,6 +53,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -66,6 +69,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'openrouter-responses',
+    'vercel-gateway',
+    'vercel-gateway-responses',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -79,6 +84,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -93,6 +99,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -107,6 +114,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -121,6 +129,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -136,6 +145,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'byteplus',
   ]),
@@ -166,6 +176,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'byteplus',
   ]),
@@ -179,6 +190,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -229,6 +241,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'mistral',
   ]),
   'summarize-stream': new Set([
@@ -241,6 +254,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock',
     'bedrock-responses',
     'openrouter',
+    'vercel-gateway',
     'mistral',
   ]),
   // Embedding (Promise-based `embed()` activity, no streaming). aimock 1.34
@@ -252,9 +266,17 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // `embedding` field, not the `embeddings: number[][]` shape the ollama SDK
   // `embed()` expects; Mistral because its SDK Zod-validates the response and
   // requires an `id` field aimock's OpenAI-format builder omits.
-  embedding: new Set(['openai', 'gemini', 'ollama', 'mistral']),
+  embedding: new Set([
+    'openai',
+    'gemini',
+    'ollama',
+    'mistral',
+    'vercel-gateway',
+  ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
-  'image-gen': new Set(['openai', 'grok', 'byteplus']),
+  // vercel-gateway uses POST /v1/images/generations, the same path aimock
+  // already mocks for openai. Drop this entry if the first run has no fixture.
+  'image-gen': new Set(['openai', 'grok', 'byteplus', 'vercel-gateway']),
   // image-to-image (image parts in the generateImage prompt). aimock 1.29
   // mocks OpenAI's multipart `/v1/images/edits` (matches on the `prompt` form
   // field, ignores the binary image/mask fields), so the OpenAI route runs
@@ -288,14 +310,22 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // BytePlus Seedance uses its own create→poll task API
   // (POST/GET /api/v3/contents/generations/tasks), mounted as
   // byteplusSeedanceMount in global-setup.ts for the same reason.
+  // OpenRouter excluded: its dedicated async video API
+  // (`POST /api/v1/videos` → poll → `unsigned_urls`) is a different wire
+  // shape from the OpenAI `/v1/videos` handler aimock 1.29 mocks. The
+  // adapter's submit/poll/download lifecycle is covered by unit tests
+  // (packages/ai-openrouter/tests/video-adapter.test.ts). Add it here when
+  // aimock learns the OpenRouter job endpoints
+  // (https://github.com/CopilotKit/aimock/issues/261).
   'video-gen': new Set(['openai', 'gemini', 'byteplus']),
   // image-to-video (image parts in the generateVideo prompt). aimock 1.29's
   // `/v1/videos` handler parses Sora's multipart upload (the SDK switches to
   // multipart when `input_reference` carries a File) and matches on the
   // `prompt` form field, so the OpenAI/Sora route runs end-to-end. fal's
-  // endpoint-specific fields and Gemini Veo's image/lastFrame/referenceImages
-  // routing remain unit-test-only (the spec's journal assertion is tied to
-  // aimock's /v1/videos pipeline, which custom mounts bypass).
+  // endpoint-specific fields, Gemini Veo's image/lastFrame/referenceImages
+  // routing, and OpenRouter's `frame_images` / `input_references` mapping
+  // remain unit-test-only (the spec's journal assertion is tied to aimock's
+  // /v1/videos pipeline, which custom mounts bypass).
   // byteplus excluded: Seedance takes its opening frame as a `first_frame`
   // role inside the task body's `content[]`, so the spec's assertion that a
   // multipart POST /v1/videos carried the prompt can't hold. The role mapping

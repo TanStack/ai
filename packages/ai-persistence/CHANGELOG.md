@@ -1,5 +1,14 @@
 # @tanstack/ai-persistence
 
+## 0.1.3
+
+### Patch Changes
+
+- [#1090](https://github.com/TanStack/ai/pull/1090) [`24622c7`](https://github.com/TanStack/ai/commit/24622c7927c734bf493cfc332b6baecc4483f366) - `withPersistence` now maps cancelled client-tool and approval resume entries
+  into `cancelledToolCallIds`. A resume batch that is only cancellations still
+  produces a `resumeToolState`, so the engine can complete the turn instead of
+  emitting another `client_tool_*` interrupt.
+
 ## 0.1.2
 
 ### Patch Changes

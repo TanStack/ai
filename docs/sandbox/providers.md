@@ -2,7 +2,7 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker, Daytona, or Vercel) and what each one can do."
+description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, or Vercel) and what each one can do."
 ---
 
 A provider owns the isolation primitive: where the harness actually runs. Every
@@ -22,21 +22,24 @@ same.
 | --- | --- | --- | --- |
 | Local process | `@tanstack/ai-sandbox-local-process` | none (host) | The fast, no-Docker dev loop. Trusted/dev use only. |
 | Docker | `@tanstack/ai-sandbox-docker` | container | Real isolation; commit-based snapshots, fork, resume-by-id. |
-| Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
+| Docker Sandboxes (`sbx`) | `@tanstack/ai-sandbox-docker` | microVM | Native Docker Sandboxes. Same package as `dockerSandbox()`, different export: `sbxSandbox()`. Needs the `sbx` CLI, a login, and a hypervisor. |
+| Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; snapshots after setup, port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
 | Vercel | `@tanstack/ai-sandbox-vercel` | microVM | Managed [Vercel Sandbox](https://vercel.com/docs/sandbox) microVMs; exposed-port domains, resume-by-id (persistent). Needs `VERCEL_TOKEN` + team/project. |
 | Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
 
-Each provider is its own package, and the constructor is the only thing that
+Most providers are their own package. `dockerSandbox()` and `sbxSandbox()` both
+come from `@tanstack/ai-sandbox-docker`. The constructor is the only thing that
 differs between them:
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
-import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
+import { dockerSandbox, sbxSandbox } from '@tanstack/ai-sandbox-docker'
 import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
 
 const dev = localProcessSandbox() // runs on your host
-const isolated = dockerSandbox({ image: 'node:22' }) // runs in a container
+const isolated = dockerSandbox({ image: 'node:22' }) // container
+const microvm = sbxSandbox() // Docker Sandboxes microVM
 const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY }) // managed cloud sandbox
 const vercel = vercelSandbox({ runtime: 'node24' }) // managed Vercel microVM
 ```
@@ -134,23 +137,110 @@ const isolated = dockerSandbox({ image: 'node:22' })
   Bootstrap snapshots after `setup` completes, so subsequent runs resume from the
   snapshot instead of re-running setup.
 
+## Docker Sandboxes (sbx)
+
+```ts
+import { sbxSandbox } from '@tanstack/ai-sandbox-docker'
+import { defineSandbox, defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
+
+const isolated = sbxSandbox({
+  allowNetwork: ['*.npmjs.org', 'registry.npmjs.org'],
+})
+
+const sandbox = defineSandbox({
+  id: 'repo-agent',
+  provider: isolated,
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/repo' }),
+    setup: ['pnpm install'],
+  }),
+})
+```
+
+- **Isolation:** a hypervisor microVM. The sandbox has its own kernel and its own Docker daemon. This is not `dockerSandbox()`, which starts a container.
+- **Needs:** `sbx` on `PATH`, `sbx login` (or a PAT piped to `sbx login --password-stdin` in CI), and a hypervisor (Hyper-V, Virtualization.framework, or KVM). A Docker socket is not enough.
+- **Workspace:** `sbx create --clone` copies a host Git repo into the VM. Pass `workspaceDir` that contains `.git`, or set `workspace.source` to a git URL. If there is no Git repo, create throws. There is no bind-mount fallback.
+- **Auth / env:** inject API keys as workspace secrets. v1 does not call `sbx secret`.
+- **Snapshot / resume:** no snapshots and no fork. Resume reconnects by name (`sbx ls`). A stopped sandbox starts again on the next `sbx exec`.
+- **Network:** this is the first provider with `networkPolicy: true`. See [Policy](./policy).
+
 ## Daytona
 
 ```ts
 import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 
-const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY })
+const daytona = daytonaSandbox({
+  apiKey: process.env.DAYTONA_API_KEY,
+  snapshot: 'daytona-medium',
+  autoStopInterval: 0,
+})
 ```
 
 - **Isolation:** a managed cloud sandbox on a remote VM you do not run yourself.
-- **Auth / env:** needs `DAYTONA_API_KEY`. Harness credentials are injected as
-  workspace secrets; there is no host login to fall back on.
-- **Snapshot / resume:** no snapshots; resume-by-id reconnects to a still-running
-  sandbox (not a restored point-in-time snapshot), plus port preview links for
-  live previews.
-- **Bridge:** the sandbox is remote, so a [bridged tool](./tools) call can't reach
-  your laptop's `localhost`. In local dev, tunnel the bridge (see [tools](./tools));
-  a deployed orchestrator is reachable out of the box.
+- **Auth / env:** needs `DAYTONA_API_KEY`. Put harness credentials in
+  [workspace secrets](./provisioning). They are applied to the live sandbox
+  at create, resume, and restore. They are not stored on the Daytona create
+  record, and they are not written into command history.
+- **Snapshot / resume:** point-in-time snapshots after setup (default when
+  `lifecycle.snapshot` is `'after-setup'`). Pass `snapshot` on
+  `daytonaSandbox()` to pick the Daytona image (for example
+  `'daytona-medium'`). Resume starts a `stopped` or `archived` sandbox, then
+  returns the handle.
+- **Idle stop:** Daytona stops an idle sandbox after 15 minutes by default.
+  Set `autoStopInterval` in minutes to change that. Pass `0` to turn auto-stop
+  off. Set `ephemeral: true` to delete the sandbox when it stops.
+- **Network:** `policy.capabilities.network: 'deny'` blocks all outbound
+  network on create.
+- **Working directory:** the portable root `/workspace` maps to
+  `/home/daytona/workspace` by default. Override with `workdir` on
+  `daytonaSandbox()` if you need another path.
+- **Stdin:** spawned processes accept host stdin (`writableStdin: true`).
+- **Privileges:** the Daytona user is not root. Package installs in `setup`
+  must use `sudo -n` (for example `sudo -n apt-get install …`). Do not put
+  `sudo *` in a [policy](./policy) deny list for this provider.
+- **Bridge:** the sandbox is remote, so a [bridged tool](./tools) call cannot
+  reach your laptop's `localhost`. In local dev, tunnel the bridge (see
+  [tools](./tools)). A deployed orchestrator is reachable without a tunnel.
+
+Default headless path on Daytona:
+
+```ts
+import { chat } from '@tanstack/ai'
+import { grokBuildText } from '@tanstack/ai-grok-build'
+import {
+  defineSandbox,
+  defineSandboxPolicy,
+  defineWorkspace,
+  gitSkill,
+  githubRepo,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
+import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
+
+const sandbox = defineSandbox({
+  id: 'daytona-agent',
+  provider: daytonaSandbox({
+    apiKey: process.env.DAYTONA_API_KEY,
+    snapshot: 'daytona-medium',
+  }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/app' }),
+    skills: [gitSkill({ repo: 'owner/skills-pack' })],
+  }),
+  policy: defineSandboxPolicy({
+    default: 'allow',
+  }),
+})
+
+const stream = chat({
+  adapter: grokBuildText('grok-build'),
+  messages: [{ role: 'user', content: 'List the project files.' }],
+  middleware: [withSandbox(sandbox)],
+})
+```
+
+Headless Grok Build and Codex stay on auto-approve with `default: 'allow'`.
+Isolation is the Daytona VM. Use Claude Code when you need command-level deny.
 
 ## Vercel
 
@@ -211,7 +301,7 @@ Providers declare what they support via `capabilities()`. The flags are:
 | `env` | Inject environment variables. |
 | `ports` | Expose/forward ports (preview URLs). |
 | `backgroundProcesses` | Keep long-running processes alive between calls. |
-| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process and Docker; `false` on remote/edge providers (Daytona, Vercel, Cloudflare), where stdin-fed harnesses deliver the prompt via a file + shell redirection instead. |
+| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, and Daytona. `false` for Docker Sandboxes (`sbx`), Vercel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
 | `killableProcesses` | A spawned process can be forcibly stopped via `SpawnHandle.kill()` **and** aborted mid-flight via the `signal` passed to `spawn`. |
 | `snapshots` | Capture and restore point-in-time snapshots. |
 | `networkPolicy` | Enforce network allow/deny rules. |
@@ -256,6 +346,7 @@ merely slower while a wrong `follow` is a leak.
 | --- | --- | --- |
 | Local process | `true` | **Measured.** Kills the process GROUP, not the wrapper: `detached` spawn plus `process.kill(-pid, signal)` on POSIX (killing only the `sh` left the command running, dash does not reliably `exec`); on Windows `taskkill /T` plus a verified sweep, see [Windows teardown](#windows-process-teardown-logger). |
 | Docker | `true` | **Measured.** Signals the process INSIDE the container by the pid the wrapper recorded for itself, process group first and escalating to `KILL`. Destroying the hijacked exec stream is *not* sufficient: it only detaches the client. |
+| Docker Sandboxes (`sbx`) | `false` | Unmeasured. Live tests named-skip until `sbx login`. The handle records a pid in the VM, but `killableProcesses` stays `false` until that kill is observed. |
 | Daytona | `false` | `kill()` only aborts the client-side poll loop and does not await any termination; the `deleteSession` that might terminate the command runs later from the pump's teardown, is failure-swallowed, and is documented as cleanup for a *completed* session. Unmeasured, needs `DAYTONA_API_KEY`. |
 | Vercel | `false` | The abort signal reaches only the HTTP request that STARTS a detached command, so the old `kill()` was a no-op. It now issues the SDK's server-side `Command.kill`, but whether that reaches a forked child (the follow command is a multi-statement shell, so `tail -f` is always a child) is unmeasured, needs Vercel credentials. |
 | Sprites | `true` (unverified) | Not a client-side detach: `kill()` issues a real server-side `POST /exec/<sessionId>/kill` before closing the socket. What that endpoint signals (process group or pid) is undocumented and unmeasured; needs `SPRITES_API_KEY`. |

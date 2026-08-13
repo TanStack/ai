@@ -1,0 +1,35 @@
+{
+  "repo": "TanStack/ai",
+  "maintainers": [
+    {
+      "github": "tombeckenham",
+      "discord": "1095938354018799666",
+      "maxOpenAssignments": 10
+    },
+    {
+      "github": "AlemTuzlak",
+      "discord": "230092827684634625",
+      "maxOpenAssignments": 15
+    },
+    {
+      "github": "jherr",
+      "discord": "501863722948624385",
+      "maxOpenAssignments": 8
+    }
+  ],
+  "sla": {
+    "firstResponseHours": 24,
+    "followUpResponseHours": 48,
+    "staleAuthorDays": 14
+  },
+  "spam": {
+    "maxAccountAgeDays": 30,
+    "maxChangedLines": 30
+  },
+  "botAllowlist": [
+    "renovate",
+    "dependabot",
+    "github-actions"
+  ],
+  "maxCommentsPerRun": 25
+}

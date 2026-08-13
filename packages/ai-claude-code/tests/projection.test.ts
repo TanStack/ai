@@ -38,6 +38,30 @@ interface FakeHandle {
   existing: Set<string>
 }
 
+/** Immediate children of `dir` from a flat path→content map. */
+function listChildren(
+  files: Map<string, string>,
+  dir: string,
+): Array<{ name: string; path: string; type: 'file' | 'dir' }> {
+  const prefix = dir.endsWith('/') ? dir : `${dir}/`
+  const children = new Map<
+    string,
+    { name: string; path: string; type: 'file' | 'dir' }
+  >()
+  for (const filePath of files.keys()) {
+    if (!filePath.startsWith(prefix)) continue
+    const rest = filePath.slice(prefix.length)
+    const name = rest.split('/')[0]
+    if (name === undefined || name === '') continue
+    children.set(name, {
+      name,
+      path: `${prefix}${name}`,
+      type: rest.includes('/') ? 'dir' : 'file',
+    })
+  }
+  return [...children.values()]
+}
+
 /** Build a fake handle that records writes/execs and tracks existing paths. */
 function makeFakeHandle(execResult: ExecResult): FakeHandle {
   const writes = new Map<string, string>()
@@ -57,6 +81,7 @@ function makeFakeHandle(execResult: ExecResult): FakeHandle {
         dirs.add(path)
         return Promise.resolve()
       },
+      list: (dir: string) => Promise.resolve(listChildren(writes, dir)),
     },
     process: {
       exec: (command: string, options?: { cwd?: string }) => {
@@ -214,5 +239,47 @@ describe('projectClaudeWorkspace', () => {
     expect(fake.execs.length).toBe(execsAfterFirst)
 
     warn.mockRestore()
+  })
+
+  // Nested packs (skills/foo/SKILL.md) must be linked by the skill folder
+  // name, not the clone basename. Issue #1081 item 3.
+  it('links each nested SKILL.md folder by its skill name', async () => {
+    const fake = makeFakeHandle({ stdout: '', stderr: '', exitCode: 0 })
+    const clone = resolveGitSkillDir(ROOT, {
+      kind: 'git',
+      repo: 'owner/skills-pack',
+    })
+    fake.writes.set(`${clone}/skills/foo/SKILL.md`, '# foo')
+    fake.writes.set(`${clone}/skills/bar/SKILL.md`, '# bar')
+
+    await projectClaudeWorkspace(fake.handle, {
+      skills: [gitSkill({ repo: 'owner/skills-pack' })],
+      plugins: [],
+      resolveSecret: () => '',
+      markerPath: MARKER,
+      root: ROOT,
+    })
+
+    expect(
+      fake.execs.some(
+        (e) =>
+          e.command.includes('ln -s') &&
+          e.command.includes(`${clone}/skills/foo`) &&
+          e.command.includes(`${ROOT}/.claude/skills/foo`),
+      ),
+    ).toBe(true)
+    expect(
+      fake.execs.some(
+        (e) =>
+          e.command.includes('ln -s') &&
+          e.command.includes(`${clone}/skills/bar`) &&
+          e.command.includes(`${ROOT}/.claude/skills/bar`),
+      ),
+    ).toBe(true)
+    expect(
+      fake.execs.some((e) =>
+        e.command.includes(`${ROOT}/.claude/skills/skills-pack`),
+      ),
+    ).toBe(false)
   })
 })

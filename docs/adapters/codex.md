@@ -53,7 +53,7 @@ const stream = chat({
 | Option                 | Description                                                                                                                                  |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `cwd`                  | Working directory for the harness session. Defaults to `process.cwd()`.                                                                       |
-| `sandboxMode`          | Codex sandbox: `'read-only'` (harness default), `'workspace-write'`, or `'danger-full-access'`. This is the safety boundary on a server.       |
+| `sandboxMode`          | Codex sandbox: `'read-only'`, `'workspace-write'`, or `'danger-full-access'`. Default is `'workspace-write'` on local-process and Docker. Default is `'danger-full-access'` on Daytona and Cloudflare, because those providers cannot create a nested bubblewrap namespace. Isolation is then the outer VM plus `defineSandboxPolicy`. |
 | `approvalPolicy`       | Codex approval policy. Defaults to `'never'` — headless runs have no approval UI, so anything else can stall a turn.                           |
 | `modelReasoningEffort` | `'minimal'` \| `'low'` \| `'medium'` \| `'high'` \| `'xhigh'`.                                                                                 |
 | `skipGitRepoCheck`     | Skip the harness's git-repo safety check. Defaults to `true` (server adapters routinely point at scratch directories).                         |

@@ -84,6 +84,9 @@ export default function VideoGenerator({
   const xaiModels = filteredModels.filter((m) => m.provider === 'xai')
   const geminiModels = filteredModels.filter((m) => m.provider === 'gemini')
   const byteplusModels = filteredModels.filter((m) => m.provider === 'byteplus')
+  const openrouterModels = filteredModels.filter(
+    (m) => m.provider === 'openrouter',
+  )
   const activeModels =
     selectedModel === 'all'
       ? filteredModels
@@ -241,6 +244,13 @@ export default function VideoGenerator({
             </optgroup>
             <optgroup label="BytePlus (direct)">
               {byteplusModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="OpenRouter">
+              {openrouterModels.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name}
                 </option>
