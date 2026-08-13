@@ -19,3 +19,21 @@ export function getByokKey(
   const value = request.headers.get(byokHeaderName(provider))
   return value && value.length > 0 ? value : null
 }
+
+/**
+ * Header key if present, otherwise the first non-empty named env var.
+ * Returns `null` when neither is set — callers should `return byokMissing(provider)`.
+ */
+export function getByokOrEnvKey(
+  request: { headers: Pick<Headers, 'get'> },
+  provider: ProviderId,
+  envVarNames: ReadonlyArray<string>,
+): string | null {
+  const header = getByokKey(request, provider)
+  if (header) return header
+  for (const name of envVarNames) {
+    const value = process.env[name]
+    if (value) return value
+  }
+  return null
+}

@@ -12,10 +12,9 @@ import type { Keyring } from '../src/index'
 import {
   byokMissing,
   getByokKey,
+  getByokOrEnvKey,
   isByokMissingBody,
   maskKey,
-  preferByokAdapter,
-  requireByokOrEnv,
   scrubSecrets,
 } from '../src/server'
 import { memoryStorage } from '../src/client/storage'
@@ -158,29 +157,7 @@ describe('getByokKey', () => {
   })
 })
 
-describe('preferByokAdapter', () => {
-  it('uses the BYOK header when present, otherwise the env factory', () => {
-    const withKey = new Request('https://x.test', {
-      headers: { [byokHeaderName('openai')]: 'sk-byok' },
-    })
-    const withoutKey = new Request('https://x.test')
-    const byok = vi.fn((model: string, key: string) => ({
-      kind: 'byok',
-      model,
-      key,
-    }))
-    const env = vi.fn((model: string) => ({ kind: 'env', model }))
-
-    expect(
-      preferByokAdapter(withKey, 'openai', 'gpt-5.2', { byok, env }),
-    ).toEqual({ kind: 'byok', model: 'gpt-5.2', key: 'sk-byok' })
-    expect(
-      preferByokAdapter(withoutKey, 'openai', 'gpt-5.2', { byok, env }),
-    ).toEqual({ kind: 'env', model: 'gpt-5.2' })
-  })
-})
-
-describe('requireByokOrEnv', () => {
+describe('getByokOrEnvKey', () => {
   const originalOpenAi = process.env.OPENAI_API_KEY
 
   afterEach(() => {
@@ -188,19 +165,28 @@ describe('requireByokOrEnv', () => {
     else process.env.OPENAI_API_KEY = originalOpenAi
   })
 
-  it('returns byokMissing when neither header nor env is present', async () => {
-    delete process.env.OPENAI_API_KEY
-    const request = new Request('https://x.test')
-    const blocked = requireByokOrEnv(request, 'openai', ['OPENAI_API_KEY'])
-    expect(blocked?.status).toBe(401)
-    const body: unknown = await blocked!.json()
-    expect(isByokMissingBody(body)).toBe(true)
+  it('prefers the BYOK header over env', () => {
+    process.env.OPENAI_API_KEY = 'sk-env'
+    const request = new Request('https://x.test', {
+      headers: { [byokHeaderName('openai')]: 'sk-byok' },
+    })
+    expect(getByokOrEnvKey(request, 'openai', ['OPENAI_API_KEY'])).toBe(
+      'sk-byok',
+    )
   })
 
-  it('returns null when an env var is configured', () => {
+  it('falls back to the first non-empty env var', () => {
     process.env.OPENAI_API_KEY = 'sk-env'
     const request = new Request('https://x.test')
-    expect(requireByokOrEnv(request, 'openai', ['OPENAI_API_KEY'])).toBeNull()
+    expect(getByokOrEnvKey(request, 'openai', ['OPENAI_API_KEY'])).toBe(
+      'sk-env',
+    )
+  })
+
+  it('returns null when neither header nor env is present', () => {
+    delete process.env.OPENAI_API_KEY
+    const request = new Request('https://x.test')
+    expect(getByokOrEnvKey(request, 'openai', ['OPENAI_API_KEY'])).toBeNull()
   })
 })
 

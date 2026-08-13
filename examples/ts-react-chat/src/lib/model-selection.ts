@@ -1,22 +1,6 @@
-export type Provider =
-  | 'openai'
-  | 'anthropic'
-  | 'gemini'
-  | 'gemini-interactions'
-  | 'ollama'
-  | 'grok'
-  | 'groq'
-  | 'openrouter'
-  | 'bedrock'
-  | 'byteplus'
+import { z } from 'zod'
 
-export interface ModelOption {
-  provider: Provider
-  model: string
-  label: string
-}
-
-export const MODEL_OPTIONS: Array<ModelOption> = [
+export const MODEL_OPTIONS = [
   // OpenAI
   { provider: 'openai', model: 'gpt-5.6', label: 'OpenAI - GPT-5.6' },
   { provider: 'openai', model: 'gpt-5.6-sol', label: 'OpenAI - GPT-5.6 Sol' },
@@ -186,8 +170,8 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
   {
     provider: 'openrouter',
-    model: 'x-ai/grok-4',
-    label: 'OpenRouter - xAI Grok 4',
+    model: 'x-ai/grok-4.3',
+    label: 'OpenRouter - xAI Grok 4.3',
   },
   {
     provider: 'openrouter',
@@ -308,6 +292,28 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // gpt-oss-120b-250805 is deliberately absent: this route always merges the
   // server tool set into the request, and that model's tool support is
   // undeclared in model-meta and unverified against the live API.
-]
+] as const
+
+export type ModelOption = (typeof MODEL_OPTIONS)[number]
+export type Provider = ModelOption['provider']
+
+export type ChatSelection = {
+  [TProvider in Provider]: {
+    provider: TProvider
+    model: Extract<ModelOption, { provider: TProvider }>['model']
+  }
+}[Provider]
+
+export const chatSelectionSchema = z.custom<ChatSelection>(
+  (value) => {
+    if (typeof value !== 'object' || value === null) return false
+    if (!('provider' in value) || !('model' in value)) return false
+    return MODEL_OPTIONS.some(
+      (option) =>
+        option.provider === value.provider && option.model === value.model,
+    )
+  },
+  { message: 'Unknown provider/model combination' },
+)
 
 export const DEFAULT_MODEL_OPTION = MODEL_OPTIONS[0]

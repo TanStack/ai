@@ -245,13 +245,9 @@ export async function POST(request: Request) {
 }
 ```
 
-### `preferByokAdapter(request, provider, model, factories)`
+### `getByokOrEnvKey(request, provider, envVarNames)`
 
-Prefer a per-request BYOK header key over a server env-configured adapter factory.
-
-### `requireByokOrEnv(request, provider, envVarNames)`
-
-Return a typed `byokMissing` response when neither a BYOK header nor any named env var is present. Returns `null` when the request may proceed.
+Header key if present, otherwise the first non-empty named env var. Returns `null` when neither is set — callers should `return byokMissing(provider)` and pass the key to `createOpenaiChat(model, apiKey)` (or the matching `create*` factory).
 
 ### `scrubSecrets(input, secrets)`
 

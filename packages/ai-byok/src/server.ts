@@ -5,10 +5,9 @@
  * it to the TanStack AI adapter for that one call, and never persists or logs
  * it. It is trivially self-hostable: there is no central endpoint baked in.
  */
-export { getByokKey } from './server/get-byok-key'
+export { getByokKey, getByokOrEnvKey } from './server/get-byok-key'
 export { byokMissing, isByokMissingBody } from './server/byok-missing'
 export type { ByokMissingBody } from './server/byok-missing'
-export { preferByokAdapter, requireByokOrEnv } from './server/prefer-byok'
 export { lastFour, maskKey, scrubSecrets } from './server/scrub'
 
 // Re-export the shared registry so a server can enumerate/validate provider ids
