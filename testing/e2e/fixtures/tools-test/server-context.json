@@ -1,0 +1,23 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[server-context] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "I will read the server runtime context.",
+        "toolCalls": [{ "name": "read_server_context", "arguments": "{}" }]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[server-context] run test",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "The server runtime context is available."
+      }
+    }
+  ]
+}

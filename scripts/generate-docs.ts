@@ -9,14 +9,11 @@ const packages = [
   {
     name: 'ai',
     entryPoints: [
-      resolve(__dirname, '../packages/typescript/ai/src/index.ts').replaceAll(
-        '\\',
-        '/',
-      ),
+      resolve(__dirname, '../packages/ai/src/index.ts').replaceAll('\\', '/'),
     ],
     tsconfig: resolve(
       __dirname,
-      '../packages/typescript/ai/tsconfig.docs.json',
+      '../packages/ai/tsconfig.docs.json',
     ).replaceAll('\\', '/'),
     outputDir: resolve(__dirname, '../docs/reference').replaceAll('\\', '/'),
     exclude: [

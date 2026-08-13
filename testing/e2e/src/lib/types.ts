@@ -7,7 +7,16 @@ export type Provider =
   | 'ollama'
   | 'grok'
   | 'groq'
+  | 'bedrock'
+  | 'bedrock-responses'
   | 'openrouter'
+  | 'openrouter-responses'
+  | 'vercel-gateway'
+  | 'vercel-gateway-responses'
+  | 'openai-compatible'
+  | 'mistral'
+  | 'byteplus'
+  | 'elevenlabs'
 
 export type Feature =
   | 'chat'
@@ -22,14 +31,23 @@ export type Feature =
   | 'structured-output-stream'
   | 'multi-turn-structured'
   | 'agentic-structured'
+  | 'agentic-structured-stream'
   | 'multimodal-image'
   | 'multimodal-structured'
   | 'summarize'
   | 'summarize-stream'
+  | 'embedding'
   | 'image-gen'
+  | 'image-to-image'
+  | 'audio-gen'
+  | 'sound-effects'
   | 'tts'
   | 'transcription'
+  | 'transcription-diarization'
   | 'video-gen'
+  | 'image-to-video'
+  | 'interactions-video'
+  | 'stateful-interactions'
 
 export const ALL_PROVIDERS: Provider[] = [
   'openai',
@@ -38,7 +56,16 @@ export const ALL_PROVIDERS: Provider[] = [
   'ollama',
   'grok',
   'groq',
+  'bedrock',
+  'bedrock-responses',
   'openrouter',
+  'openrouter-responses',
+  'vercel-gateway',
+  'vercel-gateway-responses',
+  'openai-compatible',
+  'mistral',
+  'byteplus',
+  'elevenlabs',
 ]
 
 export const ALL_FEATURES: Feature[] = [
@@ -54,12 +81,21 @@ export const ALL_FEATURES: Feature[] = [
   'structured-output-stream',
   'multi-turn-structured',
   'agentic-structured',
+  'agentic-structured-stream',
   'multimodal-image',
   'multimodal-structured',
   'summarize',
   'summarize-stream',
+  'embedding',
   'image-gen',
+  'image-to-image',
+  'audio-gen',
+  'sound-effects',
   'tts',
   'transcription',
+  'transcription-diarization',
   'video-gen',
+  'image-to-video',
+  'interactions-video',
+  'stateful-interactions',
 ]

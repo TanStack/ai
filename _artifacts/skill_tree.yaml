@@ -17,7 +17,7 @@ skills:
     type: 'core'
     domain: 'chat-experiences'
     path: 'skills/ai-core/SKILL.md'
-    package: 'packages/typescript/ai'
+    package: 'packages/ai'
     description: >
       Entry point for TanStack AI skills. Routes to chat-experience,
       tool-calling, media-generation, structured-outputs, adapter-configuration,
@@ -31,7 +31,7 @@ skills:
     type: 'sub-skill'
     domain: 'chat-experiences'
     path: 'skills/ai-core/chat-experience/SKILL.md'
-    package: 'packages/typescript/ai'
+    package: 'packages/ai'
     description: >
       End-to-end chat implementation: server endpoint with chat() and
       toServerSentEventsResponse(), client-side useChat hook with
@@ -47,15 +47,15 @@ skills:
       - 'TanStack/ai:docs/chat/connection-adapters.md'
       - 'TanStack/ai:docs/chat/thinking-content.md'
       - 'TanStack/ai:docs/advanced/multimodal-content.md'
-      - 'TanStack/ai:packages/typescript/ai/src/core/chat.ts'
-      - 'TanStack/ai:packages/typescript/ai-client/src/chat-client.ts'
+      - 'TanStack/ai:packages/ai/src/core/chat.ts'
+      - 'TanStack/ai:packages/ai-client/src/chat-client.ts'
 
   - name: 'Tool Calling'
     slug: 'ai-core/tool-calling'
     type: 'sub-skill'
     domain: 'tool-system'
     path: 'skills/ai-core/tool-calling/SKILL.md'
-    package: 'packages/typescript/ai'
+    package: 'packages/ai'
     description: >
       Isomorphic tool system: toolDefinition() with Zod schemas,
       .server() and .client() implementations, passing tools to both
@@ -72,14 +72,14 @@ skills:
       - 'TanStack/ai:docs/tools/tool-approval.md'
       - 'TanStack/ai:docs/tools/lazy-tool-discovery.md'
       - 'TanStack/ai:docs/tools/tool-architecture.md'
-      - 'TanStack/ai:packages/typescript/ai/src/tools/'
+      - 'TanStack/ai:packages/ai/src/tools/'
 
   - name: 'Media Generation'
     slug: 'ai-core/media-generation'
     type: 'sub-skill'
     domain: 'media-generation'
     path: 'skills/ai-core/media-generation/SKILL.md'
-    package: 'packages/typescript/ai'
+    package: 'packages/ai'
     description: >
       Image, video, speech (TTS), and transcription generation using
       activity-specific adapters: generateImage() with openaiImage/geminiImage,
@@ -107,7 +107,7 @@ skills:
     type: 'sub-skill'
     domain: 'chat-experiences'
     path: 'skills/ai-core/structured-outputs/SKILL.md'
-    package: 'packages/typescript/ai'
+    package: 'packages/ai'
     description: >
       Type-safe JSON schema responses from LLMs using outputSchema on chat().
       Supports Zod, ArkType, and Valibot schemas. The adapter handles
@@ -118,14 +118,14 @@ skills:
       - 'ai-core'
     sources:
       - 'TanStack/ai:docs/chat/structured-outputs.md'
-      - 'TanStack/ai:packages/typescript/ai/src/tools/schema-converter.ts'
+      - 'TanStack/ai:packages/ai/src/tools/schema-converter.ts'
 
   - name: 'Adapter Configuration'
     slug: 'ai-core/adapter-configuration'
     type: 'sub-skill'
     domain: 'adapter-management'
     path: 'skills/ai-core/adapter-configuration/SKILL.md'
-    package: 'packages/typescript/ai'
+    package: 'packages/ai'
     description: >
       Provider adapter selection and configuration: openaiText, anthropicText,
       geminiText, ollamaText, grokText, groqText, openRouterText. Per-model
@@ -168,7 +168,7 @@ skills:
     type: 'sub-skill'
     domain: 'transport-protocol'
     path: 'skills/ai-core/ag-ui-protocol/SKILL.md'
-    package: 'packages/typescript/ai'
+    package: 'packages/ai'
     description: >
       Server-side AG-UI streaming protocol implementation: StreamChunk event
       types (RUN_STARTED, TEXT_MESSAGE_START/CONTENT/END, TOOL_CALL_START/ARGS/END,
@@ -187,7 +187,7 @@ skills:
     type: 'sub-skill'
     domain: 'extensibility'
     path: 'skills/ai-core/middleware/SKILL.md'
-    package: 'packages/typescript/ai'
+    package: 'packages/ai'
     description: >
       Chat lifecycle middleware hooks: onConfig, onStart, onChunk,
       onBeforeToolCall, onAfterToolCall, onUsage, onFinish, onAbort, onError.
@@ -198,14 +198,14 @@ skills:
       - 'ai-core'
     sources:
       - 'TanStack/ai:docs/advanced/middleware.md'
-      - 'TanStack/ai:packages/typescript/ai/src/middlewares/'
+      - 'TanStack/ai:packages/ai/src/middlewares/'
 
   - name: 'Custom Backend Integration'
     slug: 'ai-core/custom-backend-integration'
     type: 'composition'
     domain: 'transport-protocol'
     path: 'skills/ai-core/custom-backend-integration/SKILL.md'
-    package: 'packages/typescript/ai'
+    package: 'packages/ai'
     description: >
       Connect useChat to a non-TanStack-AI backend through custom connection
       adapters. ConnectConnectionAdapter (single async iterable) vs
@@ -218,7 +218,7 @@ skills:
       - 'ai-core/chat-experience'
     sources:
       - 'TanStack/ai:docs/chat/connection-adapters.md'
-      - 'TanStack/ai:packages/typescript/ai-client/src/connection-adapters.ts'
+      - 'TanStack/ai:packages/ai-client/src/connection-adapters.ts'
 
   # ── Code Mode skills (in @tanstack/ai-code-mode package) ──
 
@@ -227,7 +227,7 @@ skills:
     type: 'core'
     domain: 'code-execution'
     path: 'skills/ai-code-mode/SKILL.md'
-    package: 'packages/typescript/ai-code-mode'
+    package: 'packages/ai-code-mode'
     description: >
       LLM-generated TypeScript execution in sandboxed environments:
       createCodeModeTool() with isolate drivers (createNodeIsolateDriver,
@@ -243,8 +243,8 @@ skills:
       - 'TanStack/ai:docs/code-mode/code-mode-isolates.md'
       - 'TanStack/ai:docs/code-mode/code-mode-with-skills.md'
       - 'TanStack/ai:docs/code-mode/client-integration.md'
-      - 'TanStack/ai:packages/typescript/ai-code-mode/src/'
-      - 'TanStack/ai:packages/typescript/ai-code-mode-skills/src/'
+      - 'TanStack/ai:packages/ai-code-mode/src/'
+      - 'TanStack/ai:packages/ai-code-mode-skills/src/'
     subsystems:
       - 'node-isolate'
       - 'quickjs-isolate'

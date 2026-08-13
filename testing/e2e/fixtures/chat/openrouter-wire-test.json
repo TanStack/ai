@@ -1,0 +1,10 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[wire-test] check tools serialization" },
+      "response": {
+        "content": "ok"
+      }
+    }
+  ]
+}

@@ -2,7 +2,7 @@
 title: Migration Guide
 id: migration
 order: 1
-description: "Migrate existing TanStack AI code to the latest version — adapter function splits, flattened options, renamed modelOptions, and removed embeddings."
+description: "Migrate existing TanStack AI code to the latest version — adapter function splits, flattened options, renamed modelOptions, and the old embedding() API's replacement by embed()."
 keywords:
   - tanstack ai
   - migration
@@ -25,7 +25,7 @@ The main breaking changes in this release are:
 2. **Common options flattened** - Options are now flattened in the config instead of nested
 3. **`providerOptions` renamed** - Now called `modelOptions` for clarity
 4. **`toResponseStream` renamed** - Now called `toServerSentEventsStream` for clarity
-5. **Embeddings removed** - Embeddings support has been removed (most vector DB services have built-in support)
+5. **Embeddings removed, then reintroduced** - The old `embedding()` API was removed; embeddings are back as the new `embed()` activity with multimodal support
 
 ## 1. Adapter Functions Split
 
@@ -33,7 +33,7 @@ Adapters have been split into activity-specific functions to enable optimal tree
 
 ### Before
 
-```typescript
+```typescript ignore
 import { chat } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 
@@ -114,7 +114,7 @@ Here's a complete example of migrating adapter usage:
 
 #### Before
 
-```typescript
+```typescript ignore
 import { chat } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 import { anthropic } from '@tanstack/ai-anthropic'
@@ -146,10 +146,14 @@ import { anthropicText } from '@tanstack/ai-anthropic'
 
 type Provider = 'openai' | 'anthropic'
 
+const messages = [{ role: 'user' as const, content: 'Hello!' }]
+
 const adapters = {
   openai: () => openaiText('gpt-5.2'),
   anthropic: () => anthropicText('claude-sonnet-4-5'),
 }
+
+const provider: Provider = 'openai'
 
 const stream = chat({
   adapter: adapters[provider](),
@@ -163,7 +167,7 @@ Common options that were previously nested in an `options` object are now flatte
 
 ### Before
 
-```typescript
+```typescript ignore
 const stream = chat({
   adapter: openai(),
   model: 'gpt-5.2',
@@ -178,7 +182,7 @@ const stream = chat({
 
 ### After
 
-```typescript
+```typescript ignore
 const stream = chat({
   adapter: openaiText('gpt-5.2'),
   messages,
@@ -197,13 +201,15 @@ These options are now available at the top level:
 - `maxTokens` - Maximum tokens to generate
 - `metadata` - Additional metadata to attach
 
+> **Heads up — sampling has since moved (breaking).** In a later release, the sampling props (`temperature`, `topP`, `maxTokens`) were removed from the root of `chat()` and now live in provider-native `modelOptions`. Passing them at the root no longer type-checks or takes effect. See [Moving Sampling Options into modelOptions](./sampling-options-to-model-options) for the codemod and provider-native key names. `metadata` stays at the root.
+
 ## 3. `providerOptions` → `modelOptions`
 
 The `providerOptions` parameter has been renamed to `modelOptions` for clarity. This parameter contains model-specific options that vary by provider and model.
 
 ### Before
 
-```typescript
+```typescript ignore
 const stream = chat({
   adapter: openai(),
   model: 'gpt-5.2',
@@ -218,7 +224,7 @@ const stream = chat({
 
 ### After
 
-```typescript
+```typescript ignore
 const stream = chat({
   adapter: openaiText('gpt-5.2'),
   messages,
@@ -234,7 +240,7 @@ const stream = chat({
 
 `modelOptions` is fully typed based on the adapter and model you're using:
 
-```typescript
+```typescript ignore
 import { openaiText } from '@tanstack/ai-openai'
 
 const adapter = openaiText('gpt-5.2')
@@ -256,7 +262,7 @@ The `toResponseStream` function has been renamed to `toServerSentEventsStream` t
 
 ### Before
 
-```typescript
+```typescript ignore
 import { chat, toResponseStream } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 
@@ -313,7 +319,7 @@ export async function POST(request: Request) {
 
 If you need HTTP stream format (newline-delimited JSON) instead of SSE, use `toHttpStream`:
 
-```typescript
+```typescript ignore
 import { toHttpStream } from '@tanstack/ai'
 
 const readableStream = toHttpStream(stream, abortController)
@@ -324,13 +330,13 @@ return new Response(readableStream, {
 })
 ```
 
-## 5. Embeddings Removed
+## 5. Embeddings Removed, Then Reintroduced as `embed()`
 
-Embeddings support has been removed from TanStack AI. Most vector database services (like Pinecone, Weaviate, Qdrant, etc.) have built-in support for embeddings, and most applications pick an embedding model and stick with it.
+The original `embedding()` function was removed from TanStack AI. Embeddings have since returned as a new activity with a different API: a single `embed()` function with multimodal input support and per-model type safety. The old `embedding()` name and adapter factories (like `openaiEmbed()`) are not coming back.
 
 ### Before
 
-```typescript
+```typescript ignore
 import { embedding } from '@tanstack/ai'
 import { openaiEmbed } from '@tanstack/ai-openai'
 
@@ -343,26 +349,26 @@ const result = await embedding({
 
 ### After
 
-Use your vector database service's built-in embedding support, or call the provider's API directly:
-
 ```typescript
-// Example with OpenAI SDK directly
-import OpenAI from 'openai'
+import { embed } from '@tanstack/ai'
+import { openaiEmbedding } from '@tanstack/ai-openai'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
-const result = await openai.embeddings.create({
-  model: 'text-embedding-3-small',
+const result = await embed({
+  adapter: openaiEmbedding('text-embedding-3-small'),
   input: 'Hello, world!',
 })
+
+console.log(result.embeddings[0]?.vector)
 ```
 
-### Why This Change?
+Key differences from the old API:
 
-- **Vector DB services handle it** - Most vector databases have native embedding support
-- **Simpler API** - Reduces API surface area and complexity
-- **Direct provider access** - You can use the provider SDK directly for embeddings
-- **Focused scope** - TanStack AI focuses on chat, tools, and agentic workflows
+- **Model moves into the adapter factory** - `openaiEmbedding('text-embedding-3-small')` instead of a separate `model` option, matching every other activity
+- **Single function for one or many inputs** - `input` accepts a single item or an array; the result always has an `embeddings` array with one vector per input item
+- **Multimodal inputs** - models like Cohere embed-v4.0 and Amazon Titan Multimodal accept image parts and fused text+image items
+- **Top-level `dimensions`** - request Matryoshka dimensions without provider-specific options
+
+See the [Embeddings guide](../embeddings.md) for full usage.
 
 ## 6. Provider Tools Moved to `/tools` Subpath
 
@@ -378,7 +384,7 @@ import breaks.
 
 ### Before
 
-```typescript
+```typescript ignore
 import { createWebSearchTool } from '@tanstack/ai-openrouter'
 
 const tools = [
@@ -420,7 +426,7 @@ Here's a complete example showing all the changes together:
 
 ### Before
 
-```typescript
+```typescript ignore
 import { chat, toResponseStream } from '@tanstack/ai'
 import { openai } from '@tanstack/ai-openai'
 
@@ -448,7 +454,7 @@ export async function POST(request: Request) {
 
 ### After
 
-```typescript
+```typescript ignore
 import { chat, toServerSentEventsStream } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 
@@ -459,9 +465,11 @@ export async function POST(request: Request) {
   const stream = chat({
     adapter: openaiText('gpt-5.2'),
     messages,
-    temperature: 0.7,
-    maxTokens: 1000,
+    // Sampling now lives in provider-native `modelOptions` (OpenAI Responses
+    // keys: `temperature`, `max_output_tokens`). `metadata` stays at the root.
     modelOptions: {
+      temperature: 0.7,
+      max_output_tokens: 1000,
       responseFormat: { type: 'json_object' },
     },
     abortController,

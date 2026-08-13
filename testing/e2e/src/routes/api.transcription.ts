@@ -1,7 +1,8 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { generateTranscription, toServerSentEventsResponse } from '@tanstack/ai'
-import { createTranscriptionAdapter } from '@/lib/media-providers'
+import type { TranscriptionResponseFormat } from '@tanstack/ai'
 import type { Provider } from '@/lib/types'
+import { createTranscriptionAdapter } from '@/lib/media-providers'
 
 export const Route = createFileRoute('/api/transcription')({
   server: {
@@ -11,21 +12,38 @@ export const Route = createFileRoute('/api/transcription')({
         const abortController = new AbortController()
         const body = await request.json()
         const data = body.forwardedProps ?? body.data ?? body
-        const { audio, language, provider, testId, aimockPort } = data as {
+        const {
+          audio,
+          language,
+          responseFormat,
+          modelOptions,
+          provider,
+          testId,
+          aimockPort,
+        } = data as {
           audio: string
           language?: string
+          responseFormat?: TranscriptionResponseFormat
+          modelOptions?: Record<string, any>
           provider: Provider
           testId?: string
           aimockPort?: number
         }
 
-        const adapter = createTranscriptionAdapter(provider, aimockPort, testId)
+        const adapter = createTranscriptionAdapter(
+          provider,
+          aimockPort,
+          testId,
+          { responseFormat, modelOptions },
+        )
 
         try {
           const stream = generateTranscription({
             adapter,
             audio,
             language,
+            responseFormat,
+            modelOptions,
             stream: true,
           })
           return toServerSentEventsResponse(stream, { abortController })

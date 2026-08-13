@@ -1,0 +1,78 @@
+{
+  "name": "@tanstack/ai-perplexity",
+  "version": "0.1.0",
+  "description": "Perplexity adapter for TanStack AI — Search API and OpenAI-compatible chat",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-perplexity"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./adapters/search": {
+      "types": "./dist/esm/search/index.d.ts",
+      "import": "./dist/esm/search/index.js"
+    },
+    "./adapters/chat": {
+      "types": "./dist/esm/chat/index.d.ts",
+      "import": "./dist/esm/chat/index.js"
+    },
+    "./search": {
+      "types": "./dist/esm/search/index.d.ts",
+      "import": "./dist/esm/search/index.js"
+    },
+    "./chat": {
+      "types": "./dist/esm/chat/index.d.ts",
+      "import": "./dist/esm/chat/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "perplexity",
+    "search",
+    "adapter"
+  ],
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^8.1.4"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^"
+  },
+  "dependencies": {
+    "openai": "^6.41.0"
+  }
+}

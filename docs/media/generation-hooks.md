@@ -19,6 +19,14 @@ keywords:
 
 TanStack AI provides framework hooks for every generation type: image, audio, speech, transcription, summarization, and video. Each hook connects to a server endpoint and manages loading, error, and result state for you.
 
+> **Surviving reloads and dropped connections:** every generation hook takes the
+> same `persistence` option `useChat` does, so a long run's status and result
+> come back after a page reload or a dropped connection. It restores by
+> `threadId`, which for a generation names the slot successive runs fill
+> (`product-7-hero`) rather than a conversation. See
+> [Id map](../persistence/id-map). Setup is in
+> [Generation Persistence](../persistence/generation-persistence).
+
 ## Overview
 
 Generation hooks share a consistent API across all media types:
@@ -33,7 +41,7 @@ Generation hooks share a consistent API across all media types:
 | `useGenerateVideo` | `VideoGenerateInput` | `VideoGenerateResult` |
 | `useGeneration` | Generic `TInput` | Generic `TResult` |
 
-Every hook returns the same core shape: `generate`, `result`, `isLoading`, `error`, `status`, `stop`, and `reset`. You provide either a `connection` (streaming transport) or a `fetcher` (direct async call).
+Every hook returns the same core shape: `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, and `runId` (the id of the job in flight, or `null`). You provide either a `connection` (streaming transport) or a `fetcher` (direct async call).
 
 ## Server Setup
 
@@ -211,10 +219,10 @@ The `generate` function accepts a `TranscriptionGenerateInput`:
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `audio` | `string \| File \| Blob` | Audio data -- base64 string, File, or Blob (required) |
+| `audio` | `string \| File \| Blob \| ArrayBuffer` | Audio data -- base64 string, File, Blob, or ArrayBuffer (required) |
 | `language` | `string` | Language in ISO-639-1 format (e.g., `"en"`) |
 | `prompt` | `string` | Optional prompt to guide the transcription |
-| `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt'` | Output format |
+| `responseFormat` | `'json' \| 'text' \| 'srt' \| 'verbose_json' \| 'vtt'` | Common output format |
 | `modelOptions` | `Record<string, any>` | Model-specific options |
 
 ## useSummarize
@@ -415,9 +423,12 @@ function EmbeddingGenerator() {
 The `onResult` callback can transform what gets stored in `result`:
 
 ```tsx
+import { useGenerateImage, fetchServerSentEvents } from '@tanstack/ai-react'
+import type { ImageGenerationResult } from '@tanstack/ai'
+
 const { result } = useGenerateImage({
   connection: fetchServerSentEvents('/api/generate/image'),
-  onResult: (raw) => raw.images.map((img) => img.url || img.b64Json),
+  onResult: (raw: ImageGenerationResult) => raw.images.map((img) => img.url || img.b64Json),
 })
 // result is now string[] instead of ImageGenerationResult
 ```

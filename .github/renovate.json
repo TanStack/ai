@@ -3,7 +3,6 @@
   "configMigration": true,
   "extends": [
     "config:recommended",
-    "group:allNonMajor",
     "schedule:weekly",
     ":approveMajorUpdates",
     ":automergeMinor",
@@ -15,7 +14,7 @@
   "ignorePresets": [":ignoreModulesAndTests"],
   "labels": ["dependencies"],
   "rangeStrategy": "bump",
-  "postUpdateOptions": ["pnpmDedupe"],
+  "minimumReleaseAge": "1 day",
   "ignoreDeps": [
     "@types/node",
     "@types/react",
@@ -25,5 +24,147 @@
     "react-dom",
     "typescript",
     "vue"
+  ],
+  "packageRules": [
+    {
+      "description": "Fallback: bundle any remaining non-major updates so we don't get one PR per dependency. Ecosystem rules below override this for their packages.",
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "groupName": "all non-major dependencies",
+      "groupSlug": "all-minor-patch"
+    },
+    {
+      "description": "Lint & formatting toolchain",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": [
+        "eslint",
+        "eslint-**",
+        "@eslint/**",
+        "@eslint-community/**",
+        "@typescript-eslint/**",
+        "@tanstack/eslint-config",
+        "prettier",
+        "prettier-**",
+        "knip",
+        "sherif",
+        "publint"
+      ],
+      "groupName": "lint & format",
+      "groupSlug": "lint-format"
+    },
+    {
+      "description": "Build & test toolchain (Vite/Vitest/Nx)",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": [
+        "vite",
+        "vite-**",
+        "@vitejs/**",
+        "vitest",
+        "@vitest/**",
+        "@tanstack/vite-config",
+        "@tanstack/typedoc-config",
+        "typedoc",
+        "typedoc-**",
+        "nx",
+        "@nx/**",
+        "tsx",
+        "happy-dom",
+        "jsdom",
+        "@testing-library/**",
+        "tinyglobby",
+        "premove"
+      ],
+      "groupName": "build & test tooling",
+      "groupSlug": "build-test-tooling"
+    },
+    {
+      "description": "Unified / markdown ecosystem (the largest transitive cluster in the lockfile)",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": [
+        "unified",
+        "remark**",
+        "rehype**",
+        "mdast**",
+        "@mdx-js/**",
+        "hast**",
+        "micromark**",
+        "unist**",
+        "vfile**",
+        "marked",
+        "marked-**",
+        "highlight.js",
+        "html-**",
+        "markdown-**"
+      ],
+      "groupName": "markdown/unified",
+      "groupSlug": "markdown-unified"
+    },
+    {
+      "description": "Provider / AI SDKs",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": [
+        "openai",
+        "@anthropic-ai/**",
+        "@google/**",
+        "@google-cloud/**",
+        "@aws-sdk/**",
+        "@openrouter/**",
+        "@mistralai/**",
+        "@ai-sdk/**",
+        "groq-sdk",
+        "ollama",
+        "@opentelemetry/**"
+      ],
+      "groupName": "ai provider sdks",
+      "groupSlug": "ai-provider-sdks"
+    },
+    {
+      "description": "React ecosystem",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["react-**", "@react-native/**", "react-native", "react-native-**"],
+      "groupName": "react ecosystem",
+      "groupSlug": "react-ecosystem"
+    },
+    {
+      "description": "Vue ecosystem",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["@vue/**", "vue-**"],
+      "groupName": "vue ecosystem",
+      "groupSlug": "vue-ecosystem"
+    },
+    {
+      "description": "Angular ecosystem",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["@angular/**", "@angular-**", "angular-**"],
+      "groupName": "angular ecosystem",
+      "groupSlug": "angular-ecosystem"
+    },
+    {
+      "description": "Solid ecosystem",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["solid-**", "@solidjs/**", "seroval", "seroval-**"],
+      "groupName": "solid ecosystem",
+      "groupSlug": "solid-ecosystem"
+    },
+    {
+      "description": "Svelte ecosystem",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["svelte", "svelte-**", "@sveltejs/**", "prettier-plugin-svelte"],
+      "groupName": "svelte ecosystem",
+      "groupSlug": "svelte-ecosystem"
+    },
+    {
+      "description": "Tailwind & icon tooling",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["tailwindcss", "@tailwindcss/**", "lucide", "lucide-**", "@lucide/**"],
+      "groupName": "tailwind & icons",
+      "groupSlug": "tailwind-icons"
+    },
+    {
+      "description": "@types packages",
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchPackageNames": ["@types/**"],
+      "groupName": "type definitions",
+      "groupSlug": "type-definitions"
+    }
   ]
 }

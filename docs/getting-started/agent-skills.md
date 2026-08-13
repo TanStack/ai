@@ -14,10 +14,23 @@ keywords:
   - SKILL.md
   - AGENTS.md
 ---
-
-You're building with TanStack AI and using an AI coding agent — Claude Code, Cursor, GitHub Copilot, or similar. The agent keeps suggesting Vercel-AI-SDK patterns like `streamText()` or `createOpenAI()`, or it wires streams manually instead of using `toServerSentEventsResponse()`. By the end of this guide, your agent will load TanStack AI's bundled skills automatically whenever you work on AI code — and those skills will stay in sync with whichever `@tanstack/ai` version your project installs.
-
 > **Looking for runtime skills inside Code Mode?** Those are a different feature — see [Code Mode with Skills](../code-mode/code-mode-with-skills). This page is about _agent-authoring_ skills: markdown files that teach your coding assistant how TanStack AI works.
+## Step 1: Install TanStack AI
+
+If you haven't already, install `@tanstack/ai` plus any adapter packages you need. See the [Quick Start](./quick-start) for a full walkthrough.
+
+```bash
+pnpm add @tanstack/ai
+```
+
+## Step 2: Run `intent install`
+
+From the root of your project, run:
+
+```bash
+npx @tanstack/intent@latest install
+```
+
 
 ## What are Agent Skills?
 
@@ -29,34 +42,28 @@ TanStack AI publishes skills inside its packages so the guidance travels with `n
 
 | Package | Skill | What it teaches |
 |---------|-------|-----------------|
-| `@tanstack/ai` | `ai-core` | Chat experience, tool calling, adapters, middleware, structured outputs, media generation, AG-UI protocol, custom backends |
+| `@tanstack/ai` | `ai-core` | Chat experience, browser persistence on `useChat`, tool calling, adapters, middleware, locks, structured outputs, media generation, AG-UI protocol, custom backends |
+| `@tanstack/ai-persistence` | `ai-persistence` | Server chat state (`withPersistence`), the store contracts, and per-stack recipes that write a `chat-persistence.ts` into your app against your existing Drizzle, Prisma, or Cloudflare D1 setup |
+| `@tanstack/ai-memory` | `tanstack-ai-memory` | `memoryMiddleware`, the recall/save adapter contract, and the in-memory / Redis / Hindsight / Mem0 / Honcho adapters |
+| `@tanstack/ai-mcp` | `ai-mcp` | Connecting to MCP servers, running their tools inside `chat()`, resources, prompts, and the type-generating CLI |
+| `@tanstack/ai-sandbox` | `ai-sandbox` | Running harness adapters inside isolated sandboxes with `defineSandbox` / `withSandbox` |
 | `@tanstack/ai-code-mode` | `ai-code-mode` | Setting up Code Mode with a sandbox driver and registering server tools |
+
+Skills route to each other: `ai-core` points at the companion packages'
+skills, and `ai-persistence` is an entry point that routes to its own
+sub-skills (`server`, `stores`, and the
+`build-{drizzle,prisma,cloudflare,custom}-adapter` recipes) under
+`skills/ai-persistence/`, same nesting style as `ai-core`. Multi-instance locks
+ship with the code they teach, so `ai-core/locks` lives in `@tanstack/ai`
+alongside `withLocks`.
+
+Each skill ships with the code it teaches. Browser persistence lives in the
+framework packages, so `ai-core/client-persistence` is in `@tanstack/ai` rather
+than in `@tanstack/ai-persistence` — an app that persists only in the browser
+never installs the server package.
 
 Each skill lives under `node_modules/<package>/skills/<skill-name>/SKILL.md` once the package is installed.
 
-## Step 1: Install TanStack AI
-
-If you haven't already, install `@tanstack/ai` plus any adapter packages you need. See the [Quick Start](./quick-start) for a full walkthrough.
-
-```bash
-pnpm add @tanstack/ai @tanstack/ai-openai
-```
-
-## Step 2: Run `intent install`
-
-From the root of your project, run:
-
-```bash
-npx @tanstack/intent@latest install
-```
-
-The CLI walks your agent through the setup. It scans `node_modules` for every package that ships skills (any package with the `tanstack-intent` keyword), asks your agent to propose task-to-skill mappings that match your codebase, and writes them into your agent's config file.
-
-By default the mappings land in `AGENTS.md`. The CLI can also target:
-
-- `CLAUDE.md` — Claude Code
-- `.cursorrules` — Cursor
-- any other agent config file you point it at
 
 ## Step 3: Review the Generated Mappings
 
@@ -68,6 +75,8 @@ The install command appends (or creates) an `intent-skills` block that looks lik
 skills:
   - task: "Building chat, tool calling, adapters, or streaming with TanStack AI"
     load: "node_modules/@tanstack/ai/skills/ai-core/SKILL.md"
+  - task: "Persisting chat state or building a persistence adapter"
+    load: "node_modules/@tanstack/ai-persistence/skills/ai-persistence/SKILL.md"
   - task: "Setting up Code Mode with TanStack AI"
     load: "node_modules/@tanstack/ai-code-mode/skills/ai-code-mode/SKILL.md"
 <!-- intent-skills:end -->

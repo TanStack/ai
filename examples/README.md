@@ -1,6 +1,6 @@
 # TanStack AI Examples
 
-This directory contains comprehensive examples demonstrating TanStack AI across multiple languages and frameworks.
+This directory contains comprehensive examples demonstrating TanStack AI across multiple TypeScript frameworks.
 
 ## Quick Start
 
@@ -8,9 +8,8 @@ Choose an example based on your use case:
 
 - **Want a full-stack TypeScript app?** → [TanStack Chat (ts-react-chat)](#tanstack-chat-ts-react-chat)
 - **Need a vanilla JS frontend?** → [Vanilla Chat](#vanilla-chat)
-- **Building a Python backend?** → [Python FastAPI Server](#python-fastapi-server)
-- **Building a PHP backend?** → [PHP Slim Framework Server](#php-slim-framework-server)
 - **Multi-User TypeScript chat app?** → [Group Chat (ts-group-chat)](#group-chat-ts-group-chat)
+- **Polyglot AG-UI backends (Go/Rust/PHP/Zig/Bash/Python)?** → [AG-UI Polyglot Echo (ag-ui)](#ag-ui-polyglot-echo-ag-ui)
 
 ## TypeScript Examples
 
@@ -95,16 +94,49 @@ Open `http://localhost:4000` in multiple browser tabs to test multi-user functio
 
 ---
 
+### Reranking (ts-react-rerank)
+
+A single-page app that reorders a fixed set of support articles by relevance to
+a query, showing the original order and the reranked order side by side.
+
+**Tech Stack:**
+
+- TanStack Start (full-stack React framework)
+- `@tanstack/ai` (the `rerank()` activity)
+- `@tanstack/ai-cohere` (Cohere rerank adapter)
+- `@tanstack/ai-openrouter` (OpenRouter rerank adapter)
+
+**Features:**
+
+- ✅ One `rerank()` call, two providers behind a dropdown
+- ✅ Object documents — the original typed object comes back on each result
+- ✅ Relevance scores and original position per document
+- ✅ `topN` control and search-unit usage reporting
+- ✅ API keys stay on the server
+
+**Getting Started:**
+
+```bash
+cd examples/ts-react-rerank
+pnpm install
+cp .env.example .env
+# Add COHERE_API_KEY and/or OPENROUTER_API_KEY — you only need the one you pick
+pnpm dev
+```
+
+📖 [Full Documentation](ts-react-rerank/README.md)
+
+---
+
 ### Vanilla Chat
 
-A framework-free chat application using pure JavaScript and `@tanstack/ai-client`. Works with both PHP and Python backends.
+A framework-free chat application using pure JavaScript and `@tanstack/ai-client`.
 
 **Tech Stack:**
 
 - Vanilla JavaScript (no frameworks!)
 - `@tanstack/ai-client` (headless client)
 - Vite (dev server)
-- Compatible with PHP Slim or Python FastAPI backends
 
 **Features:**
 
@@ -112,146 +144,55 @@ A framework-free chat application using pure JavaScript and `@tanstack/ai-client
 - ✅ Real-time streaming messages
 - ✅ Beautiful, responsive UI
 - ✅ No framework dependencies
-- ✅ Works with multiple backend languages
 
 **Getting Started:**
 
-**Option 1: With Python Backend**
-
 ```bash
-# Start the Python backend first
-cd examples/python-fastapi
-python anthropic-server.py
-
-# Then start the frontend
 cd examples/vanilla-chat
 pnpm install
 pnpm start
 ```
 
-**Option 2: With PHP Backend**
-
-```bash
-# Start the PHP backend and UI together
-cd examples/php-slim
-pnpm install
-composer install
-cp env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY
-pnpm start
-```
-
-Open `http://localhost:3001` (UI) - connects to backend on port 8000
-
 📖 [Full Documentation](vanilla-chat/README.md)
 
 ---
 
-## Python Examples
+### AG-UI Polyglot Echo (ag-ui)
 
-### Python FastAPI Server
+A React SPA that connects to **Go, Rust, PHP, Zig, Bash, and Python chat servers** over the AG-UI SSE protocol, with each backend streaming OpenAI or Anthropic completions. Toolchain detection writes `public/servers.json`; unavailable backends show setup instructions in the UI.
 
-A FastAPI server that streams AI responses in Server-Sent Events (SSE) format, compatible with TanStack AI clients.
+**Tech Stack:**
+
+- React + Vite (SPA)
+- `@tanstack/ai-react` + `@tanstack/ai-react-ui`
+- Go chat server (`net/http`, `:8001`)
+- Rust chat server (Axum, `:8002`)
+- PHP chat server (built-in server + curl, `:8003`)
+- Zig chat server (stdlib HTTP, `:8004`)
+- Bash chat server (socat + curl + jq, `:8005`)
+- Python chat server (stdlib HTTP + urllib, `:8006`)
 
 **Features:**
 
-- ✅ FastAPI with SSE streaming
-- ✅ Converts Anthropic/OpenAI events to `StreamChunk` format
-- ✅ Compatible with `@tanstack/ai-client`
-- ✅ Tool call support
-- ✅ Type-safe with Pydantic
+- ✅ Backend picker (Go | Rust | PHP | Zig | Bash | Python)
+- ✅ Toolchain-gated `dev:all` + `servers.json` availability
+- ✅ Setup instructions when a runtime is missing (or disabled via `AGUI_DISABLE_SERVERS`)
+- ✅ Provider picker (OpenAI | Anthropic)
+- ✅ Hand-rolled AG-UI SSE in six languages
+- ✅ Streaming LLM responses via env API keys
 
 **Getting Started:**
 
 ```bash
-cd examples/python-fastapi
-
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Set up environment
-cp env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY or OPENAI_API_KEY
-
-# Run the server
-python anthropic-server.py  # or openai-server.py
+cd examples/ag-ui
+pnpm install
+cp .env.example .env
+pnpm dev:all
 ```
 
-**API Endpoints:**
+Install whichever backends you want to run locally (Go, Rust, PHP, Zig, Bash, Python) plus provider API keys. The Bash server uses Bash 4+, curl, jq, and socat (`brew install bash jq socat`). To simulate missing runtimes: `AGUI_DISABLE_SERVERS=php,zig,bash,python pnpm dev:all`.
 
-- `POST /chat` - Stream chat responses in SSE format
-- `GET /health` - Health check
-
-**Usage with TypeScript Client:**
-
-```typescript
-import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents('http://localhost:8000/chat'),
-})
-
-await client.sendMessage('Hello!')
-```
-
-📖 [Full Documentation](python-fastapi/README.md)
-
----
-
-## PHP Examples
-
-### PHP Slim Framework Server
-
-A PHP Slim Framework server that streams AI responses in SSE format, with support for both Anthropic and OpenAI.
-
-**Features:**
-
-- ✅ Slim Framework with SSE streaming
-- ✅ Converts Anthropic/OpenAI events to `StreamChunk` format
-- ✅ Compatible with `@tanstack/ai-client`
-- ✅ Tool call support
-- ✅ PHP 8.1+ with type safety
-
-**Getting Started:**
-
-```bash
-cd examples/php-slim
-
-# Install dependencies
-composer install
-
-# Set up environment
-cp env.example .env
-# Edit .env and add your ANTHROPIC_API_KEY and/or OPENAI_API_KEY
-
-# Run the server
-composer start-anthropic  # Runs on port 8000
-# or
-composer start-openai     # Runs on port 8001
-```
-
-**API Endpoints:**
-
-- `POST /chat` - Stream chat responses in SSE format
-- `GET /health` - Health check
-
-**Usage with TypeScript Client:**
-
-```typescript
-import { ChatClient, fetchServerSentEvents } from '@tanstack/ai-client'
-
-const client = new ChatClient({
-  connection: fetchServerSentEvents('http://localhost:8000/chat'),
-})
-
-await client.sendMessage('Hello!')
-```
-
-📖 [Full Documentation](php-slim/README.md)
+📖 [Full Documentation](ag-ui/README.md)
 
 ---
 
@@ -277,35 +218,13 @@ AI Provider (OpenAI/Anthropic/etc.)
 
 **Example:** [TanStack Chat (ts-react-chat)](ts-react-chat/README.md)
 
-### Multi-Language Backend
-
-Use Python or PHP for the backend, TypeScript for the frontend:
-
-```
-Frontend (Vanilla JS/React/Vue/etc.)
-  ↓ (ChatClient)
-@tanstack/ai-client
-  ↓ (SSE/HTTP)
-Backend (Python FastAPI or PHP Slim)
-  ↓ (tanstack-ai or tanstack/ai)
-Stream Conversion & Message Formatting
-  ↓ (provider SDK)
-AI Provider (OpenAI/Anthropic/etc.)
-```
-
-**Examples:**
-
-- [Python FastAPI](python-fastapi/README.md) + [Vanilla Chat](vanilla-chat/README.md)
-- [PHP Slim](php-slim/README.md) + [Vanilla Chat](vanilla-chat/README.md)
-- [PHP Slim](php-slim/README.md) + any frontend with `@tanstack/ai-client`
-
 ## Common Patterns
 
 ### Server-Sent Events (SSE) Streaming
 
 All examples use SSE for real-time streaming:
 
-**Backend (TypeScript):**
+**Backend:**
 
 ```typescript
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
@@ -318,31 +237,6 @@ const stream = chat({
 })
 
 return toServerSentEventsResponse(stream)
-```
-
-**Backend (Python):**
-
-```python
-from tanstack_ai import StreamChunkConverter, format_sse_chunk
-
-async for event in anthropic_stream:
-    chunks = await converter.convert_event(event)
-    for chunk in chunks:
-        yield format_sse_chunk(chunk)
-```
-
-**Backend (PHP):**
-
-```php
-use TanStack\AI\StreamChunkConverter;
-use TanStack\AI\SSEFormatter;
-
-foreach ($anthropicStream as $event) {
-    $chunks = $converter->convertEvent($event);
-    foreach ($chunks as $chunk) {
-        echo SSEFormatter::formatChunk($chunk);
-    }
-}
 ```
 
 **Frontend:**
@@ -401,67 +295,19 @@ Clients receive:
 
 ## Development Tips
 
-### Running Multiple Examples
-
-You can run backend and frontend examples together:
-
-```bash
-# Option 1: Python backend + Vanilla Chat frontend
-# Terminal 1: Start Python backend
-cd examples/python-fastapi
-python anthropic-server.py
-
-# Terminal 2: Start vanilla frontend
-cd examples/vanilla-chat
-pnpm start
-
-# Option 2: PHP backend + Vanilla Chat frontend (runs together)
-cd examples/php-slim
-pnpm start  # Starts both PHP server and vanilla-chat UI
-
-# Option 3: Full-stack TypeScript
-cd examples/ts-react-chat
-pnpm start
-```
-
 ### Environment Variables
 
 Each example has an `env.example` file. Copy it to `.env` and add your API keys:
 
 ```bash
-# TypeScript examples
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
-
-# Python examples
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
-
-# PHP examples
-ANTHROPIC_API_KEY=sk-ant-...
-OPENAI_API_KEY=sk-...
 ```
 
 ### Building for Production
 
-**TypeScript:**
-
 ```bash
 pnpm build
-```
-
-**Python:**
-
-```bash
-# Use a production ASGI server
-uvicorn anthropic-server:app --host 0.0.0.0 --port 8000
-```
-
-**PHP:**
-
-```bash
-# Use a production web server (Apache, Nginx, etc.)
-# See php-slim/README.md for deployment details
 ```
 
 ---
@@ -482,9 +328,7 @@ When adding new examples:
 
 - 📖 [Main README](../README.md) - Project overview
 - 📖 [Documentation](../docs/) - Comprehensive guides
-- 📖 [TypeScript Packages](../packages/typescript/) - Core libraries
-- 📖 [Python Package](../packages/python/tanstack-ai/) - Python utilities
-- 📖 [PHP Package](../packages/php/tanstack-ai/) - PHP utilities
+- 📖 [TypeScript Packages](../packages/) - Core libraries
 
 ---
 

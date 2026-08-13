@@ -9,6 +9,28 @@
  *
  * Usage:
  *   pnpm tsx scripts/sync-provider-models.ts
+ *
+ * ## Providers deliberately NOT synced
+ *
+ * The sync is only safe when the provider's own model ids can be derived from
+ * OpenRouter's. Adding an entry to `PROVIDER_MAP` for a provider where that
+ * doesn't hold generates ids that 404 at request time, which is worse than no
+ * automation. These are excluded on purpose:
+ *
+ * - **byteplus** (`@tanstack/ai-byteplus`) — OpenRouter lists the same models
+ *   under undated slugs (`bytedance-seed/seed-1.6`), but BytePlus Ark
+ *   addresses them by *date-suffixed* id (`seed-1-6-250615`), and the suffix
+ *   is not derivable from anything OpenRouter publishes. Ark's own `GET
+ *   /models` is the catalog, and it is not exhaustive. On top of that the
+ *   package's capability tables are live-probe-verified specifically because
+ *   the published metadata is wrong in both directions, so a metadata-driven
+ *   sync would overwrite probed facts with worse ones. Use `/gap-analysis
+ *   byteplus` instead; the probe recipe is in that package's `model-meta.ts`.
+ * - **fal**, **elevenlabs** — media-only providers whose endpoint ids are not
+ *   OpenRouter models at all. fal image fields have their own generator
+ *   (`scripts/generate-fal-image-field-map.ts`).
+ * - **bedrock** — ids are AWS-region-qualified; see
+ *   `scripts/fetch-bedrock-models.ts`.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -43,6 +65,13 @@ interface ProviderConfig {
   providerOptionsTypeName: string
   /** Name of the input modalities type map */
   inputModalitiesTypeName: string
+  /**
+   * Name of the runtime `Record<string, number>` mapping model id →
+   * `max_output_tokens`, if the provider maintains one. Anthropic uses this to
+   * default the required `max_tokens` request field to the model's real ceiling
+   * (issue #849); other providers treat token limits as optional and omit it.
+   */
+  maxOutputTokensMapName?: string
   /** The supports block template (minus input modalities, which come from OpenRouter) */
   referenceSupportsBody: string
   /** Valid input modality types for this provider's ModelMeta interface */
@@ -62,7 +91,7 @@ interface ProviderConfig {
 const PROVIDER_MAP: Record<string, ProviderConfig> = {
   'openai/': {
     packageName: '@tanstack/ai-openai',
-    metaFile: resolve(ROOT, 'packages/typescript/ai-openai/src/model-meta.ts'),
+    metaFile: resolve(ROOT, 'packages/ai-openai/src/model-meta.ts'),
     arrayRef: '.name',
     contextField: 'context_window',
     chatArrayName: 'OPENAI_CHAT_MODELS',
@@ -89,15 +118,13 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
   },
   'anthropic/': {
     packageName: '@tanstack/ai-anthropic',
-    metaFile: resolve(
-      ROOT,
-      'packages/typescript/ai-anthropic/src/model-meta.ts',
-    ),
+    metaFile: resolve(ROOT, 'packages/ai-anthropic/src/model-meta.ts'),
     arrayRef: '.id',
     contextField: 'context_window',
     chatArrayName: 'ANTHROPIC_MODELS',
     providerOptionsTypeName: 'AnthropicChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'AnthropicModelInputModalitiesByName',
+    maxOutputTokensMapName: 'ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
     referenceSupportsBody: `    extended_thinking: true,
     priority_tier: true,
@@ -112,7 +139,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
   },
   'google/': {
     packageName: '@tanstack/ai-gemini',
-    metaFile: resolve(ROOT, 'packages/typescript/ai-gemini/src/model-meta.ts'),
+    metaFile: resolve(ROOT, 'packages/ai-gemini/src/model-meta.ts'),
     arrayRef: '.name',
     contextField: 'max_input_tokens',
     chatArrayName: 'GEMINI_MODELS',
@@ -134,7 +161,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
   },
   'x-ai/': {
     packageName: '@tanstack/ai-grok',
-    metaFile: resolve(ROOT, 'packages/typescript/ai-grok/src/model-meta.ts'),
+    metaFile: resolve(ROOT, 'packages/ai-grok/src/model-meta.ts'),
     arrayRef: '.name',
     contextField: 'context_window',
     chatArrayName: 'GROK_CHAT_MODELS',
@@ -264,15 +291,18 @@ function outputsText(model: OpenRouterModel): boolean {
 }
 
 /**
- * Check if an OpenRouter model outputs ONLY images (no text output).
- * Image-only models are skipped entirely because image model arrays
- * require manual curation with specialized type maps (sizes, provider options).
+ * Check if an OpenRouter model produces image output.
+ *
+ * Image-generation models are skipped entirely by the sync — regardless of
+ * whether they ALSO output text — because image model arrays require manual
+ * curation with specialized type maps (sizes, provider options, the native
+ * image union). This covers text+image "native" image models such as the
+ * Gemini "Nano Banana" family (`gemini-*-image`, e.g.
+ * `gemini-3.1-flash-lite-image`), which would otherwise be misclassified as
+ * chat models (they output text) and inserted with a bogus `output: ['text']`.
  */
-function isImageOnlyModel(model: OpenRouterModel): boolean {
-  return (
-    model.architecture.output_modalities.includes('image') &&
-    !model.architecture.output_modalities.includes('text')
-  )
+function outputsImage(model: OpenRouterModel): boolean {
+  return model.architecture.output_modalities.includes('image')
 }
 
 /**
@@ -445,7 +475,16 @@ function insertConstants(content: string, constants: Array<string>): string {
 
 /**
  * Add entries to an array like: export const ARRAY_NAME = [ ... ] as const
- * Uses a regex with the `s` flag (dotAll) to match across newlines.
+ *
+ * New entries are inserted immediately AFTER the opening bracket, so this
+ * only ever writes separators it owns: each inserted line carries its own
+ * trailing comma, and the existing body — multi-line with trailing commas, a
+ * short single-line array, comment lines, or nothing at all — follows
+ * unchanged. Inserting before the CLOSING bracket instead means guessing
+ * whether the last existing entry already has a comma, which is how a
+ * single-line `GROK_CHAT_MODELS` produced a syntax error (and a dead daily
+ * sync) the day grok-4.5 arrived. `pnpm format` reflows the result, so the
+ * inserted lines only need to parse, not to be pretty.
  */
 function addToArray(
   content: string,
@@ -453,13 +492,9 @@ function addToArray(
   entries: Array<string>,
   arrayRef: string,
 ): string {
-  // Match the array declaration: export const ARRAY_NAME = [...] as const
-  // Uses [\s\S]*? (non-greedy) instead of [^\]]* to handle ] inside comments
-  const pattern = new RegExp(
-    `(export const ${arrayName} = \\[\\s*[\\s\\S]*?)(\\] as const)`,
-  )
-  const match = pattern.exec(content)
-  if (!match) {
+  const open = `export const ${arrayName} = [`
+  const openIndex = content.indexOf(open)
+  if (openIndex === -1) {
     console.warn(`  Warning: Could not find array '${arrayName}' in file`)
     return content
   }
@@ -467,11 +502,8 @@ function addToArray(
   const newEntries = entries
     .map((constName) => `  ${constName}${arrayRef},`)
     .join('\n')
-  // Use replacer function to prevent $-character interpretation in replacement string
-  return content.replace(
-    pattern,
-    () => `${match[1]}\n${newEntries}\n${match[2]}`,
-  )
+  const insertAt = openIndex + open.length
+  return `${content.slice(0, insertAt)}\n${newEntries}${content.slice(insertAt)}`
 }
 
 /**
@@ -500,6 +532,34 @@ function addToTypeMap(
   return content.replace(pattern, () => `${match[1]}\n${newEntries}${match[2]}`)
 }
 
+/**
+ * Add entries to a runtime object literal like:
+ *   const MAP_NAME: Record<string, number> = {
+ *     ...existing entries...
+ *   }
+ * Used for the Anthropic id → max_output_tokens map (issue #849), which is a
+ * value declaration rather than a `type` alias.
+ */
+function addToObjectMap(
+  content: string,
+  mapName: string,
+  entries: Array<string>,
+): string {
+  // Match: const MAP_NAME: Record<string, number> = { ... \n}
+  const pattern = new RegExp(
+    `(const ${mapName}: Record<string, number> = \\{[\\s\\S]*?)(\\n\\})`,
+  )
+  const match = pattern.exec(content)
+  if (!match) {
+    console.warn(`  Warning: Could not find object map '${mapName}' in file`)
+    return content
+  }
+
+  const newEntries = entries.join('\n')
+  // Use replacer function to prevent $-character interpretation in replacement string
+  return content.replace(pattern, () => `${match[1]}\n${newEntries}${match[2]}`)
+}
+
 // ---------------------------------------------------------------------------
 // Git-based change detection
 // ---------------------------------------------------------------------------
@@ -520,8 +580,8 @@ function detectChangedPackages(): Set<string> {
     if (!diff) return changed
 
     for (const line of diff.split('\n')) {
-      // packages/typescript/ai-openrouter/... → @tanstack/ai-openrouter
-      const match = line.match(/^packages\/typescript\/([\w-]+)\//)
+      // packages/ai-openrouter/... → @tanstack/ai-openrouter
+      const match = line.match(/^packages\/([\w-]+)\//)
       if (match) {
         changed.add(`@tanstack/${match[1]}`)
       }
@@ -628,14 +688,15 @@ async function main() {
       console.log(`    - ${strippedId} (${constName})`)
     }
 
-    // Filter out image-only models (they need manual curation for size/provider type maps)
-    const filteredModels = newModels.filter(
-      ({ model }) => !isImageOnlyModel(model),
-    )
-    const skippedImageOnly = newModels.length - filteredModels.length
-    if (skippedImageOnly > 0) {
+    // Filter out image-generation models (they need manual curation for
+    // size/provider type maps + the native image union). This includes
+    // text+image models like the Gemini "Nano Banana" native image family,
+    // not just image-only models.
+    const filteredModels = newModels.filter(({ model }) => !outputsImage(model))
+    const skippedImageModels = newModels.length - filteredModels.length
+    if (skippedImageModels > 0) {
       console.log(
-        `  Skipping ${skippedImageOnly} image-only models (require manual curation)`,
+        `  Skipping ${skippedImageModels} image-generation models (require manual curation)`,
       )
     }
 
@@ -694,6 +755,28 @@ async function main() {
         config.inputModalitiesTypeName,
         modalityEntries,
       )
+    }
+
+    // Add to the id → max_output_tokens runtime map (Anthropic only). Only
+    // models whose generated constant actually carries `max_output_tokens`
+    // (i.e. OpenRouter reported a `max_completion_tokens`) get an entry; the
+    // rest correctly fall through to the map's constant default. Keeps the map
+    // in lockstep with the chat-model array so a synced model resolves to its
+    // real ceiling instead of the fallback (issue #849).
+    if (config.maxOutputTokensMapName) {
+      const maxOutputEntries = chatModels
+        .filter(({ model }) => model.top_provider.max_completion_tokens)
+        .map(
+          ({ constName }) =>
+            `  [${constName}${config.arrayRef}]: ${constName}.max_output_tokens,`,
+        )
+      if (maxOutputEntries.length > 0) {
+        content = addToObjectMap(
+          content,
+          config.maxOutputTokensMapName,
+          maxOutputEntries,
+        )
+      }
     }
 
     // Write the modified file

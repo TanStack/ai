@@ -62,5 +62,5 @@ export function executePrompt(
       getSkillBindings,
     }),
   })
-  return tool.execute!({ prompt })
+  return Promise.resolve(tool.execute!({ prompt }))
 }

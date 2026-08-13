@@ -1,0 +1,11 @@
+{
+  "expo": {
+    "name": "TanStack AI React Native Chat",
+    "slug": "tanstack-ai-react-native-chat",
+    "scheme": "tanstack-ai-rn-chat",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android"],
+    "newArchEnabled": true
+  }
+}

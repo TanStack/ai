@@ -1,0 +1,25 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[mcp-apps] show me the widget",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "content": "Let me open the widget.",
+        "toolCalls": [
+          { "name": "show_widget", "arguments": "{\"title\":\"hello\"}" }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[mcp-apps] show me the widget",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Here is your widget."
+      }
+    }
+  ]
+}

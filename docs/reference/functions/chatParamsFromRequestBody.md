@@ -7,14 +7,15 @@ title: chatParamsFromRequestBody
 
 ```ts
 function chatParamsFromRequestBody(body): Promise<{
+  aguiContext: object[];
   context: object[];
   forwardedProps: Record<string, unknown>;
   messages: (
-     | UIMessage
      | ModelMessage<
      | string
      | ContentPart<unknown, unknown, unknown, unknown, unknown>[]
-    | null>)[];
+     | null>
+    | UIMessage<unknown>)[];
   parentRunId?: string;
   runId: string;
   state: unknown;
@@ -23,7 +24,7 @@ function chatParamsFromRequestBody(body): Promise<{
 }>;
 ```
 
-Defined in: [packages/typescript/ai/src/utilities/chat-params.ts:38](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/utilities/chat-params.ts#L38)
+Defined in: [packages/ai/src/utilities/chat-params.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L44)
 
 Parse and validate an HTTP request body as an AG-UI `RunAgentInput`.
 
@@ -41,14 +42,15 @@ reasoning/activity/developer-role normalization internally.
 ## Returns
 
 `Promise`\<\{
+  `aguiContext`: `object`[];
   `context`: `object`[];
   `forwardedProps`: `Record`\<`string`, `unknown`\>;
   `messages`: (
-     \| [`UIMessage`](../interfaces/UIMessage.md)
      \| [`ModelMessage`](../interfaces/ModelMessage.md)\<
      \| `string`
      \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
-    \| `null`\>)[];
+     \| `null`\>
+    \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>)[];
   `parentRunId?`: `string`;
   `runId`: `string`;
   `state`: `unknown`;

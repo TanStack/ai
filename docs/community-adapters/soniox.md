@@ -29,6 +29,7 @@ Set `SONIOX_API_KEY` in your environment or pass `apiKey` when creating the adap
 ```typescript
 import { generateTranscription } from "@tanstack/ai";
 import { sonioxTranscription } from "@soniox/tanstack-ai-adapter";
+import { audioFile } from "./audio";
 
 const result = await generateTranscription({
   adapter: sonioxTranscription("stt-async-v3"),
@@ -48,6 +49,7 @@ console.log(result.segments);
 ```typescript
 import { generateTranscription } from "@tanstack/ai";
 import { createSonioxTranscription } from "@soniox/tanstack-ai-adapter";
+import { audioFile } from "./audio";
 
 const adapter = createSonioxTranscription("stt-async-v3", process.env.SONIOX_API_KEY!);
 
@@ -86,6 +88,10 @@ See the [Soniox regional endpoints](https://soniox.com/docs/stt/data-residency#r
 Per-request options are passed via `modelOptions`:
 
 ```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { sonioxTranscription } from "@soniox/tanstack-ai-adapter";
+import { audio } from "./audio";
+
 const result = await generateTranscription({
   adapter: sonioxTranscription("stt-async-v3"),
   audio,
@@ -122,6 +128,10 @@ Soniox automatically detects and transcribes speech in [60+ languages](https://s
 Language hints do not restrict recognition. If you pass the TanStack `language` option, this adapter merges it into `languageHints`.
 
 ```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { sonioxTranscription } from "@soniox/tanstack-ai-adapter";
+import { audio } from "./audio";
+
 const result = await generateTranscription({
   adapter: sonioxTranscription("stt-async-v3"),
   audio,
@@ -140,6 +150,10 @@ Provide custom context to improve transcription and translation accuracy. Contex
 The `context` object supports four optional sections:
 
 ```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { sonioxTranscription } from "@soniox/tanstack-ai-adapter";
+import { audio } from "./audio";
+
 const result = await generateTranscription({
   adapter: sonioxTranscription("stt-async-v3"),
   audio,
@@ -168,6 +182,10 @@ For more details, see the [Soniox context documentation](https://soniox.com/docs
 Configure translation for your transcriptions:
 
 ```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { sonioxTranscription } from "@soniox/tanstack-ai-adapter";
+import { audio } from "./audio";
+
 const result = await generateTranscription({
   adapter: sonioxTranscription("stt-async-v3"),
   audio,
@@ -183,6 +201,10 @@ const result = await generateTranscription({
 For two-way translation:
 
 ```typescript
+import { generateTranscription } from "@tanstack/ai";
+import { sonioxTranscription } from "@soniox/tanstack-ai-adapter";
+import { audio } from "./audio";
+
 const result = await generateTranscription({
   adapter: sonioxTranscription("stt-async-v3"),
   audio,
@@ -202,7 +224,9 @@ When using translation, the API returns both transcription tokens and translatio
 
 When using translation or working with multilingual audio, you may need access to raw tokens with per-token language information and translation status. The adapter attaches a non-standard `providerMetadata` field at runtime:
 
-```typescript
+```typescript ignore
+// ignore: providerMetadata is a non-standard runtime extension not on TranscriptionResult;
+// accessing it requires a cast that cannot be expressed without `as`.
 const result = await generateTranscription({
   adapter: sonioxTranscription("stt-async-v3"),
   audio,

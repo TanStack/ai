@@ -1,8 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { generateImage, createImageOptions } from '@tanstack/ai'
+import { generateImage } from '@tanstack/ai'
 import { geminiImage } from '@tanstack/ai-gemini'
 import { openaiImage } from '@tanstack/ai-openai'
 import { openRouterImage } from '@tanstack/ai-openrouter'
+import type { AnyImageAdapter } from '@tanstack/ai'
 
 type Provider = 'openai' | 'gemini' | 'openrouter'
 
@@ -17,37 +18,28 @@ export const Route = createFileRoute('/api/image')({
 
         const defaultModels: Record<Provider, string> = {
           openai: 'gpt-image-1',
-          gemini: 'gemini-2.0-flash-preview-image-generation',
+          gemini: 'gemini-2.5-flash-image',
           openrouter: 'google/gemini-3.1-flash-image-preview',
         }
         const model: string =
           data.model || body.model || defaultModels[provider]
 
         try {
-          const adapterConfig = {
-            gemini: () =>
-              createImageOptions({
-                adapter: geminiImage(model as any),
-              }),
-            openai: () =>
-              createImageOptions({
-                adapter: openaiImage(model as any),
-              }),
-            openrouter: () =>
-              createImageOptions({
-                adapter: openRouterImage(model as any),
-              }),
+          const adapterConfig: Record<Provider, () => AnyImageAdapter> = {
+            gemini: () => geminiImage(model as any),
+            openai: () => openaiImage(model as any),
+            openrouter: () => openRouterImage(model as any),
           }
 
-          // Get typed adapter options using createImageOptions pattern
-          const options = adapterConfig[provider]()
+          // Select the provider's image adapter
+          const adapter = adapterConfig[provider]()
 
           console.log(
             `>> image generation with model: ${model} on provider: ${provider}`,
           )
 
           const result = await generateImage({
-            ...options,
+            adapter,
             prompt,
             numberOfImages,
             size,

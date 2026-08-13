@@ -32,7 +32,7 @@ yarn add @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai
 
 Create a SvelteKit API route that streams chat responses:
 
-```typescript
+```typescript ignore
 // src/routes/api/chat/+server.ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'

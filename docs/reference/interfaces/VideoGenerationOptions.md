@@ -3,9 +3,9 @@ id: VideoGenerationOptions
 title: VideoGenerationOptions
 ---
 
-# Interface: VideoGenerationOptions\<TProviderOptions, TSize\>
+# Interface: VideoGenerationOptions\<TProviderOptions, TSize, TDuration\>
 
-Defined in: [packages/typescript/ai/src/types.ts:1479](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1479)
+Defined in: [packages/ai/src/types.ts:1935](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1935)
 
 **`Experimental`**
 
@@ -24,19 +24,25 @@ These are the common options supported across providers.
 
 `TSize` *extends* `string` \| `undefined` = `string`
 
+### TDuration
+
+`TDuration` *extends* `string` \| `number` \| `undefined` = `number`
+
 ## Properties
 
 ### duration?
 
 ```ts
-optional duration: number;
+optional duration: TDuration;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1490](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1490)
+Defined in: [packages/ai/src/types.ts:1958](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1958)
 
 **`Experimental`**
 
-Video duration in seconds
+Video duration in seconds. Adapters that declare a per-model duration
+map narrow this to the model's valid union; use
+`adapter.snapDuration(seconds)` to coerce raw seconds to a valid value.
 
 ***
 
@@ -46,7 +52,7 @@ Video duration in seconds
 logger: InternalLogger;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1497](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1497)
+Defined in: [packages/ai/src/types.ts:1965](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1965)
 
 **`Experimental`**
 
@@ -61,7 +67,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 model: string;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1484](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1484)
+Defined in: [packages/ai/src/types.ts:1941](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1941)
 
 **`Experimental`**
 
@@ -75,7 +81,7 @@ The model to use for video generation
 optional modelOptions: TProviderOptions;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1492](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1492)
+Defined in: [packages/ai/src/types.ts:1960](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1960)
 
 **`Experimental`**
 
@@ -86,14 +92,19 @@ Model-specific options for video generation
 ### prompt
 
 ```ts
-prompt: string;
+prompt: MediaPrompt;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1486](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1486)
+Defined in: [packages/ai/src/types.ts:1950](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1950)
 
 **`Experimental`**
 
-Text description of the desired video
+Description of the desired video: a plain string, or an ordered array of
+content parts for image-conditioned generation. Image parts may carry
+`metadata.role` (`'start_frame' | 'end_frame' | 'reference' |
+'character'`) to disambiguate intent; adapters route them onto the
+provider-native request (e.g. OpenAI Sora `input_reference`, fal
+`image_url` / `end_image_url`) and throw at runtime if unsupported.
 
 ***
 
@@ -103,7 +114,7 @@ Text description of the desired video
 optional size: TSize;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1488](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1488)
+Defined in: [packages/ai/src/types.ts:1952](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1952)
 
 **`Experimental`**
 

@@ -1,0 +1,74 @@
+{
+  "name": "@tanstack/ai-byteplus",
+  "version": "0.1.1",
+  "description": "BytePlus ModelArk adapter for TanStack AI: Seed LLM chat, Seedance video, Seedream image, and Seed Speech TTS/ASR.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-byteplus"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "byteplus",
+    "modelark",
+    "seed",
+    "seedance",
+    "seedream",
+    "adapter",
+    "llm",
+    "chat",
+    "video-generation",
+    "image-generation",
+    "text-to-speech"
+  ],
+  "devDependencies": {
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.0.14",
+    "vite": "^8.1.4"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "zod": "^4.0.0"
+  },
+  "dependencies": {
+    "@tanstack/ai-utils": "workspace:^",
+    "@tanstack/openai-base": "workspace:^",
+    "openai": "^6.41.0"
+  }
+}

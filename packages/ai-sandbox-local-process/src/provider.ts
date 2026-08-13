@@ -1,0 +1,131 @@
+import { randomUUID } from 'node:crypto'
+import * as fsp from 'node:fs/promises'
+import * as os from 'node:os'
+import * as path from 'node:path'
+import {
+  LOCAL_PROCESS_CAPS,
+  LocalProcessHandle,
+  removeDirWithRetry,
+} from './handle'
+import type { LocalProcessLogger } from './handle'
+import type {
+  SandboxCapabilities,
+  SandboxCreateInput,
+  SandboxDestroyInput,
+  SandboxHandle,
+  SandboxProvider,
+  SandboxResumeInput,
+} from '@tanstack/ai-sandbox'
+
+export interface LocalProcessSandboxConfig {
+  /**
+   * Fixed host directory to use as the workspace (e.g. an existing local repo
+   * checkout). When set, every create/resume uses this exact dir and it is NOT
+   * removed on destroy unless `removeOnDestroy` is explicitly true. When
+   * omitted, each create allocates a fresh temp dir that IS removed on destroy.
+   */
+  dir?: string
+  /** Override the default temp base dir for generated sandboxes. */
+  baseDir?: string
+  /** Remove the backing dir on destroy. Defaults: true (generated), false (fixed `dir`). */
+  removeOnDestroy?: boolean
+  /**
+   * Env vars to remove from the inherited `process.env` before spawning. Use to
+   * let a host CLI fall back to its own stored auth — e.g. scrub
+   * `ANTHROPIC_API_KEY` so Claude Code uses your logged-in subscription instead
+   * of billing the API.
+   */
+  scrubEnv?: Array<string>
+  /**
+   * Sink for non-fatal teardown diagnostics — a `killTree` that could not
+   * confirm the spawned process tree is gone. Teardown is total by construction
+   * (it never throws), so without a logger such a failure is silent.
+   * `@tanstack/ai`'s `InternalLogger` satisfies this shape as-is.
+   */
+  logger?: LocalProcessLogger
+}
+
+class LocalProcessProvider implements SandboxProvider {
+  readonly name = 'local-process'
+
+  constructor(private readonly config: LocalProcessSandboxConfig) {}
+
+  capabilities(): SandboxCapabilities {
+    return LOCAL_PROCESS_CAPS
+  }
+
+  private removeDefault(): boolean {
+    return this.config.removeOnDestroy ?? this.config.dir === undefined
+  }
+
+  private makeHandle(root: string): SandboxHandle {
+    return new LocalProcessHandle({
+      root,
+      removeOnDestroy: this.removeDefault(),
+      scrubEnv: this.config.scrubEnv,
+      logger: this.config.logger,
+      forkFactory: async (sourceRoot) => {
+        const dest = path.join(this.baseDir(), `fork-${randomUUID()}`)
+        await fsp.mkdir(dest, { recursive: true })
+        await fsp.cp(sourceRoot, dest, { recursive: true })
+        return new LocalProcessHandle({
+          root: dest,
+          removeOnDestroy: true,
+          logger: this.config.logger,
+          forkFactory: () =>
+            Promise.reject(new Error('nested fork unsupported')),
+        })
+      },
+    })
+  }
+
+  private baseDir(): string {
+    return (
+      this.config.baseDir ?? path.join(os.tmpdir(), 'tanstack-ai-sandboxes')
+    )
+  }
+
+  async create(_input: SandboxCreateInput): Promise<SandboxHandle> {
+    const root =
+      this.config.dir !== undefined
+        ? path.resolve(this.config.dir)
+        : path.join(this.baseDir(), randomUUID())
+    await fsp.mkdir(root, { recursive: true })
+    return this.makeHandle(root)
+  }
+
+  async resume(input: SandboxResumeInput): Promise<SandboxHandle | null> {
+    // The id is the backing dir path; resume only if it still exists.
+    try {
+      const stat = await fsp.stat(input.id)
+      if (!stat.isDirectory()) return null
+    } catch {
+      return null
+    }
+    return this.makeHandle(input.id)
+  }
+
+  /**
+   * Destroy by id (a dir path). Unlike `LocalProcessHandle.destroy` there is no
+   * handle here, so no children can be killed first — a process spawned through
+   * a handle we no longer hold may still own the dir as its CWD. The bounded
+   * retry is all that is available, and a dir that never releases is reported
+   * through the logger rather than silently left behind.
+   */
+  async destroy(input: SandboxDestroyInput): Promise<void> {
+    if (this.removeDefault()) {
+      await removeDirWithRetry(input.id, this.config.logger)
+    }
+  }
+}
+
+/**
+ * Local-process sandbox provider — runs the agent directly on the host with no
+ * isolation. The fast no-Docker dev loop. See the trust-boundary note in
+ * `handle.ts`.
+ */
+export function localProcessSandbox(
+  config: LocalProcessSandboxConfig = {},
+): SandboxProvider {
+  return new LocalProcessProvider(config)
+}

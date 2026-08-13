@@ -70,6 +70,16 @@ WebFetch — call `resolve-library-id` with the SDK npm name, then `query-docs`.
 - Provider routing: https://openrouter.ai/docs/features/provider-routing
 - (Proxies many providers; uses OpenAI-compatible API.)
 
+## bedrock (Amazon Bedrock)
+
+- Models / API compatibility: https://docs.aws.amazon.com/bedrock/latest/userguide/models-api-compatibility.html
+- Converse API reference (default path): https://docs.aws.amazon.com/bedrock/latest/APIReference/API_runtime_Converse.html
+- OpenAI-compatible Chat Completions: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-chat-completions-mantle.html
+- Responses API (mantle): https://docs.aws.amazon.com/bedrock/latest/userguide/bedrock-mantle.html
+- Cross-region inference profiles: https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
+- API keys: https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html
+- (Default path uses Converse API via `@aws-sdk/client-bedrock-runtime` (adapter `bedrock-converse`). Opt-in paths: `api: 'chat'` → OpenAI-compatible Chat Completions (adapter `bedrock`); `api: 'responses'` → Responses API (adapter `bedrock-responses`).)
+
 ## fal (media-only)
 
 - Models catalog: https://fal.ai/models
@@ -82,6 +92,31 @@ WebFetch — call `resolve-library-id` with the SDK npm name, then `query-docs`.
 - Voices / models: https://elevenlabs.io/docs/api-reference/voices
 - TTS API: https://elevenlabs.io/docs/api-reference/text-to-speech
 - npm SDK: https://www.npmjs.com/package/@elevenlabs/elevenlabs-js
+
+## byteplus (BytePlus ModelArk + Seed Speech)
+
+Two separate products with separate docs trees and separate API keys —
+ModelArk (chat / Seedance video / Seedream image, `ARK_API_KEY`) and
+BytePlus Voice (Seed Speech TTS + ASR, `BYTEPLUS_VOICE_API_KEY`).
+
+- ModelArk docs root: https://docs.byteplus.com/en/docs/ModelArk/ — the chat
+  completions, content-generation-tasks (Seedance) and image-generations
+  (Seedream) pages live under numeric ids that change; navigate from the root
+  or WebSearch "byteplus modelark <endpoint>" rather than deep-linking.
+- Ark data plane base URL: `https://ark.ap-southeast.bytepluses.com/api/v3`
+  (EU: `ark.eu-west.bytepluses.com`, chat + image only)
+- Seed Speech docs root: https://docs.byteplus.com/en/docs/byteplusvoice/
+- Seed Audio 1.0 TTS: https://docs.byteplus.com/en/docs/byteplusvoice/seedaudio-01
+- TTS voice roster: https://docs.byteplus.com/en/docs/byteplusvoice/voicelist
+- No first-party npm SDK is used — the chat path goes through the `openai`
+  SDK via `@tanstack/openai-base`; video/image/speech use hand-written wire
+  types. `@volcengine/ark-runtime` is deliberately **not** a dependency.
+
+> **Docs are unreliable here — probe before trusting.** BytePlus capability
+> tables have been wrong in both directions (structured-output support,
+> Seedance resolution tiers, the tool `type` value), and published model lists
+> include ids that no longer resolve. Verify any claim against a live request
+> before changing `model-meta.ts` or `feature-support.ts`.
 
 ---
 

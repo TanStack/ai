@@ -6,13 +6,8 @@ import {
   mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import type { Tool } from '@tanstack/ai'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { serverTools } from '@/lib/guitar-tools'
-
-const serverToolsRecord: Record<string, Tool> = Object.fromEntries(
-  serverTools.map((t) => [t.name, t]),
-)
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -75,11 +70,11 @@ export const Route = createFileRoute('/api/chat')({
         }
 
         try {
-          const mergedTools = mergeAgentTools(serverToolsRecord, params.tools)
+          const mergedTools = mergeAgentTools(serverTools, params.tools)
           // Use the stream abort signal for proper cancellation handling
           const stream = chat({
             adapter: anthropicText('claude-sonnet-4-5'),
-            tools: Object.values(mergedTools),
+            tools: mergedTools,
             systemPrompts: [SYSTEM_PROMPT],
             agentLoopStrategy: maxIterations(20),
             messages: params.messages,

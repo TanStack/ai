@@ -18,9 +18,9 @@ import * as path from 'node:path'
 const STATIC_ENV_LOCAL_PATHS = [
   'testing/panel/.env.local',
   'testing/e2e/.env.local',
-  'packages/typescript/ai-code-mode/.env.local',
-  'packages/typescript/ai-anthropic/live-tests/.env.local',
-  'packages/typescript/ai-openai/live-tests/.env.local',
+  'packages/ai-code-mode/.env.local',
+  'packages/ai-anthropic/live-tests/.env.local',
+  'packages/ai-openai/live-tests/.env.local',
 ]
 
 /**

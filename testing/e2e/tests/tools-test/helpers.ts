@@ -32,12 +32,30 @@ export async function selectScenario(
   const params = new URLSearchParams()
   if (testId) params.set('testId', testId)
   if (aimockPort) params.set('aimockPort', String(aimockPort))
+  params.set('scenario', scenario)
   const qs = params.toString()
   await page.goto(`/tools-test${qs ? '?' + qs : ''}`)
   await page.waitForSelector('#run-test-button')
 
-  // Wait for hydration
+  // Give React time to attach delegated event handlers before clicking.
   await page.waitForTimeout(500)
+
+  const isScenarioSelected = async (timeout: number) =>
+    page
+      .waitForFunction(
+        (expected) => {
+          const metadata = document.getElementById('test-metadata')
+          return metadata?.getAttribute('data-scenario') === expected
+        },
+        scenario,
+        { timeout },
+      )
+      .then(() => true)
+      .catch(() => false)
+
+  if (await isScenarioSelected(5000)) {
+    return
+  }
 
   // Try selecting multiple times
   for (let attempt = 0; attempt < 3; attempt++) {
@@ -53,10 +71,10 @@ export async function selectScenario(
 
   // Verify scenario is selected
   await page.waitForFunction(
-    (expected) =>
-      document
-        .getElementById('test-metadata')
-        ?.getAttribute('data-scenario') === expected,
+    (expected) => {
+      const metadata = document.getElementById('test-metadata')
+      return metadata?.getAttribute('data-scenario') === expected
+    },
     scenario,
     { timeout: 10000 },
   )
@@ -67,9 +85,77 @@ export async function selectScenario(
 
 /**
  * Click #run-test-button and wait for loading to start.
+ *
+ * Uses the pre-click message count as a baseline so that a fixture which is
+ * already populated (non-empty messages JSON) does not register as a started
+ * run on its own. A run is considered started when either:
+ *   1. data-is-loading === "true", OR
+ *   2. the parsed message count has grown beyond the pre-click baseline.
  */
 export async function runTest(page: Page): Promise<void> {
-  await page.click('#run-test-button')
+  const readMessageCount = () =>
+    page.evaluate(() => {
+      const text =
+        document.getElementById('messages-json-content')?.textContent || '[]'
+      try {
+        const parsed = JSON.parse(text)
+        return Array.isArray(parsed) ? parsed.length : 0
+      } catch {
+        return 0
+      }
+    })
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const baselineMessageCount = await readMessageCount()
+    await page.click('#run-test-button')
+
+    // A run "starts" only when real stream activity appears — not when the
+    // optimistic user message lands. Clicking adds one user message
+    // synchronously (baseline + 1); that alone must NOT count as started, or a
+    // stalled run (the click registered but the stream produced nothing) would
+    // be reported as started and the test would later time out waiting for an
+    // approval / completion that never comes. Real activity is: loading turned
+    // on, a tool call appeared, the test completed, or a *second* message (the
+    // assistant response) was added beyond the optimistic user message. Poll
+    // briefly so a slow-but-real run under CI load isn't mistaken for a stall.
+    const started = await page
+      .waitForFunction(
+        (baseline) => {
+          const metadata = document.getElementById('test-metadata')
+          if (metadata?.getAttribute('data-is-loading') === 'true') return true
+          if (
+            parseInt(
+              metadata?.getAttribute('data-tool-call-count') || '0',
+              10,
+            ) > 0
+          )
+            return true
+          if (metadata?.getAttribute('data-test-complete') === 'true')
+            return true
+          const text =
+            document.getElementById('messages-json-content')?.textContent ||
+            '[]'
+          try {
+            const parsed = JSON.parse(text)
+            // > baseline + 1: the assistant message arrived (a real response),
+            // not just the optimistic user message.
+            return Array.isArray(parsed) && parsed.length > baseline + 1
+          } catch {
+            return false
+          }
+        },
+        baselineMessageCount,
+        { timeout: 2000 },
+      )
+      .then(() => true)
+      .catch(() => false)
+
+    if (started) {
+      return
+    }
+  }
+
+  throw new Error('Run test button did not start a chat run')
 }
 
 /**
@@ -109,6 +195,41 @@ export async function waitForTestComplete(
 }
 
 /**
+ * Wait for client-side execution events to be reflected in the event log.
+ *
+ * Tool call completion can be visible in message state before React has flushed
+ * the separate event-log state update used by these assertions.
+ */
+export async function waitForExecutionComplete(
+  page: Page,
+  toolName: string,
+  timeout = 10000,
+): Promise<void> {
+  await page.waitForFunction(
+    (expectedToolName) => {
+      const el = document.getElementById('event-log-json')
+      if (!el) return false
+
+      try {
+        const events = JSON.parse(el.textContent || '[]') as Array<{
+          type?: string
+          toolName?: string
+        }>
+        return events.some(
+          (event) =>
+            event.type === 'execution-complete' &&
+            event.toolName === expectedToolName,
+        )
+      } catch {
+        return false
+      }
+    },
+    toolName,
+    { timeout },
+  )
+}
+
+/**
  * Wait for the #approval-section element to become visible.
  */
 export async function waitForApproval(
@@ -142,6 +263,7 @@ export async function getMetadata(page: Page): Promise<Record<string, string>> {
       approvalDeniedCount: el.getAttribute('data-approval-denied-count') || '',
       hasError: el.getAttribute('data-has-error') || '',
       errorMessage: el.getAttribute('data-error-message') || '',
+      errorRawEvent: el.getAttribute('data-error-raw-event') || '',
     }
   })
 }
@@ -171,6 +293,21 @@ export async function getToolCalls(
 ): Promise<Array<{ id: string; name: string; state: string }>> {
   return page.evaluate(() => {
     const el = document.getElementById('tool-calls-json')
+    if (!el) return []
+    try {
+      return JSON.parse(el.textContent || '[]')
+    } catch {
+      return []
+    }
+  })
+}
+
+/**
+ * Parse the full UIMessage array from #messages-json-content.
+ */
+export async function getMessages(page: Page): Promise<Array<any>> {
+  return page.evaluate(() => {
+    const el = document.getElementById('messages-json-content')
     if (!el) return []
     try {
       return JSON.parse(el.textContent || '[]')

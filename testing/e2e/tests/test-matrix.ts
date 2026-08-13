@@ -20,8 +20,15 @@ export const providers: Provider[] = [
   'ollama',
   'groq',
   'grok',
+  'bedrock',
+  'bedrock-responses',
   'openrouter',
   'openrouter-responses',
+  'vercel-gateway',
+  'vercel-gateway-responses',
+  'openai-compatible',
+  'mistral',
+  'byteplus',
   'elevenlabs',
 ]
 

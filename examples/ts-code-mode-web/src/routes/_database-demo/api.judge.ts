@@ -53,7 +53,8 @@ export const Route = createFileRoute('/_database-demo/api/judge' as any)({
             ],
             systemPrompts: [JUDGE_SYSTEM_PROMPT],
             outputSchema: judgeSchema,
-            maxTokens: 512,
+            // Sampling lives in provider-native `modelOptions` now (Anthropic: `max_tokens`).
+            modelOptions: { max_tokens: 512 },
           })
 
           return new Response(JSON.stringify(result), {

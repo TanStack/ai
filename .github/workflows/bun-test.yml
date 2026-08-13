@@ -1,0 +1,54 @@
+name: Bun Tests
+
+# The `@tanstack/ai-isolate-quickjs-bun` driver runs QuickJS natively through
+# `bun:ffi`, so its substantive test suite (escape attempts, timeouts, memory
+# limits, maxToolCalls, concurrency) is gated with
+# `describe.skipIf(typeof Bun === 'undefined')` and only runs under Bun. The
+# standard PR job (`pr.yml`) runs Vitest on Node and therefore only exercises
+# the "rejects createContext on Node.js" case. This workflow runs the Bun-gated
+# suite so that behavior is actually covered in CI.
+#
+# It is path-filtered to the package (and this file) to keep it off unrelated
+# PRs.
+
+on:
+  pull_request:
+    paths:
+      - 'packages/ai-isolate-quickjs-bun/**'
+      - 'packages/ai-code-mode/**'
+      - '.github/workflows/bun-test.yml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  NX_CLOUD_ACCESS_TOKEN: ${{ secrets.NX_CLOUD_ACCESS_TOKEN }}
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (Bun)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Setup Tools
+        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          # The driver requires Bun >= 1.3.14 (see the package `engines` field).
+          bun-version: latest
+      - name: Build package and its workspace dependencies
+        # `@tanstack/ai-code-mode` is a `workspace:*` peer dependency and is
+        # imported at runtime (`wrapCode`) by the driver, so it must be built to
+        # `dist/` before the Bun tests can import it. nx builds the dependency
+        # graph first via `^build`.
+        run: pnpm exec nx build @tanstack/ai-isolate-quickjs-bun
+      - name: Run Bun test suite
+        run: pnpm --filter @tanstack/ai-isolate-quickjs-bun run test:bun

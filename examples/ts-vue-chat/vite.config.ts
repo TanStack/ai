@@ -230,7 +230,7 @@ export default defineConfig({
                 adapter = anthropicText(selectedModel)
                 break
               case 'gemini':
-                selectedModel = model || 'gemini-2.0-flash'
+                selectedModel = model || 'gemini-2.5-flash'
                 adapter = geminiText(selectedModel)
                 break
               case 'ollama':
@@ -256,7 +256,7 @@ export default defineConfig({
 
             const stream = chat({
               adapter,
-              tools: Object.values(mergeAgentTools(serverTools, params.tools)),
+              tools: mergeAgentTools(serverTools, params.tools),
               systemPrompts: [SYSTEM_PROMPT],
               agentLoopStrategy: maxIterations(20),
               messages: params.messages,

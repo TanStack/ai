@@ -2,15 +2,27 @@ import { Link } from '@tanstack/react-router'
 
 import { useState } from 'react'
 import {
+  Activity,
+  BadgeCheck,
   Braces,
+  Code2,
+  Database,
   FileAudio,
   FileText,
   Guitar,
   Home,
   Image,
+  Layers,
+  LayoutGrid,
   Menu,
+  MessageSquare,
   Mic,
   Music,
+  PauseCircle,
+  Plug,
+  RefreshCw,
+  Server,
+  Sparkles,
   Video,
   X,
 } from 'lucide-react'
@@ -74,6 +86,19 @@ export default function Header() {
           <p className="text-xs text-gray-500 uppercase tracking-wider px-3 pt-2 pb-1">
             Generations
           </p>
+
+          <Link
+            to="/generation-hooks"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Activity size={20} />
+            <span className="font-medium">Generation Hooks</span>
+          </Link>
 
           <Link
             to="/generations/image"
@@ -154,6 +179,19 @@ export default function Header() {
           </Link>
 
           <Link
+            to="/generations/persistent-generation"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Database size={20} />
+            <span className="font-medium">Persistent Generation</span>
+          </Link>
+
+          <Link
             to="/generations/structured-output"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
@@ -199,6 +237,58 @@ export default function Header() {
           </Link>
 
           <Link
+            to="/typesafe-tools"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Code2 size={20} />
+            <span className="font-medium">Type-Safe Tools</span>
+          </Link>
+
+          <Link
+            to="/threads"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <MessageSquare size={20} />
+            <span className="font-medium">Persistent Chats</span>
+          </Link>
+
+          <Link
+            to="/queueing"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Layers size={20} />
+            <span className="font-medium">Queueing Strategies</span>
+          </Link>
+
+          <Link
+            to="/example/runtime-context"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <BadgeCheck size={20} />
+            <span className="font-medium">Runtime Context</span>
+          </Link>
+
+          <Link
             to="/realtime"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
@@ -209,6 +299,97 @@ export default function Header() {
           >
             <Mic size={20} />
             <span className="font-medium">Voice Chat (Realtime)</span>
+          </Link>
+
+          <Link
+            to="/server-fn-chat"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Server size={20} />
+            <span className="font-medium">Server Function Chat</span>
+          </Link>
+
+          <Link
+            to="/resumable"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <RefreshCw size={20} />
+            <span className="font-medium">Resumable Streams</span>
+          </Link>
+
+          <Link
+            to="/persistent-chat"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Database size={20} />
+            <span className="font-medium">Persistent Chat</span>
+          </Link>
+
+          <Link
+            to="/interrupts"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <PauseCircle size={20} />
+            <span className="font-medium">Interrupts Lab</span>
+          </Link>
+
+          <Link
+            to="/mcp-demo"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Plug size={20} />
+            <span className="font-medium">MCP Servers</span>
+          </Link>
+
+          <Link
+            to="/mcp-apps"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <LayoutGrid size={20} />
+            <span className="font-medium">MCP Apps</span>
+          </Link>
+
+          <Link
+            to="/capability-demo"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Sparkles size={20} />
+            <span className="font-medium">Capability Middleware</span>
           </Link>
         </nav>
       </aside>

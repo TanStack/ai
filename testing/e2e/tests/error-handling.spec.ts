@@ -28,6 +28,33 @@ test.describe('Error Handling', () => {
     await expect(page.locator('#error-display')).toBeVisible()
   })
 
+  test('RUN_ERROR rawEvent survives transport and reaches the consumer', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'error', testId, aimockPort)
+    await runTest(page)
+
+    await page.waitForFunction(
+      () =>
+        document
+          .querySelector('#test-metadata')
+          ?.getAttribute('data-has-error') === 'true',
+      { timeout: 10000 },
+    )
+
+    // The provider's structured error body forwarded as RUN_ERROR.rawEvent must
+    // survive SSE transport + the strip-to-spec middleware and be recoverable
+    // on the consumer-facing error.
+    const metadata = await getMetadata(page)
+    expect(metadata.errorRawEvent).not.toBe('')
+    expect(JSON.parse(metadata.errorRawEvent)).toEqual({
+      provider_name: 'test-provider',
+      raw: { reason: 'upstream overloaded' },
+    })
+  })
+
   // Fixture loaded from fixtures/error/basic.json (static, shared across workers)
   test('aimock error fixture returns error to client', async ({
     page,

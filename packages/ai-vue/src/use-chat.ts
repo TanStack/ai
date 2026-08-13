@@ -1,0 +1,421 @@
+import { ChatClient } from '@tanstack/ai-client'
+import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
+import {
+  computed,
+  onMounted,
+  onScopeDispose,
+  readonly,
+  shallowRef,
+  watch,
+} from 'vue'
+import type {
+  AnyClientTool,
+  InferSchemaType,
+  ModelMessage,
+  RunAgentResumeItem,
+  SchemaInput,
+  StreamChunk,
+} from '@tanstack/ai'
+import type {
+  ChatClientState,
+  ChatInterrupt,
+  ChatInterruptState,
+  ChatResumeState,
+  ConnectionStatus,
+  InferredClientContext,
+  QueuedMessage,
+  SendMessageOptions,
+  StructuredOutputPart,
+} from '@tanstack/ai-client'
+import type {
+  DeepPartial,
+  MultimodalContent,
+  UIMessage,
+  UseChatOptions,
+  UseChatReturn,
+} from './types'
+
+const EMPTY_INTERRUPTS = Object.freeze([])
+const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
+
+export function useChat<
+  const TTools extends ReadonlyArray<AnyClientTool> = any,
+  TSchema extends SchemaInput | undefined = undefined,
+  TContext = InferredClientContext<TTools>,
+>(
+  options: UseChatOptions<TTools, TSchema, TContext> = {} as UseChatOptions<
+    TTools,
+    TSchema,
+    TContext
+  >,
+): UseChatReturn<TTools, TSchema> {
+  const messages = shallowRef<Array<UIMessage<TTools>>>(
+    options.initialMessages || [],
+  )
+  const isLoading = shallowRef(false)
+  const error = shallowRef<Error | undefined>(undefined)
+  const status = shallowRef<ChatClientState>('ready')
+  const isSubscribed = shallowRef(false)
+  const connectionStatus = shallowRef<ConnectionStatus>('disconnected')
+  const sessionGenerating = shallowRef(false)
+  const queue = shallowRef<Array<QueuedMessage>>([])
+  const runId = shallowRef<string | null>(null)
+  const interruptState = shallowRef<ChatInterruptState<TTools>>({
+    interrupts: EMPTY_INTERRUPTS,
+    pendingInterrupts: EMPTY_INTERRUPTS,
+    interruptErrors: EMPTY_INTERRUPT_ERRORS,
+    resuming: false,
+  })
+
+  // Structured-output `partial` / `final` are derived from `messages` —
+  // specifically from the structured-output part on the latest assistant
+  // message (the one after the most recent user message). This keeps
+  // history coherent: every assistant turn carries its own typed
+  // structured-output part, and the hook-level sugar always reflects the
+  // freshest turn without a separate reset signal.
+  type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
+  type Final = InferSchemaType<NonNullable<TSchema>>
+
+  // Create ChatClient instance with callbacks to sync state.
+  // Every user-provided callback is wrapped so the LATEST `options.xxx` value
+  // is read at call time. Direct assignment would freeze the callback to the
+  // reference we saw at setup time; the wrapper lets reactive `options` or
+  // in-place mutations propagate. When the user clears a callback (sets it to
+  // undefined), `?.` no-ops — unlike `client.updateOptions`, which silently
+  // skips undefined and leaves the old callback installed.
+  //
+  // Conditional spreads for `initialMessages`, `body`, `forwardedProps`, and
+  // `tools`: the ChatClient target declares those as strict-optional
+  // (`field?: T`), so under `exactOptionalPropertyTypes` we omit the key when
+  // the source value is `undefined` instead of assigning `undefined`.
+  const transport = options.connection
+    ? { connection: options.connection }
+    : { fetcher: options.fetcher }
+
+  // The hook's identity is its `threadId`, which ChatClient also uses as the
+  // persistence key — no separate `id`. When no `threadId` is given the client
+  // generates one, so an ephemeral chat still works but is not restored on reload.
+  const client = new ChatClient<TTools, TContext>({
+    devtoolsBridgeFactory: createChatDevtoolsBridge,
+    ...transport,
+    ...(options.initialMessages !== undefined && {
+      initialMessages: options.initialMessages,
+    }),
+    ...(options.persistence !== undefined && {
+      persistence: options.persistence,
+    }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
+    }),
+    ...(options.body !== undefined && { body: options.body }),
+    ...(options.threadId !== undefined && { threadId: options.threadId }),
+    ...(options.forwardedProps !== undefined && {
+      forwardedProps: options.forwardedProps,
+    }),
+    ...(options.context !== undefined && { context: options.context }),
+    devtools: {
+      ...options.devtools,
+      framework: 'vue',
+      hookName: 'useChat',
+      outputKind: options.outputSchema ? 'structured' : 'chat',
+    },
+    onResponse: (response) => options.onResponse?.(response),
+    onChunk: (chunk: StreamChunk) => {
+      options.onChunk?.(chunk)
+    },
+    onFinish: (message) => {
+      options.onFinish?.(message)
+    },
+    onError: (err) => {
+      options.onError?.(err)
+    },
+    tools: options.tools,
+    onCustomEvent: (eventType, data, context) =>
+      options.onCustomEvent?.(eventType, data, context),
+    ...(options.streamProcessor !== undefined && {
+      streamProcessor: options.streamProcessor,
+    }),
+    onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
+      messages.value = newMessages
+    },
+    onLoadingChange: (newIsLoading: boolean) => {
+      isLoading.value = newIsLoading
+      syncResumeState()
+    },
+    onStatusChange: (newStatus: ChatClientState) => {
+      status.value = newStatus
+    },
+    onErrorChange: (newError: Error | undefined) => {
+      error.value = newError
+    },
+    onSubscriptionChange: (nextIsSubscribed: boolean) => {
+      isSubscribed.value = nextIsSubscribed
+    },
+    onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
+      connectionStatus.value = nextStatus
+    },
+    onSessionGeneratingChange: (isGenerating: boolean) => {
+      sessionGenerating.value = isGenerating
+    },
+    ...(options.queue !== undefined && { queue: options.queue }),
+    onQueueChange: (nextQueue: Array<QueuedMessage>) => {
+      queue.value = nextQueue
+    },
+    onRunIdChange: (nextRunId) => {
+      runId.value = nextRunId
+    },
+    onInterruptStateChange: (nextInterruptState) => {
+      interruptState.value = nextInterruptState
+      options.onInterruptStateChange?.(nextInterruptState)
+    },
+  })
+
+  function syncResumeState() {
+    runId.value = client.getCurrentRunId()
+    interruptState.value = client.getInterruptState()
+  }
+
+  messages.value = client.getMessages()
+  interruptState.value = client.getInterruptState()
+
+  // Sync body / forwardedProps changes to the client.
+  // Both populate the same wire payload; `forwardedProps` is preferred
+  // and `body` is deprecated but still supported.
+  // Conditional spread: `updateOptions` declares strict-optional fields and
+  // rejects explicit `undefined` under EOPT.
+  watch(
+    () =>
+      [
+        options.body,
+        options.forwardedProps,
+        options.context,
+        options.queue,
+      ] as const,
+    ([newBody, newForwardedProps, newContext, newQueue]) => {
+      client.updateOptions({
+        body: newBody,
+        ...(newForwardedProps !== undefined && {
+          forwardedProps: newForwardedProps,
+        }),
+        context: newContext,
+        ...(newQueue !== undefined && { queue: newQueue }),
+      })
+    },
+  )
+
+  watch(
+    () => options.live,
+    (live) => {
+      if (live) {
+        client.subscribe()
+      } else {
+        client.unsubscribe()
+      }
+    },
+    { immediate: true },
+  )
+
+  onMounted(() => {
+    // START TAILING HERE, not in the constructor. A client is idle until a view
+    // attaches it, so a client that gets built and thrown away never opens a
+    // connection — an unreachable stream would hold one of the browser's ~6
+    // connections per origin until the page reloaded.
+    client.attach()
+    client.mountDevtools()
+    // Delivery-durability resume is transparent: the resumable SSE connection
+    // adapter reattaches via the browser's native Last-Event-ID on reconnect.
+    // We only seed interrupt (state) resume from the client here.
+    syncResumeState()
+  })
+
+  // Cleanup on unmount: stop any in-flight requests
+  // Note: client.stop() is safe to call even if nothing is in progress
+  onScopeDispose(() => {
+    // Release the connection first: the counterpart of the `attach` above. It keeps
+    // the transcript and resume pointer, so a later mount picks the run back up.
+    client.detach()
+    if (options.live) {
+      client.unsubscribe()
+    } else {
+      client.stop()
+    }
+    client.dispose()
+  })
+
+  // Callback options are read through `options.xxx` at call time, so reactive
+  // or mutated options propagate without recreating the client.
+
+  const sendMessage = async (
+    content: string | MultimodalContent,
+    sendOptions?: SendMessageOptions,
+  ) => {
+    try {
+      await client.sendMessage(content, undefined, sendOptions)
+    } finally {
+      syncResumeState()
+    }
+  }
+
+  const cancelQueued = (id: string) => client.cancelQueued(id)
+
+  const append = async (message: ModelMessage | UIMessage<TTools>) => {
+    try {
+      await client.append(message)
+    } finally {
+      syncResumeState()
+    }
+  }
+
+  const reload = async () => {
+    try {
+      await client.reload()
+    } finally {
+      syncResumeState()
+    }
+  }
+
+  const stop = () => {
+    client.stop()
+  }
+
+  const clear = () => {
+    client.clear()
+    syncResumeState()
+  }
+
+  const setMessagesManually = (newMessages: Array<UIMessage<TTools>>) => {
+    client.setMessagesManually(newMessages)
+  }
+
+  const addToolResult = async (result: {
+    toolCallId: string
+    tool: string
+    output: any
+    state?: 'output-available' | 'output-error'
+    errorText?: string
+  }) => {
+    await client.addToolResult(result)
+  }
+
+  const addToolApprovalResponse = async (response: {
+    id: string
+    approved: boolean
+  }) => {
+    await client.addToolApprovalResponse(response)
+    syncResumeState()
+  }
+
+  const resumeInterrupts = async (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => {
+    const result = await client.resumeInterrupts(resumeItems, state)
+    syncResumeState()
+    return result
+  }
+
+  const interrupts = computed(() => interruptState.value.interrupts)
+  const pendingInterrupts = computed(() => interruptState.value.interrupts)
+  const interruptErrors = computed(() => interruptState.value.interruptErrors)
+  const resuming = computed(() => interruptState.value.resuming)
+
+  const resolveInterrupts = (
+    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+  ) => {
+    if (typeof resolution === 'boolean') {
+      client.resolveInterrupts(resolution)
+    } else {
+      client.resolveInterrupts(resolution)
+    }
+  }
+
+  const cancelInterrupts = () => {
+    client.cancelInterrupts()
+  }
+
+  const retryInterrupts = () => {
+    client.retryInterrupts()
+  }
+
+  const resumeInterruptsUnsafe = (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => client.resumeInterruptsUnsafe(resumeItems, state)
+
+  // The "active" structured-output part is the one on the assistant message
+  // that follows the latest user message. No such message exists between
+  // sendMessage() and the first chunk, so partial/final naturally read as
+  // cleared. If there is no user message yet (e.g. initialMessages only has
+  // a stale assistant turn), we return null rather than scanning history —
+  // otherwise a `final` from a previous session would leak into the value
+  // on first render.
+  const activeStructuredPart = computed<StructuredOutputPart | null>(() => {
+    const list = messages.value
+    let lastUserIndex = -1
+    for (let i = list.length - 1; i >= 0; i--) {
+      if (list[i]?.role === 'user') {
+        lastUserIndex = i
+        break
+      }
+    }
+    if (lastUserIndex === -1) return null
+    for (let i = list.length - 1; i > lastUserIndex; i--) {
+      const m = list[i]
+      if (m?.role !== 'assistant') continue
+      const part = m.parts.find(
+        (p): p is StructuredOutputPart => p.type === 'structured-output',
+      )
+      if (part) return part
+    }
+    return null
+  })
+
+  const partial = computed<Partial>(() => {
+    const part = activeStructuredPart.value
+    if (!part) return {} as Partial
+    const v = part.partial ?? part.data
+    return (v ?? {}) as Partial
+  })
+
+  const final = computed<Final | null>(() => {
+    const part = activeStructuredPart.value
+    if (!part || part.status !== 'complete') return null
+    return part.data as Final
+  })
+
+  // partial / final are runtime-tracked unconditionally; the conditional
+  // return type (UseChatReturn<TTools, TSchema>) hides them from callers that
+  // didn't supply `outputSchema`.
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- composable return shape diverges from conditional UseChatReturn<TTools, TSchema>; TS can't structurally narrow the TSchema-gated partial/final refs
+  return {
+    messages: readonly(messages),
+    sendMessage,
+    queue: readonly(queue),
+    cancelQueued,
+    append,
+    reload,
+    stop,
+    isLoading: readonly(isLoading),
+    error: readonly(error),
+    status: readonly(status),
+    isSubscribed: readonly(isSubscribed),
+    connectionStatus: readonly(connectionStatus),
+    sessionGenerating: readonly(sessionGenerating),
+    setMessages: setMessagesManually,
+    clear,
+    addToolResult,
+    addToolApprovalResponse,
+    runId: readonly(runId),
+    interrupts: readonly(interrupts),
+    pendingInterrupts: readonly(pendingInterrupts),
+    interruptErrors: readonly(interruptErrors),
+    resuming: readonly(resuming),
+    resolveInterrupts,
+    cancelInterrupts,
+    retryInterrupts,
+    resumeInterruptsUnsafe,
+    resumeInterrupts,
+    partial: readonly(partial),
+    final: readonly(final),
+  } as unknown as UseChatReturn<TTools, TSchema>
+}

@@ -69,8 +69,8 @@ async function main() {
 
   console.log('🔍 Scanning for packages with version 1.0.0...\n')
 
-  // Find all package.json files in packages/typescript
-  const packageJsonFiles = await glob('packages/typescript/*/package.json', {
+  // Find all package.json files in packages
+  const packageJsonFiles = await glob('packages/*/package.json', {
     ignore: ['**/node_modules/**'],
   })
 

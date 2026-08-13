@@ -5,7 +5,7 @@ title: StructuredOutputCompleteEvent
 
 # Interface: StructuredOutputCompleteEvent\<T\>
 
-Defined in: [packages/typescript/ai/src/types.ts:1109](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1109)
+Defined in: [packages/ai/src/types.ts:1360](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1360)
 
 Final event of a streaming structured-output run. Carries the validated
 `object` (typed as `T` after the orchestrator runs Standard Schema parsing),
@@ -26,7 +26,7 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 
 ## Extends
 
-- `Omit`\<[`CustomEvent`](CustomEvent.md), `"name"` \| `"value"`\>
+- [`CustomEvent`](CustomEvent.md)
 
 ## Type Parameters
 
@@ -37,14 +37,26 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 ## Indexable
 
 ```ts
-[key: string]: unknown
-```
-
-```ts
-[key: number]: unknown
+[k: string]: unknown
 ```
 
 ## Properties
+
+### model?
+
+```ts
+optional model: string;
+```
+
+Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
+
+Model identifier for multi-model support
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+
+***
 
 ### name
 
@@ -52,7 +64,13 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 name: "structured-output.complete";
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1113](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1113)
+Defined in: [packages/ai/src/types.ts:1363](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1363)
+
+#### Overrides
+
+```ts
+CustomEvent.name
+```
 
 ***
 
@@ -62,7 +80,7 @@ Defined in: [packages/typescript/ai/src/types.ts:1113](https://github.com/TanSta
 value: object;
 ```
 
-Defined in: [packages/typescript/ai/src/types.ts:1114](https://github.com/TanStack/ai/blob/main/packages/typescript/ai/src/types.ts#L1114)
+Defined in: [packages/ai/src/types.ts:1364](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1364)
 
 #### object
 
@@ -80,4 +98,10 @@ raw: string;
 
 ```ts
 optional reasoning: string;
+```
+
+#### Overrides
+
+```ts
+CustomEvent.value
 ```

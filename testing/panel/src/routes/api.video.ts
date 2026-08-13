@@ -61,7 +61,7 @@ export const Route = createFileRoute('/api/video')({
               return new Response(
                 JSON.stringify({
                   action: 'status',
-                  jobId: result.jobId,
+                  jobId,
                   status: result.status,
                   progress: result.progress,
                   error: result.error,
