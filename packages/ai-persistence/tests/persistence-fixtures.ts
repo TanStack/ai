@@ -88,6 +88,7 @@ export function createInterruptStore(): InterruptStore {
     create: () => Promise.resolve(),
     resolve: () => Promise.resolve(),
     cancel: () => Promise.resolve(),
+    commitBatch: () => Promise.resolve(),
     get: () => Promise.resolve(null),
     list: () => Promise.resolve([]),
     listPending: () => Promise.resolve([]),

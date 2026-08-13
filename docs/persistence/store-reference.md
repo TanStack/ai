@@ -216,8 +216,13 @@ interface InterruptRecord {
   response?: unknown
 }
 
+type InterruptCommitEntry =
+  | { interruptId: string; status: 'resolved'; response?: unknown }
+  | { interruptId: string; status: 'cancelled' }
+
 interface InterruptStore {
   create(record: Omit<InterruptRecord, 'status' | 'resolvedAt'>): Promise<void>
+  commitBatch?(entries: ReadonlyArray<InterruptCommitEntry>): Promise<void>
   resolve(interruptId: string, response?: unknown): Promise<void>
   cancel(interruptId: string): Promise<void>
   get(interruptId: string): Promise<InterruptRecord | null>
@@ -227,6 +232,10 @@ interface InterruptStore {
   listPendingByRun(runId: string): Promise<Array<InterruptRecord>>
 }
 ```
+
+`commitBatch` is optional. Use one database transaction for all entries when
+you implement it. The legacy `resolve` and `cancel` fallback is sequential and
+is not atomic.
 
 `create` accepts a record without `status`/`resolvedAt` so every interrupt is
 born `'pending'`; it is insert-if-absent, so a duplicate `create` never clobbers

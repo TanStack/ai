@@ -2,7 +2,7 @@
 title: Multiple Interrupts
 id: interrupts-multiple
 order: 3
-description: "Render a queue of pending decisions and resolve them item by item or all at once as one atomic batch."
+description: "Render a queue of pending decisions and resolve them item by item or all at once as one validated batch."
 keywords:
   - tanstack ai
   - ag-ui interrupts
@@ -13,9 +13,9 @@ keywords:
 
 # Multiple Interrupts
 
-One run can pause on several decisions at once. The model lines up three
-transfers, or an approval and a question land together. You want to show the
-whole queue and send the answers back together, not one round trip each.
+One run can pause on several decisions at once. A tool approval and a generic
+middleware request can land in the same batch. You want to show the whole queue
+and send the answers back together, not one round trip each.
 
 ## Two ways to resolve
 
@@ -27,8 +27,8 @@ call a method on the item itself.
 interrupt.resolveInterrupt(true)
 ```
 
-When several are pending, it is often easier to answer them all from one place.
-The `useChat` hook gives you root helpers that act on the whole queue:
+When several client-owned items are pending, it is often easier to answer them
+all from one place. The `useChat` hook gives you root helpers for those items:
 
 ```ts ignore
 // All at once: one callback decides every pending item.
@@ -42,8 +42,19 @@ resolveInterrupts((interrupt) => {
 ```
 
 Both stage local drafts. Nothing goes to the server until every pending item has
-an answer, then the whole set submits at once. The server accepts all of them or
-none, so you never end up with half a batch applied.
+an answer. Then the client submits the whole set at once. The server validates
+the whole set before it accepts any item.
+
+When persistence is enabled, `InterruptStore.commitBatch()` can commit the
+validated batch in one database transaction. Without `commitBatch()`, the
+compatibility fallback writes items in sequence. That fallback is not atomic.
+
+For a mixed batch, switch on `kind`. Registered generic items use their
+definition id to narrow their payload and response. Tool approvals keep their
+own controls. A generic item with a valid raw binding has untyped controls and
+joins the resume batch. An `unbound` item has a missing, malformed, or
+unsupported binding. It remains visible, has no controls, and does not block
+the resumable items.
 
 ## Render the queue
 
@@ -110,9 +121,10 @@ export function DecisionQueue() {
 
 ## Resolve every item from one callback
 
-`resolveInterrupts(callback)` runs your callback once per item inside a single
-synchronous transaction. It must resolve or cancel every item. If it throws or
-leaves one item unanswered, nothing submits:
+`resolveInterrupts(callback)` runs your callback once per resumable item in a
+single synchronous transaction. This includes valid raw external generic
+bindings. It must resolve or cancel every such item. If it throws or leaves one
+unanswered, nothing submits:
 
 ```ts ignore
 resolveInterrupts((interrupt) => {
@@ -130,7 +142,7 @@ Two shortcuts cover the common cases:
   whole queue. It works only when every item is a tool approval that needs no
   payload or edits. Generic items, mixed queues, or required payloads are
   rejected.
-- `cancelInterrupts()` cancels every item with no payload.
+- `cancelInterrupts()` cancels every resumable item with no payload.
 
 ## When an answer is wrong
 
@@ -233,6 +245,8 @@ The two recovery paths, side by side:
 - `interrupt.clearResolution()` drops one item's draft so the user can answer it
   again from scratch. Fixing a form and calling `resolveInterrupt` again works
   too, the draft is replaced, not stacked.
-- `retryInterrupts()` re-sends the whole staged batch after a transport failure.
-  It does nothing for expired or stale batches, start a fresh run to get a new
-  set of interrupts for those.
+- `retryInterrupts()` retries a staged batch after a transport failure. With
+  sequential durable storage, a failed request may have committed earlier
+  entries already. Reload the current pending records, then retry only the
+  remaining batch. It does nothing for expired or stale batches, start a fresh
+  run to get a new set of interrupts for those.

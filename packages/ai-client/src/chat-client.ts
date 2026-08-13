@@ -18,6 +18,7 @@ import { InterruptManager } from './interrupt-manager'
 import type {
   AnyClientTool,
   ContentPart,
+  InterruptDefinition,
   InterruptSubmissionError,
   ModelMessage,
   RunAgentResumeItem,
@@ -42,8 +43,8 @@ import type {
   ChatClientOptions,
   ChatClientState,
   ChatFetcher,
-  ChatInterrupt,
   ChatInterruptState,
+  ResolvableChatInterrupt,
   ChatPendingInterrupt,
   ChatResumeSnapshot,
   ChatResumeState,
@@ -66,8 +67,24 @@ interface InternalQueuedMessage extends QueuedMessage {
   body?: Record<string, any>
 }
 
+function assertUniqueInterruptDefinitions(
+  interrupts:
+    | ReadonlyArray<InterruptDefinition<any, any, any, any>>
+    | undefined,
+): void {
+  const ids = new Set<string>()
+  for (const interrupt of interrupts ?? []) {
+    if (ids.has(interrupt.id)) {
+      throw new Error(`Duplicate interrupt definition id: ${interrupt.id}`)
+    }
+    ids.add(interrupt.id)
+  }
+}
+
 type ChatClientUpdateOptionsWithoutContext<
   TTools extends ReadonlyArray<AnyClientTool>,
+  TInterrupts extends
+    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
 > = {
   connection?: ConnectionAdapter
   fetcher?: ChatFetcher
@@ -75,6 +92,7 @@ type ChatClientUpdateOptionsWithoutContext<
   body?: Record<string, any>
   forwardedProps?: Record<string, any>
   tools?: TTools
+  interrupts?: TInterrupts
   queue?: QueueOption
   onResponse?: (response?: Response) => void | Promise<void>
   onChunk?: (chunk: StreamChunk) => void
@@ -86,7 +104,7 @@ type ChatClientUpdateOptionsWithoutContext<
   onQueueChange?: (queue: Array<QueuedMessage>) => void
   onResumeStateChange?: (
     resumeState: ChatResumeState | null,
-    pendingInterrupts: BoundInterrupts<TTools>,
+    pendingInterrupts: BoundInterrupts<TTools, TInterrupts>,
   ) => void
   /**
    * Fires whenever the id of the run in flight changes: the new id when a run
@@ -271,6 +289,8 @@ const REJOIN_REBUILD_TRIGGERS = new Set<string>([
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
+  TInterrupts extends
+    ReadonlyArray<InterruptDefinition<any, any, any, any>> = any,
 > {
   private readonly processor: StreamProcessor
   private connection: SubscribeConnectionAdapter
@@ -292,7 +312,7 @@ export class ChatClient<
   // run is rejoined at most once even when both the sync read and the async
   // hydrate surface the same resume pointer.
   private rejoinedRunId: string | null = null
-  private readonly interruptManager: InterruptManager<TTools>
+  private readonly interruptManager: InterruptManager<TTools, TInterrupts>
   private activeInterruptSubmission: InterruptManagerSubmission | undefined
   private interruptSubmissionFailure:
     | { errors: ReadonlyArray<InterruptSubmissionError> }
@@ -369,6 +389,10 @@ export class ChatClient<
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
+  /** First-party generic interrupt data from the active interrupted run. */
+  private activeInterruptContinuation: unknown | undefined = undefined
+  /** The data to send only with the next interrupt-resume run. */
+  private pendingInterruptContinuation: unknown | undefined = undefined
   private draining = false
   private sessionGenerating = false
   private readonly activeRunIds = new Set<string>()
@@ -397,10 +421,12 @@ export class ChatClient<
       onQueueChange: (queue: Array<QueuedMessage>) => void
       onResumeStateChange: (
         resumeState: ChatResumeState | null,
-        pendingInterrupts: BoundInterrupts<TTools>,
+        pendingInterrupts: BoundInterrupts<TTools, TInterrupts>,
       ) => void
       onRunIdChange: (runId: string | null) => void
-      onInterruptStateChange: (state: ChatInterruptState<TTools>) => void
+      onInterruptStateChange: (
+        state: ChatInterruptState<TTools, TInterrupts>,
+      ) => void
       onCustomEvent: (
         eventType: string,
         data: unknown,
@@ -409,7 +435,8 @@ export class ChatClient<
     }
   }
 
-  constructor(options: ChatClientOptions<TTools, TContext>) {
+  constructor(options: ChatClientOptions<TTools, TContext, TInterrupts>) {
+    assertUniqueInterruptDefinitions(options.interrupts)
     this.threadId = options.threadId || this.generateUniqueId('thread')
     // The instance/devtools id defaults to the threadId (the chat's identity),
     // falling back to a generated id only when neither is set. `id` overrides it
@@ -486,8 +513,11 @@ export class ChatClient<
       },
     }
 
-    this.interruptManager = new InterruptManager({
+    this.interruptManager = new InterruptManager<TTools, TInterrupts>({
       ...(options.tools !== undefined ? { tools: options.tools } : {}),
+      ...(options.interrupts !== undefined
+        ? { interrupts: options.interrupts }
+        : {}),
       submit: (submission) => this.submitInterruptBatch(submission),
       onChange: () => this.notifyResumeStateChange(),
     })
@@ -856,6 +886,7 @@ export class ChatClient<
       ? snapshot.pendingInterrupts
       : []
     if (pendingInterrupts.length === 0) {
+      this.pendingInterruptContinuation = undefined
       this.interruptManager.reset()
       return
     }
@@ -866,6 +897,12 @@ export class ChatClient<
       generation,
       interrupts: pendingInterrupts,
     })
+    this.pendingInterruptContinuation =
+      this.interruptManager.matchesValidatedFirstPartyGenericContinuation(
+        snapshot.interruptContinuation,
+      )
+        ? snapshot.interruptContinuation
+        : undefined
   }
 
   /**
@@ -965,6 +1002,9 @@ export class ChatClient<
             runId: result.interrupts.runId,
           },
           pendingInterrupts: result.interrupts.pending,
+          ...(result.interrupts.interruptContinuation !== undefined
+            ? { interruptContinuation: result.interrupts.interruptContinuation }
+            : {}),
         })
       } else if (result.activeRun?.runId) {
         this.maybeRejoinInFlight(result.activeRun.runId)
@@ -1063,6 +1103,23 @@ export class ChatClient<
    * state. This is interrupt (state) resume — there is no delivery cursor.
    */
   private observeInterruptState(chunk: StreamChunk): void {
+    if (chunk.type === 'STATE_SNAPSHOT') {
+      const snapshot = chunk.snapshot
+      if (
+        snapshot !== null &&
+        typeof snapshot === 'object' &&
+        !Array.isArray(snapshot) &&
+        Object.prototype.hasOwnProperty.call(
+          snapshot,
+          'tanstack:interruptContinuation',
+        )
+      ) {
+        this.activeInterruptContinuation = (
+          snapshot as Record<string, unknown>
+        )['tanstack:interruptContinuation']
+      }
+      return
+    }
     if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
       return
     }
@@ -1091,6 +1148,12 @@ export class ChatClient<
         generation: this.interruptGeneration(chunk.outcome.interrupts),
         interrupts: chunk.outcome.interrupts,
       })
+      this.pendingInterruptContinuation =
+        this.interruptManager.matchesValidatedFirstPartyGenericContinuation(
+          this.activeInterruptContinuation,
+        )
+          ? this.activeInterruptContinuation
+          : undefined
       return
     }
 
@@ -1131,6 +1194,8 @@ export class ChatClient<
       isActiveInterruptSubmissionTerminal
     ) {
       this.lastResume = null
+      this.pendingInterruptContinuation = undefined
+      this.activeInterruptContinuation = undefined
       // Run settled without an interrupt: drop the durable resume snapshot so a
       // later reload does not try to rejoin a finished run.
       this.persistor?.persistResumeSnapshot(null)
@@ -1166,25 +1231,37 @@ export class ChatClient<
     this.callbacksRef.current.onRunIdChange(runId)
   }
 
-  getInterruptState(): ChatInterruptState<TTools> {
+  getInterruptState(): ChatInterruptState<TTools, TInterrupts> {
     return this.interruptManager.getState()
   }
 
-  getInterrupts(): BoundInterrupts<TTools> {
-    return this.interruptManager.getInterrupts()
+  getInterrupts(): BoundInterrupts<TTools, TInterrupts> {
+    return this.interruptManager.getInterrupts() as BoundInterrupts<
+      TTools,
+      TInterrupts
+    >
   }
 
   /** @deprecated Use getInterrupts(). */
-  getPendingInterrupts(): BoundInterrupts<TTools> {
-    return this.interruptManager.getInterrupts()
+  getPendingInterrupts(): BoundInterrupts<TTools, TInterrupts> {
+    return this.interruptManager.getInterrupts() as BoundInterrupts<
+      TTools,
+      TInterrupts
+    >
   }
 
   resolveInterrupts(approved: boolean): void
   resolveInterrupts(
-    resolver: (interrupt: ChatInterrupt<TTools>) => undefined,
+    resolver: (
+      interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+    ) => undefined,
   ): void
   resolveInterrupts(
-    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
   ): void {
     // Branch so TypeScript can select the InterruptManager.resolve overloads.
     if (typeof resolution === 'boolean') {
@@ -1375,6 +1452,9 @@ export class ChatClient<
       resumeState,
       ...(descriptors.length > 0
         ? { pendingInterrupts: [...descriptors] }
+        : {}),
+      ...(this.pendingInterruptContinuation !== undefined
+        ? { interruptContinuation: this.pendingInterruptContinuation }
         : {}),
     })
   }
@@ -2037,6 +2117,9 @@ export class ChatClient<
     const resumeThreadId = this.pendingResumeThreadId
     const resumeParentRunId = this.pendingResumeParentRunId
     const resumeItems = this.pendingResumeItems
+    const interruptContinuation = resumeItems
+      ? this.pendingInterruptContinuation
+      : undefined
     this.pendingResumeThreadId = null
     this.pendingResumeParentRunId = null
     this.pendingResumeItems = null
@@ -2141,6 +2224,9 @@ export class ChatClient<
         })),
         forwardedProps: { ...mergedBody },
         ...(resumeItems ? { resume: resumeItems } : {}),
+        ...(interruptContinuation !== undefined
+          ? { interruptContinuation }
+          : {}),
       }
       this.devtoolsBridge.beginRun(runContext.runId, runContext.threadId)
       activeDevtoolsRunId = runContext.runId
@@ -2410,6 +2496,8 @@ export class ChatClient<
     this.discardPendingSends()
     this.persistor?.remove()
     this.lastResume = null
+    this.pendingInterruptContinuation = undefined
+    this.activeInterruptContinuation = undefined
     this.interruptManager.reset()
     this.pendingResumeThreadId = null
     this.pendingResumeParentRunId = null
@@ -2616,6 +2704,11 @@ export class ChatClient<
    * a text-only response has nothing to auto-send.
    */
   private shouldAutoSend(): boolean {
+    // A pending interrupt owns the next send. Auto-continuing after a
+    // completed server tool would start a sibling run and hide the card.
+    if (this.lastResume) return false
+    if (this.activeInterruptSubmission) return false
+    if (this.interruptManager.getInterrupts().length > 0) return false
     const messages = this.processor.getMessages()
     const lastAssistant = messages.findLast(
       (m: UIMessage) => m.role === 'assistant',

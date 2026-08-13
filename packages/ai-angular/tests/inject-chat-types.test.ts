@@ -6,10 +6,10 @@
 
 import { describe, expectTypeOf, it } from 'vitest'
 import { z } from 'zod'
-import { toolDefinition } from '@tanstack/ai'
+import { defineInterrupt, toolDefinition } from '@tanstack/ai'
 import { clientTools } from '@tanstack/ai-client'
 import type { AnyClientTool } from '@tanstack/ai'
-import type { injectChat } from '../src/inject-chat'
+import { injectChat } from '../src/inject-chat'
 import type { Signal } from '@angular/core'
 import type { DeepPartial, InjectChatResult } from '../src/types'
 
@@ -187,6 +187,87 @@ describe('injectChat() interrupt types', () => {
       expectTypeOf(genericInterrupt.resolveInterrupt)
         .parameter(0)
         .toEqualTypeOf<unknown>()
+    }
+    void check
+  })
+})
+
+describe('injectChat() registered generic interrupt types', () => {
+  it('keeps registered and external generic interrupts distinct', () => {
+    const reviewPlan = defineInterrupt({
+      id: 'review-plan',
+      payloadSchema: z.object({ title: z.string() }),
+      responseSchema: z.string().transform((value) => Number(value)),
+    })
+    const acknowledge = defineInterrupt({
+      id: 'acknowledge',
+      responseSchema: z.object({ accepted: z.boolean() }),
+    })
+
+    const check = () => {
+      const chat = injectChat({
+        connection: { connect: async function* () {} },
+        interrupts: [reviewPlan, acknowledge],
+      })
+      type Interrupt = ReturnType<typeof chat.interrupts>[number]
+      type Review = Extract<Interrupt, { definitionId: 'review-plan' }>
+      type External = Extract<
+        Exclude<Interrupt, { definitionId: string }>,
+        { kind: 'generic' }
+      >
+      type Unbound = Extract<Interrupt, { kind: 'unbound' }>
+      type CallbackInterrupt = typeof chat.resolveInterrupts extends {
+        (resolver: (interrupt: infer TInterrupt) => undefined): void
+      }
+        ? TInterrupt
+        : never
+
+      expectTypeOf<Review['payload']>().toEqualTypeOf<
+        { title: string } | undefined
+      >()
+      expectTypeOf<Parameters<Review['resolveInterrupt']>[0]>().toEqualTypeOf<
+        string
+      >()
+      expectTypeOf<Parameters<External['resolveInterrupt']>[0]>().toEqualTypeOf<
+        unknown
+      >()
+      expectTypeOf<Unbound['canResolve']>().toEqualTypeOf<false>()
+      expectTypeOf<
+        Extract<CallbackInterrupt, { kind: 'unbound' }>
+      >().toEqualTypeOf<never>()
+
+      const resolveReview = (review: Review) => {
+        review.resolveInterrupt('42')
+        // @ts-expect-error The transformed response still accepts its input type.
+        review.resolveInterrupt(42)
+      }
+      void resolveReview
+      chat.resolveInterrupts((interrupt) => {
+        interrupt.cancel()
+        return undefined
+      })
+
+      const existingTool = toolDefinition({
+        name: 'angular-unregistered-tool',
+        description: 'A tool without an interrupt registry',
+        needsApproval: true,
+      }).client()
+      const withoutRegistry = injectChat({
+        connection: { connect: async function* () {} },
+        tools: clientTools(existingTool),
+      })
+      type WithoutRegistry = ReturnType<typeof withoutRegistry.interrupts>[number]
+      type ExistingToolInterrupt = Extract<
+        WithoutRegistry,
+        { kind: 'tool-approval' }
+      >
+      type UnregisteredGeneric = Extract<WithoutRegistry, { kind: 'generic' }>
+      expectTypeOf<ExistingToolInterrupt['toolName']>().toEqualTypeOf<
+        'angular-unregistered-tool'
+      >()
+      expectTypeOf<Parameters<UnregisteredGeneric['resolveInterrupt']>[0]>().toEqualTypeOf<
+        unknown
+      >()
     }
     void check
   })

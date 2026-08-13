@@ -11,7 +11,7 @@ import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import type {
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
@@ -22,6 +22,7 @@ import type {
 } from '@tanstack/ai-client'
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
@@ -43,13 +44,16 @@ export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  const TInterrupts extends
+    ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
 >(
-  options: UseChatOptions<TTools, TSchema, TContext> = {} as UseChatOptions<
+  options: UseChatOptions<
     TTools,
     TSchema,
-    TContext
-  >,
-): UseChatReturn<TTools, TSchema> {
+    TContext,
+    TInterrupts
+  > = {} as UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
+): UseChatReturn<TTools, TSchema, TInterrupts> {
   // The hook's identity is its `threadId` — also the persistence key, so a
   // reload with the same `threadId` restores the same conversation. `hookId` is
   // only a stable fallback for client-recreation keying when no `threadId` is
@@ -70,7 +74,7 @@ export function useChat<
   const [queue, setQueue] = createSignal<Array<QueuedMessage>>([])
   const [runId, setRunId] = createSignal<string | null>(null)
   const [interruptState, setInterruptState] = createSignal<
-    ChatInterruptState<TTools>
+    ChatInterruptState<TTools, TInterrupts>
   >({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
@@ -104,7 +108,7 @@ export function useChat<
     const transport = options.connection
       ? { connection: options.connection }
       : { fetcher: options.fetcher }
-    return new ChatClient<TTools, TContext>({
+    return new ChatClient<TTools, TContext, TInterrupts>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       ...(options.initialMessages !== undefined && {
@@ -139,6 +143,9 @@ export function useChat<
         options.onError?.(err)
       },
       tools: options.tools,
+      ...(options.interrupts !== undefined && {
+        interrupts: options.interrupts,
+      }),
       onCustomEvent: (eventType, data, context) =>
         options.onCustomEvent?.(eventType, data, context),
       ...(options.streamProcessor !== undefined && {
@@ -323,7 +330,7 @@ export function useChat<
   }
 
   const resolveInterrupts = (
-    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+    resolution: boolean | ((interrupt: ResolvableChatInterrupt<TTools, TInterrupts>) => undefined),
   ) => {
     if (typeof resolution === 'boolean') {
       client().resolveInterrupts(resolution)
@@ -421,5 +428,5 @@ export function useChat<
     resumeInterrupts,
     partial,
     final,
-  } as unknown as UseChatReturn<TTools, TSchema>
+  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts>
 }

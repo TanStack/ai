@@ -98,6 +98,8 @@ export {
   type FetchConnectionOptions,
   type XhrConnectionOptions,
   type InferChatMessages,
+  type GenericInterrupt,
+  type RegisteredGenericInterrupt,
   type GenerationClientState,
   type ImageGenerateInput,
   type AudioGenerateInput,

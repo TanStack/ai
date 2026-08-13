@@ -10,6 +10,9 @@ import type {
   ChatMiddlewareContext,
   ErrorInfo,
   FinishInfo,
+  InterruptBoundaryPhase,
+  InterruptResolutionCollection,
+  InterruptToolResume,
   IterationInfo,
   SandboxFileHookEvent,
   StructuredOutputMiddlewareConfig,
@@ -17,6 +20,10 @@ import type {
   ToolPhaseCompleteInfo,
   UsageInfo,
 } from './types'
+import type {
+  GenericInterruptRequest,
+  InterruptDefinition,
+} from '../../../interrupt-definition'
 
 /** One middleware's terminal-hook throw, captured instead of propagated. */
 interface HookFailure {
@@ -25,7 +32,7 @@ interface HookFailure {
 }
 
 /** Check if a middleware should be skipped for instrumentation events. */
-function shouldSkipInstrumentation(mw: ChatMiddleware<any>): boolean {
+function shouldSkipInstrumentation(mw: ChatMiddleware<any, any>): boolean {
   return mw.name === 'devtools' || mw.name === 'strip-to-spec'
 }
 
@@ -43,12 +50,25 @@ function instrumentCtx(ctx: ChatMiddlewareContext<any>) {
  * Internal middleware runner that manages composed execution of middleware hooks.
  * Created once per chat() invocation.
  */
-export class MiddlewareRunner<TContext = unknown> {
-  private readonly middlewares: ReadonlyArray<ChatMiddleware<TContext>>
+export class MiddlewareRunner<
+  TContext = unknown,
+  TInterruptDefinitions extends
+    InterruptDefinition<any, any, any, any> = InterruptDefinition<
+    any,
+    any,
+    any,
+    any
+  >,
+> {
+  private readonly middlewares: ReadonlyArray<
+    ChatMiddleware<TContext, TInterruptDefinitions>
+  >
   private readonly logger: InternalLogger
 
   constructor(
-    middlewares: ReadonlyArray<ChatMiddleware<TContext>>,
+    middlewares: ReadonlyArray<
+      ChatMiddleware<TContext, TInterruptDefinitions>
+    >,
     logger: InternalLogger,
   ) {
     this.middlewares = middlewares
@@ -57,6 +77,83 @@ export class MiddlewareRunner<TContext = unknown> {
 
   get hasMiddleware(): boolean {
     return this.middlewares.length > 0
+  }
+
+  async runOnInterruptBoundary(
+    ctx: ChatMiddlewareContext<TContext> & { phase: InterruptBoundaryPhase },
+  ): Promise<ReadonlyArray<GenericInterruptRequest<TInterruptDefinitions>>> {
+    const requests: Array<GenericInterruptRequest<TInterruptDefinitions>> = []
+    for (const mw of this.middlewares) {
+      if (mw.onInterruptBoundary) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        const result = await mw.onInterruptBoundary(ctx)
+        if (result?.interrupts) requests.push(...result.interrupts)
+        if (!skip) {
+          this.logger.middleware(
+            `hook=onInterruptBoundary middleware=${mw.name ?? 'unnamed'}`,
+            {
+              middleware: mw.name ?? 'unnamed',
+              hook: 'onInterruptBoundary',
+            },
+          )
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onInterruptBoundary',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: result?.interrupts !== undefined,
+          })
+        }
+      }
+    }
+    return requests
+  }
+
+  async runOnInterruptResolution(
+    ctx: ChatMiddlewareContext<TContext>,
+    resolutions: InterruptResolutionCollection<TInterruptDefinitions>,
+  ): Promise<{ toolResume?: InterruptToolResume }> {
+    let toolResume: InterruptToolResume | undefined
+    for (const mw of this.middlewares) {
+      if (mw.onInterruptResolution) {
+        const skip = shouldSkipInstrumentation(mw)
+        const start = Date.now()
+        const next = await mw.onInterruptResolution(ctx, resolutions)
+        if (next?.toolResume !== undefined) {
+          const priority: Record<InterruptToolResume, number> = {
+            continue: 0,
+            cancel: 1,
+            stop: 2,
+          }
+          if (
+            toolResume === undefined ||
+            priority[next.toolResume] > priority[toolResume]
+          ) {
+            toolResume = next.toolResume
+          }
+        }
+        if (!skip) {
+          this.logger.middleware(
+            `hook=onInterruptResolution middleware=${mw.name ?? 'unnamed'}`,
+            {
+              middleware: mw.name ?? 'unnamed',
+              hook: 'onInterruptResolution',
+            },
+          )
+          aiEventClient.emit('middleware:hook:executed', {
+            ...instrumentCtx(ctx),
+            middlewareName: mw.name || 'unnamed',
+            hookName: 'onInterruptResolution',
+            iteration: ctx.iteration,
+            duration: Date.now() - start,
+            hasTransform: next !== undefined,
+          })
+        }
+      }
+    }
+    return toolResume === undefined ? {} : { toolResume }
   }
 
   /**
@@ -492,7 +589,7 @@ export class MiddlewareRunner<TContext = unknown> {
    * {@link runOnError}.
    */
   private async captureTerminalHook(
-    mw: ChatMiddleware<TContext>,
+    mw: ChatMiddleware<TContext, TInterruptDefinitions>,
     hookName: 'onFinish' | 'onAbort' | 'onError',
     invoke: () => void | Promise<void>,
   ): Promise<HookFailure | undefined> {

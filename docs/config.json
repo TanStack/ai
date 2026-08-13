@@ -188,7 +188,8 @@
         {
           "label": "Overview",
           "to": "interrupts/overview",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-13"
         },
         {
           "label": "Tool Approval",
@@ -198,12 +199,24 @@
         {
           "label": "Multiple Interrupts",
           "to": "interrupts/multiple",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-13"
         },
         {
           "label": "Generic Interrupts",
           "to": "interrupts/generic",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-13"
+        },
+        {
+          "label": "Lifecycle Boundaries",
+          "to": "interrupts/boundaries",
+          "addedAt": "2026-08-13"
+        },
+        {
+          "label": "Apply Answers",
+          "to": "interrupts/apply-answers",
+          "addedAt": "2026-08-13"
         },
         {
           "label": "Migration",
@@ -245,7 +258,8 @@
         {
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-13"
         },
         {
           "label": "Client Persistence",
@@ -308,7 +322,8 @@
         {
           "label": "Store Reference",
           "to": "persistence/store-reference",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-13"
         },
         {
           "label": "How Persistence Works",
@@ -480,7 +495,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-08-13"
         },
         {
           "label": "Built-in Middleware",

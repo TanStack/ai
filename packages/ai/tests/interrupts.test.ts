@@ -1,5 +1,10 @@
 import { describe, expect, expectTypeOf, it } from 'vitest'
+import { z } from 'zod'
 import { EventType } from '@ag-ui/core'
+import {
+  createInterruptBinding,
+  defineInterrupt,
+} from '../src/interrupt-definition'
 import {
   hashSchemaInput,
   normalizeApprovalSchema,
@@ -27,6 +32,55 @@ import type {
   RunFinishedOutcome,
   TextOptions,
 } from '../src/types'
+
+describe('first-party interrupt definitions', () => {
+  const approval = defineInterrupt({
+    id: 'approval',
+    payloadSchema: z.object({ amount: z.number() }),
+    responseSchema: z.object({ approved: z.boolean() }),
+  })
+
+  it('creates a portable request and deterministic pre-emission binding data', () => {
+    const request = approval.interrupt({
+      key: 'payment-1',
+      payload: { amount: 10 },
+      reason: 'tool_call',
+      message: 'Approve payment?',
+    })
+    expect(request).toMatchObject({ definition: approval, key: 'payment-1' })
+    expect(request.payload).toEqual({ amount: 10 })
+    const binding = createInterruptBinding(request)
+    expect(binding.descriptor.definitionId).toBe('approval')
+    expect(binding.descriptor.key).toBe('payment-1')
+    expect(binding.payload).toEqual({ amount: 10 })
+  })
+
+  it('rejects a payload when the definition has no payload schema', () => {
+    const definition = defineInterrupt({
+      id: 'simple',
+      responseSchema: z.object({ ok: z.boolean() }),
+    })
+    expect(() =>
+      Reflect.apply(definition.interrupt, definition, [
+        { key: 'simple-2', payload: undefined, reason: 'test', message: 'Test' },
+      ]),
+    ).toThrow()
+  })
+
+  it('rejects duplicate-looking extra request fields at runtime', () => {
+    expect(() =>
+      Reflect.apply(approval.interrupt, approval, [
+        {
+          key: 'filtered',
+          payload: { amount: 1 },
+          reason: 'test',
+          message: 'Test',
+          id: 'ag-ui-id',
+        },
+      ]),
+    ).toThrow(/Interrupt input field id is not allowed/)
+  })
+})
 
 describe('AG-UI interrupt protocol types', () => {
   it('allows RUN_FINISHED success, interrupt, and legacy outcomes', () => {

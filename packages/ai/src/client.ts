@@ -343,6 +343,14 @@ export {
   INTERRUPT_BINDING_VERSION,
   canonicalizeInterruptResolutions,
 } from './interrupts'
+export {
+  defineInterrupt,
+  INTERRUPT_PAYLOAD_METADATA_KEY,
+} from './interrupt-definition'
+export type {
+  GenericInterruptRequest,
+  InterruptDefinition,
+} from './interrupt-definition'
 export type {
   BatchInterruptError,
   BatchInterruptErrorCode,

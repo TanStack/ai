@@ -221,6 +221,18 @@ export interface InterruptRecord {
   response?: unknown
 }
 
+/** A terminal interrupt write for {@link InterruptStore.commitBatch}. */
+export type InterruptCommitEntry =
+  | {
+      interruptId: string
+      status: 'resolved'
+      response?: unknown
+    }
+  | {
+      interruptId: string
+      status: 'cancelled'
+    }
+
 /** Durable store for human-in-the-loop interrupts. */
 export interface InterruptStore {
   /**
@@ -249,6 +261,13 @@ export interface InterruptStore {
    * `interruptId` does not exist.
    */
   cancel: (interruptId: string) => Promise<void>
+  /**
+   * Commit terminal writes for a validated resume batch.
+   *
+   * Optional. When present, `withPersistence` calls it once instead of
+   * calling `resolve` and `cancel` for each entry. Apply every entry or none.
+   */
+  commitBatch?: (entries: ReadonlyArray<InterruptCommitEntry>) => Promise<void>
   /** Return the interrupt for `interruptId`, or `null` if none exists. */
   get: (interruptId: string) => Promise<InterruptRecord | null>
   /**

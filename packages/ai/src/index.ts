@@ -184,6 +184,17 @@ export type {
   SandboxFileEvent,
   SandboxFileHookEvent,
   ChatSandboxHooks,
+  InterruptBoundaryPhase,
+  InterruptToolResume,
+  InterruptResolutionCollection,
+  GenericInterruptResolution,
+  InterruptBoundaryResult,
+  InterruptResolutionResult,
+} from './activities/chat/middleware/index'
+
+export {
+  INTERRUPT_BOUNDARY_PHASES,
+  INTERRUPT_TOOL_RESUMES,
 } from './activities/chat/middleware/index'
 
 // Interrupt protocol surface. Deliberately enumerated rather than
@@ -192,6 +203,18 @@ export type {
 // a commitment. Only the ephemeral contract this release actually implements
 // is exported — no durable-recovery or persisted-state types, which would
 // pre-decide a question the orchestration RFC still owns.
+export {
+  defineInterrupt,
+  createInterruptBinding,
+  INTERRUPT_PAYLOAD_METADATA_KEY,
+} from './interrupt-definition'
+export type {
+  InterruptDefinition,
+  GenericInterruptRequest,
+  InterruptDefinitionOptions,
+  InterruptBindingDescriptor,
+} from './interrupt-definition'
+
 export {
   INTERRUPT_BINDING_VERSION,
   canonicalizeInterruptResolutions,

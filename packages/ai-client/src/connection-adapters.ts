@@ -430,7 +430,11 @@ async function fetchThreadHydration(
   const data = (await response.json()) as {
     messages?: Array<UIMessage>
     activeRun?: { runId?: unknown } | null
-    interrupts?: { runId?: unknown; pending?: unknown } | null
+    interrupts?: {
+      runId?: unknown
+      pending?: unknown
+      interruptContinuation?: unknown
+    } | null
   }
   const activeRun =
     data.activeRun && typeof data.activeRun.runId === 'string'
@@ -444,6 +448,9 @@ async function fetchThreadHydration(
       ? {
           runId: data.interrupts.runId,
           pending: data.interrupts.pending as Array<ChatPendingInterrupt>,
+          ...(data.interrupts.interruptContinuation !== undefined
+            ? { interruptContinuation: data.interrupts.interruptContinuation }
+            : {}),
         }
       : null
   return {
@@ -735,6 +742,8 @@ export interface RunAgentInputContext {
   parentRunId?: string
   /** AG-UI interrupt resume entries returned to the server on a follow-up run. */
   resume?: Array<RunAgentResumeItem>
+  /** First-party generic interrupt state for the resumed run. */
+  interruptContinuation?: unknown
   /** Client-declared tools to advertise in the request payload. */
   clientTools?: Array<{
     name: string
@@ -830,7 +839,11 @@ export interface ChatHydrationResult {
    * so a reload (or another device) re-prompts the approval from the server. The
    * client restores them exactly as a persisted resume snapshot would.
    */
-  interrupts: { runId: string; pending: Array<ChatPendingInterrupt> } | null
+  interrupts: {
+    runId: string
+    pending: Array<ChatPendingInterrupt>
+    interruptContinuation?: unknown
+  } | null
 }
 
 /**
@@ -1140,7 +1153,12 @@ function buildRunAgentInputBody(
       parentRunId: runContext.parentRunId,
     }),
     ...(runContext?.resume !== undefined && { resume: runContext.resume }),
-    state: {},
+    state:
+      runContext?.interruptContinuation === undefined
+        ? {}
+        : {
+            'tanstack:interruptContinuation': runContext.interruptContinuation,
+          },
     messages: wireMessages,
     tools: runContext?.clientTools ?? [],
     context: [],
@@ -2009,6 +2027,15 @@ export function fetcherToConnectionAdapter(
           data,
           threadId: runContext.threadId,
           runId: runContext.runId,
+          ...(runContext.parentRunId !== undefined
+            ? { parentRunId: runContext.parentRunId }
+            : {}),
+          ...(runContext.resume !== undefined
+            ? { resume: runContext.resume }
+            : {}),
+          ...(runContext.interruptContinuation !== undefined
+            ? { interruptContinuation: runContext.interruptContinuation }
+            : {}),
         },
         { signal: abortSignal },
       )

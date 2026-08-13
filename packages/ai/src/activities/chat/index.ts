@@ -19,6 +19,15 @@ import {
 } from '../../interrupt-resume'
 import { INTERRUPT_BINDING_VERSION } from '../../interrupts'
 import {
+  INTERRUPT_PAYLOAD_METADATA_KEY,
+  createInterruptBinding,
+  getInterruptRequestInput,
+} from '../../interrupt-definition'
+import type {
+  GenericInterruptRequest,
+  InterruptDefinition,
+} from '../../interrupt-definition'
+import {
   canonicalInterruptJson,
   digestInterruptJson,
 } from '../../interrupt-serialization'
@@ -99,10 +108,15 @@ import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
+  ChatResumeGenericResolution,
   ChatResumeToolState,
+  InterruptResolutionCollection,
   SandboxFileHookEvent,
   StructuredOutputMiddlewareConfig,
 } from './middleware/types'
+import {
+  provideGenericInterruptDefinitionRegistry,
+} from './middleware/generic-interrupts'
 import type { CheckCoverage } from './middleware/builder'
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
@@ -214,7 +228,6 @@ function normalizePublicInterruptBinding(
     typeof binding.generation !== 'number' ||
     !Number.isInteger(binding.generation) ||
     binding.generation < 0 ||
-    typeof binding.responseSchemaHash !== 'string' ||
     (binding.expiresAt !== undefined && typeof binding.expiresAt !== 'string')
   ) {
     return undefined
@@ -224,15 +237,58 @@ function normalizePublicInterruptBinding(
     interruptId: binding.interruptId,
     interruptedRunId: binding.interruptedRunId,
     generation: binding.generation,
-    responseSchemaHash: binding.responseSchemaHash,
+    ...(typeof binding.responseSchemaHash === 'string'
+      ? { responseSchemaHash: binding.responseSchemaHash }
+      : {}),
     ...(typeof binding.expiresAt === 'string'
       ? { expiresAt: binding.expiresAt }
       : {}),
   }
   if (binding.kind === 'generic') {
+    if (
+      binding.responseSchemaHash !== undefined &&
+      typeof binding.responseSchemaHash !== 'string'
+    ) {
+      return undefined
+    }
+    const hasFirstPartyFields = [
+      binding.definitionId,
+      binding.key,
+      binding.batchIndex,
+      binding.payloadSchemaHash,
+    ].some((field) => field !== undefined)
+    if (
+      hasFirstPartyFields &&
+      (typeof binding.definitionId !== 'string' ||
+        typeof binding.key !== 'string' ||
+        typeof binding.batchIndex !== 'number' ||
+        !Number.isInteger(binding.batchIndex) ||
+        binding.batchIndex < 0 ||
+        (binding.payloadSchemaHash !== undefined &&
+          typeof binding.payloadSchemaHash !== 'string'))
+    ) {
+      return undefined
+    }
+    if (
+      typeof binding.definitionId === 'string' &&
+      typeof binding.key === 'string' &&
+      typeof binding.batchIndex === 'number'
+    ) {
+      return {
+        kind: binding.kind,
+        ...base,
+        definitionId: binding.definitionId,
+        key: binding.key,
+        batchIndex: binding.batchIndex,
+        ...(typeof binding.payloadSchemaHash === 'string'
+          ? { payloadSchemaHash: binding.payloadSchemaHash }
+          : {}),
+      }
+    }
     return { kind: binding.kind, ...base }
   }
   if (
+    typeof binding.responseSchemaHash !== 'string' ||
     typeof binding.toolName !== 'string' ||
     typeof binding.toolCallId !== 'string'
   ) {
@@ -245,6 +301,7 @@ function normalizePublicInterruptBinding(
     return {
       kind: binding.kind,
       ...base,
+      responseSchemaHash: binding.responseSchemaHash,
       toolName: binding.toolName,
       toolCallId: binding.toolCallId,
       outputSchemaHash: binding.outputSchemaHash,
@@ -259,6 +316,7 @@ function normalizePublicInterruptBinding(
     return {
       kind: binding.kind,
       ...base,
+      responseSchemaHash: binding.responseSchemaHash,
       toolName: binding.toolName,
       toolCallId: binding.toolCallId,
       originalArgs: binding.originalArgs,
@@ -305,33 +363,132 @@ type InferredContext<TTools, TMiddleware> = [
   ? unknown
   : ContextFromInputs<TTools, TMiddleware>
 
-type RequiredContextFromInputs<TTools, TMiddleware> = [
-  ContextFromInputs<TTools, TMiddleware>,
+type RegistryInterrupt<
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+> = [TInterrupts[number]] extends [never] ? never : TInterrupts[number]
+
+type DuplicateInterruptDefinitionId<
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+  TSeenIds extends string = never,
+> = TInterrupts extends readonly [infer THead, ...infer TTail]
+  ? THead extends InterruptDefinition<infer TId, any, any, any>
+    ? string extends TId
+      ? TTail extends ReadonlyArray<InterruptDefinition<any, any, any, any>>
+        ? DuplicateInterruptDefinitionId<TTail, TSeenIds>
+        : never
+      : TId extends TSeenIds
+        ? TId
+        : TTail extends ReadonlyArray<InterruptDefinition<any, any, any, any>>
+          ? DuplicateInterruptDefinitionId<TTail, TSeenIds | TId>
+          : never
+    : never
+  : never
+
+type CheckUniqueInterruptDefinitions<
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+> = [DuplicateInterruptDefinitionId<TInterrupts>] extends [never]
+  ? unknown
+  : {
+      readonly '✖ Duplicate interrupt definition id in chat({ interrupts }).': never
+    }
+
+type InlineChatContext<TTools, TContext> = MergeContext<
+  ContextFromArray<NonNullable<TTools>>,
+  TContext
+>
+
+type RegistryChatMiddleware<
+  TContext,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+> = ChatMiddleware<TContext, RegistryInterrupt<TInterrupts>>
+
+type MiddlewareInterruptDefinitions<TMiddleware> =
+  TMiddleware extends ReadonlyArray<infer TMiddlewareItem>
+    ? TMiddlewareItem extends ChatMiddleware<any, infer TDefinitions>
+      ? TDefinitions
+      : never
+    : never
+
+type IsAny<TValue> = 0 extends 1 & TValue ? true : false
+
+type CheckInterruptRegistry<
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+  TMiddleware,
+> = IsAny<MiddlewareInterruptDefinitions<TMiddleware>> extends true
+  ? unknown
+  : [MiddlewareInterruptDefinitions<TMiddleware>] extends [never]
+    ? unknown
+    : [
+          Exclude<
+            MiddlewareInterruptDefinitions<TMiddleware>,
+            RegistryInterrupt<TInterrupts>
+          >,
+        ] extends [never]
+      ? unknown
+      : {
+          readonly '✖ Middleware emits an interrupt definition that is not registered in chat({ interrupts }).': never
+        }
+
+type RuntimeContextOption<TTools, TMiddleware, TContext> = [
+  MergeContext<ContextFromInputs<TTools, TMiddleware>, TContext>,
 ] extends [never]
-  ? { context?: unknown }
-  : undefined extends ContextFromInputs<TTools, TMiddleware>
-    ? { context?: ContextFromInputs<TTools, TMiddleware> }
-    : { context: ContextFromInputs<TTools, TMiddleware> }
+  ? { context?: TContext }
+  : undefined extends MergeContext<
+        ContextFromInputs<TTools, TMiddleware>,
+        TContext
+      >
+    ? {
+        context?: MergeContext<ContextFromInputs<TTools, TMiddleware>, TContext>
+      }
+    : {
+        context: MergeContext<ContextFromInputs<TTools, TMiddleware>, TContext>
+      }
+
+type ExactMiddlewareOption<
+  TTools,
+  TContext,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+  TMiddleware extends Array<unknown> | undefined,
+> = [TMiddleware] extends [undefined]
+  ? Array<
+      RegistryChatMiddleware<
+        InlineChatContext<TTools, TContext>,
+        NoInfer<TInterrupts>
+      >
+    >
+  : TMiddleware &
+      (TMiddleware extends Array<
+        RegistryChatMiddleware<
+          InlineChatContext<TTools, NoInfer<TContext>>,
+          NoInfer<TInterrupts>
+        >
+      >
+        ? Array<
+            RegistryChatMiddleware<
+              InlineChatContext<TTools, TContext>,
+              NoInfer<TInterrupts>
+            >
+          >
+        : CheckInterruptRegistry<TInterrupts, TMiddleware>) &
+      CheckCoverage<Extract<TMiddleware, ReadonlyArray<AnyChatMiddleware>>>
 
 type TextActivityOptionsWithContext<
   TAdapter extends AnyTextAdapter,
   TSchema extends SchemaInput | undefined,
   TStream extends boolean,
   TTools extends TextActivityOptions<TAdapter, TSchema, TStream, any>['tools'],
-  TMiddleware extends TextActivityOptions<
-    TAdapter,
-    TSchema,
-    TStream,
-    any
-  >['middleware'],
+  TInterrupts extends
+    ReadonlyArray<InterruptDefinition<any, any, any, any>> = [],
+  TContext = unknown,
+  TMiddleware extends Array<unknown> | undefined = undefined,
 > = Omit<
   TextActivityOptions<TAdapter, TSchema, TStream, any>,
-  'tools' | 'middleware' | 'context'
+  'tools' | 'middleware' | 'context' | 'interrupts'
 > & {
   tools?: TTools
-  middleware?: TMiddleware &
-    CheckCoverage<Extract<TMiddleware, ReadonlyArray<AnyChatMiddleware>>>
-} & RequiredContextFromInputs<TTools, TMiddleware>
+  interrupts?: TInterrupts & CheckUniqueInterruptDefinitions<TInterrupts>
+  middleware?: ExactMiddlewareOption<TTools, TContext, TInterrupts, TMiddleware>
+} & RuntimeContextOption<TTools, TMiddleware, TContext>
 
 // ===========================
 // Activity Options Type
@@ -490,6 +647,11 @@ export interface TextActivityOptions<
    */
   middleware?: Array<ChatMiddleware<TContext>>
   /**
+   * First-party generic interrupt definitions for this chat call.
+   * Register the same definitions on the client to type payloads and answers.
+   */
+  interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
+  /**
    * Runtime context value passed to middleware hooks and server tools.
    */
   context?: TContext
@@ -529,28 +691,20 @@ export function createChatOptions<
     TStream,
     any
   >['tools'] = TextActivityOptions<TAdapter, TSchema, TStream, any>['tools'],
-  const TMiddleware extends TextActivityOptions<
-    TAdapter,
-    TSchema,
-    TStream,
-    any
-  >['middleware'] = TextActivityOptions<
-    TAdapter,
-    TSchema,
-    TStream,
-    any
-  >['middleware'],
+  const TInterrupts extends
+    ReadonlyArray<InterruptDefinition<any, any, any, any>> = [],
+  TContext = unknown,
+  const TMiddleware extends Array<unknown> | undefined = undefined,
 >(
   options: TextActivityOptionsWithContext<
     TAdapter,
     TSchema,
     TStream,
     TTools,
+    TInterrupts,
+    TContext,
     TMiddleware
   >,
-  // Preserve the concrete `tools` tuple on the returned options (so a later
-  // `chat({ ...opts })` still narrows tool-call events to the tool names)
-  // while threading the inferred runtime context like the bare options type.
 ): Omit<
   TextActivityOptions<
     TAdapter,
@@ -558,8 +712,12 @@ export function createChatOptions<
     TStream,
     InferredContext<TTools, TMiddleware>
   >,
-  'tools'
-> & { tools?: TTools } {
+  'tools' | 'middleware' | 'interrupts'
+> & {
+  tools?: TTools
+  interrupts?: TInterrupts
+  middleware?: ExactMiddlewareOption<TTools, TContext, TInterrupts, TMiddleware>
+} {
   return options
 }
 
@@ -623,7 +781,7 @@ interface TextEngineConfig<
   adapter: TAdapter
   systemPrompts?: Array<SystemPrompt>
   params: TParams
-  middleware?: Array<ChatMiddleware<TContext>>
+  middleware?: Array<AnyChatMiddleware>
   context?: TContext
   /**
    * If set, after the agent loop finishes the engine runs a
@@ -705,12 +863,18 @@ class TextEngine<
   >,
 > {
   private readonly adapter: TAdapter
+  private readonly interruptDefinitions: ReadonlyMap<
+    string,
+    InterruptDefinition<any, any, any, any>
+  >
   private params: TParams
   private systemPrompts: Array<SystemPrompt>
   private tools: Array<AnyRuntimeTool>
   private readonly loopStrategy: AgentLoopStrategy
   private toolCallManager: ToolCallManager<ReadonlyArray<AnyTool>, TContext>
   private readonly lazyToolManager: LazyToolManager
+  /** A public interruption terminal must always have this run's start event. */
+  private hasPublicRunStarted = false
   private readonly initialMessageCount: number
   private readonly requestId: string
   private readonly streamId: string
@@ -738,6 +902,9 @@ class TextEngine<
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
   private deferredToolCallRunFinishedChunks: Array<StreamChunk> = []
+  /** The model terminal is held until afterModel can choose an interrupt. */
+  private deferredModelRunFinishedChunks: Array<StreamChunk> = []
+
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
@@ -748,6 +915,14 @@ class TextEngine<
   private readonly resumeClientToolResults = new Map<string, any>()
   private readonly resumeDeniedToolResults = new Map<string, unknown>()
   private readonly resumeCancelledToolCallIds = new Set<string>()
+  private readonly resumeGenericInterrupts = new Map<
+    string,
+    ChatResumeGenericResolution
+  >()
+  private readonly resumeGenericInterruptRequests = new Map<
+    string,
+    GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
+  >()
 
   // AG-UI protocol IDs
   private readonly threadId: string
@@ -755,7 +930,10 @@ class TextEngine<
   private readonly parentRunIdOverride?: string
 
   // Middleware support
-  private readonly middlewareRunner: MiddlewareRunner<TContext>
+  private readonly middlewareRunner: MiddlewareRunner<
+    TContext,
+    InterruptDefinition<any, any, any, any>
+  >
   private readonly middlewareCtx: ChatMiddlewareContext<TContext>
   private readonly sandboxFileQueue: Array<StreamChunk> = []
   private readonly deferredPromises: Array<Promise<unknown>> = []
@@ -813,6 +991,15 @@ class TextEngine<
   ) {
     this.logger = logger
     this.adapter = config.adapter
+    this.interruptDefinitions = new Map(
+      (
+        (
+          config.params as TParams & {
+            interrupts?: ReadonlyArray<InterruptDefinition<any, any, any, any>>
+          }
+        ).interrupts ?? []
+      ).map((definition) => [definition.id, definition]),
+    )
     this.finalStructuredOutput = config.finalStructuredOutput
     this.params = config.params
     this.systemPrompts = config.params.systemPrompts || []
@@ -864,7 +1051,9 @@ class TextEngine<
     // handleStreamChunk processes raw chunks BEFORE middleware, so internal
     // state management sees extended fields (finishReason, delta, toolCallName, etc.).
     // The strip middleware ensures the yielded public stream is AG-UI spec-compliant.
-    const allMiddleware: Array<ChatMiddleware<TContext>> = [
+    const allMiddleware: Array<
+      ChatMiddleware<TContext, InterruptDefinition<any, any, any, any>>
+    > = [
       devtoolsMiddleware(),
       ...(config.middleware || []),
       stripToSpecMiddleware(),
@@ -941,6 +1130,10 @@ class TextEngine<
         this.disconnectListeners.push(listener)
         if (this.disconnected) this.runDisconnectListener(listener)
       },
+    })
+
+    provideGenericInterruptDefinitionRegistry(this.middlewareCtx, {
+      definitions: this.interruptDefinitions,
     })
 
     // Provide the internal SandboxRuntime capability so harness adapters and
@@ -1034,9 +1227,15 @@ class TextEngine<
       )
       this.applyMiddlewareConfig(transformedConfig)
       await this.applyEphemeralInterruptResume(transformedConfig)
+      await this.applyDurableGenericInterruptResolution()
 
       // Run onStart (devtools middleware emits text:request:started and initial messages here)
       await this.middlewareRunner.runOnStart(this.middlewareCtx)
+
+      if (this.earlyTermination) {
+        yield* this.emitSuccessfulEarlyTermination()
+        return
+      }
 
       const pendingPhase = yield* this.checkForPendingToolCalls()
       if (pendingPhase === 'wait') {
@@ -1081,7 +1280,35 @@ class TextEngine<
               )
             this.applyMiddlewareConfig(iterTransformedConfig)
 
+            if (
+              yield* this.emitBoundaryInterrupts(
+                'beforeModel',
+                this.createSyntheticFinishedEvent(),
+              )
+            ) {
+              this.setToolPhase('wait')
+              return
+            }
+
             yield* this.streamModelResponse()
+
+            if (
+              yield* this.emitBoundaryInterrupts(
+                'afterModel',
+                this.finishedEvent ?? this.createSyntheticFinishedEvent(),
+              )
+            ) {
+              this.setToolPhase('wait')
+              return
+            }
+            if (this.shouldExecuteToolPhase()) {
+              this.deferredToolCallRunFinishedChunks.push(
+                ...this.deferredModelRunFinishedChunks,
+              )
+              this.deferredModelRunFinishedChunks = []
+            } else {
+              yield* this.flushDeferredModelRunFinishedChunks()
+            }
           } else {
             yield* this.processToolCalls()
           }
@@ -1425,9 +1652,16 @@ class TextEngine<
         ) {
           continue
         }
+        if (outputChunk.type === EventType.RUN_FINISHED) {
+          this.deferredModelRunFinishedChunks.push(outputChunk)
+          continue
+        }
         if (this.shouldDeferToolCallRunFinished(outputChunk)) {
           this.deferredToolCallRunFinishedChunks.push(outputChunk)
           continue
+        }
+        if (outputChunk.type === EventType.RUN_STARTED) {
+          this.hasPublicRunStarted = true
         }
         this.logger.output(`type=${outputChunk.type}`, { chunk: outputChunk })
         yield outputChunk
@@ -1641,6 +1875,18 @@ class TextEngine<
       return 'continue'
     }
 
+    this.middlewareCtx.phase = 'beforeTools'
+    if (
+      yield* this.emitBoundaryInterrupts(
+        'beforeTools',
+        finishEvent,
+        executablePendingCalls,
+      )
+    ) {
+      this.setToolPhase('wait')
+      return 'wait'
+    }
+
     const { approvals, clientToolResults } = this.collectClientState()
 
     const generator = executeToolCalls(
@@ -1802,6 +2048,17 @@ class TextEngine<
     }
     this.middlewareCtx.phase = 'beforeTools'
 
+    if (
+      yield* this.emitBoundaryInterrupts(
+        'beforeTools',
+        finishEvent,
+        executableToolCalls,
+      )
+    ) {
+      this.setToolPhase('wait')
+      return
+    }
+
     const { approvals, clientToolResults } = this.collectClientState()
 
     const generator = executeToolCalls(
@@ -1869,15 +2126,36 @@ class TextEngine<
       needsClientExecution: executionResult.needsClientExecution,
     })
 
+    const afterToolBoundaryChunks = this.buildToolResultChunks(
+      allResults,
+      finishEvent,
+    )
+    const afterToolRequests =
+      await this.middlewareRunner.runOnInterruptBoundary(
+        this.middlewareCtx as ChatMiddlewareContext<TContext> & {
+          phase: 'afterTools'
+        },
+      )
+    if (afterToolRequests.length > 0) {
+      for (const chunk of afterToolBoundaryChunks) {
+        yield* this.pipeThroughMiddleware(chunk)
+      }
+      yield* this.emitBoundaryInterrupts(
+        'afterTools',
+        finishEvent,
+        [],
+        afterToolRequests,
+      )
+      this.setToolPhase('wait')
+      return
+    }
+
     if (
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
       if (allResults.length > 0) {
-        for (const chunk of this.buildToolResultChunks(
-          allResults,
-          finishEvent,
-        )) {
+        for (const chunk of afterToolBoundaryChunks) {
           yield* this.pipeThroughMiddleware(chunk)
         }
       }
@@ -1893,7 +2171,7 @@ class TextEngine<
 
     yield* this.flushDeferredToolCallRunFinishedChunks()
 
-    const toolResultChunks = this.buildToolResultChunks(allResults, finishEvent)
+    const toolResultChunks = afterToolBoundaryChunks
 
     for (const chunk of toolResultChunks) {
       yield* this.pipeThroughMiddleware(chunk)
@@ -1931,6 +2209,47 @@ class TextEngine<
       this.middlewareCtx.chunkIndex++
     }
     this.deferredToolCallRunFinishedChunks = []
+  }
+
+  private *flushDeferredModelRunFinishedChunks(): Generator<StreamChunk> {
+    for (const chunk of this.deferredModelRunFinishedChunks) {
+      this.logger.output(`type=${chunk.type}`, { chunk })
+      yield chunk
+      this.middlewareCtx.chunkIndex++
+    }
+    this.deferredModelRunFinishedChunks = []
+  }
+
+  private async *emitSyntheticRunStarted(
+    finishEvent: RunFinishedEvent,
+  ): AsyncGenerator<StreamChunk, void, void> {
+    if (this.hasPublicRunStarted) return
+    yield* this.pipeThroughMiddleware({
+      type: EventType.RUN_STARTED,
+      runId: finishEvent.runId,
+      threadId: finishEvent.threadId,
+      model: finishEvent.model,
+      timestamp: Date.now(),
+    })
+  }
+
+  private async *emitSuccessfulEarlyTermination(): AsyncGenerator<
+    StreamChunk,
+    void,
+    void
+  > {
+    // `stop` is a finished run, not another tool cycle. `tool_calls` here
+    // makes the client auto-send after afterTools, so reject looks stuck.
+    const finishEvent = {
+      ...this.createSyntheticFinishedEvent(),
+      finishReason: 'stop' as const,
+    }
+    yield* this.emitSyntheticRunStarted(finishEvent)
+    yield* this.pipeThroughMiddleware({
+      ...finishEvent,
+      timestamp: Date.now(),
+      outcome: { type: 'success' },
+    })
   }
 
   private discardDeferredToolCallRunFinishedChunks(): void {
@@ -2052,9 +2371,17 @@ class TextEngine<
     return { approvals, clientToolResults }
   }
 
+  private genericInterruptId(): string {
+    return this.createId('interrupt')
+  }
+
   private buildActionableInterrupts(
     approvals: Array<ApprovalRequest>,
     clientRequests: Array<ClientToolRequest>,
+    genericRequests: ReadonlyArray<
+      GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
+    > = [],
+    genericInterruptIds: ReadonlyArray<string> = [],
   ): Array<Interrupt> {
     const interrupts: Array<Interrupt> = []
 
@@ -2124,6 +2451,65 @@ class TextEngine<
       })
     }
 
+    for (const [index, request] of genericRequests.entries()) {
+      const batchIndex = interrupts.length
+      const id = genericInterruptIds[index]
+      if (!id) throw new Error('Generic interrupt id is unavailable.')
+      const preEmission = createInterruptBinding(request, { batchIndex })
+      interrupts.push({
+        id,
+        reason: request.reason,
+        message: request.message,
+        ...(preEmission.descriptor.responseSchemaCanonicalJson !== undefined
+          ? {
+              responseSchema: JSON.parse(
+                preEmission.descriptor.responseSchemaCanonicalJson,
+              ),
+            }
+          : {}),
+        ...(request.expiresAt !== undefined
+          ? { expiresAt: request.expiresAt }
+          : {}),
+        metadata: {
+          [interruptBindingMetadataKey]: {
+            v: INTERRUPT_BINDING_VERSION,
+            kind: 'generic',
+            interruptId: id,
+            definitionId: preEmission.descriptor.definitionId,
+            key: preEmission.descriptor.key,
+            batchIndex,
+            ...(request.expiresAt !== undefined
+              ? { expiresAt: request.expiresAt }
+              : {}),
+            ...(preEmission.descriptor.payloadSchemaHash
+              ? {
+                  payloadSchemaHash: preEmission.descriptor.payloadSchemaHash,
+                }
+              : {}),
+            ...(preEmission.descriptor.responseSchemaHash !== undefined
+              ? {
+                  responseSchemaHash:
+                    preEmission.descriptor.responseSchemaHash,
+                }
+              : {}),
+          },
+          ...(preEmission.payload !== undefined
+            ? { [INTERRUPT_PAYLOAD_METADATA_KEY]: preEmission.payload }
+            : {}),
+        },
+      })
+    }
+
+    const ids = new Set<string>()
+    for (const interrupt of interrupts) {
+      if (ids.has(interrupt.id)) {
+        throw new Error(
+          `Duplicate interrupt id in final batch: ${interrupt.id}`,
+        )
+      }
+      ids.add(interrupt.id)
+    }
+
     return interrupts
   }
 
@@ -2131,13 +2517,22 @@ class TextEngine<
     finishEvent: RunFinishedEvent,
     approvals: Array<ApprovalRequest>,
     clientRequests: Array<ClientToolRequest>,
+    genericRequests: ReadonlyArray<
+      GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
+    > = [],
+    genericInterruptIds?: ReadonlyArray<string>,
   ): StreamChunk {
     return {
       ...finishEvent,
       timestamp: Date.now(),
       outcome: {
         type: 'interrupt',
-        interrupts: this.buildActionableInterrupts(approvals, clientRequests),
+        interrupts: this.buildActionableInterrupts(
+          approvals,
+          clientRequests,
+          genericRequests,
+          genericInterruptIds,
+        ),
       },
     }
   }
@@ -2278,9 +2673,22 @@ class TextEngine<
     finishEvent: RunFinishedEvent,
     approvals: Array<ApprovalRequest>,
     clientRequests: Array<ClientToolRequest>,
+    genericRequests: ReadonlyArray<
+      GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
+    > = [],
   ): AsyncGenerator<StreamChunk, boolean, void> {
+    yield* this.emitSyntheticRunStarted(finishEvent)
+    const genericInterruptIds = genericRequests.map(() =>
+      this.genericInterruptId(),
+    )
     const terminal = this.completeEphemeralInterruptBindings(
-      this.buildInterruptFinishedChunk(finishEvent, approvals, clientRequests),
+      this.buildInterruptFinishedChunk(
+        finishEvent,
+        approvals,
+        clientRequests,
+        genericRequests,
+        genericInterruptIds,
+      ),
     )
     let terminalOutputs: Array<StreamChunk>
     try {
@@ -2294,12 +2702,24 @@ class TextEngine<
     }
 
     yield* this.pipeThroughMiddleware(this.buildMessagesSnapshotChunk())
-    if (this.params.state !== undefined) {
+    const continuationState = this.buildInterruptContinuationState(
+      genericRequests,
+      approvals.length + clientRequests.length,
+      genericInterruptIds,
+    )
+    const state =
+      continuationState === undefined
+        ? this.params.state
+        : {
+            ...(this.params.state ?? {}),
+            'tanstack:interruptContinuation': continuationState,
+          }
+    if (state !== undefined) {
       yield* this.pipeThroughMiddleware({
         type: EventType.STATE_SNAPSHOT,
         timestamp: Date.now(),
         model: this.params.model,
-        snapshot: this.params.state,
+        snapshot: state,
       })
     }
     for (const output of terminalOutputs) {
@@ -2307,6 +2727,139 @@ class TextEngine<
       this.middlewareCtx.chunkIndex++
     }
     return true
+  }
+
+  private buildInterruptContinuationState(
+    requests: ReadonlyArray<
+      GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
+    >,
+    batchOffset: number,
+    interruptIds: ReadonlyArray<string>,
+  ): Record<string, unknown> | undefined {
+    if (requests.length === 0) return undefined
+    return {
+      v: 1,
+      interrupts: requests.map((request, index) => {
+        const batchIndex = batchOffset + index
+        const id = interruptIds[index]
+        if (!id) throw new Error('Generic interrupt id is unavailable.')
+        const emission = createInterruptBinding(request, { batchIndex })
+        const descriptor = emission.descriptor
+        const requestInput = getInterruptRequestInput(request)
+        return {
+          id,
+          definitionId: descriptor.definitionId,
+          key: descriptor.key,
+          batchIndex,
+          reason: request.reason,
+          message: request.message,
+          ...(request.expiresAt !== undefined
+            ? { expiresAt: request.expiresAt }
+            : {}),
+          ...(descriptor.responseSchemaHash !== undefined
+            ? { responseSchemaHash: descriptor.responseSchemaHash }
+            : {}),
+          ...(descriptor.payloadSchemaHash
+            ? { payloadSchemaHash: descriptor.payloadSchemaHash }
+            : {}),
+          ...(Object.prototype.hasOwnProperty.call(requestInput, 'payload')
+            ? { payload: requestInput.payload }
+            : {}),
+        }
+      }),
+    }
+  }
+
+  private async *emitBoundaryInterrupts(
+    phase: 'beforeModel' | 'afterModel' | 'beforeTools' | 'afterTools',
+    finishEvent: RunFinishedEvent,
+    toolCalls: ReadonlyArray<ToolCall> = [],
+    requests?: ReadonlyArray<
+      GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
+    >,
+  ): AsyncGenerator<StreamChunk, boolean, void> {
+    this.middlewareCtx.phase = phase
+    const boundaryRequests =
+      requests ??
+      (await this.middlewareRunner.runOnInterruptBoundary(
+        this.middlewareCtx as ChatMiddlewareContext<TContext> & {
+          phase: typeof phase
+        },
+      ))
+    if (boundaryRequests.length === 0) return false
+    for (const request of boundaryRequests) {
+      if (
+        this.interruptDefinitions.get(request.definition.id) !==
+        request.definition
+      ) {
+        throw new Error(
+          `Generic interrupt definition ${request.definition.id} is not registered on this chat.`,
+        )
+      }
+    }
+    if (phase === 'afterModel' && !this.toolCallManager.hasToolCalls()) {
+      this.addAssistantTextMessageForInterrupt()
+    }
+    const actionable = this.getBoundaryActionableToolRequests(toolCalls)
+    yield* this.emitActionableInterruptBoundary(
+      finishEvent,
+      actionable.approvals,
+      actionable.clientRequests,
+      boundaryRequests,
+    )
+    return true
+  }
+
+  private addAssistantTextMessageForInterrupt(): void {
+    if (this.accumulatedContent.length === 0) return
+    this.messages = [
+      ...this.messages,
+      { role: 'assistant', content: this.accumulatedContent },
+    ]
+    this.middlewareCtx.messages = this.messages
+  }
+
+  private getBoundaryActionableToolRequests(
+    toolCalls: ReadonlyArray<ToolCall>,
+  ): {
+    approvals: Array<ApprovalRequest>
+    clientRequests: Array<ClientToolRequest>
+  } {
+    const { approvals, clientToolResults } = this.collectClientState()
+    const approvalRequests: Array<ApprovalRequest> = []
+    const clientRequests: Array<ClientToolRequest> = []
+    for (const toolCall of toolCalls) {
+      const tool = this.resolveExecutableTools([toolCall]).find(
+        (candidate) => candidate.name === toolCall.function.name,
+      ) as RuntimeToolWithApproval | undefined
+      if (!tool) continue
+      let input: unknown = {}
+      try {
+        input = JSON.parse(toolCall.function.arguments)
+      } catch {
+        continue
+      }
+      const approvalId = `approval_${toolCall.id}`
+      if (tool.needsApproval && !approvals.has(approvalId)) {
+        approvalRequests.push({
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+          input,
+          approvalId,
+        })
+      } else if (
+        !tool.execute &&
+        !clientToolResults.has(toolCall.id) &&
+        !this.resumeCancelledToolCallIds.has(toolCall.id)
+      ) {
+        clientRequests.push({
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+          input,
+        })
+      }
+    }
+    return { approvals: approvalRequests, clientRequests }
   }
 
   private completeEphemeralInterruptBindings(chunk: StreamChunk): StreamChunk {
@@ -3376,7 +3929,15 @@ class TextEngine<
       }
     }
 
-    const pending = this.buildActionableInterrupts(
+    const genericPending = this.getGenericContinuationPending(interruptedRunId)
+    const pending: Array<{
+      interruptId: string
+      payload: unknown
+      binding: InterruptBinding
+      genericRequest?: GenericInterruptRequest<
+        InterruptDefinition<any, any, any, any>
+      >
+    }> = this.buildActionableInterrupts(
       approvalRequests,
       clientRequests,
     ).flatMap((descriptor) => {
@@ -3395,6 +3956,7 @@ class TextEngine<
           ]
         : []
     })
+    pending.push(...genericPending)
     const validated = await validateInterruptResumeBatch({
       threadId: this.threadId,
       interruptedRunId,
@@ -3422,6 +3984,212 @@ class TextEngine<
       ...validated.resumeToolState,
       approvals,
     })
+
+    const genericResolutions = validated.resumeToolState.genericInterrupts
+    if (genericPending.length > 0 && genericResolutions) {
+      const resolutions = genericPending
+        .sort((left, right) => {
+          const leftIndex =
+            left.binding.kind === 'generic' ? (left.binding.batchIndex ?? 0) : 0
+          const rightIndex =
+            right.binding.kind === 'generic'
+              ? (right.binding.batchIndex ?? 0)
+              : 0
+          return leftIndex - rightIndex
+        })
+        .flatMap((record) => {
+          const resolution = genericResolutions.get(record.interruptId)
+          if (!resolution || !record.genericRequest) return []
+          return [
+            resolution.status === 'resolved'
+              ? {
+                  request: record.genericRequest,
+                  status: 'resolved' as const,
+                  response: resolution.payload,
+                }
+              : {
+                  request: record.genericRequest,
+                  status: 'cancelled' as const,
+                },
+          ]
+        })
+      const collection: InterruptResolutionCollection = {
+        for: (definition) =>
+          resolutions.filter(
+            (resolution) => resolution.request.definition === definition,
+          ) as never,
+        all: (...definitions: Array<InterruptDefinition<any, any, any, any>>) =>
+          definitions.length === 0
+            ? resolutions
+            : resolutions.filter((resolution) =>
+                definitions.includes(resolution.request.definition),
+              ),
+      }
+      const policy = await this.middlewareRunner.runOnInterruptResolution(
+        this.middlewareCtx,
+        collection,
+      )
+      if (policy.toolResume === 'stop') {
+        this.earlyTermination = true
+      } else if (policy.toolResume === 'cancel') {
+        for (const request of pendingToolCalls) {
+          this.resumeCancelledToolCallIds.add(request.id)
+        }
+      }
+    }
+  }
+
+  private getGenericContinuationPending(interruptedRunId: string): Array<{
+    interruptId: string
+    payload: unknown
+    binding: InterruptBinding
+    genericRequest: GenericInterruptRequest<
+      InterruptDefinition<any, any, any, any>
+    >
+  }> {
+    const fail = (message: string): never => {
+      throw new InterruptResumeValidationError([
+        {
+          scope: 'batch',
+          threadId: this.threadId,
+          interruptedRunId,
+          generation: 0,
+          interruptIds: [],
+          code: 'stale',
+          message,
+          source: 'server',
+          retryable: false,
+        },
+      ])
+    }
+    const state = this.params.state
+    if (!state || typeof state !== 'object' || Array.isArray(state)) return []
+    const handoff = (state as Record<string, unknown>)[
+      'tanstack:interruptContinuation'
+    ]
+    if (handoff === undefined) return []
+    if (!handoff || typeof handoff !== 'object' || Array.isArray(handoff)) {
+      return fail('Generic interrupt continuation state is invalid.')
+    }
+    const record = handoff as Record<string, unknown>
+    if (record.v !== 1 || !Array.isArray(record.interrupts)) {
+      return fail(
+        'Generic interrupt continuation state has an unsupported version.',
+      )
+    }
+    const pending: Array<{
+      interruptId: string
+      payload: unknown
+      binding: InterruptBinding
+      genericRequest: GenericInterruptRequest<
+        InterruptDefinition<any, any, any, any>
+      >
+    }> = []
+    const ids = new Set<string>()
+    const batchIndexes = new Set<number>()
+    for (const item of record.interrupts) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) {
+        return fail('Generic interrupt continuation contains an invalid entry.')
+      }
+      const entry = item as Record<string, unknown>
+      if (
+        typeof entry.id !== 'string' ||
+        typeof entry.definitionId !== 'string' ||
+        typeof entry.key !== 'string' ||
+        typeof entry.reason !== 'string' ||
+        typeof entry.message !== 'string' ||
+        typeof entry.batchIndex !== 'number' ||
+        !Number.isInteger(entry.batchIndex) ||
+        entry.batchIndex < 0 ||
+        (entry.responseSchemaHash !== undefined &&
+          typeof entry.responseSchemaHash !== 'string') ||
+        (entry.expiresAt !== undefined && typeof entry.expiresAt !== 'string') ||
+        (entry.payloadSchemaHash !== undefined &&
+          typeof entry.payloadSchemaHash !== 'string')
+      ) {
+        return fail('Generic interrupt continuation contains invalid fields.')
+      }
+      const definition = this.interruptDefinitions.get(entry.definitionId)
+      if (!definition) {
+        return fail(
+          `Generic interrupt definition ${entry.definitionId} is unavailable.`,
+        )
+      }
+      if (ids.has(entry.id) || batchIndexes.has(entry.batchIndex)) {
+        return fail('Generic interrupt continuation contains duplicate entries.')
+      }
+      ids.add(entry.id)
+      batchIndexes.add(entry.batchIndex)
+      let request: GenericInterruptRequest<
+        InterruptDefinition<any, any, any, any>
+      >
+      try {
+        request = Reflect.apply(definition.interrupt, definition, [
+          {
+            key: entry.key,
+            reason: entry.reason,
+            message: entry.message,
+            ...(typeof entry.expiresAt === 'string'
+              ? { expiresAt: entry.expiresAt }
+              : {}),
+            ...(Object.prototype.hasOwnProperty.call(entry, 'payload')
+              ? { payload: entry.payload }
+              : {}),
+          },
+        ])
+      } catch (error) {
+        return fail(
+          `Generic interrupt continuation ${entry.id} is invalid: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        )
+      }
+      const emitted = createInterruptBinding(request, {
+        batchIndex: entry.batchIndex,
+      })
+      if (
+        entry.responseSchemaHash !== emitted.descriptor.responseSchemaHash ||
+        entry.payloadSchemaHash !== emitted.descriptor.payloadSchemaHash
+      ) {
+        return fail(
+          `Generic interrupt continuation ${entry.id} does not match its definition.`,
+        )
+      }
+      pending.push({
+        interruptId: entry.id,
+        payload: {
+          id: entry.id,
+          ...(emitted.descriptor.responseSchemaCanonicalJson !== undefined
+            ? {
+                responseSchema: JSON.parse(
+                  emitted.descriptor.responseSchemaCanonicalJson,
+                ),
+              }
+            : {}),
+        },
+        binding: {
+          v: INTERRUPT_BINDING_VERSION,
+          kind: 'generic',
+          interruptId: entry.id,
+          interruptedRunId,
+          generation: 0,
+          definitionId: entry.definitionId,
+          key: entry.key,
+          batchIndex: entry.batchIndex,
+          ...(typeof entry.expiresAt === 'string'
+            ? { expiresAt: entry.expiresAt }
+            : {}),
+          ...(emitted.descriptor.payloadSchemaHash
+            ? { payloadSchemaHash: emitted.descriptor.payloadSchemaHash }
+            : {}),
+          ...(entry.responseSchemaHash !== undefined
+            ? { responseSchemaHash: entry.responseSchemaHash }
+            : {}),
+        },
+        genericRequest: request,
+      })
+    }
+    return pending
   }
 
   private applyResumeToolState(state: ChatResumeToolState | undefined): void {
@@ -3443,6 +4211,57 @@ class TextEngine<
     if (state?.cancelledToolCallIds) {
       for (const toolCallId of state.cancelledToolCallIds) {
         this.resumeCancelledToolCallIds.add(toolCallId)
+      }
+    }
+    if (state?.genericInterrupts) {
+      for (const [interruptId, resolution] of state.genericInterrupts) {
+        this.resumeGenericInterrupts.set(interruptId, resolution)
+      }
+    }
+    if (state?.genericInterruptRequests) {
+      for (const [interruptId, request] of state.genericInterruptRequests) {
+        this.resumeGenericInterruptRequests.set(interruptId, request)
+      }
+    }
+  }
+
+  private async applyDurableGenericInterruptResolution(): Promise<void> {
+    if (this.resumeGenericInterruptRequests.size === 0) return
+    const resolutions = [...this.resumeGenericInterruptRequests.entries()]
+      .flatMap(([interruptId, request]) => {
+        const resolution = this.resumeGenericInterrupts.get(interruptId)
+        if (!resolution) return []
+        return [
+          resolution.status === 'resolved'
+            ? {
+                request,
+                status: 'resolved' as const,
+                response: resolution.payload,
+              }
+            : { request, status: 'cancelled' as const },
+        ]
+      })
+    const collection: InterruptResolutionCollection = {
+      for: (definition) =>
+        resolutions.filter(
+          (resolution) => resolution.request.definition === definition,
+        ) as never,
+      all: (...definitions: Array<InterruptDefinition<any, any, any, any>>) =>
+        definitions.length === 0
+          ? resolutions
+          : resolutions.filter((resolution) =>
+              definitions.includes(resolution.request.definition),
+            ),
+    }
+    const policy = await this.middlewareRunner.runOnInterruptResolution(
+      this.middlewareCtx,
+      collection,
+    )
+    if (policy.toolResume === 'stop') {
+      this.earlyTermination = true
+    } else if (policy.toolResume === 'cancel') {
+      for (const toolCall of this.getPendingToolCallsFromMessages()) {
+        this.resumeCancelledToolCallIds.add(toolCall.id)
       }
     }
   }
@@ -3482,6 +4301,9 @@ class TextEngine<
       chunk,
     )
     for (const outputChunk of outputChunks) {
+      if (outputChunk.type === EventType.RUN_STARTED) {
+        this.hasPublicRunStarted = true
+      }
       yield outputChunk
       this.middlewareCtx.chunkIndex++
     }
@@ -3622,64 +4444,135 @@ export function chat<
     TStream,
     any
   >['tools'] = TextActivityOptions<TAdapter, TSchema, TStream, any>['tools'],
-  const TMiddleware extends TextActivityOptions<
-    TAdapter,
-    TSchema,
-    TStream,
-    any
-  >['middleware'] = TextActivityOptions<
-    TAdapter,
-    TSchema,
-    TStream,
-    any
-  >['middleware'],
+  const TInterrupts extends
+    ReadonlyArray<InterruptDefinition<any, any, any, any>> = [],
+  TContext = unknown,
+  const TMiddleware extends Array<unknown> | undefined = undefined,
 >(
   options: TextActivityOptionsWithContext<
     TAdapter,
     TSchema,
     TStream,
     TTools,
+    TInterrupts,
+    TContext,
     TMiddleware
   >,
 ): TextActivityResult<TSchema, TStream, TTools> {
-  validateCapabilities(options.middleware ?? [], options.adapter)
+  validateInterruptDefinitions(options.interrupts)
+  validateCapabilities(
+    readRuntimeMiddleware(options.middleware) ?? [],
+    options.adapter,
+  )
 
   const { outputSchema, stream } = options
 
-  // outputSchema + stream:true is the only branch that streams structured
-  // output. Without an explicit `stream: true`, schema-bearing calls run the
-  // agent loop and resolve to a typed Promise<InferSchemaType<TSchema>>.
   if (outputSchema && stream === true) {
-    return runStreamingStructuredOutput({
-      ...options,
-      outputSchema,
-      stream,
-    }) as TextActivityResult<TSchema, TStream, TTools>
+    return runStreamingStructuredOutput(
+      toRuntimeTextActivityOptions(options, {
+        outputSchema,
+        stream: true,
+      }),
+    ) as TextActivityResult<TSchema, TStream, TTools>
   }
 
-  // If outputSchema is provided, run agentic structured output (Promise<T>)
   if (outputSchema) {
-    return runAgenticStructuredOutput({
-      ...options,
-      outputSchema,
-    }) as TextActivityResult<TSchema, TStream, TTools>
+    return runAgenticStructuredOutput(
+      toRuntimeTextActivityOptions(options, {
+        outputSchema,
+        stream: false,
+      }),
+    ) as TextActivityResult<TSchema, TStream, TTools>
   }
 
-  // If stream is explicitly false, run non-streaming text
   if (stream === false) {
-    return runNonStreamingText({
-      ...options,
-      outputSchema: undefined,
-      stream,
-    }) as TextActivityResult<TSchema, TStream, TTools>
+    return runNonStreamingText(
+      toRuntimeTextActivityOptions(options, {
+        outputSchema: undefined,
+        stream: false,
+      }),
+    ) as TextActivityResult<TSchema, TStream, TTools>
   }
 
-  // Otherwise, run streaming text (default)
-  return runStreamingText({
-    ...options,
-    outputSchema: undefined,
-    stream,
-  }) as TextActivityResult<TSchema, TStream, TTools>
+  return runStreamingText(
+    toRuntimeTextActivityOptions(options, {
+      outputSchema: undefined,
+      stream: true,
+    }),
+  ) as TextActivityResult<TSchema, TStream, TTools>
+}
+
+type RuntimeTextActivityOptions<
+  TAdapter extends AnyTextAdapter,
+  TSchema extends SchemaInput | undefined,
+  TStream extends boolean,
+> = Omit<
+  TextActivityOptions<TAdapter, TSchema, TStream, any>,
+  'middleware'
+> & {
+  middleware?: Array<AnyChatMiddleware>
+}
+
+function readRuntimeMiddleware(
+  middleware: unknown,
+): Array<AnyChatMiddleware> | undefined {
+  if (middleware === undefined) return undefined
+  if (!Array.isArray(middleware)) {
+    throw new TypeError('Chat middleware must be an array.')
+  }
+  return middleware
+}
+
+function toRuntimeTextActivityOptions<
+  TAdapter extends AnyTextAdapter,
+  TInputSchema extends SchemaInput | undefined,
+  TInputStream extends boolean,
+  TOutputSchema extends SchemaInput | undefined,
+  TOutputStream extends boolean,
+  TTools extends TextActivityOptions<
+    TAdapter,
+    TInputSchema,
+    TInputStream,
+    any
+  >['tools'],
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+  TContext,
+  TMiddleware extends Array<unknown> | undefined,
+>(
+  options: TextActivityOptionsWithContext<
+    TAdapter,
+    TInputSchema,
+    TInputStream,
+    TTools,
+    TInterrupts,
+    TContext,
+    TMiddleware
+  >,
+  overrides: { outputSchema: TOutputSchema; stream: TOutputStream },
+): RuntimeTextActivityOptions<TAdapter, TOutputSchema, TOutputStream> {
+  const { middleware, ...rest } = options
+  return {
+    ...rest,
+    ...overrides,
+    ...(middleware === undefined
+      ? {}
+      : { middleware: readRuntimeMiddleware(middleware) }),
+  }
+}
+
+function validateInterruptDefinitions(
+  definitions:
+    | ReadonlyArray<InterruptDefinition<any, any, any, any>>
+    | undefined,
+): void {
+  if (!definitions) return
+  const seen = new Set<string>()
+  for (const definition of definitions) {
+    if (seen.has(definition.id)) {
+      throw new Error(`Duplicate interrupt definition id: ${definition.id}`)
+    }
+    seen.add(definition.id)
+  }
 }
 
 /**
@@ -3731,8 +4624,8 @@ function publishDeliverySeams(
  * returns, so the identity has to be minted out here and the engine reached back
  * through `engineRef`, which the body fills as soon as its engine exists.
  */
-function runStreamingText<TContext = unknown>(
-  options: TextActivityOptions<AnyTextAdapter, undefined, true, TContext>,
+function runStreamingText(
+  options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
 ): AsyncIterable<StreamChunk> {
   const engineRef: DeliveryEngineRef = {}
   const stream = streamTextChunks(options, engineRef)
@@ -3740,8 +4633,8 @@ function runStreamingText<TContext = unknown>(
   return stream
 }
 
-async function* streamTextChunks<TContext = unknown>(
-  options: TextActivityOptions<AnyTextAdapter, undefined, true, TContext>,
+async function* streamTextChunks(
+  options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, boolean>,
   engineRef: DeliveryEngineRef,
 ): AsyncIterable<StreamChunk> {
   const { adapter, middleware, context, debug, mcp, ...textOptions } = options
@@ -3760,7 +4653,7 @@ async function* streamTextChunks<TContext = unknown>(
       params: { ...textOptions, model, logger } as TextOptions<
         Record<string, any>,
         Record<string, any>,
-        TContext
+        any
       >,
       middleware,
       context,
@@ -3782,19 +4675,13 @@ async function* streamTextChunks<TContext = unknown>(
  * Run non-streaming text - collects all content and returns as a string.
  * Runs the full agentic loop (if tools are provided) but returns collected text.
  */
-function runNonStreamingText<TContext = unknown>(
-  options: TextActivityOptions<AnyTextAdapter, undefined, false, TContext>,
+function runNonStreamingText(
+  options: RuntimeTextActivityOptions<AnyTextAdapter, undefined, false>,
 ): Promise<string> {
-  // Run the streaming text and collect all text using streamToText.
-  const stream = runStreamingText(
-    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- generic-stream remap: caller is non-streaming (false), but runStreamingText is invoked internally to collect text; concrete `false`→`true` literals don't structurally overlap.
-    options as unknown as TextActivityOptions<
-      AnyTextAdapter,
-      undefined,
-      true,
-      TContext
-    >,
-  )
+  const stream = runStreamingText({
+    ...options,
+    stream: true,
+  })
 
   return streamToText(stream)
 }
@@ -3805,11 +4692,8 @@ function runNonStreamingText<TContext = unknown>(
  * 2. Once complete, call adapter.structuredOutput with the conversation context
  * 3. Validate and return the structured result
  */
-async function runAgenticStructuredOutput<
-  TSchema extends SchemaInput,
-  TContext = unknown,
->(
-  options: TextActivityOptions<AnyTextAdapter, TSchema, boolean, TContext>,
+async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
+  options: RuntimeTextActivityOptions<AnyTextAdapter, TSchema, boolean>,
 ): Promise<InferSchemaType<TSchema>> {
   const {
     adapter,
@@ -3878,7 +4762,7 @@ async function runAgenticStructuredOutput<
       params: { ...textOptions, model, logger } as TextOptions<
         Record<string, unknown>,
         Record<string, unknown>,
-        TContext
+        any
       >,
       middleware,
       context,
@@ -4085,11 +4969,8 @@ async function* fallbackStructuredOutputStream(
  * synchronously at call time rather than as a yielded RUN_ERROR mid-stream —
  * those are programmer errors, not runtime conditions.
  */
-function runStreamingStructuredOutput<
-  TSchema extends SchemaInput,
-  TContext = unknown,
->(
-  options: TextActivityOptions<AnyTextAdapter, TSchema, true, TContext>,
+function runStreamingStructuredOutput<TSchema extends SchemaInput>(
+  options: RuntimeTextActivityOptions<AnyTextAdapter, TSchema, true>,
 ): StructuredOutputStream<InferSchemaType<TSchema>> {
   const { outputSchema } = options
 
@@ -4150,11 +5031,8 @@ type StructuredOutputStreamInternal<T> = AsyncIterable<
   StreamChunk | StructuredOutputCompleteEvent<T>
 >
 
-async function* runStreamingStructuredOutputImpl<
-  TSchema extends SchemaInput,
-  TContext = unknown,
->(
-  options: TextActivityOptions<AnyTextAdapter, TSchema, true, TContext>,
+async function* runStreamingStructuredOutputImpl<TSchema extends SchemaInput>(
+  options: RuntimeTextActivityOptions<AnyTextAdapter, TSchema, true>,
   jsonSchema: NonNullable<ReturnType<typeof convertSchemaToJsonSchema>>,
   normalize: (data: unknown) => unknown,
   engineRef: DeliveryEngineRef,
@@ -4195,7 +5073,7 @@ async function* runStreamingStructuredOutputImpl<
       params: { ...textOptions, model, logger } as TextOptions<
         Record<string, unknown>,
         Record<string, unknown>,
-        TContext
+        any
       >,
       middleware,
       context,

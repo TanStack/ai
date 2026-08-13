@@ -1,5 +1,6 @@
 import type {
   AnyClientTool,
+  InterruptDefinition,
   ModelMessage,
   RunAgentResumeItem,
   SchemaInput,
@@ -9,7 +10,7 @@ import type {
   BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatRequestBody,
   ChatResumeState,
@@ -59,8 +60,9 @@ export type {
 export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = InferredClientContext<TTools>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext>,
+  ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -92,6 +94,7 @@ export type UseChatOptions<
 
 export interface UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> = readonly [],
 > {
   /**
    * Current messages in the conversation
@@ -153,14 +156,14 @@ export interface UseChatReturn<
    * it, correlate a log line).
    */
   runId: string | null
-  interrupts: BoundInterrupts<TTools>
+  interrupts: BoundInterrupts<TTools, TInterrupts>
   /** @deprecated Use `interrupts`. */
-  pendingInterrupts: BoundInterrupts<TTools>
-  interruptErrors: ChatInterruptState<TTools>['interruptErrors']
+  pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
+  interruptErrors: ChatInterruptState<TTools, TInterrupts>['interruptErrors']
   resuming: boolean
   resolveInterrupts: {
     (approved: boolean): void
-    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+    (resolver: (interrupt: ResolvableChatInterrupt<TTools, TInterrupts>) => undefined): void
   }
   cancelInterrupts: () => void
   retryInterrupts: () => void

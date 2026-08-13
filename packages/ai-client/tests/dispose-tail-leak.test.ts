@@ -32,7 +32,7 @@ function seededStore(): {
  */
 function mountedChatClient(
   options: ConstructorParameters<typeof ChatClient>[0],
-): ChatClient {
+) {
   const client = new ChatClient(options)
   client.attach()
   return client

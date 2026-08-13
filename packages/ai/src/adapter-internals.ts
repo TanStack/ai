@@ -25,3 +25,23 @@ export {
   PendingTurnCapability,
   providePendingTurn,
 } from './activities/chat/middleware/pending-turn'
+export {
+  getGenericInterruptDefinitionRegistry,
+  GenericInterruptDefinitionRegistryCapability,
+  provideGenericInterruptDefinitionRegistry,
+} from './activities/chat/middleware/generic-interrupts'
+export type { GenericInterruptDefinitionRegistry } from './activities/chat/middleware/generic-interrupts'
+export {
+  createInterruptBinding,
+  getInterruptRequestInput,
+  rehydrateInterruptRequest,
+} from './interrupt-definition'
+export type {
+  GenericInterruptRequest,
+  InterruptDefinition,
+} from './interrupt-definition'
+export {
+  readInterruptBinding,
+  validateInterruptResumeBatch,
+} from './interrupt-resume'
+export type { PendingInterruptResumeRecord } from './interrupt-resume'

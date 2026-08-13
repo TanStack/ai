@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, chat, defineChatMiddleware } from '@tanstack/ai'
+import {
+  EventType,
+  chat,
+  defineChatMiddleware,
+  defineInterrupt,
+} from '@tanstack/ai'
 import type { AnyTextAdapter, StreamChunk, Tool } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
+import type { InterruptStore } from '../src/types'
 
 function mockAdapter(iterations: Array<Array<StreamChunk>>) {
   const calls: Array<unknown> = []
@@ -29,6 +35,76 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   const out: Array<StreamChunk> = []
   for await (const c of stream) out.push(c)
   return out
+}
+
+const coercedCountSchema = {
+  '~standard': {
+    version: 1,
+    vendor: 'test',
+    validate(value: unknown) {
+      if (
+        !value ||
+        typeof value !== 'object' ||
+        Array.isArray(value) ||
+        !('count' in value) ||
+        (typeof value.count !== 'string' && typeof value.count !== 'number')
+      ) {
+        return { issues: [{ message: 'count is required' }] }
+      }
+      const count = Number(value.count)
+      return Number.isFinite(count)
+        ? { value: { count } }
+        : { issues: [{ message: 'count must be numeric' }] }
+    },
+    jsonSchema: {
+      input() {
+        return {
+          type: 'object',
+          required: ['count'],
+          properties: { count: { type: 'string' } },
+        }
+      },
+    },
+  },
+} as const
+
+const transformedDisplaySchema = {
+  '~standard': {
+    version: 1,
+    vendor: 'test',
+    validate(value: unknown) {
+      return typeof value === 'string'
+        ? { value: value.length }
+        : { issues: [{ message: 'display payload must be a string' }] }
+    },
+    jsonSchema: {
+      input() {
+        return { type: 'string' }
+      },
+    },
+  },
+} as const
+
+function expectResumeError(
+  chunks: ReadonlyArray<StreamChunk>,
+  interruptId: string,
+) {
+  const error = chunks.find((chunk) => chunk.type === EventType.RUN_ERROR)
+  expect(error?.['tanstack:interruptErrors']).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ scope: 'item', interruptId }),
+    ]),
+  )
+}
+
+function isInterruptTerminal(chunk: StreamChunk): chunk is StreamChunk & {
+  outcome: { type: 'interrupt'; interrupts: ReadonlyArray<{ id: string }> }
+} {
+  return (
+    chunk.type === EventType.RUN_FINISHED &&
+    'outcome' in chunk &&
+    chunk.outcome?.type === 'interrupt'
+  )
 }
 
 const interruptFinished = (runId = 'r1'): StreamChunk => ({
@@ -207,8 +283,8 @@ describe('interrupt persistence', () => {
     })
     const { adapter } = mockAdapter([[interruptFinished()]])
 
-    await expect(
-      collect(
+    expectResumeError(
+      await collect(
         chat({
           adapter,
           messages: [{ role: 'user', content: 'new input' }],
@@ -217,7 +293,8 @@ describe('interrupt persistence', () => {
           middleware: [withPersistence(persistence)],
         }) as AsyncIterable<StreamChunk>,
       ),
-    ).rejects.toThrow(/pending interrupt/i)
+      'interrupt-1',
+    )
 
     expect(await persistence.stores.runs!.get('r2')).toBeNull()
   })
@@ -446,8 +523,8 @@ describe('interrupt persistence', () => {
     )
 
     const continuation = mockAdapter([[text('SHOULD NOT RUN')]])
-    await expect(
-      collect(
+    expectResumeError(
+      await collect(
         chat({
           adapter: continuation.adapter,
           messages: [],
@@ -457,10 +534,11 @@ describe('interrupt persistence', () => {
           middleware: [withPersistence(persistence)],
         }) as AsyncIterable<StreamChunk>,
       ),
-    ).rejects.toThrow(/pending interrupts.*resume is required/i)
+      'interrupt-1',
+    )
 
-    await expect(
-      collect(
+    expectResumeError(
+      await collect(
         chat({
           adapter: continuation.adapter,
           messages: [],
@@ -470,7 +548,8 @@ describe('interrupt persistence', () => {
           middleware: [withPersistence(persistence)],
         }) as AsyncIterable<StreamChunk>,
       ),
-    ).rejects.toThrow(/missing resume entry.*interrupt-1/i)
+      'interrupt-1',
+    )
 
     expect(continuation.calls).toHaveLength(0)
     expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
@@ -493,8 +572,8 @@ describe('interrupt persistence', () => {
     expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
 
     const continuation = mockAdapter([[text('SHOULD NOT RUN')]])
-    await expect(
-      collect(
+    expectResumeError(
+      await collect(
         chat({
           adapter: continuation.adapter,
           messages: [],
@@ -504,7 +583,8 @@ describe('interrupt persistence', () => {
           middleware: [withPersistence(persistence)],
         }) as AsyncIterable<StreamChunk>,
       ),
-    ).rejects.toThrow(/non-pending interrupt stale-interrupt/i)
+      'stale-interrupt',
+    )
 
     expect(continuation.calls).toHaveLength(0)
   })
@@ -520,8 +600,8 @@ describe('interrupt persistence', () => {
     })
     const bad = mockAdapter([[runStarted(), interruptFinished()]])
 
-    await expect(
-      collect(
+    expectResumeError(
+      await collect(
         chat({
           adapter: bad.adapter,
           messages: [{ role: 'user', content: 'new input' }],
@@ -531,7 +611,8 @@ describe('interrupt persistence', () => {
           middleware: [withPersistence(persistence)],
         }) as AsyncIterable<StreamChunk>,
       ),
-    ).rejects.toThrow(/missing resume entry.*interrupt-1/i)
+      'interrupt-1',
+    )
 
     const good = mockAdapter([[runStarted(), interruptFinished('r2')]])
     await collect(
@@ -559,8 +640,8 @@ describe('interrupt persistence', () => {
     })
     const run = mockAdapter([[text('SHOULD NOT RUN')]])
 
-    await expect(
-      collect(
+    expectResumeError(
+      await collect(
         chat({
           adapter: run.adapter,
           messages: [{ role: 'user', content: 'new input' }],
@@ -573,7 +654,8 @@ describe('interrupt persistence', () => {
           middleware: [withPersistence(persistence)],
         }) as AsyncIterable<StreamChunk>,
       ),
-    ).rejects.toThrow(/non-pending interrupt stale-interrupt/i)
+      'stale-interrupt',
+    )
 
     expect(run.calls).toHaveLength(0)
     expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
@@ -943,5 +1025,559 @@ describe('interrupt persistence', () => {
     expect((await persistence.stores.interrupts!.get('weird-1'))?.status).toBe(
       'resolved',
     )
+  })
+
+  it('restores a registered generic interrupt after reload and gives its transformed response to the resolution hook', async () => {
+    const persistence = memoryPersistence()
+    const review = defineInterrupt({
+      id: 'persisted-review',
+      payloadSchema: transformedDisplaySchema,
+      responseSchema: coercedCountSchema,
+    })
+    const boundary = defineChatMiddleware({
+      onInterruptBoundary(ctx) {
+        if (ctx.phase !== 'afterModel') return
+        return {
+          interrupts: [
+            review.interrupt({
+              key: 'one',
+              payload: 'Review this plan',
+              reason: 'review',
+              message: 'Review this plan',
+            }),
+          ],
+        }
+      },
+    })
+    const first = mockAdapter([[runStarted(), runFinished('r1')]])
+    await collect(
+      chat({
+        adapter: first.adapter,
+        interrupts: [review],
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [boundary, withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const interruptId = (
+      await persistence.stores.interrupts!.listPending('t1')
+    )[0]?.interruptId
+    expect(interruptId).toBeDefined()
+    if (!interruptId) throw new Error('Expected a persisted generic interrupt')
+
+    const observed: Array<unknown> = []
+    const resumed = mockAdapter([
+      [runStarted(), text('continued'), runFinished('r1')],
+    ])
+    await collect(
+      chat({
+        adapter: resumed.adapter,
+        interrupts: [review],
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId,
+            status: 'resolved',
+            payload: { count: '2' },
+          },
+        ],
+        middleware: [
+          defineChatMiddleware({
+            onInterruptResolution(_ctx, resolutions) {
+              observed.push(...resolutions.for(review))
+              return { toolResume: 'continue' }
+            },
+          }),
+          withPersistence(persistence),
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(observed).toEqual([
+      expect.objectContaining({
+        status: 'resolved',
+        request: expect.objectContaining({ payload: 'Review this plan'.length }),
+        response: { count: 2 },
+      }),
+    ])
+    expect(
+      (await persistence.stores.interrupts!.get(interruptId))?.status,
+    ).toBe('resolved')
+  })
+
+  it('resumes a registered generic record without blocking on a foreign persisted interrupt', async () => {
+    const persistence = memoryPersistence()
+    const review = defineInterrupt({
+      id: 'mixed-persisted-review',
+      responseSchema: coercedCountSchema,
+    })
+    const boundary = defineChatMiddleware({
+      onInterruptBoundary(ctx) {
+        if (ctx.phase !== 'afterModel') return
+        return {
+          interrupts: [
+            review.interrupt({
+              key: 'review',
+              reason: 'review',
+              message: 'Review this plan',
+            }),
+          ],
+        }
+      },
+    })
+    const legacyInterruptId = 'legacy-external'
+    const initial = mockAdapter([
+      [
+        runStarted(),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'stop',
+          timestamp: 1,
+          outcome: {
+            type: 'interrupt',
+            interrupts: [
+              {
+                id: legacyInterruptId,
+                reason: 'legacy-review',
+                message: 'A legacy system needs a response',
+              },
+            ],
+          },
+        } satisfies StreamChunk,
+      ],
+    ])
+
+    await collect(
+      chat({
+        adapter: initial.adapter,
+        interrupts: [review],
+        messages: [{ role: 'user', content: 'Start' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [boundary, withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const pending = await persistence.stores.interrupts!.listPending('t1')
+    expect(pending).toHaveLength(2)
+    const registered = pending.find(
+      (record) => record.interruptId !== legacyInterruptId,
+    )!
+    const legacy = pending.find(
+      (record) => record.interruptId === legacyInterruptId,
+    )!
+    expect(registered.payload).toMatchObject({
+      metadata: {
+        'tanstack:interruptBinding': {
+          definitionId: 'mixed-persisted-review',
+          key: 'review',
+        },
+      },
+    })
+    expect(legacy.payload).toEqual({
+      id: legacyInterruptId,
+      reason: 'legacy-review',
+      message: 'A legacy system needs a response',
+    })
+
+    const observed: Array<unknown> = []
+    const resumed = mockAdapter([
+      [runStarted(), text('complete'), runFinished('r1')],
+    ])
+    await collect(
+      chat({
+        adapter: resumed.adapter,
+        interrupts: [review],
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: registered.interruptId,
+            status: 'resolved',
+            payload: { count: '3' },
+          },
+        ],
+        middleware: [
+          defineChatMiddleware({
+            onInterruptResolution(_ctx, resolutions) {
+              observed.push(...resolutions.for(review))
+              return { toolResume: 'continue' }
+            },
+          }),
+          withPersistence(persistence),
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(observed).toEqual([
+      expect.objectContaining({
+        request: expect.objectContaining({
+          definition: review,
+          key: 'review',
+        }),
+        status: 'resolved',
+        response: { count: 3 },
+      }),
+    ])
+    expect(resumed.calls).toHaveLength(1)
+    expect(
+      (await persistence.stores.interrupts!.get(registered.interruptId))
+        ?.status,
+    ).toBe('resolved')
+    expect(
+      (await persistence.stores.interrupts!.get(legacyInterruptId))?.status,
+    ).toBe('pending')
+  })
+
+  it('restores two requests with the same definition and key by their unique instance ids', async () => {
+    const persistence = memoryPersistence()
+    const review = defineInterrupt({
+      id: 'repeat-review',
+      responseSchema: coercedCountSchema,
+    })
+    const firstChunks = await collect(
+      chat({
+        adapter: mockAdapter([[runStarted(), runFinished('r1')]]).adapter,
+        interrupts: [review],
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [
+          defineChatMiddleware({
+            onInterruptBoundary(ctx) {
+              if (ctx.phase !== 'afterModel') return
+              return {
+                interrupts: [
+                  review.interrupt({
+                    key: 'same',
+                    reason: 'review',
+                    message: 'First',
+                  }),
+                  review.interrupt({
+                    key: 'same',
+                    reason: 'review',
+                    message: 'Second',
+                  }),
+                ],
+              }
+            },
+          }),
+          withPersistence(persistence),
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const terminal = firstChunks.find(isInterruptTerminal)
+    const ids =
+      terminal?.outcome.interrupts.map((interrupt) => interrupt.id) ?? []
+    expect(ids).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
+
+    const observed: Array<unknown> = []
+    await collect(
+      chat({
+        adapter: mockAdapter([
+          [runStarted(), text('continued'), runFinished('r1')],
+        ]).adapter,
+        interrupts: [review],
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: ids.map((interruptId, index) => ({
+          interruptId,
+          status: 'resolved' as const,
+          payload: { count: String(index + 1) },
+        })),
+        middleware: [
+          defineChatMiddleware({
+            onInterruptResolution(_ctx, resolutions) {
+              observed.push(...resolutions.for(review))
+              return { toolResume: 'continue' }
+            },
+          }),
+          withPersistence(persistence),
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(observed).toHaveLength(2)
+    expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
+  })
+
+  it('returns a structured conflict error for duplicate durable resume entries', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.create({
+      interruptId: 'duplicate-me',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: {},
+    })
+    const { adapter } = mockAdapter([[text('SHOULD NOT RUN')]])
+
+    const chunks = await collect(
+      chat({
+        adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          { interruptId: 'duplicate-me', status: 'resolved' },
+          { interruptId: 'duplicate-me', status: 'cancelled' },
+        ],
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const error = chunks.find((chunk) => chunk.type === EventType.RUN_ERROR)
+    expect(error?.['tanstack:interruptErrors']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'duplicate-me',
+          code: 'conflict',
+        }),
+      ]),
+    )
+    expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
+      1,
+    )
+  })
+
+  it('commits a mixed resume batch once when the store supports commitBatch', async () => {
+    const persistence = memoryPersistence()
+    const store = persistence.stores.interrupts!
+    const defaultCommitBatch = store.commitBatch!.bind(store)
+    const resolve = vi.spyOn(store, 'resolve')
+    const cancel = vi.spyOn(store, 'cancel')
+    const commitBatch = vi.fn(defaultCommitBatch)
+    store.commitBatch = commitBatch
+
+    await store.create({
+      interruptId: 'resolved-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: {},
+    })
+    await store.create({
+      interruptId: 'cancelled-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 2,
+      payload: {},
+    })
+
+    const { adapter } = mockAdapter([[runStarted(), text('ok'), runFinished()]])
+    await collect(
+      chat({
+        adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'resolved-1',
+            status: 'resolved',
+            payload: { answer: 'yes' },
+          },
+          { interruptId: 'cancelled-1', status: 'cancelled' },
+        ],
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(commitBatch).toHaveBeenCalledTimes(1)
+    expect(commitBatch).toHaveBeenCalledWith([
+      {
+        interruptId: 'resolved-1',
+        status: 'resolved',
+        response: { answer: 'yes' },
+      },
+      { interruptId: 'cancelled-1', status: 'cancelled' },
+    ])
+    expect(resolve).not.toHaveBeenCalled()
+    expect(cancel).not.toHaveBeenCalled()
+    expect((await store.get('resolved-1'))?.status).toBe('resolved')
+    expect((await store.get('cancelled-1'))?.status).toBe('cancelled')
+  })
+
+  it('uses legacy writes when an old interrupt store has no commitBatch method', async () => {
+    const persistence = memoryPersistence()
+    const base = persistence.stores.interrupts!
+    const resolve = vi.fn((interruptId: string, response?: unknown) =>
+      base.resolve(interruptId, response),
+    )
+    const cancel = vi.fn((interruptId: string) => base.cancel(interruptId))
+    const legacyStore: InterruptStore = {
+      create: (record) => base.create(record),
+      resolve,
+      cancel,
+      get: (interruptId) => base.get(interruptId),
+      list: (threadId) => base.list(threadId),
+      listPending: (threadId) => base.listPending(threadId),
+      listByRun: (runId) => base.listByRun(runId),
+      listPendingByRun: (runId) => base.listPendingByRun(runId),
+    }
+    persistence.stores.interrupts = legacyStore
+
+    await legacyStore.create({
+      interruptId: 'resolved-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: {},
+    })
+    await legacyStore.create({
+      interruptId: 'cancelled-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 2,
+      payload: {},
+    })
+
+    const { adapter } = mockAdapter([[runStarted(), text('ok'), runFinished()]])
+    await collect(
+      chat({
+        adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          { interruptId: 'resolved-1', status: 'resolved', payload: 'yes' },
+          { interruptId: 'cancelled-1', status: 'cancelled' },
+        ],
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(resolve).toHaveBeenCalledWith('resolved-1', 'yes')
+    expect(cancel).toHaveBeenCalledWith('cancelled-1')
+  })
+
+  it('preflights a memory interrupt batch before it changes any record', async () => {
+    const persistence = memoryPersistence()
+    const store = persistence.stores.interrupts!
+    await store.create({
+      interruptId: 'pending-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: {},
+    })
+    await store.create({
+      interruptId: 'pending-2',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 2,
+      payload: {},
+    })
+    await store.create({
+      interruptId: 'terminal-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 3,
+      payload: {},
+    })
+    await store.resolve('terminal-1', { done: true })
+
+    await expect(
+      store.commitBatch!([
+        { interruptId: 'pending-1', status: 'resolved', response: 'yes' },
+        { interruptId: 'missing-1', status: 'cancelled' },
+      ]),
+    ).rejects.toThrow('missing id: missing-1')
+    expect((await store.get('pending-1'))?.status).toBe('pending')
+
+    await expect(
+      store.commitBatch!([
+        { interruptId: 'pending-1', status: 'resolved', response: 'yes' },
+        { interruptId: 'pending-1', status: 'cancelled' },
+      ]),
+    ).rejects.toThrow('duplicate id: pending-1')
+    expect((await store.get('pending-1'))?.status).toBe('pending')
+
+    await expect(
+      store.commitBatch!([
+        { interruptId: 'pending-2', status: 'resolved', response: 'yes' },
+        { interruptId: 'terminal-1', status: 'cancelled' },
+      ]),
+    ).rejects.toThrow('non-pending id: terminal-1')
+    expect((await store.get('pending-2'))?.status).toBe('pending')
+    expect((await store.get('terminal-1'))?.status).toBe('resolved')
+  })
+
+  it('keeps a mixed resume batch retryable when commitBatch rejects', async () => {
+    const persistence = memoryPersistence()
+    const store = persistence.stores.interrupts!
+    const defaultCommitBatch = store.commitBatch!.bind(store)
+    const resolve = vi.spyOn(store, 'resolve')
+    const cancel = vi.spyOn(store, 'cancel')
+    const commitBatch = vi.fn(async () => {
+      throw new Error('batch write failed')
+    })
+    store.commitBatch = commitBatch
+    await store.create({
+      interruptId: 'resolved-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: {},
+    })
+    await store.create({
+      interruptId: 'cancelled-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 2,
+      payload: {},
+    })
+
+    const { adapter } = mockAdapter([[runStarted(), text('ok'), runFinished()]])
+    await expect(
+      collect(
+        chat({
+          adapter,
+          messages: [],
+          runId: 'r1',
+          threadId: 't1',
+          resume: [
+            { interruptId: 'resolved-1', status: 'resolved', payload: 'yes' },
+            { interruptId: 'cancelled-1', status: 'cancelled' },
+          ],
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('batch write failed')
+    expect(await store.listPending('t1')).toHaveLength(2)
+    expect((await store.get('resolved-1'))?.status).toBe('pending')
+    expect((await store.get('cancelled-1'))?.status).toBe('pending')
+    expect(resolve).not.toHaveBeenCalled()
+    expect(cancel).not.toHaveBeenCalled()
+    expect((await persistence.stores.runs!.get('r1'))?.status).toBe('failed')
+
+    store.commitBatch = vi.fn(defaultCommitBatch)
+    const retry = mockAdapter([[runStarted(), text('retried'), runFinished()]])
+    const chunks = await collect(
+      chat({
+        adapter: retry.adapter,
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          { interruptId: 'resolved-1', status: 'resolved', payload: 'yes' },
+          { interruptId: 'cancelled-1', status: 'cancelled' },
+        ],
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(chunks).toContainEqual(expect.objectContaining({ delta: 'retried' }))
+    expect(await store.listPending('t1')).toEqual([])
+    expect((await store.get('resolved-1'))?.status).toBe('resolved')
+    expect((await store.get('cancelled-1'))?.status).toBe('cancelled')
   })
 })

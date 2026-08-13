@@ -1,9 +1,22 @@
 import {
   defineChatMiddleware,
   getDetachableRun,
+  InterruptResumeValidationError,
+  readInterruptBinding,
+  validateInterruptResumeBatch,
   wasCancelRequested,
 } from '@tanstack/ai'
-import { providePendingTurn } from '@tanstack/ai/adapter-internals'
+import {
+  createInterruptBinding,
+  getGenericInterruptDefinitionRegistry,
+  providePendingTurn,
+  rehydrateInterruptRequest,
+} from '@tanstack/ai/adapter-internals'
+import type {
+  GenericInterruptRequest,
+  InterruptDefinition,
+} from '@tanstack/ai/adapter-internals'
+import type { PendingInterruptResumeRecord } from '@tanstack/ai'
 import { base64ToUint8Array } from '@tanstack/ai-utils'
 import {
   InterruptsCapability,
@@ -28,12 +41,14 @@ import type {
   GenerationFinishInfo,
   GenerationMiddleware,
   GenerationMiddlewareContext,
+  Interrupt,
   ModelMessage,
   PersistedArtifactActivity,
   PersistedArtifactRef,
   PersistedArtifactRole,
   RunAgentResumeItem,
   StreamChunk,
+  Tool,
   ToolApprovalResolution,
   TokenUsage,
 } from '@tanstack/ai'
@@ -43,6 +58,7 @@ import type {
   ArtifactRecord,
   BlobBody,
   ChatTranscriptStores,
+  InterruptCommitEntry,
   InterruptRecord,
   RunStore,
 } from './types'
@@ -274,24 +290,71 @@ const validResumeStatuses = new Set(['resolved', 'cancelled'])
 function validatePendingResumes(
   pending: Array<InterruptRecord>,
   resume: Array<RunAgentResumeItem> | undefined,
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
 ): Map<string, RunAgentResumeItem> {
+  const interruptedRunId = pending[0]?.runId ?? ctx.runId
+  const failure = (
+    interruptId: string,
+    code: 'conflict' | 'unknown-interrupt',
+    message: string,
+  ): never => {
+    throw new InterruptResumeValidationError([
+      {
+        scope: 'item',
+        threadId: ctx.threadId,
+        interruptedRunId,
+        generation: 0,
+        interruptId,
+        code,
+        message,
+        source: 'client',
+        retryable: false,
+      },
+      {
+        scope: 'batch',
+        threadId: ctx.threadId,
+        interruptedRunId,
+        generation: 0,
+        interruptIds: pending.map((interrupt) => interrupt.interruptId),
+        code: code === 'conflict' ? 'conflict' : 'incomplete-batch',
+        message:
+          'Resume entries must resolve or cancel the complete interrupt batch.',
+        source: 'client',
+        retryable: false,
+      },
+    ])
+  }
   const pendingInterruptIds = new Set(
     pending.map((interrupt) => interrupt.interruptId),
   )
-  const resumeByInterruptId = new Map(
-    (resume ?? []).map((entry) => [entry.interruptId, entry]),
-  )
+  const resumeByInterruptId = new Map<string, RunAgentResumeItem>()
+  for (const entry of resume ?? []) {
+    if (resumeByInterruptId.has(entry.interruptId)) {
+      return failure(
+        entry.interruptId,
+        'conflict',
+        `Interrupt ${entry.interruptId} has duplicate resume entries.`,
+      )
+    }
+    resumeByInterruptId.set(entry.interruptId, entry)
+  }
   if (pending.length === 0) {
     const staleEntry = resume?.[0]
     if (staleEntry) {
-      throw new Error(
+      return failure(
+        staleEntry.interruptId,
+        'unknown-interrupt',
         `Resume entry references non-pending interrupt ${staleEntry.interruptId}.`,
       )
     }
     return resumeByInterruptId
   }
+  const firstPending = pending[0]
+  if (firstPending === undefined) return resumeByInterruptId
   if (!resume || resume.length === 0) {
-    throw new Error(
+    return failure(
+      firstPending.interruptId,
+      'unknown-interrupt',
       `Thread has pending interrupts; resume is required before accepting new input.`,
     )
   }
@@ -299,19 +362,25 @@ function validatePendingResumes(
   for (const interrupt of pending) {
     const entry = resumeByInterruptId.get(interrupt.interruptId)
     if (!entry) {
-      throw new Error(
+      return failure(
+        interrupt.interruptId,
+        'unknown-interrupt',
         `Missing resume entry for pending interrupt ${interrupt.interruptId}.`,
       )
     }
     if (!validResumeStatuses.has(entry.status)) {
-      throw new Error(
+      return failure(
+        interrupt.interruptId,
+        'unknown-interrupt',
         `Invalid resume status for pending interrupt ${interrupt.interruptId}: ${entry.status}.`,
       )
     }
   }
   for (const entry of resume) {
     if (!pendingInterruptIds.has(entry.interruptId)) {
-      throw new Error(
+      return failure(
+        entry.interruptId,
+        'unknown-interrupt',
         `Resume entry references non-pending interrupt ${entry.interruptId}.`,
       )
     }
@@ -324,6 +393,27 @@ async function applyPendingResumes(
   resumeByInterruptId: Map<string, RunAgentResumeItem>,
   interrupts: NonNullable<AIPersistence['stores']['interrupts']>,
 ): Promise<void> {
+  const entries: Array<InterruptCommitEntry> = []
+  for (const interrupt of pending) {
+    const entry = resumeByInterruptId.get(interrupt.interruptId)
+    if (!entry) continue
+    if (entry.status === 'resolved') {
+      entries.push({
+        interruptId: interrupt.interruptId,
+        status: 'resolved',
+        response: entry.payload,
+      })
+    } else {
+      entries.push({
+        interruptId: interrupt.interruptId,
+        status: 'cancelled',
+      })
+    }
+  }
+  if (interrupts.commitBatch) {
+    await interrupts.commitBatch(entries)
+    return
+  }
   for (const interrupt of pending) {
     const entry = resumeByInterruptId.get(interrupt.interruptId)
     if (!entry) continue
@@ -372,6 +462,267 @@ function stringField(
 function interruptKind(interrupt: InterruptRecord): string | undefined {
   const metadata = objectValue(interrupt.payload.metadata)
   return metadata ? stringField(metadata, 'kind') : undefined
+}
+
+function hasReservedInterruptBinding(payload: unknown): boolean {
+  const descriptor = objectValue(payload)
+  const metadata = objectValue(descriptor?.metadata)
+  return !!metadata && 'tanstack:interruptBinding' in metadata
+}
+
+function isPersistedInterruptDescriptor(
+  value: unknown,
+): value is Interrupt & { reason: string; message: string } {
+  const record = objectValue(value)
+  return (
+    !!record &&
+    typeof record.id === 'string' &&
+    typeof record.reason === 'string' &&
+    typeof record.message === 'string'
+  )
+}
+
+/**
+ * Does this pending record belong to the TanStack chat resume protocol?
+ *
+ * An external system can persist an AG-UI descriptor in the same durable
+ * thread. A descriptor without a TanStack binding or legacy tool marker stays
+ * pending for its owner, but it does not make this resume incomplete. Older
+ * opaque records remain owned because their provenance cannot be known.
+ */
+function isChatOwnedPendingInterrupt(interrupt: InterruptRecord): boolean {
+  const kind = interruptKind(interrupt)
+  return (
+    !isPersistedInterruptDescriptor(interrupt.payload) ||
+    stringField(interrupt.payload, 'toolCallId') !== undefined ||
+    kind === 'approval' ||
+    kind === 'client_tool' ||
+    hasReservedInterruptBinding(interrupt.payload)
+  )
+}
+
+function durableGenericFailure(
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
+  persisted: InterruptRecord,
+  message: string,
+): InterruptResumeValidationError {
+  return new InterruptResumeValidationError([
+    {
+      scope: 'item',
+      threadId: ctx.threadId,
+      interruptedRunId: persisted.runId || ctx.runId,
+      generation: 0,
+      interruptId: persisted.interruptId,
+      code: 'stale',
+      message,
+      source: 'server',
+      retryable: false,
+    },
+    {
+      scope: 'batch',
+      threadId: ctx.threadId,
+      interruptedRunId: persisted.runId || ctx.runId,
+      generation: 0,
+      interruptIds: [persisted.interruptId],
+      code: 'item-validation-failed',
+      message: 'One or more persisted interrupt records are invalid.',
+      source: 'server',
+      retryable: false,
+    },
+  ])
+}
+
+async function durableGenericResumeState(
+  ctx: ChatMiddlewareContext,
+  pending: Array<InterruptRecord>,
+  resume: ReadonlyArray<RunAgentResumeItem>,
+  tools: Array<Tool>,
+): Promise<ChatResumeToolState | undefined> {
+  const registry = getGenericInterruptDefinitionRegistry(ctx, {
+    optional: true,
+  })
+  const records: Array<PendingInterruptResumeRecord> = []
+
+  for (const persisted of pending) {
+    if (!isPersistedInterruptDescriptor(persisted.payload)) {
+      if (hasReservedInterruptBinding(persisted.payload)) {
+        throw durableGenericFailure(
+          ctx,
+          persisted,
+          `Persisted interrupt ${persisted.interruptId} has an invalid binding descriptor.`,
+        )
+      }
+      continue
+    }
+    const descriptor = persisted.payload
+    const binding = readInterruptBinding(descriptor)
+    if (!binding) {
+      if (hasReservedInterruptBinding(descriptor)) {
+        throw durableGenericFailure(
+          ctx,
+          persisted,
+          `Persisted interrupt ${persisted.interruptId} has an invalid or incomplete binding.`,
+        )
+      }
+      continue
+    }
+    if (
+      descriptor.id !== persisted.interruptId ||
+      binding.interruptId !== persisted.interruptId ||
+      binding.interruptedRunId !== persisted.runId ||
+      binding.generation !== 0
+    ) {
+      throw durableGenericFailure(
+        ctx,
+        persisted,
+        `Persisted interrupt ${persisted.interruptId} has stale correlation metadata.`,
+      )
+    }
+    if (binding.kind !== 'generic') {
+      records.push({
+        interruptId: persisted.interruptId,
+        payload: descriptor,
+        binding,
+      })
+      continue
+    }
+    if (
+      !binding.definitionId ||
+      !binding.key ||
+      binding.batchIndex === undefined
+    ) {
+      records.push({
+        interruptId: persisted.interruptId,
+        payload: descriptor,
+        binding,
+      })
+      continue
+    }
+    if (!registry) {
+      throw durableGenericFailure(
+        ctx,
+        persisted,
+        `Persisted generic interrupt ${persisted.interruptId} cannot be restored because no interrupt registry is available.`,
+      )
+    }
+    const definition = registry.definitions.get(binding.definitionId)
+    if (!definition) {
+      throw durableGenericFailure(
+        ctx,
+        persisted,
+        `Persisted generic interrupt definition ${binding.definitionId} is unavailable.`,
+      )
+    }
+    const metadata = objectValue(descriptor.metadata)
+    const payload = metadata?.['tanstack:interruptPayload']
+    let request: GenericInterruptRequest<
+      InterruptDefinition<any, any, any, any>
+    >
+    try {
+      request = rehydrateInterruptRequest(definition, {
+        key: binding.key,
+        reason: descriptor.reason,
+        message: descriptor.message,
+        ...(descriptor.expiresAt !== undefined
+          ? { expiresAt: descriptor.expiresAt }
+          : {}),
+        ...(payload !== undefined ? { payload } : {}),
+      })
+    } catch (error) {
+      throw durableGenericFailure(
+        ctx,
+        persisted,
+        `Persisted generic interrupt ${persisted.interruptId} is invalid: ${error instanceof Error ? error.message : String(error)}`,
+      )
+    }
+    const emitted = createInterruptBinding(request, {
+      batchIndex: binding.batchIndex,
+    })
+    if (
+      emitted.descriptor.responseSchemaHash !== binding.responseSchemaHash ||
+      emitted.descriptor.payloadSchemaHash !== binding.payloadSchemaHash ||
+      binding.interruptId !== persisted.interruptId
+    ) {
+      throw durableGenericFailure(
+        ctx,
+        persisted,
+        `Persisted generic interrupt ${persisted.interruptId} is stale.`,
+      )
+    }
+    records.push({
+      interruptId: persisted.interruptId,
+      payload: descriptor,
+      binding,
+      genericRequest: request,
+    })
+  }
+
+  const firstRecord = records[0]
+  if (firstRecord === undefined) return undefined
+  const interruptedRunId = firstRecord.binding.interruptedRunId
+  const generation = firstRecord.binding.generation
+  const validated = await validateInterruptResumeBatch({
+    threadId: ctx.threadId,
+    interruptedRunId,
+    generation,
+    pending: records,
+    resume: resume.filter((entry) =>
+      records.some((record) => record.interruptId === entry.interruptId),
+    ),
+    tools,
+  })
+  if (validated.errors.length > 0 || !validated.resumeToolState) {
+    throw new InterruptResumeValidationError(validated.errors)
+  }
+  type GenericRecord = PendingInterruptResumeRecord & {
+    binding: Extract<
+      PendingInterruptResumeRecord['binding'],
+      { kind: 'generic' }
+    >
+    genericRequest: GenericInterruptRequest<
+      InterruptDefinition<any, any, any, any>
+    >
+  }
+  const isGenericRecord = (
+    record: PendingInterruptResumeRecord,
+  ): record is GenericRecord =>
+    record.binding.kind === 'generic' && record.genericRequest !== undefined
+  const genericRecords: Array<{ record: GenericRecord; batchIndex: number }> =
+    []
+  const batchIndexes = new Set<number>()
+  for (const record of records) {
+    if (!isGenericRecord(record)) continue
+    const batchIndex = record.binding.batchIndex
+    if (batchIndex === undefined || batchIndexes.has(batchIndex)) {
+      throw new InterruptResumeValidationError([
+        {
+          scope: 'batch',
+          threadId: ctx.threadId,
+          interruptedRunId,
+          generation,
+          interruptIds: records.map((item) => item.interruptId),
+          code: 'stale',
+          message:
+            'Persisted generic interrupts have duplicate or invalid batch indexes.',
+          source: 'server',
+          retryable: false,
+        },
+      ])
+    }
+    batchIndexes.add(batchIndex)
+    genericRecords.push({ record, batchIndex })
+  }
+  genericRecords.sort((left, right) => left.batchIndex - right.batchIndex)
+  return {
+    ...validated.resumeToolState,
+    genericInterruptRequests: new Map(
+      genericRecords.flatMap(({ record }) =>
+        record.genericRequest
+          ? [[record.interruptId, record.genericRequest] as const]
+          : [],
+      ),
+    ),
+  }
 }
 
 function resolvedApprovalDecision(entry: RunAgentResumeItem): boolean {
@@ -1477,11 +1828,14 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         const pending = await persistence.stores.interrupts.listPending(
           ctx.threadId,
         )
-        // Gate: a thread with pending interrupts must carry a resume batch that
-        // references them.
+        // Gate only records that this chat owns. A foreign AG-UI interrupt can
+        // share the durable thread, but its owner resolves it outside this
+        // resume protocol. Including it would deadlock this chat resume.
+        const ownedPending = pending.filter(isChatOwnedPendingInterrupt)
         const resumeByInterruptId = validatePendingResumes(
-          pending,
+          ownedPending,
           config.resume,
+          ctx,
         )
         // Persistence is the server-authoritative resume path: translate the
         // persisted interrupts into the engine's resume tool state and CLEAR
@@ -1490,18 +1844,29 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         // persistence flow deliberately omits).
         if ((config.resume?.length ?? 0) > 0) {
           const resumeToolState = resumeToolStateFromPending(
-            pending,
+            ownedPending,
             resumeByInterruptId,
           )
+          const genericResumeState = await durableGenericResumeState(
+            ctx,
+            ownedPending,
+            config.resume ?? [],
+            config.tools,
+          )
           patch.resume = []
-          if (resumeToolState) patch.resumeToolState = resumeToolState
+          if (resumeToolState || genericResumeState) {
+            patch.resumeToolState = {
+              ...resumeToolState,
+              ...genericResumeState,
+            }
+          }
         }
         // Defer marking these interrupts resolved/cancelled until the run
         // succeeds (see commitPendingResumes). Committing here would consume the
         // approval even if the run then failed, breaking a retry.
         const state = runState.get(ctx)
-        if (state && pending.length > 0) {
-          state.pendingResumes = { pending, resumeByInterruptId }
+        if (state && ownedPending.length > 0) {
+          state.pendingResumes = { pending: ownedPending, resumeByInterruptId }
         }
       }
 
@@ -1618,12 +1983,20 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // resumes stay pending so a retry can re-apply them. Completing the run
       // or consuming approvals before the durable history lands leaves a
       // "finished" run whose transcript is missing the terminal turn.
-      await messageStore.saveThread(
-        ctx.threadId,
-        finishedTranscript(ctx.messages, info, state?.streamingMessageId),
-      )
-      await completeRun(runs, ctx.runId, info.usage)
-      await commitPendingResumes(state, persistence.stores.interrupts)
+      try {
+        await messageStore.saveThread(
+          ctx.threadId,
+          finishedTranscript(ctx.messages, info, state?.streamingMessageId),
+        )
+        await commitPendingResumes(state, persistence.stores.interrupts)
+        await completeRun(runs, ctx.runId, info.usage)
+      } catch (error) {
+        // Core has already selected its terminal hook. Persist the failed run
+        // here, so a failed transcript save or batch write does not leave an
+        // interrupted or completed run whose pending records need retrying.
+        await failRun(runs, ctx.runId, error)
+        throw error
+      }
     },
 
     async onError(ctx: ChatMiddlewareContext, info: ErrorInfo) {

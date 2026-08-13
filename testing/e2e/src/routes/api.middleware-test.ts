@@ -34,11 +34,25 @@ import type {
 import { guitarRecommendationSchema } from '@/lib/schemas'
 import {
   getPhaseCapture,
+  recordGenericBoundary,
+  recordGenericPolicy,
+  recordGenericResolution,
+  recordGenericToolExecution,
   recordOnFinish,
   recordPhase,
   recordYieldedChunk,
   resetPhaseCapture,
 } from '@/lib/phase-capture'
+import {
+  boundaryForScenario,
+  deleteReviewTool,
+  inspectReviewTool,
+  isGenericScenario,
+  renderReviewTool,
+  reviewPlan,
+  toolResumeForScenario,
+} from '@/lib/generic-middleware-interrupts'
+import type { GenericScenario } from '@/lib/generic-middleware-interrupts'
 import { createTextAdapter } from '@/lib/providers'
 import {
   getOtelCapture,
@@ -168,9 +182,83 @@ async function* teeForPhaseCapture(
   captureId: string,
 ): AsyncIterable<StreamChunk> {
   for await (const chunk of source) {
-    recordYieldedChunk(captureId, { type: chunk.type })
+    recordYieldedChunk(captureId, {
+      type: chunk.type,
+      ...('runId' in chunk && typeof chunk.runId === 'string'
+        ? { runId: chunk.runId }
+        : {}),
+      ...(chunk.type === 'RUN_FINISHED' && chunk.outcome
+        ? { outcomeType: chunk.outcome.type }
+        : {}),
+      ...(chunk.type === 'RUN_FINISHED' && chunk.outcome?.type === 'interrupt'
+        ? { interruptCount: chunk.outcome.interrupts.length }
+        : {}),
+    })
     yield chunk
   }
+}
+
+function createGenericLifecycleMiddleware(
+  captureId: string,
+  scenario: GenericScenario,
+): ChatMiddleware<unknown, typeof reviewPlan> {
+  const boundary = boundaryForScenario(scenario)
+  return {
+    name: 'generic-lifecycle',
+    onInterruptBoundary(ctx) {
+      if (ctx.phase !== boundary || ctx.parentRunId) return
+      recordGenericBoundary(captureId, { phase: ctx.phase, runId: ctx.runId })
+      return {
+        interrupts: [
+          reviewPlan.interrupt({
+            key: `${scenario}-review`,
+            reason: 'review_required',
+            message: `Review the plan at ${ctx.phase}`,
+            payload: { title: 'Middleware review plan', boundary: ctx.phase },
+          }),
+        ],
+      }
+    },
+    onInterruptResolution(_ctx, resolutions) {
+      for (const resolution of resolutions.for(reviewPlan)) {
+        recordGenericResolution(captureId, {
+          definitionId: resolution.request.definition.id,
+          status: resolution.status,
+          ...(resolution.status === 'resolved'
+            ? { response: resolution.response }
+            : {}),
+        })
+      }
+      const policy = toolResumeForScenario(scenario)
+      recordGenericPolicy(captureId, policy)
+      return { toolResume: policy }
+    },
+  }
+}
+
+function genericTools(captureId: string, scenario: GenericScenario) {
+  if (scenario === 'generic-after-tools') {
+    return [
+      inspectReviewTool.server(async ({ reviewId }) => {
+        recordGenericToolExecution(captureId, {
+          name: 'inspect_review',
+          side: 'server',
+        })
+        return { inspected: true, reviewId }
+      }),
+    ]
+  }
+  if (boundaryForScenario(scenario) !== 'beforeTools') return []
+  return [
+    deleteReviewTool.server(async ({ reviewId }) => {
+      recordGenericToolExecution(captureId, {
+        name: 'delete_review',
+        side: 'server',
+      })
+      return { deleted: true, reviewId }
+    }),
+    renderReviewTool.client(),
+  ]
 }
 
 /**
@@ -385,6 +473,12 @@ export const Route = createFileRoute('/api/middleware-test')({
           )
 
           const middleware: Array<ChatMiddleware> = []
+          let genericLifecycleMiddleware:
+            | ChatMiddleware<unknown, typeof reviewPlan>
+            | undefined
+          const genericScenario = isGenericScenario(scenario)
+            ? scenario
+            : undefined
 
           if (middlewareMode === 'chunk-transform')
             middleware.push(chunkTransformMiddleware)
@@ -409,6 +503,25 @@ export const Route = createFileRoute('/api/middleware-test')({
             }
             resetPhaseCapture(testId)
             middleware.push(createPhaseRecorderMiddleware(testId))
+          }
+          if (middlewareMode === 'generic-lifecycle') {
+            if (!testId || !genericScenario) {
+              return new Response(
+                JSON.stringify({
+                  error:
+                    'generic-lifecycle mode requires testId and a generic scenario',
+                }),
+                {
+                  status: 400,
+                  headers: { 'Content-Type': 'application/json' },
+                },
+              )
+            }
+            if (!params.parentRunId) resetPhaseCapture(testId)
+            genericLifecycleMiddleware = createGenericLifecycleMiddleware(
+              testId,
+              genericScenario,
+            )
           }
           if (middlewareMode === 'memory') {
             if (!testId) {
@@ -452,7 +565,12 @@ export const Route = createFileRoute('/api/middleware-test')({
             )
           }
 
-          const tools = scenario === 'with-tool' ? [weatherTool] : []
+          const tools =
+            genericScenario && testId
+              ? genericTools(testId, genericScenario)
+              : scenario === 'with-tool'
+                ? [weatherTool]
+                : []
 
           // The two `structured-output*` scenarios both bind the same
           // guitar schema; they differ only in what the spec asserts (phases
@@ -473,22 +591,43 @@ export const Route = createFileRoute('/api/middleware-test')({
                 stream: true,
                 abortController,
               })
-            : chat({
-                ...adapterOptions,
-                messages: params.messages,
-                tools,
-                middleware,
-                threadId: params.threadId,
-                runId: params.runId,
-                agentLoopStrategy: maxIterations(10),
-                abortController,
-              })
+            : genericLifecycleMiddleware
+              ? chat({
+                  ...adapterOptions,
+                  messages: params.messages,
+                  tools,
+                  middleware: [...middleware, genericLifecycleMiddleware],
+                  threadId: params.threadId,
+                  runId: params.runId,
+                  parentRunId: params.parentRunId,
+                  resume: params.resume,
+                  state: params.state,
+                  interrupts: [reviewPlan] as const,
+                  agentLoopStrategy: maxIterations(10),
+                  abortController,
+                })
+              : chat({
+                  ...adapterOptions,
+                  messages: params.messages,
+                  tools,
+                  middleware,
+                  threadId: params.threadId,
+                  runId: params.runId,
+                  parentRunId: params.parentRunId,
+                  resume: params.resume,
+                  state: params.state,
+                  interrupts: genericScenario ? [reviewPlan] : undefined,
+                  agentLoopStrategy: maxIterations(10),
+                  abortController,
+                })
 
           // Tee the post-middleware stream when `phase-recorder` is active
           // so the spec can assert on what the consumer ultimately sees
           // (e.g. exactly one RUN_STARTED/RUN_FINISHED pair).
           const stream =
-            middlewareMode === 'phase-recorder' && testId
+            (middlewareMode === 'phase-recorder' ||
+              middlewareMode === 'generic-lifecycle') &&
+            testId
               ? teeForPhaseCapture(rawStream, testId)
               : rawStream
 
