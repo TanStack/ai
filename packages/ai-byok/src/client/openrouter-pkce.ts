@@ -252,9 +252,10 @@ export function stripOpenRouterCodeFromUrl(href?: string): void {
 
 /**
  * If the current URL carries an OpenRouter `code` and pending PKCE state exists,
- * exchange the code for an API key. Returns `null` when there is nothing to
- * complete (no code, or no pending verifier). Concurrent callers with the same
- * code share one exchange — authorization codes are single-use.
+ * exchange the code for an API key. Returns `null` when the URL has no `code`.
+ * Throws if a `code` is present but PKCE session state is missing (expired) or
+ * the token exchange fails. Concurrent callers with the same code share one
+ * exchange — authorization codes are single-use.
  */
 const inflightByCode = new Map<string, Promise<string | null>>()
 

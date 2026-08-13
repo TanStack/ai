@@ -45,7 +45,7 @@ function Chat() {
   const { keys, status, unlock } = useByok()
   const keysRef = useRef(keys)
   keysRef.current = keys
-  return useChat({
+  useChat({
     connection: fetchServerSentEvents(
       '/api/chat',
       withByok(() => keysRef.current, {
@@ -56,6 +56,7 @@ function Chat() {
       }),
     ),
   })
+  return null
 }
 ```
 
@@ -122,14 +123,16 @@ export const generateAudioFn = createServerFn({ method: 'POST' })
 The `onMissingKey` callback fires only on the fetch-based path (style A), where
 `byokFetcher` owns the `fetch` and can see the `byokMissing` 401. A server
 function (style B) surfaces the missing key as a thrown error instead — catch
-it and inspect the message, or pre-check with `hasKey(provider)` before calling.
+it and inspect the message, or pre-check with
+`hasKey(provider) || status[provider].state === 'locked'` (then `unlock()`)
+before calling. `hasKey` is only true for a **decrypted** key this session.
 
 ## Server (stateless — no persist, no log)
 
 ```ts
 import { getByokKey, byokMissing } from '@tanstack/ai-byok/server'
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
-import { createOpenaiChat } from '@tanstack/ai-openai/adapters'
+import { createOpenaiChat } from '@tanstack/ai-openai'
 
 export async function POST(request: Request) {
   const { messages } = await request.json()
@@ -138,7 +141,7 @@ export async function POST(request: Request) {
   if (!apiKey) return byokMissing('openai')
 
   const stream = chat({
-    adapter: createOpenaiChat('gpt-5.2', apiKey),
+    adapter: createOpenaiChat('gpt-5.5', apiKey),
     messages,
   })
   return toServerSentEventsResponse(stream)

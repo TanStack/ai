@@ -40,11 +40,10 @@ export function ByokProviderRow({
   const { keys, setKey, clearKey, validateKey } = useByok()
   const [draft, setDraft] = useState('')
   const yourKey = keys[provider]
+  const isLocked = status.state === 'locked'
   const hasKey = status.state !== 'empty'
   const lockedLast4 =
-    status.state === 'locked' && 'masked' in status
-      ? status.masked.slice(-4)
-      : null
+    isLocked && 'masked' in status ? status.masked.slice(-4) : null
 
   return (
     <div
@@ -78,14 +77,20 @@ export function ByokProviderRow({
             <button
               type="button"
               style={resolvedStyles.button}
-              onClick={() => void validateKey(provider)}
+              disabled={isLocked}
+              onClick={() => {
+                void validateKey(provider)
+              }}
             >
               Validate
             </button>
             <button
               type="button"
               style={resolvedStyles.button}
-              onClick={() => void clearKey(provider)}
+              disabled={isLocked}
+              onClick={() => {
+                void clearKey(provider).catch(() => undefined)
+              }}
             >
               Clear
             </button>
@@ -106,23 +111,31 @@ export function ByokProviderRow({
         </button>
       ) : null}
 
+      {status.state === 'error' ? (
+        <p style={resolvedStyles.error}>{status.message}</p>
+      ) : null}
+
       <form
         style={resolvedStyles.inputRow}
         onSubmit={(event) => {
           event.preventDefault()
-          if (!draft) return
+          if (!draft || isLocked) return
           void setKey(provider, draft)
-          setDraft('')
+            .then(() => setDraft(''))
+            .catch(() => undefined)
         }}
       >
         <input
           type="password"
           autoComplete="off"
           spellCheck={false}
+          disabled={isLocked}
           placeholder={
-            hasKey
-              ? 'Replace key…'
-              : `Paste ${BYOK_PROVIDERS[provider].label} key…`
+            isLocked
+              ? 'Unlock to replace…'
+              : hasKey
+                ? 'Replace key…'
+                : `Paste ${BYOK_PROVIDERS[provider].label} key…`
           }
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
@@ -131,7 +144,7 @@ export function ByokProviderRow({
         <button
           type="submit"
           style={resolvedStyles.primaryButton}
-          disabled={!draft}
+          disabled={!draft || isLocked}
         >
           Save
         </button>
@@ -255,6 +268,7 @@ export const lightStyles = {
     fontWeight: 600,
     fontSize: 13,
   },
+  error: { margin: 0, color: '#dc2626', fontSize: 12, lineHeight: 1.4 },
 } satisfies ByokRowStyles
 
 export const darkStyles: ByokRowStyles = {

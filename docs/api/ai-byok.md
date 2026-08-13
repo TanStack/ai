@@ -255,7 +255,8 @@ Replaces every occurrence of each secret in `input` with its masked form. Use be
 
 ### `maskKey(key)` / `lastFour(key)`
 
-Display-safe key representations (last four characters only).
+- `maskKey` — display-safe form (`…last4`, or `…` when the key is 4 characters or shorter).
+- `lastFour` — raw trailing 4 characters. Not display-safe: a short key is returned in full. Use `maskKey` in UI and logs.
 
 ## `@tanstack/ai-byok/react`
 
@@ -293,7 +294,8 @@ function KeySettings() {
     storage, // configured KeyringStorage
     locked, // true when unlockable storage may hold encrypted keys
     unlock, // () => Promise<void> — decrypt / load
-    hasKey, // (provider) => boolean
+    hasKey, // true only for a decrypted key this session — not for locked keys
+    storageError, // mount/load failure from the configured storage, if any
   } = useByok();
 
   return null;
@@ -309,7 +311,7 @@ function KeySettings() {
 | `'locked'` | Saved in unlockable storage but not decrypted this session |
 | `'validating'` | Validation in flight |
 | `'valid'` / `'invalid'` / `'unsupported'` | Validation outcome |
-| `'error'` | Validation failed (network, etc.); includes `message` |
+| `'error'` | Validation or persist failed; includes `message` |
 
 ### `<ByokKeyManager providers={...} />`
 

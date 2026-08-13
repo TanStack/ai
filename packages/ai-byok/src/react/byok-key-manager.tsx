@@ -47,7 +47,7 @@ export function ByokKeyManager({
   className,
   style,
 }: ByokKeyManagerProps) {
-  const { status, storage, locked, unlock } = useByok()
+  const { status, storage, locked, unlock, storageError } = useByok()
   const [unlocking, setUnlocking] = useState(false)
   const [unlockError, setUnlockError] = useState<string | null>(null)
 
@@ -77,6 +77,7 @@ export function ByokKeyManager({
         </div>
       ) : null}
       {unlockError ? <p style={styles.warning}>{unlockError}</p> : null}
+      {storageError ? <p style={styles.warning}>{storageError}</p> : null}
 
       {storage.warning ? <p style={styles.warning}>{storage.warning}</p> : null}
 

@@ -7,12 +7,15 @@
  * ever leaves the process.
  */
 
-/** Returns the last 4 characters of a key for display, e.g. `"...a1b2"`. */
+/**
+ * Raw trailing 4 characters. Not display-safe: a key of length ≤ 4 is returned
+ * in full. Use {@link maskKey} in UI and logs.
+ */
 export function lastFour(key: string): string {
   return key.slice(-4)
 }
 
-/** Masks a key to `"…last4"`, hiding everything but the trailing 4 chars. */
+/** Masks a key to `"…last4"`, or `"…"` when the key is 4 characters or shorter. */
 export function maskKey(key: string): string {
   if (key.length <= 4) return '…'
   return `…${lastFour(key)}`

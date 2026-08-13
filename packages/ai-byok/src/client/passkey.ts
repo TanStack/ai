@@ -45,7 +45,9 @@ interface StoredRecord {
 function previewOf(keys: Keyring): KeyPreview {
   const preview: KeyPreview = {}
   for (const [provider, key] of Object.entries(keys)) {
-    if (key) preview[provider as ProviderId] = key.slice(-4)
+    if (!key) continue
+    // Keys of length ≤ 4 would make last-4 the whole secret — store presence only.
+    preview[provider as ProviderId] = key.length > 4 ? key.slice(-4) : ''
   }
   return preview
 }

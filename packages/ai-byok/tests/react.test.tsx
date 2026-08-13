@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { ByokProvider, useByok } from '../src/react'
 import { byokHeaders } from '../src/index'
@@ -86,5 +86,106 @@ describe('useByok', () => {
       state: 'set',
       masked: '…9999',
     })
+  })
+
+  it('setKey while locked hydrates before persist so other keys are kept', async () => {
+    const store = fakeEncryptedStorage({
+      openai: 'sk-openai-1111',
+      anthropic: 'sk-ant-2222',
+    })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ByokProvider storage={store}>{children}</ByokProvider>
+    )
+    const { result } = renderHook(() => useByok(), { wrapper })
+
+    await waitFor(() => expect(result.current.locked).toBe(true))
+
+    await act(async () => {
+      await result.current.setKey('openrouter', 'sk-or-3333')
+    })
+
+    expect(store.load()).toEqual({
+      openai: 'sk-openai-1111',
+      anthropic: 'sk-ant-2222',
+      openrouter: 'sk-or-3333',
+    })
+    expect(result.current.keys).toEqual({
+      openai: 'sk-openai-1111',
+      anthropic: 'sk-ant-2222',
+      openrouter: 'sk-or-3333',
+    })
+    expect(result.current.locked).toBe(false)
+  })
+
+  it('setKey writes the full keyring to storage.save', async () => {
+    const save = vi.fn()
+    const store: KeyringStorage = {
+      id: 'spy',
+      label: 'Spy',
+      persistent: false,
+      load: () => ({}),
+      save,
+      clear: () => {},
+    }
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ByokProvider storage={store}>{children}</ByokProvider>
+    )
+    const { result } = renderHook(() => useByok(), { wrapper })
+
+    await act(async () => {
+      await result.current.setKey('openai', 'sk-live-1234')
+    })
+    expect(save).toHaveBeenCalledWith({ openai: 'sk-live-1234' })
+  })
+
+  it('rolls back keys when save throws', async () => {
+    const store: KeyringStorage = {
+      id: 'fail',
+      label: 'Fail',
+      persistent: false,
+      load: () => ({}),
+      save: () => {
+        throw new Error('PRF unsupported')
+      },
+      clear: () => {},
+    }
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ByokProvider storage={store}>{children}</ByokProvider>
+    )
+    const { result } = renderHook(() => useByok(), { wrapper })
+
+    await act(async () => {
+      await expect(
+        result.current.setKey('openai', 'sk-live-1234'),
+      ).rejects.toThrow('PRF unsupported')
+    })
+    expect(result.current.keys.openai).toBeUndefined()
+    expect(result.current.status.openai).toEqual({
+      state: 'error',
+      masked: '…1234',
+      message: 'PRF unsupported',
+    })
+  })
+
+  it('validateKey does not clear a locked status', async () => {
+    const store = fakeEncryptedStorage({ anthropic: 'sk-ant-9999' })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <ByokProvider storage={store}>{children}</ByokProvider>
+    )
+    const { result } = renderHook(() => useByok(), { wrapper })
+
+    await waitFor(() =>
+      expect(result.current.status.anthropic.state).toBe('locked'),
+    )
+
+    let status
+    await act(async () => {
+      status = await result.current.validateKey('anthropic')
+    })
+    expect(status).toEqual({
+      state: 'locked',
+      masked: '…9999',
+    })
+    expect(result.current.status.anthropic.state).toBe('locked')
   })
 })

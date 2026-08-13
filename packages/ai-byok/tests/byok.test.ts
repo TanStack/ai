@@ -75,6 +75,24 @@ describe('withByok / byokFetch / buildByokRequestContext', () => {
     })
   })
 
+  it('withByok({ onMissingKey }) attaches a fetchClient that fires on byokMissing', async () => {
+    const onMissingKey = vi.fn()
+    const fetchImpl = vi.fn(async () => byokMissing('anthropic'))
+    const build = withByok(() => ({ openai: 'sk-a' }), {
+      onMissingKey,
+      headers: { Authorization: 'Bearer x' },
+      fetchClient: fetchImpl,
+    })
+    const options = build()
+    expect(options.headers).toEqual({
+      Authorization: 'Bearer x',
+      'x-byok-openai': 'sk-a',
+    })
+    expect(options.fetchClient).toEqual(expect.any(Function))
+    await options.fetchClient?.('https://x.test')
+    expect(onMissingKey).toHaveBeenCalledWith('anthropic')
+  })
+
   it('buildByokRequestContext shares headers and fetch between helpers', async () => {
     const onMissingKey = vi.fn()
     const fetchImpl = vi.fn(async () => byokMissing('anthropic'))
@@ -206,6 +224,7 @@ describe('byokMissing', () => {
 describe('scrub', () => {
   it('masks a key down to the last 4 and redacts occurrences', () => {
     expect(maskKey('sk-supersecret1234')).toBe('…1234')
+    expect(maskKey('abcd')).toBe('…')
     expect(
       scrubSecrets('failed with sk-supersecret1234!', ['sk-supersecret1234']),
     ).toBe('failed with …1234!')
@@ -369,6 +388,15 @@ describe('OpenRouter PKCE', () => {
     })
     expect(key).toBe('sk-or-plain')
     expect(JSON.parse(postedBody)).toEqual({ code: 'plain-code' })
+  })
+
+  it('completeOpenRouterPkceFromUrl throws when code is present without pending state', async () => {
+    await expect(
+      completeOpenRouterPkceFromUrl({
+        url: 'https://app.test/?code=orphan',
+        cleanUrl: false,
+      }),
+    ).rejects.toThrow(/PKCE session expired/)
   })
 
   it('completeOpenRouterPkceFromUrl shares one exchange for the same code', async () => {

@@ -784,8 +784,7 @@
         {
           "label": "@tanstack/ai-byok",
           "to": "api/ai-byok",
-          "addedAt": "2026-07-16",
-          "updatedAt": "2026-08-13"
+          "addedAt": "2026-08-13"
         }
       ]
     },

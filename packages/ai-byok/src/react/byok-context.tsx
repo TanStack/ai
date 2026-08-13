@@ -67,7 +67,14 @@ export interface ByokContextValue {
    * ceremony fails or is cancelled.
    */
   unlock: () => Promise<void>
+  /**
+   * True when this session holds a decrypted key for the provider. False for
+   * empty and for `locked` keys — call `unlock()` before treating a locked
+   * provider as usable.
+   */
   hasKey: (provider: ProviderId) => boolean
+  /** Mount/load failure from the configured storage, if any. */
+  storageError: string | null
 }
 
 export const ByokContext = createContext<ByokContextValue | null>(null)
@@ -96,11 +103,16 @@ export function ByokProvider({
   >({})
   // Unlockable storage (passkey) starts locked; the user must unlock to decrypt.
   const [locked, setLocked] = useState(() => Boolean(storage.unlockable))
+  const [storageError, setStorageError] = useState<string | null>(null)
 
   // Keep a ref to the current keys so the persisting callbacks read the latest
   // without re-creating on every keystroke.
   const keysRef = useRef(keys)
   keysRef.current = keys
+  const statusesRef = useRef(statuses)
+  statusesRef.current = statuses
+  const lockedRef = useRef(locked)
+  lockedRef.current = locked
 
   // Apply decrypted/loaded keys. Merge keys UNDER any edits the user made during
   // the async load so an early setKey is never clobbered; promote a provider's
@@ -125,35 +137,42 @@ export function ByokProvider({
   // `locked`; other storage auto-hydrates its keys.
   useEffect(() => {
     let cancelled = false
+    const fail = (error: unknown) => {
+      if (!cancelled) {
+        setStorageError(error instanceof Error ? error.message : String(error))
+      }
+    }
     if (storage.unlockable) {
       if (!storage.peek) return
-      void Promise.resolve(storage.peek()).then((preview) => {
-        if (cancelled) return
-        const present = Object.entries(preview).filter(([, last4]) =>
-          Boolean(last4),
-        )
-        setStatuses((current) => {
-          const next = { ...current }
-          for (const [provider, last4] of present) {
-            if (!next[provider as ProviderId]) {
-              next[provider as ProviderId] = {
-                state: 'locked',
-                masked: `…${last4}`,
+      void Promise.resolve(storage.peek())
+        .then((preview) => {
+          if (cancelled) return
+          const present = Object.entries(preview)
+          setStatuses((current) => {
+            const next = { ...current }
+            for (const [provider, last4] of present) {
+              if (!next[provider as ProviderId]) {
+                next[provider as ProviderId] = {
+                  state: 'locked',
+                  masked: last4 ? `…${last4}` : '…',
+                }
               }
             }
-          }
-          return next
+            return next
+          })
+          // Nothing stored → nothing to unlock.
+          if (present.length === 0) setLocked(false)
         })
-        // Nothing stored → nothing to unlock.
-        if (present.length === 0) setLocked(false)
-      })
+        .catch(fail)
       return () => {
         cancelled = true
       }
     }
-    void Promise.resolve(storage.load()).then((loaded) => {
-      if (!cancelled) applyLoaded(loaded)
-    })
+    void Promise.resolve(storage.load())
+      .then((loaded) => {
+        if (!cancelled) applyLoaded(loaded)
+      })
+      .catch(fail)
     return () => {
       cancelled = true
     }
@@ -163,6 +182,7 @@ export function ByokProvider({
     if (!storage.unlockable) return
     applyLoaded(await Promise.resolve(storage.load()))
     setLocked(false)
+    setStorageError(null)
   }, [storage, applyLoaded])
 
   const persist = useCallback(
@@ -170,44 +190,129 @@ export function ByokProvider({
     [storage],
   )
 
+  // Decrypt the stored ring before mutating it. Persist replaces the whole
+  // ciphertext, so a locked session (in-memory keys are `{}`) must load first
+  // or Save/Clear/PKCE would wipe every other provider.
+  const hydrateIfLocked = useCallback(async (): Promise<Keyring> => {
+    if (!storage.unlockable || !lockedRef.current) return keysRef.current
+    const loaded = await Promise.resolve(storage.load())
+    applyLoaded(loaded)
+    setLocked(false)
+    lockedRef.current = false
+    setStorageError(null)
+    return { ...loaded, ...keysRef.current }
+  }, [storage, applyLoaded])
+
+  const failMutation = (
+    provider: ProviderId,
+    previousKeys: Keyring,
+    previousStatuses: Partial<Record<ProviderId, KeyStatus>>,
+    key: string | undefined,
+    error: unknown,
+  ) => {
+    setKeys(previousKeys)
+    keysRef.current = previousKeys
+    const previous = previousStatuses[provider]
+    const masked = key
+      ? maskKey(key)
+      : previous && 'masked' in previous
+        ? previous.masked
+        : '…'
+    setStatuses({
+      ...previousStatuses,
+      [provider]: {
+        state: 'error',
+        masked,
+        message: error instanceof Error ? error.message : String(error),
+      },
+    })
+  }
+
   const setKey = useCallback(
     async (provider: ProviderId, key: string) => {
-      const next = { ...keysRef.current, [provider]: key }
-      setKeys(next)
-      setStatuses((prev) => ({
-        ...prev,
-        [provider]: { state: 'set', masked: maskKey(key) },
-      }))
-      await persist(next)
-      // A successful save ran any unlock/registration ceremony, so the session
-      // is now unlocked.
-      setLocked(false)
+      const previousKeys = keysRef.current
+      const previousStatuses = statusesRef.current
+      const wasLocked = lockedRef.current
+      try {
+        const next = { ...(await hydrateIfLocked()), [provider]: key }
+        setKeys(next)
+        keysRef.current = next
+        setStatuses((prev) => ({
+          ...prev,
+          [provider]: { state: 'set', masked: maskKey(key) },
+        }))
+        await persist(next)
+        setLocked(false)
+        lockedRef.current = false
+        setStorageError(null)
+      } catch (error) {
+        failMutation(provider, previousKeys, previousStatuses, key, error)
+        if (wasLocked) {
+          setLocked(true)
+          lockedRef.current = true
+        }
+        throw error
+      }
     },
-    [persist],
+    [hydrateIfLocked, persist],
   )
 
   const clearKey = useCallback(
     async (provider: ProviderId) => {
-      const next = { ...keysRef.current }
-      delete next[provider]
-      setKeys(next)
-      setStatuses((prev) => ({ ...prev, [provider]: EMPTY }))
-      await persist(next)
+      const previousKeys = keysRef.current
+      const previousStatuses = statusesRef.current
+      const wasLocked = lockedRef.current
+      try {
+        const next = { ...(await hydrateIfLocked()) }
+        delete next[provider]
+        setKeys(next)
+        keysRef.current = next
+        setStatuses((prev) => ({ ...prev, [provider]: EMPTY }))
+        await persist(next)
+      } catch (error) {
+        failMutation(
+          provider,
+          previousKeys,
+          previousStatuses,
+          previousKeys[provider],
+          error,
+        )
+        if (wasLocked) {
+          setLocked(true)
+          lockedRef.current = true
+        }
+        throw error
+      }
     },
-    [persist, storage],
+    [hydrateIfLocked, persist],
   )
 
   const clearAll = useCallback(async () => {
-    setKeys({})
-    setStatuses({})
-    await Promise.resolve(storage.clear())
-    setLocked(false)
+    const previousKeys = keysRef.current
+    const previousStatuses = statusesRef.current
+    try {
+      setKeys({})
+      keysRef.current = {}
+      setStatuses({})
+      await Promise.resolve(storage.clear())
+      setLocked(false)
+      lockedRef.current = false
+      setStorageError(null)
+    } catch (error) {
+      setKeys(previousKeys)
+      keysRef.current = previousKeys
+      setStatuses(previousStatuses)
+      setStorageError(error instanceof Error ? error.message : String(error))
+      throw error
+    }
   }, [storage])
 
   const validateKey = useCallback(
     async (provider: ProviderId, key?: string): Promise<KeyStatus> => {
       const target = key ?? keysRef.current[provider]
       if (!target) {
+        const existing = statusesRef.current[provider]
+        if (existing?.state === 'locked') return existing
         setStatuses((prev) => ({ ...prev, [provider]: EMPTY }))
         return EMPTY
       }
@@ -254,6 +359,7 @@ export function ByokProvider({
       locked,
       unlock,
       hasKey: (provider) => Boolean(keys[provider]),
+      storageError,
     }),
     [
       keys,
@@ -265,6 +371,7 @@ export function ByokProvider({
       storage,
       locked,
       unlock,
+      storageError,
     ],
   )
 
