@@ -305,23 +305,17 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
         adapter: falVideo('fal-ai/kling-video/v3/pro/text-to-video'),
         prompt: asTextPrompt(data.prompt),
         size: '16:9',
-        modelOptions: {
-          duration: '5',
-        },
+        duration: '5',
       })
     }
     case 'fal-ai/veo3.1': {
-      // NOTE pass aspect ratio, resolution, and duration in model options
-      // This makes use of existing types and avoids type errors
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: falVideo('fal-ai/veo3.1'),
         prompt: asTextPrompt(data.prompt),
         size: '16:9_1080p',
-        modelOptions: {
-          duration: '4s',
-        },
+        duration: '4s',
       })
     }
     case 'xai/grok-imagine-video/text-to-video': {
@@ -393,9 +387,9 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
         prompt: asImageToVideoPrompt(data.prompt),
+        duration: '5',
         modelOptions: {
           generate_audio: true,
-          duration: '5',
         },
       })
     }
@@ -406,9 +400,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
         adapter: falVideo('fal-ai/veo3.1/image-to-video'),
         prompt: asImageToVideoPrompt(data.prompt),
         size: '16:9_1080p',
-        modelOptions: {
-          duration: '4s',
-        },
+        duration: '4s',
       })
     }
     case 'xai/grok-imagine-video/image-to-video': {

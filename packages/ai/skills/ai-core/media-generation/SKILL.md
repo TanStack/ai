@@ -566,6 +566,11 @@ aspect-ratio size template like `'16:9_720p'`, durations 4-15s on the 2.0 family
 4-12s on 1.5-pro, 2-12s on the 1.0-pro models; reads `ARK_API_KEY`),
 `openRouterVideo(...)` (OpenRouter's dedicated `POST /api/v1/videos` gateway),
 and `falVideo(...)` (hosted models, see cost tracking below).
+4-12s on 1.5-pro, 2-12s on the 1.0-pro models; reads `ARK_API_KEY`), and
+`falVideo(...)` (hosted models; `duration` typed from `@fal-ai/client`'s
+`EndpointTypeMap` — `'5' | '10'` on Kling/Pika, `'4s' | '6s' | '8s'` on Veo3,
+`'5s' | '9s'` on Luma; `availableDurations()` / `snapDuration()` on the curated
+set; see cost tracking below).
 
 > **Seedance option applicability is per model and enforced server-side** —
 > Ark returns a 400 for an inapplicable field rather than ignoring it.

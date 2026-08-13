@@ -1,13 +1,17 @@
 import { fal } from '@fal-ai/client'
 import { resolveMediaPrompt } from '@tanstack/ai'
-import { BaseVideoAdapter } from '@tanstack/ai/adapters'
+import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import {
   configureFalClient,
   generateId as utilGenerateId,
 } from '../utils/client'
 import { buildFalUsage, takeBillableUnits } from '../utils/billing'
-import { mapVideoSizeToFalFormat } from '../video/video-provider-options'
+import {
+  getFalVideoDurationOptions,
+  mapVideoSizeToFalFormat,
+} from '../video/video-provider-options'
 import { mapImageInputsToFalVideoFields } from '../image/image-inputs'
+import type { DurationOptions } from '@tanstack/ai/adapters'
 import type {
   AudioPart,
   MediaInputMetadata,
@@ -20,6 +24,7 @@ import type {
 import type {
   FalModel,
   FalModelInput,
+  FalModelVideoDuration,
   FalModelVideoSize,
   FalVideoPromptModalitiesFor,
   FalVideoProviderOptions,
@@ -132,7 +137,8 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   FalVideoProviderOptions<TModel>,
   Record<TModel, FalVideoProviderOptions<TModel>>,
   Record<TModel, FalModelVideoSize<TModel>>,
-  Record<TModel, FalVideoPromptModalitiesFor<TModel>>
+  Record<TModel, FalVideoPromptModalitiesFor<TModel>>,
+  Record<TModel, FalModelVideoDuration<TModel>>
 > {
   override readonly kind = 'video' as const
   readonly name = 'fal' as const
@@ -145,7 +151,8 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
   async createVideoJob(
     options: VideoGenerationOptions<
       FalVideoProviderOptions<TModel>,
-      FalModelVideoSize<TModel>
+      FalModelVideoSize<TModel>,
+      FalModelVideoDuration<TModel>
     >,
   ): Promise<VideoJobResult> {
     const { size, duration, modelOptions, logger } = options
@@ -176,7 +183,7 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
         // Media-only prompts omit the prompt field rather than sending an
         // empty string (e.g. pure image-to-video endpoints).
         ...(resolved.text ? { prompt: resolved.text } : {}),
-        ...(duration ? { duration } : {}),
+        ...(duration !== undefined ? { duration } : {}),
       } as FalModelInput<TModel>
 
       // Submit to queue and get request ID. Request-specific abortSignal only —
@@ -197,6 +204,22 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
       })
       throw error
     }
+  }
+
+  override availableDurations(): DurationOptions<
+    FalModelVideoDuration<TModel>
+  > {
+    return getFalVideoDurationOptions(this.model) as DurationOptions<
+      FalModelVideoDuration<TModel>
+    >
+  }
+
+  override snapDuration(
+    seconds: number,
+  ): FalModelVideoDuration<TModel> | undefined {
+    return snapToDurationOption(seconds, this.availableDurations()) as
+      | FalModelVideoDuration<TModel>
+      | undefined
   }
 
   async getVideoStatus(jobId: string): Promise<VideoStatusResult> {

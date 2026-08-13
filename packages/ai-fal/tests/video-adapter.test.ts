@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
 import { generateVideo } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
@@ -109,7 +109,7 @@ describe('Fal Video Adapter', () => {
       })
     })
 
-    it('includes duration option', async () => {
+    it('includes duration option using the model-typed keyword', async () => {
       mockQueueSubmit.mockResolvedValueOnce({
         request_id: 'job-789',
       })
@@ -119,7 +119,8 @@ describe('Fal Video Adapter', () => {
       await generateVideo({
         adapter: adapter,
         prompt: 'A time lapse of a sunset',
-        duration: 10,
+        // veo3/image-to-video accepts '4s' | '6s' | '8s'
+        duration: '8s',
         modelOptions: {
           image_url: 'https://example.com/sunset.jpg',
         },
@@ -127,8 +128,24 @@ describe('Fal Video Adapter', () => {
 
       const [, options] = mockQueueSubmit.mock.calls[0]!
       expect(options.input).toMatchObject({
-        duration: 10,
+        duration: '8s',
       })
+    })
+
+    it('omits duration for kind: none models (Minimax)', async () => {
+      mockQueueSubmit.mockResolvedValueOnce({
+        request_id: 'job-mini',
+      })
+
+      const adapter = falVideo('fal-ai/minimax/video-01', { apiKey: 'test' })
+
+      await generateVideo({
+        adapter,
+        prompt: 'A fox running through snow',
+      })
+
+      const [, options] = mockQueueSubmit.mock.calls[0]!
+      expect(options.input).not.toHaveProperty('duration')
     })
 
     it('converts size with aspect_ratio and resolution', async () => {
@@ -256,6 +273,51 @@ describe('Fal Video Adapter', () => {
         }),
       ).rejects.toThrow(/exactly one audio prompt part/)
       expect(mockQueueSubmit).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('availableDurations / snapDuration', () => {
+    it('returns discrete keyword durations for Veo3', () => {
+      const adapter = falVideo('fal-ai/veo3', { apiKey: 'test' })
+      expect(adapter.availableDurations()).toEqual({
+        kind: 'discrete',
+        values: ['4s', '6s', '8s'],
+      })
+      expect(adapter.snapDuration(7)).toBe('6s')
+      expect(adapter.snapDuration(9)).toBe('8s')
+    })
+
+    it('returns discrete numeric durations for Kling', () => {
+      const adapter = falVideo(
+        'fal-ai/kling-video/v1.6/standard/text-to-video',
+        { apiKey: 'test' },
+      )
+      expect(adapter.availableDurations()).toEqual({
+        kind: 'discrete',
+        values: ['5', '10'],
+      })
+      expect(adapter.snapDuration(7)).toBe('5')
+      expect(adapter.snapDuration(8)).toBe('10')
+    })
+
+    it('returns kind: none for Minimax (no duration field)', () => {
+      const adapter = falVideo('fal-ai/minimax/video-01', { apiKey: 'test' })
+      expect(adapter.availableDurations()).toEqual({ kind: 'none' })
+      expect(adapter.snapDuration(7)).toBeUndefined()
+    })
+
+    it('falls back to kind: none for uncurated models', () => {
+      const adapter = falVideo('fal-ai/some-unknown-video-model', {
+        apiKey: 'test',
+      })
+      expect(adapter.availableDurations()).toEqual({ kind: 'none' })
+    })
+
+    it('types duration as the model-specific union at compile time', () => {
+      const veo3 = falVideo('fal-ai/veo3', { apiKey: 'test' })
+      expectTypeOf(veo3.snapDuration).returns.toEqualTypeOf<
+        '4s' | '6s' | '8s' | undefined
+      >()
     })
   })
 
