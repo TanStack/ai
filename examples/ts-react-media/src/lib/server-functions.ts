@@ -1,8 +1,8 @@
-import { createServerFn } from "@tanstack/react-start";
-import { falImage, falVideo } from "@tanstack/ai-fal";
-import { geminiImage, geminiVideo } from "@tanstack/ai-gemini";
-import { grokImage, grokVideo } from "@tanstack/ai-grok";
-import { openRouterVideo } from "@tanstack/ai-openrouter";
+import { createServerFn } from '@tanstack/react-start'
+import { falImage, falVideo } from '@tanstack/ai-fal'
+import { geminiImage, geminiVideo } from '@tanstack/ai-gemini'
+import { grokImage, grokVideo } from '@tanstack/ai-grok'
+import { openRouterVideo } from '@tanstack/ai-openrouter'
 import {
   BYTEPLUS_VIDEO_MODELS,
   byteplusImage,
@@ -11,47 +11,47 @@ import {
   resolveBytePlusVideoResolution,
   supportsLastFrame,
   supportsReferenceMedia,
-} from "@tanstack/ai-byteplus";
+} from '@tanstack/ai-byteplus'
 import {
   generateImage,
   generateVideo,
   toServerSentEventsResponse,
-} from "@tanstack/ai";
+} from '@tanstack/ai'
 
-import type { StreamChunk } from "@tanstack/ai";
+import type { StreamChunk } from '@tanstack/ai'
 import type {
   BytePlusVideoModel,
   BytePlusVideoModelOrString,
   BytePlusVideoProviderOptions,
   BytePlusVideoResolution,
-} from "@tanstack/ai-byteplus";
+} from '@tanstack/ai-byteplus'
 import type {
   ImagePart,
   MediaInputMetadata,
   MediaPrompt,
   TextPart,
   VideoPart,
-} from "@tanstack/ai/client";
-import type { OmniTaskMode } from "./models";
-import type { SeedanceCapability, SeedanceJobOptions } from "./seedance";
-import { SEEDANCE_RESOLUTION_TIERS } from "./seedance";
+} from '@tanstack/ai/client'
+import type { OmniTaskMode } from './models'
+import type { SeedanceCapability, SeedanceJobOptions } from './seedance'
+import { SEEDANCE_RESOLUTION_TIERS } from './seedance'
 
 /** A prompt restricted to text — accepted by every (incl. text-only) model. */
-type TextPrompt = string | Array<TextPart>;
+type TextPrompt = string | Array<TextPart>
 /** A prompt of text + image parts — accepted by image-conditioned models. */
-type ImagePrompt = string | Array<TextPart | ImagePart<MediaInputMetadata>>;
+type ImagePrompt = string | Array<TextPart | ImagePart<MediaInputMetadata>>
 /** A prompt of text + image + video parts — Gemini Omni Flash accepts all three. */
 type OmniPrompt =
   | string
   | Array<
       TextPart | ImagePart<MediaInputMetadata> | VideoPart<MediaInputMetadata>
-    >;
+    >
 
 /** True when the prompt carries text — a non-empty string or any prompt part. */
 function hasPromptContent(prompt: MediaPrompt): boolean {
-  return typeof prompt === "string"
+  return typeof prompt === 'string'
     ? prompt.trim().length > 0
-    : prompt.length > 0;
+    : prompt.length > 0
 }
 
 /**
@@ -60,11 +60,11 @@ function hasPromptContent(prompt: MediaPrompt): boolean {
  * fail fast rather than being silently dropped.
  */
 function asImagePrompt(prompt: MediaPrompt): ImagePrompt {
-  if (typeof prompt === "string") return prompt;
+  if (typeof prompt === 'string') return prompt
   return prompt.map((part) => {
-    if (part.type === "text" || part.type === "image") return part;
-    throw new Error(`Unsupported prompt part for image model: ${part.type}`);
-  });
+    if (part.type === 'text' || part.type === 'image') return part
+    throw new Error(`Unsupported prompt part for image model: ${part.type}`)
+  })
 }
 
 /**
@@ -72,13 +72,13 @@ function asImagePrompt(prompt: MediaPrompt): ImagePrompt {
  * video / audio part is present (text-to-image models can't accept inputs).
  */
 function asTextPrompt(prompt: MediaPrompt): TextPrompt {
-  if (typeof prompt === "string") return prompt;
+  if (typeof prompt === 'string') return prompt
   return prompt.map((part) => {
-    if (part.type === "text") return part;
+    if (part.type === 'text') return part
     throw new Error(
       `Model does not support image inputs (received ${part.type} part)`,
-    );
-  });
+    )
+  })
 }
 
 /**
@@ -86,12 +86,12 @@ function asTextPrompt(prompt: MediaPrompt): TextPrompt {
  * image, and video prompt parts (audio would be the only rejected kind).
  */
 function asOmniPrompt(prompt: MediaPrompt): OmniPrompt {
-  if (typeof prompt === "string") return prompt;
+  if (typeof prompt === 'string') return prompt
   return prompt.map((part) => {
-    if (part.type === "text" || part.type === "image" || part.type === "video")
-      return part;
-    throw new Error(`Unsupported prompt part for Omni Flash: ${part.type}`);
-  });
+    if (part.type === 'text' || part.type === 'image' || part.type === 'video')
+      return part
+    throw new Error(`Unsupported prompt part for Omni Flash: ${part.type}`)
+  })
 }
 
 /**
@@ -101,14 +101,14 @@ function asOmniPrompt(prompt: MediaPrompt): OmniPrompt {
 function asImageToVideoPrompt(
   prompt: MediaPrompt,
 ): Array<TextPart | ImagePart<MediaInputMetadata>> {
-  const narrowed = asImagePrompt(prompt);
+  const narrowed = asImagePrompt(prompt)
   if (
-    typeof narrowed === "string" ||
-    !narrowed.some((part) => part.type === "image")
+    typeof narrowed === 'string' ||
+    !narrowed.some((part) => part.type === 'image')
   ) {
-    throw new Error("Start image is required for image-to-video");
+    throw new Error('Start image is required for image-to-video')
   }
-  return narrowed;
+  return narrowed
 }
 
 /**
@@ -116,13 +116,13 @@ function asImageToVideoPrompt(
  * open and polls the provider itself, so this is the rate at which
  * `video:status` events reach the browser's `useGenerateVideo`.
  */
-const VIDEO_POLL_INTERVAL_MS = 4000;
+const VIDEO_POLL_INTERVAL_MS = 4000
 
-export const generateImageFn = createServerFn({ method: "POST" })
+export const generateImageFn = createServerFn({ method: 'POST' })
   .inputValidator((data: { prompt: MediaPrompt; model: string }) => {
-    if (!hasPromptContent(data.prompt)) throw new Error("Prompt is required");
-    if (!data.model) throw new Error("Model is required");
-    return data;
+    if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
+    if (!data.model) throw new Error('Model is required')
+    return data
   })
   .handler(async ({ data }) => {
     // NOTE: Use string literals when instantiating adapters to preserve type safety
@@ -130,18 +130,18 @@ export const generateImageFn = createServerFn({ method: "POST" })
     // Pass size information in modelOptions for the Fal adapter instead of size to be sure you are using the correct resolution
 
     switch (data.model) {
-      case "fal-ai/nano-banana-pro": {
+      case 'fal-ai/nano-banana-pro': {
         return generateImage({
-          adapter: falImage("fal-ai/nano-banana-pro"),
+          adapter: falImage('fal-ai/nano-banana-pro'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
-          size: "16:9_4K",
+          size: '16:9_4K',
           modelOptions: {
-            output_format: "jpeg",
+            output_format: 'jpeg',
           },
-        });
+        })
       }
-      case "xai/grok-imagine-image": {
+      case 'xai/grok-imagine-image': {
         // NOTE: fal's generated `size` type for this model only offers
         // `16:9_1K` / `16:9_4K`, but the live API rejects those resolutions
         // ("Input should be '1k' or '2k'") — fal's published enum is out of
@@ -149,119 +149,119 @@ export const generateImageFn = createServerFn({ method: "POST" })
         // Pass aspect_ratio via modelOptions and let the endpoint pick its
         // default resolution, which both type-checks and works at runtime.
         return generateImage({
-          adapter: falImage("xai/grok-imagine-image"),
+          adapter: falImage('xai/grok-imagine-image'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
-          modelOptions: { aspect_ratio: "16:9" },
-        });
+          modelOptions: { aspect_ratio: '16:9' },
+        })
       }
-      case "grok-imagine-image": {
+      case 'grok-imagine-image': {
         // Direct xAI Imagine API (XAI_API_KEY) via the native grokImage
         // adapter — no fal in between. The grok-imagine models accept image
         // prompt parts for image-conditioned generation, so we narrow with
         // asImagePrompt. Sizing uses the aspect-ratio template.
         return generateImage({
-          adapter: grokImage("grok-imagine-image"),
+          adapter: grokImage('grok-imagine-image'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
-          size: "16:9",
-        });
+          size: '16:9',
+        })
       }
-      case "grok-imagine-image-quality": {
+      case 'grok-imagine-image-quality': {
         return generateImage({
-          adapter: grokImage("grok-imagine-image-quality"),
+          adapter: grokImage('grok-imagine-image-quality'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
-          size: "16:9",
-        });
+          size: '16:9',
+        })
       }
-      case "fal-ai/flux-2/klein/9b": {
+      case 'fal-ai/flux-2/klein/9b': {
         // NOTE: Newer models are untyped (at the moment)
         return generateImage({
-          adapter: falImage("fal-ai/flux-2/klein/9b"),
+          adapter: falImage('fal-ai/flux-2/klein/9b'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
-          size: "landscape_16_9",
-        });
+          size: 'landscape_16_9',
+        })
       }
-      case "fal-ai/z-image/turbo": {
+      case 'fal-ai/z-image/turbo': {
         return generateImage({
-          adapter: falImage("fal-ai/z-image/turbo"),
+          adapter: falImage('fal-ai/z-image/turbo'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
-          size: "landscape_16_9",
+          size: 'landscape_16_9',
           modelOptions: {
-            acceleration: "high",
+            acceleration: 'high',
             enable_prompt_expansion: true,
           },
-        });
+        })
       }
-      case "gemini-3.1-flash-image-preview": {
+      case 'gemini-3.1-flash-image-preview': {
         return generateImage({
-          adapter: geminiImage("gemini-3.1-flash-image-preview"),
+          adapter: geminiImage('gemini-3.1-flash-image-preview'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
-          size: "16:9_4K",
-        });
+          size: '16:9_4K',
+        })
       }
-      case "gemini-3-pro-image-preview": {
+      case 'gemini-3-pro-image-preview': {
         return generateImage({
-          adapter: geminiImage("gemini-3-pro-image-preview"),
+          adapter: geminiImage('gemini-3-pro-image-preview'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
-          size: "16:9_4K",
-        });
+          size: '16:9_4K',
+        })
       }
-      case "imagen-4.0-ultra-generate-001": {
+      case 'imagen-4.0-ultra-generate-001': {
         return generateImage({
-          adapter: geminiImage("imagen-4.0-ultra-generate-001"),
+          adapter: geminiImage('imagen-4.0-ultra-generate-001'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
-          size: "1024x1024",
-        });
+          size: '1024x1024',
+        })
       }
-      case "imagen-4.0-generate-001": {
+      case 'imagen-4.0-generate-001': {
         return generateImage({
-          adapter: geminiImage("imagen-4.0-generate-001"),
+          adapter: geminiImage('imagen-4.0-generate-001'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
-          size: "1024x1024",
-        });
+          size: '1024x1024',
+        })
       }
-      case "imagen-4.0-fast-generate-001": {
+      case 'imagen-4.0-fast-generate-001': {
         return generateImage({
-          adapter: geminiImage("imagen-4.0-fast-generate-001"),
+          adapter: geminiImage('imagen-4.0-fast-generate-001'),
           prompt: asTextPrompt(data.prompt),
           numberOfImages: 1,
-          size: "1024x1024",
-        });
+          size: '1024x1024',
+        })
       }
-      case "dola-seedream-5-0-pro-260628": {
+      case 'dola-seedream-5-0-pro-260628': {
         // BytePlus Seedream via ModelArk (ARK_API_KEY). `size` is either a
         // 1K/2K/4K token or an explicit WIDTHxHEIGHT string — never both.
         // Seedream models accept reference images, so image prompt parts are
         // passed straight through.
         return generateImage({
-          adapter: byteplusImage("dola-seedream-5-0-pro-260628"),
+          adapter: byteplusImage('dola-seedream-5-0-pro-260628'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
-          size: "2K",
-        });
+          size: '2K',
+        })
       }
       default:
-        throw new Error(`Unknown model: ${data.model}`);
+        throw new Error(`Unknown model: ${data.model}`)
     }
-  });
+  })
 
 /** What the browser sends for one video generation. */
 interface VideoRequest {
-  prompt: MediaPrompt;
-  model: string;
+  prompt: MediaPrompt
+  model: string
   /**
    * Gemini Omni Flash conversational editing: the jobId (interaction id)
    * of a prior Omni generation to refine. Ignored by other models.
    */
-  previousInteractionId?: string;
+  previousInteractionId?: string
   /**
    * Gemini Omni Flash generation controls (ignored by other models):
    * clip duration in seconds (3-10, fractional OK, default 10), output
@@ -269,10 +269,10 @@ interface VideoRequest {
    * the model infer the mode from the prompt and attachments.
    */
   omniOptions?: {
-    duration?: number;
-    aspectRatio?: "16:9" | "9:16";
-    task?: OmniTaskMode;
-  };
+    duration?: number
+    aspectRatio?: '16:9' | '9:16'
+    task?: OmniTaskMode
+  }
 }
 
 /**
@@ -287,45 +287,45 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
   // start-image field. Text-to-video models take the text prompt only.
   switch (data.model) {
     // Text-to-video models
-    case "fal-ai/kling-video/v3/pro/text-to-video": {
+    case 'fal-ai/kling-video/v3/pro/text-to-video': {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo("fal-ai/kling-video/v3/pro/text-to-video"),
+        adapter: falVideo('fal-ai/kling-video/v3/pro/text-to-video'),
         prompt: asTextPrompt(data.prompt),
-        size: "16:9",
+        size: '16:9',
         modelOptions: {
-          duration: "5",
+          duration: '5',
         },
-      });
+      })
     }
-    case "fal-ai/veo3.1": {
+    case 'fal-ai/veo3.1': {
       // NOTE pass aspect ratio, resolution, and duration in model options
       // This makes use of existing types and avoids type errors
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo("fal-ai/veo3.1"),
+        adapter: falVideo('fal-ai/veo3.1'),
         prompt: asTextPrompt(data.prompt),
-        size: "16:9_1080p",
+        size: '16:9_1080p',
         modelOptions: {
-          duration: "4s",
+          duration: '4s',
         },
-      });
+      })
     }
-    case "xai/grok-imagine-video/text-to-video": {
+    case 'xai/grok-imagine-video/text-to-video': {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo("xai/grok-imagine-video/text-to-video"),
+        adapter: falVideo('xai/grok-imagine-video/text-to-video'),
         prompt: asTextPrompt(data.prompt),
-        size: "16:9_720p",
+        size: '16:9_720p',
         modelOptions: {
           duration: 5,
         },
-      });
+      })
     }
-    case "grok-imagine-video": {
+    case 'grok-imagine-video': {
       // Direct xAI Imagine API (XAI_API_KEY) — no fal in between. The base
       // grok-imagine-video (v1.0) supports text-to-video; durations are
       // 1-15 integer seconds. Completed jobs report usage.unitsBilled
@@ -333,13 +333,13 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: grokVideo("grok-imagine-video"),
+        adapter: grokVideo('grok-imagine-video'),
         prompt: asTextPrompt(data.prompt),
-        size: "16:9_720p",
+        size: '16:9_720p',
         duration: 5,
-      });
+      })
     }
-    case "dreamina-seedance-2-0-260128": {
+    case 'dreamina-seedance-2-0-260128': {
       // BytePlus Seedance via ModelArk (ARK_API_KEY). `size` is a "ratio" or
       // "ratio_resolution" template; durations are 4-15 integer seconds.
       // Seedance option applicability is per model and Ark 400s on an
@@ -348,79 +348,79 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: byteplusVideo("dreamina-seedance-2-0-260128"),
+        adapter: byteplusVideo('dreamina-seedance-2-0-260128'),
         prompt: asTextPrompt(data.prompt),
-        size: "16:9_720p",
+        size: '16:9_720p',
         duration: 5,
-      });
+      })
     }
-    case "fal-ai/ltx-2.3/text-to-video/fast": {
+    case 'fal-ai/ltx-2.3/text-to-video/fast': {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo("fal-ai/ltx-2.3/text-to-video/fast"),
+        adapter: falVideo('fal-ai/ltx-2.3/text-to-video/fast'),
         prompt: asTextPrompt(data.prompt),
-        size: "16:9_2160p",
-      });
+        size: '16:9_2160p',
+      })
     }
     // Image-to-video models
-    case "fal-ai/kling-video/v3/pro/image-to-video": {
+    case 'fal-ai/kling-video/v3/pro/image-to-video': {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo("fal-ai/kling-video/v3/pro/image-to-video"),
+        adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
         prompt: asImageToVideoPrompt(data.prompt),
         modelOptions: {
           generate_audio: true,
-          duration: "5",
+          duration: '5',
         },
-      });
+      })
     }
-    case "fal-ai/veo3.1/image-to-video": {
+    case 'fal-ai/veo3.1/image-to-video': {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo("fal-ai/veo3.1/image-to-video"),
+        adapter: falVideo('fal-ai/veo3.1/image-to-video'),
         prompt: asImageToVideoPrompt(data.prompt),
-        size: "16:9_1080p",
+        size: '16:9_1080p',
         modelOptions: {
-          duration: "4s",
+          duration: '4s',
         },
-      });
+      })
     }
-    case "xai/grok-imagine-video/image-to-video": {
+    case 'xai/grok-imagine-video/image-to-video': {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo("xai/grok-imagine-video/image-to-video"),
+        adapter: falVideo('xai/grok-imagine-video/image-to-video'),
         prompt: asImageToVideoPrompt(data.prompt),
-        size: "16:9_720p",
+        size: '16:9_720p',
         modelOptions: {
           duration: 5,
         },
-      });
+      })
     }
-    case "grok-imagine-video-1.5/image-to-video": {
+    case 'grok-imagine-video-1.5/image-to-video': {
       // Direct xAI Imagine API. The starting frame is supplied as an image
       // prompt part (asImageToVideoPrompt requires one); the grokVideo
       // adapter forwards it to the Imagine endpoint as the start frame.
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: grokVideo("grok-imagine-video-1.5"),
+        adapter: grokVideo('grok-imagine-video-1.5'),
         prompt: asImageToVideoPrompt(data.prompt),
-        size: "16:9_720p",
+        size: '16:9_720p',
         duration: 5,
-      });
+      })
     }
-    case "fal-ai/ltx-2.3/image-to-video/fast": {
+    case 'fal-ai/ltx-2.3/image-to-video/fast': {
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo("fal-ai/ltx-2.3/image-to-video/fast"),
+        adapter: falVideo('fal-ai/ltx-2.3/image-to-video/fast'),
         prompt: asImageToVideoPrompt(data.prompt),
-        size: "16:9_2160p",
-      });
+        size: '16:9_2160p',
+      })
     }
     // Gemini Omni Flash (Interactions API, GEMINI_API_KEY). One model
     // serves both UI entries; it accepts text, image, AND video prompt
@@ -429,24 +429,24 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
     // is omitted); `size` is the output aspect ratio. Passing
     // `previous_interaction_id` chains a prompt onto a prior generation
     // for conversational editing.
-    case "gemini-omni-flash-preview":
-    case "gemini-omni-flash-preview/image-to-video": {
-      const prompt = asOmniPrompt(data.prompt);
+    case 'gemini-omni-flash-preview':
+    case 'gemini-omni-flash-preview/image-to-video': {
+      const prompt = asOmniPrompt(data.prompt)
       if (
-        data.model.endsWith("/image-to-video") &&
+        data.model.endsWith('/image-to-video') &&
         !data.previousInteractionId &&
-        (typeof prompt === "string" ||
-          !prompt.some((part) => part.type === "image"))
+        (typeof prompt === 'string' ||
+          !prompt.some((part) => part.type === 'image'))
       ) {
-        throw new Error("Start image is required for image-to-video");
+        throw new Error('Start image is required for image-to-video')
       }
-      const { duration, aspectRatio, task } = data.omniOptions ?? {};
+      const { duration, aspectRatio, task } = data.omniOptions ?? {}
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: geminiVideo("gemini-omni-flash-preview"),
+        adapter: geminiVideo('gemini-omni-flash-preview'),
         prompt,
-        size: aspectRatio ?? "16:9",
+        size: aspectRatio ?? '16:9',
         ...(duration !== undefined ? { duration } : {}),
         ...(data.previousInteractionId || task
           ? {
@@ -460,38 +460,38 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
               },
             }
           : {}),
-      });
+      })
     }
     // OpenRouter's dedicated async video API (`POST /api/v1/videos`). Unlike
     // fal (which takes duration in `modelOptions`), OpenRouter types the
     // top-level `duration` per model from its published metadata, and the
     // adapter exposes `snapDuration()` to coerce a raw UI seconds value to
     // the model's nearest supported duration.
-    case "bytedance/seedance-2.0": {
-      const adapter = openRouterVideo("bytedance/seedance-2.0");
+    case 'bytedance/seedance-2.0': {
+      const adapter = openRouterVideo('bytedance/seedance-2.0')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
         prompt: asTextPrompt(data.prompt),
-        size: "1280x720",
+        size: '1280x720',
         duration: adapter.snapDuration(7),
-        modelOptions: { aspectRatio: "16:9" },
-      });
+        modelOptions: { aspectRatio: '16:9' },
+      })
     }
-    case "google/veo-3.1": {
-      const adapter = openRouterVideo("google/veo-3.1");
+    case 'google/veo-3.1': {
+      const adapter = openRouterVideo('google/veo-3.1')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter,
         prompt: asImageToVideoPrompt(data.prompt),
-        size: "1280x720",
+        size: '1280x720',
         duration: adapter.snapDuration(7),
-      });
+      })
     }
     default:
-      throw new Error(`Unknown video model: ${data.model}`);
+      throw new Error(`Unknown video model: ${data.model}`)
   }
 }
 
@@ -502,17 +502,17 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
  * the one request — no client-side polling loop and no job ids to thread
  * through the UI.
  */
-export const generateVideoFn = createServerFn({ method: "POST" })
+export const generateVideoFn = createServerFn({ method: 'POST' })
   .inputValidator((data: VideoRequest) => {
-    if (!hasPromptContent(data.prompt)) throw new Error("Prompt is required");
-    if (!data.model) throw new Error("Model is required");
-    return data;
+    if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
+    if (!data.model) throw new Error('Model is required')
+    return data
   })
   // A rejected model / missing start frame throws out of `videoStreamForModel`
   // before any stream exists, which surfaces as a plain server-function error
   // (the hook reports it through `error`) rather than a stream that opens only
   // to fail.
-  .handler(({ data }) => toServerSentEventsResponse(videoStreamForModel(data)));
+  .handler(({ data }) => toServerSentEventsResponse(videoStreamForModel(data)))
 
 // ============================================================================
 // Seedance Studio — BytePlus ModelArk direct (ARK_API_KEY, server-side only)
@@ -530,12 +530,12 @@ function acceptedResolutions(
 ): Array<BytePlusVideoResolution> {
   const accepted = SEEDANCE_RESOLUTION_TIERS.filter((tier) => {
     try {
-      resolveBytePlusVideoResolution(model, tier);
-      return true;
+      resolveBytePlusVideoResolution(model, tier)
+      return true
     } catch {
-      return false;
+      return false
     }
-  });
+  })
 
   // Using a throw as the predicate means *any* change to that function's
   // contract reads as "no tier is supported". Every Seedance model offers at
@@ -548,9 +548,9 @@ function acceptedResolutions(
       `Seedance capability probe returned no resolution tiers for "${model}". ` +
         `resolveBytePlusVideoResolution's contract has probably changed — the ` +
         `Studio's controls cannot be built from this.`,
-    );
+    )
   }
-  return accepted;
+  return accepted
 }
 
 /**
@@ -559,15 +559,15 @@ function acceptedResolutions(
  * lookups, not calls to Ark.
  */
 export const getSeedanceCapabilitiesFn = createServerFn({
-  method: "GET",
+  method: 'GET',
 }).handler(
   (): Array<SeedanceCapability> =>
     BYTEPLUS_VIDEO_MODELS.map((model) => {
-      const durations = getBytePlusVideoDurationOptions(model);
-      if (durations.kind !== "range") {
+      const durations = getBytePlusVideoDurationOptions(model)
+      if (durations.kind !== 'range') {
         throw new Error(
           `Expected a duration range for ${model}, got "${durations.kind}"`,
-        );
+        )
       }
       return {
         model,
@@ -579,17 +579,17 @@ export const getSeedanceCapabilitiesFn = createServerFn({
         },
         supportsLastFrame: supportsLastFrame(model),
         supportsReferenceMedia: supportsReferenceMedia(model),
-      };
+      }
     }),
-);
+)
 
 /** What the studio sends for one Seedance generation. */
 interface SeedanceRequest {
-  prompt: MediaPrompt;
+  prompt: MediaPrompt
   // Open by design: the studio's advanced field takes an id this package
   // has no metadata for, which the adapter forwards ungated for Ark to judge.
-  model: BytePlusVideoModelOrString;
-  options?: SeedanceJobOptions;
+  model: BytePlusVideoModelOrString
+  options?: SeedanceJobOptions
 }
 
 /**
@@ -597,13 +597,13 @@ interface SeedanceRequest {
  * because the flex tier is an offline batch queue where a task routinely
  * waits many minutes before it even starts.
  */
-const SEEDANCE_MAX_DURATION_MS = 30 * 60_000;
+const SEEDANCE_MAX_DURATION_MS = 30 * 60_000
 /** Seedance tasks are slow; polling faster only burns Ark quota. */
-const SEEDANCE_POLL_INTERVAL_MS = 5000;
+const SEEDANCE_POLL_INTERVAL_MS = 5000
 
 /** The create → poll → complete lifecycle for one Seedance task. */
 function seedanceStream(data: SeedanceRequest): AsyncIterable<StreamChunk> {
-  const options = data.options ?? {};
+  const options = data.options ?? {}
 
   // The studio's camelCase controls map one-to-one onto the provider's own
   // request fields. Applicability is per model and Ark 400s on a field the
@@ -637,7 +637,7 @@ function seedanceStream(data: SeedanceRequest): AsyncIterable<StreamChunk> {
     }),
     ...(options.draft !== undefined && { draft: options.draft }),
     ...(options.priority !== undefined && { priority: options.priority }),
-  };
+  }
 
   // `frames` takes precedence over `duration` server-side, so never send
   // both; `-1` already went through modelOptions above.
@@ -646,7 +646,7 @@ function seedanceStream(data: SeedanceRequest): AsyncIterable<StreamChunk> {
     options.duration !== undefined &&
     options.duration > 0
       ? options.duration
-      : undefined;
+      : undefined
 
   return generateVideo({
     // For a model this package knows, the adapter snaps `duration` into its
@@ -666,7 +666,7 @@ function seedanceStream(data: SeedanceRequest): AsyncIterable<StreamChunk> {
     stream: true,
     pollingInterval: SEEDANCE_POLL_INTERVAL_MS,
     maxDuration: SEEDANCE_MAX_DURATION_MS,
-  });
+  })
 }
 
 /**
@@ -674,10 +674,10 @@ function seedanceStream(data: SeedanceRequest): AsyncIterable<StreamChunk> {
  * `useGenerateVideo`. The browser never sees ARK_API_KEY or a job id it has
  * to poll with — the server does the waiting and reports status on the wire.
  */
-export const generateSeedanceVideoFn = createServerFn({ method: "POST" })
+export const generateSeedanceVideoFn = createServerFn({ method: 'POST' })
   .inputValidator((data: SeedanceRequest) => {
-    if (!hasPromptContent(data.prompt)) throw new Error("Prompt is required");
-    if (!data.model) throw new Error("Model is required");
-    return data;
+    if (!hasPromptContent(data.prompt)) throw new Error('Prompt is required')
+    if (!data.model) throw new Error('Model is required')
+    return data
   })
-  .handler(({ data }) => toServerSentEventsResponse(seedanceStream(data)));
+  .handler(({ data }) => toServerSentEventsResponse(seedanceStream(data)))

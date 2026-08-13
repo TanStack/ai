@@ -1,15 +1,15 @@
-import { OpenRouter } from "@openrouter/sdk";
-import { buildBaseUsage, resolveMediaPrompt } from "@tanstack/ai";
-import { BaseVideoAdapter, snapToDurationOption } from "@tanstack/ai/adapters";
-import { arrayBufferToBase64 } from "@tanstack/ai-utils";
-import { getOpenRouterApiKeyFromEnv } from "../utils";
+import { OpenRouter } from '@openrouter/sdk'
+import { buildBaseUsage, resolveMediaPrompt } from '@tanstack/ai'
+import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
+import { arrayBufferToBase64 } from '@tanstack/ai-utils'
+import { getOpenRouterApiKeyFromEnv } from '../utils'
 import {
   getVideoDurationOptions,
   getVideoModelMeta,
   validateVideoDuration,
   validateVideoSize,
-} from "../video/video-provider-options";
-import type { DurationOptions } from "@tanstack/ai/adapters";
+} from '../video/video-provider-options'
+import type { DurationOptions } from '@tanstack/ai/adapters'
 import type {
   OpenRouterVideoModel,
   OpenRouterVideoModelDurationByName,
@@ -17,7 +17,7 @@ import type {
   OpenRouterVideoModelProviderOptionsByName,
   OpenRouterVideoModelSizeByName,
   OpenRouterVideoProviderOptions,
-} from "../video/video-provider-options";
+} from '../video/video-provider-options'
 import type {
   ContentPartImage,
   FrameImage,
@@ -25,7 +25,7 @@ import type {
   VideoGenerationRequestAspectRatio,
   VideoGenerationRequestResolution,
   VideoGenerationResponse,
-} from "@openrouter/sdk/models";
+} from '@openrouter/sdk/models'
 import type {
   ImagePart,
   MediaInputMetadata,
@@ -34,8 +34,8 @@ import type {
   VideoJobResult,
   VideoStatusResult,
   VideoUrlResult,
-} from "@tanstack/ai";
-import type { OpenRouterClientConfig } from "../utils";
+} from '@tanstack/ai'
+import type { OpenRouterClientConfig } from '../utils'
 
 /**
  * Configuration for the OpenRouter video adapter.
@@ -50,15 +50,15 @@ export interface OpenRouterVideoConfig extends OpenRouterClientConfig {}
  * console.warn — workers and small isolates routinely run out of memory once
  * a downloaded video is base64-encoded.
  */
-const LARGE_MEDIA_BUFFER_BYTES = 10 * 1024 * 1024;
+const LARGE_MEDIA_BUFFER_BYTES = 10 * 1024 * 1024
 
 function warnIfLargeMediaBuffer(byteLength: number): void {
-  if (byteLength <= LARGE_MEDIA_BUFFER_BYTES) return;
+  if (byteLength <= LARGE_MEDIA_BUFFER_BYTES) return
   console.warn(
     `[openrouter.video] downloaded ${(byteLength / 1024 / 1024).toFixed(1)} MiB into memory before base64 encoding. ` +
       `Workers/serverless runtimes commonly run out of memory above ~10 MiB. ` +
       `Consider streaming the video through a CDN or your own storage layer instead.`,
-  );
+  )
 }
 
 /**
@@ -68,13 +68,13 @@ function warnIfLargeMediaBuffer(byteLength: number): void {
  * or bot checks on your behalf — pass directly accessible URLs.
  */
 function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
-  if (part.source.type === "url") return part.source.value;
-  return `data:${part.source.mimeType};base64,${part.source.value}`;
+  if (part.source.type === 'url') return part.source.value
+  return `data:${part.source.mimeType};base64,${part.source.value}`
 }
 
 interface VideoImageFields {
-  frameImages?: Array<FrameImage>;
-  inputReferences?: Array<ContentPartImage>;
+  frameImages?: Array<FrameImage>
+  inputReferences?: Array<ContentPartImage>
 }
 
 /**
@@ -95,66 +95,66 @@ function mapImagePartsToVideoFields(
   model: string,
   images: Array<ImagePart<MediaInputMetadata>>,
 ): VideoImageFields {
-  if (images.length === 0) return {};
+  if (images.length === 0) return {}
 
-  const starts: Array<string> = [];
-  const ends: Array<string> = [];
-  const references: Array<string> = [];
+  const starts: Array<string> = []
+  const ends: Array<string> = []
+  const references: Array<string> = []
   for (const part of images) {
-    const role = part.metadata?.role;
-    if (role === "mask" || role === "control") {
+    const role = part.metadata?.role
+    if (role === 'mask' || role === 'control') {
       throw new Error(
         `openrouter: metadata.role === '${role}' is not supported for video generation on model ${model}. Remove the role or use 'start_frame' / 'end_frame' / 'reference'.`,
-      );
+      )
     }
-    const url = imagePartToUrl(part);
-    if (role === "end_frame") ends.push(url);
-    else if (role === "reference" || role === "character") references.push(url);
+    const url = imagePartToUrl(part)
+    if (role === 'end_frame') ends.push(url)
+    else if (role === 'reference' || role === 'character') references.push(url)
     // Unroled parts default to the start frame (image-to-video).
-    else starts.push(url);
+    else starts.push(url)
   }
 
   if (starts.length > 1) {
     throw new Error(
       `openrouter: at most one start-frame image is supported per request (received ${starts.length}). Mark additional images with metadata.role 'reference' or 'end_frame'.`,
-    );
+    )
   }
   if (ends.length > 1) {
     throw new Error(
       `openrouter: at most one input with metadata.role === 'end_frame' is supported per request (received ${ends.length}).`,
-    );
+    )
   }
 
-  const supportedFrames = getVideoModelMeta(model)?.frameImages;
+  const supportedFrames = getVideoModelMeta(model)?.frameImages
   if (supportedFrames) {
-    if (starts.length > 0 && !supportedFrames.includes("first_frame")) {
+    if (starts.length > 0 && !supportedFrames.includes('first_frame')) {
       throw new Error(
-        `openrouter: model ${model} does not accept a start-frame image (supported frame images: ${supportedFrames.join(", ") || "none"}).`,
-      );
+        `openrouter: model ${model} does not accept a start-frame image (supported frame images: ${supportedFrames.join(', ') || 'none'}).`,
+      )
     }
-    if (ends.length > 0 && !supportedFrames.includes("last_frame")) {
+    if (ends.length > 0 && !supportedFrames.includes('last_frame')) {
       throw new Error(
-        `openrouter: model ${model} does not accept an end-frame image (supported frame images: ${supportedFrames.join(", ") || "none"}).`,
-      );
+        `openrouter: model ${model} does not accept an end-frame image (supported frame images: ${supportedFrames.join(', ') || 'none'}).`,
+      )
     }
   }
 
   const frameImages: Array<FrameImage> = [
     ...starts.map(
       (url): FrameImage => ({
-        type: "image_url",
+        type: 'image_url',
         imageUrl: { url },
-        frameType: "first_frame",
+        frameType: 'first_frame',
       }),
     ),
     ...ends.map(
       (url): FrameImage => ({
-        type: "image_url",
+        type: 'image_url',
         imageUrl: { url },
-        frameType: "last_frame",
+        frameType: 'last_frame',
       }),
     ),
-  ];
+  ]
 
   return {
     ...(frameImages.length > 0 ? { frameImages } : {}),
@@ -162,13 +162,13 @@ function mapImagePartsToVideoFields(
       ? {
           inputReferences: references.map(
             (url): ContentPartImage => ({
-              type: "image_url",
+              type: 'image_url',
               imageUrl: { url },
             }),
           ),
         }
       : {}),
-  };
+  }
 }
 
 /**
@@ -177,21 +177,21 @@ function mapImagePartsToVideoFields(
  * `expired` terminals.
  */
 function mapStatus(
-  apiStatus: VideoGenerationResponse["status"],
-): VideoStatusResult["status"] {
+  apiStatus: VideoGenerationResponse['status'],
+): VideoStatusResult['status'] {
   switch (apiStatus) {
-    case "pending":
-      return "pending";
-    case "in_progress":
-      return "processing";
-    case "completed":
-      return "completed";
-    case "failed":
-    case "cancelled":
-    case "expired":
-      return "failed";
+    case 'pending':
+      return 'pending'
+    case 'in_progress':
+      return 'processing'
+    case 'completed':
+      return 'completed'
+    case 'failed':
+    case 'cancelled':
+    case 'expired':
+      return 'failed'
     default:
-      return "processing";
+      return 'processing'
   }
 }
 
@@ -201,16 +201,16 @@ function mapStatus(
  * cost is surfaced via `usage.cost`.
  */
 function buildVideoUsage(
-  usage: VideoGenerationResponse["usage"],
+  usage: VideoGenerationResponse['usage'],
 ): TokenUsage | undefined {
-  if (usage?.cost == null) return undefined;
+  if (usage?.cost == null) return undefined
   const result = buildBaseUsage({
     promptTokens: 0,
     completionTokens: 0,
     totalTokens: 0,
-  });
-  result.cost = usage.cost;
-  return result;
+  })
+  result.cost = usage.cost
+  return result
 }
 
 /**
@@ -234,18 +234,18 @@ export class OpenRouterVideoAdapter<
   OpenRouterVideoModelInputModalitiesByName,
   OpenRouterVideoModelDurationByName
 > {
-  override readonly kind = "video" as const;
-  readonly name = "openrouter" as const;
+  override readonly kind = 'video' as const
+  readonly name = 'openrouter' as const
 
-  private readonly client: OpenRouter;
+  private readonly client: OpenRouter
 
   constructor(config: OpenRouterVideoConfig, model: TModel) {
-    super({}, model);
+    super({}, model)
     this.client = new OpenRouter({
       ...config,
       apiKey: config.apiKey,
       serverURL: config.baseURL,
-    });
+    })
   }
 
   async createVideoJob(
@@ -255,24 +255,24 @@ export class OpenRouterVideoAdapter<
       OpenRouterVideoModelDurationByName[TModel]
     >,
   ): Promise<VideoJobResult> {
-    const { size, duration, modelOptions, logger } = options;
+    const { size, duration, modelOptions, logger } = options
 
-    const resolved = resolveMediaPrompt(options.prompt);
+    const resolved = resolveMediaPrompt(options.prompt)
     if (resolved.videos.length > 0) {
       throw new Error(
         `openrouter.createVideoJob does not support video prompt parts (model: ${this.model}).`,
-      );
+      )
     }
     if (resolved.audios.length > 0) {
       throw new Error(
         `openrouter.createVideoJob does not support audio prompt parts (model: ${this.model}).`,
-      );
+      )
     }
 
-    validateVideoSize(this.model, size);
-    validateVideoDuration(this.model, duration);
+    validateVideoSize(this.model, size)
+    validateVideoDuration(this.model, duration)
 
-    const imageFields = mapImagePartsToVideoFields(this.model, resolved.images);
+    const imageFields = mapImagePartsToVideoFields(this.model, resolved.images)
 
     const request: VideoGenerationRequest = {
       model: this.model,
@@ -288,72 +288,72 @@ export class OpenRouterVideoAdapter<
         ? { callbackUrl: modelOptions.callbackUrl }
         : {}),
       ...(modelOptions?.provider ? { provider: modelOptions.provider } : {}),
-    };
+    }
     // The SDK types these as branded open enums; the per-model literal
     // unions derived from OPENROUTER_VIDEO_MODEL_META can be broader than
     // the SDK's enum members (e.g. grok-imagine-video's '3:2'), so narrow at
     // the boundary — the wire format is a plain string either way.
     if (modelOptions?.resolution) {
       request.resolution =
-        modelOptions.resolution as VideoGenerationRequestResolution;
+        modelOptions.resolution as VideoGenerationRequestResolution
     }
     if (modelOptions?.aspectRatio) {
       request.aspectRatio =
-        modelOptions.aspectRatio as VideoGenerationRequestAspectRatio;
+        modelOptions.aspectRatio as VideoGenerationRequestAspectRatio
     }
 
     try {
       logger.request(
-        `activity=video.create provider=${this.name} model=${this.model} size=${size ?? "default"} duration=${duration ?? "default"}`,
+        `activity=video.create provider=${this.name} model=${this.model} size=${size ?? 'default'} duration=${duration ?? 'default'}`,
         { provider: this.name, model: this.model },
-      );
+      )
       const response = await this.client.videoGeneration.generate({
         videoGenerationRequest: request,
-      });
-      return { jobId: response.id, model: this.model };
+      })
+      return { jobId: response.id, model: this.model }
     } catch (error) {
       logger.errors(`${this.name}.createVideoJob fatal`, {
         error,
         source: `${this.name}.createVideoJob`,
-      });
-      throw error;
+      })
+      throw error
     }
   }
 
   override availableDurations(): DurationOptions<
     OpenRouterVideoModelDurationByName[TModel]
   > {
-    return getVideoDurationOptions(this.model);
+    return getVideoDurationOptions(this.model)
   }
 
   override snapDuration(
     seconds: number,
   ): OpenRouterVideoModelDurationByName[TModel] | undefined {
-    return snapToDurationOption(seconds, this.availableDurations());
+    return snapToDurationOption(seconds, this.availableDurations())
   }
 
   async getVideoStatus(jobId: string): Promise<VideoStatusResult> {
-    const response = await this.client.videoGeneration.getGeneration({ jobId });
+    const response = await this.client.videoGeneration.getGeneration({ jobId })
     return {
       jobId,
       status: mapStatus(response.status),
       ...(response.error !== undefined ? { error: response.error } : {}),
-    };
+    }
   }
 
   async getVideoUrl(jobId: string): Promise<VideoUrlResult> {
-    const response = await this.client.videoGeneration.getGeneration({ jobId });
-    const status = mapStatus(response.status);
-    if (status === "failed") {
+    const response = await this.client.videoGeneration.getGeneration({ jobId })
+    const status = mapStatus(response.status)
+    if (status === 'failed') {
       throw new Error(
-        `openrouter: video job ${jobId} ${response.status}${response.error ? `: ${response.error}` : ""}`,
-      );
+        `openrouter: video job ${jobId} ${response.status}${response.error ? `: ${response.error}` : ''}`,
+      )
     }
-    const contentUrl = response.unsignedUrls?.[0];
-    if (status !== "completed" || !contentUrl) {
+    const contentUrl = response.unsignedUrls?.[0]
+    if (status !== 'completed' || !contentUrl) {
       throw new Error(
         `openrouter: video job ${jobId} has no downloadable content yet (status: ${response.status}). Poll until the job is completed before requesting the URL.`,
-      );
+      )
     }
 
     // `unsigned_urls` require the OpenRouter `Authorization` header
@@ -361,26 +361,26 @@ export class OpenRouterVideoAdapter<
     // into a browser `<video>` tag. Download through the SDK and return a
     // data URL instead. `@openrouter/sdk` 0.13.20's `getVideoContent`
     // accepts `video/mp4` and streams the bytes.
-    let stream: ReadableStream<Uint8Array>;
+    let stream: ReadableStream<Uint8Array>
     try {
-      stream = await this.client.videoGeneration.getVideoContent({ jobId });
+      stream = await this.client.videoGeneration.getVideoContent({ jobId })
     } catch (error) {
-      const detail = error instanceof Error ? error.message : String(error);
+      const detail = error instanceof Error ? error.message : String(error)
       throw new Error(
         `openrouter: failed to download video content for job ${jobId}: ${detail}`,
-      );
+      )
     }
-    const buffer = await new Response(stream).arrayBuffer();
-    warnIfLargeMediaBuffer(buffer.byteLength);
-    const base64 = arrayBufferToBase64(buffer);
-    const mimeType = "video/mp4";
+    const buffer = await new Response(stream).arrayBuffer()
+    warnIfLargeMediaBuffer(buffer.byteLength)
+    const base64 = arrayBufferToBase64(buffer)
+    const mimeType = 'video/mp4'
 
-    const usage = buildVideoUsage(response.usage);
+    const usage = buildVideoUsage(response.usage)
     return {
       jobId,
       url: `data:${mimeType};base64,${base64}`,
       ...(usage ? { usage } : {}),
-    };
+    }
   }
 }
 
@@ -402,9 +402,9 @@ export class OpenRouterVideoAdapter<
 export function createOpenRouterVideo<TModel extends OpenRouterVideoModel>(
   model: TModel,
   apiKey: string,
-  config?: Omit<OpenRouterVideoConfig, "apiKey">,
+  config?: Omit<OpenRouterVideoConfig, 'apiKey'>,
 ): OpenRouterVideoAdapter<TModel> {
-  return new OpenRouterVideoAdapter({ apiKey, ...config }, model);
+  return new OpenRouterVideoAdapter({ apiKey, ...config }, model)
 }
 
 /**
@@ -427,8 +427,8 @@ export function createOpenRouterVideo<TModel extends OpenRouterVideoModel>(
  */
 export function openRouterVideo<TModel extends OpenRouterVideoModel>(
   model: TModel,
-  config?: Omit<OpenRouterVideoConfig, "apiKey">,
+  config?: Omit<OpenRouterVideoConfig, 'apiKey'>,
 ): OpenRouterVideoAdapter<TModel> {
-  const apiKey = getOpenRouterApiKeyFromEnv();
-  return createOpenRouterVideo(model, apiKey, config);
+  const apiKey = getOpenRouterApiKeyFromEnv()
+  return createOpenRouterVideo(model, apiKey, config)
 }
