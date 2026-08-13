@@ -2,7 +2,7 @@ import { OpenRouter } from '@openrouter/sdk'
 import { buildBaseUsage, resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
-import { getOpenRouterApiKeyFromEnv } from '../utils'
+import { getOpenRouterApiKeyFromEnv } from '../utils/client'
 import {
   getVideoDurationOptions,
   getVideoModelMeta,
@@ -35,7 +35,7 @@ import type {
   VideoStatusResult,
   VideoUrlResult,
 } from '@tanstack/ai'
-import type { OpenRouterClientConfig } from '../utils'
+import type { OpenRouterClientConfig } from '../utils/client'
 
 /**
  * Configuration for the OpenRouter video adapter.
