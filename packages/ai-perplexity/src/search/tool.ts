@@ -1,22 +1,67 @@
 import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
 import { PerplexitySearchClient } from './client'
-import type {
-  PerplexitySearchClientConfig,
-  PerplexitySearchResult,
-} from './client'
+import type { PerplexitySearchClientConfig } from './client'
+
+const searchRecency = z.enum(['hour', 'day', 'week', 'month', 'year'])
+
+const inputSchema = z.object({
+  query: z.string().min(1).describe('The search query string.'),
+  max_results: z
+    .number()
+    .int()
+    .min(1)
+    .max(20)
+    .optional()
+    .describe(
+      'Maximum number of results to return. Defaults to defaultMaxResults when configured, otherwise the API default (10).',
+    ),
+  search_domain_filter: z
+    .array(z.string())
+    .max(20)
+    .optional()
+    .describe(
+      'Restrict results by domain (max 20). Use bare hostnames to allowlist (e.g. ["nytimes.com"]) or "-domain.com" to denylist. Allow and deny entries must NOT be mixed.',
+    ),
+  search_recency_filter: searchRecency.optional().describe(
+    'Only include results from the given recency window.',
+  ),
+  search_after_date_filter: z
+    .string()
+    .optional()
+    .describe('Only include results published on or after this date (m/d/yyyy).'),
+  search_before_date_filter: z
+    .string()
+    .optional()
+    .describe('Only include results published on or before this date (m/d/yyyy).'),
+})
+
+const outputSchema = z.object({
+  results: z.array(
+    z.object({
+      title: z.string(),
+      url: z.string(),
+      snippet: z.string(),
+      date: z.string().optional(),
+      last_updated: z.string().optional(),
+    }),
+  ),
+})
 
 /**
  * Build a TanStack AI tool that performs real-time web search via Perplexity.
  *
- * Returns `{ results: Array<{ title, url, snippet, date? }> }` for
- * citation/grounding in an LLM agent loop.
+ * Returns `{ results: Array<{ title, url, snippet, date?, last_updated? }> }`
+ * for citation/grounding in an LLM agent loop.
  *
  * @example
  * ```ts
+ * import { chat } from '@tanstack/ai'
+ * import { openaiText } from '@tanstack/ai-openai'
  * import { perplexitySearchTool } from '@tanstack/ai-perplexity'
  *
  * const search = perplexitySearchTool({ defaultMaxResults: 5 })
- * // pass to chat({ tools: [search], adapter, messages })
+ * chat({ adapter: openaiText('gpt-5.2'), tools: [search], messages })
  * ```
  */
 export function perplexitySearchTool(
@@ -56,91 +101,30 @@ export function perplexitySearchTool(
     name: name ?? 'perplexity_search',
     description:
       description ??
-      'Search the web for up-to-date information using the Perplexity Search API. Returns a ranked list of web results with titles, URLs, snippets, and publication dates.',
-    inputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['query'],
-      properties: {
-        query: {
-          type: 'string',
-          description: 'The search query string.',
-        },
-        max_results: {
-          type: 'integer',
-          minimum: 1,
-          maximum: 20,
-          description:
-            'Maximum number of results to return. Defaults to the API default (10).',
-        },
-        search_domain_filter: {
-          type: 'array',
-          items: { type: 'string' },
-          description:
-            'Restrict results by domain. Use bare hostnames to allowlist (e.g. ["nytimes.com"]) or "-domain.com" to denylist. Allow and deny entries must NOT be mixed.',
-        },
-        search_recency_filter: {
-          type: 'string',
-          enum: ['hour', 'day', 'week', 'month', 'year'],
-          description: 'Only include results from the given recency window.',
-        },
-        search_after_date_filter: {
-          type: 'string',
-          description: 'Only include results published on or after this date (m/d/yyyy).',
-        },
-        search_before_date_filter: {
-          type: 'string',
-          description: 'Only include results published on or before this date (m/d/yyyy).',
-        },
+      'Search the web for up-to-date information using the Perplexity Search API. Returns a ranked list of web results with titles, URLs, snippets, and optional publication dates.',
+    inputSchema,
+    outputSchema,
+  }).server(async (args, ctx) => {
+    const response = await getClient().search(
+      {
+        query: args.query,
+        max_results: args.max_results ?? defaultMaxResults,
+        search_domain_filter: args.search_domain_filter,
+        search_recency_filter: args.search_recency_filter,
+        search_after_date_filter: args.search_after_date_filter,
+        search_before_date_filter: args.search_before_date_filter,
       },
-    },
-    outputSchema: {
-      type: 'object',
-      additionalProperties: false,
-      required: ['results'],
-      properties: {
-        results: {
-          type: 'array',
-          items: {
-            type: 'object',
-            additionalProperties: false,
-            required: ['title', 'url', 'snippet'],
-            properties: {
-              title: { type: 'string' },
-              url: { type: 'string' },
-              snippet: { type: 'string' },
-              date: { type: 'string' },
-            },
-          },
-        },
-      },
-    },
-  }).server(async (args) => {
-    const input = (args ?? {}) as {
-      query: string
-      max_results?: number
-      search_domain_filter?: Array<string>
-      search_recency_filter?: 'hour' | 'day' | 'week' | 'month' | 'year'
-      search_after_date_filter?: string
-      search_before_date_filter?: string
+      { signal: ctx?.abortSignal },
+    )
+
+    return {
+      results: response.results.map((result) => ({
+        title: result.title,
+        url: result.url,
+        snippet: result.snippet,
+        ...(result.date ? { date: result.date } : {}),
+        ...(result.last_updated ? { last_updated: result.last_updated } : {}),
+      })),
     }
-
-    const response = await getClient().search({
-      query: input.query,
-      max_results: input.max_results ?? defaultMaxResults,
-      search_domain_filter: input.search_domain_filter,
-      search_recency_filter: input.search_recency_filter,
-      search_after_date_filter: input.search_after_date_filter,
-      search_before_date_filter: input.search_before_date_filter,
-    })
-
-    const results: Array<PerplexitySearchResult> = response.results.map((r) => ({
-      title: r.title,
-      url: r.url,
-      snippet: r.snippet,
-      ...(r.date ? { date: r.date } : {}),
-    }))
-
-    return { results }
   })
 }

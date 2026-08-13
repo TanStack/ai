@@ -1,32 +1,27 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PerplexitySearchClient } from '../src/search/client'
+import {
+  firstFetchBody,
+  firstFetchCall,
+  firstFetchHeaders,
+  mockFetch,
+} from './test-utils'
 
 const INTEGRATION_HEADER = 'X-Pplx-Integration'
 
 describe('PerplexitySearchClient', () => {
-  const ORIGINAL_ENV = { ...process.env }
-
   beforeEach(() => {
-    process.env.PERPLEXITY_API_KEY = 'test-key'
-    delete process.env.PPLX_API_KEY
+    vi.stubEnv('PERPLEXITY_API_KEY', 'test-key')
+    vi.stubEnv('PPLX_API_KEY', '')
   })
 
   afterEach(() => {
-    process.env = { ...ORIGINAL_ENV }
+    vi.unstubAllEnvs()
     vi.restoreAllMocks()
   })
 
-  function makeFetchMock(payload: unknown, status = 200) {
-    return vi.fn(async (_url: string, _init: RequestInit) => {
-      return new Response(JSON.stringify(payload), {
-        status,
-        headers: { 'Content-Type': 'application/json' },
-      })
-    })
-  }
-
   it('POSTs to /search with bearer auth and JSON body', async () => {
-    const fetchMock = makeFetchMock({
+    const fetchMock = mockFetch({
       id: 'q1',
       results: [
         {
@@ -34,24 +29,25 @@ describe('PerplexitySearchClient', () => {
           url: 'https://example.com',
           snippet: 'Hello world',
           date: '2024-01-15',
+          last_updated: '2024-01-16',
         },
       ],
     })
 
-    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
     const res = await client.search({ query: 'mars rover', max_results: 3 })
 
     expect(fetchMock).toHaveBeenCalledTimes(1)
-    const [url, init] = fetchMock.mock.calls[0]!
+    const { url, init } = firstFetchCall(fetchMock)
     expect(url).toBe('https://api.perplexity.ai/search')
-    expect((init as RequestInit).method).toBe('POST')
+    expect(init.method).toBe('POST')
 
-    const headers = (init as RequestInit).headers as Record<string, string>
+    const headers = firstFetchHeaders(fetchMock)
     expect(headers.Authorization).toBe('Bearer test-key')
     expect(headers['Content-Type']).toBe('application/json')
     expect(headers[INTEGRATION_HEADER]).toMatch(/^tanstack\//)
 
-    expect(JSON.parse((init as RequestInit).body as string)).toEqual({
+    expect(firstFetchBody(fetchMock)).toEqual({
       query: 'mars rover',
       max_results: 3,
     })
@@ -63,25 +59,24 @@ describe('PerplexitySearchClient', () => {
       url: 'https://example.com',
       snippet: 'Hello world',
       date: '2024-01-15',
+      last_updated: '2024-01-16',
     })
   })
 
   it('falls back to env when explicit apiKey is blank', async () => {
-    const fetchMock = makeFetchMock({ results: [] })
+    const fetchMock = mockFetch({ results: [] })
     const client = new PerplexitySearchClient({
       apiKey: '   ',
-      fetch: fetchMock as any,
+      fetch: fetchMock,
     })
 
     await client.search({ query: 'q' })
-
-    const headers = fetchMock.mock.calls[0]![1].headers as Record<string, string>
-    expect(headers.Authorization).toBe('Bearer test-key')
+    expect(firstFetchHeaders(fetchMock).Authorization).toBe('Bearer test-key')
   })
 
   it('forwards optional filters in the request body', async () => {
-    const fetchMock = makeFetchMock({ results: [] })
-    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
 
     await client.search({
       query: 'climate',
@@ -93,8 +88,7 @@ describe('PerplexitySearchClient', () => {
       search_before_date_filter: '12/31/2025',
     })
 
-    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string)
-    expect(body).toEqual({
+    expect(firstFetchBody(fetchMock)).toEqual({
       query: 'climate',
       max_results: 5,
       max_tokens_per_page: 512,
@@ -105,9 +99,30 @@ describe('PerplexitySearchClient', () => {
     })
   })
 
+  it('forwards a query array', async () => {
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
+    await client.search({ query: ['  mars rover  ', 'perseverance'] })
+    expect(firstFetchBody(fetchMock).query).toEqual([
+      'mars rover',
+      'perseverance',
+    ])
+  })
+
+  it('rejects more than 5 queries', async () => {
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
+    await expect(
+      client.search({
+        query: ['a', 'b', 'c', 'd', 'e', 'f'],
+      }),
+    ).rejects.toThrow(/at most 5/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
   it('rejects mixing allow + deny entries in search_domain_filter', async () => {
-    const fetchMock = makeFetchMock({ results: [] })
-    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
 
     await expect(
       client.search({
@@ -118,104 +133,152 @@ describe('PerplexitySearchClient', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('throws when query is missing', async () => {
-    const fetchMock = makeFetchMock({ results: [] })
-    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+  it('rejects more than 20 domain filter entries', async () => {
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
     await expect(
-      client.search({ query: '' as unknown as string }),
-    ).rejects.toThrow(/non-empty `query`/i)
+      client.search({
+        query: 'x',
+        search_domain_filter: Array.from({ length: 21 }, (_, i) => `ex${i}.com`),
+      }),
+    ).rejects.toThrow(/at most 20/)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('throws when query is missing', async () => {
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
+    await expect(client.search({ query: '' })).rejects.toThrow(
+      /non-empty `query`/i,
+    )
   })
 
   it('throws when query is whitespace only', async () => {
-    const fetchMock = makeFetchMock({ results: [] })
-    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
     await expect(client.search({ query: '   ' })).rejects.toThrow(
       /non-empty `query`/i,
     )
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
-  it('trims query and clamps max_results before forwarding', async () => {
-    const fetchMock = makeFetchMock({ results: [] })
-    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
-    await client.search({ query: '  mars rover  ', max_results: 99 })
+  it('trims query before forwarding', async () => {
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
+    await client.search({ query: '  mars rover  ', max_results: 5 })
 
-    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string)
-    expect(body).toEqual({
+    expect(firstFetchBody(fetchMock)).toEqual({
       query: 'mars rover',
-      max_results: 20,
+      max_results: 5,
     })
   })
 
-  it('clamps max_results to the minimum before forwarding', async () => {
-    const fetchMock = makeFetchMock({ results: [] })
-    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
-    await client.search({ query: 'q', max_results: 0 })
-
-    const body = JSON.parse(fetchMock.mock.calls[0]![1].body as string)
-    expect(body.max_results).toBe(1)
+  it('throws when max_results is outside 1–20', async () => {
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
+    await expect(client.search({ query: 'q', max_results: 99 })).rejects.toThrow(
+      /integer between 1 and 20/,
+    )
+    await expect(client.search({ query: 'q', max_results: 0 })).rejects.toThrow(
+      /integer between 1 and 20/,
+    )
+    await expect(
+      client.search({ query: 'q', max_results: 1.5 }),
+    ).rejects.toThrow(/integer between 1 and 20/)
+    expect(fetchMock).not.toHaveBeenCalled()
   })
 
   it('falls back to PPLX_API_KEY when PERPLEXITY_API_KEY is not set', async () => {
-    delete process.env.PERPLEXITY_API_KEY
-    process.env.PPLX_API_KEY = 'fallback-key'
-    const fetchMock = makeFetchMock({ results: [] })
-    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    vi.stubEnv('PERPLEXITY_API_KEY', '')
+    vi.stubEnv('PPLX_API_KEY', 'fallback-key')
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
     await client.search({ query: 'q' })
-    const headers = fetchMock.mock.calls[0]![1].headers as Record<string, string>
-    expect(headers.Authorization).toBe('Bearer fallback-key')
+    expect(firstFetchHeaders(fetchMock).Authorization).toBe(
+      'Bearer fallback-key',
+    )
   })
 
   it('ignores whitespace-only PERPLEXITY_API_KEY when PPLX_API_KEY is set', async () => {
-    process.env.PERPLEXITY_API_KEY = '   '
-    process.env.PPLX_API_KEY = 'fallback-key'
-    const fetchMock = makeFetchMock({ results: [] })
-    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    vi.stubEnv('PERPLEXITY_API_KEY', '   ')
+    vi.stubEnv('PPLX_API_KEY', 'fallback-key')
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
     await client.search({ query: 'q' })
-    const headers = fetchMock.mock.calls[0]![1].headers as Record<string, string>
-    expect(headers.Authorization).toBe('Bearer fallback-key')
+    expect(firstFetchHeaders(fetchMock).Authorization).toBe(
+      'Bearer fallback-key',
+    )
   })
 
   it('throws if neither env var is set and no apiKey is passed', () => {
-    delete process.env.PERPLEXITY_API_KEY
-    delete process.env.PPLX_API_KEY
+    vi.stubEnv('PERPLEXITY_API_KEY', '')
+    vi.stubEnv('PPLX_API_KEY', '')
     expect(
-      () => new PerplexitySearchClient({ fetch: vi.fn() as any }),
+      () => new PerplexitySearchClient({ fetch: mockFetch({ results: [] }) }),
     ).toThrow(/PERPLEXITY_API_KEY/)
   })
 
   it('surfaces non-2xx responses as errors', async () => {
     const fetchMock = vi.fn(
-      async () =>
+      async (_input: string | URL | Request, _init?: RequestInit) =>
         new Response('rate limited', {
           status: 429,
           statusText: 'Too Many Requests',
         }),
     )
-    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
     await expect(client.search({ query: 'x' })).rejects.toThrow(
       /429.*Too Many Requests.*rate limited/,
     )
   })
 
-  it('omits date when API does not return one', async () => {
-    const fetchMock = makeFetchMock({
+  it('throws when the response is not a search payload', async () => {
+    const fetchMock = mockFetch({ results: null })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
+    await expect(client.search({ query: 'q' })).rejects.toThrow(
+      /invalid response/,
+    )
+  })
+
+  it('throws when a result is missing required fields', async () => {
+    const fetchMock = mockFetch({
+      results: [{ url: 'https://example.com', snippet: 's' }],
+    })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
+    await expect(client.search({ query: 'q' })).rejects.toThrow(
+      /invalid response/,
+    )
+  })
+
+  it('omits date and last_updated when the API does not return them', async () => {
+    const fetchMock = mockFetch({
       results: [{ title: 't', url: 'u', snippet: 's' }],
     })
-    const client = new PerplexitySearchClient({ fetch: fetchMock as any })
+    const client = new PerplexitySearchClient({ fetch: fetchMock })
     const res = await client.search({ query: 'q' })
     expect(res.results[0]).toEqual({ title: 't', url: 'u', snippet: 's' })
-    expect('date' in res.results[0]!).toBe(false)
+    expect(res.results[0] && 'date' in res.results[0]).toBe(false)
+    expect(res.results[0] && 'last_updated' in res.results[0]).toBe(false)
+  })
+
+  it('forwards AbortSignal to fetch', async () => {
+    const abortController = new AbortController()
+    const fetchMock = mockFetch({ results: [] })
+    const client = new PerplexitySearchClient({ apiKey: 'k', fetch: fetchMock })
+    await client.search({ query: 'q' }, { signal: abortController.signal })
+    expect(firstFetchCall(fetchMock).init.signal).toBe(abortController.signal)
   })
 
   it('respects a custom baseURL', async () => {
-    const fetchMock = makeFetchMock({ results: [] })
+    const fetchMock = mockFetch({ results: [] })
     const client = new PerplexitySearchClient({
       apiKey: 'k',
       baseURL: 'https://example.com/api/',
-      fetch: fetchMock as any,
+      fetch: fetchMock,
     })
     await client.search({ query: 'q' })
-    expect(fetchMock.mock.calls[0]![0]).toBe('https://example.com/api/search')
+    expect(firstFetchCall(fetchMock).url).toBe(
+      'https://example.com/api/search',
+    )
   })
 })

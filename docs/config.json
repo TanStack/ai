@@ -858,7 +858,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-13"
         },
         {
           "label": "Claude Code",

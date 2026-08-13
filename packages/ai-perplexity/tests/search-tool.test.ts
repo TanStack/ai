@@ -1,75 +1,63 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { perplexitySearchTool } from '../src/search/tool'
+import {
+  firstFetchBody,
+  firstFetchCall,
+  firstFetchHeaders,
+  mockFetch,
+} from './test-utils'
 
 const INTEGRATION_HEADER = 'X-Pplx-Integration'
 
-function firstFetchInit(fetchMock: ReturnType<typeof vi.fn>): RequestInit {
-  const call = fetchMock.mock.calls[0]
-  const init = call?.[1]
-  if (init === undefined || typeof init === 'string') {
-    throw new Error('expected fetch to be called with RequestInit')
-  }
-  return init
+const unusedContext = {
+  emitCustomEvent: () => {},
 }
 
 describe('perplexitySearchTool', () => {
-  const ORIGINAL_PERPLEXITY_API_KEY = process.env.PERPLEXITY_API_KEY
-
   beforeEach(() => {
-    process.env.PERPLEXITY_API_KEY = 'test-key'
+    vi.stubEnv('PERPLEXITY_API_KEY', 'test-key')
+    vi.stubEnv('PPLX_API_KEY', '')
   })
 
   afterEach(() => {
-    if (ORIGINAL_PERPLEXITY_API_KEY === undefined) {
-      delete process.env.PERPLEXITY_API_KEY
-    } else {
-      process.env.PERPLEXITY_API_KEY = ORIGINAL_PERPLEXITY_API_KEY
-    }
+    vi.unstubAllEnvs()
     vi.restoreAllMocks()
   })
 
   it('exposes a sensible default name, description, and schema', () => {
     const tool = perplexitySearchTool({
       apiKey: 'k',
-      fetch: vi.fn() as any,
+      fetch: mockFetch({ results: [] }),
     })
     expect(tool.name).toBe('perplexity_search')
     expect(tool.description).toMatch(/Perplexity Search API/i)
-    // Must not leak Sonar references in user-facing description
     expect(tool.description.toLowerCase()).not.toContain('sonar')
-    expect(tool.inputSchema).toMatchObject({
-      type: 'object',
-      required: ['query'],
-    })
+    expect(tool.inputSchema).toBeDefined()
+    expect(tool.outputSchema).toBeDefined()
   })
 
   it('executes the server tool against the mocked fetch', async () => {
-    const fetchMock = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify({
-            results: [
-              {
-                title: 'A',
-                url: 'https://a.test',
-                snippet: 'snip',
-                date: '2025-03-01',
-              },
-              { title: 'B', url: 'https://b.test', snippet: 'snip2' },
-            ],
-          }),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
-    )
+    const fetchMock = mockFetch({
+      results: [
+        {
+          title: 'A',
+          url: 'https://a.test',
+          snippet: 'snip',
+          date: '2025-03-01',
+          last_updated: '2025-03-02',
+        },
+        { title: 'B', url: 'https://b.test', snippet: 'snip2' },
+      ],
+    })
 
     const tool = perplexitySearchTool({
       apiKey: 'k',
-      fetch: fetchMock as any,
+      fetch: fetchMock,
       defaultMaxResults: 7,
     })
 
     expect(typeof tool.execute).toBe('function')
-    const out = await tool.execute!({ query: 'foo' } as any)
+    const out = await tool.execute!({ query: 'foo' }, unusedContext)
     expect(out).toEqual({
       results: [
         {
@@ -77,53 +65,71 @@ describe('perplexitySearchTool', () => {
           url: 'https://a.test',
           snippet: 'snip',
           date: '2025-03-01',
+          last_updated: '2025-03-02',
         },
         { title: 'B', url: 'https://b.test', snippet: 'snip2' },
       ],
     })
 
-    // Default max_results should be applied when caller omits it
-    const init = firstFetchInit(fetchMock)
-    const body = JSON.parse(String(init.body))
-    expect(body.max_results).toBe(7)
-    expect(body.query).toBe('foo')
+    expect(firstFetchBody(fetchMock).max_results).toBe(7)
+    expect(firstFetchBody(fetchMock).query).toBe('foo')
+    expect(firstFetchHeaders(fetchMock)[INTEGRATION_HEADER]).toMatch(
+      /^tanstack\//,
+    )
+  })
 
-    const headers = init.headers
-    if (!headers || Array.isArray(headers) || headers instanceof Headers) {
-      throw new Error('expected fetch headers as a record')
-    }
-    expect(headers[INTEGRATION_HEADER]).toMatch(/^tanstack\//)
+  it('lets the model max_results override defaultMaxResults', async () => {
+    const fetchMock = mockFetch({ results: [] })
+    const tool = perplexitySearchTool({
+      apiKey: 'k',
+      fetch: fetchMock,
+      defaultMaxResults: 7,
+    })
+
+    await tool.execute!({ query: 'q', max_results: 3 }, unusedContext)
+    expect(firstFetchBody(fetchMock).max_results).toBe(3)
   })
 
   it('passes through filter args from the model', async () => {
-    const fetchMock = vi.fn(
-      async () =>
-        new Response(JSON.stringify({ results: [] }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        }),
-    )
+    const fetchMock = mockFetch({ results: [] })
     const tool = perplexitySearchTool({
       apiKey: 'k',
-      fetch: fetchMock as any,
+      fetch: fetchMock,
     })
 
-    await tool.execute!({
+    await tool.execute!(
+      {
+        query: 'q',
+        max_results: 2,
+        search_domain_filter: ['arxiv.org'],
+        search_recency_filter: 'week',
+        search_after_date_filter: '1/1/2026',
+      },
+      unusedContext,
+    )
+
+    expect(firstFetchBody(fetchMock)).toEqual({
       query: 'q',
       max_results: 2,
       search_domain_filter: ['arxiv.org'],
       search_recency_filter: 'week',
       search_after_date_filter: '1/1/2026',
-    } as any)
-
-    const body = JSON.parse(String(firstFetchInit(fetchMock).body))
-    expect(body).toEqual({
-      query: 'q',
-      max_results: 2,
-      search_domain_filter: ['arxiv.org'],
-      search_recency_filter: 'week',
-      search_after_date_filter: '1/1/2026',
     })
+  })
+
+  it('forwards abortSignal to fetch', async () => {
+    const abortController = new AbortController()
+    const fetchMock = mockFetch({ results: [] })
+    const tool = perplexitySearchTool({
+      apiKey: 'k',
+      fetch: fetchMock,
+    })
+
+    await tool.execute!(
+      { query: 'q' },
+      { ...unusedContext, abortSignal: abortController.signal },
+    )
+    expect(firstFetchCall(fetchMock).init.signal).toBe(abortController.signal)
   })
 
   it('throws when defaultMaxResults is outside the allowed range', () => {
@@ -141,7 +147,7 @@ describe('perplexitySearchTool', () => {
   it('honors custom name and description overrides', () => {
     const tool = perplexitySearchTool({
       apiKey: 'k',
-      fetch: vi.fn() as any,
+      fetch: mockFetch({ results: [] }),
       name: 'web_search',
       description: 'Custom desc.',
     })
