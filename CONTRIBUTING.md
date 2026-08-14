@@ -39,6 +39,25 @@ scripts/                # Repo-level scripts (doc generation, model sync, link v
 
 For deeper architecture details (adapter system, isomorphic tools, framework integrations), see `CLAUDE.md` at the repo root.
 
+## Syncing model metadata
+
+`pnpm generate:models` is the maintainer command behind the daily **Sync Model Metadata** workflow (branch `automated/sync-models`). It:
+
+1. Fetches OpenRouter and Vercel AI Gateway catalogs.
+2. Regenerates `packages/ai-openrouter/src/model-meta.ts` and the Vercel Gateway model list.
+3. Inserts **new** native-provider models into `packages/ai-openai`, `ai-anthropic`, `ai-gemini`, and `ai-grok`.
+4. Writes a patch changeset for the packages that changed.
+
+Rules the generator follows:
+
+- Skip OpenRouter routing aliases (ids that start with `~`). Those ids move under you and cannot become JS identifiers.
+- For a new native-provider model, write id, modalities, and pricing. Infer features from OpenRouter `supported_parameters` when that field exists. Do **not** copy another model's tool list (`computer_use`, `google_search`, `x_search`, and similar).
+- Leave curated tools and flags on existing models alone. Edit those by hand after the sync PR opens.
+
+Do not rebase or hand-edit `automated/sync-models`. The next scheduled run force-pushes that branch from `main`. Merge generator fixes to `main` first, then let the workflow rebuild the sync PR.
+
+The workflow pushes with `GITHUB_TOKEN`, so GitHub does not start Test / E2E on that push. After a sync, a maintainer with write access can run the PR checks from the Actions tab, or push an empty commit to `automated/sync-models`.
+
 ## Day-to-day commands
 
 All commands are run from the repo root. Nx handles affected detection and caching.
