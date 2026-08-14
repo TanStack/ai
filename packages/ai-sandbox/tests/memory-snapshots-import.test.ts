@@ -11,6 +11,9 @@ describe('memorySandboxSnapshots runtime dependencies', () => {
     await expect(memorySandboxSnapshots()).resolves.toMatchObject({
       persistence: expect.any(Object),
       checkpoints: expect.any(Object),
+      save: expect.any(Function),
+      fork: expect.any(Function),
+      readArtifact: expect.any(Function),
     })
   })
 })

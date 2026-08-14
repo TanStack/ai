@@ -11,9 +11,8 @@ description: >
   snapshotMaxAge TTL. It also covers portable snapshots after a successful
   terminal run with withPersistence before withSandbox and
   memorySandboxSnapshots for local examples. It covers named saves with
-  saveNamedSandboxSnapshot, selected-checkpoint forks with
-  forkFromSandboxSnapshot, and authorized artifact reads with
-  resolveSnapshotArtifact. It covers defineWorkspace
+  snapshots.save, selected-checkpoint forks with snapshots.fork, and
+  authorized artifact reads with snapshots.readArtifact. It covers defineWorkspace
   (git/setup/scripts/skills/secrets/
   instructions/plugins), defineSandboxPolicy (allow/ask/deny), lifecycle/resume,
   the SandboxHandle (fs/git/process/ports), capability tokens, defineSandbox
@@ -201,16 +200,11 @@ middleware in this order, with the same persistence value in both places:
 import { withPersistence } from '@tanstack/ai-persistence'
 import { memorySandboxSnapshots, withSandbox } from '@tanstack/ai-sandbox'
 
-const snapshots = await memorySandboxSnapshots()
+const snapshots = await memorySandboxSnapshots({ sandbox, instances })
 
 const middleware = [
   withPersistence(snapshots.persistence),
-  withSandbox(sandbox, {
-    snapshots: {
-      persistence: snapshots.persistence,
-      checkpoints: snapshots.checkpoints,
-    },
-  }),
+  withSandbox(sandbox, { instances, snapshots }),
 ]
 ```
 
@@ -233,18 +227,18 @@ garbage collection yet.
 Read `docs/sandbox/portable-snapshots.md` for the full server-only setup and
 the restore safety rules.
 
-For a user-marked workspace state, call `saveNamedSandboxSnapshot` on the
-server. It needs `definition`, `threadId`, `runId`, `instances`, `snapshots`,
-and a label. It requires a live reusable sandbox. `reuse: 'none'` cannot save a
-named checkpoint.
+For a user-marked workspace state, call `snapshots.save` on the server. Bind
+`sandbox` and `instances` at create time, or pass them on `save`. The call
+needs `threadId`, `runId`, and a label. It requires a live reusable sandbox.
+`reuse: 'none'` cannot save a named checkpoint.
 
-To branch from a selected checkpoint, call `forkFromSandboxSnapshot` with the
-source thread id, source checkpoint id, destination thread id, and `snapshots`.
-The store must implement atomic `forkFromCheckpoint`. The destination thread
-must be empty. A fork copies the selected snapshot, not the latest snapshot.
+To branch from a selected checkpoint, call `snapshots.fork` with the thread id,
+checkpoint id, and destination thread id. The store must implement atomic
+`forkFromCheckpoint`. The destination thread must be empty. A fork copies the
+selected snapshot, not the latest snapshot.
 
-To send a checkpoint artifact, call `resolveSnapshotArtifact` on the server.
-First authorize the caller for the supplied thread. The helper checks that the
+To send a checkpoint artifact, call `snapshots.readArtifact` on the server.
+First authorize the caller for the supplied thread. The method checks that the
 checkpoint belongs to that thread, then returns its metadata and bytes. It does
 not authorize a caller or create an HTTP response.
 

@@ -25,5 +25,8 @@ declare const snapshots: MemorySandboxSnapshots
 expectTypeOf(snapshots.persistence).toMatchTypeOf<
   AIPersistence<MemoryPersistenceStores>
 >()
+expectTypeOf(snapshots.save).toBeFunction()
+expectTypeOf(snapshots.fork).toBeFunction()
+expectTypeOf(snapshots.readArtifact).toBeFunction()
 // @ts-expect-error immutable identity fields are not patchable
 snapshots.persistence.stores.generationRuns.update('run', { threadId: 'other' })

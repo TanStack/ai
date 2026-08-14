@@ -35,7 +35,6 @@ import {
 } from '@tanstack/ai-sandbox'
 import { dockerSandbox } from '@tanstack/ai-sandbox-docker'
 
-const snapshots = await memorySandboxSnapshots()
 const instances = new InMemorySandboxInstanceStore()
 const userId = 'user-123' // Read this from the server session.
 
@@ -44,6 +43,11 @@ const sandbox = defineSandbox({
   provider: dockerSandbox({ image: 'node:22' }),
   workspace: defineWorkspace({ source: { type: 'none' } }),
   lifecycle: { reuse: 'thread' },
+})
+
+const snapshots = await memorySandboxSnapshots({
+  sandbox,
+  instances,
 })
 
 const result = chat({
@@ -55,10 +59,7 @@ const result = chat({
     withPersistence(snapshots.persistence),
     withSandbox(sandbox, {
       instances,
-      snapshots: {
-        persistence: snapshots.persistence,
-        checkpoints: snapshots.checkpoints,
-      },
+      snapshots,
     }),
   ],
 })
@@ -66,12 +67,31 @@ const result = chat({
 void result
 ```
 
-`memorySandboxSnapshots()` creates an in-memory persistence object directly. It
-does not load `@tanstack/ai-persistence` at runtime.
+`memorySandboxSnapshots()` creates the in-memory persistence, checkpoint store,
+and snapshot methods as one object. It does not load `@tanstack/ai-persistence`
+at runtime.
+
+You can bind `sandbox`, `instances`, `tenant`, and `locks` at create time. A
+named save can override those values.
+
+If you already have a persistence object, pass that same object to
+`createSandboxSnapshots`. Use that same object in `withPersistence`.
+
+```ts
+import { createSandboxSnapshots } from '@tanstack/ai-sandbox'
+import { checkpoints, instances, persistence, sandbox } from './sandbox-server'
+
+const snapshots = createSandboxSnapshots({
+  persistence,
+  checkpoints,
+  sandbox,
+  instances,
+})
+```
 
 Keep `instances` in the same server module as this middleware. A named save
 must use this same store. Pass the session `userId` in `context` for every run.
-Pass that same user id as `tenant.userId` to `saveNamedSandboxSnapshot`.
+Pass that same user id as `tenant.userId` on `snapshots.save`.
 
 Use a durable persistence implementation and checkpoint store in production.
 The memory factory is useful for local development and examples only.
@@ -83,7 +103,7 @@ default policy.
 ## Save a named checkpoint
 
 Automatic saves protect each completed run. Use a named save when a user marks
-one workspace state, such as a release candidate. The helper requires a live,
+one workspace state, such as a release candidate. The method requires a live,
 reusable sandbox for the thread. A lifecycle with `reuse: 'none'` cannot create
 a named checkpoint.
 
@@ -91,9 +111,8 @@ Keep this route on the server. Derive the owner from the session. Then make sure
 that the owner can access the thread before you call the helper.
 
 ```ts
-import { saveNamedSandboxSnapshot } from '@tanstack/ai-sandbox'
 import { requireSession } from './auth'
-import { sandbox, snapshots, instances } from './sandbox-server'
+import { snapshots } from './sandbox-server'
 
 export async function POST(request: Request) {
   const session = await requireSession(request)
@@ -110,12 +129,9 @@ export async function POST(request: Request) {
     return new Response('Not found', { status: 404 })
   }
 
-  const checkpoint = await saveNamedSandboxSnapshot({
-    definition: sandbox,
+  const checkpoint = await snapshots.save({
     threadId,
     runId,
-    instances,
-    snapshots,
     label,
     tenant: { userId: session.userId },
   })
@@ -153,34 +169,31 @@ atomically copy the selected checkpoint, the conversation, the head, and blob
 reference counts. It must reject a non-empty destination thread.
 
 ```ts
-import { forkFromSandboxSnapshot } from '@tanstack/ai-sandbox'
 import { requireSession } from './auth'
 import { snapshots } from './sandbox-server'
 
 export async function POST(request: Request) {
   const session = await requireSession(request)
-  const { sourceThreadId, sourceCheckpointId, destinationThreadId } =
-    await request.json()
+  const { threadId, checkpointId, destinationThreadId } = await request.json()
 
   if (
-    typeof sourceThreadId !== 'string' ||
-    typeof sourceCheckpointId !== 'string' ||
+    typeof threadId !== 'string' ||
+    typeof checkpointId !== 'string' ||
     typeof destinationThreadId !== 'string'
   ) {
     return new Response('Invalid request', { status: 400 })
   }
-  if (!(await session.canAccessThread(sourceThreadId))) {
+  if (!(await session.canAccessThread(threadId))) {
     return new Response('Not found', { status: 404 })
   }
   if (!(await session.canCreateThread(destinationThreadId))) {
     return new Response('Not found', { status: 404 })
   }
 
-  const checkpoint = await forkFromSandboxSnapshot({
-    sourceThreadId,
-    sourceCheckpointId,
+  const checkpoint = await snapshots.fork({
+    threadId,
+    checkpointId,
     destinationThreadId,
-    snapshots,
   })
 
   return Response.json({ checkpointId: checkpoint.id })
@@ -192,16 +205,16 @@ threads. Do not accept a client-selected checkpoint as proof of access.
 
 ```ts
 export async function forkCheckpoint(
-  sourceThreadId: string,
-  sourceCheckpointId: string,
+  threadId: string,
+  checkpointId: string,
   destinationThreadId: string,
 ) {
   const response = await fetch('/api/snapshots/fork', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify({
-      sourceThreadId,
-      sourceCheckpointId,
+      threadId,
+      checkpointId,
       destinationThreadId,
     }),
   })
@@ -212,13 +225,12 @@ export async function forkCheckpoint(
 
 ## Read a snapshot artifact
 
-`resolveSnapshotArtifact` reads copied artifact bytes from one checkpoint. It
+`snapshots.readArtifact` reads copied artifact bytes from one checkpoint. It
 checks that the checkpoint belongs to the supplied thread. Your route must still
-authorize that thread before it calls the helper. The helper returns metadata
+authorize that thread before it calls the method. The method returns metadata
 and `Uint8Array` bytes. It does not create an HTTP response.
 
 ```ts
-import { resolveSnapshotArtifact } from '@tanstack/ai-sandbox'
 import { requireSession } from './auth'
 import { snapshots } from './sandbox-server'
 
@@ -236,11 +248,10 @@ export async function GET(request: Request) {
     return new Response('Not found', { status: 404 })
   }
 
-  const { artifact, bytes } = await resolveSnapshotArtifact({
+  const { artifact, bytes } = await snapshots.readArtifact({
     threadId,
     checkpointId,
     artifactId,
-    snapshots,
   })
   return new Response(bytes.slice(), {
     headers: {
@@ -252,7 +263,7 @@ export async function GET(request: Request) {
 ```
 
 The client can use the authorized route as an artifact URL. It must not read the
-blob store or call `resolveSnapshotArtifact` in the browser.
+blob store or call `snapshots.readArtifact` in the browser.
 
 ```ts
 export function snapshotArtifactUrl(

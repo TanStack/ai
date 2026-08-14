@@ -3,6 +3,9 @@ import { memorySandboxSnapshots, SandboxSnapshotError } from '../src'
 import type { SandboxSnapshotErrorCode, SandboxSnapshots } from '../src'
 
 type ExpectedSandboxSnapshotErrorCode =
+  | 'SANDBOX_SNAPSHOT_MISSING_SANDBOX'
+  | 'SANDBOX_SNAPSHOT_MISSING_INSTANCES'
+  | 'SANDBOX_SNAPSHOT_MISSING_PERSISTENCE_STORES'
   | 'SANDBOX_SNAPSHOT_MISSING_REUSABLE_SANDBOX'
   | 'SANDBOX_SNAPSHOT_REUSE_NONE'
   | 'SANDBOX_SNAPSHOT_MISSING_CHECKPOINT_ARTIFACT'
@@ -28,6 +31,9 @@ expectTypeOf(sourceError.code).toEqualTypeOf<SandboxSnapshotErrorCode>()
 async function assignActualMemorySnapshots(): Promise<void> {
   const snapshots = await memorySandboxSnapshots()
   const structuralSnapshots: SandboxSnapshots = snapshots
+  expectTypeOf(snapshots.save).toBeFunction()
+  expectTypeOf(snapshots.fork).toBeFunction()
+  expectTypeOf(snapshots.readArtifact).toBeFunction()
   void structuralSnapshots
 }
 void assignActualMemorySnapshots

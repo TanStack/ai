@@ -4,10 +4,7 @@ import {
   InMemorySandboxInstanceStore,
   defineSandbox,
   defineWorkspace,
-  forkFromSandboxSnapshot,
   memorySandboxSnapshots,
-  resolveSnapshotArtifact,
-  saveNamedSandboxSnapshot,
   withSandbox,
 } from '@tanstack/ai-sandbox'
 import { withPersistence } from '@tanstack/ai-persistence'
@@ -335,13 +332,16 @@ export const Route = createFileRoute('/api/sandbox-file-persistence')({
             originalExists ? fakeHandle('original', sourceFiles) : null,
           destroy: async () => {},
         }
-        const snapshots = await memorySandboxSnapshots()
         const instances = new InMemorySandboxInstanceStore()
         const sandbox = defineSandbox({
           id: 'file-persistence',
           provider,
           workspace: defineWorkspace({ source: { type: 'none' } }),
           fileEvents: false,
+        })
+        const snapshots = await memorySandboxSnapshots({
+          sandbox,
+          instances,
         })
         const key = sandbox.key({ threadId, runId: 'save', store: instances })
         await instances.upsert({
@@ -369,12 +369,9 @@ export const Route = createFileRoute('/api/sandbox-file-persistence')({
           createdAt: 1,
         })
 
-        const saved = await saveNamedSandboxSnapshot({
-          definition: sandbox,
+        const saved = await snapshots.save({
           threadId,
           runId: 'save',
-          instances,
-          snapshots,
           label: 'release-1',
         })
         originalExists = false
@@ -396,11 +393,10 @@ export const Route = createFileRoute('/api/sandbox-file-persistence')({
           await snapshots.checkpoints.get(automaticHeadId)
         if (!automaticCheckpoint)
           throw new Error('Expected the automatic checkpoint')
-        const artifact = await resolveSnapshotArtifact({
+        const artifact = await snapshots.readArtifact({
           threadId,
           checkpointId: saved.id,
           artifactId: 'artifact-1',
-          snapshots,
         })
         const sourceBeforeFork = await snapshots.checkpoints.list(threadId)
         const { result: fork, sourceMessagesUnchanged } =
@@ -408,11 +404,10 @@ export const Route = createFileRoute('/api/sandbox-file-persistence')({
             loadSourceMessages: () =>
               snapshots.persistence.stores.messages.loadThread(threadId),
             fork: () =>
-              forkFromSandboxSnapshot({
-                sourceThreadId: threadId,
-                sourceCheckpointId: saved.id,
+              snapshots.fork({
+                threadId,
+                checkpointId: saved.id,
                 destinationThreadId,
-                snapshots,
                 destinationCheckpointId: 'fork-root',
                 createdAt: 2,
               }),

@@ -147,16 +147,11 @@ persistence value and a checkpoint store to `withSandbox`.
 import { withPersistence } from '@tanstack/ai-persistence'
 import { memorySandboxSnapshots, withSandbox } from '@tanstack/ai-sandbox'
 
-const snapshots = await memorySandboxSnapshots()
+const snapshots = await memorySandboxSnapshots({ sandbox, instances })
 
 const middleware = [
   withPersistence(snapshots.persistence),
-  withSandbox(sandbox, {
-    snapshots: {
-      persistence: snapshots.persistence,
-      checkpoints: snapshots.checkpoints,
-    },
-  }),
+  withSandbox(sandbox, { instances, snapshots }),
 ]
 ```
 

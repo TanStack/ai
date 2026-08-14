@@ -3,15 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 import {
   computeSandboxKey,
   computeWorkspaceHash,
+  createSandboxSnapshots,
   createSecrets,
   defineSandbox,
-  forkFromSandboxSnapshot,
   InMemorySandboxCheckpointStore,
   InMemorySandboxInstanceStore,
   memorySandboxSnapshots,
-  resolveSnapshotArtifact,
   SandboxSnapshotError,
-  saveNamedSandboxSnapshot,
 } from '../src'
 import { makeFakeHandle, makeFakeProvider } from './fakes'
 import type {
@@ -188,37 +186,36 @@ async function namedFixture(
       updatedAt: Date.now(),
     })
   }
+  const locks = new InMemoryLockStore()
   return {
     definition,
     instances,
     provider,
     memory,
-    snapshots: {
+    snapshots: createSandboxSnapshots({
       persistence: memory.persistence,
       checkpoints: options.checkpoints ?? memory.checkpoints,
+      sandbox: definition,
+      instances,
+      locks,
       ...(options.policy === undefined ? {} : { policy: options.policy }),
-    },
-    locks: new InMemoryLockStore(),
+    }),
+    locks,
   }
 }
 
-type NamedSaveInput = Parameters<typeof saveNamedSandboxSnapshot>[0]
+type NamedSaveInput = Parameters<SandboxSnapshots['save']>[0]
 
 function namedSave(
   fixture: NamedFixture,
   changes: Partial<NamedSaveInput> = {},
 ) {
-  const input: NamedSaveInput = {
-    definition: fixture.definition,
+  return fixture.snapshots.save({
     threadId: THREAD,
     runId: RUN,
-    instances: fixture.instances,
-    snapshots: fixture.snapshots,
     label: LABEL,
-    locks: fixture.locks,
     ...changes,
-  }
-  return saveNamedSandboxSnapshot(input)
+  })
 }
 
 function checkpoint(
@@ -242,7 +239,7 @@ function checkpoint(
 }
 
 async function appendCheckpoint(
-  snapshots: SandboxSnapshots,
+  snapshots: { checkpoints: SandboxCheckpointStore },
   value: SandboxCheckpoint,
 ): Promise<void> {
   const writer = await snapshots.checkpoints.acquireWriter(value.threadId)
@@ -299,15 +296,21 @@ async function artifactSnapshot(input: {
 
 function resolveArtifact(
   snapshots: SandboxSnapshots,
-  changes: Partial<Parameters<typeof resolveSnapshotArtifact>[0]> = {},
+  changes: Partial<Parameters<SandboxSnapshots['readArtifact']>[0]> = {},
 ) {
-  return resolveSnapshotArtifact({
+  return snapshots.readArtifact({
     threadId: THREAD,
     checkpointId: 'checkpoint',
     artifactId: 'artifact',
-    snapshots,
     ...changes,
   })
+}
+
+function operationsFor(
+  persistence: SandboxSnapshots['persistence'],
+  checkpoints: SandboxCheckpointStore,
+): SandboxSnapshots {
+  return createSandboxSnapshots({ persistence, checkpoints })
 }
 
 function workspaceHandle(input: {
@@ -492,7 +495,7 @@ describe('public sandbox snapshot operations', () => {
       }
 
       await expect(
-        namedSave(fixture, { definition: structuralDefinition }),
+        namedSave(fixture, { sandbox: structuralDefinition }),
       ).resolves.toMatchObject({ reason: 'named' })
       expect(ensureReads).toBe(1)
     })
@@ -614,11 +617,10 @@ describe('public sandbox snapshot operations', () => {
         },
       }
 
-      const fork = forkFromSandboxSnapshot({
-        sourceThreadId: 'source',
-        sourceCheckpointId: 'source-checkpoint',
+      const fork = operationsFor(snapshots.persistence, checkpoints).fork({
+        threadId: 'source',
+        checkpointId: 'source-checkpoint',
         destinationThreadId: 'destination',
-        snapshots: { persistence: snapshots.persistence, checkpoints },
       })
       await acquisitionStarted.promise
       acquisitionGate.resolve()
@@ -646,11 +648,10 @@ describe('public sandbox snapshot operations', () => {
       }
 
       await expect(
-        forkFromSandboxSnapshot({
-          sourceThreadId: 'source',
-          sourceCheckpointId: 'checkpoint',
+        operationsFor(snapshots.persistence, checkpoints).fork({
+          threadId: 'source',
+          checkpointId: 'checkpoint',
           destinationThreadId: 'destination',
-          snapshots: { persistence: snapshots.persistence, checkpoints },
         }),
       ).rejects.toThrow('fork staging failed')
       expect(acquisitionCalls).toBe(0)
@@ -674,7 +675,7 @@ describe('public sandbox snapshot operations', () => {
       })
       let threadReads = 0
       let checkpointPending = false
-      const input: Parameters<typeof resolveSnapshotArtifact>[0] = {
+      const input: Parameters<SandboxSnapshots['readArtifact']>[0] = {
         get threadId() {
           threadReads++
           if (checkpointPending) throw new Error('late threadId read')
@@ -682,10 +683,9 @@ describe('public sandbox snapshot operations', () => {
         },
         checkpointId: 'checkpoint',
         artifactId: 'artifact',
-        snapshots,
       }
 
-      const resolved = resolveSnapshotArtifact(input)
+      const resolved = snapshots.readArtifact(input)
       await checkpointStarted.promise
       checkpointPending = true
       checkpointGate.resolve(stored)
@@ -1167,13 +1167,12 @@ describe('public sandbox snapshot operations', () => {
       const sourceConversationBefore =
         await snapshots.persistence.stores.messages.loadThread('source')
 
-      const result = await forkFromSandboxSnapshot({
-        sourceThreadId: 'source',
-        sourceCheckpointId: 'selected',
+      const result = await snapshots.fork({
+        threadId: 'source',
+        checkpointId: 'selected',
         destinationThreadId: 'destination',
         destinationCheckpointId: 'fork',
         createdAt: 3,
-        snapshots,
       })
 
       expect(result).toMatchObject({
@@ -1198,21 +1197,17 @@ describe('public sandbox snapshot operations', () => {
     it('releases once and does not renew a successful fork', async () => {
       const snapshots = await memorySandboxSnapshots()
       const checkpoints = new ForkProbeStore(snapshots.checkpoints)
-      const bundle: SandboxSnapshots = {
-        persistence: snapshots.persistence,
-        checkpoints,
-      }
+      const bundle = operationsFor(snapshots.persistence, checkpoints)
       await appendCheckpoint(
         bundle,
         checkpoint({ id: 'source-checkpoint', threadId: 'source' }),
       )
 
       await expect(
-        forkFromSandboxSnapshot({
-          sourceThreadId: 'source',
-          sourceCheckpointId: 'source-checkpoint',
+        bundle.fork({
+          threadId: 'source',
+          checkpointId: 'source-checkpoint',
           destinationThreadId: 'destination',
-          snapshots: bundle,
         }),
       ).resolves.toMatchObject({ reason: 'fork-root' })
       expect(checkpoints.releases).toBe(2)
@@ -1225,14 +1220,10 @@ describe('public sandbox snapshot operations', () => {
       const snapshots = await memorySandboxSnapshots()
 
       await expect(
-        forkFromSandboxSnapshot({
-          sourceThreadId: 'source',
-          sourceCheckpointId: 'source-checkpoint',
+        operationsFor(snapshots.persistence, withoutFork(checkpoints)).fork({
+          threadId: 'source',
+          checkpointId: 'source-checkpoint',
           destinationThreadId: 'destination',
-          snapshots: {
-            persistence: snapshots.persistence,
-            checkpoints: withoutFork(checkpoints),
-          },
         }),
       ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_FORK_UNAVAILABLE' })
       expect(checkpoints.releases).toBe(1)
@@ -1245,11 +1236,10 @@ describe('public sandbox snapshot operations', () => {
       checkpoints.releaseError = new Error('release failed')
 
       await expect(
-        forkFromSandboxSnapshot({
-          sourceThreadId: 'source',
-          sourceCheckpointId: 'source-checkpoint',
+        operationsFor(snapshots.persistence, checkpoints).fork({
+          threadId: 'source',
+          checkpointId: 'source-checkpoint',
           destinationThreadId: 'destination',
-          snapshots: { persistence: snapshots.persistence, checkpoints },
         }),
       ).rejects.toThrow('fork failed')
       expect(checkpoints.releases).toBe(1)
@@ -1258,10 +1248,7 @@ describe('public sandbox snapshot operations', () => {
     it('reports release failure after a successful fork publication', async () => {
       const snapshots = await memorySandboxSnapshots()
       const checkpoints = new ForkProbeStore(snapshots.checkpoints)
-      const bundle: SandboxSnapshots = {
-        persistence: snapshots.persistence,
-        checkpoints,
-      }
+      const bundle = operationsFor(snapshots.persistence, checkpoints)
       await appendCheckpoint(
         bundle,
         checkpoint({ id: 'source-checkpoint', threadId: 'source' }),
@@ -1269,11 +1256,10 @@ describe('public sandbox snapshot operations', () => {
       checkpoints.releaseError = new Error('release failed')
 
       await expect(
-        forkFromSandboxSnapshot({
-          sourceThreadId: 'source',
-          sourceCheckpointId: 'source-checkpoint',
+        bundle.fork({
+          threadId: 'source',
+          checkpointId: 'source-checkpoint',
           destinationThreadId: 'destination',
-          snapshots: bundle,
         }),
       ).rejects.toThrow('release failed')
       expect(await checkpoints.getHead('destination')).not.toBeNull()
@@ -1369,6 +1355,97 @@ describe('public sandbox snapshot operations', () => {
       await expect(
         resolveArtifact(snapshots, { checkpointId: 'missing' }),
       ).rejects.toBeInstanceOf(SandboxSnapshotError)
+    })
+  })
+
+  describe('create and bind', () => {
+    it('returns save, fork, and readArtifact from memorySandboxSnapshots', async () => {
+      const snapshots = await memorySandboxSnapshots()
+      expect(snapshots.save).toEqual(expect.any(Function))
+      expect(snapshots.fork).toEqual(expect.any(Function))
+      expect(snapshots.readArtifact).toEqual(expect.any(Function))
+    })
+
+    it('rejects create when persistence stores are missing', async () => {
+      const snapshots = await memorySandboxSnapshots()
+      Reflect.deleteProperty(snapshots.persistence.stores, 'messages')
+      expect(() =>
+        createSandboxSnapshots({
+          persistence: snapshots.persistence,
+          checkpoints: snapshots.checkpoints,
+        }),
+      ).toThrow(
+        expect.objectContaining({
+          code: 'SANDBOX_SNAPSHOT_MISSING_PERSISTENCE_STORES',
+        }),
+      )
+    })
+
+    it('rejects save when sandbox and instances are missing', async () => {
+      const snapshots = await memorySandboxSnapshots()
+      await expect(
+        snapshots.save({ threadId: THREAD, runId: RUN, label: LABEL }),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_MISSING_SANDBOX' })
+    })
+
+    it('rejects save when only instances are missing', async () => {
+      const fixture = await namedFixture()
+      const snapshots = createSandboxSnapshots({
+        persistence: fixture.memory.persistence,
+        checkpoints: fixture.memory.checkpoints,
+        sandbox: fixture.definition,
+      })
+      await expect(
+        snapshots.save({ threadId: THREAD, runId: RUN, label: LABEL }),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_MISSING_INSTANCES' })
+    })
+
+    it('uses save overrides for sandbox and instances', async () => {
+      const fixture = await namedFixture()
+      const snapshots = await memorySandboxSnapshots()
+      await snapshots.persistence.stores.messages.saveThread(THREAD, [
+        { role: 'user', content: 'saved' },
+      ])
+      const saved = await snapshots.save({
+        threadId: THREAD,
+        runId: RUN,
+        label: 'override',
+        sandbox: fixture.definition,
+        instances: fixture.instances,
+        locks: fixture.locks,
+      })
+      expect(saved).toMatchObject({
+        reason: 'named',
+        label: 'override',
+        conversation: [{ role: 'user', content: 'saved' }],
+      })
+    })
+
+    it('binds sandbox and instances on the memory factory', async () => {
+      const instances = new InMemorySandboxInstanceStore()
+      const provider = makeFakeProvider()
+      const sandbox = defineSandbox({ id: 'sandbox', provider })
+      await instances.upsert({
+        key: sandbox.key({ threadId: THREAD, runId: 'old' }),
+        provider: provider.name,
+        providerSandboxId: 'existing',
+        threadId: THREAD,
+        updatedAt: Date.now(),
+      })
+      const snapshots = await memorySandboxSnapshots({
+        sandbox,
+        instances,
+        locks: new InMemoryLockStore(),
+      })
+      await snapshots.persistence.stores.messages.saveThread(THREAD, [
+        { role: 'user', content: 'bound' },
+      ])
+      await expect(
+        snapshots.save({ threadId: THREAD, runId: RUN, label: LABEL }),
+      ).resolves.toMatchObject({
+        reason: 'named',
+        conversation: [{ role: 'user', content: 'bound' }],
+      })
     })
   })
 })

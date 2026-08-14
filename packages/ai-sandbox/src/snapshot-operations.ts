@@ -19,7 +19,7 @@ import type { SandboxDefinition } from './sandbox'
 import type { SandboxSnapshotBundle, SandboxSnapshotPolicy } from './snapshots'
 import type { WorkspaceDefinition } from './workspace'
 
-type SnapshotPersistence = {
+export interface SnapshotPersistence {
   stores: {
     messages: {
       loadThread: (threadId: string) => Promise<ReadonlyArray<ModelMessage>>
@@ -29,10 +29,58 @@ type SnapshotPersistence = {
   }
 }
 
-export interface SandboxSnapshots {
-  persistence: SnapshotPersistence
-  checkpoints: SandboxCheckpointStore
+export interface CreateSandboxSnapshotsInput<
+  TPersistence extends SnapshotPersistence = SnapshotPersistence,
+  TCheckpoints extends SandboxCheckpointStore = SandboxCheckpointStore,
+> {
+  persistence: TPersistence
+  checkpoints: TCheckpoints
   policy?: SandboxSnapshotPolicy
+  sandbox?: SandboxDefinition
+  instances?: SandboxInstanceStore
+  tenant?: { userId?: string; orgId?: string }
+  locks?: LockStore
+}
+
+export interface SaveSandboxSnapshotInput {
+  threadId: string
+  runId: string
+  label: string
+  sandbox?: SandboxDefinition
+  instances?: SandboxInstanceStore
+  tenant?: { userId?: string; orgId?: string }
+  locks?: LockStore
+  signal?: AbortSignal
+  adapterName?: string
+}
+
+export interface ForkSandboxSnapshotInput {
+  threadId: string
+  checkpointId: string
+  destinationThreadId: string
+  destinationCheckpointId?: string
+  createdAt?: number
+}
+
+export interface ReadSandboxSnapshotArtifactInput {
+  threadId: string
+  checkpointId: string
+  artifactId: string
+}
+
+export interface SandboxSnapshots<
+  TPersistence extends SnapshotPersistence = SnapshotPersistence,
+  TCheckpoints extends SandboxCheckpointStore = SandboxCheckpointStore,
+> {
+  persistence: TPersistence
+  checkpoints: TCheckpoints
+  policy?: SandboxSnapshotPolicy
+  save: (input: SaveSandboxSnapshotInput) => Promise<SandboxCheckpoint>
+  fork: (input: ForkSandboxSnapshotInput) => Promise<SandboxCheckpoint>
+  readArtifact: (input: ReadSandboxSnapshotArtifactInput) => Promise<{
+    artifact: SandboxCheckpoint['artifacts'][number]
+    bytes: Uint8Array
+  }>
 }
 
 type Failure = { error: unknown }
@@ -161,12 +209,95 @@ function stageLockStore(locks: LockStore | undefined): LockStore | undefined {
   return { withLock }
 }
 
-export async function saveNamedSandboxSnapshot(input: {
+function requireSnapshotPersistence<TPersistence extends SnapshotPersistence>(
+  persistence: TPersistence,
+): TPersistence {
+  const stores = persistence.stores
+  if (!stores?.messages || !stores.artifacts || !stores.blobs) {
+    throw new SandboxSnapshotError(
+      'SANDBOX_SNAPSHOT_MISSING_PERSISTENCE_STORES',
+      'Sandbox snapshots require persistence stores.messages, stores.artifacts, and stores.blobs',
+    )
+  }
+  return persistence
+}
+
+export function createSandboxSnapshots<
+  TPersistence extends SnapshotPersistence,
+  TCheckpoints extends SandboxCheckpointStore,
+>(
+  input: CreateSandboxSnapshotsInput<TPersistence, TCheckpoints>,
+): SandboxSnapshots<TPersistence, TCheckpoints> {
+  const persistence = requireSnapshotPersistence(input.persistence)
+  const checkpoints = input.checkpoints
+  const policy = input.policy
+  const boundSandbox = input.sandbox
+  const boundInstances = input.instances
+  const boundTenant = input.tenant
+  const boundLocks = input.locks
+
+  return {
+    persistence,
+    checkpoints,
+    ...(policy === undefined ? {} : { policy }),
+    async save(saveInput) {
+      const sandbox = saveInput.sandbox ?? boundSandbox
+      const instances = saveInput.instances ?? boundInstances
+      if (sandbox === undefined)
+        throw new SandboxSnapshotError(
+          'SANDBOX_SNAPSHOT_MISSING_SANDBOX',
+          'Named snapshots require a sandbox at create time or on save',
+        )
+      if (instances === undefined)
+        throw new SandboxSnapshotError(
+          'SANDBOX_SNAPSHOT_MISSING_INSTANCES',
+          'Named snapshots require instances at create time or on save',
+        )
+      return saveNamedSandboxSnapshot({
+        definition: sandbox,
+        threadId: saveInput.threadId,
+        runId: saveInput.runId,
+        instances,
+        persistence,
+        checkpoints,
+        policy,
+        label: saveInput.label,
+        tenant: saveInput.tenant ?? boundTenant,
+        locks: saveInput.locks ?? boundLocks,
+        signal: saveInput.signal,
+        adapterName: saveInput.adapterName,
+      })
+    },
+    fork(forkInput) {
+      return forkFromSandboxSnapshot({
+        threadId: forkInput.threadId,
+        checkpointId: forkInput.checkpointId,
+        destinationThreadId: forkInput.destinationThreadId,
+        checkpoints,
+        destinationCheckpointId: forkInput.destinationCheckpointId,
+        createdAt: forkInput.createdAt,
+      })
+    },
+    readArtifact(readInput) {
+      return resolveSnapshotArtifact({
+        threadId: readInput.threadId,
+        checkpointId: readInput.checkpointId,
+        artifactId: readInput.artifactId,
+        persistence,
+        checkpoints,
+      })
+    },
+  }
+}
+
+async function saveNamedSandboxSnapshot(input: {
   definition: SandboxDefinition
   threadId: string
   runId: string
   instances: SandboxInstanceStore
-  snapshots: SandboxSnapshots
+  persistence: SnapshotPersistence
+  checkpoints: SandboxCheckpointStore
+  policy?: SandboxSnapshotPolicy
   label: string
   tenant?: { userId?: string; orgId?: string }
   locks?: LockStore
@@ -177,7 +308,6 @@ export async function saveNamedSandboxSnapshot(input: {
   const threadId = input.threadId
   const runId = input.runId
   const instances = stageInstanceStore(input.instances)
-  const snapshots = input.snapshots
   const label = input.label
   const suppliedTenant = input.tenant
   const tenantUserId = suppliedTenant?.userId
@@ -200,7 +330,7 @@ export async function saveNamedSandboxSnapshot(input: {
   const providerName = provider.name
   const resume = provider.resume.bind(provider)
   const ensureExisting = stageEnsureExistingSandbox(definition)
-  const persistence = snapshots.persistence
+  const persistence = input.persistence
   const stores = persistence.stores
   const messages = stores.messages
   const loadThread = messages.loadThread.bind(messages)
@@ -215,12 +345,12 @@ export async function saveNamedSandboxSnapshot(input: {
     head: headBlob,
     put: putBlob,
   }
-  const checkpoints = snapshots.checkpoints
+  const checkpoints = input.checkpoints
   const acquireWriter = checkpoints.acquireWriter.bind(checkpoints)
   const getHead = checkpoints.getHead.bind(checkpoints)
   const append = checkpoints.append.bind(checkpoints)
   const policy = effectivePolicy(
-    snapshots.policy,
+    input.policy,
     workspace === undefined ? undefined : computeWorkspaceHash(workspace),
   )
   const workspaceSecrets = workspace?.secrets
@@ -306,24 +436,23 @@ export async function saveNamedSandboxSnapshot(input: {
   )
 }
 
-export async function forkFromSandboxSnapshot(input: {
-  sourceThreadId: string
-  sourceCheckpointId: string
+async function forkFromSandboxSnapshot(input: {
+  threadId: string
+  checkpointId: string
   destinationThreadId: string
-  snapshots: SandboxSnapshots
+  checkpoints: SandboxCheckpointStore
   destinationCheckpointId?: string
   createdAt?: number
 }): Promise<SandboxCheckpoint> {
-  const sourceThreadId = input.sourceThreadId
-  const sourceCheckpointId = input.sourceCheckpointId
+  const sourceThreadId = input.threadId
+  const sourceCheckpointId = input.checkpointId
   const destinationThreadId = input.destinationThreadId
-  const snapshots = input.snapshots
   const suppliedDestinationCheckpointId = input.destinationCheckpointId
   const suppliedCreatedAt = input.createdAt
   const destinationCheckpointId =
     suppliedDestinationCheckpointId ?? crypto.randomUUID()
   const createdAt = suppliedCreatedAt ?? Date.now()
-  const checkpoints = snapshots.checkpoints
+  const checkpoints = input.checkpoints
   const acquireWriter = checkpoints.acquireWriter.bind(checkpoints)
   const forkFromCheckpoint = checkpoints.forkFromCheckpoint?.bind(checkpoints)
 
@@ -356,11 +485,12 @@ async function sha256(bytes: Uint8Array): Promise<string> {
   ).join('')
 }
 
-export async function resolveSnapshotArtifact(input: {
+async function resolveSnapshotArtifact(input: {
   threadId: string
   checkpointId: string
   artifactId: string
-  snapshots: SandboxSnapshots
+  persistence: SnapshotPersistence
+  checkpoints: SandboxCheckpointStore
 }): Promise<{
   artifact: SandboxCheckpoint['artifacts'][number]
   bytes: Uint8Array
@@ -368,10 +498,9 @@ export async function resolveSnapshotArtifact(input: {
   const threadId = input.threadId
   const checkpointId = input.checkpointId
   const artifactId = input.artifactId
-  const snapshots = input.snapshots
-  const checkpoints = snapshots.checkpoints
+  const checkpoints = input.checkpoints
   const getCheckpoint = checkpoints.get.bind(checkpoints)
-  const persistence = snapshots.persistence
+  const persistence = input.persistence
   const stores = persistence.stores
   const blobs = stores.blobs
   const getBlob = blobs.get.bind(blobs)

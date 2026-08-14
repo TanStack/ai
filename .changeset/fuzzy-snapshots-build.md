@@ -2,4 +2,4 @@
 '@tanstack/ai-sandbox': minor
 ---
 
-Add portable sandbox checkpoints, named snapshot saves, selected-checkpoint forks, and checkpoint artifact reads.
+Add portable sandbox checkpoints. `createSandboxSnapshots` and `memorySandboxSnapshots` return one object with `save`, `fork`, and `readArtifact`.

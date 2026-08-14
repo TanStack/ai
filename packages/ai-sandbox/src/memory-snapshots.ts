@@ -26,6 +26,11 @@ import type {
   SandboxCheckpointWriterLease,
   SandboxCheckpointForkInput,
 } from './checkpoint-store'
+import { createSandboxSnapshots } from './snapshot-operations'
+import type {
+  CreateSandboxSnapshotsInput,
+  SandboxSnapshots,
+} from './snapshot-operations'
 
 type BlobGetOptions = { range?: { offset: number; length?: number } }
 
@@ -55,10 +60,18 @@ function resolveBlobRange(
   }
 }
 
-export interface MemorySandboxSnapshots {
-  persistence: MemorySnapshotPersistence
-  checkpoints: ForkCapableSandboxCheckpointStore
-}
+export type MemorySandboxSnapshots = SandboxSnapshots<
+  MemorySnapshotPersistence,
+  ForkCapableSandboxCheckpointStore
+>
+
+export type MemorySandboxSnapshotsOptions = Omit<
+  CreateSandboxSnapshotsInput<
+    MemorySnapshotPersistence,
+    ForkCapableSandboxCheckpointStore
+  >,
+  'persistence' | 'checkpoints'
+>
 
 const encoder = new TextEncoder()
 const compare = (a: string, b: string) => {
@@ -617,11 +630,21 @@ async function bodyBytes(body: BlobBody): Promise<Uint8Array> {
   throw new TypeError('Unsupported blob body.')
 }
 
-export async function memorySandboxSnapshots(): Promise<MemorySandboxSnapshots> {
-  return createMemorySandboxSnapshots()
+export async function memorySandboxSnapshots(
+  options: MemorySandboxSnapshotsOptions = {},
+): Promise<MemorySandboxSnapshots> {
+  const { persistence, checkpoints } = await createMemorySandboxSnapshots()
+  return createSandboxSnapshots({
+    persistence,
+    checkpoints,
+    ...options,
+  })
 }
 
-async function createMemorySandboxSnapshots(): Promise<MemorySandboxSnapshots> {
+async function createMemorySandboxSnapshots(): Promise<{
+  persistence: MemorySnapshotPersistence
+  checkpoints: ForkCapableSandboxCheckpointStore
+}> {
   const messages = new Map<string, Array<ModelMessage>>()
   const runs = new Map<string, RunRecord>()
   const generations = new Map<string, GenerationRunRecord>()

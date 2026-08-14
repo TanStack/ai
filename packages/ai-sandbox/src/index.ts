@@ -66,13 +66,19 @@ export type {
   SandboxSnapshotPolicy,
 } from './snapshots'
 export { memorySandboxSnapshots } from './memory-snapshots'
-export type { MemorySandboxSnapshots } from './memory-snapshots'
-export {
-  forkFromSandboxSnapshot,
-  resolveSnapshotArtifact,
-  saveNamedSandboxSnapshot,
+export type {
+  MemorySandboxSnapshots,
+  MemorySandboxSnapshotsOptions,
+} from './memory-snapshots'
+export { createSandboxSnapshots } from './snapshot-operations'
+export type {
+  CreateSandboxSnapshotsInput,
+  ForkSandboxSnapshotInput,
+  ReadSandboxSnapshotArtifactInput,
+  SandboxSnapshots,
+  SaveSandboxSnapshotInput,
+  SnapshotPersistence,
 } from './snapshot-operations'
-export type { SandboxSnapshots } from './snapshot-operations'
 
 // Workspace projection capability (provided by withSandbox, consumed by harness adapters)
 export {

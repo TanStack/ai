@@ -599,7 +599,8 @@
         {
           "label": "Portable Sandbox Snapshots",
           "to": "sandbox/portable-snapshots",
-          "addedAt": "2026-08-14"
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Instance Durability",

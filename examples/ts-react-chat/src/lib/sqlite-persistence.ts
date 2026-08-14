@@ -60,6 +60,7 @@ import type {
   RunStore,
 } from '@tanstack/ai-persistence'
 import {
+  createSandboxSnapshots,
   SandboxCheckpointConflictError,
   SandboxCheckpointDuplicateIdError,
   SandboxCheckpointError,
@@ -77,6 +78,7 @@ import type {
   SandboxCheckpointWriter,
   SandboxSnapshotArtifact,
   SandboxSnapshotEntry,
+  SandboxSnapshots,
 } from '@tanstack/ai-sandbox'
 
 // ---------------------------------------------------------------------------
@@ -1836,9 +1838,7 @@ export function sqlitePersistence(
 /** Build the seven persistence stores and a durable SQLite checkpoint store. */
 export function sqliteSandboxSnapshots(
   options: SqlitePersistenceOptions & SandboxCheckpointStoreOptions,
-): {
-  persistence: SqliteAIPersistence
-  checkpoints: ForkCapableSandboxCheckpointStore
+): SandboxSnapshots<SqliteAIPersistence, ForkCapableSandboxCheckpointStore> & {
   close: () => void
 } {
   const filename = normalizeSqliteUrl(options.url)
@@ -1862,10 +1862,10 @@ export function sqliteSandboxSnapshots(
       },
     })
     const checkpoints = createCheckpointStore(db, options)
+    const snapshots = createSandboxSnapshots({ persistence, checkpoints })
     let closed = false
     return {
-      persistence,
-      checkpoints,
+      ...snapshots,
       close() {
         if (closed) return
         db.close()
