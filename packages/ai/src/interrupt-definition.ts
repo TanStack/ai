@@ -356,6 +356,13 @@ function schemaJson(schema: unknown, name: string): CanonicalSchemaJson {
   }
 }
 
+/** Same hash the producer stamps on a first-party generic binding. */
+export function hashInterruptDefinitionSchema(schema: unknown): string {
+  return digestInterruptJson(
+    schemaJson(schema, 'Interrupt schema').canonicalJson,
+  )
+}
+
 function validateJson(value: unknown, label: string): void {
   try {
     canonicalInterruptJson(value)

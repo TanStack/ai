@@ -4,9 +4,9 @@ import {
   canonicalInterruptJson,
   canonicalizeInterruptResolutions,
   cloneAndDeepFreezeJson,
-  convertSchemaToJsonSchema,
   digestInterruptJson,
   genericInterruptContinuationFromDescriptor,
+  hashInterruptDefinitionSchema,
   hashSchemaInput,
   isStandardSchema,
   normalizeApprovalSchema,
@@ -384,13 +384,12 @@ function responseSchemaHash(interrupt: Interrupt): string | undefined {
 function definitionSchemaHash(
   schema: InterruptDefinition<any, any, any, any>['responseSchema'] | undefined,
 ): string | undefined {
-  const jsonSchema = convertSchemaToJsonSchema(schema)
-  if (jsonSchema === undefined || Array.isArray(jsonSchema)) return undefined
-  const canonical: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(jsonSchema)) {
-    if (key !== '$schema') canonical[key] = value
+  if (schema === undefined) return undefined
+  try {
+    return hashInterruptDefinitionSchema(schema)
+  } catch {
+    return undefined
   }
-  return digestInterruptJson(canonicalInterruptJson(canonical))
 }
 
 function isPromiseLike(value: unknown): value is PromiseLike<unknown> {

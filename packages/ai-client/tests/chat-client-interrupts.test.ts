@@ -1,5 +1,5 @@
 ﻿import { describe, expect, it, vi } from 'vitest'
-import { chat, defineInterrupt } from '@tanstack/ai'
+import { chat, createInterruptBinding, defineInterrupt } from '@tanstack/ai'
 import {
   EventType,
   canonicalInterruptJson,
@@ -565,6 +565,87 @@ describe('InterruptManager hydration', () => {
         expect(item.errors[0]?.code).toBe('stale')
       }
     }
+  })
+
+  it('hydrates a first-party item from the producer binding and schema hash', () => {
+    const review = defineInterrupt({
+      id: 'review-plan',
+      payloadSchema: z.object({
+        title: z.string(),
+        boundary: z.enum([
+          'beforeModel',
+          'afterModel',
+          'beforeTools',
+          'afterTools',
+        ]),
+      }),
+      responseSchema: z.object({
+        approved: z.boolean(),
+        note: z.string(),
+      }),
+    })
+    const request = review.interrupt({
+      key: 'generic-before-model-review',
+      reason: 'review_required',
+      message: 'Review the plan at beforeModel',
+      payload: { title: 'Middleware review plan', boundary: 'beforeModel' },
+    })
+    const emission = createInterruptBinding(request, { batchIndex: 0 })
+    const interruptId = 'interrupt-1'
+    const manager = new InterruptManager({
+      tools,
+      interrupts: [review],
+      submit: vi.fn(async () => undefined),
+    })
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      interrupts: [
+        {
+          id: interruptId,
+          reason: request.reason,
+          message: request.message,
+          ...(emission.descriptor.responseSchemaCanonicalJson !== undefined
+            ? {
+                responseSchema: JSON.parse(
+                  emission.descriptor.responseSchemaCanonicalJson,
+                ),
+              }
+            : {}),
+          metadata: {
+            'tanstack:interruptBinding': {
+              v: INTERRUPT_BINDING_VERSION,
+              kind: 'generic',
+              interruptId,
+              interruptedRunId: 'run-1',
+              generation: 0,
+              definitionId: emission.descriptor.definitionId,
+              key: emission.descriptor.key,
+              batchIndex: emission.descriptor.batchIndex,
+              ...(emission.descriptor.payloadSchemaHash !== undefined
+                ? { payloadSchemaHash: emission.descriptor.payloadSchemaHash }
+                : {}),
+              ...(emission.descriptor.responseSchemaHash !== undefined
+                ? {
+                    responseSchemaHash: emission.descriptor.responseSchemaHash,
+                  }
+                : {}),
+            },
+            ...(emission.payload !== undefined
+              ? { 'tanstack:interruptPayload': emission.payload }
+              : {}),
+          },
+        },
+      ],
+    })
+
+    const item = manager.getInterrupts()[0]
+    expect(item).toMatchObject({
+      kind: 'generic',
+      canResolve: true,
+      definitionId: 'review-plan',
+    })
   })
 })
 

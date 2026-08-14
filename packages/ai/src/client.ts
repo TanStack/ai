@@ -345,6 +345,7 @@ export {
 } from './interrupts'
 export {
   defineInterrupt,
+  hashInterruptDefinitionSchema,
   INTERRUPT_PAYLOAD_METADATA_KEY,
 } from './interrupt-definition'
 export {
