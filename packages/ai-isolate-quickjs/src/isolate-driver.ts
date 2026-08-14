@@ -1,4 +1,9 @@
-import { getQuickJS } from 'quickjs-emscripten'
+import {
+  RELEASE_SYNC,
+  getQuickJS,
+  newQuickJSWASMModule,
+  newVariant,
+} from 'quickjs-emscripten'
 import { QuickJSIsolateContext } from './isolate-context'
 import type { ExecState } from './isolate-context'
 import type { QuickJSContext } from 'quickjs-emscripten'
@@ -35,6 +40,14 @@ export interface QuickJSIsolateDriverConfig {
    * Applied via QuickJS `runtime.setMaxStackSize`.
    */
   maxStackSize?: number
+
+  /**
+   * URL or path from which Emscripten loads the QuickJS WASM binary.
+   *
+   * When omitted, `quickjs-emscripten` resolves its bundled WASM binary.
+   * Set this when serving the binary from a public directory or CDN.
+   */
+  wasmLocation?: string
 }
 
 /**
@@ -185,6 +198,18 @@ export function createQuickJSIsolateDriver(
   const defaultMemoryLimit = config.memoryLimit ?? DEFAULT_MEMORY_LIMIT_MB
   const defaultMaxStackSize =
     config.maxStackSize ?? DEFAULT_MAX_STACK_SIZE_BYTES
+  let customQuickJSModule: ReturnType<typeof newQuickJSWASMModule> | undefined
+
+  const loadQuickJS = () => {
+    if (config.wasmLocation === undefined) {
+      return getQuickJS()
+    }
+
+    customQuickJSModule ??= newQuickJSWASMModule(
+      newVariant(RELEASE_SYNC, { wasmLocation: config.wasmLocation }),
+    )
+    return customQuickJSModule
+  }
 
   return {
     async createContext(isolateConfig: IsolateConfig): Promise<IsolateContext> {
@@ -195,7 +220,7 @@ export function createQuickJSIsolateDriver(
       // Create a plain (non-asyncify) QuickJS context. Host async functions
       // are bridged with QuickJS promises instead of asyncify suspensions,
       // so the sync WASM build is sufficient and sidesteps asyncify bugs.
-      const QuickJS = await getQuickJS()
+      const QuickJS = await loadQuickJS()
       const vm = QuickJS.newContext()
 
       // Enforce heap and stack limits so OOM/stack overflow surface as JS errors

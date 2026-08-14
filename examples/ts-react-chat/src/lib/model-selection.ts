@@ -67,6 +67,11 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   // Gemini (stateless `geminiText`)
   {
     provider: 'gemini',
+    model: 'gemini-3.7-flash',
+    label: 'Gemini - 3.7 Flash',
+  },
+  {
+    provider: 'gemini',
     model: 'gemini-3.6-flash',
     label: 'Gemini - 3.6 Flash',
   },
@@ -102,6 +107,11 @@ export const MODEL_OPTIONS: Array<ModelOption> = [
   },
 
   // Gemini Interactions (stateful, experimental — `@tanstack/ai-gemini/experimental`)
+  {
+    provider: 'gemini-interactions',
+    model: 'gemini-3.7-flash',
+    label: 'Gemini Interactions - 3.7 Flash (experimental)',
+  },
   {
     provider: 'gemini-interactions',
     model: 'gemini-3.6-flash',
