@@ -147,13 +147,20 @@ describe('createFileSnippetStorage', () => {
   })
 
   describe('rejects path traversal in snippet names', () => {
-    const unsafeNames = ['..', '../escape', 'a/b', 'foo/../bar', '/abs', 'win\\seg']
+    const unsafeNames = [
+      '..',
+      '../escape',
+      'a/b',
+      'foo/../bar',
+      '/abs',
+      'win\\seg',
+    ]
 
     it('save() throws and writes nothing outside the directory', async () => {
       for (const name of unsafeNames) {
-        await expect(
-          storage.save(makeSnippetInput({ name })),
-        ).rejects.toThrow(/Invalid snippet name/)
+        await expect(storage.save(makeSnippetInput({ name }))).rejects.toThrow(
+          /Invalid snippet name/,
+        )
       }
       // The `../escape` attempt must not have created a sibling of `dir`.
       expect(existsSync(join(dir, '..', 'escape'))).toBe(false)
