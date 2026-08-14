@@ -3,35 +3,28 @@ id: ApprovalRequestedEvent
 title: ApprovalRequestedEvent
 ---
 
-# Interface: ApprovalRequestedEvent
+# ~~Interface: ApprovalRequestedEvent~~
 
-Defined in: [packages/ai/src/types.ts:1387](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1387)
+Defined in: [packages/ai/src/types.ts:1467](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1467)
 
-Emitted when a server tool requires approval before execution. The agent
-loop yields this and pauses — `structured-output.complete` will not fire
-for that run. The shape is fixed by the orchestrator's tool-approval flow
-(the agent-loop branch of `runStreamingStructuredOutputImpl` in
-`activities/chat/index.ts` forwards CUSTOM events from `TextEngine.run()`).
+## Deprecated
+
+Native interrupts use RUN_FINISHED interrupt outcomes. This
+compatibility event remains readable until 1.0.
 
 ## Extends
 
 - [`CustomEvent`](CustomEvent.md)
 
-## Indexable
-
-```ts
-[k: string]: unknown
-```
-
 ## Properties
 
-### model?
+### ~~model?~~
 
 ```ts
-optional model: string;
+optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
+Defined in: [packages/ai/src/types.ts:1407](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1407)
 
 Model identifier for multi-model support
 
@@ -41,13 +34,13 @@ Model identifier for multi-model support
 
 ***
 
-### name
+### ~~name~~
 
 ```ts
 name: "approval-requested";
 ```
 
-Defined in: [packages/ai/src/types.ts:1388](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1388)
+Defined in: [packages/ai/src/types.ts:1468](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1468)
 
 #### Overrides
 
@@ -57,15 +50,62 @@ CustomEvent.name
 
 ***
 
-### value
+### ~~runId?~~
+
+```ts
+optional runId?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`runId`](CustomEvent.md#runid)
+
+***
+
+### ~~threadId?~~
+
+```ts
+optional threadId?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1414)
+
+Routing metadata the TanStack engine attaches when emitting CUSTOM
+events that need to be correlated with a specific thread/run.
+Stripped by `strip-to-spec-middleware` before going on the wire so
+the AG-UI consumer never sees them (when that middleware is enabled).
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`threadId`](CustomEvent.md#threadid)
+
+***
+
+### ~~type~~
+
+```ts
+type: "CUSTOM";
+```
+
+Defined in: [packages/ai/src/types.ts:1405](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1405)
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`type`](CustomEvent.md#type)
+
+***
+
+### ~~value~~
 
 ```ts
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1389)
+Defined in: [packages/ai/src/types.ts:1469](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1469)
 
-#### approval
+#### ~~approval~~
 
 ```ts
 approval: object;
@@ -83,19 +123,19 @@ id: string;
 needsApproval: true;
 ```
 
-#### input
+#### ~~input~~
 
 ```ts
 input: unknown;
 ```
 
-#### toolCallId
+#### ~~toolCallId~~
 
 ```ts
 toolCallId: string;
 ```
 
-#### toolName
+#### ~~toolName~~
 
 ```ts
 toolName: string;

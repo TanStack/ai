@@ -5,7 +5,7 @@ title: RunErrorEvent
 
 # Interface: RunErrorEvent
 
-Defined in: [packages/ai/src/types.ts:1124](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1124)
+Defined in: [packages/ai/src/types.ts:1147](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1147)
 
 Emitted when an error occurs during a run.
 
@@ -27,15 +27,15 @@ TanStack AI adds: `model?`, `error?` (deprecated nested form)
 ### ~~error?~~
 
 ```ts
-optional error: object;
+optional error?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1131](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1131)
+Defined in: [packages/ai/src/types.ts:1156](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1156)
 
 #### ~~code?~~
 
 ```ts
-optional code: string;
+optional code?: string;
 ```
 
 #### ~~message~~
@@ -54,9 +54,21 @@ Kept for backward compatibility.
 ### model?
 
 ```ts
-optional model: string;
+optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1126](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1126)
+Defined in: [packages/ai/src/types.ts:1149](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1149)
 
 Model identifier for multi-model support
+
+***
+
+### tanstack:interruptErrors?
+
+```ts
+optional tanstack:interruptErrors?: readonly InterruptSubmissionError[];
+```
+
+Defined in: [packages/ai/src/types.ts:1151](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1151)
+
+Exhaustive TanStack interrupt submission failures for this run.

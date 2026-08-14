@@ -44,7 +44,7 @@ Defined in: [packages/ai/src/activities/chat/stream/types.ts:27](https://github.
 ### metadata?
 
 ```ts
-optional metadata: Record<string, unknown>;
+optional metadata?: Record<string, unknown>;
 ```
 
 Defined in: [packages/ai/src/activities/chat/stream/types.ts:32](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L32)
@@ -69,7 +69,7 @@ Defined in: [packages/ai/src/activities/chat/stream/types.ts:23](https://github.
 ### parsedArguments?
 
 ```ts
-optional parsedArguments: any;
+optional parsedArguments?: any;
 ```
 
 Defined in: [packages/ai/src/activities/chat/stream/types.ts:26](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/types.ts#L26)

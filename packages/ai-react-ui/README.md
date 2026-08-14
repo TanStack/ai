@@ -2,15 +2,15 @@
   <picture>
     <source
       media="(prefers-color-scheme: dark)"
-      srcset="https://tanstack.com/api/readme/ai.png?framework=react&theme=dark"
+      srcset="https://tanstack.com/api/readme/ai.png?theme=dark"
     />
     <source
       media="(prefers-color-scheme: light)"
-      srcset="https://tanstack.com/api/readme/ai.png?framework=react"
+      srcset="https://tanstack.com/api/readme/ai.png"
     />
     <img
-      src="https://tanstack.com/api/readme/ai.png?framework=react"
-      alt="TanStack React AI"
+      src="https://tanstack.com/api/readme/ai.png"
+      alt="TanStack AI"
       width="900"
     />
   </picture>
@@ -33,6 +33,14 @@
   </a>
   <a href="https://twitter.com/tan_stack">
     <img alt="Follow @TanStack" src="https://img.shields.io/twitter/follow/tan_stack.svg?style=social" />
+  </a>
+</div>
+
+<br />
+
+<div align="center">
+  <a href="https://tanstack.com/blog/tanstack-open-source-awards-2026">
+    <img src="https://raw.githubusercontent.com/TanStack/ai/16826d81cade868956df240d6239a671e689193c/media/js-open-source-award-2026-ai-project-of-the-year.svg" alt="Winner of the 2026 JavaScript Open Source Award for AI Project of the Year" width="250" />
   </a>
 </div>
 
@@ -208,6 +216,7 @@ Official adapters include:
 | [`@tanstack/ai-grok`](https://tanstack.com/ai/latest/docs/adapters/grok)             | xAI Grok chat, images, and realtime                                            |
 | [`@tanstack/ai-groq`](https://tanstack.com/ai/latest/docs/adapters/groq)             | Groq low-latency inference                                                     |
 | [`@tanstack/ai-elevenlabs`](https://tanstack.com/ai/latest/docs/adapters/elevenlabs) | ElevenLabs realtime voice, speech, transcription, music, and sound effects     |
+| [`@tanstack/ai-byteplus`](https://tanstack.com/ai/latest/docs/adapters/byteplus)     | BytePlus Seed chat, Seedance video, Seedream image, and Seed Speech TTS/ASR    |
 | [`@tanstack/ai-fal`](https://tanstack.com/ai/latest/docs/adapters/fal)               | fal.ai image, video, audio, speech, and transcription models                   |
 
 The adapter system is tree-shakeable by activity. Import `openaiText` for chat,

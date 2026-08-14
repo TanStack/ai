@@ -9,7 +9,7 @@ title: GeneratedAudio
 type GeneratedAudio = GeneratedMediaSource & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1904](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1904)
+Defined in: [packages/ai/src/types.ts:2338](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2338)
 
 A single generated audio output
 
@@ -18,7 +18,7 @@ A single generated audio output
 ### contentType?
 
 ```ts
-optional contentType: string;
+optional contentType?: string;
 ```
 
 Content type of the audio (e.g., 'audio/wav', 'audio/mp3')
@@ -26,7 +26,7 @@ Content type of the audio (e.g., 'audio/wav', 'audio/mp3')
 ### duration?
 
 ```ts
-optional duration: number;
+optional duration?: number;
 ```
 
 Duration of the generated audio in seconds

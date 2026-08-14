@@ -5,7 +5,7 @@ title: TextMessageStartEvent
 
 # Interface: TextMessageStartEvent
 
-Defined in: [packages/ai/src/types.ts:1145](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1145)
+Defined in: [packages/ai/src/types.ts:1170](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1170)
 
 Emitted when a text message starts.
 
@@ -27,9 +27,9 @@ TanStack AI adds: `model?`
 ### model?
 
 ```ts
-optional model: string;
+optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1147](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1147)
+Defined in: [packages/ai/src/types.ts:1172](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1172)
 
 Model identifier for multi-model support

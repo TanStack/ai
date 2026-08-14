@@ -106,7 +106,7 @@ toolCapabilities: TToolCapabilities;
 
 ***
 
-### chatStream()
+### chatStream
 
 ```ts
 chatStream: (options) => AsyncIterable<AGUIEvent>;
@@ -167,7 +167,7 @@ Provider name identifier (e.g., 'openai', 'anthropic')
 ### requires?
 
 ```ts
-readonly optional requires: readonly CapabilityHandle[];
+readonly optional requires?: readonly CapabilityHandle[];
 ```
 
 Defined in: [packages/ai/src/activities/chat/adapter.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L90)
@@ -180,7 +180,7 @@ this is the declaration/validation surface only.
 
 ***
 
-### structuredOutput()
+### structuredOutput
 
 ```ts
 structuredOutput: (options) => Promise<StructuredOutputResult<unknown>>;
@@ -208,10 +208,10 @@ Promise with the raw data (validation is done in the chat function)
 
 ***
 
-### structuredOutputStream()?
+### structuredOutputStream?
 
 ```ts
-optional structuredOutputStream: (options) => AsyncIterable<AGUIEvent>;
+optional structuredOutputStream?: (options) => AsyncIterable<AGUIEvent>;
 ```
 
 Defined in: [packages/ai/src/activities/chat/adapter.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L136)
@@ -240,10 +240,10 @@ TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
 
 ***
 
-### supportsCombinedToolsAndSchema()?
+### supportsCombinedToolsAndSchema?
 
 ```ts
-optional supportsCombinedToolsAndSchema: (modelOptions?) => boolean;
+optional supportsCombinedToolsAndSchema?: (modelOptions?) => boolean;
 ```
 
 Defined in: [packages/ai/src/activities/chat/adapter.ts:159](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L159)
