@@ -157,7 +157,7 @@ const { tool, systemPrompt } = createCodeMode({
   tools,           // Array<ServerTool | ToolDefinition> — required, at least one
   timeout,         // number — execution timeout in ms (default: 30000)
   memoryLimit,     // number — memory limit in MB (default: 128, Node + QuickJS drivers)
-  getSkillBindings, // () => Promise<Record<string, ToolBinding>> — optional dynamic bindings
+  getSnippetBindings, // () => Promise<Record<string, ToolBinding>> — optional dynamic bindings
 });
 ```
 
@@ -169,7 +169,7 @@ const { tool, systemPrompt } = createCodeMode({
 | `tools` | `Array<ServerTool \| ToolDefinition>` | Tools exposed as `external_*` functions. Must have `.server()` implementations |
 | `timeout` | `number` | Execution timeout in milliseconds (default: 30000) |
 | `memoryLimit` | `number` | Memory limit in MB (default: 128). Supported by Node and QuickJS drivers |
-| `getSkillBindings` | `() => Promise<Record<string, ToolBinding>>` | Optional function returning additional bindings at execution time |
+| `getSnippetBindings` | `() => Promise<Record<string, ToolBinding>>` | Optional function returning additional bindings at execution time |
 
 The tool returns a `CodeModeToolResult`:
 
@@ -299,5 +299,5 @@ pnpm eval -- --no-judge      # skip Anthropic-based judging
 ## Next Steps
 
 - [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
-- [Code Mode with Skills](./code-mode-with-skills) — Add persistent, reusable skill libraries
+- [Code Mode with Snippets](./code-mode-with-snippets) — Add persistent, reusable snippet libraries
 - [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, QuickJS Bun, Cloudflare, and Daytona sandbox runtimes

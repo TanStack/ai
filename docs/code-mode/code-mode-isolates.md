@@ -348,5 +348,5 @@ You can implement this interface to build a custom driver — for example, a Doc
 
 - [Code Mode](./code-mode) — Core setup, API reference, and getting started guide
 - [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
-- [Code Mode with Skills](./code-mode-with-skills) — Add persistent, reusable skill libraries
+- [Code Mode with Snippets](./code-mode-with-snippets) — Add persistent, reusable snippet libraries
 

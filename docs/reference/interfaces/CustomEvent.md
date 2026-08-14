@@ -32,10 +32,10 @@ TanStack AI adds: `model?`
 - [`CodeModeExternalCallEvent`](CodeModeExternalCallEvent.md)
 - [`CodeModeExternalResultEvent`](CodeModeExternalResultEvent.md)
 - [`CodeModeExternalErrorEvent`](CodeModeExternalErrorEvent.md)
-- [`CodeModeSkillCallEvent`](CodeModeSkillCallEvent.md)
-- [`CodeModeSkillResultEvent`](CodeModeSkillResultEvent.md)
-- [`CodeModeSkillErrorEvent`](CodeModeSkillErrorEvent.md)
-- [`SkillRegisteredEvent`](SkillRegisteredEvent.md)
+- [`CodeModeSnippetCallEvent`](CodeModeSnippetCallEvent.md)
+- [`CodeModeSnippetResultEvent`](CodeModeSnippetResultEvent.md)
+- [`CodeModeSnippetErrorEvent`](CodeModeSnippetErrorEvent.md)
+- [`SnippetRegisteredEvent`](SnippetRegisteredEvent.md)
 
 ## Indexable
 

@@ -18,9 +18,9 @@ Provider Skills are hosted, provider-managed capability bundles that the model
 loads on demand and runs inside the provider's server-side sandbox. You
 reference them by a skill ID; the provider handles installation and execution.
 
-> **Not to be confused with `@tanstack/ai-code-mode-skills`**, which are
-> locally-generated TypeScript functions evaluated client-side. Provider Skills
-> run entirely on the provider's infrastructure.
+> **Not to be confused with `@tanstack/ai-code-mode-snippets`**, whose snippets
+> are locally-generated TypeScript functions evaluated client-side. Provider
+> Skills run entirely on the provider's infrastructure.
 
 Skills are **inert without an execution tool**. The execution tool activates the
 sandbox; skills are additional bundles that run inside it:

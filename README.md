@@ -199,7 +199,7 @@ Learn more in the
   build low-latency realtime voice experiences.
 - [Code Mode](https://tanstack.com/ai/latest/docs/code-mode/code-mode) - let
   models write and execute TypeScript inside a secure isolate.
-- [Code Mode with Skills](https://tanstack.com/ai/latest/docs/code-mode/code-mode-with-skills) -
+- [Code Mode with Snippets](https://tanstack.com/ai/latest/docs/code-mode/code-mode-with-snippets) -
   give Code Mode reusable runtime capabilities.
 
 ## Providers

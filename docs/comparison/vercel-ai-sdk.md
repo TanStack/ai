@@ -600,7 +600,7 @@ TanStack AI ships five isolate drivers behind one `IsolateDriver` interface:
 - **`@tanstack/ai-isolate-cloudflare`** - Cloudflare Workers
 - **`@tanstack/ai-isolate-daytona`** - Remote Daytona sandbox
 
-Swap the driver without changing application code. A companion `@tanstack/ai-code-mode-skills` package gives the model a persistent skill library. The model can save working TypeScript snippets, list them, and reuse them across sessions. Trust strategies control what gets promoted to a first-class tool.
+Swap the driver without changing application code. A companion `@tanstack/ai-code-mode-snippets` package gives the model a persistent snippet library. The model can save working TypeScript snippets, list them, and reuse them across sessions. Trust strategies control what gets promoted to a first-class tool.
 
 Vercel AI SDK now ships experimental `@ai-sdk/code-mode`. It runs QuickJS only, needs Node 22 or newer, and does not run in the browser or on the edge. Nested tool approvals are rejected. Provider-hosted code execution (Anthropic, xAI, OpenAI) is still a separate path. None of those give the model a persistent, provider-agnostic skill library it builds itself. See [Code Mode](../code-mode/code-mode).
 

@@ -56,7 +56,7 @@ const MODEL_OPTIONS: Array<ModelOption> = [
   },
 ]
 
-interface SkillWithCode {
+interface SnippetWithCode {
   id: string
   name: string
   description: string
@@ -66,10 +66,10 @@ interface SkillWithCode {
   stats?: { executions: number; successRate: number }
 }
 
-function SkillsDialog({
+function SnippetsDialog({
   open,
   onClose,
-  skills,
+  snippets,
   onDelete,
   onDeleteAll,
   onRefresh,
@@ -77,7 +77,7 @@ function SkillsDialog({
 }: {
   open: boolean
   onClose: () => void
-  skills: Array<SkillWithCode>
+  snippets: Array<SnippetWithCode>
   onDelete: (name: string) => void
   onDeleteAll: () => void
   onRefresh: () => void
@@ -101,9 +101,9 @@ function SkillsDialog({
           <div className="flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-purple-400" />
             <h2 className="font-semibold text-white">
-              Database Skills
+              Database Snippets
               <span className="ml-2 text-sm text-gray-400 font-normal">
-                ({skills.length})
+                ({snippets.length})
               </span>
             </h2>
           </div>
@@ -112,16 +112,16 @@ function SkillsDialog({
               onClick={onRefresh}
               disabled={isLoading}
               className="p-1.5 rounded-lg text-gray-400 hover:text-white hover:bg-gray-700/50 transition-colors disabled:opacity-50"
-              title="Refresh skills"
+              title="Refresh snippets"
             >
               <RefreshCw
                 className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`}
               />
             </button>
-            {skills.length > 0 && (
+            {snippets.length > 0 && (
               <button
                 onClick={() => {
-                  if (confirm(`Delete all ${skills.length} skills?`)) {
+                  if (confirm(`Delete all ${snippets.length} snippets?`)) {
                     onDeleteAll()
                   }
                 }}
@@ -141,26 +141,26 @@ function SkillsDialog({
         </div>
 
         <div className="flex-1 overflow-y-auto p-3 space-y-1">
-          {skills.length === 0 ? (
+          {snippets.length === 0 ? (
             <div className="py-12 text-center text-gray-500">
               <Sparkles className="w-8 h-8 mx-auto mb-3 text-gray-600" />
-              <p className="text-sm font-medium">No skills registered yet</p>
+              <p className="text-sm font-medium">No snippets registered yet</p>
               <p className="text-xs mt-1 text-gray-600">
-                Enable "With Skills" and the AI will create reusable skills as
+                Enable "With Snippets" and the AI will create reusable snippets as
                 it works.
               </p>
             </div>
           ) : (
-            skills.map((skill) => {
-              const isExpanded = expandedId === skill.id
+            snippets.map((snippet) => {
+              const isExpanded = expandedId === snippet.id
               return (
                 <div
-                  key={skill.id}
+                  key={snippet.id}
                   className="rounded-lg border border-gray-700 overflow-hidden"
                 >
                   <button
                     className="w-full flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-800 transition-colors text-left"
-                    onClick={() => setExpandedId(isExpanded ? null : skill.id)}
+                    onClick={() => setExpandedId(isExpanded ? null : snippet.id)}
                   >
                     {isExpanded ? (
                       <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />
@@ -170,29 +170,29 @@ function SkillsDialog({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <code className="text-sm font-mono text-purple-300">
-                          skill_{skill.name}
+                          snippet_{snippet.name}
                         </code>
                         <span
-                          className={`text-xs px-1.5 py-0.5 rounded border ${trustColors[skill.trustLevel] ?? ''}`}
+                          className={`text-xs px-1.5 py-0.5 rounded border ${trustColors[snippet.trustLevel] ?? ''}`}
                         >
-                          {skill.trustLevel}
+                          {snippet.trustLevel}
                         </span>
                       </div>
-                      {skill.description && (
+                      {snippet.description && (
                         <p className="text-xs text-gray-400 mt-0.5 truncate">
-                          {skill.description}
+                          {snippet.description}
                         </p>
                       )}
                     </div>
                     <button
                       onClick={(e) => {
                         e.stopPropagation()
-                        if (confirm(`Delete skill "${skill.name}"?`)) {
-                          onDelete(skill.name)
+                        if (confirm(`Delete snippet "${snippet.name}"?`)) {
+                          onDelete(snippet.name)
                         }
                       }}
                       className="p-1.5 rounded text-gray-500 hover:text-red-400 hover:bg-red-400/10 transition-colors shrink-0"
-                      title="Delete skill"
+                      title="Delete snippet"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -201,7 +201,7 @@ function SkillsDialog({
                   {isExpanded && (
                     <div className="border-t border-gray-700 bg-gray-950">
                       <pre className="p-4 text-xs text-gray-300 overflow-x-auto max-h-64 overflow-y-auto font-mono leading-relaxed">
-                        {skill.code || '// No code available'}
+                        {snippet.code || '// No code available'}
                       </pre>
                     </div>
                   )}
@@ -770,11 +770,11 @@ function DatabaseDemoPage() {
   >(new Map())
   const eventIdCounter = useRef(0)
 
-  // Skills state
-  const [withSkills, setWithSkills] = useState(false)
-  const [skills, setSkills] = useState<Array<SkillWithCode>>([])
-  const [isLoadingSkills, setIsLoadingSkills] = useState(false)
-  const [skillsDialogOpen, setSkillsDialogOpen] = useState(false)
+  // Snippets state
+  const [withSnippets, setWithSnippets] = useState(false)
+  const [snippets, setSnippets] = useState<Array<SnippetWithCode>>([])
+  const [isLoadingSnippets, setIsLoadingSnippets] = useState(false)
+  const [snippetsDialogOpen, setSnippetsDialogOpen] = useState(false)
 
   // Per-message metrics tracking
   const [metricsEntries, setMetricsEntries] = useState<Array<MessageMetrics>>(
@@ -794,63 +794,63 @@ function DatabaseDemoPage() {
       provider: selectedModel.provider,
       model: selectedModel.model,
       useCodeMode,
-      withSkills,
+      withSnippets,
     }),
-    [selectedModel.provider, selectedModel.model, useCodeMode, withSkills],
+    [selectedModel.provider, selectedModel.model, useCodeMode, withSnippets],
   )
 
-  const loadSkills = useCallback(async () => {
-    setIsLoadingSkills(true)
+  const loadSnippets = useCallback(async () => {
+    setIsLoadingSnippets(true)
     try {
-      const response = await fetch('/api/db-skills')
+      const response = await fetch('/api/db-snippets')
       if (response.ok) {
         const data = await response.json()
-        setSkills(data)
+        setSnippets(data)
       }
     } catch (error) {
-      console.error('Failed to load skills:', error)
+      console.error('Failed to load snippets:', error)
     } finally {
-      setIsLoadingSkills(false)
+      setIsLoadingSnippets(false)
     }
   }, [])
 
-  const deleteSkill = useCallback(async (name: string) => {
+  const deleteSnippet = useCallback(async (name: string) => {
     try {
       const response = await fetch(
-        `/api/db-skills?name=${encodeURIComponent(name)}`,
+        `/api/db-snippets?name=${encodeURIComponent(name)}`,
         { method: 'DELETE' },
       )
       if (response.ok) {
-        setSkills((prev) => prev.filter((s) => s.name !== name))
+        setSnippets((prev) => prev.filter((s) => s.name !== name))
       }
     } catch (error) {
-      console.error('Failed to delete skill:', error)
+      console.error('Failed to delete snippet:', error)
     }
   }, [])
 
-  const deleteAllSkills = useCallback(async () => {
+  const deleteAllSnippets = useCallback(async () => {
     try {
-      const response = await fetch('/api/db-skills?all=true', {
+      const response = await fetch('/api/db-snippets?all=true', {
         method: 'DELETE',
       })
       if (response.ok) {
-        setSkills([])
+        setSnippets([])
       }
     } catch (error) {
-      console.error('Failed to delete all skills:', error)
+      console.error('Failed to delete all snippets:', error)
     }
   }, [])
 
-  const handleNewSkill = useCallback(() => {
-    loadSkills()
-  }, [loadSkills])
+  const handleNewSnippet = useCallback(() => {
+    loadSnippets()
+  }, [loadSnippets])
 
-  // Load skills when "With Skills" is first enabled
+  // Load snippets when "With Snippets" is first enabled
   useEffect(() => {
-    if (withSkills) {
-      loadSkills()
+    if (withSnippets) {
+      loadSnippets()
     }
-  }, [withSkills, loadSkills])
+  }, [withSnippets, loadSnippets])
 
   const handleCustomEvent = useCallback(
     (eventType: string, data: unknown, context: { toolCallId?: string }) => {
@@ -894,8 +894,8 @@ function DatabaseDemoPage() {
         return
       }
 
-      if (eventType === 'skill:registered') {
-        handleNewSkill()
+      if (eventType === 'snippet:registered') {
+        handleNewSnippet()
         return
       }
 
@@ -917,7 +917,7 @@ function DatabaseDemoPage() {
         return newMap
       })
     },
-    [handleNewSkill],
+    [handleNewSnippet],
   )
 
   const { messages, sendMessage, setMessages, isLoading } = useChat({
@@ -1085,19 +1085,19 @@ function DatabaseDemoPage() {
               <label className="flex items-center gap-2 text-xs text-gray-300 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={withSkills}
-                  onChange={(e) => setWithSkills(e.target.checked)}
+                  checked={withSnippets}
+                  onChange={(e) => setWithSnippets(e.target.checked)}
                   disabled={isLoading || !useCodeMode}
                   className="rounded border-gray-600 bg-gray-800 text-purple-500 focus:ring-purple-500/50"
                 />
-                <span className="text-[11px] text-gray-400">With Skills</span>
+                <span className="text-[11px] text-gray-400">With Snippets</span>
               </label>
-              {withSkills && (
+              {withSnippets && (
                 <button
-                  onClick={() => setSkillsDialogOpen(true)}
+                  onClick={() => setSnippetsDialogOpen(true)}
                   className="text-[11px] px-2 py-0.5 rounded border border-purple-500/30 bg-purple-900/20 text-purple-300 hover:bg-purple-900/40 transition-colors"
                 >
-                  {skills.length} Skills
+                  {snippets.length} Snippets
                 </button>
               )}
             </div>
@@ -1170,15 +1170,15 @@ function DatabaseDemoPage() {
         <MetricsSidebar entries={metricsEntries} />
       </div>
 
-      {/* Skills Dialog */}
-      <SkillsDialog
-        open={skillsDialogOpen}
-        onClose={() => setSkillsDialogOpen(false)}
-        skills={skills}
-        onDelete={deleteSkill}
-        onDeleteAll={deleteAllSkills}
-        onRefresh={loadSkills}
-        isLoading={isLoadingSkills}
+      {/* Snippets Dialog */}
+      <SnippetsDialog
+        open={snippetsDialogOpen}
+        onClose={() => setSnippetsDialogOpen(false)}
+        snippets={snippets}
+        onDelete={deleteSnippet}
+        onDeleteAll={deleteAllSnippets}
+        onRefresh={loadSnippets}
+        isLoading={isLoadingSnippets}
       />
     </div>
   )

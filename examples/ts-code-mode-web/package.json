@@ -23,7 +23,7 @@
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-code-mode": "workspace:*",
-    "@tanstack/ai-code-mode-skills": "workspace:*",
+    "@tanstack/ai-code-mode-snippets": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-isolate-cloudflare": "workspace:*",
     "@tanstack/ai-isolate-node": "workspace:*",
