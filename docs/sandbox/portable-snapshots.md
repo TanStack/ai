@@ -22,6 +22,7 @@ Start with persistence. Then add a product page only when you need that action.
 | Chat persistence already | Files come back after a reload | [Keep Files After Reload](./portable-snapshots-configure#reuse-existing-persistence) |
 | Snapshots already wired | A user marks one version | [Save a Named Version](./portable-snapshots-save) |
 | Snapshots already wired | A user branches from one version | [Branch From a Version](./portable-snapshots-fork) |
+| Snapshots already wired | A product page that forks and compares two directions | [Branch From a Version](./portable-snapshots-fork#see-it-in-the-example) |
 | Snapshots already wired | A user downloads a generated file | [Send a Frozen File](./portable-snapshots-artifacts) |
 | Snapshots already wired | The agent saves or forks this thread | [Let the Agent Save and Fork](./portable-snapshots-tools) |
 | Snapshots already wired | Custom include or redact rules | [What a Snapshot Stores](./portable-snapshots-safety) |
