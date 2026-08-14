@@ -16,6 +16,8 @@ Coding-agent CLIs that speak the [Agent Client Protocol](https://agentclientprot
 
 It is the harness equivalent of the [OpenAI-Compatible adapter](./openai-compatible). Use it when your agent speaks ACP but has no `@tanstack/ai-*` package. If a dedicated harness adapter exists ([Grok Build](./grok-build), and others), prefer it — those carry curated per-model metadata and vendor-specific behavior.
 
+`acpCompatible` does not accept `outputSchema`. If you need a typed object from a coding agent, use a dedicated harness adapter. See [Harness Agents](../structured-outputs/harnesses).
+
 ## Installation
 
 `acpCompatible` ships in `@tanstack/ai-acp`. You drive it inside a sandbox, so install the sandbox package and a provider too:

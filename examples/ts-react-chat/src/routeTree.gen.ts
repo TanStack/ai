@@ -27,6 +27,7 @@ import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
 import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SandboxesRepoReportRouteImport } from './routes/sandboxes.repo-report'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
 import { Route as GenerationsTranscriptionRouteImport } from './routes/generations.transcription'
 import { Route as GenerationsSummarizeRouteImport } from './routes/generations.summarize'
@@ -44,6 +45,7 @@ import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
 import { Route as ApiSandboxTriageDurableRouteImport } from './routes/api.sandbox-triage-durable'
 import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
+import { Route as ApiSandboxRepoReportRouteImport } from './routes/api.sandbox-repo-report'
 import { Route as ApiResumableRouteImport } from './routes/api.resumable'
 import { Route as ApiPersistentChatRouteImport } from './routes/api.persistent-chat'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
@@ -157,6 +159,11 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SandboxesRepoReportRoute = SandboxesRepoReportRouteImport.update({
+  id: '/repo-report',
+  path: '/repo-report',
+  getParentRoute: () => SandboxesRoute,
+} as any)
 const GenerationsVideoRoute = GenerationsVideoRouteImport.update({
   id: '/generations/video',
   path: '/generations/video',
@@ -244,6 +251,11 @@ const ApiSandboxTriageDurableRoute = ApiSandboxTriageDurableRouteImport.update({
 const ApiSandboxTriageRoute = ApiSandboxTriageRouteImport.update({
   id: '/api/sandbox-triage',
   path: '/api/sandbox-triage',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSandboxRepoReportRoute = ApiSandboxRepoReportRouteImport.update({
+  id: '/api/sandbox-repo-report',
+  path: '/api/sandbox-repo-report',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiResumableRoute = ApiResumableRouteImport.update({
@@ -372,7 +384,7 @@ export interface FileRoutesByFullPath {
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
   '/resumable': typeof ResumableRoute
-  '/sandboxes': typeof SandboxesRoute
+  '/sandboxes': typeof SandboxesRouteWithChildren
   '/sandboxes-durable': typeof SandboxesDurableRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
@@ -392,6 +404,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
+  '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/sandbox-triage-durable': typeof ApiSandboxTriageDurableRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -409,6 +422,7 @@ export interface FileRoutesByFullPath {
   '/generations/summarize': typeof GenerationsSummarizeRoute
   '/generations/transcription': typeof GenerationsTranscriptionRoute
   '/generations/video': typeof GenerationsVideoRoute
+  '/sandboxes/repo-report': typeof SandboxesRepoReportRoute
   '/api/generate/audio': typeof ApiGenerateAudioRoute
   '/api/generate/image': typeof ApiGenerateImageRouteWithChildren
   '/api/generate/speech': typeof ApiGenerateSpeechRoute
@@ -431,7 +445,7 @@ export interface FileRoutesByTo {
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
   '/resumable': typeof ResumableRoute
-  '/sandboxes': typeof SandboxesRoute
+  '/sandboxes': typeof SandboxesRouteWithChildren
   '/sandboxes-durable': typeof SandboxesDurableRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
@@ -451,6 +465,7 @@ export interface FileRoutesByTo {
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
+  '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/sandbox-triage-durable': typeof ApiSandboxTriageDurableRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -468,6 +483,7 @@ export interface FileRoutesByTo {
   '/generations/summarize': typeof GenerationsSummarizeRoute
   '/generations/transcription': typeof GenerationsTranscriptionRoute
   '/generations/video': typeof GenerationsVideoRoute
+  '/sandboxes/repo-report': typeof SandboxesRepoReportRoute
   '/api/generate/audio': typeof ApiGenerateAudioRoute
   '/api/generate/image': typeof ApiGenerateImageRouteWithChildren
   '/api/generate/speech': typeof ApiGenerateSpeechRoute
@@ -491,7 +507,7 @@ export interface FileRoutesById {
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
   '/resumable': typeof ResumableRoute
-  '/sandboxes': typeof SandboxesRoute
+  '/sandboxes': typeof SandboxesRouteWithChildren
   '/sandboxes-durable': typeof SandboxesDurableRoute
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
@@ -511,6 +527,7 @@ export interface FileRoutesById {
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
+  '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/sandbox-triage-durable': typeof ApiSandboxTriageDurableRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -528,6 +545,7 @@ export interface FileRoutesById {
   '/generations/summarize': typeof GenerationsSummarizeRoute
   '/generations/transcription': typeof GenerationsTranscriptionRoute
   '/generations/video': typeof GenerationsVideoRoute
+  '/sandboxes/repo-report': typeof SandboxesRepoReportRoute
   '/api/generate/audio': typeof ApiGenerateAudioRoute
   '/api/generate/image': typeof ApiGenerateImageRouteWithChildren
   '/api/generate/speech': typeof ApiGenerateSpeechRoute
@@ -572,6 +590,7 @@ export interface FileRouteTypes {
     | '/api/mcp-status'
     | '/api/persistent-chat'
     | '/api/resumable'
+    | '/api/sandbox-repo-report'
     | '/api/sandbox-triage'
     | '/api/sandbox-triage-durable'
     | '/api/structured-chat'
@@ -589,6 +608,7 @@ export interface FileRouteTypes {
     | '/generations/summarize'
     | '/generations/transcription'
     | '/generations/video'
+    | '/sandboxes/repo-report'
     | '/api/generate/audio'
     | '/api/generate/image'
     | '/api/generate/speech'
@@ -631,6 +651,7 @@ export interface FileRouteTypes {
     | '/api/mcp-status'
     | '/api/persistent-chat'
     | '/api/resumable'
+    | '/api/sandbox-repo-report'
     | '/api/sandbox-triage'
     | '/api/sandbox-triage-durable'
     | '/api/structured-chat'
@@ -648,6 +669,7 @@ export interface FileRouteTypes {
     | '/generations/summarize'
     | '/generations/transcription'
     | '/generations/video'
+    | '/sandboxes/repo-report'
     | '/api/generate/audio'
     | '/api/generate/image'
     | '/api/generate/speech'
@@ -690,6 +712,7 @@ export interface FileRouteTypes {
     | '/api/mcp-status'
     | '/api/persistent-chat'
     | '/api/resumable'
+    | '/api/sandbox-repo-report'
     | '/api/sandbox-triage'
     | '/api/sandbox-triage-durable'
     | '/api/structured-chat'
@@ -707,6 +730,7 @@ export interface FileRouteTypes {
     | '/generations/summarize'
     | '/generations/transcription'
     | '/generations/video'
+    | '/sandboxes/repo-report'
     | '/api/generate/audio'
     | '/api/generate/image'
     | '/api/generate/speech'
@@ -730,7 +754,7 @@ export interface RootRouteChildren {
   QueueingRoute: typeof QueueingRoute
   RealtimeRoute: typeof RealtimeRoute
   ResumableRoute: typeof ResumableRoute
-  SandboxesRoute: typeof SandboxesRoute
+  SandboxesRoute: typeof SandboxesRouteWithChildren
   SandboxesDurableRoute: typeof SandboxesDurableRoute
   ServerFnChatRoute: typeof ServerFnChatRoute
   ThreadsRoute: typeof ThreadsRoute
@@ -750,6 +774,7 @@ export interface RootRouteChildren {
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
   ApiPersistentChatRoute: typeof ApiPersistentChatRoute
   ApiResumableRoute: typeof ApiResumableRoute
+  ApiSandboxRepoReportRoute: typeof ApiSandboxRepoReportRoute
   ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
   ApiSandboxTriageDurableRoute: typeof ApiSandboxTriageDurableRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
@@ -903,6 +928,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sandboxes/repo-report': {
+      id: '/sandboxes/repo-report'
+      path: '/repo-report'
+      fullPath: '/sandboxes/repo-report'
+      preLoaderRoute: typeof SandboxesRepoReportRouteImport
+      parentRoute: typeof SandboxesRoute
+    }
     '/generations/video': {
       id: '/generations/video'
       path: '/generations/video'
@@ -1020,6 +1052,13 @@ declare module '@tanstack/react-router' {
       path: '/api/sandbox-triage'
       fullPath: '/api/sandbox-triage'
       preLoaderRoute: typeof ApiSandboxTriageRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sandbox-repo-report': {
+      id: '/api/sandbox-repo-report'
+      path: '/api/sandbox-repo-report'
+      fullPath: '/api/sandbox-repo-report'
+      preLoaderRoute: typeof ApiSandboxRepoReportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/resumable': {
@@ -1179,6 +1218,18 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface SandboxesRouteChildren {
+  SandboxesRepoReportRoute: typeof SandboxesRepoReportRoute
+}
+
+const SandboxesRouteChildren: SandboxesRouteChildren = {
+  SandboxesRepoReportRoute: SandboxesRepoReportRoute,
+}
+
+const SandboxesRouteWithChildren = SandboxesRoute._addFileChildren(
+  SandboxesRouteChildren,
+)
+
 interface ApiGenerateImageRouteChildren {
   ApiGenerateImageArtifactRoute: typeof ApiGenerateImageArtifactRoute
 }
@@ -1204,7 +1255,7 @@ const rootRouteChildren: RootRouteChildren = {
   QueueingRoute: QueueingRoute,
   RealtimeRoute: RealtimeRoute,
   ResumableRoute: ResumableRoute,
-  SandboxesRoute: SandboxesRoute,
+  SandboxesRoute: SandboxesRouteWithChildren,
   SandboxesDurableRoute: SandboxesDurableRoute,
   ServerFnChatRoute: ServerFnChatRoute,
   ThreadsRoute: ThreadsRoute,
@@ -1224,6 +1275,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpStatusRoute: ApiMcpStatusRoute,
   ApiPersistentChatRoute: ApiPersistentChatRoute,
   ApiResumableRoute: ApiResumableRoute,
+  ApiSandboxRepoReportRoute: ApiSandboxRepoReportRoute,
   ApiSandboxTriageRoute: ApiSandboxTriageRoute,
   ApiSandboxTriageDurableRoute: ApiSandboxTriageDurableRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,

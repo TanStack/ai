@@ -958,10 +958,13 @@ export interface TextOptions<
    *    `supportsCombinedToolsAndSchema(modelOptions) === true`. The adapter
    *    should then wire the schema into the upstream request (e.g.
    *    `response_format: { type: 'json_schema', ... }`, `text.format`,
-   *    `output_format`) alongside any `tools`. The model's natural final
-   *    turn carries the schema-constrained JSON text and the engine
-   *    harvests it from the agent loop without a separate finalization
-   *    round-trip.
+   *    `output_format`, `--json-schema`) alongside any `tools`.
+   *
+   *    How the engine then takes the object depends on
+   *    `combinedStructuredOutputSource()`:
+   *    - `'text'` (default): the final-turn assistant text is the JSON.
+   *    - `'event'`: the adapter emits `structured-output.complete` during
+   *      `chatStream`. Accumulated prose is not parsed.
    *
    *    Adapters that did NOT declare the capability never see this field
    *    populated — the engine instead invokes `structuredOutput` /

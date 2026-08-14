@@ -335,17 +335,19 @@
           "label": "Overview",
           "to": "structured-outputs/overview",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-06-10"
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "One-Shot Extraction",
           "to": "structured-outputs/one-shot",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Streaming UIs",
           "to": "structured-outputs/streaming",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Multi-Turn Chat",
@@ -356,7 +358,12 @@
           "label": "With Tools",
           "to": "structured-outputs/with-tools",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Harness Agents",
+          "to": "structured-outputs/harnesses",
+          "addedAt": "2026-08-14"
         }
       ]
     },
@@ -509,7 +516,7 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Quick Start",
@@ -527,7 +534,7 @@
           "label": "Harnesses",
           "to": "sandbox/harnesses",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Workspace",
@@ -864,30 +871,31 @@
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "OpenCode",
           "to": "adapters/opencode",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Grok Build",
           "to": "adapters/grok-build",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "ACP-Compatible",
           "to": "adapters/acp-compatible",
-          "addedAt": "2026-06-30"
+          "addedAt": "2026-06-30",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Amazon Bedrock",

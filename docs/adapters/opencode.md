@@ -175,7 +175,34 @@ const stream = chat({
 
 ## Structured Output
 
-`structuredOutput()` is best-effort: OpenCode's prompt API has no native JSON-schema channel, so the schema is embedded as a prompt instruction in a fresh, one-shot session and the final text is parsed (markdown fences are stripped when present). It works for finalization after a chat, but a plain provider adapter (e.g. `@tanstack/ai-openai`) is the better choice when structured extraction is the primary job — it's faster, deterministic, and doesn't spawn a harness.
+Pass `outputSchema` on `chat()`. OpenCode has no native schema flag. The adapter adds the JSON Schema to the prompt and parses the last assistant text (markdown fences are stripped). Tool activity still streams. The object arrives as `structured-output.complete`.
+
+```ts
+import { chat } from "@tanstack/ai"
+import { opencodeText } from "@tanstack/ai-opencode"
+import { defineSandbox, withSandbox } from "@tanstack/ai-sandbox"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+const report = await chat({
+  adapter: opencodeText("anthropic/claude-opus-4-5"),
+  messages: [{ role: "user", content: "Review this repo." }],
+  outputSchema: Report,
+  middleware: [withSandbox(defineSandbox({ /* provider */ }))],
+})
+
+report.summary
+```
+
+This path parses JSON from the last assistant message. If extract-only is the job, use a model adapter such as `@tanstack/ai-openai`.
+
+On the client, `useChat({ outputSchema }).final` works the same as HTTP adapters. `partial` stays empty until the end.
+
+Full walkthrough, including the client: [Harness Agents](../structured-outputs/harnesses).
 
 ## Limitations
 

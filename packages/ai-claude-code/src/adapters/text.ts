@@ -154,12 +154,21 @@ export class ClaudeCodeTextAdapter<
   }
 
   /** Build the `claude` command line (prompt goes via stdin, not argv). */
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  combinedStructuredOutputSource(): 'event' {
+    return 'event'
+  }
+
   private buildCommand(
     options: TextOptions<ClaudeCodeTextProviderOptions>,
     resume: string | undefined,
     policyFlags: ClaudePolicyFlags,
     mcpConfigPath: string | undefined,
     permissionPromptTool: string | undefined,
+    jsonSchemaPath: string | undefined,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
@@ -218,6 +227,9 @@ export class ClaudeCodeTextAdapter<
     }
 
     if (mcpConfigPath !== undefined) args.push('--mcp-config', q(mcpConfigPath))
+    if (jsonSchemaPath !== undefined) {
+      args.push('--json-schema', q(jsonSchemaPath))
+    }
     if (permissionPromptTool !== undefined) {
       args.push('--permission-prompt-tool', q(permissionPromptTool))
     }
@@ -421,6 +433,14 @@ export class ClaudeCodeTextAdapter<
         tempFiles.push(mcpConfigPath)
         mcpConfigArg = mcpConfigFile
       }
+      let jsonSchemaArg: string | undefined
+      if (options.outputSchema) {
+        const schemaFile = `.tanstack-output-schema-${runIdSegment}.json`
+        const schemaPath = `${cwd}/${schemaFile}`
+        await sandbox.fs.write(schemaPath, JSON.stringify(options.outputSchema))
+        tempFiles.push(schemaPath)
+        jsonSchemaArg = schemaFile
+      }
       const command = this.buildCommand(
         options,
         resume,
@@ -429,6 +449,7 @@ export class ClaudeCodeTextAdapter<
         bridge && permission
           ? `mcp__${bridge.name}__${permission.toolName}`
           : undefined,
+        jsonSchemaArg,
       )
 
       // Deliver the prompt. The default feeds it over stdin (keeps it out of
@@ -509,6 +530,7 @@ export class ClaudeCodeTextAdapter<
             // which mixes in `Date.now()` / `Math.random()`). See
             // `createRunScopedIdGen` in `@tanstack/ai-sandbox`.
             genId: createRunScopedIdGen(runId),
+            ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
             onSdkMessage: (message) =>
               logger.provider(`provider=claude-code type=${message.type}`, {
                 chunk: message,
@@ -585,8 +607,8 @@ export class ClaudeCodeTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox Claude Code adapter. ' +
-          'Use a model adapter (e.g. anthropic) for structured output, or omit outputSchema.',
+        'This harness honors outputSchema on chat() in the same turn. ' +
+          'Pass outputSchema to chat(), or use a model adapter for a one-shot extract.',
       ),
     )
   }

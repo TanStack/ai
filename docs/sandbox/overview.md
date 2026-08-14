@@ -127,7 +127,7 @@ build an adapter.
 
 ## Try it
 
-Two runnable demos:
+Three runnable demos:
 
 - [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web):
   a "build me an app" agent on Docker with durable runs wired. It scaffolds an app,
@@ -135,3 +135,7 @@ Two runnable demos:
   and a closed tab, and Stop is a real cancel.
 - [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare):
   the same idea at the edge, with the harness picked per run from the UI.
+- [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat)
+  at `/sandboxes/repo-report`: clone `TanStack/ai`, pick Claude Code, Grok Build,
+  or Codex, and read a typed report from `useChat().final`. See
+  [Harness Agents](../structured-outputs/harnesses).

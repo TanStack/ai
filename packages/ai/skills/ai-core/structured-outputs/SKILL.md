@@ -20,6 +20,7 @@ sources:
   - 'TanStack/ai:docs/structured-outputs/streaming.md'
   - 'TanStack/ai:docs/structured-outputs/multi-turn.md'
   - 'TanStack/ai:docs/structured-outputs/with-tools.md'
+  - 'TanStack/ai:docs/structured-outputs/harnesses.md'
 ---
 
 # Structured Outputs
@@ -48,7 +49,7 @@ person.age // number
 
 When `outputSchema` is provided, `chat()` returns `Promise<InferSchemaType<TSchema>>` instead of `AsyncIterable<StreamChunk>`. The result is fully typed.
 
-Adding `stream: true` switches the return to `StructuredOutputStream<InferSchemaType<TSchema>>` — incremental JSON deltas plus a terminal validated object. See **Pattern 3** below for direct iteration, **Pattern 4** for the `useChat` shape on the client, and **Pattern 5** for multi-turn structured chats.
+Adding `stream: true` switches the return to `StructuredOutputStream<InferSchemaType<TSchema>>` — incremental JSON deltas plus a terminal validated object. See **Pattern 3** below for direct iteration, **Pattern 4** for the `useChat` shape on the client, **Pattern 5** for multi-turn structured chats, and **Pattern 6** for harness adapters.
 
 ## Decision: which pattern fits
 
@@ -59,6 +60,7 @@ Adding `stream: true` switches the return to `StructuredOutputStream<InferSchema
 | Direct iteration of the stream in Node or tests                                                | Pattern 3 — async iterable                                       |
 | Users iterate on a structured object across multiple turns (recipe builder, ticket refinement) | Pattern 5 — multi-turn structured chat                           |
 | Tools that gather info, then return a typed object                                             | Combine any of the above with `tools` — see ai-core/tool-calling |
+| A coding agent in a sandbox inspects files, then returns a typed object                        | Pattern 6 — harness `outputSchema`                               |
 
 ## Core Patterns
 
@@ -189,6 +191,10 @@ The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-out
 | `@tanstack/ai-grok` (Grok 4 family only)                        | **Native combined mode (#605)** — `response_format: json_schema` + `tools`. Grok 2 / 3 fall back                                                      |
 | `@tanstack/ai-openrouter`                                       | Native single-request stream (legacy `structuredOutputStream` path; per-call combined-mode lookup is a follow-up)                                     |
 | `@tanstack/ai-groq`                                             | Legacy `structuredOutputStream` only (no tools — Groq's API rejects schema + tools + stream)                                                          |
+| `@tanstack/ai-claude-code`                                      | Combined + event source — `--json-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                            |
+| `@tanstack/ai-codex`                                            | Combined + event source — `--output-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                          |
+| `@tanstack/ai-opencode`                                         | Combined + event source — prompt-and-parse. Read `useChat().final`. See Pattern 6.                                                                    |
+| `@tanstack/ai-grok-build`                                       | Combined + event source — prompt-and-parse (ACP and streaming-json). Read `useChat().final`. See Pattern 6.                                           |
 | All other adapters (ollama, older Claude, Gemini 2.x, Grok 2/3) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event                                                         |
 
 **Native combined mode vs fallback** is signaled by the adapter's
@@ -340,6 +346,68 @@ Key behaviors:
 - **Typed by schema.** `messages[i].parts.find(p => p.type === 'structured-output').data` is typed as `Recipe` (no cast, no `unknown`). Works because `useChat<TSchema>` threads `InferSchemaType<TSchema>` down through `UIMessage<TTools, TData>` → `MessagePart<TTools, TData>` → `StructuredOutputPart<TData>`. **In `@tanstack/ai` core** the message types are single-generic (`UIMessage<TData>`); the tools generic lives in `@tanstack/ai-client` and the framework hook packages — import from your framework package or `ai-client`, not from `@tanstack/ai`.
 - **`partial` / `final` are derived.** The hook-level `partial` and `final` are NOT singleton state — they're derived from the latest assistant message's part (the one after the most recent user message). Between `sendMessage()` and the first chunk, `partial` reads `{}` and `final` reads `null` because no new assistant turn exists yet.
 - **Round-trip preserves history.** When the client sends turn N+1, each prior assistant turn's `structured-output` part is serialized back as `{ role: 'assistant', content: <part.raw> }` so the model sees its own prior structured response. Streaming / errored parts are dropped from the round-trip.
+
+### Pattern 6: Harness adapters (Claude Code, Codex, OpenCode, Grok Build)
+
+Dedicated harness adapters honor `chat({ outputSchema })` on the same turn. Native harness tools still run. Read the object from `await chat()` or from `useChat().final`. Do not parse assistant prose.
+
+A UI endpoint must pass `stream: true`. Without it, `chat()` returns a `Promise`, not SSE.
+
+```typescript
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { claudeCodeText } from '@tanstack/ai-claude-code'
+import { withSandbox } from '@tanstack/ai-sandbox'
+import { z } from 'zod'
+import { sandbox } from './sandbox'
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+})
+
+export async function POST(request: Request) {
+  const body: unknown = await request.json()
+  const messages =
+    typeof body === 'object' &&
+    body !== null &&
+    'messages' in body &&
+    Array.isArray(body.messages)
+      ? body.messages
+      : []
+
+  const stream = chat({
+    adapter: claudeCodeText('claude-opus-4-8'),
+    messages,
+    outputSchema: ReportSchema,
+    stream: true,
+    middleware: [withSandbox(sandbox)],
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+```tsx
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { z } from 'zod'
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+})
+
+const { final } = useChat({
+  connection: fetchServerSentEvents('/api/repo-report'),
+  outputSchema: ReportSchema,
+})
+
+final?.name
+```
+
+- Claude Code: `--json-schema`. Codex: `--output-schema`. OpenCode and Grok Build: prompt-and-parse.
+- `partial` stays empty until `structured-output.complete`.
+- Client tools and `needsApproval` fail fast. The harness cannot pause for a browser round-trip.
+- `acpCompatible` does not accept `outputSchema`.
+- See [docs/structured-outputs/harnesses.md](https://github.com/TanStack/ai/blob/main/docs/structured-outputs/harnesses.md).
 
 ## Common Mistakes
 
@@ -509,4 +577,5 @@ provider call, stripping system prompts), use the dedicated
 - See also: **ai-core/chat-experience/SKILL.md** — Base `useChat` surface; the structured-output additions documented here layer on top.
 - See also: **ai-core/adapter-configuration/SKILL.md** — Adapter handles structured-output strategy transparently.
 - See also: **ai-core/tool-calling/SKILL.md** — Combine `tools` with `outputSchema` for an agent loop that runs tools first and returns a typed object. Tool-approval and client-tool flows compose with structured runs without extra wiring; see [docs/structured-outputs/with-tools.md](https://github.com/TanStack/ai/blob/main/docs/structured-outputs/with-tools.md).
+- See also: [docs/structured-outputs/harnesses.md](https://github.com/TanStack/ai/blob/main/docs/structured-outputs/harnesses.md) — dedicated harness adapters and `useChat().final`.
 - See also: **ai-core/middleware/SKILL.md** — `onStructuredOutputConfig` hook and the `structuredOutput` phase for observing/transforming the final structured-output call.

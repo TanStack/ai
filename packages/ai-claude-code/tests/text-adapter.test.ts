@@ -161,4 +161,57 @@ describe('claude-code in-sandbox adapter', () => {
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
     await sbx.destroy()
   })
+
+  it('passes --json-schema and emits structured-output.complete', async () => {
+    const fake = [
+      `import { writeFileSync } from 'node:fs'`,
+      `writeFileSync('argv.txt', process.argv.slice(2).join(' '))`,
+      `let input = ''`,
+      `process.stdin.on('data', (d) => { input += d })`,
+      `process.stdin.on('end', () => {`,
+      `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+      `  w({ type: 'system', subtype: 'init', session_id: 'sess-so', model: 'haiku', tools: [] })`,
+      `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'looking' }] }, parent_tool_use_id: null })`,
+      `  w({ type: 'result', subtype: 'success', result: 'done', structured_output: { summary: 'ok' }, usage: { input_tokens: 1, output_tokens: 1 } })`,
+      `})`,
+    ].join('\n')
+
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-claude.mjs', fake)
+
+    const adapter = claudeCodeText('haiku', {
+      claudeExecutable: 'node fake-claude.mjs',
+      streamPartials: false,
+      emitDiff: false,
+    })
+
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'haiku',
+        messages: [{ role: 'user', content: 'summarize' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+        outputSchema: {
+          type: 'object',
+          properties: { summary: { type: 'string' } },
+          required: ['summary'],
+        },
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/argv.txt')
+    expect(argv).toContain('--json-schema')
+
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({ object: { summary: 'ok' } }),
+      )
+    }
+
+    await sbx.destroy()
+  })
 })

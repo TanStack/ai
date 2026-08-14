@@ -451,4 +451,76 @@ describe('translateThreadEvents', () => {
       'RUN_FINISHED',
     ])
   })
+
+  it('emits structured-output events from the last agent_message when expected', async () => {
+    const chunks = await collect(
+      [
+        started,
+        {
+          type: 'item.completed',
+          item: { id: 'item-1', type: 'agent_message', text: '{"ok":true}' },
+        },
+        completedTurn,
+      ],
+      makeCtx({ expectStructuredOutput: true }),
+    )
+    expect(
+      chunks.some(
+        (c) => c.type === 'CUSTOM' && c.name === 'structured-output.start',
+      ),
+    ).toBe(true)
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({ object: { ok: true }, raw: '{"ok":true}' }),
+      )
+    }
+    expect(chunks.some((c) => c.type === 'TEXT_MESSAGE_CONTENT')).toBe(false)
+  })
+
+  it('keeps earlier agent_message text when only the last item is structured', async () => {
+    const chunks = await collect(
+      [
+        started,
+        {
+          type: 'item.completed',
+          item: { id: 'item-1', type: 'agent_message', text: 'working' },
+        },
+        {
+          type: 'item.completed',
+          item: { id: 'item-2', type: 'agent_message', text: '{"ok":true}' },
+        },
+        completedTurn,
+      ],
+      makeCtx({ expectStructuredOutput: true }),
+    )
+    const text = chunks
+      .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => ('delta' in c ? c.delta : ''))
+      .join('')
+    expect(text).toBe('working')
+    expect(
+      chunks.some(
+        (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+      ),
+    ).toBe(true)
+  })
+
+  it('emits RUN_ERROR when the last agent_message is not JSON', async () => {
+    const chunks = await collect(
+      [
+        started,
+        {
+          type: 'item.completed',
+          item: { id: 'item-1', type: 'agent_message', text: 'not json' },
+        },
+        completedTurn,
+      ],
+      makeCtx({ expectStructuredOutput: true }),
+    )
+    expect(chunks.some((c) => c.type === 'RUN_ERROR')).toBe(true)
+  })
 })

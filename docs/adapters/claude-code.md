@@ -170,7 +170,34 @@ const stream = chat({
 
 ## Structured Output
 
-`structuredOutput()` uses the harness's native JSON-schema output format in a one-shot run (single turn, no tools). It works for finalization after a chat, but a plain provider adapter (e.g. `@tanstack/ai-anthropic`) is the better choice when structured extraction is the primary job — it's faster and doesn't spawn a subprocess.
+Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its native tools, and returns a typed object. The schema is sent with `--json-schema`. Tool activity and prose stream as usual. The object arrives as `structured-output.complete`.
+
+```ts
+import { chat } from "@tanstack/ai"
+import { claudeCodeText } from "@tanstack/ai-claude-code"
+import { defineSandbox, withSandbox } from "@tanstack/ai-sandbox"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+const report = await chat({
+  adapter: claudeCodeText("claude-opus-4-8"),
+  messages: [{ role: "user", content: "Review this repo." }],
+  outputSchema: Report,
+  middleware: [withSandbox(defineSandbox({ /* provider */ }))],
+})
+
+report.summary
+```
+
+On the client, `useChat({ outputSchema }).final` works the same as HTTP adapters. `partial` stays empty until the end.
+
+If you only need to extract JSON from a prompt and do not need a sandbox, use `@tanstack/ai-anthropic`. That path is faster.
+
+Full walkthrough, including the client: [Harness Agents](../structured-outputs/harnesses).
 
 ## Limitations
 

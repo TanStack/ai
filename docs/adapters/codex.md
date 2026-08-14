@@ -170,7 +170,34 @@ const stream = chat({
 
 ## Structured Output
 
-`structuredOutput()` uses Codex's native `outputSchema` support in a fresh, read-only, one-shot thread whose final message is a JSON string conforming to your schema. It works for finalization after a chat, but a plain provider adapter (e.g. `@tanstack/ai-openai`) is the better choice when structured extraction is the primary job — it's faster and doesn't spawn a subprocess.
+Pass `outputSchema` on `chat()`. Codex runs one harness turn and constrains the last message with `--output-schema`. Tool activity still streams. The object arrives as `structured-output.complete`.
+
+```ts
+import { chat } from "@tanstack/ai"
+import { codexText } from "@tanstack/ai-codex"
+import { defineSandbox, withSandbox } from "@tanstack/ai-sandbox"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+const report = await chat({
+  adapter: codexText("gpt-5.3-codex"),
+  messages: [{ role: "user", content: "Review this repo." }],
+  outputSchema: Report,
+  middleware: [withSandbox(defineSandbox({ /* provider */ }))],
+})
+
+report.summary
+```
+
+On the client, `useChat({ outputSchema }).final` works the same as HTTP adapters. `partial` stays empty until the end.
+
+If you only need to extract JSON from a prompt and do not need a sandbox, use `@tanstack/ai-openai`. That path is faster.
+
+Full walkthrough, including the client: [Harness Agents](../structured-outputs/harnesses).
 
 ## Limitations
 

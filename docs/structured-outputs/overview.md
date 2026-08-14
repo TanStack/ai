@@ -57,8 +57,10 @@ Every adapter handles structured output through its provider's native API:
 | Google Gemini | `responseSchema` |
 | Ollama | JSON mode with schema |
 | OpenRouter / Grok / Groq | `response_format` with `json_schema` |
+| Claude Code / Codex | Native schema flag on the same harness turn (`--json-schema` / `--output-schema`) |
+| OpenCode / Grok Build | Same-turn prompt-and-parse |
 
-The provider-specific details are handled for you — the same `chat({ outputSchema })` call works across all of them.
+The provider-specific details are handled for you. The same `chat({ outputSchema })` call works across all of them. For a coding agent in a sandbox, see [Harness Agents](./harnesses).
 
 ### Anthropic schema complexity limits
 
@@ -75,7 +77,7 @@ Anthropic's exact limits change over time and aren't all published, so we delibe
 
 ## Which page do I read?
 
-Pick the journey that matches what you're building. The four guides under "Structured Outputs" cover non-overlapping use cases — read the one that fits, not all of them.
+Pick the journey that matches what you're building. The guides under Structured Outputs cover separate use cases. Read the one that fits.
 
 | You want to… | Read |
 |---|---|
@@ -83,6 +85,7 @@ Pick the journey that matches what you're building. The four guides under "Struc
 | Build a UI that fills in field-by-field as the model streams (progressive form, live card, typewriter preview) | [Streaming UIs](./streaming) |
 | Let users iterate on a structured object across multiple turns — each turn produces a new typed object and history stays renderable | [Multi-Turn Chat](./multi-turn) |
 | Combine structured output with tool calls (agent loop that runs tools first, then returns a typed object) | [With Tools](./with-tools) |
+| Ask a coding agent in a sandbox to inspect files, then return a typed object | [Harness Agents](./harnesses) |
 
 The streaming and multi-turn paths both build on `useChat({ outputSchema })`. The "with tools" path layers on top of either. Pick the one that describes your shipping shape — start there, follow the cross-links when you need a piece of another story.
 

@@ -1,5 +1,11 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  appendOutputSchemaInstruction,
+  parseJsonFromAssistantText,
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   AsyncQueue,
@@ -195,6 +201,14 @@ export class GrokBuildTextAdapter<
     for (const a of config.extraArgs ?? []) args.push(a)
 
     return `${exe} ${args.join(' ')}`
+  }
+
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  combinedStructuredOutputSource(): 'event' {
+    return 'event'
   }
 
   private protocol(
@@ -407,12 +421,18 @@ export class GrokBuildTextAdapter<
       const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
         .map((p) => p.content)
         .filter((c) => c.trim() !== '')
-      const promptText = this.applySystemPrompts(
+      let promptText = this.applySystemPrompts(
         systemPrompts,
         session.resumed || sessionId === undefined
           ? resumePrompt
           : buildPrompt(options.messages, undefined).prompt,
       )
+      if (options.outputSchema) {
+        promptText = appendOutputSchemaInstruction(
+          promptText,
+          options.outputSchema,
+        )
+      }
 
       session
         .prompt(promptText)
@@ -426,7 +446,8 @@ export class GrokBuildTextAdapter<
         })
         .catch((error: unknown) => queue.fail(error))
 
-      yield* mergeChunkStreams(
+      let lastAssistantText = ''
+      for await (const chunk of mergeChunkStreams(
         translateAcpStream(queue, {
           model: this.model,
           runId,
@@ -446,7 +467,20 @@ export class GrokBuildTextAdapter<
             }),
         }),
         channel.stream,
-      )
+      )) {
+        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+          lastAssistantText += chunk.delta
+        }
+        yield chunk
+      }
+
+      if (options.outputSchema) {
+        yield* this.emitParsedStructuredOutput(
+          lastAssistantText,
+          threadId,
+          runId,
+        )
+      }
 
       if (this.adapterConfig.emitDiff !== false) {
         yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
@@ -485,6 +519,43 @@ export class GrokBuildTextAdapter<
   ): string {
     if (systemPrompts.length === 0) return prompt
     return `${systemPrompts.join('\n\n')}\n\n${prompt}`
+  }
+
+  private *emitParsedStructuredOutput(
+    raw: string,
+    threadId: string,
+    runId: string,
+  ): Generator<StreamChunk> {
+    try {
+      const object = parseJsonFromAssistantText(raw)
+      const messageId = this.generateId()
+      yield structuredOutputStartChunk({
+        messageId,
+        model: this.model,
+        threadId,
+        runId,
+      })
+      yield structuredOutputCompleteChunk({
+        messageId,
+        model: this.model,
+        threadId,
+        runId,
+        object,
+        raw,
+      })
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to parse structured output'
+      yield {
+        type: EventType.RUN_ERROR,
+        model: this.model,
+        timestamp: Date.now(),
+        message,
+        error: { message },
+      }
+    }
   }
 
   private async *emitDiffChunks(
@@ -579,10 +650,16 @@ export class GrokBuildTextAdapter<
       const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
         .map((p) => p.content)
         .filter((c) => c.trim() !== '')
-      const fullPrompt =
+      let fullPrompt =
         systemPrompts.length > 0
           ? `${systemPrompts.join('\n\n')}\n\n${prompt}`
           : prompt
+      if (options.outputSchema) {
+        fullPrompt = appendOutputSchemaInstruction(
+          fullPrompt,
+          options.outputSchema,
+        )
+      }
 
       const exe = await resolveGrokExecutable(
         sandbox,
@@ -664,6 +741,7 @@ export class GrokBuildTextAdapter<
             parentRunId: options.parentRunId,
           }),
           genId,
+          ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
           onThreadEvent: (event) =>
             logger.provider(`provider=grok-build type=${event.type}`, {
               chunk: event,
@@ -715,8 +793,8 @@ export class GrokBuildTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox Grok Build adapter. ' +
-          'Use a model adapter (e.g. grok) for structured output, or omit outputSchema.',
+        'This harness honors outputSchema on chat() in the same turn. ' +
+          'Pass outputSchema to chat(), or use a model adapter for a one-shot extract.',
       ),
     )
   }

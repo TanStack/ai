@@ -159,6 +159,20 @@ export interface TextAdapter<
   supportsCombinedToolsAndSchema?: (
     modelOptions?: TProviderOptions | undefined,
   ) => boolean
+
+  /**
+   * Where native-combined structured output is taken from.
+   *
+   * - `'text'` (default when omitted): the agent loop's accumulated
+   *   assistant text is schema JSON. The engine parses it after the loop.
+   *   HTTP adapters use this.
+   * - `'event'`: the adapter emits `structured-output.complete` during
+   *   `chatStream`. The engine must not parse accumulated prose. Harness
+   *   adapters use this.
+   */
+  combinedStructuredOutputSource?: (
+    modelOptions?: TProviderOptions | undefined,
+  ) => 'text' | 'event'
 }
 
 /**

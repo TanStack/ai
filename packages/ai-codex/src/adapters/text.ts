@@ -140,12 +140,21 @@ export class CodexTextAdapter<
   }
 
   /** Mirror @openai/codex-sdk's `codex exec --experimental-json` invocation. */
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  combinedStructuredOutputSource(): 'event' {
+    return 'event'
+  }
+
   private buildCommand(
     options: TextOptions<CodexTextProviderOptions>,
     resume: string | undefined,
     bridge: HostToolBridge | undefined,
     policyFlags: CodexPolicyFlags,
     provider: string,
+    outputSchemaPath: string | undefined,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
@@ -212,6 +221,10 @@ export class CodexTextAdapter<
     }
     for (const [key, value] of Object.entries(cfg)) {
       args.push('--config', q(`${key}=${value}`))
+    }
+
+    if (outputSchemaPath !== undefined) {
+      args.push('--output-schema', q(outputSchemaPath))
     }
 
     // Resume an existing thread (mirrors the SDK's `resume <threadId>`).
@@ -304,12 +317,21 @@ export class CodexTextAdapter<
       const policy = options.capabilities
         ? getSandboxPolicy(options.capabilities, { optional: true })
         : undefined
+      let outputSchemaArg: string | undefined
+      if (options.outputSchema) {
+        const schemaFile = `.tanstack-output-schema-${encodeRunId(runId)}.json`
+        const schemaPath = `${cwd}/${schemaFile}`
+        await sandbox.fs.write(schemaPath, JSON.stringify(options.outputSchema))
+        tempFiles.push(schemaPath)
+        outputSchemaArg = schemaFile
+      }
       const command = this.buildCommand(
         options,
         resume,
         bridge,
         mapPolicyToCodexFlags(policy),
         sandbox.provider,
+        outputSchemaArg,
       )
 
       logger.request(
@@ -409,6 +431,7 @@ export class CodexTextAdapter<
               parentRunId: options.parentRunId,
             }),
             genId,
+            ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
             onThreadEvent: (event) =>
               logger.provider(`provider=codex type=${event.type}`, {
                 chunk: event,
@@ -458,8 +481,8 @@ export class CodexTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox Codex adapter. ' +
-          'Use a model adapter for structured output, or omit outputSchema.',
+        'This harness honors outputSchema on chat() in the same turn. ' +
+          'Pass outputSchema to chat(), or use a model adapter for a one-shot extract.',
       ),
     )
   }

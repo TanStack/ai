@@ -93,7 +93,7 @@ What the hook does for you:
 - **`partial`** is `DeepPartial<z.infer<typeof PersonSchema>>` — every property optional, every nested array element optional. Updated from `TEXT_MESSAGE_CONTENT` deltas via the runtime's partial-JSON parser. The hook derives it from the latest assistant message's `structured-output` part (see [Multi-Turn Chat](./multi-turn) for why that distinction matters), so it reads `{}` between `sendMessage()` and the first chunk without any extra reset state.
 - **`final`** is `z.infer<typeof PersonSchema> | null` — the validated terminal payload from the `structured-output.complete` event. `null` until the run completes successfully.
 - **`outputSchema`** is used purely for client-side TypeScript inference. Validation still runs on the server against the schema you pass to `chat({ outputSchema })` on the server route — the client doesn't re-validate.
-- The same shape works for **non-streaming adapters too**. If an adapter (Anthropic, Gemini, Ollama) returns a single `structured-output.complete` event with no incremental deltas, `partial` stays `{}` and `final` populates when the event arrives. Same consumer code.
+- The same shape works for **non-streaming adapters too**. If an adapter (Anthropic, Gemini, Ollama) returns a single `structured-output.complete` event with no incremental deltas, `partial` stays `{}` and `final` populates when the event arrives. Same consumer code. Harness adapters work this way too: tool activity streams first, then `final` snaps. See [Harness Agents](./harnesses).
 
 `outputSchema` is optional: omit it and `useChat` returns its standard shape without `partial` / `final`.
 

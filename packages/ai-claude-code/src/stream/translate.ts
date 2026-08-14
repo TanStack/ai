@@ -1,4 +1,8 @@
 import { EventType, buildBaseUsage } from '@tanstack/ai'
+import {
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+} from '@tanstack/ai/adapter-internals'
 import type { StreamChunk, TokenUsage } from '@tanstack/ai'
 import type {
   AgentSdkMessage,
@@ -34,6 +38,8 @@ export interface TranslateContext {
   onSessionId?: (sessionId: string) => void
   /** Called for each raw SDK message, for logging. */
   onSdkMessage?: (message: AgentSdkMessage) => void
+  /** Emit structured-output events from `result.structured_output`. */
+  expectStructuredOutput?: boolean
 }
 
 /**
@@ -320,6 +326,28 @@ export async function* translateSdkStream(
     yield* synthesizeUnresolvedResults()
 
     const usage = buildUsage(message.usage, message.total_cost_usd)
+    if (
+      ctx.expectStructuredOutput === true &&
+      message.structured_output !== undefined
+    ) {
+      const object = message.structured_output
+      const raw = JSON.stringify(object)
+      const messageId = genId()
+      yield structuredOutputStartChunk({
+        messageId,
+        model,
+        threadId,
+        runId,
+      })
+      yield structuredOutputCompleteChunk({
+        messageId,
+        model,
+        threadId,
+        runId,
+        object,
+        raw,
+      })
+    }
     if (message.subtype === 'success') {
       yield {
         type: EventType.RUN_FINISHED,

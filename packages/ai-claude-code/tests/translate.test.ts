@@ -23,12 +23,12 @@ async function* fromArray(
 
 async function collect(
   messages: Array<AgentSdkMessage>,
+  context: ReturnType<typeof makeContext> & {
+    expectStructuredOutput?: boolean
+  } = makeContext(),
 ): Promise<Array<StreamChunk>> {
   const chunks: Array<StreamChunk> = []
-  for await (const chunk of translateSdkStream(
-    fromArray(messages),
-    makeContext(),
-  )) {
+  for await (const chunk of translateSdkStream(fromArray(messages), context)) {
     chunks.push(chunk)
   }
   return chunks
@@ -481,5 +481,72 @@ describe('translateSdkStream', () => {
       'TEXT_MESSAGE_END',
       'RUN_FINISHED',
     ])
+  })
+
+  it('emits structured-output events from result.structured_output when expected', async () => {
+    const resultWithObject: AgentSdkMessage = {
+      type: 'result',
+      subtype: 'success',
+      result: 'done',
+      usage,
+      structured_output: { summary: 'ok' },
+    }
+    const chunks = await collect(
+      [init, assistantText('Looking around.'), resultWithObject],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const start = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.start',
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(start).toBeDefined()
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({
+          object: { summary: 'ok' },
+          raw: JSON.stringify({ summary: 'ok' }),
+        }),
+      )
+    }
+    expect(chunks.some((c) => c.type === 'TEXT_MESSAGE_CONTENT')).toBe(true)
+    expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
+  })
+
+  it('does not emit structured-output events when the flag is off', async () => {
+    const resultWithObject: AgentSdkMessage = {
+      type: 'result',
+      subtype: 'success',
+      result: 'done',
+      usage,
+      structured_output: { summary: 'ok' },
+    }
+    const chunks = await collect([
+      init,
+      assistantText('Looking around.'),
+      resultWithObject,
+    ])
+    expect(
+      chunks.some(
+        (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+      ),
+    ).toBe(false)
+  })
+
+  it('maps error_max_structured_output_retries to RUN_ERROR', async () => {
+    const failed: AgentSdkMessage = {
+      type: 'result',
+      subtype: 'error_max_structured_output_retries',
+      errors: ['schema retries exhausted'],
+      usage,
+    }
+    const chunks = await collect([init, failed])
+    const err = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(err).toBeDefined()
+    if (err?.type === 'RUN_ERROR') {
+      expect(err.message).toContain('schema retries exhausted')
+    }
   })
 })

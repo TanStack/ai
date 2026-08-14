@@ -185,6 +185,37 @@ On the `'streaming-json'` path with auto-approve, the adapter adds
 `--always-approve --no-plan --no-auto-update`. Those flags keep Plan Mode and
 the CLI update check from blocking a headless run.
 
+## Structured Output
+
+Pass `outputSchema` on `chat()`. Grok Build has no native schema flag. The adapter adds the JSON Schema to the prompt (ACP and `streaming-json`) and parses the last assistant text. Tool activity still streams. The object arrives as `structured-output.complete`.
+
+```ts
+import { chat } from "@tanstack/ai"
+import { grokBuildText } from "@tanstack/ai-grok-build"
+import { defineSandbox, withSandbox } from "@tanstack/ai-sandbox"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+const report = await chat({
+  adapter: grokBuildText("grok-build"),
+  messages: [{ role: "user", content: "Review this repo." }],
+  outputSchema: Report,
+  middleware: [withSandbox(defineSandbox({ /* provider */ }))],
+})
+
+report.summary
+```
+
+This path parses JSON from the last assistant message. If extract-only is the job, use `@tanstack/ai-grok`.
+
+On the client, `useChat({ outputSchema }).final` works the same as HTTP adapters. `partial` stays empty until the end.
+
+Full walkthrough, including the client: [Harness Agents](../structured-outputs/harnesses).
+
 ## Limitations
 
 - **Requires a sandbox.** Always run it under `withSandbox(...)`; see the

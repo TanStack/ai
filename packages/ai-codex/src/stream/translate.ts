@@ -1,4 +1,8 @@
 import { EventType, buildBaseUsage } from '@tanstack/ai'
+import {
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+} from '@tanstack/ai/adapter-internals'
 import type { StreamChunk, TokenUsage } from '@tanstack/ai'
 import type { CodexThreadEvent, CodexThreadItem, CodexUsage } from './sdk-types'
 
@@ -18,6 +22,8 @@ export interface TranslateContext {
   onSessionId?: (sessionId: string) => void
   /** Called for each raw SDK thread event, for logging. */
   onThreadEvent?: (event: CodexThreadEvent) => void
+  /** Treat the last agent_message as schema JSON. */
+  expectStructuredOutput?: boolean
 }
 
 /**
@@ -237,30 +243,86 @@ export async function* translateThreadEvents(
     unresolvedToolCalls.add(item.id)
   }
 
+  const pendingAgentMessages: Array<{ id: string; text: string }> = []
+
+  function* emitAgentText(item: {
+    id: string
+    text: string
+  }): Generator<StreamChunk> {
+    yield {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId: item.id,
+      model,
+      timestamp: now(),
+      role: 'assistant',
+    }
+    yield {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId: item.id,
+      model,
+      timestamp: now(),
+      delta: item.text,
+      content: item.text,
+    }
+    yield {
+      type: EventType.TEXT_MESSAGE_END,
+      messageId: item.id,
+      model,
+      timestamp: now(),
+    }
+  }
+
+  function* flushAgentMessages(
+    lastIsStructured: boolean,
+  ): Generator<StreamChunk> {
+    for (let index = 0; index < pendingAgentMessages.length; index++) {
+      const item = pendingAgentMessages[index]
+      if (item === undefined) continue
+      const isLast = index === pendingAgentMessages.length - 1
+      if (lastIsStructured && isLast) {
+        try {
+          const object: unknown = JSON.parse(item.text)
+          yield structuredOutputStartChunk({
+            messageId: item.id,
+            model,
+            threadId,
+            runId,
+          })
+          yield structuredOutputCompleteChunk({
+            messageId: item.id,
+            model,
+            threadId,
+            runId,
+            object,
+            raw: item.text,
+          })
+        } catch (error: unknown) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Invalid structured output JSON'
+          yield {
+            type: EventType.RUN_ERROR,
+            model,
+            timestamp: now(),
+            message,
+            error: { message },
+          }
+        }
+      } else {
+        yield* emitAgentText(item)
+      }
+    }
+    pendingAgentMessages.length = 0
+  }
+
   function* handleItemCompleted(item: CodexThreadItem): Generator<StreamChunk> {
     if (item.type === 'agent_message') {
-      const messageId = item.id
-      yield {
-        type: EventType.TEXT_MESSAGE_START,
-        messageId,
-        model,
-        timestamp: now(),
-        role: 'assistant',
+      if (ctx.expectStructuredOutput === true) {
+        pendingAgentMessages.push({ id: item.id, text: item.text })
+        return
       }
-      yield {
-        type: EventType.TEXT_MESSAGE_CONTENT,
-        messageId,
-        model,
-        timestamp: now(),
-        delta: item.text,
-        content: item.text,
-      }
-      yield {
-        type: EventType.TEXT_MESSAGE_END,
-        messageId,
-        model,
-        timestamp: now(),
-      }
+      yield* emitAgentText(item)
     } else if (item.type === 'reasoning') {
       const reasoningId = item.id
       yield {
@@ -341,6 +403,7 @@ export async function* translateThreadEvents(
       } else if (event.type === 'item.completed') {
         yield* handleItemCompleted(event.item)
       } else if (event.type === 'turn.completed') {
+        yield* flushAgentMessages(ctx.expectStructuredOutput === true)
         yield* synthesizeUnresolvedResults()
         const usage = buildUsage(event.usage)
         yield {
@@ -353,6 +416,7 @@ export async function* translateThreadEvents(
           ...(usage !== undefined && { usage }),
         }
       } else if (event.type === 'turn.failed' || event.type === 'error') {
+        yield* flushAgentMessages(false)
         yield* synthesizeUnresolvedResults()
         const message =
           event.type === 'turn.failed'
