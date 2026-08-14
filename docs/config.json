@@ -615,16 +615,23 @@
         {
           "label": "Save a Named Version",
           "to": "sandbox/portable-snapshots-save",
-          "addedAt": "2026-08-14"
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Branch From a Version",
           "to": "sandbox/portable-snapshots-fork",
-          "addedAt": "2026-08-14"
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Send a Frozen File",
           "to": "sandbox/portable-snapshots-artifacts",
+          "addedAt": "2026-08-14"
+        },
+        {
+          "label": "Let the Agent Save and Fork",
+          "to": "sandbox/portable-snapshots-tools",
           "addedAt": "2026-08-14"
         },
         {

@@ -86,3 +86,6 @@ id is not proof of access.
 If you use SQLite, put the fork in one transaction. That transaction must copy
 the source conversation and reject a destination thread that is not empty. See
 [Keep Files After Reload](./portable-snapshots-configure).
+
+When the agent must call fork itself, use
+[Let the Agent Save and Fork](./portable-snapshots-tools).

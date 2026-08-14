@@ -79,6 +79,8 @@ export type {
   SaveSandboxSnapshotInput,
   SnapshotPersistence,
 } from './snapshot-operations'
+export { createSnapshotTools } from './snapshot-tools'
+export type { CreateSnapshotToolsOptions } from './snapshot-tools'
 
 // Workspace projection capability (provided by withSandbox, consumed by harness adapters)
 export {

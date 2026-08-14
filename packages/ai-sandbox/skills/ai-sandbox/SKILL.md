@@ -232,6 +232,7 @@ Read these pages for the server-only setup:
 - `docs/sandbox/portable-snapshots-save.md`
 - `docs/sandbox/portable-snapshots-fork.md`
 - `docs/sandbox/portable-snapshots-artifacts.md`
+- `docs/sandbox/portable-snapshots-tools.md`
 - `docs/sandbox/portable-snapshots-safety.md`
 
 For a user-marked workspace state, call `snapshots.save` on the server. Bind

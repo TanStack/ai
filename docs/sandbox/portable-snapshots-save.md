@@ -71,3 +71,6 @@ A named checkpoint stays available for a read or a selected fork. Automatic
 restore still uses the latest checkpoint. See
 [Branch From a Version](./portable-snapshots-fork) to copy one selected
 checkpoint into a new thread.
+
+When the agent must call save itself, use
+[Let the Agent Save and Fork](./portable-snapshots-tools).
