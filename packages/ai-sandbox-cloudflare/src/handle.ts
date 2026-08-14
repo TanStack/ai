@@ -2,8 +2,8 @@
  * SandboxHandle backed by a Cloudflare Sandbox (Containers + Durable Objects),
  * via `@cloudflare/sandbox`. Runs at the edge inside a Worker.
  *
- * fs is implemented over `exec` with base64 piping (binary-safe), matching the
- * Docker provider. The container disk is EPHEMERAL (wiped to the image on
+ * fs is implemented over `exec` with chunked base64 piping (binary-safe),
+ * matching the Docker provider. The container disk is EPHEMERAL (wiped to the image on
  * restart) and snapshots are not yet GA, so `capabilities.snapshots` and
  * `durableFilesystem` are false — `withSandbox` re-bootstraps under the same
  * identity across cold starts.
@@ -21,6 +21,7 @@
  * provider contract.
  */
 import { createExecBackedGit } from '@tanstack/ai-sandbox'
+import { fsWriteCommands } from './fs-write'
 import type { Sandbox } from '@cloudflare/sandbox'
 import type {
   ExecResult,
@@ -162,16 +163,11 @@ export class CloudflareHandle implements SandboxHandle {
         return new Uint8Array(Buffer.from(r.stdout, 'base64'))
       },
       write: async (p, data) => {
-        const abs = this.abs(p)
-        const b64 = Buffer.from(
-          typeof data === 'string' ? Buffer.from(data, 'utf8') : data,
-        ).toString('base64')
-        const dir = abs.replace(/\/[^/]*$/, '') || '/'
-        const r = await this.exec(
-          `mkdir -p ${q(dir)} && printf %s ${q(b64)} | base64 -d > ${q(abs)}`,
-        )
-        if (r.exitCode !== 0)
-          throw new Error(`write failed: ${r.stderr.trim()}`)
+        for (const command of fsWriteCommands(this.abs(p), data)) {
+          const r = await this.exec(command)
+          if (r.exitCode !== 0)
+            throw new Error(`write failed: ${r.stderr.trim()}`)
+        }
       },
       list: async (p) => {
         const r = await this.exec(`ls -1Ap ${q(this.abs(p))}`)

@@ -5,13 +5,14 @@
  *
  * Vercel's `runCommand` executes a program directly (no implicit shell), so we
  * run shell command strings as `sh -c "<command>"`. fs is implemented over that
- * exec with base64 piping (binary-safe); the runtime image provides `sh`,
- * `base64`, and coreutils.
+ * exec with chunked base64 piping (binary-safe); the runtime image provides
+ * `sh`, `base64`, and coreutils.
  */
 import {
   UnsupportedCapabilityError,
   createExecBackedGit,
 } from '@tanstack/ai-sandbox'
+import { fsWriteCommands } from './fs-write'
 import type { Command, Sandbox } from '@vercel/sandbox'
 import type {
   ExecResult,
@@ -182,16 +183,11 @@ export class VercelHandle implements SandboxHandle {
         return new Uint8Array(Buffer.from(r.stdout, 'base64'))
       },
       write: async (p, data) => {
-        const abs = this.abs(p)
-        const b64 = Buffer.from(
-          typeof data === 'string' ? Buffer.from(data, 'utf8') : data,
-        ).toString('base64')
-        const dir = abs.replace(/\/[^/]*$/, '') || '/'
-        const r = await this.exec(
-          `mkdir -p ${q(dir)} && printf %s ${q(b64)} | base64 -d > ${q(abs)}`,
-        )
-        if (r.exitCode !== 0)
-          throw new Error(`write failed: ${r.stderr.trim()}`)
+        for (const command of fsWriteCommands(this.abs(p), data)) {
+          const r = await this.exec(command)
+          if (r.exitCode !== 0)
+            throw new Error(`write failed: ${r.stderr.trim()}`)
+        }
       },
       list: async (p) => {
         const r = await this.exec(`ls -1Ap ${q(this.abs(p))}`)

@@ -3,9 +3,10 @@
  * fs/exec/git operate inside the container; paths are real container paths
  * (default workdir `/workspace`).
  *
- * fs is implemented over `exec` with base64 piping (binary-safe, no tar
- * dependency); the container image must provide `sh`, `base64`, and coreutils
- * (true for node:* / debian-based images).
+ * fs is implemented over `exec` with chunked base64 piping (binary-safe, no
+ * tar dependency). Large writes are split so no single `sh -c` argument hits
+ * Linux `MAX_ARG_STRLEN`. The container image must provide `sh`, `base64`, and
+ * coreutils (true for node:* / debian-based images).
  */
 import { randomUUID } from 'node:crypto'
 import { PassThrough, Writable } from 'node:stream'
@@ -13,6 +14,7 @@ import {
   UnsupportedCapabilityError,
   createExecBackedGit,
 } from '@tanstack/ai-sandbox'
+import { fsWriteCommands } from './fs-write'
 import type Dockerode from 'dockerode'
 import type { Readable } from 'node:stream'
 import type {
@@ -389,16 +391,11 @@ export class DockerHandle implements SandboxHandle {
         return new Uint8Array(Buffer.from(r.stdout, 'base64'))
       },
       write: async (p, data) => {
-        const abs = this.abs(p)
-        const b64 = Buffer.from(
-          typeof data === 'string' ? Buffer.from(data, 'utf8') : data,
-        ).toString('base64')
-        const dir = abs.replace(/\/[^/]*$/, '') || '/'
-        const r = await this.exec(
-          `mkdir -p ${q(dir)} && printf %s ${q(b64)} | base64 -d > ${q(abs)}`,
-        )
-        if (r.exitCode !== 0)
-          throw new Error(`write failed: ${r.stderr.trim()}`)
+        for (const command of fsWriteCommands(this.abs(p), data)) {
+          const r = await this.exec(command)
+          if (r.exitCode !== 0)
+            throw new Error(`write failed: ${r.stderr.trim()}`)
+        }
       },
       list: async (p) => {
         const r = await this.exec(`ls -1Ap ${q(this.abs(p))}`)

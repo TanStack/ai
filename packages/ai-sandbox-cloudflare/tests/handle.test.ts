@@ -95,11 +95,22 @@ function mockSandbox(): { sandbox: Sandbox; files: Map<string, string> } {
         ok(Buffer.from(files.get(path)!, 'utf8').toString('base64')),
       )
     }
-    // mkdir -p '<dir>' && printf %s '<b64>' | base64 -d > '<path>'  -> write
-    const write = command.match(/base64 -d > '([^']+)'$/)
-    const b64 = command.match(/printf %s '([^']+)'/)
-    if (write && b64) {
-      files.set(write[1]!, Buffer.from(b64[1]!, 'base64').toString('utf8'))
+    // mkdir -p '<dir>' && : > '<path>'  -> truncate for a chunked write
+    const truncate = command.match(/^mkdir -p '[^']+' && : > '([^']+)'$/)
+    if (truncate) {
+      files.set(truncate[1]!, '')
+      return Promise.resolve(ok())
+    }
+    // printf %s '<b64>' | base64 -d >> '<path>'  -> append one write chunk
+    const append = command.match(
+      /^printf %s '([^']*)' \| base64 -d >> '([^']+)'$/,
+    )
+    if (append) {
+      const prev = files.get(append[2]!) ?? ''
+      files.set(
+        append[2]!,
+        prev + Buffer.from(append[1] ?? '', 'base64').toString('utf8'),
+      )
       return Promise.resolve(ok())
     }
     // test -e '<path>'
