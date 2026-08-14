@@ -150,6 +150,58 @@ describe('InterruptManager foreign-interrupt handling', () => {
     expect(item?.canResolve).toBe(false)
   })
 
+  it('keeps a raw generic binding resolvable when run id and schema hash match', () => {
+    const responseSchema = {
+      type: 'object',
+      properties: { confirmed: { type: 'boolean' } },
+      required: ['confirmed'],
+    }
+    const { manager } = createManager()
+    manager.hydrate({
+      threadId: 'foreign-1',
+      interruptedRunId: 'run-foreign-1',
+      generation: 0,
+      interrupts: [
+        {
+          id: 'ours',
+          reason: 'confirmation',
+          message: 'Confirm the shipment?',
+          responseSchema,
+          metadata: {
+            'tanstack:interruptBinding': {
+              v: INTERRUPT_BINDING_VERSION,
+              kind: 'generic',
+              interruptId: 'ours',
+              interruptedRunId: 'run-foreign-1',
+              generation: 0,
+              responseSchemaHash: digestInterruptJson(
+                canonicalInterruptJson(responseSchema),
+              ),
+            },
+          },
+        },
+        {
+          id: 'theirs',
+          reason: 'approval_requested',
+          message: 'Approve the deployment?',
+          metadata: { 'acme:workflowApproval': { stepId: 'deploy' } },
+        },
+      ],
+    })
+
+    const [ours, theirs] = manager.getInterrupts()
+    expect(ours).toMatchObject({
+      kind: 'generic',
+      canResolve: true,
+      id: 'ours',
+    })
+    expect(theirs).toMatchObject({
+      kind: 'unbound',
+      canResolve: false,
+      id: 'theirs',
+    })
+  })
+
   it('does not let an unbound interrupt block submission of the bound ones', async () => {
     const { manager, submit } = createManager()
     manager.hydrate({
