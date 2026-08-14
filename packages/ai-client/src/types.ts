@@ -47,8 +47,6 @@ export type ChatPendingInterrupt = Interrupt
 export interface ChatResumeSnapshot {
   resumeState: ChatResumeState
   pendingInterrupts?: Array<ChatPendingInterrupt>
-  /** First-party generic continuation data paired with pending interrupts. */
-  interruptContinuation?: unknown
 }
 
 export type InterruptItemStatus =
@@ -288,8 +286,6 @@ export interface ChatFetcherInput {
   runId: string
   parentRunId?: string
   resume?: Array<RunAgentResumeItem>
-  /** First-party generic interrupt state for the resumed run. */
-  interruptContinuation?: unknown
 }
 
 export interface ChatFetcherOptions {

@@ -433,7 +433,6 @@ async function fetchThreadHydration(
     interrupts?: {
       runId?: unknown
       pending?: unknown
-      interruptContinuation?: unknown
     } | null
   }
   const activeRun =
@@ -448,9 +447,6 @@ async function fetchThreadHydration(
       ? {
           runId: data.interrupts.runId,
           pending: data.interrupts.pending as Array<ChatPendingInterrupt>,
-          ...(data.interrupts.interruptContinuation !== undefined
-            ? { interruptContinuation: data.interrupts.interruptContinuation }
-            : {}),
         }
       : null
   return {
@@ -742,8 +738,6 @@ export interface RunAgentInputContext {
   parentRunId?: string
   /** AG-UI interrupt resume entries returned to the server on a follow-up run. */
   resume?: Array<RunAgentResumeItem>
-  /** First-party generic interrupt state for the resumed run. */
-  interruptContinuation?: unknown
   /** Client-declared tools to advertise in the request payload. */
   clientTools?: Array<{
     name: string
@@ -842,7 +836,6 @@ export interface ChatHydrationResult {
   interrupts: {
     runId: string
     pending: Array<ChatPendingInterrupt>
-    interruptContinuation?: unknown
   } | null
 }
 
@@ -1153,12 +1146,7 @@ function buildRunAgentInputBody(
       parentRunId: runContext.parentRunId,
     }),
     ...(runContext?.resume !== undefined && { resume: runContext.resume }),
-    state:
-      runContext?.interruptContinuation === undefined
-        ? {}
-        : {
-            'tanstack:interruptContinuation': runContext.interruptContinuation,
-          },
+    state: {},
     messages: wireMessages,
     tools: runContext?.clientTools ?? [],
     context: [],
@@ -2032,9 +2020,6 @@ export function fetcherToConnectionAdapter(
             : {}),
           ...(runContext.resume !== undefined
             ? { resume: runContext.resume }
-            : {}),
-          ...(runContext.interruptContinuation !== undefined
-            ? { interruptContinuation: runContext.interruptContinuation }
             : {}),
         },
         { signal: abortSignal },

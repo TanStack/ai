@@ -109,7 +109,6 @@ async function handle(request: Request): Promise<Response> {
     runId: params.runId,
     ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
     ...(params.resume ? { resume: params.resume } : {}),
-    ...(params.state ? { state: params.state } : {}),
     interrupts: playgroundInterrupts,
     middleware: [createLifecycleMiddleware(boundary, policy)],
     ...(!isResume && needsTool

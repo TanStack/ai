@@ -83,7 +83,7 @@ function expectOneInterruptTerminalForEachBoundary(capture: PhaseCapture) {
     expect(startedIndex).toBeLessThan(terminalIndex)
     expect(chunks[terminalIndex]?.outcomeType).toBe('interrupt')
     expect(terminalIndex).toBe(chunks.length - 1)
-    expect(chunks[terminalIndex - 1]?.type).toBe('STATE_SNAPSHOT')
+    expect(chunks[terminalIndex - 1]?.type).toBe('MESSAGES_SNAPSHOT')
   }
 }
 

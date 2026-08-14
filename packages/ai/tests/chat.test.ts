@@ -2,6 +2,10 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat, createChatOptions } from '../src/activities/chat/index'
 import { defineInterrupt } from '../src/interrupt-definition'
+import {
+  genericInterruptContinuationFromDescriptor,
+  wrapGenericInterruptContinuation,
+} from '../src/generic-interrupt-continuation'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { DISCOVERY_TOOL_NAME } from '../src/activities/chat/tools/lazy-tool-manager'
 import { EventType } from '../src/types'
@@ -3754,10 +3758,9 @@ describe('chat()', () => {
       ).toBeLessThan(
         chunks.findIndex((chunk) => chunk.type === EventType.RUN_FINISHED),
       )
-      const state = chunks.find(
-        (chunk) => chunk.type === EventType.STATE_SNAPSHOT,
-      )
-      expect(state).toBeDefined()
+      expect(
+        chunks.some((chunk) => chunk.type === EventType.STATE_SNAPSHOT),
+      ).toBe(false)
     })
 
     it('starts a synthetic run before a beforeModel interrupt', async () => {
@@ -3796,7 +3799,6 @@ describe('chat()', () => {
       expect(chunks.map((chunk) => chunk.type)).toEqual([
         EventType.RUN_STARTED,
         EventType.MESSAGES_SNAPSHOT,
-        EventType.STATE_SNAPSHOT,
         EventType.RUN_FINISHED,
       ])
       expect(expectSingleRunFinished(chunks).outcome?.type).toBe('interrupt')
@@ -3910,13 +3912,11 @@ describe('chat()', () => {
       if (interrupt?.type !== 'interrupt') {
         throw new Error('Expected afterTools interrupt')
       }
-      const interruptId = interrupt.interrupts[0]?.id
-      if (!interruptId) throw new Error('Expected interrupt id')
-      const stateChunk = first.find(
-        (chunk) => chunk.type === EventType.STATE_SNAPSHOT,
-      )
-      if (!stateChunk || stateChunk.type !== EventType.STATE_SNAPSHOT) {
-        throw new Error('Expected continuation state')
+      const paused = interrupt.interrupts[0]
+      if (!paused) throw new Error('Expected interrupt id')
+      const continuation = genericInterruptContinuationFromDescriptor(paused)
+      if (!continuation) {
+        throw new Error('Expected generic continuation metadata')
       }
 
       const resume = await collectChunks(
@@ -3945,12 +3945,12 @@ describe('chat()', () => {
           parentRunId: 'run-after-tools',
           resume: [
             {
-              interruptId,
+              interruptId: paused.id,
               status: 'resolved',
               payload: { approved: false },
+              metadata: wrapGenericInterruptContinuation(continuation),
             },
           ],
-          state: stateChunk.snapshot,
         }) as AsyncIterable<StreamChunk>,
       )
 

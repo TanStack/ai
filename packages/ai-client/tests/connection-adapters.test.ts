@@ -27,7 +27,7 @@ describe('connection-adapters', () => {
     vi.clearAllMocks()
   })
 
-  it('forwards resume and first-party continuation on a fetcher adapter', async () => {
+  it('forwards resume on a fetcher adapter', async () => {
     const fetcher = vi.fn(async function* () {})
     const adapter = fetcherToConnectionAdapter(fetcher)
     const signal = new AbortController().signal
@@ -36,8 +36,22 @@ describe('connection-adapters', () => {
       threadId: 'thread-1',
       runId: 'resume-run',
       parentRunId: 'interrupted-run',
-      resume: [{ interruptId: 'generic-1', status: 'cancelled' }],
-      interruptContinuation: { v: 1, interrupts: [{ id: 'generic-1' }] },
+      resume: [
+        {
+          interruptId: 'generic-1',
+          status: 'cancelled',
+          metadata: {
+            'tanstack:interruptContinuation': {
+              v: 1,
+              definitionId: 'review',
+              key: 'one',
+              batchIndex: 0,
+              reason: 'review',
+              message: 'Review',
+            },
+          },
+        },
+      ],
     })) {
       // Consume the terminal event.
     }
@@ -47,15 +61,29 @@ describe('connection-adapters', () => {
         threadId: 'thread-1',
         runId: 'resume-run',
         parentRunId: 'interrupted-run',
-        resume: [{ interruptId: 'generic-1', status: 'cancelled' }],
-        interruptContinuation: { v: 1, interrupts: [{ id: 'generic-1' }] },
+        resume: [
+          {
+            interruptId: 'generic-1',
+            status: 'cancelled',
+            metadata: {
+              'tanstack:interruptContinuation': {
+                v: 1,
+                definitionId: 'review',
+                key: 'one',
+                batchIndex: 0,
+                reason: 'review',
+                message: 'Review',
+              },
+            },
+          },
+        ],
       }),
       { signal },
     )
   })
 
   describe('fetchServerSentEvents', () => {
-    it('sends only first-party continuation state on an interrupt resume', async () => {
+    it('sends generic continuation on resume metadata, not state', async () => {
       const mockResponse = {
         ok: true,
         body: {
@@ -67,6 +95,22 @@ describe('connection-adapters', () => {
       }
       fetchMock.mockResolvedValue(mockResponse as any)
       const adapter = fetchServerSentEvents('/api/chat')
+      const resume = [
+        {
+          interruptId: 'generic-1',
+          status: 'cancelled' as const,
+          metadata: {
+            'tanstack:interruptContinuation': {
+              v: 1,
+              definitionId: 'review',
+              key: 'one',
+              batchIndex: 0,
+              reason: 'review',
+              message: 'Review',
+            },
+          },
+        },
+      ]
 
       for await (const _chunk of adapter.connect(
         [{ role: 'user', content: 'Resume' }],
@@ -75,8 +119,7 @@ describe('connection-adapters', () => {
         {
           threadId: 'thread-1',
           runId: 'run-2',
-          resume: [{ interruptId: 'generic-1', status: 'cancelled' }],
-          interruptContinuation: { v: 1, interrupts: [{ id: 'generic-1' }] },
+          resume,
         },
       )) {
         // Consume the empty stream.
@@ -84,16 +127,8 @@ describe('connection-adapters', () => {
 
       const request = fetchMock.mock.calls[0]?.[1] as RequestInit
       const body = JSON.parse(String(request.body))
-      expect(body.resume).toEqual([
-        { interruptId: 'generic-1', status: 'cancelled' },
-      ])
-      expect(body.state).toEqual({
-        'tanstack:interruptContinuation': {
-          v: 1,
-          interrupts: [{ id: 'generic-1' }],
-        },
-      })
-      expect(body.state.applicationState).toBeUndefined()
+      expect(body.resume).toEqual(resume)
+      expect(body.state).toEqual({})
     })
 
     it('should handle SSE format with data: prefix', async () => {

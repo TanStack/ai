@@ -396,8 +396,8 @@ export const reviewMiddleware: ChatMiddleware<unknown, typeof reviewPlan> = {
 }
 ```
 
-Register the definition on the server. Forward `parentRunId`, `resume`, and
-`state` so a client resolution starts the continuation with its full context.
+Register the definition on the server. Forward `parentRunId` and `resume` so
+a client resolution starts the continuation with its full context.
 
 ```typescript title="route.ts"
 import {
@@ -415,7 +415,6 @@ export async function POST(request: Request) {
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
-    state: params.state,
     ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
     ...(params.resume ? { resume: params.resume } : {}),
     interrupts: [reviewPlan],
@@ -480,8 +479,8 @@ onStart
 then stop, or continue the agent loop
 ```
 
-`useChat` sends `parentRunId`, `resume`, and
-`state['tanstack:interruptContinuation']` on that second request. If `resume`
+`useChat` sends `parentRunId` and `resume` on that second request. Each
+generic resume item includes the original request in `metadata`. If `resume`
 is present and `parentRunId` is missing, the server throws.
 
 Use `resumedInterrupts.for(definition)` for one typed definition. Use

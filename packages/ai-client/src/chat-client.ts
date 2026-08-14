@@ -389,10 +389,6 @@ export class ChatClient<
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
-  /** First-party generic interrupt data from the active interrupted run. */
-  private activeInterruptContinuation: unknown | undefined = undefined
-  /** The data to send only with the next interrupt-resume run. */
-  private pendingInterruptContinuation: unknown | undefined = undefined
   private draining = false
   private sessionGenerating = false
   private readonly activeRunIds = new Set<string>()
@@ -886,7 +882,6 @@ export class ChatClient<
       ? snapshot.pendingInterrupts
       : []
     if (pendingInterrupts.length === 0) {
-      this.pendingInterruptContinuation = undefined
       this.interruptManager.reset()
       return
     }
@@ -897,12 +892,6 @@ export class ChatClient<
       generation,
       interrupts: pendingInterrupts,
     })
-    this.pendingInterruptContinuation =
-      this.interruptManager.matchesValidatedFirstPartyGenericContinuation(
-        snapshot.interruptContinuation,
-      )
-        ? snapshot.interruptContinuation
-        : undefined
   }
 
   /**
@@ -1002,9 +991,6 @@ export class ChatClient<
             runId: result.interrupts.runId,
           },
           pendingInterrupts: result.interrupts.pending,
-          ...(result.interrupts.interruptContinuation !== undefined
-            ? { interruptContinuation: result.interrupts.interruptContinuation }
-            : {}),
         })
       } else if (result.activeRun?.runId) {
         this.maybeRejoinInFlight(result.activeRun.runId)
@@ -1103,23 +1089,6 @@ export class ChatClient<
    * state. This is interrupt (state) resume — there is no delivery cursor.
    */
   private observeInterruptState(chunk: StreamChunk): void {
-    if (chunk.type === 'STATE_SNAPSHOT') {
-      const snapshot = chunk.snapshot
-      if (
-        snapshot !== null &&
-        typeof snapshot === 'object' &&
-        !Array.isArray(snapshot) &&
-        Object.prototype.hasOwnProperty.call(
-          snapshot,
-          'tanstack:interruptContinuation',
-        )
-      ) {
-        this.activeInterruptContinuation = (
-          snapshot as Record<string, unknown>
-        )['tanstack:interruptContinuation']
-      }
-      return
-    }
     if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
       return
     }
@@ -1148,12 +1117,6 @@ export class ChatClient<
         generation: this.interruptGeneration(chunk.outcome.interrupts),
         interrupts: chunk.outcome.interrupts,
       })
-      this.pendingInterruptContinuation =
-        this.interruptManager.matchesValidatedFirstPartyGenericContinuation(
-          this.activeInterruptContinuation,
-        )
-          ? this.activeInterruptContinuation
-          : undefined
       return
     }
 
@@ -1194,8 +1157,6 @@ export class ChatClient<
       isActiveInterruptSubmissionTerminal
     ) {
       this.lastResume = null
-      this.pendingInterruptContinuation = undefined
-      this.activeInterruptContinuation = undefined
       // Run settled without an interrupt: drop the durable resume snapshot so a
       // later reload does not try to rejoin a finished run.
       this.persistor?.persistResumeSnapshot(null)
@@ -1452,9 +1413,6 @@ export class ChatClient<
       resumeState,
       ...(descriptors.length > 0
         ? { pendingInterrupts: [...descriptors] }
-        : {}),
-      ...(this.pendingInterruptContinuation !== undefined
-        ? { interruptContinuation: this.pendingInterruptContinuation }
         : {}),
     })
   }
@@ -2117,9 +2075,6 @@ export class ChatClient<
     const resumeThreadId = this.pendingResumeThreadId
     const resumeParentRunId = this.pendingResumeParentRunId
     const resumeItems = this.pendingResumeItems
-    const interruptContinuation = resumeItems
-      ? this.pendingInterruptContinuation
-      : undefined
     this.pendingResumeThreadId = null
     this.pendingResumeParentRunId = null
     this.pendingResumeItems = null
@@ -2224,9 +2179,6 @@ export class ChatClient<
         })),
         forwardedProps: { ...mergedBody },
         ...(resumeItems ? { resume: resumeItems } : {}),
-        ...(interruptContinuation !== undefined
-          ? { interruptContinuation }
-          : {}),
       }
       this.devtoolsBridge.beginRun(runContext.runId, runContext.threadId)
       activeDevtoolsRunId = runContext.runId
@@ -2496,8 +2448,6 @@ export class ChatClient<
     this.discardPendingSends()
     this.persistor?.remove()
     this.lastResume = null
-    this.pendingInterruptContinuation = undefined
-    this.activeInterruptContinuation = undefined
     this.interruptManager.reset()
     this.pendingResumeThreadId = null
     this.pendingResumeParentRunId = null

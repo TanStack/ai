@@ -1191,7 +1191,7 @@ describe('ChatClient native interrupts', () => {
     expect(sentMessages[1]).toEqual(sentMessages[0])
   })
 
-  it('sends first-party continuation state with a generic resume', async () => {
+  it('sends first-party continuation on resume metadata', async () => {
     const approval = defineInterrupt({
       id: 'approval',
       responseSchema: z.object({ answer: z.number() }),
@@ -1228,27 +1228,6 @@ describe('ChatClient native interrupts', () => {
         if (call === 1) {
           binding.interruptedRunId = runId
           binding.interruptId = `generic_${runId}_approval_one`
-          yield {
-            type: EventType.STATE_SNAPSHOT,
-            runId,
-            threadId,
-            timestamp: Date.now(),
-            snapshot: {
-              applicationState: 'must not cross the continuation boundary',
-              'tanstack:interruptContinuation': {
-                v: 1,
-                interrupts: [
-                  {
-                    id: binding.interruptId,
-                    definitionId: 'approval',
-                    key: 'one',
-                    batchIndex: 0,
-                    responseSchemaHash: binding.responseSchemaHash,
-                  },
-                ],
-              },
-            },
-          }
           yield {
             type: EventType.RUN_FINISHED,
             runId,
@@ -1291,23 +1270,22 @@ describe('ChatClient native interrupts', () => {
     expect(contexts[1]).toMatchObject({
       threadId: 'thread-1',
       parentRunId: contexts[0]?.runId,
-      interruptContinuation: {
-        v: 1,
-        interrupts: [
-          {
-            id: binding.interruptId,
-            definitionId: 'approval',
-            key: 'one',
-            batchIndex: 0,
-            responseSchemaHash: binding.responseSchemaHash,
-          },
-        ],
-      },
       resume: [
         {
           interruptId: binding.interruptId,
           status: 'resolved',
           payload: { answer: 42 },
+          metadata: {
+            'tanstack:interruptContinuation': {
+              v: 1,
+              definitionId: 'approval',
+              key: 'one',
+              batchIndex: 0,
+              reason: 'confirmation',
+              message: '',
+              responseSchemaHash: binding.responseSchemaHash,
+            },
+          },
         },
       ],
     })
@@ -1363,30 +1341,6 @@ describe('ChatClient native interrupts', () => {
             messageId: 'tool-result-inspect',
             content: '{"inspected":true,"planId":"PLAN-42"}',
             timestamp: Date.now(),
-          }
-          yield {
-            type: EventType.STATE_SNAPSHOT,
-            runId,
-            threadId,
-            timestamp: Date.now(),
-            snapshot: {
-              'tanstack:interruptContinuation': {
-                v: 1,
-                interrupts: [
-                  {
-                    id: interruptId,
-                    definitionId: 'review-plan',
-                    key: 'afterTools-review',
-                    batchIndex: 0,
-                    responseSchemaHash: digestInterruptJson(
-                      canonicalInterruptJson(
-                        convertSchemaToJsonSchema(review.responseSchema),
-                      ),
-                    ),
-                  },
-                ],
-              },
-            },
           }
           yield {
             type: EventType.RUN_FINISHED,
@@ -1485,32 +1439,6 @@ describe('ChatClient native interrupts', () => {
             messageId: 'tool-result-inspect',
             content: '{"inspected":true,"planId":"PLAN-42"}',
             timestamp: Date.now(),
-          }
-          yield {
-            type: EventType.STATE_SNAPSHOT,
-            runId,
-            threadId,
-            timestamp: Date.now(),
-            snapshot: {
-              'tanstack:interruptContinuation': {
-                v: 1,
-                interrupts: [
-                  {
-                    id: interruptId,
-                    definitionId: 'review-plan',
-                    key: 'afterTools-review',
-                    batchIndex: 0,
-                    reason: 'review_required',
-                    message: 'Review the plan at afterTools.',
-                    responseSchemaHash: digestInterruptJson(
-                      canonicalInterruptJson(
-                        convertSchemaToJsonSchema(review.responseSchema),
-                      ),
-                    ),
-                  },
-                ],
-              },
-            },
           }
           yield {
             type: EventType.RUN_FINISHED,

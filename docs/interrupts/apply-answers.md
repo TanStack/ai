@@ -36,11 +36,31 @@ not run.
 
 - a new `runId`
 - `parentRunId` set to the paused run
-- `resume` with the answers
-- `state['tanstack:interruptContinuation']` with the original requests
+- `resume` with the answers. Each generic item also has `metadata` with the
+  original request (`tanstack:interruptContinuation`)
 
-`useChat` sends those fields for you. If you POST by hand, include all four.
+`useChat` sends those fields for you. If you POST by hand, include all three.
 If `resume` is present and `parentRunId` is missing, the server throws.
+
+A hand-built generic resume item looks like this:
+
+```ts
+{
+  interruptId: 'generic-1',
+  status: 'resolved',
+  payload: { approved: true },
+  metadata: {
+    'tanstack:interruptContinuation': {
+      v: 1,
+      definitionId: 'review-plan',
+      key: 'turn-1',
+      batchIndex: 0,
+      reason: 'review',
+      message: 'Review the plan',
+    },
+  },
+}
+```
 
 ```mermaid
 sequenceDiagram
@@ -52,7 +72,7 @@ sequenceDiagram
     Server-->>Client: RUN_FINISHED outcome interrupt
     Client->>User: interrupts array
     User->>Client: resolveInterrupt or cancel
-    Client->>Server: second chat() with parentRunId, resume, and state
+    Client->>Server: second chat() with parentRunId and resume
     Note over Server: onInterruptResolution runs here
     Server-->>Client: continue, cancel tools, or stop
 ```
@@ -257,7 +277,7 @@ still read answers from `resumedInterrupts.for(definition)`.
 ## Register both sides
 
 The continuation needs the same definitions and the same middleware as the
-paused run. Forward `parentRunId`, `resume`, and `state` from the request.
+paused run. Forward `parentRunId` and `resume` from the request.
 
 ```ts
 // app/api/chat/route.ts
@@ -277,7 +297,6 @@ export async function POST(request: Request) {
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
-    state: params.state,
     ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
     ...(params.resume ? { resume: params.resume } : {}),
     interrupts: [reviewPlan],

@@ -6,9 +6,11 @@ import {
   cloneAndDeepFreezeJson,
   convertSchemaToJsonSchema,
   digestInterruptJson,
+  genericInterruptContinuationFromDescriptor,
   hashSchemaInput,
   isStandardSchema,
   normalizeApprovalSchema,
+  wrapGenericInterruptContinuation,
 } from '@tanstack/ai/client'
 import type {
   AnyClientTool,
@@ -106,6 +108,20 @@ interface RuntimeInterruptCheckpoint {
 
 function isClientOwnedInterrupt(item: RuntimeInterrupt): boolean {
   return item.resumable
+}
+
+function resolutionWithContinuation(
+  item: RuntimeInterrupt,
+  resolution: RunAgentResumeItem,
+): RunAgentResumeItem {
+  const continuation = genericInterruptContinuationFromDescriptor(
+    item.descriptor,
+  )
+  if (!continuation) return resolution
+  return {
+    ...resolution,
+    metadata: wrapGenericInterruptContinuation(continuation),
+  }
 }
 
 function isRootResolvableInterrupt<
@@ -693,57 +709,6 @@ export class InterruptManager<
     )
   }
 
-  matchesValidatedFirstPartyGenericContinuation(value: unknown): boolean {
-    if (
-      !isUnknownObject(value) ||
-      value['v'] !== 1 ||
-      !Array.isArray(value['interrupts'])
-    ) {
-      return false
-    }
-    const expected = this.items.filter(
-      (
-        item,
-      ): item is RuntimeInterrupt & {
-        definition: InterruptDefinition<any, any, any, any>
-        binding: Extract<InterruptBinding, { kind: 'generic' }>
-      } =>
-        item.kind === 'generic' &&
-        item.definition !== undefined &&
-        item.binding?.kind === 'generic',
-    )
-    if (
-      expected.length === 0 ||
-      value['interrupts'].length !== expected.length
-    ) {
-      return false
-    }
-    const pending = new Map(expected.map((item) => [item.descriptor.id, item]))
-    for (const raw of value['interrupts']) {
-      if (!isUnknownObject(raw) || typeof raw['id'] !== 'string') return false
-      const item = pending.get(raw['id'])
-      if (
-        !item ||
-        item.binding.definitionId === undefined ||
-        item.binding.key === undefined ||
-        item.binding.batchIndex === undefined
-      ) {
-        return false
-      }
-      if (
-        raw['definitionId'] !== item.binding.definitionId ||
-        raw['key'] !== item.binding.key ||
-        raw['batchIndex'] !== item.binding.batchIndex ||
-        raw['responseSchemaHash'] !== item.binding.responseSchemaHash ||
-        raw['payloadSchemaHash'] !== item.binding.payloadSchemaHash
-      ) {
-        return false
-      }
-      pending.delete(raw['id'])
-    }
-    return pending.size === 0
-  }
-
   reset(options?: { preserveRootErrors?: boolean }): void {
     this.hydration = undefined
     this.items = []
@@ -796,10 +761,12 @@ export class InterruptManager<
     for (const item of this.items) {
       if (!isClientOwnedInterrupt(item)) continue
       item.validationGeneration++
-      item.resolution = Object.freeze({
-        interruptId: item.descriptor.id,
-        status: 'cancelled',
-      })
+      item.resolution = Object.freeze(
+        resolutionWithContinuation(item, {
+          interruptId: item.descriptor.id,
+          status: 'cancelled',
+        }),
+      )
       item.status = 'staged'
       item.error = undefined
     }
@@ -1256,7 +1223,9 @@ export class InterruptManager<
     const item = this.findItem(interruptId)
     this.invalidateRetry()
     item.validationGeneration++
-    item.resolution = Object.freeze({ interruptId, status: 'cancelled' })
+    item.resolution = Object.freeze(
+      resolutionWithContinuation(item, { interruptId, status: 'cancelled' }),
+    )
     item.status = 'staged'
     item.error = undefined
     if (!transaction) {
@@ -1346,11 +1315,13 @@ export class InterruptManager<
       if (!transaction) this.publish()
       return
     }
-    item.resolution = cloneAndDeepFreezeJson({
-      interruptId: item.descriptor.id,
-      status: 'resolved',
-      payload: result.payload,
-    })
+    item.resolution = cloneAndDeepFreezeJson(
+      resolutionWithContinuation(item, {
+        interruptId: item.descriptor.id,
+        status: 'resolved',
+        payload: result.payload,
+      }),
+    )
     item.status = 'staged'
     item.error = undefined
     if (!transaction) {

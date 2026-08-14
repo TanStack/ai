@@ -347,6 +347,17 @@ export {
   defineInterrupt,
   INTERRUPT_PAYLOAD_METADATA_KEY,
 } from './interrupt-definition'
+export {
+  INTERRUPT_CONTINUATION_METADATA_KEY,
+  INTERRUPT_CONTINUATION_VERSION,
+  genericInterruptContinuationFromDescriptor,
+  readGenericInterruptContinuation,
+  wrapGenericInterruptContinuation,
+} from './generic-interrupt-continuation'
+export type {
+  GenericInterruptContinuation,
+  GenericInterruptContinuationReadResult,
+} from './generic-interrupt-continuation'
 export type {
   GenericInterruptRequest,
   InterruptDefinition,

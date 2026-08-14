@@ -107,7 +107,6 @@ export async function POST(request: Request) {
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,
-    state: params.state,
     ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
     ...(params.resume ? { resume: params.resume } : {}),
     interrupts: [reviewPlan],
@@ -181,9 +180,9 @@ after every bound interrupt in the batch is resolved or cancelled. Use
 `onInterruptResolution` does not run in the `chat()` call that paused. It runs
 once at the start of the **next** `chat()` call, after the client answers.
 
-That second call is a new run. `useChat` sends `parentRunId`, `resume`, and
-`state['tanstack:interruptContinuation']`. The hook runs after init `onConfig`
-and before `onStart`. `ctx.phase` is still `'init'`.
+That second call is a new run. `useChat` sends `parentRunId` and `resume`.
+Each generic resume item carries the original request in `metadata`. The hook
+runs after init `onConfig` and before `onStart`. `ctx.phase` is still `'init'`.
 
 `for(definition)` keeps the response type for that definition. `all()` reads
 all registered definitions. `all(definitionA, definitionB)` narrows the

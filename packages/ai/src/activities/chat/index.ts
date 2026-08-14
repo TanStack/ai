@@ -21,8 +21,8 @@ import { INTERRUPT_BINDING_VERSION } from '../../interrupts'
 import {
   INTERRUPT_PAYLOAD_METADATA_KEY,
   createInterruptBinding,
-  getInterruptRequestInput,
 } from '../../interrupt-definition'
+import { readGenericInterruptContinuation } from '../../generic-interrupt-continuation'
 import type {
   GenericInterruptRequest,
   InterruptDefinition,
@@ -2701,24 +2701,12 @@ class TextEngine<
     }
 
     yield* this.pipeThroughMiddleware(this.buildMessagesSnapshotChunk())
-    const continuationState = this.buildInterruptContinuationState(
-      genericRequests,
-      approvals.length + clientRequests.length,
-      genericInterruptIds,
-    )
-    const state =
-      continuationState === undefined
-        ? this.params.state
-        : {
-            ...(this.params.state ?? {}),
-            'tanstack:interruptContinuation': continuationState,
-          }
-    if (state !== undefined) {
+    if (this.params.state !== undefined) {
       yield* this.pipeThroughMiddleware({
         type: EventType.STATE_SNAPSHOT,
         timestamp: Date.now(),
         model: this.params.model,
-        snapshot: state,
+        snapshot: this.params.state,
       })
     }
     for (const output of terminalOutputs) {
@@ -2726,47 +2714,6 @@ class TextEngine<
       this.middlewareCtx.chunkIndex++
     }
     return true
-  }
-
-  private buildInterruptContinuationState(
-    requests: ReadonlyArray<
-      GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
-    >,
-    batchOffset: number,
-    interruptIds: ReadonlyArray<string>,
-  ): Record<string, unknown> | undefined {
-    if (requests.length === 0) return undefined
-    return {
-      v: 1,
-      interrupts: requests.map((request, index) => {
-        const batchIndex = batchOffset + index
-        const id = interruptIds[index]
-        if (!id) throw new Error('Generic interrupt id is unavailable.')
-        const emission = createInterruptBinding(request, { batchIndex })
-        const descriptor = emission.descriptor
-        const requestInput = getInterruptRequestInput(request)
-        return {
-          id,
-          definitionId: descriptor.definitionId,
-          key: descriptor.key,
-          batchIndex,
-          reason: request.reason,
-          message: request.message,
-          ...(request.expiresAt !== undefined
-            ? { expiresAt: request.expiresAt }
-            : {}),
-          ...(descriptor.responseSchemaHash !== undefined
-            ? { responseSchemaHash: descriptor.responseSchemaHash }
-            : {}),
-          ...(descriptor.payloadSchemaHash
-            ? { payloadSchemaHash: descriptor.payloadSchemaHash }
-            : {}),
-          ...(Object.prototype.hasOwnProperty.call(requestInput, 'payload')
-            ? { payload: requestInput.payload }
-            : {}),
-        }
-      }),
-    }
   }
 
   private async *emitBoundaryInterrupts(
@@ -4063,21 +4010,6 @@ class TextEngine<
         },
       ])
     }
-    const state = this.params.state
-    if (!state || typeof state !== 'object' || Array.isArray(state)) return []
-    const handoff = (state as Record<string, unknown>)[
-      'tanstack:interruptContinuation'
-    ]
-    if (handoff === undefined) return []
-    if (!handoff || typeof handoff !== 'object' || Array.isArray(handoff)) {
-      return fail('Generic interrupt continuation state is invalid.')
-    }
-    const record = handoff as Record<string, unknown>
-    if (record.v !== 1 || !Array.isArray(record.interrupts)) {
-      return fail(
-        'Generic interrupt continuation state has an unsupported version.',
-      )
-    }
     const pending: Array<{
       interruptId: string
       payload: unknown
@@ -4088,41 +4020,26 @@ class TextEngine<
     }> = []
     const ids = new Set<string>()
     const batchIndexes = new Set<number>()
-    for (const item of record.interrupts) {
-      if (!item || typeof item !== 'object' || Array.isArray(item)) {
-        return fail('Generic interrupt continuation contains an invalid entry.')
+    for (const resumeItem of this.params.resume ?? []) {
+      const parsed = readGenericInterruptContinuation(resumeItem.metadata)
+      if (parsed.status === 'absent') continue
+      if (parsed.status === 'invalid') {
+        return fail(parsed.message)
       }
-      const entry = item as Record<string, unknown>
-      if (
-        typeof entry.id !== 'string' ||
-        typeof entry.definitionId !== 'string' ||
-        typeof entry.key !== 'string' ||
-        typeof entry.reason !== 'string' ||
-        typeof entry.message !== 'string' ||
-        typeof entry.batchIndex !== 'number' ||
-        !Number.isInteger(entry.batchIndex) ||
-        entry.batchIndex < 0 ||
-        (entry.responseSchemaHash !== undefined &&
-          typeof entry.responseSchemaHash !== 'string') ||
-        (entry.expiresAt !== undefined &&
-          typeof entry.expiresAt !== 'string') ||
-        (entry.payloadSchemaHash !== undefined &&
-          typeof entry.payloadSchemaHash !== 'string')
-      ) {
-        return fail('Generic interrupt continuation contains invalid fields.')
-      }
+      const entry = parsed.value
+      const id = resumeItem.interruptId
       const definition = this.interruptDefinitions.get(entry.definitionId)
       if (!definition) {
         return fail(
           `Generic interrupt definition ${entry.definitionId} is unavailable.`,
         )
       }
-      if (ids.has(entry.id) || batchIndexes.has(entry.batchIndex)) {
+      if (ids.has(id) || batchIndexes.has(entry.batchIndex)) {
         return fail(
           'Generic interrupt continuation contains duplicate entries.',
         )
       }
-      ids.add(entry.id)
+      ids.add(id)
       batchIndexes.add(entry.batchIndex)
       let request: GenericInterruptRequest<
         InterruptDefinition<any, any, any, any>
@@ -4143,7 +4060,7 @@ class TextEngine<
         ])
       } catch (error) {
         return fail(
-          `Generic interrupt continuation ${entry.id} is invalid: ${
+          `Generic interrupt continuation ${id} is invalid: ${
             error instanceof Error ? error.message : String(error)
           }`,
         )
@@ -4156,13 +4073,13 @@ class TextEngine<
         entry.payloadSchemaHash !== emitted.descriptor.payloadSchemaHash
       ) {
         return fail(
-          `Generic interrupt continuation ${entry.id} does not match its definition.`,
+          `Generic interrupt continuation ${id} does not match its definition.`,
         )
       }
       pending.push({
-        interruptId: entry.id,
+        interruptId: id,
         payload: {
-          id: entry.id,
+          id,
           ...(emitted.descriptor.responseSchemaCanonicalJson !== undefined
             ? {
                 responseSchema: JSON.parse(
@@ -4174,7 +4091,7 @@ class TextEngine<
         binding: {
           v: INTERRUPT_BINDING_VERSION,
           kind: 'generic',
-          interruptId: entry.id,
+          interruptId: id,
           interruptedRunId,
           generation: 0,
           definitionId: entry.definitionId,
