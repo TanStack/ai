@@ -176,6 +176,7 @@ Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its nat
 import { chat } from "@tanstack/ai"
 import { claudeCodeText } from "@tanstack/ai-claude-code"
 import { defineSandbox, withSandbox } from "@tanstack/ai-sandbox"
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker"
 import { z } from "zod"
 
 const Report = z.object({
@@ -183,11 +184,16 @@ const Report = z.object({
   filesChanged: z.array(z.string()),
 })
 
+const sandbox = defineSandbox({
+  id: "repo-report",
+  provider: dockerSandbox({ image: "node:22" }),
+})
+
 const report = await chat({
   adapter: claudeCodeText("claude-opus-4-8"),
   messages: [{ role: "user", content: "Review this repo." }],
   outputSchema: Report,
-  middleware: [withSandbox(defineSandbox({ /* provider */ }))],
+  middleware: [withSandbox(sandbox)],
 })
 
 report.summary

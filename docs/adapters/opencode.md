@@ -181,6 +181,7 @@ Pass `outputSchema` on `chat()`. OpenCode has no native schema flag. The adapter
 import { chat } from "@tanstack/ai"
 import { opencodeText } from "@tanstack/ai-opencode"
 import { defineSandbox, withSandbox } from "@tanstack/ai-sandbox"
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker"
 import { z } from "zod"
 
 const Report = z.object({
@@ -188,11 +189,16 @@ const Report = z.object({
   filesChanged: z.array(z.string()),
 })
 
+const sandbox = defineSandbox({
+  id: "repo-report",
+  provider: dockerSandbox({ image: "node:22" }),
+})
+
 const report = await chat({
   adapter: opencodeText("anthropic/claude-opus-4-5"),
   messages: [{ role: "user", content: "Review this repo." }],
   outputSchema: Report,
-  middleware: [withSandbox(defineSandbox({ /* provider */ }))],
+  middleware: [withSandbox(sandbox)],
 })
 
 report.summary
