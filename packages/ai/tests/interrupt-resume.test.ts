@@ -342,13 +342,13 @@ describe('validateInterruptResumeBatch', () => {
     })
     expect(result.errors).toEqual([])
     expect(result.resumeToolState).toBeDefined()
-    expect(
-      result.resumeToolState?.genericInterrupts?.get('generic-1'),
-    ).toEqual({
-      interruptId: 'generic-1',
-      status: 'resolved',
-      payload: { approved: true, note: 'ok' },
-    })
+    expect(result.resumeToolState?.genericInterrupts?.get('generic-1')).toEqual(
+      {
+        interruptId: 'generic-1',
+        status: 'resolved',
+        payload: { approved: true, note: 'ok' },
+      },
+    )
     expect(result.resumeToolState?.clientToolResults?.size).toBe(0)
   })
 
