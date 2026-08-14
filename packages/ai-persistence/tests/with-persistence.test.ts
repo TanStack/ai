@@ -79,13 +79,6 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   return out
 }
 
-async function expectCollectRejects(
-  stream: AsyncIterable<StreamChunk>,
-  pattern: RegExp,
-) {
-  await expect(collect(stream)).rejects.toThrow(pattern)
-}
-
 function serverSearchTool(): Tool {
   return {
     name: 'search',
