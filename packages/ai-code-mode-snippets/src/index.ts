@@ -25,7 +25,10 @@ export { snippetsToTools, snippetToTool } from './snippets-to-tools'
 export type { SnippetToToolOptions } from './snippets-to-tools'
 
 // Snippets to bindings (for sandbox injection - legacy)
-export { snippetsToBindings, snippetsToSimpleBindings } from './snippets-to-bindings'
+export {
+  snippetsToBindings,
+  snippetsToSimpleBindings,
+} from './snippets-to-bindings'
 
 // Snippet management tools
 export { createSnippetManagementTools } from './create-snippet-management-tools'

@@ -336,12 +336,12 @@ The `onCustomEvent` callback signature is identical across all framework integra
 
 Snippet-specific events (when using `codeModeWithSnippets`):
 
-| Event                    | When               | Key fields                    |
-| ------------------------ | ------------------ | ----------------------------- |
+| Event                      | When                 | Key fields                      |
+| -------------------------- | -------------------- | ------------------------------- |
 | `code_mode:snippet_call`   | Snippet tool invoked | `snippet`, `input`, `timestamp` |
 | `code_mode:snippet_result` | Snippet completed    | `snippet`, `result`, `duration` |
 | `code_mode:snippet_error`  | Snippet failed       | `snippet`, `error`, `duration`  |
-| `snippet:registered`       | New snippet saved    | `id`, `name`, `description`   |
+| `snippet:registered`       | New snippet saved    | `id`, `name`, `description`     |
 
 ### 4. Lazy Tools
 

@@ -301,7 +301,9 @@ export function snippetsToTools({
   storage,
   timeout = 30000,
   memoryLimit = 128,
-}: SnippetsToToolsOptions): Array<ServerTool<SchemaInput, SchemaInput, string>> {
+}: SnippetsToToolsOptions): Array<
+  ServerTool<SchemaInput, SchemaInput, string>
+> {
   // Pre-compute bindings from tools (these are shared across all snippet executions)
   console.log(
     '[SnippetsToTools] Creating bindings from tools:',

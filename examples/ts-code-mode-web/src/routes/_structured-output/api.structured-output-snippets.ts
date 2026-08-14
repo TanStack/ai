@@ -62,7 +62,9 @@ export const Route = createFileRoute(
           if (deleteAll) {
             const snippetIndex = await snippetStorage.loadIndex()
             await Promise.all(
-              snippetIndex.map((snippet) => snippetStorage.delete(snippet.name)),
+              snippetIndex.map((snippet) =>
+                snippetStorage.delete(snippet.name),
+              ),
             )
             return new Response(
               JSON.stringify({ success: true, deleted: snippetIndex.length }),

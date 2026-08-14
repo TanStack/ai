@@ -221,7 +221,9 @@ export function createCodeModeTool(
         }
 
         // Step 2: Get dynamic snippet bindings if available
-        const snippetBindings = getSnippetBindings ? await getSnippetBindings() : {}
+        const snippetBindings = getSnippetBindings
+          ? await getSnippetBindings()
+          : {}
 
         // Scan dynamic bindings too — their schemas are equally in-scope for
         // the same exfiltration threat. Dedup cache prevents repeat warnings

@@ -480,7 +480,9 @@ program
   .action(async () => {
     console.log(`${colors.bright}${colors.cyan}`)
     console.log('╔═══════════════════════════════════════════════════════════╗')
-    console.log('║       TanStack AI Code Mode Snippets - Simulated Test       ║')
+    console.log(
+      '║       TanStack AI Code Mode Snippets - Simulated Test       ║',
+    )
     console.log('╚═══════════════════════════════════════════════════════════╝')
     console.log(colors.reset)
 
@@ -507,7 +509,9 @@ program
   .action(async () => {
     console.log(`${colors.bright}${colors.cyan}`)
     console.log('╔═══════════════════════════════════════════════════════════╗')
-    console.log('║       TanStack AI Code Mode Snippets - Registry Test        ║')
+    console.log(
+      '║       TanStack AI Code Mode Snippets - Registry Test        ║',
+    )
     console.log('╚═══════════════════════════════════════════════════════════╝')
     console.log(colors.reset)
 
@@ -541,7 +545,9 @@ program
   .action(async (options) => {
     console.log(`${colors.bright}${colors.cyan}`)
     console.log('╔═══════════════════════════════════════════════════════════╗')
-    console.log('║         TanStack AI Code Mode Snippets - Live Test          ║')
+    console.log(
+      '║         TanStack AI Code Mode Snippets - Live Test          ║',
+    )
     console.log('╚═══════════════════════════════════════════════════════════╝')
     console.log(colors.reset)
 

@@ -79,7 +79,9 @@ return result;
  */
 export async function runRegistryTest(): Promise<RegistryTestResult> {
   logSection('ToolRegistry Dynamic Registration Test')
-  logInfo('Testing that snippets registered mid-stream are immediately available')
+  logInfo(
+    'Testing that snippets registered mid-stream are immediately available',
+  )
 
   const storage = createTestStorage()
   const driver = createNodeIsolateDriver({
@@ -134,7 +136,9 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     const hasHas = typeof registry.has === 'function'
 
     if (!hasGetTools || !hasAdd || !hasHas) {
-      throw new Error('codeModeWithSnippets did not return a valid ToolRegistry')
+      throw new Error(
+        'codeModeWithSnippets did not return a valid ToolRegistry',
+      )
     }
 
     logSuccess('ToolRegistry returned from codeModeWithSnippets')
@@ -163,7 +167,10 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
     }
 
     const hasAllExpectedTools =
-      hasExecuteTypescript && hasSearchSnippets && hasGetSnippet && hasRegisterSnippet
+      hasExecuteTypescript &&
+      hasSearchSnippets &&
+      hasGetSnippet &&
+      hasRegisterSnippet
 
     // Verify NO snippet tools exist yet (since no snippets in storage)
     const snippetToolsBefore = toolNames.filter(
@@ -425,7 +432,10 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
 
     result.phases.verification = {
       success:
-        hasName && hasDescription && snippetToolCalled && snippetToolResultReceived,
+        hasName &&
+        hasDescription &&
+        snippetToolCalled &&
+        snippetToolResultReceived,
       details: {
         hasName,
         hasDescription,

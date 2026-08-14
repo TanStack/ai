@@ -130,7 +130,10 @@ export async function runSimulatedTest(): Promise<TestResult> {
   })
 
   try {
-    logStep(2, 'Running code mode with snippets (first run, no existing snippets)')
+    logStep(
+      2,
+      'Running code mode with snippets (first run, no existing snippets)',
+    )
 
     const messages1: Array<ModelMessage> = [
       {
@@ -201,7 +204,9 @@ export async function runSimulatedTest(): Promise<TestResult> {
 
     // Verify snippet was created
     const snippetIndex = await storage.loadIndex()
-    const snippetCreated = snippetIndex.some((s) => s.name === 'add_two_numbers')
+    const snippetCreated = snippetIndex.some(
+      (s) => s.name === 'add_two_numbers',
+    )
 
     if (snippetCreated) {
       result.snippetCreated = true
@@ -211,7 +216,8 @@ export async function runSimulatedTest(): Promise<TestResult> {
     }
 
     result.phases.phase1 = {
-      success: executeTypescriptCalled && registerSnippetCalled && snippetCreated,
+      success:
+        executeTypescriptCalled && registerSnippetCalled && snippetCreated,
       details: {
         toolCallCount: toolCallCount1,
         executeTypescriptCalled,

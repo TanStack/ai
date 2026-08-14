@@ -254,7 +254,11 @@ export const Route = createFileRoute('/_home/api/product-codemode')({
           if (withSnippets) {
             const { snippetTools, snippetsPrompt } =
               await getSnippetToolsAndPrompt(driver)
-            tools = [codeModeTool, ...getSnippetManagementTools(), ...snippetTools]
+            tools = [
+              codeModeTool,
+              ...getSnippetManagementTools(),
+              ...snippetTools,
+            ]
             systemPrompts = [
               PRODUCT_CODE_MODE_SYSTEM_PROMPT,
               codeModePrompt,

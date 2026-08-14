@@ -7,7 +7,10 @@ import {
 import { maxTokensModelOptions } from './max-tokens-model-options'
 import type { AnyTextAdapter, AnyTool, SchemaInput } from '@tanstack/ai'
 import type { CodeModeTool, IsolateDriver } from '@tanstack/ai-code-mode'
-import type { SnippetStorage, TrustStrategy } from '@tanstack/ai-code-mode-snippets'
+import type {
+  SnippetStorage,
+  TrustStrategy,
+} from '@tanstack/ai-code-mode-snippets'
 
 export interface StructuredOutputOptions<TSchema extends SchemaInput> {
   adapter: AnyTextAdapter

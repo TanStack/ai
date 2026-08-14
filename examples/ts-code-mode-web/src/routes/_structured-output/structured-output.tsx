@@ -125,7 +125,9 @@ function SnippetsDialog({
                 >
                   <button
                     className="w-full flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-800 transition-colors text-left"
-                    onClick={() => setExpandedId(isExpanded ? null : snippet.id)}
+                    onClick={() =>
+                      setExpandedId(isExpanded ? null : snippet.id)
+                    }
                   >
                     {isExpanded ? (
                       <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />

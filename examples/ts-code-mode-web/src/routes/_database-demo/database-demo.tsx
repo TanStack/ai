@@ -146,8 +146,8 @@ function SnippetsDialog({
               <Sparkles className="w-8 h-8 mx-auto mb-3 text-gray-600" />
               <p className="text-sm font-medium">No snippets registered yet</p>
               <p className="text-xs mt-1 text-gray-600">
-                Enable "With Snippets" and the AI will create reusable snippets as
-                it works.
+                Enable "With Snippets" and the AI will create reusable snippets
+                as it works.
               </p>
             </div>
           ) : (
@@ -160,7 +160,9 @@ function SnippetsDialog({
                 >
                   <button
                     className="w-full flex items-center gap-3 px-4 py-3 bg-gray-800/50 hover:bg-gray-800 transition-colors text-left"
-                    onClick={() => setExpandedId(isExpanded ? null : snippet.id)}
+                    onClick={() =>
+                      setExpandedId(isExpanded ? null : snippet.id)
+                    }
                   >
                     {isExpanded ? (
                       <ChevronDown className="w-4 h-4 text-gray-400 shrink-0" />

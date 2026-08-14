@@ -182,7 +182,11 @@ export function createFileSnippetStorage(
 
     const scored = index.map((snippet) => {
       let score = 0
-      const searchText = [snippet.name, snippet.description, ...snippet.usageHints]
+      const searchText = [
+        snippet.name,
+        snippet.description,
+        ...snippet.usageHints,
+      ]
         .join(' ')
         .toLowerCase()
 

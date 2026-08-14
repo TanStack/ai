@@ -160,7 +160,9 @@ Please complete all three steps: execute the code, register the snippet, and tel
 
     // Verify snippet was created
     const snippetIndex = await storage.loadIndex()
-    const snippetCreated = snippetIndex.some((s) => s.name === 'add_two_numbers')
+    const snippetCreated = snippetIndex.some(
+      (s) => s.name === 'add_two_numbers',
+    )
 
     if (snippetCreated) {
       result.snippetCreated = true

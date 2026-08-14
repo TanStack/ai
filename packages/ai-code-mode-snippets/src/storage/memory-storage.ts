@@ -61,7 +61,9 @@ export function createMemorySnippetStorage(
     return Promise.resolve(snippets.get(name) ?? null)
   }
 
-  function save(snippet: Omit<Snippet, 'createdAt' | 'updatedAt'>): Promise<Snippet> {
+  function save(
+    snippet: Omit<Snippet, 'createdAt' | 'updatedAt'>,
+  ): Promise<Snippet> {
     const now = new Date().toISOString()
     const existing = snippets.get(snippet.name)
 
@@ -95,7 +97,11 @@ export function createMemorySnippetStorage(
 
     const scored = Array.from(snippets.values()).map((snippet) => {
       let score = 0
-      const searchText = [snippet.name, snippet.description, ...snippet.usageHints]
+      const searchText = [
+        snippet.name,
+        snippet.description,
+        ...snippet.usageHints,
+      ]
         .join(' ')
         .toLowerCase()
 
