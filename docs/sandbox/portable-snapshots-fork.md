@@ -100,8 +100,8 @@ saved files from the source thread. The agent installs dependencies if
 `node_modules` is missing, then starts a preview. Each pane shows its own
 preview URL. You keep one branch. The source thread stays unchanged.
 
-See [App Studio](../../examples/ts-react-chat/README.md#app-studio)
-in the example README. The page path is `/app-studio`.
+See the App Studio section in `examples/ts-react-chat/README.md`.
+The page path is `/app-studio`.
 
 If you use SQLite, put the fork in one transaction. That transaction must copy
 the source conversation and reject a destination thread that is not empty. See
