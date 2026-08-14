@@ -95,9 +95,10 @@ compare two directions.
 4. Build an app. Then use **Fork chat** or **Compare two directions**.
 
 When you select **Compare two directions** and submit, the page calls
-`/api/app-studio-fork` with `count: 2`. Each fork gets the same product request
-and a different visual prompt. You keep one branch. The source thread stays
-unchanged.
+`/api/app-studio-fork` with `count: 2`. Each fork gets a new sandbox and the
+saved files from the source thread. The agent installs dependencies if
+`node_modules` is missing, then starts a preview. Each pane shows its own
+preview URL. You keep one branch. The source thread stays unchanged.
 
 See [App Studio](../../examples/ts-react-chat/README.md#app-studio)
 in the example README. The page path is `/app-studio`.

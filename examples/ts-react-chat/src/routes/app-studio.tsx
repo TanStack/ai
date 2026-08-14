@@ -15,9 +15,13 @@ import {
   variantPrompt,
 } from '../lib/app-studio-helpers'
 import type { UIMessage } from '@tanstack/ai-react'
+import './app-studio.css'
 
 export const Route = createFileRoute('/app-studio')({
   component: AppStudioPage,
+  head: () => ({
+    meta: [{ title: 'App Studio | TanStack AI' }],
+  }),
 })
 
 const connection = fetchServerSentEvents('/api/app-studio')
@@ -117,9 +121,10 @@ function ThreadNav({
             >
               <button
                 type="button"
-                className={`rounded-lg px-3 py-2 text-left text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300 ${
-                  horizontal ? '' : 'w-full'
-                } ${isActive ? 'bg-cyan-800' : 'hover:bg-gray-800'}`}
+                className={`app-studio-thread ${
+                  horizontal ? 'app-studio-thread-horizontal' : ''
+                } ${isActive ? 'app-studio-thread-active' : ''}`}
+                aria-current={isActive ? 'page' : undefined}
                 onClick={() => onSelect(thread.id)}
               >
                 {thread.title}
@@ -136,9 +141,14 @@ function collectPreviewUrls(messages: Array<UIMessage>): Set<string> {
   const urls = new Set<string>()
   for (const message of messages) {
     for (const part of message.parts) {
-      if (part.type !== 'tool-call' || part.name !== 'exposePreview') continue
-      const url = previewUrlFrom(part.output)
-      if (url) urls.add(url)
+      if (part.type === 'tool-call' && part.name === 'exposePreview') {
+        const url = previewUrlFrom(part.output)
+        if (url) urls.add(url)
+      }
+      if (part.type === 'text' && part.content) {
+        const url = previewUrlFromText(part.content)
+        if (url) urls.add(url)
+      }
     }
   }
   return urls
@@ -340,7 +350,7 @@ function AppStudioPage() {
 
   if (!hydrated || !activeId) {
     return (
-      <div className="flex h-[calc(100vh-4.5rem)] items-center justify-center bg-gray-950 text-sm text-gray-400">
+      <div className="app-studio flex h-[calc(100vh-4.5rem)] items-center justify-center text-sm">
         <p role="status">Loading chats.</p>
       </div>
     )
@@ -353,11 +363,23 @@ function AppStudioPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-4.5rem)] bg-gray-950 text-gray-100">
-      <aside className="hidden lg:flex w-64 shrink-0 border-r border-gray-800 p-3 flex-col gap-2">
+    <div className="app-studio flex h-[calc(100vh-4.5rem)]">
+      <aside className="hidden lg:flex w-64 shrink-0 border-r app-studio-rule p-3 flex-col gap-3">
+        <div className="flex items-center gap-3 px-1 pt-1">
+          <img
+            src="/brand/logos/tanstack-emblem-cream.svg"
+            alt=""
+            width={28}
+            height={36}
+          />
+          <div>
+            <p className="app-studio-kicker">TanStack AI</p>
+            <p className="app-studio-brand">App Studio</p>
+          </div>
+        </div>
         <button
           type="button"
-          className="rounded-lg bg-cyan-700 px-3 py-2 text-sm font-medium hover:bg-cyan-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+          className="app-studio-btn-primary justify-center"
           onClick={createRoot}
         >
           Start new app
@@ -371,10 +393,10 @@ function AppStudioPage() {
       </aside>
 
       <main className="flex-1 min-w-0 flex flex-col">
-        <div className="lg:hidden border-b border-gray-800 p-2 flex items-center gap-2 overflow-x-auto">
+        <div className="lg:hidden border-b app-studio-rule p-2 flex items-center gap-2 overflow-x-auto">
           <button
             type="button"
-            className="shrink-0 rounded-lg bg-cyan-700 px-3 py-2 text-sm font-medium hover:bg-cyan-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+            className="app-studio-btn-primary shrink-0"
             onClick={createRoot}
           >
             Start new app
@@ -387,9 +409,10 @@ function AppStudioPage() {
             horizontal
           />
         </div>
-        <header className="border-b border-gray-800 px-4 py-3">
-          <h1 className="text-lg font-semibold">App Studio</h1>
-          <p className="text-sm text-gray-400">
+        <header className="border-b app-studio-rule px-4 py-3">
+          <p className="app-studio-kicker">TanStack AI</p>
+          <h1 className="app-studio-title">App Studio</h1>
+          <p className="app-studio-lede mt-1">
             Describe an app. The agent builds it in a sandbox and shows a
             preview. Fork the chat to continue, or compare two directions and
             keep one. Needs Docker and <code>XAI_API_KEY</code>.
@@ -397,10 +420,7 @@ function AppStudioPage() {
         </header>
 
         {error ? (
-          <p
-            role="alert"
-            className="mx-4 mt-3 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200"
-          >
+          <p role="alert" className="app-studio-alert mx-4 mt-3">
             {error}
           </p>
         ) : null}
@@ -516,29 +536,26 @@ function StudioPane({
     <>
       <div className="flex-1 min-h-0 grid grid-cols-1 lg:grid-cols-2">
         <MessageList messages={messages} isLoading={isLoading} />
-        <PreviewFrame url={preview} />
+        <PreviewFrame url={preview} title="App preview" />
       </div>
       <form
-        className="border-t border-gray-800 p-3 flex flex-col gap-2"
+        className="border-t app-studio-rule p-3 flex flex-col gap-2"
         onSubmit={(event) => {
           event.preventDefault()
           void send()
         }}
       >
-        <label htmlFor="studio-prompt" className="text-sm text-gray-300">
+        <label htmlFor="studio-prompt" className="text-sm">
           {wantCompare ? 'Change to compare' : 'What to build'}
         </label>
         {chatError ? (
-          <p
-            role="alert"
-            className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200"
-          >
+          <p role="alert" className="app-studio-alert">
             {chatError.message}
           </p>
         ) : null}
         <textarea
           id="studio-prompt"
-          className="w-full rounded-lg bg-gray-900 border border-gray-700 px-3 py-2 text-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+          className="app-studio-input"
           rows={3}
           value={input}
           onChange={(event) => setInput(event.target.value)}
@@ -549,7 +566,7 @@ function StudioPane({
           }
         />
         <div className="flex flex-wrap items-center gap-3">
-          <label className="flex items-center gap-2 text-sm text-gray-300">
+          <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
               checked={wantCompare}
@@ -560,7 +577,7 @@ function StudioPane({
           </label>
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-lg border border-gray-600 px-3 py-1.5 text-sm hover:bg-gray-800 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+            className="app-studio-btn-secondary"
             onClick={() => void onFork([...collectPreviewUrls(messages)])}
             disabled={!hasBuiltApp || busy || isLoading}
           >
@@ -569,7 +586,7 @@ function StudioPane({
           </button>
           <button
             type="submit"
-            className="inline-flex items-center gap-1 rounded-lg bg-cyan-700 px-3 py-1.5 text-sm font-medium hover:bg-cyan-600 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-300"
+            className="app-studio-btn-primary"
             disabled={
               busy || isLoading || (!wantCompare && input.trim() === '')
             }
@@ -579,7 +596,7 @@ function StudioPane({
           </button>
         </div>
         {!hasBuiltApp ? (
-          <p className="text-xs text-gray-500">
+          <p className="app-studio-hint">
             Build the app first. Then you can fork the chat or compare two
             directions.
           </p>
@@ -637,12 +654,12 @@ function ComparePane({
   }, [expected, messages, sendMessage, waitedForHydrate])
 
   return (
-    <div className="min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l border-gray-800 first:border-l-0">
-      <div className="flex items-center justify-between border-b border-gray-800 px-3 py-2">
+    <div className="min-h-0 flex flex-col border-t lg:border-t-0 lg:border-l app-studio-rule first:border-l-0">
+      <div className="flex items-center justify-between border-b app-studio-rule px-3 py-2">
         <h2 className="text-sm font-medium">Variant {label}</h2>
         <button
           type="button"
-          className="rounded-lg bg-emerald-700 px-3 py-1.5 text-sm font-medium hover:bg-emerald-600 disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+          className="app-studio-btn-primary"
           onClick={onKeep}
           disabled={isLoading}
         >
@@ -650,16 +667,13 @@ function ComparePane({
         </button>
       </div>
       {chatError ? (
-        <p
-          role="alert"
-          className="mx-3 mt-2 rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-2 text-sm text-red-200"
-        >
+        <p role="alert" className="app-studio-alert mx-3 mt-2">
           {chatError.message}
         </p>
       ) : null}
-      <div className="flex-1 min-h-0 grid grid-rows-2">
+      <div className="flex-1 min-h-0 grid grid-rows-[minmax(7rem,28%)_minmax(0,1fr)]">
         <MessageList messages={messages} isLoading={isLoading} />
-        <PreviewFrame url={preview} />
+        <PreviewFrame url={preview} title={`Variant ${label} preview`} />
       </div>
     </div>
   )
@@ -681,9 +695,7 @@ function MessageList({
     <div ref={setNode} className="overflow-y-auto p-3 text-sm space-y-3">
       {messages.map((message) => (
         <div key={message.id} className="space-y-2">
-          <div className="text-xs uppercase tracking-wide text-gray-500">
-            {message.role}
-          </div>
+          <div className="app-studio-role">{message.role}</div>
           {message.parts.map((part, index) => {
             const key = `${message.id}-${index}`
             if (part.type === 'text' && part.content) {
@@ -700,10 +712,7 @@ function MessageList({
             }
             if (part.type === 'tool-call') {
               return (
-                <div
-                  key={key}
-                  className="rounded-md bg-gray-900 px-2 py-1 font-mono text-xs text-gray-400"
-                >
+                <div key={key} className="app-studio-tool">
                   {part.name}
                 </div>
               )
@@ -713,7 +722,7 @@ function MessageList({
         </div>
       ))}
       {isLoading ? (
-        <p role="status" className="text-cyan-300">
+        <p role="status" className="app-studio-status">
           The agent is working in the sandbox.
         </p>
       ) : null}
@@ -721,20 +730,20 @@ function MessageList({
   )
 }
 
-function PreviewFrame({ url }: { url: string | null }) {
+function PreviewFrame({ url, title }: { url: string | null; title: string }) {
   if (!url) {
     return (
-      <div className="border-t border-gray-800 bg-gray-900/50 p-4 text-sm text-gray-500">
+      <div className="app-studio-preview-empty">
         Preview appears here after the app is running.
       </div>
     )
   }
   return (
     <iframe
-      title="App preview"
+      title={title}
       src={url}
       sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
-      className="h-full min-h-48 w-full border-t border-gray-800 bg-white"
+      className="app-studio-preview"
     />
   )
 }
