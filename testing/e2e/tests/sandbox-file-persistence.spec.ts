@@ -43,6 +43,7 @@ test.describe('sandbox portable file snapshots', () => {
         { content: 'recover', role: 'user' },
         {
           content: 'automatic conversation',
+          createdAt: expect.any(String),
           id: 'automatic-message',
           role: 'assistant',
         },
