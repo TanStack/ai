@@ -1067,9 +1067,11 @@ export class InterruptManager<
     transaction?: TransactionToken,
   ): BoundInterrupts<TTools, TInterrupts> {
     const hydration = this.requireHydration()
-    // `client-tool-execution` items stay in `this.items` (they gate batch
-    // submission and are resolved internally via auto-execution / addToolResult),
-    // but they are never surfaced as public bound interrupts.
+    // `client-tool-execution` items stay in `this.items` (they usually gate
+    // batch submission and are resolved internally via auto-execution /
+    // addToolResult), but they are never surfaced as public bound interrupts.
+    // A mixed generic batch is the exception: those client tools wait for
+    // `toolResume` and must not block submit.
     //
     // Items with status `submitting` are also omitted: the resume stream is
     // already in flight, so Approve/Deny is not actionable. Keeping them in
@@ -1277,7 +1279,12 @@ export class InterruptManager<
     // owns them. Including them in the completeness gate would deadlock the
     // batch, so the run's own interrupts could never be answered once a
     // foreign one shared the stream.
-    const ours = this.items.filter(isClientOwnedInterrupt)
+    const hasGeneric = this.items.some((item) => item.kind === 'generic')
+    const ours = this.items.filter(
+      (item) =>
+        isClientOwnedInterrupt(item) &&
+        !(hasGeneric && item.kind === 'client-tool-execution'),
+    )
     if (
       ours.length === 0 ||
       ours.some(
@@ -1561,7 +1568,7 @@ export class InterruptManager<
             // `client-tool-execution` items are resolved out-of-band (auto
             // execution / addToolResult), not by this synchronous resolver, so
             // they don't count against transaction completeness. `maybeSubmit`
-            // still gates the actual submission on them being resolved.
+            // still waits for them unless a generic interrupt shares the batch.
             isClientOwnedInterrupt(item) &&
             item.kind !== 'client-tool-execution' &&
             (item.resolution === undefined || item.status !== 'staged'),

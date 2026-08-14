@@ -141,6 +141,10 @@ paused turn:
 When more than one middleware returns a value, the engine keeps the stricter
 one. `stop` wins over `cancel`. `cancel` wins over `continue`.
 
+If a generic interrupt shares a batch with client tools, the client does not
+run those client tools until `toolResume` is `continue`. `cancel` and `stop`
+skip them. After `continue`, the engine emits the client-tool wait again.
+
 After a `continue`, the engine picks up from the phase that paused:
 
 | First run paused at | Next step |

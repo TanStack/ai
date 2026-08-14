@@ -300,12 +300,24 @@ export async function validateInterruptResumeBatch(
     }
   }
 
+  const pendingGenerics = input.pending.filter(
+    (record) => record.binding.kind === 'generic',
+  )
+  const genericBatchSatisfied =
+    pendingGenerics.length > 0 &&
+    pendingGenerics.every((record) => resumeById.has(record.interruptId))
+
   let incomplete = false
   for (const record of input.pending) {
     const errors = group(record.interruptId)
     const entry = resumeById.get(record.interruptId)
     const binding = record.binding
     if (!entry) {
+      // Client tools that share a generic interrupt batch wait for
+      // `toolResume`. `continue` re-emits them; `cancel` / `stop` skip them.
+      if (genericBatchSatisfied && binding.kind === 'client-tool-execution') {
+        continue
+      }
       incomplete = true
       errors.push(
         interruptItemError(

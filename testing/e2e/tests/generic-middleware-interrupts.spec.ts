@@ -21,9 +21,56 @@ async function startScenario(
   scenario: string,
 ) {
   await page.goto(middlewareUrl(testId, aimockPort, scenario))
-  await expect(page.locator('#mw-run-button')).toBeEnabled()
-  await page.locator('#mw-run-button').click()
-  await expect(page.getByTestId('generic-review-plan')).toBeVisible()
+  await page.waitForSelector('#mw-run-button')
+  await page.waitForFunction(
+    () =>
+      document
+        .getElementById('mw-metadata')
+        ?.getAttribute('data-is-loading') === 'false',
+  )
+  // Let React attach delegated handlers before interaction.
+  await page.waitForTimeout(300)
+
+  const readCount = () =>
+    page.evaluate(() =>
+      parseInt(
+        document
+          .getElementById('mw-metadata')
+          ?.getAttribute('data-message-count') || '0',
+        10,
+      ),
+    )
+
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const baseline = await readCount()
+    await page.locator('#mw-run-button').click()
+    const started = await page
+      .waitForFunction(
+        (base) => {
+          const meta = document.getElementById('mw-metadata')
+          if (meta?.getAttribute('data-is-loading') === 'true') return true
+          if (
+            parseInt(meta?.getAttribute('data-interrupt-count') || '0', 10) > 0
+          )
+            return true
+          if (
+            parseInt(meta?.getAttribute('data-message-count') || '0', 10) > base
+          )
+            return true
+          return false
+        },
+        baseline,
+        { timeout: 2000 },
+      )
+      .then(() => true)
+      .catch(() => false)
+    if (started) {
+      await expect(page.getByTestId('generic-review-plan')).toBeVisible()
+      return
+    }
+  }
+
+  throw new Error('Run test button did not start a chat run')
 }
 
 async function resolveReview(page: Page) {

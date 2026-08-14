@@ -6,6 +6,7 @@ import {
   localStoragePersistence,
 } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
+import { parseAimockPort } from '@/lib/devtools-test'
 import {
   deleteReviewTool,
   renderReviewTool,
@@ -73,13 +74,9 @@ function toPhaseCapture(raw: unknown): PhaseCaptureSnapshot {
 export const Route = createFileRoute('/middleware-test')({
   component: MiddlewareTestPage,
   validateSearch: (search: Record<string, unknown>) => {
-    const port =
-      typeof search.aimockPort === 'string'
-        ? parseInt(search.aimockPort, 10)
-        : undefined
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
-      aimockPort: port != null && !isNaN(port) ? port : undefined,
+      aimockPort: parseAimockPort(search.aimockPort),
       // `provider` / `model` are forwarded to the server route so the
       // structured-output × middleware spec can exercise both the
       // native-combined-mode path (modern openai / claude 4.5+) and the

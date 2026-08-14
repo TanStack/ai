@@ -588,7 +588,10 @@ describe('InterruptManager hydration', () => {
       key: 'generic-before-model-review',
       reason: 'review_required',
       message: 'Review the plan at beforeModel',
-      payload: { title: 'Middleware review plan', boundary: 'beforeModel' },
+      payload: {
+        title: 'Middleware review plan',
+        boundary: 'beforeModel' as const,
+      },
     })
     const emission = createInterruptBinding(request, { batchIndex: 0 })
     const interruptId = 'interrupt-1'

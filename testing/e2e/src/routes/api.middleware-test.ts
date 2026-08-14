@@ -181,12 +181,18 @@ async function* teeForPhaseCapture(
   source: AsyncIterable<StreamChunk>,
   captureId: string,
 ): AsyncIterable<StreamChunk> {
+  let currentRunId: string | undefined
   for await (const chunk of source) {
+    if (chunk.type === 'RUN_STARTED' && typeof chunk.runId === 'string') {
+      currentRunId = chunk.runId
+    }
+    const runId =
+      'runId' in chunk && typeof chunk.runId === 'string'
+        ? chunk.runId
+        : currentRunId
     recordYieldedChunk(captureId, {
       type: chunk.type,
-      ...('runId' in chunk && typeof chunk.runId === 'string'
-        ? { runId: chunk.runId }
-        : {}),
+      ...(runId !== undefined ? { runId } : {}),
       ...(chunk.type === 'RUN_FINISHED' && chunk.outcome
         ? { outcomeType: chunk.outcome.type }
         : {}),

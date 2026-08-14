@@ -3070,7 +3070,7 @@ class TextEngine<
   private createSyntheticFinishedEvent(): RunFinishedEvent {
     return {
       type: 'RUN_FINISHED',
-      runId: this.createId('pending'),
+      runId: this.runIdOverride ?? this.requestId,
       threadId: this.threadId,
       model: this.params.model,
       timestamp: Date.now(),
