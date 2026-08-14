@@ -116,7 +116,7 @@ export const Route = createFileRoute('/api/chat')({
 
 ## Using with Image Adapters
 
-The same pattern works for image generation:
+The same pattern works for image generation. Unlike the text and summarize adapters above, image adapters don't all accept the same shape of `size` — so it travels alongside its adapter in the provider map instead of being passed once for every branch:
 
 ```typescript
 import { generateImage } from '@tanstack/ai'
@@ -125,24 +125,27 @@ import { geminiImage } from '@tanstack/ai-gemini'
 
 type ImageProvider = 'openai' | 'gemini'
 
-const imageAdapters: Record<ImageProvider, () => ReturnType<typeof openaiImage | typeof geminiImage>> = {
-  openai: () => openaiImage('gpt-image-2'),
-  gemini: () => geminiImage('gemini-3.1-flash-image'),
+const imageAdapters = {
+  openai: () => ({ adapter: openaiImage('gpt-image-2'), size: '1024x1024' as const }),
+  gemini: () => ({ adapter: geminiImage('gemini-3.1-flash-image'), size: '16:9_4K' as const }),
 }
 
 export async function POST(request: Request) {
   const body = await request.json()
   const provider: ImageProvider = body.provider ?? 'openai'
+  const { adapter, size } = imageAdapters[provider]()
 
   const result = await generateImage({
-    adapter: imageAdapters[provider](),
+    adapter,
     prompt: 'A beautiful sunset over mountains',
-    size: '1024x1024',
+    size,
   })
 
   return Response.json(result)
 }
 ```
+
+`size` is provider-specific, which is why it can't be a single literal shared across branches: Gemini native image models take a `'<aspectRatio>_<tier>'` string (e.g. `'16:9_4K'`), while OpenAI and Imagen models take pixel dimensions (e.g. `'1024x1024'`).
 
 ## Using with Summarize Adapters
 
