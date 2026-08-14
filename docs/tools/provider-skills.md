@@ -19,7 +19,7 @@ loads on demand and runs inside the provider's server-side sandbox. You
 reference them by a skill ID; the provider handles installation and execution.
 
 > **Not to be confused with `@tanstack/ai-code-mode-snippets`**, whose snippets
-> are locally-generated TypeScript functions evaluated client-side. Provider
+> are TypeScript functions your application generates and runs in its own Code Mode sandbox (a local JS isolate). Provider
 > Skills run entirely on the provider's infrastructure.
 
 Skills are **inert without an execution tool**. The execution tool activates the

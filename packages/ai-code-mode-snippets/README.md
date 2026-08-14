@@ -148,7 +148,7 @@ Creates Code Mode tools and system prompt with snippets integration.
 
 **Returns:**
 
-- `registry` - Mutable `ToolRegistry` containing `execute_typescript`, snippet management tools, and selected snippet tools
+- `toolsRegistry` - Mutable `ToolRegistry` containing `execute_typescript`, snippet management tools, and selected snippet tools
 - `systemPrompt` - System prompt documenting available snippets and external functions
 - `selectedSnippets` - Snippets that were selected for this request
 
@@ -172,7 +172,7 @@ import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storag
 
 Git-friendly file-based storage:
 
-```
+```text
 .snippets/
 ├── compare_react_state_libraries/
 │   ├── meta.json      # Metadata, schemas, stats

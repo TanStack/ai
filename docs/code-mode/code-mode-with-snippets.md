@@ -33,7 +33,7 @@ Both paths share the same storage, trust, and execution primitives — they diff
 
 A request with snippets enabled goes through these stages:
 
-```
+```text
 ┌─────────────────────────────────────────────────────┐
 │ 1. Load snippet index (metadata only, no code)        │
 ├─────────────────────────────────────────────────────┤
@@ -228,7 +228,7 @@ const storage = createFileSnippetStorage({
 
 Creates a directory structure:
 
-```
+```text
 .snippets/
   _index.json              # Lightweight catalog for fast loading
   fetch_github_stats/

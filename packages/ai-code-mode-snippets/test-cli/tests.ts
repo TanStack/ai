@@ -122,7 +122,7 @@ export const TESTS: Array<TestDefinition> = [
     run: runRegistryWrapper,
   },
   {
-    id: 'SKL',
+    id: 'SNP',
     name: 'Snippets Live',
     description: 'Live test of snippet creation and direct snippet tool call',
     requiresAdapter: true,

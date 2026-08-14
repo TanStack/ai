@@ -455,7 +455,7 @@ program
   )
   .option(
     '--tests <ids>',
-    'Comma-separated list of test IDs (e.g., SIM,SKL,STR)',
+    'Comma-separated list of test IDs (e.g., SIM,SNP,STR)',
   )
   .option(
     '--parallel <n>',

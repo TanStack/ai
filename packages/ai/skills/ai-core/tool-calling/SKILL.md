@@ -623,7 +623,7 @@ export const Route = createFileRoute('/api/chat')({
 
 ## Provider Skills
 
-> **Not to be confused with `@tanstack/ai-code-mode-snippets`**, whose snippets are locally-generated TypeScript functions executed client-side. Provider Skills are hosted, provider-managed bundles that the model loads on demand and runs inside the provider's server-side sandbox.
+> **Not to be confused with `@tanstack/ai-code-mode-snippets`**, whose snippets are TypeScript functions your application generates and runs in its own Code Mode sandbox (a local JS isolate). Provider Skills are hosted, provider-managed bundles that the model loads on demand and runs inside the provider's server-side sandbox.
 
 Provider Skills are inert without an execution tool. The execution tool is what activates the sandbox; skills are additional capability bundles that run inside it:
 
