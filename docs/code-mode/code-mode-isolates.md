@@ -112,6 +112,8 @@ const driver = createQuickJSIsolateDriver({
 Set `wasmLocation` when the QuickJS WASM binary is hosted in a public directory or on a CDN:
 
 ```typescript
+import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
+
 const driver = createQuickJSIsolateDriver({
   wasmLocation: 'https://cdn.example.com/quickjs/emscripten-module.wasm',
 })
