@@ -730,6 +730,7 @@ class TextEngine<
   private totalChunkCount = 0
   private currentMessageId: string | null = null
   private currentMessageCreatedAt: Date | null = null
+  private streamIdentityCaptured = false
   private accumulatedContent = ''
   private accumulatedThinking: Array<{ content: string; signature?: string }> =
     []
@@ -1270,6 +1271,7 @@ class TextEngine<
   private async beginIteration(): Promise<void> {
     this.currentMessageId = this.createId('msg')
     this.currentMessageCreatedAt = new Date()
+    this.streamIdentityCaptured = false
     this.accumulatedContent = ''
     this.accumulatedThinking = []
     this.currentThinkingContent = ''
@@ -1457,6 +1459,11 @@ class TextEngine<
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (chunk.type) {
       // AG-UI Events
+      case 'TEXT_MESSAGE_START':
+        if (typeof chunk.messageId === 'string' && chunk.messageId !== '') {
+          this.captureStreamMessageIdentity(chunk.messageId)
+        }
+        break
       case 'TEXT_MESSAGE_CONTENT':
         this.handleTextMessageContentEvent(chunk)
         break
@@ -1495,8 +1502,7 @@ class TextEngine<
         break
 
       default:
-        // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_END,
-        // STATE_SNAPSHOT, STATE_DELTA, CUSTOM
+        // RUN_STARTED, TEXT_MESSAGE_END, STATE_SNAPSHOT, STATE_DELTA, CUSTOM
         // - no special handling needed in chat activity
         break
     }
@@ -1515,7 +1521,22 @@ class TextEngine<
     this.middlewareCtx.accumulatedContent = this.accumulatedContent
   }
 
+  private captureStreamMessageIdentity(messageId: string): void {
+    this.currentMessageId = messageId
+    this.middlewareCtx.currentMessageId = messageId
+    if (!this.streamIdentityCaptured) {
+      this.currentMessageCreatedAt = new Date()
+      this.streamIdentityCaptured = true
+    }
+  }
+
   private handleToolCallStartEvent(chunk: ToolCallStartEvent): void {
+    if (
+      typeof chunk.parentMessageId === 'string' &&
+      chunk.parentMessageId !== ''
+    ) {
+      this.captureStreamMessageIdentity(chunk.parentMessageId)
+    }
     this.toolCallManager.addToolCallStartEvent(chunk)
   }
 
