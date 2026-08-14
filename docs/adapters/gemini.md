@@ -414,7 +414,7 @@ The Gemini adapter supports two types of image generation:
 - **Gemini native image models** (NanoBanana) — Use the `generateContent` API with models like `gemini-3.1-flash-image-preview`. These support extended resolution tiers (1K, 2K, 4K) and aspect ratio control.
 - **Imagen models** — Use the `generateImages` API with models like `imagen-4.0-generate-001`. These are dedicated image generation models with WIDTHxHEIGHT sizing.
 
-The adapter automatically routes to the correct API based on the model name — models starting with `gemini-` use `generateContent`, while `imagen-` models use `generateImages`.
+The adapter automatically routes to the correct API based on membership in the known list of Gemini native models (`GEMINI_NATIVE_IMAGE_MODELS`) — the Gemini native models listed above use `generateContent`, while Imagen models, and any model id this package doesn't know about, use `generateImages`.
 
 ### Example: Gemini Native Image Generation (NanoBanana)
 
