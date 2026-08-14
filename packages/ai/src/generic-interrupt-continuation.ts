@@ -92,7 +92,9 @@ export function readGenericInterruptContinuation(
       batchIndex: raw.batchIndex,
       reason: raw.reason,
       message: raw.message,
-      ...(typeof raw.expiresAt === 'string' ? { expiresAt: raw.expiresAt } : {}),
+      ...(typeof raw.expiresAt === 'string'
+        ? { expiresAt: raw.expiresAt }
+        : {}),
       ...(typeof raw.responseSchemaHash === 'string'
         ? { responseSchemaHash: raw.responseSchemaHash }
         : {}),

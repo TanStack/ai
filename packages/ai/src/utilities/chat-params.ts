@@ -172,7 +172,10 @@ function validateContext(value: unknown, index: number): AGUIContext {
   }
 }
 
-function validateResumeEntry(value: unknown, index: number): RunAgentResumeItem {
+function validateResumeEntry(
+  value: unknown,
+  index: number,
+): RunAgentResumeItem {
   const at = `resume[${index}]`
   if (!isRecord(value)) invalidBody(`${at} must be an object`)
   const status = value.status
