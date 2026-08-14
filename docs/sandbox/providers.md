@@ -12,6 +12,10 @@ it are provider-agnostic. Pick a provider for the isolation, auth, and
 snapshot/resume behaviour you need; the rest of your sandbox definition stays the
 same.
 
+Provider-native snapshots and resume keep or recreate provider state. They can
+reduce bootstrap time. [Portable Sandbox Snapshots](./portable-snapshots) store
+completed workspace data in your application persistence for reconstruction.
+
 > The provider is _where_ the agent runs. For _which_ agent runs (Grok Build,
 > Claude Code, Codex, OpenCode, or any ACP agent via `acpCompatible`) see
 > [Harnesses](./harnesses).

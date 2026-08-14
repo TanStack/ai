@@ -10,7 +10,11 @@ import { join } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { runPersistenceConformance } from '@tanstack/ai-persistence/testkit'
-import { sqlitePersistence } from './sqlite-persistence'
+import {
+  runSandboxCheckpointForkConformance,
+  runSandboxCheckpointStoreConformance,
+} from '@tanstack/ai-sandbox/testkit'
+import { sqlitePersistence, sqliteSandboxSnapshots } from './sqlite-persistence'
 
 // All seven stores are provided — the four chat state stores plus
 // `generationRuns` + `artifacts` + `blobs` — so no STORE is skipped. One
@@ -28,6 +32,307 @@ runPersistenceConformance(
   () => sqlitePersistence({ url: ':memory:', migrate: true }),
   { skipMethods: ['runs.listByThread'] },
 )
+
+runSandboxCheckpointStoreConformance(
+  'ts-react-chat example (node:sqlite)',
+  (options) =>
+    sqliteSandboxSnapshots({
+      url: ':memory:',
+      migrate: true,
+      ...options,
+    }).checkpoints,
+)
+
+runSandboxCheckpointForkConformance(
+  'ts-react-chat example (node:sqlite)',
+  () => {
+    const snapshots = sqliteSandboxSnapshots({
+      url: ':memory:',
+      migrate: true,
+    })
+    return snapshots
+  },
+)
+
+describe('sqliteSandboxSnapshots fork transaction', () => {
+  it('uses one durable writer lease across two SQLite connections', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tanstack-sqlite-lease-'))
+    const file = join(dir, 'snapshots.db')
+    const first = sqliteSandboxSnapshots({ url: file, migrate: true })
+    const second = sqliteSandboxSnapshots({ url: file, migrate: true })
+    try {
+      const writer = await first.checkpoints.acquireWriter('thread')
+      await expect(
+        second.checkpoints.acquireWriter('thread'),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_WRITER_CONFLICT' })
+      await writer.release()
+      const replacement = await second.checkpoints.acquireWriter('thread')
+      await expect(
+        first.checkpoints.append({
+          checkpoint: {
+            id: 'stale',
+            threadId: 'thread',
+            parentCheckpointId: null,
+            createdAt: 1,
+            reason: 'named',
+            files: [],
+            conversation: [],
+            artifacts: [],
+          },
+          expectedHeadId: null,
+          writer,
+        }),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_WRITER_LOST' })
+      await replacement.release()
+    } finally {
+      first.close()
+      second.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it('deletes dependent rows and permits the checkpoint id to be reused', async () => {
+    const snapshots = sqliteSandboxSnapshots({ url: ':memory:', migrate: true })
+    const writer = await snapshots.checkpoints.acquireWriter('thread')
+    const checkpoint = {
+      id: 'reusable',
+      threadId: 'thread',
+      parentCheckpointId: null,
+      createdAt: 1,
+      reason: 'named' as const,
+      files: [
+        {
+          path: 'a.txt',
+          kind: 'file' as const,
+          blobKey: `sandbox-files/sha256/${'a'.repeat(64)}`,
+          size: 1,
+        },
+      ],
+      conversation: [{ role: 'user' as const, content: 'one' }],
+      artifacts: [],
+    }
+    try {
+      await snapshots.checkpoints.append({
+        checkpoint,
+        expectedHeadId: null,
+        writer,
+      })
+      await snapshots.checkpoints.deleteHead({
+        threadId: 'thread',
+        checkpointId: 'reusable',
+        writer,
+      })
+      await expect(
+        snapshots.checkpoints.append({
+          checkpoint,
+          expectedHeadId: null,
+          writer,
+        }),
+      ).resolves.toEqual({ headId: 'reusable' })
+    } finally {
+      snapshots.close()
+    }
+  })
+
+  it('rejects a fork whose source blob reference is missing', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tanstack-sqlite-ref-'))
+    const file = join(dir, 'snapshots.db')
+    const snapshots = sqliteSandboxSnapshots({ url: file, migrate: true })
+    try {
+      const key = `sandbox-files/sha256/${'b'.repeat(64)}`
+      const sourceWriter = await snapshots.checkpoints.acquireWriter('source')
+      await snapshots.checkpoints.append({
+        checkpoint: {
+          id: 'source',
+          threadId: 'source',
+          parentCheckpointId: null,
+          createdAt: 1,
+          reason: 'named',
+          files: [{ path: 'a.txt', kind: 'file', blobKey: key, size: 1 }],
+          conversation: [],
+          artifacts: [],
+        },
+        expectedHeadId: null,
+        writer: sourceWriter,
+      })
+      const inspector = new DatabaseSync(file)
+      inspector
+        .prepare(
+          'DELETE FROM sandbox_checkpoint_blob_references WHERE blob_key = ?',
+        )
+        .run(key)
+      inspector.close()
+      const writer = await snapshots.checkpoints.acquireWriter('destination')
+      await expect(
+        snapshots.checkpoints.forkFromCheckpoint({
+          sourceThreadId: 'source',
+          sourceCheckpointId: 'source',
+          destinationThreadId: 'destination',
+          destinationCheckpointId: 'destination',
+          createdAt: 2,
+          writer,
+        }),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_INVALID_ENTRY' })
+      expect(
+        await snapshots.persistence.stores.messages.loadThread('destination'),
+      ).toEqual([])
+      expect(await snapshots.checkpoints.getHead('destination')).toBeNull()
+    } finally {
+      snapshots.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
+  it.each([
+    {
+      path: 'file/child',
+      kind: 'file',
+      blobKey: `sandbox-files/sha256/${'c'.repeat(64)}`,
+      size: 1,
+    },
+    {
+      path: 'C:/absolute.txt',
+      kind: 'file',
+      blobKey: `sandbox-files/sha256/${'c'.repeat(64)}`,
+      size: 1,
+    },
+    {
+      path: 'bad',
+      kind: 'other',
+      blobKey: `sandbox-files/sha256/${'c'.repeat(64)}`,
+      size: 1,
+    },
+    { path: 'directory', kind: 'dir', blobKey: 'forbidden' },
+  ])('rejects invalid checkpoint entry $path', async (invalid) => {
+    const snapshots = sqliteSandboxSnapshots({ url: ':memory:', migrate: true })
+    try {
+      const writer = await snapshots.checkpoints.acquireWriter('thread')
+      const files =
+        invalid.path === 'file/child'
+          ? [
+              {
+                path: 'file',
+                kind: 'file' as const,
+                blobKey: `sandbox-files/sha256/${'d'.repeat(64)}`,
+                size: 1,
+              },
+              invalid,
+            ]
+          : [invalid]
+      const checkpoint = {
+        id: `invalid-${invalid.path}`,
+        threadId: 'thread',
+        parentCheckpointId: null,
+        createdAt: 1,
+        reason: 'named' as const,
+        files: [],
+        conversation: [],
+        artifacts: [],
+      }
+      Reflect.set(checkpoint, 'files', files)
+      await expect(
+        snapshots.checkpoints.append({
+          checkpoint,
+          expectedHeadId: null,
+          writer,
+        }),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_INVALID_ENTRY' })
+    } finally {
+      snapshots.close()
+    }
+  })
+
+  it.each([
+    ['files', null],
+    ['files', 'not-an-array'],
+    ['files', [null]],
+    ['files', [1]],
+    ['artifacts', null],
+    ['artifacts', 'not-an-array'],
+    ['artifacts', [null]],
+    ['artifacts', [1]],
+  ])('rejects malformed checkpoint %s values', async (field, value) => {
+    const snapshots = sqliteSandboxSnapshots({ url: ':memory:', migrate: true })
+    try {
+      const writer = await snapshots.checkpoints.acquireWriter('thread')
+      const checkpoint = {
+        id: `malformed-${field}-${String(value)}`,
+        threadId: 'thread',
+        parentCheckpointId: null,
+        createdAt: 1,
+        reason: 'named' as const,
+        files: [],
+        conversation: [],
+        artifacts: [],
+      }
+      Reflect.set(checkpoint, field, value)
+      await expect(
+        snapshots.checkpoints.append({
+          checkpoint,
+          expectedHeadId: null,
+          writer,
+        }),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_INVALID_ENTRY' })
+    } finally {
+      snapshots.close()
+    }
+  })
+
+  it('rolls back the destination when checkpoint storage fails after transcript staging', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tanstack-sqlite-fork-'))
+    const file = join(dir, 'snapshots.db')
+    const snapshots = sqliteSandboxSnapshots({ url: file, migrate: true })
+    try {
+      const sourceWriter = await snapshots.checkpoints.acquireWriter('source')
+      const blobKey = `sandbox-files/sha256/${'a'.repeat(64)}`
+      await snapshots.checkpoints.append({
+        checkpoint: {
+          id: 'source-root',
+          threadId: 'source',
+          parentCheckpointId: null,
+          createdAt: 1,
+          reason: 'named',
+          files: [{ path: 'a.txt', kind: 'file', blobKey, size: 1 }],
+          conversation: [{ role: 'user', content: 'source' }],
+          artifacts: [],
+        },
+        expectedHeadId: null,
+        writer: sourceWriter,
+      })
+      const triggerDb = new DatabaseSync(file)
+      triggerDb.exec(`
+        CREATE TRIGGER fail_fork_checkpoint
+        BEFORE INSERT ON sandbox_checkpoints
+        WHEN NEW.checkpoint_id = 'fork-root'
+        BEGIN SELECT RAISE(ABORT, 'forced checkpoint failure'); END;
+      `)
+      triggerDb.close()
+      const destinationWriter =
+        await snapshots.checkpoints.acquireWriter('destination')
+      await expect(
+        snapshots.checkpoints.forkFromCheckpoint({
+          sourceThreadId: 'source',
+          sourceCheckpointId: 'source-root',
+          destinationThreadId: 'destination',
+          destinationCheckpointId: 'fork-root',
+          createdAt: 2,
+          writer: destinationWriter,
+        }),
+      ).rejects.toThrow('forced checkpoint failure')
+      expect(
+        await snapshots.persistence.stores.messages.loadThread('destination'),
+      ).toEqual([])
+      expect(await snapshots.checkpoints.list('destination')).toEqual([])
+      expect(await snapshots.checkpoints.getHead('destination')).toBeNull()
+      expect(await snapshots.checkpoints.listBlobReferences()).toEqual([
+        { key: blobKey, references: 1 },
+      ])
+    } finally {
+      snapshots.close()
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
 
 // SQL-specific case the in-memory reference backend cannot express: a real
 // query layer can get `NULL <= ?` wrong in ways JS's `undefined <= n`

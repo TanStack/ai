@@ -137,6 +137,35 @@ lifecycle: {
 }
 ```
 
+### Portable snapshots
+
+Use portable snapshots when a later run must rebuild completed files after the
+provider sandbox is gone. Configure `withPersistence` first, then pass the same
+persistence value and a checkpoint store to `withSandbox`.
+
+```typescript
+import { withPersistence } from '@tanstack/ai-persistence'
+import { memorySandboxSnapshots, withSandbox } from '@tanstack/ai-sandbox'
+
+const snapshots = await memorySandboxSnapshots()
+
+const middleware = [
+  withPersistence(snapshots.persistence),
+  withSandbox(sandbox, {
+    snapshots: {
+      persistence: snapshots.persistence,
+      checkpoints: snapshots.checkpoints,
+    },
+  }),
+]
+```
+
+A successful terminal run saves regular files, empty directories, saved
+conversation data, and thread artifacts. Restore runs only in a new private
+sandbox. It never overwrites a live resumed sandbox. Read the
+[Portable Sandbox Snapshots guide](https://tanstack.com/ai/latest/docs/sandbox/portable-snapshots)
+for storage, safety, and lease details.
+
 ### Secrets
 
 Use `createSecrets()` so values stay behind opaque `SecretRef` tokens. They are never written to snapshots, the sandbox store, or event logs. The sandbox layer resolves them onto the live handle at create, resume, and snapshot restore:
@@ -178,6 +207,7 @@ Full guides on [tanstack.com/ai](https://tanstack.com/ai/latest/docs/sandbox/ove
 - [Policy](https://tanstack.com/ai/latest/docs/sandbox/policy)
 - [Tools](https://tanstack.com/ai/latest/docs/sandbox/tools) (host tool bridge)
 - [Lifecycle & snapshots](https://tanstack.com/ai/latest/docs/sandbox/lifecycle)
+- [Portable sandbox snapshots](https://tanstack.com/ai/latest/docs/sandbox/portable-snapshots)
 
 ## Examples
 

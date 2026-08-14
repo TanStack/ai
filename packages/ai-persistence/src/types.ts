@@ -413,8 +413,20 @@ export interface ArtifactStore {
   save: (record: ArtifactRecord) => Promise<void>
   /** Return the artifact for `artifactId`, or `null` if none exists. */
   get: (artifactId: string) => Promise<ArtifactRecord | null>
-  /** All artifacts for a run. Returns `[]` when the run has none. */
+  /**
+   * All artifacts for a run in deterministic snapshot order: `createdAt`
+   * ascending, then `artifactId` ascending by the unsigned UTF-8 bytes of
+   * each string (compare bytes left-to-right; shorter equal prefixes first).
+   * Returns `[]` when the run has none.
+   */
   list: (runId: string) => Promise<Array<ArtifactRecord>>
+  /**
+   * All artifacts for a thread in deterministic snapshot order.
+   * Records are ordered by `createdAt` ascending, then by `artifactId` using
+   * the unsigned UTF-8 bytes of each string (compare bytes left-to-right; shorter
+   * equal prefixes first).
+   */
+  listForThread: (threadId: string) => Promise<Array<ArtifactRecord>>
   /**
    * Delete a single artifact by id. A no-op if absent, mirroring
    * {@link BlobStore.delete} — the two are written and deleted as a pair, so

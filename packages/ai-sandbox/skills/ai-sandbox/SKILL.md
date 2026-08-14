@@ -8,7 +8,13 @@ description: >
   fileSkill), plugins, instructions → canonical AGENTS.md + symlinks projected
   per harness; shallow-clone default with depth opt-out; serial/parallel setup
   callback over a persistent shell; snapshot-after-setup default with
-  snapshotMaxAge TTL; defineWorkspace (git/setup/scripts/skills/secrets/
+  snapshotMaxAge TTL. It also covers portable snapshots after a successful
+  terminal run with withPersistence before withSandbox and
+  memorySandboxSnapshots for local examples. It covers named saves with
+  saveNamedSandboxSnapshot, selected-checkpoint forks with
+  forkFromSandboxSnapshot, and authorized artifact reads with
+  resolveSnapshotArtifact. It covers defineWorkspace
+  (git/setup/scripts/skills/secrets/
   instructions/plugins), defineSandboxPolicy (allow/ask/deny), lifecycle/resume,
   the SandboxHandle (fs/git/process/ports), capability tokens, defineSandbox
   hooks (onFile/onFileCreate/onFileChange/onFileDelete/onReady/onError/
@@ -184,6 +190,68 @@ lifecycle: {
 ```
 
 Providers without snapshot support skip the step silently.
+
+### Portable sandbox snapshots
+
+Portable snapshots keep completed workspace files in application persistence.
+They are separate from provider-native bootstrap snapshots. Configure the
+middleware in this order, with the same persistence value in both places:
+
+```typescript
+import { withPersistence } from '@tanstack/ai-persistence'
+import { memorySandboxSnapshots, withSandbox } from '@tanstack/ai-sandbox'
+
+const snapshots = await memorySandboxSnapshots()
+
+const middleware = [
+  withPersistence(snapshots.persistence),
+  withSandbox(sandbox, {
+    snapshots: {
+      persistence: snapshots.persistence,
+      checkpoints: snapshots.checkpoints,
+    },
+  }),
+]
+```
+
+Each successful terminal run saves regular files, empty directories, durable
+conversation data, and persisted thread artifacts. A later run restores the
+latest checkpoint only into a new private sandbox. A live resumed sandbox is
+never overwritten. The default policy excludes `.git`, `node_modules`, `.env*`,
+and the workspace projection marker. Resolved secrets are redacted before the
+data is stored. Symlinks, executables, and special filesystem entries fail the
+capture or restore. Each thread has one writer lease. Pause and detach release
+the lease without a partial checkpoint. Blob retention is manual because there
+is no automatic garbage collection yet.
+
+Read `docs/sandbox/portable-snapshots.md` for the full server-only setup and
+the restore safety rules.
+
+For a user-marked workspace state, call `saveNamedSandboxSnapshot` on the
+server. It needs `definition`, `threadId`, `runId`, `instances`, `snapshots`,
+and a label. It requires a live reusable sandbox. `reuse: 'none'` cannot save a
+named checkpoint.
+
+To branch from a selected checkpoint, call `forkFromSandboxSnapshot` with the
+source thread id, source checkpoint id, destination thread id, and `snapshots`.
+The store must implement atomic `forkFromCheckpoint`. The destination thread
+must be empty. A fork copies the selected snapshot, not the latest snapshot.
+
+To send a checkpoint artifact, call `resolveSnapshotArtifact` on the server.
+First authorize the caller for the supplied thread. The helper checks that the
+checkpoint belongs to that thread, then returns its metadata and bytes. It does
+not authorize a caller or create an HTTP response.
+
+For a SQLite checkpoint store, use one transaction for a checkpoint write, its
+head update, and every blob reference update. Use one transaction for a fork,
+including its copied conversation. A partial transaction breaks snapshot
+consistency.
+
+Snapshot capture supports regular files and empty directories only. It excludes
+`.git`, `node_modules`, `.env*`, and the workspace projection marker. It rejects
+symlinks, executable files, and special filesystem entries. Restore verifies
+the manifest and blobs before it changes a new private sandbox. It never writes
+into a live resumed sandbox.
 
 ## Providers
 

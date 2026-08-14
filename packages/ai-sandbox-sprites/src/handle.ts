@@ -26,6 +26,7 @@ import type {
   SandboxHandle,
   SnapshotRef,
   SpawnHandle,
+  SandboxFsStat,
 } from '@tanstack/ai-sandbox'
 import type {
   SpriteCheckpoint,
@@ -165,6 +166,7 @@ export class SpritesHandle implements SandboxHandle {
           type: entry.type,
         }))
       },
+      lstat: async (p) => this.lstat(this.abs(p)),
       mkdir: async (p) => {
         const r = await this.exec(`mkdir -p ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`mkdir failed: ${errText(r)}`)
@@ -204,6 +206,16 @@ export class SpritesHandle implements SandboxHandle {
     if (p.startsWith('/workspace/'))
       return `${this.workdir}/${p.slice('/workspace/'.length)}`
     return p
+  }
+
+  private async lstat(path: string): Promise<SandboxFsStat | undefined> {
+    const r = await this.exec(lstatCommand(path))
+    if (r.exitCode === 0 && r.stdout === '__TANSTACK_LSTAT_MISSING__')
+      return undefined
+    if (r.exitCode !== 0) {
+      throw new Error(`lstat failed: ${errText(r)}`)
+    }
+    return parseLstatOutput(r.stdout)
   }
 
   private mergedEnv(extra?: Record<string, string>): Record<string, string> {
@@ -341,6 +353,30 @@ export class SpritesHandle implements SandboxHandle {
 /** POSIX single-quote escape for embedding paths in `bash -c`. */
 function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
+}
+/** Verify a missing path by listing parent entries. `test -e` also fails for inaccessible parents. */
+function lstatCommand(path: string): string {
+  return `tanstack_lstat_path=${q(path)}; tanstack_lstat_output=$(stat -c '%f:%s' -- "$tanstack_lstat_path" 2>&1); tanstack_lstat_status=$?; if [ "$tanstack_lstat_status" -eq 0 ]; then printf '%s\n' "$tanstack_lstat_output"; else tanstack_lstat_missing() { tanstack_missing_path=$1; case "$tanstack_missing_path" in /|.) return 1 ;; */*) tanstack_parent=${'$'}{tanstack_missing_path%/*}; tanstack_name=${'$'}{tanstack_missing_path##*/}; [ -n "$tanstack_parent" ] || tanstack_parent=/ ;; *) tanstack_parent=.; tanstack_name=$tanstack_missing_path ;; esac; tanstack_parent_mode=$(stat -L -c '%f' -- "$tanstack_parent" 2>/dev/null); tanstack_parent_status=$?; if [ "$tanstack_parent_status" -ne 0 ]; then tanstack_lstat_missing "$tanstack_parent"; else case "$tanstack_parent_mode" in 4[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) case "$tanstack_parent" in /*) tanstack_find_parent=$tanstack_parent ;; *) tanstack_find_parent=./$tanstack_parent ;; esac; tanstack_match=$(find -H "$tanstack_find_parent" -mindepth 1 -maxdepth 1 -exec sh -c 'tanstack_target=$1; shift; for tanstack_candidate do [ "${'$'}{tanstack_candidate##*/}" = "$tanstack_target" ] && { printf 1; exit 0; }; done; exit 0' sh "$tanstack_name" '{}' + 2>/dev/null); tanstack_find_status=$?; [ "$tanstack_find_status" -eq 0 ] && [ -z "$tanstack_match" ] ;; *) return 1 ;; esac; fi; }; if tanstack_lstat_missing "$tanstack_lstat_path"; then printf '%s' '__TANSTACK_LSTAT_MISSING__'; else printf '%s\n' "$tanstack_lstat_output" >&2; exit "$tanstack_lstat_status"; fi; fi`
+}
+function parseLstatOutput(output: string): SandboxFsStat {
+  const fields = /^(?<mode>[0-9a-fA-F]{4}):(?<size>\d+)\n?$/.exec(output)
+  const mode = fields?.groups?.mode
+  const size = fields?.groups?.size
+  if (!mode || !size) throw new Error(`invalid lstat output: ${output}`)
+  const parsedMode = Number.parseInt(mode, 16)
+  const parsedSize = Number(size)
+  if (
+    !Number.isSafeInteger(parsedMode) ||
+    !Number.isSafeInteger(parsedSize) ||
+    parsedSize < 0
+  )
+    throw new Error(`invalid lstat output: ${output}`)
+  const type = parsedMode & 0xf000
+  if (type === 0x8000)
+    return { type: 'file', mode: parsedMode, size: parsedSize }
+  if (type === 0x4000) return { type: 'dir', mode: parsedMode }
+  if (type === 0xa000) return { type: 'symlink', mode: parsedMode }
+  return { type: 'other', mode: parsedMode }
 }
 
 /**

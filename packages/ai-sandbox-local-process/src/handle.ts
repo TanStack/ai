@@ -639,6 +639,31 @@ export class LocalProcessHandle implements SandboxHandle {
           type: e.isDirectory() ? ('dir' as const) : ('file' as const),
         }))
       },
+      lstat: async (p) => {
+        let stat: Awaited<ReturnType<typeof fsp.lstat>>
+        try {
+          stat = await fsp.lstat(this.resolve(p))
+        } catch (error) {
+          if (
+            error !== null &&
+            typeof error === 'object' &&
+            'code' in error &&
+            error.code === 'ENOENT'
+          )
+            return undefined
+          throw error
+        }
+        const type = stat.isFile()
+          ? 'file'
+          : stat.isDirectory()
+            ? 'dir'
+            : stat.isSymbolicLink()
+              ? 'symlink'
+              : 'other'
+        return type === 'file'
+          ? { type, mode: stat.mode, size: stat.size }
+          : { type, mode: stat.mode }
+      },
       mkdir: async (p) => {
         await fsp.mkdir(this.resolve(p), { recursive: true })
       },

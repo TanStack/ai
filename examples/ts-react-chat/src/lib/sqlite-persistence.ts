@@ -59,6 +59,25 @@ import type {
   RunStatus,
   RunStore,
 } from '@tanstack/ai-persistence'
+import {
+  SandboxCheckpointConflictError,
+  SandboxCheckpointDuplicateIdError,
+  SandboxCheckpointError,
+  SandboxCheckpointInvalidEntryError,
+  SandboxCheckpointInvalidIdError,
+  SandboxCheckpointNotHeadError,
+  SandboxCheckpointParentMismatchError,
+  SandboxCheckpointWriterConflictError,
+  SandboxCheckpointWriterLostError,
+} from '@tanstack/ai-sandbox'
+import type {
+  ForkCapableSandboxCheckpointStore,
+  SandboxCheckpoint,
+  SandboxCheckpointStoreOptions,
+  SandboxCheckpointWriter,
+  SandboxSnapshotArtifact,
+  SandboxSnapshotEntry,
+} from '@tanstack/ai-sandbox'
 
 // ---------------------------------------------------------------------------
 // Schema
@@ -133,7 +152,8 @@ CREATE TABLE IF NOT EXISTS artifacts (
   source_url text,
   created_at integer NOT NULL
 );
-CREATE INDEX IF NOT EXISTS artifacts_run ON artifacts (run_id);
+CREATE INDEX IF NOT EXISTS artifacts_run_order
+  ON artifacts (run_id, created_at ASC, artifact_id ASC);
 -- The bytes themselves. \`body\` is a BLOB column, so this file IS the object
 -- store; a production adapter would keep metadata here and put bytes in S3/R2.
 CREATE TABLE IF NOT EXISTS blobs (
@@ -145,6 +165,60 @@ CREATE TABLE IF NOT EXISTS blobs (
   custom_metadata_json text,
   created_at integer NOT NULL,
   updated_at integer NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sandbox_checkpoints (
+  checkpoint_id text PRIMARY KEY NOT NULL,
+  thread_id text NOT NULL,
+  parent_checkpoint_id text,
+  created_at integer NOT NULL,
+  reason text NOT NULL,
+  label text,
+  source_run_id text,
+  conversation_json text NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sandbox_checkpoints_thread_order
+  ON sandbox_checkpoints (thread_id, created_at ASC, checkpoint_id COLLATE BINARY ASC);
+CREATE TABLE IF NOT EXISTS sandbox_checkpoint_entries (
+  checkpoint_id text NOT NULL,
+  entry_index integer NOT NULL,
+  path text NOT NULL,
+  kind text NOT NULL,
+  blob_key text,
+  size integer,
+  PRIMARY KEY (checkpoint_id, entry_index)
+);
+CREATE INDEX IF NOT EXISTS sandbox_checkpoint_entries_checkpoint
+  ON sandbox_checkpoint_entries (checkpoint_id, entry_index ASC);
+CREATE TABLE IF NOT EXISTS sandbox_checkpoint_artifacts (
+  checkpoint_id text NOT NULL,
+  artifact_index integer NOT NULL,
+  artifact_id text NOT NULL,
+  name text NOT NULL,
+  mime_type text NOT NULL,
+  size integer NOT NULL,
+  blob_key text NOT NULL,
+  created_at integer NOT NULL,
+  PRIMARY KEY (checkpoint_id, artifact_index)
+);
+CREATE INDEX IF NOT EXISTS sandbox_checkpoint_artifacts_checkpoint
+  ON sandbox_checkpoint_artifacts (checkpoint_id, artifact_index ASC);
+CREATE TABLE IF NOT EXISTS sandbox_checkpoint_heads (
+  thread_id text PRIMARY KEY NOT NULL,
+  checkpoint_id text NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sandbox_checkpoint_writers (
+  thread_id text PRIMARY KEY NOT NULL,
+  owner_token text NOT NULL,
+  fence integer NOT NULL,
+  expires_at integer NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sandbox_checkpoint_fences (
+  thread_id text PRIMARY KEY NOT NULL,
+  fence integer NOT NULL
+);
+CREATE TABLE IF NOT EXISTS sandbox_checkpoint_blob_references (
+  blob_key text PRIMARY KEY NOT NULL,
+  reference_count integer NOT NULL
 );
 `
 
@@ -797,7 +871,10 @@ function createArtifactStore(db: DatabaseSync) {
   )
   const selectStmt = db.prepare('SELECT * FROM artifacts WHERE artifact_id = ?')
   const byRunStmt = db.prepare(
-    'SELECT * FROM artifacts WHERE run_id = ? ORDER BY created_at ASC',
+    'SELECT * FROM artifacts WHERE run_id = ? ORDER BY created_at ASC, artifact_id ASC',
+  )
+  const byThreadStmt = db.prepare(
+    'SELECT * FROM artifacts WHERE thread_id = ? ORDER BY created_at ASC, artifact_id ASC',
   )
   const deleteStmt = db.prepare('DELETE FROM artifacts WHERE artifact_id = ?')
   const deleteForRunStmt = db.prepare('DELETE FROM artifacts WHERE run_id = ?')
@@ -824,6 +901,10 @@ function createArtifactStore(db: DatabaseSync) {
     },
     list(runId) {
       const rows: Array<unknown> = byRunStmt.all(runId)
+      return Promise.resolve((rows as Array<ArtifactRow>).map(mapArtifact))
+    },
+    listForThread(threadId) {
+      const rows: Array<unknown> = byThreadStmt.all(threadId)
       return Promise.resolve((rows as Array<ArtifactRow>).map(mapArtifact))
     },
     delete(artifactId) {
@@ -1061,6 +1142,608 @@ export interface SqlitePersistenceOptions {
   migrate?: boolean
 }
 
+function checkpointError(
+  code: ConstructorParameters<typeof SandboxCheckpointError>[0],
+  message: string,
+): never {
+  throw new SandboxCheckpointError(code, message)
+}
+
+function cloneCheckpoint<T>(value: T): T {
+  return structuredClone(value)
+}
+
+function checkpointKeys(checkpoint: SandboxCheckpoint): Array<string> {
+  return [
+    ...new Set([
+      ...checkpoint.files.flatMap((entry) =>
+        entry.kind === 'file' ? [entry.blobKey] : [],
+      ),
+      ...checkpoint.artifacts.map((artifact) => artifact.blobKey),
+    ]),
+  ]
+}
+
+function hasUnpairedSurrogate(value: string): boolean {
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index)
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const next = value.charCodeAt(index + 1)
+      if (Number.isNaN(next) || next < 0xdc00 || next > 0xdfff) return true
+      index++
+    } else if (code >= 0xdc00 && code <= 0xdfff) return true
+  }
+  return false
+}
+
+function assertCheckpointId(value: string, label: string): void {
+  if (!value || value.includes('\0') || hasUnpairedSurrogate(value)) {
+    throw new SandboxCheckpointInvalidIdError(
+      `${label} must be a non-empty well-formed Unicode string`,
+    )
+  }
+}
+
+function assertCheckpoint(checkpoint: SandboxCheckpoint): void {
+  assertCheckpointId(checkpoint.id, 'Checkpoint id')
+  assertCheckpointId(checkpoint.threadId, 'Checkpoint thread id')
+  if (checkpoint.parentCheckpointId !== null)
+    assertCheckpointId(checkpoint.parentCheckpointId, 'Parent checkpoint id')
+  if (!Number.isFinite(checkpoint.createdAt))
+    throw new SandboxCheckpointInvalidEntryError(
+      'Checkpoint createdAt must be a finite number',
+    )
+  if (!Array.isArray(checkpoint.files))
+    throw new SandboxCheckpointInvalidEntryError(
+      'Checkpoint files must be an array',
+    )
+  if (!Array.isArray(checkpoint.artifacts))
+    throw new SandboxCheckpointInvalidEntryError(
+      'Checkpoint artifacts must be an array',
+    )
+  const paths = new Set<string>()
+  const kinds = new Map<string, 'file' | 'dir'>()
+  for (const entry of checkpoint.files) {
+    if (entry === null || typeof entry !== 'object')
+      throw new SandboxCheckpointInvalidEntryError(
+        'Checkpoint entry must be an object',
+      )
+    if (
+      !entry.path ||
+      paths.has(entry.path) ||
+      entry.path.includes('\0') ||
+      entry.path.startsWith('/') ||
+      entry.path.startsWith('\\') ||
+      /^[A-Za-z]:([\\/]|$)/.test(entry.path) ||
+      entry.path.includes('\\') ||
+      entry.path
+        .split('/')
+        .some((part) => !part || part === '.' || part === '..')
+    )
+      throw new SandboxCheckpointInvalidEntryError(
+        'Checkpoint entry path must be a normalized workspace-relative path',
+      )
+    for (
+      let separator = entry.path.indexOf('/');
+      separator !== -1;
+      separator = entry.path.indexOf('/', separator + 1)
+    ) {
+      if (kinds.get(entry.path.slice(0, separator)) === 'file')
+        throw new SandboxCheckpointInvalidEntryError(
+          'Checkpoint entry cannot be beneath a file',
+        )
+    }
+    if (
+      entry.kind === 'file' &&
+      [...kinds.keys()].some((path) => path.startsWith(`${entry.path}/`))
+    )
+      throw new SandboxCheckpointInvalidEntryError(
+        'Checkpoint file cannot be an ancestor of another entry',
+      )
+    paths.add(entry.path)
+    if (entry.kind === 'file') {
+      if (
+        !/^sandbox-files\/sha256\/[0-9a-f]{64}$/.test(entry.blobKey) ||
+        !Number.isSafeInteger(entry.size) ||
+        entry.size < 0
+      ) {
+        throw new SandboxCheckpointInvalidEntryError(
+          'File entries require a valid blobKey and size',
+        )
+      }
+    } else if (entry.kind === 'dir') {
+      if ('blobKey' in entry || 'size' in entry)
+        throw new SandboxCheckpointInvalidEntryError(
+          'Directory entries cannot contain file fields',
+        )
+    } else {
+      throw new SandboxCheckpointInvalidEntryError(
+        'Checkpoint entry kind must be file or dir',
+      )
+    }
+    kinds.set(entry.path, entry.kind)
+  }
+  for (const artifact of checkpoint.artifacts) {
+    if (artifact === null || typeof artifact !== 'object')
+      throw new SandboxCheckpointInvalidEntryError(
+        'Checkpoint artifact must be an object',
+      )
+    if (
+      !artifact.artifactId ||
+      !artifact.name ||
+      !artifact.mimeType ||
+      !/^sandbox-artifacts\/sha256\/[0-9a-f]{64}$/.test(artifact.blobKey) ||
+      !Number.isSafeInteger(artifact.size) ||
+      artifact.size < 0 ||
+      !Number.isFinite(artifact.createdAt)
+    )
+      throw new SandboxCheckpointInvalidEntryError(
+        'Checkpoint artifact has invalid fields',
+      )
+  }
+}
+
+function createCheckpointStore(
+  db: DatabaseSync,
+  options: SandboxCheckpointStoreOptions = {},
+): ForkCapableSandboxCheckpointStore {
+  const now = options.now ?? (() => Date.now())
+  const leaseDurationMs = options.leaseDurationMs ?? 120_000
+  const renewAfterMs = options.renewAfterMs ?? 45_000
+  if (
+    !Number.isFinite(leaseDurationMs) ||
+    leaseDurationMs <= 0 ||
+    !Number.isFinite(renewAfterMs) ||
+    renewAfterMs <= 0 ||
+    renewAfterMs >= leaseDurationMs
+  )
+    throw new Error('Invalid checkpoint writer lease options')
+  const getCheckpoint = (id: string): SandboxCheckpoint | null => {
+    const header = db
+      .prepare('SELECT * FROM sandbox_checkpoints WHERE checkpoint_id = ?')
+      .get(id) as
+      | {
+          checkpoint_id: string
+          thread_id: string
+          parent_checkpoint_id: string | null
+          created_at: number
+          reason: SandboxCheckpoint['reason']
+          label: string | null
+          source_run_id: string | null
+          conversation_json: string
+        }
+      | undefined
+    if (!header) return null
+    const files = db
+      .prepare(
+        'SELECT * FROM sandbox_checkpoint_entries WHERE checkpoint_id = ? ORDER BY entry_index ASC',
+      )
+      .all(id) as Array<{
+      path: string
+      kind: 'file' | 'dir'
+      blob_key: string | null
+      size: number | null
+    }>
+    const artifacts = db
+      .prepare(
+        'SELECT * FROM sandbox_checkpoint_artifacts WHERE checkpoint_id = ? ORDER BY artifact_index ASC',
+      )
+      .all(id) as Array<{
+      artifact_id: string
+      name: string
+      mime_type: string
+      size: number
+      blob_key: string
+      created_at: number
+    }>
+    return {
+      id: header.checkpoint_id,
+      threadId: header.thread_id,
+      parentCheckpointId: header.parent_checkpoint_id,
+      createdAt: header.created_at,
+      reason: header.reason,
+      ...(header.label === null ? {} : { label: header.label }),
+      ...(header.source_run_id === null
+        ? {}
+        : { sourceRunId: header.source_run_id }),
+      files: files.map(
+        (row): SandboxSnapshotEntry =>
+          row.kind === 'dir'
+            ? { path: row.path, kind: 'dir' }
+            : {
+                path: row.path,
+                kind: 'file',
+                blobKey: row.blob_key!,
+                size: row.size!,
+              },
+      ),
+      conversation: JSON.parse(header.conversation_json),
+      artifacts: artifacts.map(
+        (row): SandboxSnapshotArtifact => ({
+          artifactId: row.artifact_id,
+          name: row.name,
+          mimeType: row.mime_type,
+          size: row.size,
+          blobKey: row.blob_key,
+          createdAt: row.created_at,
+        }),
+      ),
+    }
+  }
+  const assertWriter = (writer: SandboxCheckpointWriter, threadId: string) => {
+    const row = db
+      .prepare(
+        'SELECT owner_token, fence, expires_at FROM sandbox_checkpoint_writers WHERE thread_id = ?',
+      )
+      .get(threadId) as
+      | { owner_token: string; fence: number; expires_at: number }
+      | undefined
+    if (
+      !row ||
+      writer.threadId !== threadId ||
+      row.owner_token !== writer.ownerToken ||
+      row.fence !== writer.fence ||
+      row.expires_at <= now()
+    )
+      throw new SandboxCheckpointWriterLostError(
+        `Checkpoint writer lease for thread '${threadId}' is no longer current`,
+      )
+  }
+  const writeCheckpoint = (
+    checkpoint: SandboxCheckpoint,
+    conversationJson: string,
+  ) => {
+    db.prepare(
+      'INSERT INTO sandbox_checkpoints (checkpoint_id, thread_id, parent_checkpoint_id, created_at, reason, label, source_run_id, conversation_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    ).run(
+      checkpoint.id,
+      checkpoint.threadId,
+      checkpoint.parentCheckpointId,
+      checkpoint.createdAt,
+      checkpoint.reason,
+      checkpoint.label ?? null,
+      checkpoint.sourceRunId ?? null,
+      conversationJson,
+    )
+    const entry = db.prepare(
+      'INSERT INTO sandbox_checkpoint_entries (checkpoint_id, entry_index, path, kind, blob_key, size) VALUES (?, ?, ?, ?, ?, ?)',
+    )
+    checkpoint.files.forEach((value, index) =>
+      entry.run(
+        checkpoint.id,
+        index,
+        value.path,
+        value.kind,
+        value.kind === 'file' ? value.blobKey : null,
+        value.kind === 'file' ? value.size : null,
+      ),
+    )
+    const artifact = db.prepare(
+      'INSERT INTO sandbox_checkpoint_artifacts (checkpoint_id, artifact_index, artifact_id, name, mime_type, size, blob_key, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    )
+    checkpoint.artifacts.forEach((value, index) =>
+      artifact.run(
+        checkpoint.id,
+        index,
+        value.artifactId,
+        value.name,
+        value.mimeType,
+        value.size,
+        value.blobKey,
+        value.createdAt,
+      ),
+    )
+  }
+  const incrementReferences = (checkpoint: SandboxCheckpoint) => {
+    const statement = db.prepare(
+      'INSERT INTO sandbox_checkpoint_blob_references (blob_key, reference_count) VALUES (?, 1) ON CONFLICT(blob_key) DO UPDATE SET reference_count = reference_count + 1',
+    )
+    checkpointKeys(checkpoint).forEach((key) => statement.run(key))
+  }
+  return {
+    async get(id) {
+      assertCheckpointId(id, 'Checkpoint id')
+      const value = getCheckpoint(id)
+      return value && cloneCheckpoint(value)
+    },
+    async list(threadId) {
+      assertCheckpointId(threadId, 'Thread id')
+      const rows = db
+        .prepare(
+          'SELECT checkpoint_id FROM sandbox_checkpoints WHERE thread_id = ? ORDER BY created_at ASC, checkpoint_id COLLATE BINARY ASC',
+        )
+        .all(threadId) as Array<{ checkpoint_id: string }>
+      return rows.map((row) =>
+        cloneCheckpoint(getCheckpoint(row.checkpoint_id)!),
+      )
+    },
+    async getHead(threadId) {
+      assertCheckpointId(threadId, 'Thread id')
+      const row = db
+        .prepare(
+          'SELECT checkpoint_id FROM sandbox_checkpoint_heads WHERE thread_id = ?',
+        )
+        .get(threadId) as { checkpoint_id: string } | undefined
+      return row?.checkpoint_id ?? null
+    },
+    async append(input) {
+      const checkpoint = cloneCheckpoint(input.checkpoint)
+      assertCheckpoint(checkpoint)
+      if (input.expectedHeadId !== null)
+        assertCheckpointId(input.expectedHeadId, 'Expected head id')
+      if (input.writer.threadId !== checkpoint.threadId)
+        throw new SandboxCheckpointWriterLostError(
+          'Checkpoint writer thread does not match checkpoint thread',
+        )
+      const conversationJson = JSON.stringify(checkpoint.conversation)
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        assertWriter(input.writer, checkpoint.threadId)
+        if (getCheckpoint(checkpoint.id))
+          throw new SandboxCheckpointDuplicateIdError(
+            `Checkpoint '${checkpoint.id}' already exists`,
+          )
+        const head =
+          (
+            db
+              .prepare(
+                'SELECT checkpoint_id FROM sandbox_checkpoint_heads WHERE thread_id = ?',
+              )
+              .get(checkpoint.threadId) as { checkpoint_id: string } | undefined
+          )?.checkpoint_id ?? null
+        if (head !== input.expectedHeadId)
+          throw new SandboxCheckpointConflictError(
+            `Expected head '${input.expectedHeadId}', but thread '${checkpoint.threadId}' is at '${head}'`,
+          )
+        if (checkpoint.parentCheckpointId !== input.expectedHeadId)
+          throw new SandboxCheckpointParentMismatchError(
+            `Checkpoint '${checkpoint.id}' parent does not match expected head`,
+          )
+        writeCheckpoint(checkpoint, conversationJson)
+        db.prepare(
+          'INSERT INTO sandbox_checkpoint_heads (thread_id, checkpoint_id) VALUES (?, ?) ON CONFLICT(thread_id) DO UPDATE SET checkpoint_id = excluded.checkpoint_id',
+        ).run(checkpoint.threadId, checkpoint.id)
+        incrementReferences(checkpoint)
+        db.exec('COMMIT')
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
+      return { headId: checkpoint.id }
+    },
+    async deleteHead(input) {
+      assertCheckpointId(input.threadId, 'Thread id')
+      assertCheckpointId(input.checkpointId, 'Checkpoint id')
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        assertWriter(input.writer, input.threadId)
+        const head =
+          (
+            db
+              .prepare(
+                'SELECT checkpoint_id FROM sandbox_checkpoint_heads WHERE thread_id = ?',
+              )
+              .get(input.threadId) as { checkpoint_id: string } | undefined
+          )?.checkpoint_id ?? null
+        if (head !== input.checkpointId)
+          throw new SandboxCheckpointNotHeadError(
+            `Checkpoint '${input.checkpointId}' is not the current head of thread '${input.threadId}'`,
+          )
+        const checkpoint = getCheckpoint(input.checkpointId)
+        if (!checkpoint)
+          throw new SandboxCheckpointNotHeadError(
+            `Checkpoint '${input.checkpointId}' does not exist`,
+          )
+        db.prepare(
+          'DELETE FROM sandbox_checkpoint_entries WHERE checkpoint_id = ?',
+        ).run(checkpoint.id)
+        db.prepare(
+          'DELETE FROM sandbox_checkpoint_artifacts WHERE checkpoint_id = ?',
+        ).run(checkpoint.id)
+        db.prepare(
+          'DELETE FROM sandbox_checkpoints WHERE checkpoint_id = ?',
+        ).run(checkpoint.id)
+        if (checkpoint.parentCheckpointId)
+          db.prepare(
+            'UPDATE sandbox_checkpoint_heads SET checkpoint_id = ? WHERE thread_id = ?',
+          ).run(checkpoint.parentCheckpointId, input.threadId)
+        else
+          db.prepare(
+            'DELETE FROM sandbox_checkpoint_heads WHERE thread_id = ?',
+          ).run(input.threadId)
+        const decrement = db.prepare(
+          'UPDATE sandbox_checkpoint_blob_references SET reference_count = reference_count - 1 WHERE blob_key = ?',
+        )
+        checkpointKeys(checkpoint).forEach((key) => decrement.run(key))
+        db.exec(
+          'DELETE FROM sandbox_checkpoint_blob_references WHERE reference_count <= 0',
+        )
+        db.exec('COMMIT')
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
+    },
+    async acquireWriter(threadId) {
+      assertCheckpointId(threadId, 'Thread id')
+      db.exec('BEGIN IMMEDIATE')
+      let lease: { ownerToken: string; fence: number; expiresAt: number }
+      try {
+        const current = db
+          .prepare(
+            'SELECT expires_at FROM sandbox_checkpoint_writers WHERE thread_id = ?',
+          )
+          .get(threadId) as { expires_at: number } | undefined
+        if (current && current.expires_at > now())
+          throw new SandboxCheckpointWriterConflictError(
+            `Thread '${threadId}' already has an active checkpoint writer`,
+          )
+        const prior = db
+          .prepare(
+            'SELECT fence FROM sandbox_checkpoint_fences WHERE thread_id = ?',
+          )
+          .get(threadId) as { fence: number } | undefined
+        const fence = (prior?.fence ?? 0) + 1
+        db.prepare(
+          'INSERT INTO sandbox_checkpoint_fences (thread_id, fence) VALUES (?, ?) ON CONFLICT(thread_id) DO UPDATE SET fence = excluded.fence',
+        ).run(threadId, fence)
+        lease = {
+          ownerToken: crypto.randomUUID(),
+          fence,
+          expiresAt: now() + leaseDurationMs,
+        }
+        db.prepare(
+          'INSERT INTO sandbox_checkpoint_writers (thread_id, owner_token, fence, expires_at) VALUES (?, ?, ?, ?) ON CONFLICT(thread_id) DO UPDATE SET owner_token = excluded.owner_token, fence = excluded.fence, expires_at = excluded.expires_at',
+        ).run(threadId, lease.ownerToken, fence, lease.expiresAt)
+        db.exec('COMMIT')
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
+      return {
+        threadId,
+        ownerToken: lease!.ownerToken,
+        fence: lease!.fence,
+        get expiresAt() {
+          return lease!.expiresAt
+        },
+        renewAfterMs,
+        renew: async () => {
+          db.exec('BEGIN IMMEDIATE')
+          try {
+            assertWriter(
+              { threadId, ownerToken: lease!.ownerToken, fence: lease!.fence },
+              threadId,
+            )
+            const expiresAt = now() + leaseDurationMs
+            db.prepare(
+              'UPDATE sandbox_checkpoint_writers SET expires_at = ? WHERE thread_id = ? AND owner_token = ? AND fence = ?',
+            ).run(expiresAt, threadId, lease!.ownerToken, lease!.fence)
+            lease!.expiresAt = expiresAt
+            db.exec('COMMIT')
+            return { expiresAt }
+          } catch (error) {
+            db.exec('ROLLBACK')
+            throw error
+          }
+        },
+        release: async () => {
+          db.prepare(
+            'DELETE FROM sandbox_checkpoint_writers WHERE thread_id = ? AND owner_token = ? AND fence = ?',
+          ).run(threadId, lease!.ownerToken, lease!.fence)
+        },
+      }
+    },
+    async listBlobReferences() {
+      return db
+        .prepare(
+          'SELECT blob_key AS key, reference_count AS "references" FROM sandbox_checkpoint_blob_references ORDER BY blob_key COLLATE BINARY ASC',
+        )
+        .all() as Array<{ key: string; references: number }>
+    },
+    async forkFromCheckpoint(input) {
+      const staged = {
+        sourceThreadId: input.sourceThreadId,
+        sourceCheckpointId: input.sourceCheckpointId,
+        destinationThreadId: input.destinationThreadId,
+        destinationCheckpointId: input.destinationCheckpointId,
+        createdAt: input.createdAt,
+        writer: {
+          threadId: input.writer.threadId,
+          ownerToken: input.writer.ownerToken,
+          fence: input.writer.fence,
+        },
+      }
+      assertCheckpointId(staged.sourceThreadId, 'Source thread id')
+      assertCheckpointId(staged.sourceCheckpointId, 'Source checkpoint id')
+      assertCheckpointId(staged.destinationThreadId, 'Destination thread id')
+      assertCheckpointId(
+        staged.destinationCheckpointId,
+        'Destination checkpoint id',
+      )
+      if (!Number.isFinite(staged.createdAt))
+        throw new SandboxCheckpointInvalidEntryError(
+          'Fork checkpoint createdAt must be a finite number',
+        )
+      db.exec('BEGIN IMMEDIATE')
+      try {
+        if (staged.sourceThreadId === staged.destinationThreadId)
+          checkpointError(
+            'SANDBOX_SNAPSHOT_FORK_SOURCE_THREAD_MISMATCH',
+            'Source and destination threads must differ',
+          )
+        const source = getCheckpoint(staged.sourceCheckpointId)
+        if (!source)
+          checkpointError(
+            'SANDBOX_SNAPSHOT_FORK_SOURCE_NOT_FOUND',
+            'Source checkpoint was not found',
+          )
+        if (source.threadId !== staged.sourceThreadId)
+          checkpointError(
+            'SANDBOX_SNAPSHOT_FORK_SOURCE_THREAD_MISMATCH',
+            'Source checkpoint belongs to another thread',
+          )
+        assertWriter(staged.writer, staged.destinationThreadId)
+        const nonempty = db
+          .prepare(
+            'SELECT 1 FROM messages WHERE thread_id = ? UNION ALL SELECT 1 FROM runs WHERE thread_id = ? UNION ALL SELECT 1 FROM generation_runs WHERE thread_id = ? UNION ALL SELECT 1 FROM interrupts WHERE thread_id = ? UNION ALL SELECT 1 FROM artifacts WHERE thread_id = ? UNION ALL SELECT 1 FROM sandbox_checkpoints WHERE thread_id = ? UNION ALL SELECT 1 FROM sandbox_checkpoint_heads WHERE thread_id = ? UNION ALL SELECT 1 FROM sandbox_checkpoints WHERE checkpoint_id = ? LIMIT 1',
+          )
+          .get(
+            staged.destinationThreadId,
+            staged.destinationThreadId,
+            staged.destinationThreadId,
+            staged.destinationThreadId,
+            staged.destinationThreadId,
+            staged.destinationThreadId,
+            staged.destinationThreadId,
+            staged.destinationCheckpointId,
+          )
+        if (nonempty)
+          checkpointError(
+            'SANDBOX_SNAPSHOT_FORK_DESTINATION_NOT_EMPTY',
+            'Destination thread is not empty',
+          )
+        const checkpoint: SandboxCheckpoint = cloneCheckpoint({
+          id: staged.destinationCheckpointId,
+          threadId: staged.destinationThreadId,
+          parentCheckpointId: null,
+          createdAt: staged.createdAt,
+          reason: 'fork-root',
+          files: source.files,
+          conversation: source.conversation,
+          artifacts: source.artifacts,
+        })
+        assertCheckpoint(checkpoint)
+        const conversationJson = JSON.stringify(checkpoint.conversation)
+        for (const key of checkpointKeys(source)) {
+          const reference = db
+            .prepare(
+              'SELECT reference_count FROM sandbox_checkpoint_blob_references WHERE blob_key = ?',
+            )
+            .get(key) as { reference_count: number } | undefined
+          if (!reference || reference.reference_count <= 0)
+            throw new SandboxCheckpointInvalidEntryError(
+              `Source checkpoint blob '${key}' has no positive reference count`,
+            )
+        }
+        db.prepare(
+          'INSERT INTO messages (thread_id, messages_json) VALUES (?, ?)',
+        ).run(checkpoint.threadId, conversationJson)
+        writeCheckpoint(checkpoint, conversationJson)
+        db.prepare(
+          'INSERT INTO sandbox_checkpoint_heads (thread_id, checkpoint_id) VALUES (?, ?)',
+        ).run(checkpoint.threadId, checkpoint.id)
+        incrementReferences(checkpoint)
+        db.exec('COMMIT')
+        return { checkpoint: cloneCheckpoint(checkpoint) }
+      } catch (error) {
+        db.exec('ROLLBACK')
+        throw error
+      }
+    },
+  }
+}
+
 /**
  * Every store this backend provides, spelled out.
  *
@@ -1127,6 +1810,51 @@ export function sqlitePersistence(
       db.close()
       closed = true
     },
+  }
+}
+
+/** Build the seven persistence stores and a durable SQLite checkpoint store. */
+export function sqliteSandboxSnapshots(
+  options: SqlitePersistenceOptions & SandboxCheckpointStoreOptions,
+): {
+  persistence: SqliteAIPersistence
+  checkpoints: ForkCapableSandboxCheckpointStore
+  close: () => void
+} {
+  const filename = normalizeSqliteUrl(options.url)
+  ensureParentDirectory(filename)
+  const db = new DatabaseSync(filename)
+  try {
+    if (options.migrate) {
+      db.exec(SCHEMA_SQL)
+      addMissingColumns(db)
+    }
+    const messages = createMessageStore(db)
+    const persistence = defineAIPersistence({
+      stores: {
+        messages,
+        runs: createRunStore(db),
+        interrupts: createInterruptStore(db),
+        metadata: createMetadataStore(db),
+        generationRuns: createGenerationRunStore(db),
+        artifacts: createArtifactStore(db),
+        blobs: createBlobStore(db),
+      },
+    })
+    const checkpoints = createCheckpointStore(db, options)
+    let closed = false
+    return {
+      persistence,
+      checkpoints,
+      close() {
+        if (closed) return
+        db.close()
+        closed = true
+      },
+    }
+  } catch (error) {
+    db.close()
+    throw error
   }
 }
 

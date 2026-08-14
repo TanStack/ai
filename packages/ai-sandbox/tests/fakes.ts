@@ -1,4 +1,5 @@
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { CapabilityRegistry } from '@tanstack/ai/middlewares'
 import { makeFakeShellSpawn } from '../src/testkit/shell-spawn'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
@@ -58,6 +59,7 @@ export function makeFakeHandle(
         return Promise.resolve()
       },
       list: () => Promise.resolve([]),
+      lstat: () => Promise.resolve({ type: 'dir' as const, mode: 0 }),
       mkdir: () => Promise.resolve(),
       remove: (p) => {
         files.delete(p)
@@ -215,16 +217,8 @@ export function captureLogger(): {
  * asserting on a provided capability is not exercising a stub that always
  * answers the same way.
  *
- * The one exception is the `capabilities` field itself: production types it
- * as the `CapabilityRegistry` class (`packages/ai/src/activities/chat/
- * middleware/capabilities.ts`), which is not exported from any public
- * `@tanstack/ai` subpath (not `.`, not `/adapter-internals`), so it cannot be
- * `new`'d — or even named — from this package. Every consumer of a provided
- * capability only ever calls `markProvided`/`has` on that field (see
- * `capabilities.ts`'s `provide`), never its private bookkeeping, so the
- * minimal stand-in below is functionally equivalent for anything this fake is
- * used for; only the cast on that one field is needed, not on the ctx as a
- * whole.
+ * The capabilities field uses the public `CapabilityRegistry` export, so this
+ * fake exercises the same registry implementation as production code.
  */
 export function makeMiddlewareCtx(input: {
   threadId: string
@@ -260,11 +254,7 @@ export function makeMiddlewareCtx(input: {
     messages: [],
     createId: (prefix: string) =>
       `${prefix}-${Math.random().toString(36).slice(2)}`,
-    capabilities: {
-      markProvided: () => {},
-      has: () => false,
-      setOnDuplicate: () => {},
-    } as unknown as ChatMiddlewareContext['capabilities'],
+    capabilities: new CapabilityRegistry(),
     get: (capability) => capability[0](ctx),
     getOptional: (capability) => capability[0](ctx, { optional: true }),
     provide: (capability, value) => capability[1](ctx, value),

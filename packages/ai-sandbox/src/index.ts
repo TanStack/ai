@@ -27,6 +27,53 @@ export type {
   SandboxInstanceRecord,
 } from './instance-store'
 
+// Portable immutable sandbox checkpoint metadata.
+export {
+  SandboxCheckpointError,
+  SandboxCheckpointConflictError,
+  SandboxCheckpointDuplicateIdError,
+  SandboxCheckpointInvalidIdError,
+  SandboxCheckpointInvalidEntryError,
+  SandboxCheckpointParentMismatchError,
+  SandboxCheckpointNotHeadError,
+  SandboxCheckpointWriterConflictError,
+  SandboxCheckpointWriterLostError,
+  isForkCapableSandboxCheckpointStore,
+  InMemorySandboxCheckpointStore,
+  defineSandboxCheckpointStore,
+} from './checkpoint-store'
+
+export type {
+  SandboxCheckpoint,
+  SandboxCheckpointStore,
+  SandboxSnapshotEntry,
+  SandboxSnapshotFileEntry,
+  SandboxSnapshotDirectoryEntry,
+  SandboxSnapshotArtifact,
+  SandboxCheckpointErrorCode,
+  SandboxCheckpointWriter,
+  SandboxCheckpointWriterLease,
+  SandboxCheckpointStoreOptions,
+  SandboxCheckpointForkInput,
+  SandboxCheckpointForkCapability,
+  ForkCapableSandboxCheckpointStore,
+} from './checkpoint-store'
+
+// File snapshot policy used by provider snapshot create/restore inputs.
+export { SandboxSnapshotError } from './snapshots'
+export type {
+  SandboxSnapshotErrorCode,
+  SandboxSnapshotPolicy,
+} from './snapshots'
+export { memorySandboxSnapshots } from './memory-snapshots'
+export type { MemorySandboxSnapshots } from './memory-snapshots'
+export {
+  forkFromSandboxSnapshot,
+  resolveSnapshotArtifact,
+  saveNamedSandboxSnapshot,
+} from './snapshot-operations'
+export type { SandboxSnapshots } from './snapshot-operations'
+
 // Workspace projection capability (provided by withSandbox, consumed by harness adapters)
 export {
   ProjectionCapability,
@@ -102,6 +149,7 @@ export type {
   SandboxHandle,
   SandboxCapabilities,
   SandboxFs,
+  SandboxFsStat,
   SandboxGit,
   SandboxProcess,
   SandboxPorts,

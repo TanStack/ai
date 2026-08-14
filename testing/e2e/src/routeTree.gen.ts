@@ -35,6 +35,7 @@ import { Route as ApiToolsTestRouteImport } from './routes/api.tools-test'
 import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-call-lifecycle-wire'
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
+import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
@@ -217,6 +218,12 @@ const ApiSandboxToolHistoryRoute = ApiSandboxToolHistoryRouteImport.update({
   path: '/api/sandbox-tool-history',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSandboxFilePersistenceRoute =
+  ApiSandboxFilePersistenceRouteImport.update({
+    id: '/api/sandbox-file-persistence',
+    path: '/api/sandbox-file-persistence',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiSandboxDurabilityRoute = ApiSandboxDurabilityRouteImport.update({
   id: '/api/sandbox-durability',
   path: '/api/sandbox-durability',
@@ -531,6 +538,7 @@ export interface FileRoutesByFullPath {
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
+  '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -607,6 +615,7 @@ export interface FileRoutesByTo {
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
+  '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -684,6 +693,7 @@ export interface FileRoutesById {
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
+  '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
   '/api/tool-call-lifecycle-wire': typeof ApiToolCallLifecycleWireRoute
@@ -762,6 +772,7 @@ export interface FileRouteTypes {
     | '/api/persistence-durability'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
+    | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
@@ -838,6 +849,7 @@ export interface FileRouteTypes {
     | '/api/persistence-durability'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
+    | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
@@ -914,6 +926,7 @@ export interface FileRouteTypes {
     | '/api/persistence-durability'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
+    | '/api/sandbox-file-persistence'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
     | '/api/tool-call-lifecycle-wire'
@@ -991,6 +1004,7 @@ export interface RootRouteChildren {
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
   ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
+  ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
   ApiToolCallLifecycleWireRoute: typeof ApiToolCallLifecycleWireRoute
@@ -1183,6 +1197,13 @@ declare module '@tanstack/react-router' {
       path: '/api/sandbox-tool-history'
       fullPath: '/api/sandbox-tool-history'
       preLoaderRoute: typeof ApiSandboxToolHistoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/sandbox-file-persistence': {
+      id: '/api/sandbox-file-persistence'
+      path: '/api/sandbox-file-persistence'
+      fullPath: '/api/sandbox-file-persistence'
+      preLoaderRoute: typeof ApiSandboxFilePersistenceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/sandbox-durability': {
@@ -1644,6 +1665,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
   ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
+  ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,
   ApiToolCallLifecycleWireRoute: ApiToolCallLifecycleWireRoute,

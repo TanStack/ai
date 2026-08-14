@@ -41,7 +41,7 @@ import { SandboxInstanceStoreCapability } from './instance-store'
 import { computeWorkspaceHash } from './key'
 import { buildFileHookEvent, resolveFileEvents } from './file-diff'
 import { ProjectionCapability, provideWorkspaceProjection } from './projection'
-import { resolveSecret } from './secrets'
+import { resolveAllSecrets, resolveSecret } from './secrets'
 import {
   createToolHistoryRecorder,
   stripObservedToolCalls,
@@ -49,12 +49,26 @@ import {
 import { watchWorkspace } from './watch'
 import { DEFAULT_WORKSPACE_ROOT } from './bootstrap'
 import { resolveHarnessCwd } from './harness-cwd'
+import { ensureSandboxWithOutcome } from './sandbox'
+import {
+  restoreSandboxFiles,
+  captureSandboxFiles,
+  captureSandboxArtifacts,
+  defaultSandboxSnapshotPolicy,
+} from './snapshots'
+import type { SandboxSnapshotPolicy } from './snapshots'
+import type {
+  SandboxCheckpointStore,
+  SandboxCheckpointWriterLease,
+} from './checkpoint-store'
+import { SandboxCheckpointError } from './checkpoint-store'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { LockStore } from '@tanstack/ai/locks'
 import type {
   AbortInfo,
   ChatMiddlewareContext,
   DefinedChatMiddleware,
+  ModelMessage,
   RunStore,
   SandboxFileEvent,
   SandboxFileHookEvent,
@@ -75,6 +89,24 @@ import type { SandboxWatchHandle } from './watch'
 
 /** Per-request state we need to carry from `setup` to the terminal hooks. */
 interface SandboxRunState {
+  snapshotLease?: SandboxCheckpointWriterLease
+  snapshotRenewal?: ReturnType<typeof setTimeout>
+  snapshotRenewTask?: Promise<void>
+  snapshotCaptureTask?: Promise<void>
+  snapshotRenewalGeneration: number
+  snapshotStop?: Promise<void>
+  /** A detached or paused run cannot later publish portable state. */
+  snapshotClosed?: boolean
+  snapshotLost?: Error
+  snapshotCleaned?: boolean
+  snapshotConfig?: NonNullable<SandboxMiddlewareOptions['snapshots']>
+  snapshotPolicy?: SandboxSnapshotPolicy
+  snapshotRuntime?: {
+    persistence: NonNullable<
+      SandboxMiddlewareOptions['snapshots']
+    >['persistence']
+    completion: { waitForRunCompletion: () => Promise<void> }
+  }
   /**
    * OPTIONAL because the state is registered BEFORE `definition.ensure()` is
    * awaited, and `ensure` is the slowest thing in the whole run — cloning a repo
@@ -90,6 +122,7 @@ interface SandboxRunState {
    * completed.
    */
   handle?: SandboxHandle
+  privateHandle?: boolean
   ensureCtx: SandboxEnsureContext
   watcher?: SandboxWatchHandle
   /** In-flight `enriched.diff()` promises queued by the `fileEvents.diff`
@@ -114,6 +147,67 @@ interface SandboxRunState {
 
 const runState = new WeakMap<object, SandboxRunState>()
 
+function stopSnapshotLease(
+  state: SandboxRunState,
+  options: { closePortable?: boolean } = {},
+): Promise<void> {
+  if (options.closePortable) state.snapshotClosed = true
+  if (state.snapshotStop) return state.snapshotStop
+  if (state.snapshotCleaned) return Promise.resolve()
+  state.snapshotCleaned = true
+  state.snapshotRenewalGeneration++
+  if (state.snapshotRenewal !== undefined) clearTimeout(state.snapshotRenewal)
+  state.snapshotRenewal = undefined
+  const renewTask = state.snapshotRenewTask
+  const captureTask = state.snapshotCaptureTask
+  const lease = state.snapshotLease
+  state.snapshotLease = undefined
+  state.snapshotStop = (async () => {
+    await renewTask?.catch(() => {})
+    await captureTask?.catch(() => {})
+    await lease?.release()
+  })()
+  return state.snapshotStop
+}
+
+function startSnapshotRenewal(state: SandboxRunState): void {
+  const lease = state.snapshotLease
+  if (!lease) return
+  const schedule = (): void => {
+    const generation = state.snapshotRenewalGeneration
+    state.snapshotRenewal = setTimeout(() => {
+      void (async (): Promise<void> => {
+        state.snapshotRenewal = undefined
+        if (
+          state.snapshotCleaned ||
+          generation !== state.snapshotRenewalGeneration
+        )
+          return
+        const renewal = Promise.resolve().then(async (): Promise<void> => {
+          await lease.renew()
+        })
+        state.snapshotRenewTask = renewal
+        try {
+          await renewal
+        } catch (error) {
+          state.snapshotLost =
+            error instanceof Error ? error : new Error(String(error))
+        } finally {
+          if (state.snapshotRenewTask === renewal)
+            state.snapshotRenewTask = undefined
+        }
+        if (state.snapshotLost) await stopSnapshotLease(state).catch(() => {})
+        else if (
+          !state.snapshotCleaned &&
+          generation === state.snapshotRenewalGeneration
+        )
+          schedule()
+      })()
+    }, lease.renewAfterMs)
+  }
+  schedule()
+}
+
 /**
  * Stop the watcher and drain any in-flight `diff()` promises before teardown,
  * so the final file's diff isn't dropped when a run finishes/aborts/errors
@@ -122,7 +216,7 @@ const runState = new WeakMap<object, SandboxRunState>()
  */
 async function drainWatcher(
   state: SandboxRunState,
-  phase: 'finish' | 'abort' | 'error',
+  phase: 'finish' | 'pause' | 'abort' | 'error',
 ): Promise<void> {
   // Guard `stop()`: a rejecting watcher teardown must NOT propagate out of
   // here, or the caller skips the `definition.destroy(...)` that follows —
@@ -134,6 +228,18 @@ async function drainWatcher(
   }
   await Promise.allSettled(state.pendingDiffs)
   if (state.watcher) state.logger?.sandbox('sandbox watcher stopped', { phase })
+}
+
+function canPublishPortableSnapshot(
+  state: SandboxRunState,
+  lease: SandboxCheckpointWriterLease,
+): boolean {
+  if (state.snapshotLost) throw state.snapshotLost
+  return (
+    !state.snapshotClosed &&
+    !state.snapshotCleaned &&
+    state.snapshotLease === lease
+  )
 }
 
 /**
@@ -232,6 +338,38 @@ function tenantFrom(
  * single process but NOT across replicas.
  */
 export interface SandboxMiddlewareOptions<TOffset extends string = string> {
+  snapshots?: {
+    persistence: {
+      stores: {
+        messages: {
+          loadThread: (threadId: string) => Promise<ReadonlyArray<ModelMessage>>
+        }
+        artifacts: {
+          listForThread: (threadId: string) => Promise<
+            ReadonlyArray<{
+              artifactId: string
+              runId: string
+              threadId: string
+              blobKey?: string
+              name: string
+              mimeType: string
+              size: number
+              createdAt: number
+            }>
+          >
+        }
+        blobs: {
+          get: (key: string) => Promise<{
+            arrayBuffer: () => Promise<ArrayBuffer>
+          } | null>
+          head: (key: string) => Promise<unknown>
+          put: (key: string, body: Uint8Array) => Promise<unknown>
+        }
+      }
+    }
+    checkpoints: SandboxCheckpointStore
+    policy?: SandboxSnapshotPolicy
+  }
   /**
    * Durable instance map (which provider sandbox to resume for a key). Pass
    * your own store to make resume survive across processes/replicas.
@@ -355,6 +493,92 @@ export function withSandbox<TOffset extends string = string>(
 
     async setup(ctx) {
       const ensureCtx = buildEnsureCtx(ctx, options)
+      const snapshotConfig = options?.snapshots
+      const snapshotWorkspaceHash = definition.workspace
+        ? computeWorkspaceHash(definition.workspace)
+        : undefined
+      const snapshotPolicy = snapshotConfig
+        ? snapshotConfig.policy
+          ? {
+              ...snapshotConfig.policy,
+              ...(snapshotWorkspaceHash === undefined
+                ? {}
+                : { workspaceHash: snapshotWorkspaceHash }),
+            }
+          : defaultSandboxSnapshotPolicy(snapshotWorkspaceHash)
+        : undefined
+      let snapshotRuntime:
+        | {
+            persistence: {
+              stores: {
+                messages: {
+                  loadThread: (
+                    id: string,
+                  ) => Promise<ReadonlyArray<ModelMessage>>
+                }
+                artifacts: {
+                  listForThread: (id: string) => Promise<
+                    ReadonlyArray<{
+                      artifactId: string
+                      runId: string
+                      threadId: string
+                      blobKey?: string
+                      name: string
+                      mimeType: string
+                      size: number
+                      createdAt: number
+                    }>
+                  >
+                }
+                blobs: {
+                  get: (key: string) => Promise<{
+                    arrayBuffer: () => Promise<ArrayBuffer>
+                  } | null>
+                  head: (key: string) => Promise<unknown>
+                  put: (key: string, body: Uint8Array) => Promise<unknown>
+                }
+              }
+            }
+            completion: { waitForRunCompletion: () => Promise<void> }
+          }
+        | undefined
+      let snapshotLease: SandboxCheckpointWriterLease | undefined
+      if (snapshotConfig) {
+        if (
+          !snapshotConfig.persistence?.stores?.messages ||
+          !snapshotConfig.persistence.stores.artifacts ||
+          !snapshotConfig.persistence.stores.blobs
+        )
+          throw new Error(
+            'Sandbox snapshots require persistence stores.messages, stores.artifacts, and stores.blobs',
+          )
+        const persistenceModule = await import('@tanstack/ai-persistence')
+        const persistence = ctx.getOptional(
+          persistenceModule.PersistenceCapability,
+        )
+        if (persistence === undefined)
+          throw new Error(
+            'Sandbox snapshots require withPersistence(snapshots.persistence) before withSandbox',
+          )
+        if (persistence !== snapshotConfig.persistence)
+          throw new Error(
+            'Sandbox snapshots require the same persistence instance passed to withPersistence',
+          )
+        const completion = ctx.getOptional(
+          persistenceModule.PersistenceCompletionCapability,
+        )
+        if (!completion)
+          throw new Error(
+            'Sandbox snapshots require withPersistence before withSandbox',
+          )
+        snapshotRuntime = {
+          persistence: snapshotConfig.persistence,
+          completion,
+        }
+        snapshotLease = await snapshotConfig.checkpoints.acquireWriter(
+          ctx.threadId,
+        )
+      }
 
       // Resolving here (not lazily on the abort path) is what keeps `setup` and
       // `onAbort` on one verdict: the payload the bus carries is the same object
@@ -399,12 +623,17 @@ export function withSandbox<TOffset extends string = string>(
       // sees the most complete state that exists at the moment it runs.
       const state: SandboxRunState = {
         ensureCtx,
+        snapshotRenewalGeneration: 0,
         pendingDiffs: [],
         toolHistory: createToolHistoryRecorder(),
         ...(logger ? { logger } : {}),
         ...(durability ? { durability } : {}),
       }
       runState.set(ctx, state)
+      if (snapshotLease) {
+        state.snapshotLease = snapshotLease
+        startSnapshotRenewal(state)
+      }
 
       // MAKE THE RUN FINDABLE BEFORE `ensure`, not after the run finally streams.
       //
@@ -487,6 +716,10 @@ export function withSandbox<TOffset extends string = string>(
       // because an agent that never ran wrote no journal to replay.
       if (durability !== undefined && durability.detachOnDisconnect) {
         getRunDisconnect(ctx, { optional: true })?.subscribe(async () => {
+          const snapshotStop = stopSnapshotLease(state, {
+            closePortable: true,
+          })
+          void snapshotStop.catch(() => {})
           // BOOKKEEPING ONLY — the run is still executing. Deliberately absent:
           // `drainWatcher` (would blind a live agent's file events for the whole
           // remainder) and `definition.destroy` (the run is still using the
@@ -496,164 +729,243 @@ export function withSandbox<TOffset extends string = string>(
           // A run with a cancel already recorded is left alone: that is `onAbort`'s
           // path, and stamping `detachedSince` on a deliberately-stopped run would
           // hand it to the reaper as reclaimable work.
-          if (await cancelIntent(durability, ctx.runId, false)) return
+          if (await cancelIntent(durability, ctx.runId, false)) {
+            await snapshotStop.catch((error: unknown) => {
+              state.logger?.warn('sandbox snapshot writer release failed', {
+                runId: ctx.runId,
+                phase: 'disconnect',
+                error,
+              })
+            })
+            return
+          }
           if (
             await recordDetach(definition, state, durability, ctx, 'disconnect')
           ) {
+            try {
+              await snapshotStop
+            } catch (error) {
+              state.logger?.warn('sandbox snapshot writer release failed', {
+                runId: ctx.runId,
+                phase: 'disconnect',
+                error,
+              })
+            }
             state.logger?.sandbox(
               'sandbox run detached on disconnect; the run continues',
               { runId: ctx.runId },
             )
+          } else {
+            await snapshotStop.catch((error: unknown) => {
+              state.logger?.warn('sandbox snapshot writer release failed', {
+                runId: ctx.runId,
+                phase: 'disconnect',
+                error,
+              })
+            })
           }
         })
       }
 
-      const handle = await definition.ensure(ensureCtx)
+      let outcome: 'resumed' | 'native-restored' | 'created' = 'created'
+      let handle: SandboxHandle
+      try {
+        if (snapshotConfig)
+          ({ handle, outcome } = await ensureSandboxWithOutcome(
+            definition,
+            ensureCtx,
+          ))
+        else handle = await definition.ensure(ensureCtx)
+        state.handle = handle
+        state.privateHandle = snapshotConfig ? outcome !== 'resumed' : true
+        if (snapshotConfig && outcome !== 'resumed') {
+          const head = await snapshotConfig.checkpoints.getHead(ctx.threadId)
+          if (head) {
+            const checkpoint = await snapshotConfig.checkpoints.get(head)
+            if (!checkpoint)
+              throw new SandboxCheckpointError(
+                'SANDBOX_SNAPSHOT_CHECKPOINT_NOT_FOUND',
+                `Checkpoint '${head}' was not found`,
+              )
+            await restoreSandboxFiles(
+              handle,
+              {
+                blobs: snapshotConfig.persistence.stores.blobs,
+                workspaceRoot:
+                  definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT,
+              },
+              checkpoint,
+              snapshotPolicy,
+            )
+          }
+        }
+      } catch (error) {
+        await stopSnapshotLease(state).catch(() => {})
+        if (state.handle && state.privateHandle)
+          await definition.destroy(ensureCtx).catch(() => {})
+        throw error
+      }
       // MUTATE, don't re-`set`: a disconnect that landed during `ensure` already
       // captured this object.
       state.handle = handle
-      provideSandbox(ctx, handle)
-      if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
-
-      // Deliberately placed AFTER `logger` is in scope rather than next to the
-      // `provideSandboxDurability` call above — there is no logger to warn
-      // through until the runtime has been read.
-      //
-      // `ensureCtx.locks === undefined` counts as in-memory: `defineSandbox`'s
-      // `ensure` falls back to a process-lifetime `InMemoryLockStore` when no
-      // lock is wired, so an unwired lock has exactly the deficiency being
-      // warned about — it is the MOST in-memory case, not an exempt one.
-      if (
-        durability !== undefined &&
-        (ensureCtx.locks === undefined ||
-          ensureCtx.locks instanceof InMemoryLockStore)
-      ) {
-        logger?.warn(
-          'sandbox durability is wired over an InMemoryLockStore: run claims are ' +
-            'serialized within this process only and the lease never signals loss, ' +
-            'so two hosts can drive one run and duplicate its event log. Use a ' +
-            'distributed LockStore via withLocks for any multi-replica deploy.',
-          { runId: ctx.runId },
-        )
+      if (snapshotConfig) {
+        state.snapshotConfig = snapshotConfig
+        state.snapshotPolicy = snapshotPolicy
+        state.snapshotRuntime = snapshotRuntime
       }
-
-      const watchRoot = definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
-      let baseSha = ''
       try {
-        const shaRes = await handle.process.exec('git rev-parse HEAD', {
-          cwd: watchRoot,
-        })
-        if (shaRes.exitCode === 0) {
-          baseSha = shaRes.stdout.trim()
-          logger?.sandbox('sandbox git baseline captured', {
-            root: watchRoot,
-            baseSha,
+        provideSandbox(ctx, handle)
+        if (definition.policy) provideSandboxPolicy(ctx, definition.policy)
+
+        // Deliberately placed AFTER `logger` is in scope rather than next to the
+        // `provideSandboxDurability` call above — there is no logger to warn
+        // through until the runtime has been read.
+        //
+        // `ensureCtx.locks === undefined` counts as in-memory: `defineSandbox`'s
+        // `ensure` falls back to a process-lifetime `InMemoryLockStore` when no
+        // lock is wired, so an unwired lock has exactly the deficiency being
+        // warned about — it is the MOST in-memory case, not an exempt one.
+        if (
+          durability !== undefined &&
+          (ensureCtx.locks === undefined ||
+            ensureCtx.locks instanceof InMemoryLockStore)
+        ) {
+          logger?.warn(
+            'sandbox durability is wired over an InMemoryLockStore: run claims are ' +
+              'serialized within this process only and the lease never signals loss, ' +
+              'so two hosts can drive one run and duplicate its event log. Use a ' +
+              'distributed LockStore via withLocks for any multi-replica deploy.',
+            { runId: ctx.runId },
+          )
+        }
+
+        const watchRoot = definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT
+        let baseSha = ''
+        try {
+          const shaRes = await handle.process.exec('git rev-parse HEAD', {
+            cwd: watchRoot,
           })
-        } else {
-          // Non-zero exit: either not a git repository (non-git workspace) or a
-          // repo with no commits (no HEAD). Expected, but it silently degrades
-          // every subsequent diff to a full-file add-patch, so surface it
-          // under `sandbox` (with stderr) rather than leaving nothing to grep.
-          logger?.sandbox('sandbox git baseline unavailable (non-zero exit)', {
+          if (shaRes.exitCode === 0) {
+            baseSha = shaRes.stdout.trim()
+            logger?.sandbox('sandbox git baseline captured', {
+              root: watchRoot,
+              baseSha,
+            })
+          } else {
+            // Non-zero exit: either not a git repository (non-git workspace) or a
+            // repo with no commits (no HEAD). Expected, but it silently degrades
+            // every subsequent diff to a full-file add-patch, so surface it
+            // under `sandbox` (with stderr) rather than leaving nothing to grep.
+            logger?.sandbox(
+              'sandbox git baseline unavailable (non-zero exit)',
+              {
+                root: watchRoot,
+                exitCode: shaRes.exitCode,
+                stderr: shaRes.stderr,
+              },
+            )
+          }
+        } catch (error) {
+          // exec rejected (git not on PATH, exec seam broken) → baseSha stays ''
+          // and accessors fall back, but this is a real anomaly, not a plain
+          // non-git workspace, so warn.
+          logger?.warn('sandbox git baseline capture failed', {
             root: watchRoot,
-            exitCode: shaRes.exitCode,
-            stderr: shaRes.stderr,
+            error,
           })
         }
-      } catch (error) {
-        // exec rejected (git not on PATH, exec seam broken) → baseSha stays ''
-        // and accessors fall back, but this is a real anomaly, not a plain
-        // non-git workspace, so warn.
-        logger?.warn('sandbox git baseline capture failed', {
-          root: watchRoot,
-          error,
-        })
-      }
 
-      const workspace = definition.workspace
-      if (workspace !== undefined) {
-        const virtualRoot = workspace.root ?? DEFAULT_WORKSPACE_ROOT
-        const root = resolveHarnessCwd(handle, virtualRoot)
-        const workspaceHash = computeWorkspaceHash(workspace)
-        const secrets = workspace.secrets
-        provideWorkspaceProjection(ctx, {
-          skills: workspace.skills ?? [],
-          plugins: workspace.plugins ?? [],
-          resolveSecret: (ref) => {
-            if (secrets === undefined) {
-              throw new Error(
-                `resolveSecret: no secrets defined on this workspace (ref: "${ref.__secretName}")`,
+        const workspace = definition.workspace
+        if (workspace !== undefined) {
+          const virtualRoot = workspace.root ?? DEFAULT_WORKSPACE_ROOT
+          const root = resolveHarnessCwd(handle, virtualRoot)
+          const workspaceHash = computeWorkspaceHash(workspace)
+          const secrets = workspace.secrets
+          provideWorkspaceProjection(ctx, {
+            skills: workspace.skills ?? [],
+            plugins: workspace.plugins ?? [],
+            resolveSecret: (ref) => {
+              if (secrets === undefined) {
+                throw new Error(
+                  `resolveSecret: no secrets defined on this workspace (ref: "${ref.__secretName}")`,
+                )
+              }
+              return resolveSecret(secrets, ref)
+            },
+            markerPath: `${root}/.tanstack-projected-${workspaceHash}`,
+            root,
+            ...(workspace.scripts !== undefined
+              ? { scripts: workspace.scripts }
+              : {}),
+          })
+        }
+
+        const hooks = definition.hooks
+        await hooks?.onReady?.(handle)
+
+        const fe = resolveFileEvents(definition.fileEvents)
+        // THE SAME array the run state already holds, not a fresh one. The watcher
+        // callback below closes over this reference, and `drainWatcher` awaits
+        // `state.pendingDiffs` — a second array would silently drop every in-flight
+        // diff from the teardown drain.
+        const pendingDiffs = state.pendingDiffs
+        let watcher: SandboxWatchHandle | undefined
+        if (fe.enabled) {
+          watcher = await watchWorkspace(handle, {
+            onEvent: (event: SandboxFileEvent) => {
+              const enriched = buildFileHookEvent(
+                handle,
+                watchRoot,
+                baseSha,
+                event,
+                logger,
               )
-            }
-            return resolveSecret(secrets, ref)
-          },
-          markerPath: `${root}/.tanstack-projected-${workspaceHash}`,
-          root,
-          ...(workspace.scripts !== undefined
-            ? { scripts: workspace.scripts }
-            : {}),
-        })
-      }
-
-      const hooks = definition.hooks
-      await hooks?.onReady?.(handle)
-
-      const fe = resolveFileEvents(definition.fileEvents)
-      // THE SAME array the run state already holds, not a fresh one. The watcher
-      // callback below closes over this reference, and `drainWatcher` awaits
-      // `state.pendingDiffs` — a second array would silently drop every in-flight
-      // diff from the teardown drain.
-      const pendingDiffs = state.pendingDiffs
-      let watcher: SandboxWatchHandle | undefined
-      if (fe.enabled) {
-        watcher = await watchWorkspace(handle, {
-          onEvent: (event: SandboxFileEvent) => {
-            const enriched = buildFileHookEvent(
-              handle,
-              watchRoot,
-              baseSha,
-              event,
-              logger,
-            )
-            void dispatchDefinitionHooks(hooks, enriched, logger)
-            runtime?.emit(enriched)
-            if (fe.diff) {
-              pendingDiffs.push(
-                enriched
-                  .diff()
-                  .then((diff) => {
-                    runtime?.emitFileDiff({ path: event.path, diff })
-                  })
-                  .catch((error: unknown) => {
-                    logger?.warn('sandbox file diff emit failed', {
-                      path: event.path,
-                      error,
+              void dispatchDefinitionHooks(hooks, enriched, logger)
+              runtime?.emit(enriched)
+              if (fe.diff) {
+                pendingDiffs.push(
+                  enriched
+                    .diff()
+                    .then((diff) => {
+                      runtime?.emitFileDiff({ path: event.path, diff })
                     })
-                  }),
-              )
-            }
-          },
-          // Watch the SAME root the enrichment layer relativizes against
-          // (`buildFileHookEvent(handle, watchRoot, …)` and the `baseSha`
-          // capture). Without this the watcher defaults to `/workspace` while
-          // enrichment uses `watchRoot`, so a custom `workspace.root` makes the
-          // two look at different directories and git pathspecs break.
-          root: watchRoot,
-          ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
-          ...(logger !== undefined ? { logger } : {}),
-        })
-        logger?.sandbox('sandbox watcher started', {
-          root: watchRoot,
-          diff: fe.diff,
-        })
-      }
+                    .catch((error: unknown) => {
+                      logger?.warn('sandbox file diff emit failed', {
+                        path: event.path,
+                        error,
+                      })
+                    }),
+                )
+              }
+            },
+            // Watch the SAME root the enrichment layer relativizes against
+            // (`buildFileHookEvent(handle, watchRoot, …)` and the `baseSha`
+            // capture). Without this the watcher defaults to `/workspace` while
+            // enrichment uses `watchRoot`, so a custom `workspace.root` makes the
+            // two look at different directories and git pathspecs break.
+            root: watchRoot,
+            ...(ctx.signal !== undefined ? { signal: ctx.signal } : {}),
+            ...(logger !== undefined ? { logger } : {}),
+          })
+          logger?.sandbox('sandbox watcher started', {
+            root: watchRoot,
+            diff: fe.diff,
+          })
+        }
 
-      // MUTATE the object registered above rather than `set`-ing a second one: an
-      // abort that landed mid-setup already captured a reference to it (and may
-      // already be draining `pendingDiffs`), so replacing the entry would hand the
-      // teardown path a different object than the watcher writes into.
-      // `pendingDiffs` needs no copying — it IS `state.pendingDiffs`.
-      if (watcher) state.watcher = watcher
+        // MUTATE the object registered above rather than `set`-ing a second one: an
+        // abort that landed mid-setup already captured a reference to it (and may
+        // already be draining `pendingDiffs`), so replacing the entry would hand the
+        // teardown path a different object than the watcher writes into.
+        // `pendingDiffs` needs no copying — it IS `state.pendingDiffs`.
+        if (watcher) state.watcher = watcher
+      } catch (error) {
+        await drainWatcher(state, 'error')
+        await stopSnapshotLease(state).catch(() => {})
+        if (state.privateHandle)
+          await definition.destroy(ensureCtx).catch(() => {})
+        throw error
+      }
     },
 
     // Keep the recorded tool history OUT of the request to the model. It is stored
@@ -678,8 +990,17 @@ export function withSandbox<TOffset extends string = string>(
 
     // Record the harness's own tool calls as transcript messages. Observe only:
     // returning nothing passes every chunk through untouched.
-    onChunk(ctx, chunk) {
-      runState.get(ctx)?.toolHistory.observe(chunk, ctx)
+    async onChunk(ctx, chunk) {
+      const state = runState.get(ctx)
+      state?.toolHistory.observe(chunk, ctx)
+      if (
+        state &&
+        chunk.type === 'RUN_FINISHED' &&
+        chunk.outcome?.type === 'interrupt'
+      ) {
+        await drainWatcher(state, 'pause')
+        await stopSnapshotLease(state, { closePortable: true })
+      }
     },
 
     async onFinish(ctx) {
@@ -694,34 +1015,149 @@ export function withSandbox<TOffset extends string = string>(
 
       await drainWatcher(state, 'finish')
 
-      const lifecycle = definition.lifecycle
+      let primaryError: unknown
+      try {
+        const snapshotCaptureTask = (async (): Promise<void> => {
+          const config = state.snapshotConfig
+          const runtime = state.snapshotRuntime
+          const lease = state.snapshotLease
+          if (!config || !runtime || !handle || !lease) {
+            if (state.snapshotLost) throw state.snapshotLost
+            return
+          }
+          if (!canPublishPortableSnapshot(state, lease)) return
 
-      // `handle` is absent only if `setup` never got past `definition.ensure`, in
-      // which case there is no sandbox to snapshot.
-      if (
-        lifecycle?.snapshot === 'after-run' &&
-        handle?.capabilities.snapshots &&
-        handle.snapshot
-      ) {
-        const snapshot = await handle.snapshot(`after-run-${ctx.runId}`)
-        const store = ensureCtx.store
-        if (store) {
-          const key = definition.key(ensureCtx)
-          const existing = await store.get(key)
-          if (existing) {
-            await store.upsert({
-              ...existing,
-              latestSnapshotId: snapshot.id,
-              updatedAt: Date.now(),
+          await runtime.completion.waitForRunCompletion()
+          if (!canPublishPortableSnapshot(state, lease)) return
+
+          const conversation =
+            await runtime.persistence.stores.messages.loadThread(ctx.threadId)
+          if (!canPublishPortableSnapshot(state, lease)) return
+
+          const files = await captureSandboxFiles(
+            handle,
+            {
+              blobs: config.persistence.stores.blobs,
+              workspaceRoot:
+                definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT,
+            },
+            state.snapshotPolicy,
+            definition.workspace?.secrets !== undefined
+              ? resolveAllSecrets(definition.workspace.secrets)
+              : {},
+          )
+          if (!canPublishPortableSnapshot(state, lease)) return
+
+          const artifacts = await captureSandboxArtifacts(
+            {
+              blobs: config.persistence.stores.blobs,
+              artifacts: config.persistence.stores.artifacts,
+            },
+            ctx.threadId,
+            definition.workspace?.secrets !== undefined
+              ? resolveAllSecrets(definition.workspace.secrets)
+              : {},
+          )
+          if (!canPublishPortableSnapshot(state, lease)) return
+
+          const parentCheckpointId = await config.checkpoints.getHead(
+            ctx.threadId,
+          )
+          if (!canPublishPortableSnapshot(state, lease)) return
+
+          try {
+            await config.checkpoints.append({
+              checkpoint: {
+                id: `checkpoint-${ctx.runId}`,
+                threadId: ctx.threadId,
+                parentCheckpointId,
+                createdAt: Date.now(),
+                reason: 'automatic',
+                sourceRunId: ctx.runId,
+                files: files.files,
+                conversation,
+                artifacts,
+              },
+              expectedHeadId: parentCheckpointId,
+              writer: lease,
             })
+          } catch (error) {
+            if (state.snapshotLost) throw state.snapshotLost
+            throw error
+          }
+          canPublishPortableSnapshot(state, lease)
+        })()
+        state.snapshotCaptureTask = snapshotCaptureTask
+        try {
+          await snapshotCaptureTask
+        } finally {
+          if (state.snapshotCaptureTask === snapshotCaptureTask)
+            state.snapshotCaptureTask = undefined
+        }
+
+        const lifecycle = definition.lifecycle
+
+        // `handle` is absent only if `setup` never got past `definition.ensure`, in
+        // which case there is no sandbox to snapshot.
+        if (
+          lifecycle?.snapshot === 'after-run' &&
+          handle?.capabilities.snapshots &&
+          handle.snapshot
+        ) {
+          const snapshot = await handle.snapshot(`after-run-${ctx.runId}`)
+          const store = ensureCtx.store
+          if (store) {
+            const key = definition.key(ensureCtx)
+            const existing = await store.get(key)
+            if (existing) {
+              await store.upsert({
+                ...existing,
+                latestSnapshotId: snapshot.id,
+                updatedAt: Date.now(),
+              })
+            }
+          }
+        }
+
+        if (lifecycle?.destroyOnComplete) {
+          await definition.destroy(ensureCtx)
+          await definition.hooks?.onDestroy?.()
+        }
+      } catch (error) {
+        primaryError = error
+        if (definition.lifecycle?.destroyOnComplete) {
+          try {
+            await definition.destroy(ensureCtx)
+            await definition.hooks?.onDestroy?.()
+          } catch (cleanupError) {
+            state.logger?.warn(
+              'sandbox destroy after terminal failure failed',
+              {
+                runId: ctx.runId,
+                phase: 'finish',
+                error: cleanupError,
+              },
+            )
           }
         }
       }
 
-      if (lifecycle?.destroyOnComplete) {
-        await definition.destroy(ensureCtx)
-        await definition.hooks?.onDestroy?.()
+      let snapshotCleanupError: unknown
+      try {
+        await stopSnapshotLease(state, { closePortable: true })
+      } catch (error) {
+        snapshotCleanupError = error
       }
+      if (primaryError !== undefined) {
+        if (snapshotCleanupError !== undefined)
+          state.logger?.warn('sandbox snapshot writer release failed', {
+            runId: ctx.runId,
+            phase: 'finish',
+            error: snapshotCleanupError,
+          })
+        throw primaryError
+      }
+      if (snapshotCleanupError !== undefined) throw snapshotCleanupError
     },
 
     async onAbort(ctx, info: AbortInfo) {
@@ -732,6 +1168,12 @@ export function withSandbox<TOffset extends string = string>(
       // the sandbox is about to be destroyed or merely detached, or the final
       // file's diff is dropped.
       await drainWatcher(state, 'abort')
+      let releaseError: unknown
+      try {
+        await stopSnapshotLease(state, { closePortable: true })
+      } catch (error) {
+        releaseError = error
+      }
 
       const durability = state.durability
       const cancelled = await cancelIntent(
@@ -760,10 +1202,12 @@ export function withSandbox<TOffset extends string = string>(
         // unreachable one — the same reasoning `drainWatcher` applies to its own
         // guarded `stop()`.
         if (await recordDetach(definition, state, durability, ctx, 'abort')) {
+          if (releaseError) throw releaseError
           return
         }
         await definition.destroy(state.ensureCtx)
         await definition.hooks?.onDestroy?.()
+        if (releaseError) throw releaseError
         return
       }
 
@@ -775,6 +1219,7 @@ export function withSandbox<TOffset extends string = string>(
       // `destroyOnComplete:false` governs *successful completion*, never cancel.
       await definition.destroy(state.ensureCtx)
       await definition.hooks?.onDestroy?.()
+      if (releaseError) throw releaseError
     },
 
     async onError(ctx, info) {
@@ -782,6 +1227,12 @@ export function withSandbox<TOffset extends string = string>(
       if (!state) return
 
       await drainWatcher(state, 'error')
+      let releaseError: unknown
+      try {
+        await stopSnapshotLease(state)
+      } catch (error) {
+        releaseError = error
+      }
       await definition.hooks?.onError?.(info.error)
 
       // On failure, only tear down when the lifecycle says so; otherwise leave
@@ -790,6 +1241,7 @@ export function withSandbox<TOffset extends string = string>(
         await definition.destroy(state.ensureCtx)
         await definition.hooks?.onDestroy?.()
       }
+      if (releaseError) throw releaseError
     },
   })
 }

@@ -2,21 +2,26 @@ import { describe, expect, it } from 'vitest'
 import {
   makeFakeShellSpawn,
   runJournalConformance,
+  runSandboxCheckpointForkConformance,
+  runSandboxCheckpointStoreConformance,
   runTakeoverConformance,
 } from '@tanstack/ai-sandbox/testkit'
+import { memorySandboxSnapshots } from '@tanstack/ai-sandbox'
+
+runSandboxCheckpointForkConformance(
+  'published testkit consumer',
+  memorySandboxSnapshots,
+)
 
 /**
- * Proves the `@tanstack/ai-sandbox/testkit` subpath actually resolves and
- * ships `makeFakeShellSpawn` — the thing that silently breaks when the
- * package.json `exports` map and the build entry list disagree (a subpath
- * that publint/test:build waves through but that consumers can't import).
+ * Proves the `@tanstack/ai-sandbox/testkit` subpath resolves as a consumer
+ * would resolve it.
  */
 describe('@tanstack/ai-sandbox/testkit subpath', () => {
-  it('ships both provider conformance suites', () => {
-    // The provider packages (and third-party providers outside this repo) reach
-    // these ONLY through the built subpath, so an export that exists in `src`
-    // but never lands in `dist` is invisible until a consumer breaks.
+  it('ships the provider and checkpoint conformance suites', () => {
     expect(typeof runJournalConformance).toBe('function')
+    expect(typeof runSandboxCheckpointForkConformance).toBe('function')
+    expect(typeof runSandboxCheckpointStoreConformance).toBe('function')
     expect(typeof runTakeoverConformance).toBe('function')
   })
 

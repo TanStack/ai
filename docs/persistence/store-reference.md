@@ -357,13 +357,19 @@ interface ArtifactRecord {
 }
 
 interface ArtifactStore {
-  save(record: ArtifactRecord): Promise<void>
-  get(artifactId: string): Promise<ArtifactRecord | null>
-  list(runId: string): Promise<Array<ArtifactRecord>> // [] when the run has none
-  delete(artifactId: string): Promise<void>
-  deleteForRun(runId: string): Promise<void>
+  save: (record: ArtifactRecord) => Promise<void>
+  get: (artifactId: string) => Promise<ArtifactRecord | null>
+  list: (runId: string) => Promise<Array<ArtifactRecord>> // [] when the run has none
+  // Complete thread history, ordered by (createdAt, artifactId) ascending.
+  listForThread: (threadId: string) => Promise<Array<ArtifactRecord>>
+  delete: (artifactId: string) => Promise<void>
+  deleteForRun: (runId: string) => Promise<void>
 }
 ```
+
+`list` and `listForThread` use `createdAt` first, then ordinal bytewise
+`artifactId` order. Compare UTF-8 bytes from left to right. Do not use locale
+collation.
 
 ## BlobStore
 

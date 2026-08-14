@@ -23,6 +23,22 @@ import type {
   RunStore,
 } from './types'
 
+const compareUtf8Bytes = (left: string, right: string): number => {
+  const leftBytes = new TextEncoder().encode(left)
+  const rightBytes = new TextEncoder().encode(right)
+  const length = Math.min(leftBytes.length, rightBytes.length)
+
+  for (let index = 0; index < length; index++) {
+    const leftByte = leftBytes[index]
+    const rightByte = rightBytes[index]
+    if (leftByte !== rightByte) {
+      return (leftByte ?? 0) - (rightByte ?? 0)
+    }
+  }
+
+  return leftBytes.length - rightBytes.length
+}
+
 class MemoryMessageStore implements MessageStore {
   private readonly threads = new Map<string, Array<ModelMessage>>()
   loadThread(threadId: string): Promise<Array<ModelMessage>> {
@@ -311,7 +327,24 @@ class MemoryArtifactStore implements ArtifactStore {
   }
   list(runId: string): Promise<Array<ArtifactRecord>> {
     return Promise.resolve(
-      [...this.artifacts.values()].filter((a) => a.runId === runId),
+      [...this.artifacts.values()]
+        .filter((a) => a.runId === runId)
+        .sort(
+          (a, b) =>
+            a.createdAt - b.createdAt ||
+            compareUtf8Bytes(a.artifactId, b.artifactId),
+        ),
+    )
+  }
+  listForThread(threadId: string): Promise<Array<ArtifactRecord>> {
+    return Promise.resolve(
+      [...this.artifacts.values()]
+        .filter((a) => a.threadId === threadId)
+        .sort(
+          (a, b) =>
+            a.createdAt - b.createdAt ||
+            compareUtf8Bytes(a.artifactId, b.artifactId),
+        ),
     )
   }
   delete(artifactId: string): Promise<void> {

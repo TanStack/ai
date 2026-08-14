@@ -20,8 +20,10 @@ import { base64ToUint8Array } from '@tanstack/ai-utils'
 import {
   InterruptsCapability,
   PersistenceCapability,
+  PersistenceCompletionCapability,
   provideInterrupts,
   providePersistence,
+  providePersistenceCompletion,
 } from './capabilities'
 import {
   validateChatPersistenceStores,
@@ -285,6 +287,11 @@ interface RunStateEntry {
    */
   streamingMessageId?: string
   streamingMessageCreatedAt?: Date
+  completion?: {
+    promise: Promise<void>
+    resolve: () => void
+    reject: (error: unknown) => void
+  }
 }
 
 const runState = new WeakMap<object, RunStateEntry>()
@@ -1964,6 +1971,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
 
   const provides = [
     PersistenceCapability,
+    PersistenceCompletionCapability,
     ...(wantsInterrupts ? [InterruptsCapability] : []),
   ]
 
@@ -1973,9 +1981,27 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     setup(ctx: ChatMiddlewareContext) {
       providePersistence(ctx, persistence)
 
+      let resolveCompletion: () => void = () => undefined
+      let rejectCompletion: (error: unknown) => void = () => undefined
+      const completion = new Promise<void>((resolve, reject) => {
+        resolveCompletion = resolve
+        rejectCompletion = reject
+      })
+      // Consumers may not need this capability. Mark the rejection handled while
+      // preserving the original promise for callers that do await it.
+      void completion.catch(() => undefined)
+
       runState.set(ctx, {
         merged: false,
         interrupted: false,
+        completion: {
+          promise: completion,
+          resolve: resolveCompletion,
+          reject: rejectCompletion,
+        },
+      })
+      providePersistenceCompletion(ctx, {
+        waitForRunCompletion: () => completion,
       })
 
       if (wantsInterrupts && persistence.stores.interrupts) {
@@ -2213,17 +2239,26 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         )
         await commitPendingResumes(state, persistence.stores.interrupts)
         await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
+        state?.completion?.resolve()
       } catch (error) {
         // Core has already selected its terminal hook. Persist the failed run
         // here, so a failed transcript save or batch write does not leave an
         // interrupted or completed run whose pending records need retrying.
-        await failRun(runs, ctx.runId, error, state?.usage)
+        try {
+          await failRun(runs, ctx.runId, error, state?.usage)
+        } finally {
+          state?.completion?.reject(error)
+        }
         throw error
       }
     },
 
     async onError(ctx: ChatMiddlewareContext, info: ErrorInfo) {
-      await failRun(runs, ctx.runId, info.error, runState.get(ctx)?.usage)
+      try {
+        await failRun(runs, ctx.runId, info.error, runState.get(ctx)?.usage)
+      } finally {
+        runState.get(ctx)?.completion?.reject(info.error)
+      }
     },
 
     async onAbort(ctx: ChatMiddlewareContext, info: AbortInfo) {
@@ -2233,10 +2268,6 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // (`info.cancelRequested`, set when the cancel aborted this host's signal)
       // and durable (`RunRecord.cancelRequested`, the only channel that reaches
       // a run being driven elsewhere).
-      const cancelled =
-        info.cancelRequested === true ||
-        (runs !== undefined && (await wasCancelRequested(runs, ctx.runId)))
-
       // A run paused at an interrupt boundary is waiting for a HUMAN, not for
       // this socket. `chat()` skips its terminal hook at an actionable-wait
       // boundary, so its `finally` routes the disconnect here — and
@@ -2245,9 +2276,21 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // still threw on the next request. An explicit cancel is different: the
       // user gave up on the approval, so the cancel band stays authoritative.
       const state = runState.get(ctx)
-      if (cancelled || (!detachableRun(ctx) && state?.interrupted !== true)) {
-        await abortRun(runs, ctx.runId, state?.usage)
-        return
+      let terminal = false
+      try {
+        // The durable cancel read is best-effort. It must not bypass the
+        // terminal persistence path or prevent the completion promise from
+        // settling when the run store is unavailable.
+        const cancelled =
+          info.cancelRequested === true ||
+          (runs !== undefined && (await wasCancelRequested(runs, ctx.runId)))
+        terminal =
+          cancelled || (!detachableRun(ctx) && state?.interrupted !== true)
+        if (terminal) {
+          await abortRun(runs, ctx.runId, state?.usage)
+        }
+      } finally {
+        if (terminal) state?.completion?.reject(info.reason)
       }
       // A plain disconnect on a detachable or interrupted run: write NOTHING.
       // Either the agent is still running and a later attach can take it over

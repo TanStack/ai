@@ -1,6 +1,6 @@
 ---
 name: ai-persistence/build-cloudflare-artifact-store
-description: Use when a Cloudflare Worker needs durable byte storage for TanStack AI generated media (images, audio, video, transcripts) — writes a BlobStore backed by R2 and an ArtifactStore backed by D1 (or KV), composes them onto the generation persistence so withGenerationPersistence persists artifact bytes, and serves them back from a Worker GET route. Includes one-line sketches for S3, GCS, Vercel Blob, Supabase, and a dev filesystem BlobStore.
+description: Use when a Cloudflare Worker needs durable byte storage for TanStack AI generated media (images, audio, video, transcripts) — writes a BlobStore backed by R2 and an ArtifactStore backed by D1, composes them onto the generation persistence so withGenerationPersistence persists artifact bytes, and serves them back from a Worker GET route. Includes one-line sketches for S3, GCS, Vercel Blob, Supabase, and a dev filesystem BlobStore.
 ---
 
 # Cloudflare Artifact + Blob Store
@@ -21,7 +21,7 @@ per-request-binding rule, `wrangler` config shape, D1 migration workflow, and th
 chat (generation-run/message) side. This skill covers only the two byte-storage stores and
 how to compose them.
 
-## The two contracts, verbatim
+## The two contracts
 
 Both come from `@tanstack/ai-persistence`. `defineBlobStore` / `defineArtifactStore`
 type an object literal inline (autocomplete + contract checking, no separate
@@ -30,27 +30,32 @@ annotation).
 ```ts
 // BlobStore — the byte layer. R2 backs it.
 interface BlobStore {
-  put(
+  put: (
     key: string,
     body: BlobBody,
     options?: BlobPutOptions,
-  ): Promise<BlobRecord>
+  ) => Promise<BlobRecord>
   // metadata + byte accessors; `options.range` reads one slice (for `206`s)
-  get(key: string, options?: BlobGetOptions): Promise<BlobObject | null>
-  head(key: string): Promise<BlobRecord | null> // metadata only
-  delete(key: string): Promise<void> // no-op if absent
-  list(options?: BlobListOptions): Promise<BlobListPage>
+  get: (key: string, options?: BlobGetOptions) => Promise<BlobObject | null>
+  head: (key: string) => Promise<BlobRecord | null> // metadata only
+  delete: (key: string) => Promise<void> // no-op if absent
+  list: (options?: BlobListOptions) => Promise<BlobListPage>
 }
 
-// ArtifactStore — the metadata layer. D1 (or KV) backs it.
+// ArtifactStore — the metadata layer. D1 backs it.
 interface ArtifactStore {
-  save(record: ArtifactRecord): Promise<void> // insert or overwrite
-  get(artifactId: string): Promise<ArtifactRecord | null>
-  list(runId: string): Promise<Array<ArtifactRecord>> // [] when none
-  delete(artifactId: string): Promise<void>
-  deleteForRun(runId: string): Promise<void>
+  save: (record: ArtifactRecord) => Promise<void> // insert or overwrite
+  get: (artifactId: string) => Promise<ArtifactRecord | null>
+  list: (runId: string) => Promise<Array<ArtifactRecord>> // [] when none
+  listForThread: (threadId: string) => Promise<Array<ArtifactRecord>>
+  delete: (artifactId: string) => Promise<void>
+  deleteForRun: (runId: string) => Promise<void>
 }
 ```
+
+`list` and `listForThread` return records ordered by `createdAt`, then by the
+ordinal bytewise order of `artifactId`. Compare UTF-8 bytes from left to right.
+Do not use locale collation.
 
 `BlobBody` is `ReadableStream<Uint8Array> | ArrayBuffer | ArrayBufferView |
 string | Blob`. The non-stream shapes flow straight into `R2Bucket.put`
@@ -362,9 +367,10 @@ Invariants that matter (asserted by the conformance testkit):
 
 ## 2. ArtifactStore backed by D1
 
-`ArtifactRecord` is `{ artifactId, runId, threadId, name, mimeType, size,
-sourceUrl?, createdAt }` (`createdAt` epoch ms). One flat table, keyed by
-`artifact_id`, indexed by `run_id` for `list`.
+`ArtifactRecord` is `{ artifactId, runId, threadId, blobKey?, name, mimeType, size,
+sourceUrl?, createdAt }` (`createdAt` epoch ms). One flat table is keyed by
+`artifact_id`. It has run and thread ordered indexes for `list` and
+`listForThread`.
 
 ```sql
 CREATE TABLE IF NOT EXISTS generation_artifacts (
@@ -378,7 +384,10 @@ CREATE TABLE IF NOT EXISTS generation_artifacts (
   source_url   text,
   created_at   integer NOT NULL
 );
-CREATE INDEX IF NOT EXISTS generation_artifacts_run ON generation_artifacts (run_id);
+CREATE INDEX IF NOT EXISTS generation_artifacts_run_order
+  ON generation_artifacts (run_id, created_at, artifact_id);
+CREATE INDEX IF NOT EXISTS generation_artifacts_thread_order
+  ON generation_artifacts (thread_id, created_at, artifact_id);
 ```
 
 ```ts ignore
@@ -450,8 +459,22 @@ export function d1ArtifactStore(db: D1Database) {
 
     async list(runId) {
       const { results } = await db
-        .prepare(`SELECT * FROM generation_artifacts WHERE run_id = ?`)
+        .prepare(
+          `SELECT * FROM generation_artifacts WHERE run_id = ? ORDER BY created_at ASC, artifact_id ASC`,
+        )
         .bind(runId)
+        .all<ArtifactRow>()
+      return results.map(fromRow)
+    },
+
+    async listForThread(threadId) {
+      const { results } = await db
+        .prepare(
+          `SELECT * FROM generation_artifacts
+           WHERE thread_id = ?
+           ORDER BY created_at ASC, artifact_id ASC`,
+        )
+        .bind(threadId)
         .all<ArtifactRow>()
       return results.map(fromRow)
     },
@@ -478,11 +501,9 @@ keeps records comparing cleanly against the reference in-memory store. Persist
 `blob_key` verbatim: a `storageKey` mapper can put the bytes anywhere, so a
 reader cannot recompute the path — `resolveArtifactBlobKey(record)` falls back
 to the default convention only for rows written before the column existed.
-**KV alternative:** if
-you have no D1, back `save`/`get` with `KV.put(artifactId, JSON.stringify(record))`
-/ `KV.get(artifactId, 'json')`, and maintain a `run:<runId>` index key (a JSON
-array of artifact ids) for `list` — KV has no query, so `list` needs that
-secondary index.
+Cloudflare KV is not an equivalent ArtifactStore backend. The required ordering
+and indexed reads need a transactional indexed database. Use D1 or another
+transactional indexed database for artifact metadata. Store the bytes in R2.
 
 ## 3. Compose and wire
 
@@ -682,7 +703,8 @@ between runs (see **ai-persistence/build-cloudflare-adapter** for the
   ascending keys, pages through the `cursor` when `truncated` without gaps or
   repeats, and returns an empty untruncated page for `limit: 0`.
 - The `ArtifactStore`: `save` is insert-or-overwrite, `get` returns `null` when
-  absent, `list(runId)` returns `[]` for an unknown run, and `delete` /
+  absent, `list(runId)` returns `[]` for an unknown run,
+  `listForThread(threadId)` returns the complete ordered history, and `delete` /
   `deleteForRun` remove exactly the expected rows.
 - The `GenerationRunStore`: `createOrResume` idempotency, no-op `update` on an
   unknown id, and `findLatestForThread` returning the most recently started
