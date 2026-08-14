@@ -23,6 +23,10 @@ streaming. That is [Resumable Streams](../resumable-streams/overview), a differe
 layer you can add on its own. Step 3 below combines them, which is what most apps
 end up wanting.
 
+When the provider sandbox is gone, the workspace files can also disappear. Use
+the same persistence object with
+[Keep Files After Reload](../sandbox/portable-snapshots-configure).
+
 ## Install
 
 ```bash

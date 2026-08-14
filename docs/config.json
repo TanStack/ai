@@ -264,7 +264,8 @@
         {
           "label": "Overview",
           "to": "persistence/overview",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Chat Persistence",
@@ -330,7 +331,8 @@
         {
           "label": "Build a Sandbox Adapter",
           "to": "persistence/build-a-sandbox-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Store Reference",
@@ -597,10 +599,35 @@
           "updatedAt": "2026-08-14"
         },
         {
-          "label": "Portable Sandbox Snapshots",
+          "label": "Portable Snapshots",
           "to": "sandbox/portable-snapshots",
           "addedAt": "2026-08-14",
           "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Keep Files After Reload",
+          "to": "sandbox/portable-snapshots-configure",
+          "addedAt": "2026-08-14"
+        },
+        {
+          "label": "Save a Named Version",
+          "to": "sandbox/portable-snapshots-save",
+          "addedAt": "2026-08-14"
+        },
+        {
+          "label": "Branch From a Version",
+          "to": "sandbox/portable-snapshots-fork",
+          "addedAt": "2026-08-14"
+        },
+        {
+          "label": "Send a Frozen File",
+          "to": "sandbox/portable-snapshots-artifacts",
+          "addedAt": "2026-08-14"
+        },
+        {
+          "label": "What a Snapshot Stores",
+          "to": "sandbox/portable-snapshots-safety",
+          "addedAt": "2026-08-14"
         },
         {
           "label": "Instance Durability",

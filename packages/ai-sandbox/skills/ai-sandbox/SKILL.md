@@ -12,7 +12,8 @@ description: >
   terminal run with withPersistence before withSandbox and
   memorySandboxSnapshots for local examples. It covers named saves with
   snapshots.save, selected-checkpoint forks with snapshots.fork, and
-  authorized artifact reads with snapshots.readArtifact. It covers defineWorkspace
+  authorized artifact reads with snapshots.readArtifact. See
+  docs/sandbox/portable-snapshots.md. It covers defineWorkspace
   (git/setup/scripts/skills/secrets/
   instructions/plugins), defineSandboxPolicy (allow/ask/deny), lifecycle/resume,
   the SandboxHandle (fs/git/process/ports), capability tokens, defineSandbox
@@ -224,8 +225,14 @@ thread has one writer lease. Pause and detach release the lease without a
 partial checkpoint. Blob retention is manual because there is no automatic
 garbage collection yet.
 
-Read `docs/sandbox/portable-snapshots.md` for the full server-only setup and
-the restore safety rules.
+Read these pages for the server-only setup:
+
+- `docs/sandbox/portable-snapshots.md`
+- `docs/sandbox/portable-snapshots-configure.md`
+- `docs/sandbox/portable-snapshots-save.md`
+- `docs/sandbox/portable-snapshots-fork.md`
+- `docs/sandbox/portable-snapshots-artifacts.md`
+- `docs/sandbox/portable-snapshots-safety.md`
 
 For a user-marked workspace state, call `snapshots.save` on the server. Bind
 `sandbox` and `instances` at create time, or pass them on `save`. The call
@@ -238,9 +245,9 @@ checkpoint id, and destination thread id. The store must implement atomic
 selected snapshot, not the latest snapshot.
 
 To send a checkpoint artifact, call `snapshots.readArtifact` on the server.
-First authorize the caller for the supplied thread. The method checks that the
-checkpoint belongs to that thread, then returns its metadata and bytes. It does
-not authorize a caller or create an HTTP response.
+First authorize the caller for the supplied thread. The method makes sure that
+the checkpoint belongs to that thread, then returns its metadata and bytes. It
+does not authorize a caller or create an HTTP response.
 
 For a SQLite checkpoint store, use one transaction for a checkpoint write, its
 head update, and every blob reference update. Use one transaction for a fork,

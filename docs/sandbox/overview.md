@@ -122,8 +122,8 @@ After that, pick the piece you need:
 - [Tools](./tools): bridge your app's own tools into the in-sandbox agent.
 - [Policy](./policy): allow, ask or deny guardrails on what the agent may run.
 - [Lifecycle & Snapshots](./lifecycle): reuse a sandbox, snapshot after setup, resume.
-- [Portable Sandbox Snapshots](./portable-snapshots): save completed files and
-  artifacts, then rebuild them in a new sandbox.
+- [Portable Snapshots](./portable-snapshots): keep completed files after the
+  sandbox is gone. Start with [Keep Files After Reload](./portable-snapshots-configure).
 - [Instance Durability](./durability): reuse it across replicas too.
 - [Durable Runs](./durable-runs): let a run outlive the tab, and turn it on.
 - [Events](./events): stream the agent's edits and tool calls to a UI, and choose what

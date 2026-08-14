@@ -13,7 +13,7 @@ snapshot/resume behaviour you need; the rest of your sandbox definition stays th
 same.
 
 Provider-native snapshots and resume keep or recreate provider state. They can
-reduce bootstrap time. [Portable Sandbox Snapshots](./portable-snapshots) store
+reduce bootstrap time. [Portable Snapshots](./portable-snapshots) store
 completed workspace data in your application persistence for reconstruction.
 
 > The provider is _where_ the agent runs. For _which_ agent runs (Grok Build,

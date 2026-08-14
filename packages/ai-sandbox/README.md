@@ -140,8 +140,8 @@ lifecycle: {
 ### Portable snapshots
 
 Use portable snapshots when a later run must rebuild completed files after the
-provider sandbox is gone. Configure `withPersistence` first, then pass the same
-persistence value and a checkpoint store to `withSandbox`.
+provider sandbox is gone. Create one snapshots object, pass it to
+`withPersistence` and `withSandbox`, and put `withPersistence` first.
 
 ```typescript
 import { withPersistence } from '@tanstack/ai-persistence'
@@ -157,9 +157,9 @@ const middleware = [
 
 A successful terminal run saves regular files, empty directories, saved
 conversation data, and thread artifacts. Restore runs only in a new private
-sandbox. It never overwrites a live resumed sandbox. Read the
-[Portable Sandbox Snapshots guide](https://tanstack.com/ai/latest/docs/sandbox/portable-snapshots)
-for storage, safety, and lease details.
+sandbox. A live resumed sandbox keeps its current files. Read
+[Keep Files After Reload](https://tanstack.com/ai/latest/docs/sandbox/portable-snapshots-configure)
+for the full server setup.
 
 ### Secrets
 

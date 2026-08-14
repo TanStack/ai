@@ -21,8 +21,8 @@ owned by `@tanstack/ai-sandbox`, independent of `@tanstack/ai-persistence`
 you compose a separate middleware.
 
 Instance durability does not copy the workspace into your application storage.
-Use [Portable Sandbox Snapshots](./portable-snapshots) when a new sandbox must
-rebuild completed files, artifacts, and the saved conversation.
+Use [Keep Files After Reload](./portable-snapshots-configure) when a new
+sandbox must rebuild completed files, artifacts, and the saved conversation.
 
 It is also not the agent's *output*. This page keeps a sandbox findable across
 processes; keeping the run's event stream readable across processes is

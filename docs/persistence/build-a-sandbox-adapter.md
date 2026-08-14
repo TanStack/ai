@@ -27,6 +27,10 @@ place the two meet. It is the third of the adapter walkthroughs, next to
 [generation](./build-your-own-generation-adapter), and it needs neither of their store
 contracts.
 
+To rebuild completed workspace files after the provider sandbox is gone, use
+[Keep Files After Reload](../sandbox/portable-snapshots-configure). Pass the same
+persistence object that `withPersistence` uses.
+
 ## Decide what you store
 
 | You keep | Wire | You get | You give up |

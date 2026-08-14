@@ -11,9 +11,9 @@ cost once and reuse the result: keep one sandbox per thread, snapshot it after
 setup, and resume instead of re-bootstrapping on the next run.
 
 When you must also recover files after a sandbox is gone, configure
-[Portable Sandbox Snapshots](./portable-snapshots). Provider-native snapshots
-make bootstrap faster. Portable snapshots save the completed workspace as
-durable application data.
+[Keep Files After Reload](./portable-snapshots-configure). Provider-native
+snapshots make bootstrap faster. Portable snapshots save the completed
+workspace as durable application data.
 
 ```ts
 import { defineSandbox, defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
@@ -131,7 +131,7 @@ full bootstrap.
 
 Portable sandbox snapshots run after this lifecycle work. They restore a saved
 workspace only into a newly created private sandbox. They never overwrite a
-live resumed sandbox. See [Portable Sandbox Snapshots](./portable-snapshots).
+live resumed sandbox. See [Portable Snapshots](./portable-snapshots).
 
 > Which providers support durable disk, snapshots, and resume-by-id is listed on
 > [Providers](./providers).
