@@ -1,5 +1,16 @@
 # @tanstack/ai-isolate-quickjs
 
+## 0.3.0
+
+### Minor Changes
+
+- [#1099](https://github.com/TanStack/ai/pull/1099) [`44a3848`](https://github.com/TanStack/ai/commit/44a384830858b3913edfbe562d390e65bea0ef92) - Add a `wasmLocation` driver option for loading the QuickJS WASM binary from a custom URL or path, such as a public directory or CDN.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.3.11
+
 ## 0.2.1
 
 ### Patch Changes

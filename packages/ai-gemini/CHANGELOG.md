@@ -1,5 +1,16 @@
 # @tanstack/ai-gemini
 
+## 0.23.0
+
+### Minor Changes
+
+- [#1105](https://github.com/TanStack/ai/pull/1105) [`03f0f5d`](https://github.com/TanStack/ai/commit/03f0f5dde47f92219a4e23b2d81f0b631a74b4ec) - Add Gemini 3.7 Flash (`gemini-3.7-flash`) with full multimodal input, thinking, structured output, caching, and the same built-in tools as Gemini 3.6 Flash.
+
+### Patch Changes
+
+- Updated dependencies [[`99fb2b7`](https://github.com/TanStack/ai/commit/99fb2b7b113548b20afa894e014bd03773815a41)]:
+  - @tanstack/ai@0.44.1
+
 ## 0.22.0
 
 ### Minor Changes

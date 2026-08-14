@@ -37,6 +37,9 @@ import { execFileSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isRoutingAlias, toModelConstName } from './model-sync/ids'
+import { buildProviderSupportsBody } from './model-sync/provider-supports'
+import type { SyncedProvider } from './model-sync/provider-supports'
 import { models } from './openrouter.models'
 import type { OpenRouterModel } from './openrouter.models'
 
@@ -72,8 +75,8 @@ interface ProviderConfig {
    * (issue #849); other providers treat token limits as optional and omit it.
    */
   maxOutputTokensMapName?: string
-  /** The supports block template (minus input modalities, which come from OpenRouter) */
-  referenceSupportsBody: string
+  /** Provider key for conservative supports generation */
+  kind: SyncedProvider
   /** Valid input modality types for this provider's ModelMeta interface */
   validInputModalities: Array<InputModality>
   /** The satisfies type clause (after 'as const satisfies') */
@@ -98,10 +101,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     providerOptionsTypeName: 'OpenAIChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'OpenAIModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video'],
-    referenceSupportsBody: `    output: ['text'],
-    endpoints: ['chat', 'chat-completions'],
-    features: ['streaming', 'function_calling', 'structured_outputs', 'distillation'],
-    tools: ['web_search', 'web_search_preview', 'file_search', 'image_generation', 'code_interpreter', 'mcp', 'computer_use', 'local_shell', 'shell', 'apply_patch'],`,
+    kind: 'openai',
     referenceSatisfies:
       'ModelMeta<OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions>',
     referenceProviderOptionsEntry:
@@ -126,9 +126,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'AnthropicModelInputModalitiesByName',
     maxOutputTokensMapName: 'ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    referenceSupportsBody: `    extended_thinking: true,
-    priority_tier: true,
-    tools: ['web_search', 'web_fetch', 'code_execution', 'computer_use', 'bash', 'text_editor', 'memory'],`,
+    kind: 'anthropic',
     referenceSatisfies:
       'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
     referenceProviderOptionsEntry:
@@ -146,9 +144,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     providerOptionsTypeName: 'GeminiChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'GeminiModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    referenceSupportsBody: `    output: ['text'],
-    capabilities: ['batch_api', 'caching', 'function_calling', 'structured_output', 'thinking'],
-    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],`,
+    kind: 'gemini',
     referenceSatisfies:
       'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions>',
     referenceProviderOptionsEntry:
@@ -168,9 +164,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     providerOptionsTypeName: 'GrokChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'GrokModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    referenceSupportsBody: `    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-    tools: [],`,
+    kind: 'grok',
     referenceSatisfies: 'ModelMeta',
     referenceProviderOptionsEntry: 'GrokProviderOptions',
     hasBothNameAndId: false,
@@ -219,13 +213,7 @@ function stripPrefix(prefix: string, modelId: string): string {
  * E.g. 'gpt-6' -> 'GPT_6', 'grok-4.20-multi-agent' -> 'GROK_4_20_MULTI_AGENT'
  */
 function toConstName(prefix: string, modelId: string): string {
-  const stripped = stripPrefix(prefix, modelId)
-  return stripped
-    .replace(/[-]/g, '_')
-    .replace(/[.]/g, '_')
-    .replace(/[:]/g, '_')
-    .replace(/[/]/g, '_')
-    .toUpperCase()
+  return toModelConstName(stripPrefix(prefix, modelId))
 }
 
 /**
@@ -386,7 +374,6 @@ function generateModelConstant(
   const inputModalities = mapInputModalities(
     model.architecture.input_modalities,
   ).filter((m) => config.validInputModalities.includes(m))
-  const inputModalitiesStr = inputModalities.map((m) => `'${m}'`).join(', ')
 
   const lines: Array<string> = []
   lines.push(`const ${constName} = {`)
@@ -413,10 +400,14 @@ function generateModelConstant(
     )
   }
 
-  // supports block (actual input modalities + reference capabilities)
   lines.push(`  supports: {`)
-  lines.push(`    input: [${inputModalitiesStr}],`)
-  lines.push(config.referenceSupportsBody)
+  lines.push(
+    buildProviderSupportsBody({
+      provider: config.kind,
+      inputModalities,
+      supportedParameters: model.supported_parameters,
+    }),
+  )
   lines.push(`  },`)
 
   // pricing
@@ -645,6 +636,10 @@ async function main() {
     }> = []
 
     for (const model of providerModels) {
+      if (isRoutingAlias(model.id)) {
+        continue
+      }
+
       const strippedId = stripPrefix(prefix, model.id)
       const constName = toConstName(prefix, model.id)
 
