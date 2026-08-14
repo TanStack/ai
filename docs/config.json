@@ -325,7 +325,7 @@
           "label": "Build a Generation Adapter",
           "to": "persistence/build-your-own-generation-adapter",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-13"
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Build a Sandbox Adapter",
@@ -594,18 +594,18 @@
           "label": "Lifecycle & Snapshots",
           "to": "sandbox/lifecycle",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-13"
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Portable Sandbox Snapshots",
           "to": "sandbox/portable-snapshots",
-          "addedAt": "2026-08-13"
+          "addedAt": "2026-08-14"
         },
         {
           "label": "Instance Durability",
           "to": "sandbox/durability",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-13"
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Durable Runs",

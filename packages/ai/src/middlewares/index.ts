@@ -12,8 +12,6 @@ export {
   type ContentFilteredInfo,
 } from './content-guard'
 
-export { CapabilityRegistry } from '../activities/chat/middleware/capabilities'
-
 // otelMiddleware is exported from the dedicated subpath
 // `@tanstack/ai/middlewares/otel` so that importing the main middlewares barrel
 // does not eagerly require `@opentelemetry/api` (which is an optional peer

@@ -1,4 +1,5 @@
 import { expectTypeOf } from 'vitest'
+import { defaultSandboxSnapshotPolicy } from '../src'
 import type {
   SandboxCheckpointStoreOptions,
   SandboxSnapshotPolicy,
@@ -26,3 +27,6 @@ const policy: SandboxSnapshotPolicy = {
 }
 
 expectTypeOf(policy).toMatchTypeOf<SandboxSnapshotPolicy>()
+expectTypeOf(
+  defaultSandboxSnapshotPolicy,
+).returns.toMatchTypeOf<SandboxSnapshotPolicy>()

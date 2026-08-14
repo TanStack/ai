@@ -154,6 +154,8 @@ CREATE TABLE IF NOT EXISTS artifacts (
 );
 CREATE INDEX IF NOT EXISTS artifacts_run_order
   ON artifacts (run_id, created_at ASC, artifact_id ASC);
+CREATE INDEX IF NOT EXISTS artifacts_thread_order
+  ON artifacts (thread_id, created_at ASC, artifact_id ASC);
 -- The bytes themselves. \`body\` is a BLOB column, so this file IS the object
 -- store; a production adapter would keep metadata here and put bytes in S3/R2.
 CREATE TABLE IF NOT EXISTS blobs (
@@ -1176,11 +1178,27 @@ function hasUnpairedSurrogate(value: string): boolean {
   return false
 }
 
-function assertCheckpointId(value: string, label: string): void {
-  if (!value || value.includes('\0') || hasUnpairedSurrogate(value)) {
+function assertCheckpointId(
+  value: unknown,
+  label: string,
+): asserts value is string {
+  if (
+    typeof value !== 'string' ||
+    value.length === 0 ||
+    value.includes('\0') ||
+    hasUnpairedSurrogate(value)
+  ) {
     throw new SandboxCheckpointInvalidIdError(
       `${label} must be a non-empty well-formed Unicode string`,
     )
+  }
+}
+
+function rollbackIfActive(db: DatabaseSync): void {
+  try {
+    db.exec('ROLLBACK')
+  } catch {
+    // SQLite can already abort the transaction. Keep the original error.
   }
 }
 
@@ -1201,9 +1219,11 @@ function assertCheckpoint(checkpoint: SandboxCheckpoint): void {
     throw new SandboxCheckpointInvalidEntryError(
       'Checkpoint artifacts must be an array',
     )
+  const files: ReadonlyArray<SandboxSnapshotEntry> = checkpoint.files
+  const artifacts: ReadonlyArray<SandboxSnapshotArtifact> = checkpoint.artifacts
   const paths = new Set<string>()
   const kinds = new Map<string, 'file' | 'dir'>()
-  for (const entry of checkpoint.files) {
+  for (const entry of files) {
     if (entry === null || typeof entry !== 'object')
       throw new SandboxCheckpointInvalidEntryError(
         'Checkpoint entry must be an object',
@@ -1263,7 +1283,7 @@ function assertCheckpoint(checkpoint: SandboxCheckpoint): void {
     }
     kinds.set(entry.path, entry.kind)
   }
-  for (const artifact of checkpoint.artifacts) {
+  for (const artifact of artifacts) {
     if (artifact === null || typeof artifact !== 'object')
       throw new SandboxCheckpointInvalidEntryError(
         'Checkpoint artifact must be an object',
@@ -1506,7 +1526,7 @@ function createCheckpointStore(
         incrementReferences(checkpoint)
         db.exec('COMMIT')
       } catch (error) {
-        db.exec('ROLLBACK')
+        rollbackIfActive(db)
         throw error
       }
       return { headId: checkpoint.id }
@@ -1560,7 +1580,7 @@ function createCheckpointStore(
         )
         db.exec('COMMIT')
       } catch (error) {
-        db.exec('ROLLBACK')
+        rollbackIfActive(db)
         throw error
       }
     },
@@ -1597,7 +1617,7 @@ function createCheckpointStore(
         ).run(threadId, lease.ownerToken, fence, lease.expiresAt)
         db.exec('COMMIT')
       } catch (error) {
-        db.exec('ROLLBACK')
+        rollbackIfActive(db)
         throw error
       }
       return {
@@ -1623,7 +1643,7 @@ function createCheckpointStore(
             db.exec('COMMIT')
             return { expiresAt }
           } catch (error) {
-            db.exec('ROLLBACK')
+            rollbackIfActive(db)
             throw error
           }
         },
@@ -1737,7 +1757,7 @@ function createCheckpointStore(
         db.exec('COMMIT')
         return { checkpoint: cloneCheckpoint(checkpoint) }
       } catch (error) {
-        db.exec('ROLLBACK')
+        rollbackIfActive(db)
         throw error
       }
     },

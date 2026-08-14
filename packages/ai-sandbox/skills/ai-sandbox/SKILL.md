@@ -217,12 +217,18 @@ const middleware = [
 Each successful terminal run saves regular files, empty directories, durable
 conversation data, and persisted thread artifacts. A later run restores the
 latest checkpoint only into a new private sandbox. A live resumed sandbox is
-never overwritten. The default policy excludes `.git`, `node_modules`, `.env*`,
-and the workspace projection marker. Resolved secrets are redacted before the
-data is stored. Symlinks, executables, and special filesystem entries fail the
-capture or restore. Each thread has one writer lease. Pause and detach release
-the lease without a partial checkpoint. Blob retention is manual because there
-is no automatic garbage collection yet.
+never overwritten. The default policy excludes `.git`, `node_modules`, and
+`.env*` path segments at every depth. It excludes the exact projection marker
+only at the workspace root. It also excludes root `CLAUDE.md` and `GEMINI.md`,
+plus direct `.claude/skills/<name>`, `.codex/skills/<name>`, and
+`.grok/skills/<name>` paths. These exclusions use paths even for regular files
+or copies. A custom policy replaces them, except for exact projection-marker
+protection. If you only pass `redact` or `include`, copy
+`defaultSandboxSnapshotPolicy()` first or `.env` files are captured. Resolved secrets are redacted before the data is stored. Symlinks,
+executables, and special filesystem entries fail the capture or restore. Each
+thread has one writer lease. Pause and detach release the lease without a
+partial checkpoint. Blob retention is manual because there is no automatic
+garbage collection yet.
 
 Read `docs/sandbox/portable-snapshots.md` for the full server-only setup and
 the restore safety rules.
@@ -248,10 +254,14 @@ including its copied conversation. A partial transaction breaks snapshot
 consistency.
 
 Snapshot capture supports regular files and empty directories only. It excludes
-`.git`, `node_modules`, `.env*`, and the workspace projection marker. It rejects
-symlinks, executable files, and special filesystem entries. Restore verifies
-the manifest and blobs before it changes a new private sandbox. It never writes
-into a live resumed sandbox.
+`.git`, `node_modules`, and `.env*` path segments at every depth. It excludes
+the exact projection marker only at the workspace root. It also excludes root
+`CLAUDE.md` and `GEMINI.md`, plus direct `.claude/skills/<name>`,
+`.codex/skills/<name>`, and `.grok/skills/<name>` paths. These exclusions use
+paths even for regular files or copies. A custom policy replaces them, except
+for exact projection-marker protection. It rejects symlinks, executable files,
+and special filesystem entries. Restore verifies the manifest and blobs before
+it changes a new private sandbox. It never writes into a live resumed sandbox.
 
 ## Providers
 
@@ -1051,14 +1061,15 @@ including the client `joinRun` side, is in `docs/sandbox/takeover.md`.
 
 - **Harness adapters require a sandbox.** Always include `withSandbox(...)` in
   `middleware` — without it `chat()` throws a missing-capability error.
-- **Secrets** (`workspace.secrets`) are injected into the sandbox env and never
-  persisted (no snapshots, no sandbox store, no event log). Always create them
-  with `createSecrets(...)` so the values stay hidden behind `SecretRef` tokens.
-  The agent binary (`claude`) must exist in the sandbox image (install it in
-  `setup` or bake it into the image).
+- **Secrets** (`workspace.secrets`) are injected into the sandbox env. Their
+  raw values are never persisted in snapshots, the sandbox store, or the event
+  log. Always create them with `createSecrets(...)` so the values stay hidden
+  behind `SecretRef` tokens. The agent binary (`claude`) must exist in the
+  sandbox image (install it in `setup` or bake it into the image).
 - **Secret-bearing projected files** (e.g. MCP config with resolved header
-  values) are re-written on every projection call so rotated secrets re-apply;
-  they are never included in a snapshot.
+  values) can be included by default capture. Capture replaces resolved secret
+  bytes with zero bytes before it hashes or writes snapshot blobs. Restore runs
+  before projection, so projection writes current secret values after restore.
 - **chat()-provided `tools` are bridged** into the in-sandbox agent over a
   host-side MCP tool-proxy: the agent calls them as `mcp__tanstack__<tool>` and
   each call is proxied back to the host where the tool's `execute()` runs (with

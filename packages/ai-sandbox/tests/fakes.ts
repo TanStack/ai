@@ -1,5 +1,4 @@
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { CapabilityRegistry } from '@tanstack/ai/middlewares'
 import { makeFakeShellSpawn } from '../src/testkit/shell-spawn'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
@@ -217,9 +216,28 @@ export function captureLogger(): {
  * asserting on a provided capability is not exercising a stub that always
  * answers the same way.
  *
- * The capabilities field uses the public `CapabilityRegistry` export, so this
- * fake exercises the same registry implementation as production code.
+ * The capabilities field uses this test-local registry. It has the same
+ * behavior that capability accessors need, without making internal middleware
+ * bookkeeping a public API.
  */
+class TestCapabilityRegistry {
+  private readonly provided = new Set<object>()
+  private onDuplicate?: (name: string) => void
+
+  setOnDuplicate(callback: (name: string) => void): void {
+    this.onDuplicate = callback
+  }
+
+  markProvided(handle: { capabilityName: string }): void {
+    if (this.provided.has(handle)) this.onDuplicate?.(handle.capabilityName)
+    this.provided.add(handle)
+  }
+
+  has(handle: object): boolean {
+    return this.provided.has(handle)
+  }
+}
+
 export function makeMiddlewareCtx(input: {
   threadId: string
   runId: string
@@ -254,7 +272,9 @@ export function makeMiddlewareCtx(input: {
     messages: [],
     createId: (prefix: string) =>
       `${prefix}-${Math.random().toString(36).slice(2)}`,
-    capabilities: new CapabilityRegistry(),
+    capabilities:
+      // @ts-expect-error This test-only registry has the required methods, but the production class has private state and is nominally typed.
+      new TestCapabilityRegistry() as ChatMiddlewareContext['capabilities'],
     get: (capability) => capability[0](ctx),
     getOptional: (capability) => capability[0](ctx, { optional: true }),
     provide: (capability, value) => capability[1](ctx, value),

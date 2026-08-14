@@ -242,7 +242,7 @@ describe('sqliteSandboxSnapshots fork transaction', () => {
     }
   })
 
-  it.each([
+  it.each<['files' | 'artifacts', unknown]>([
     ['files', null],
     ['files', 'not-an-array'],
     ['files', [null]],
@@ -273,6 +273,54 @@ describe('sqliteSandboxSnapshots fork transaction', () => {
           writer,
         }),
       ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_INVALID_ENTRY' })
+    } finally {
+      snapshots.close()
+    }
+  })
+
+  it('rejects empty and non-string identifiers without changing state', async () => {
+    const snapshots = sqliteSandboxSnapshots({ url: ':memory:', migrate: true })
+    try {
+      const writer = await snapshots.checkpoints.acquireWriter('thread')
+      const before = {
+        head: await snapshots.checkpoints.getHead('thread'),
+        list: await snapshots.checkpoints.list('thread'),
+        references: await snapshots.checkpoints.listBlobReferences(),
+      }
+      await expect(
+        Reflect.apply(
+          snapshots.checkpoints.acquireWriter,
+          snapshots.checkpoints,
+          [''],
+        ),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_INVALID_ID' })
+      await expect(
+        Reflect.apply(snapshots.checkpoints.list, snapshots.checkpoints, [{}]),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_INVALID_ID' })
+      await expect(
+        Reflect.apply(snapshots.checkpoints.append, snapshots.checkpoints, [
+          {
+            checkpoint: {
+              id: 'invalid',
+              threadId: 7,
+              parentCheckpointId: null,
+              createdAt: 1,
+              reason: 'named',
+              files: [],
+              conversation: [],
+              artifacts: [],
+            },
+            expectedHeadId: null,
+            writer,
+          },
+        ]),
+      ).rejects.toMatchObject({ code: 'SANDBOX_SNAPSHOT_INVALID_ID' })
+      expect(await snapshots.checkpoints.getHead('thread')).toBe(before.head)
+      expect(await snapshots.checkpoints.list('thread')).toEqual(before.list)
+      expect(await snapshots.checkpoints.listBlobReferences()).toEqual(
+        before.references,
+      )
+      await writer.release()
     } finally {
       snapshots.close()
     }
@@ -441,6 +489,59 @@ describe('sqlitePersistence migrate — an existing pre-durability database', ()
       // Idempotent: opening the already-migrated file again is a no-op.
       const again = sqlitePersistence({ url: file, migrate: true })
       again.close()
+    } finally {
+      rmSync(dir, { recursive: true, force: true })
+    }
+  })
+})
+
+describe('sqliteSandboxSnapshots migrate — an existing artifacts table', () => {
+  it('adds the artifact thread-order index and uses it for listForThread', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'tanstack-sqlite-artifacts-'))
+    const file = join(dir, 'old.db')
+    try {
+      const old = new DatabaseSync(file)
+      old.exec(`
+        CREATE TABLE artifacts (
+          artifact_id text PRIMARY KEY NOT NULL,
+          run_id text NOT NULL,
+          thread_id text NOT NULL,
+          blob_key text,
+          name text NOT NULL,
+          mime_type text NOT NULL,
+          size integer NOT NULL,
+          source_url text,
+          created_at integer NOT NULL
+        );
+        CREATE INDEX artifacts_run_order
+          ON artifacts (run_id, created_at ASC, artifact_id ASC);
+      `)
+      old.close()
+
+      const snapshots = sqliteSandboxSnapshots({ url: file, migrate: true })
+      snapshots.close()
+
+      const inspector = new DatabaseSync(file)
+      try {
+        const indexes = inspector
+          .prepare("SELECT name FROM pragma_index_list('artifacts')")
+          .all()
+        expect(indexes).toContainEqual(
+          expect.objectContaining({ name: 'artifacts_thread_order' }),
+        )
+
+        const plan = inspector
+          .prepare(
+            'EXPLAIN QUERY PLAN SELECT * FROM artifacts WHERE thread_id = ? ORDER BY created_at ASC, artifact_id ASC',
+          )
+          .all('thread')
+        expect(JSON.stringify(plan)).toContain(
+          'SEARCH artifacts USING INDEX artifacts_thread_order (thread_id=?)',
+        )
+        expect(JSON.stringify(plan)).not.toContain('USE TEMP B-TREE')
+      } finally {
+        inspector.close()
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true })
     }

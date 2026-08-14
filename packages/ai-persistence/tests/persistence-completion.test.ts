@@ -258,10 +258,13 @@ describe('PersistenceCompletionCapability', () => {
     const persistence = memoryPersistence()
     const failure = new Error('final save failed')
     let saves = 0
+    const originalSave = persistence.stores.messages.saveThread.bind(
+      persistence.stores.messages,
+    )
     persistence.stores.messages.saveThread = async (...args) => {
       saves += 1
       if (saves === 2) throw failure
-      await memoryPersistence().stores.messages.saveThread(...args)
+      await originalSave(...args)
     }
     const { completion, setupReady, run } = createCompletionRun(persistence, {
       adapter: mockAdapter(finishedChunks()),

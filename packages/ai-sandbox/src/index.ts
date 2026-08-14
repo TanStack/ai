@@ -60,7 +60,7 @@ export type {
 } from './checkpoint-store'
 
 // File snapshot policy used by provider snapshot create/restore inputs.
-export { SandboxSnapshotError } from './snapshots'
+export { SandboxSnapshotError, defaultSandboxSnapshotPolicy } from './snapshots'
 export type {
   SandboxSnapshotErrorCode,
   SandboxSnapshotPolicy,

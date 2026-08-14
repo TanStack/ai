@@ -5,8 +5,8 @@ order: 10
 description: "Store a completed sandbox workspace as durable files, artifacts, and conversation data, then rebuild it in a new sandbox."
 ---
 
-An agent can finish work in a sandbox, then the sandbox can disappear. You can
-need the same files when the page reloads or when a later run starts. Portable
+An agent can finish work in a sandbox, then the sandbox can disappear. You need
+the same files when the page reloads or when a later run starts. Portable
 sandbox snapshots save the completed workspace in your persistence stores.
 
 This feature saves a checkpoint after each successful terminal run. A later
@@ -92,6 +92,7 @@ that the owner can access the thread before you call the helper.
 
 ```ts
 import { saveNamedSandboxSnapshot } from '@tanstack/ai-sandbox'
+import { requireSession } from './auth'
 import { sandbox, snapshots, instances } from './sandbox-server'
 
 export async function POST(request: Request) {
@@ -153,6 +154,7 @@ reference counts. It must reject a non-empty destination thread.
 
 ```ts
 import { forkFromSandboxSnapshot } from '@tanstack/ai-sandbox'
+import { requireSession } from './auth'
 import { snapshots } from './sandbox-server'
 
 export async function POST(request: Request) {
@@ -217,6 +219,7 @@ and `Uint8Array` bytes. It does not create an HTTP response.
 
 ```ts
 import { resolveSnapshotArtifact } from '@tanstack/ai-sandbox'
+import { requireSession } from './auth'
 import { snapshots } from './sandbox-server'
 
 export async function GET(request: Request) {
@@ -239,7 +242,7 @@ export async function GET(request: Request) {
     artifactId,
     snapshots,
   })
-  return new Response(bytes, {
+  return new Response(bytes.slice(), {
     headers: {
       'content-type': artifact.mimeType,
       'content-length': String(artifact.size),
@@ -302,12 +305,37 @@ Portable snapshots support regular files and directories only. A capture or
 restore fails safely when it finds a symlink, an executable file, or a special
 filesystem entry.
 
-The default policy excludes these paths at every depth:
+The default policy excludes these path segments at every depth:
 
 - `.git`
 - `node_modules`
 - `.env*`
-- The workspace projection marker, `.tanstack-projected-<workspaceHash>`
+
+It also excludes these exact paths:
+
+- The projection marker, `.tanstack-projected-<workspaceHash>`, at the
+  workspace root only.
+- `CLAUDE.md` and `GEMINI.md` at the workspace root.
+- Direct `.claude/skills/<name>`, `.codex/skills/<name>`, and
+  `.grok/skills/<name>` paths.
+
+These exclusions use paths even when an entry is a regular file or a copied
+file. A custom policy replaces the default exclusions. If you pass only
+`redact` or `include`, `.env`, `.git`, and `node_modules` are captured unless
+you copy the default policy first:
+
+```ts
+import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'
+
+const policy = {
+  ...defaultSandboxSnapshotPolicy(),
+  redact({ bytes }: { bytes: Uint8Array }) {
+    return bytes
+  },
+}
+```
+
+The exact projection marker remains protected for the workspace.
 
 Resolved secret values are replaced with zero bytes before their content is
 hashed or stored. A custom policy cannot capture or restore the exact projection

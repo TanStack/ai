@@ -999,6 +999,42 @@ describe('public sandbox snapshot operations', () => {
       expect(listCalls).not.toContain(`/workspace/${marker}`)
     })
 
+    it('uses the computed workspace hash instead of a stale caller hash', async () => {
+      const workspace: WorkspaceDefinition = {
+        source: { type: 'none' },
+        root: '/custom',
+      }
+      const workspaceHash = computeWorkspaceHash(workspace)
+      const computedMarker = `.tanstack-projected-${workspaceHash}`
+      const staleMarker = '.tanstack-projected-caller-hash'
+      const listCalls: Array<string> = []
+      const fixture = await namedFixture({
+        workspace,
+        policy: { workspaceHash: 'caller-hash', exclude: () => false },
+      })
+      resumeWithHandle(
+        fixture,
+        workspaceHandle({
+          root: workspace.root ?? '/workspace',
+          listCalls,
+          files: [
+            { path: 'kept.txt', content: 'kept' },
+            { path: `${computedMarker}/private.txt`, content: 'private' },
+            { path: `${staleMarker}/captured.txt`, content: 'captured' },
+          ],
+        }),
+      )
+
+      const saved = await namedSave(fixture)
+
+      expect(saved.files.map((entry) => entry.path).sort()).toEqual([
+        `${staleMarker}/captured.txt`,
+        'kept.txt',
+      ])
+      expect(listCalls).not.toContain(`/custom/${computedMarker}`)
+      expect(listCalls).toContain(`/custom/${staleMarker}`)
+    })
+
     it('preserves custom redaction and passes resolved workspace secrets', async () => {
       const seenSecrets: Array<string | undefined> = []
       const workspace: WorkspaceDefinition = {

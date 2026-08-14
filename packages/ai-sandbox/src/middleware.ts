@@ -1017,76 +1017,78 @@ export function withSandbox<TOffset extends string = string>(
 
       let primaryError: unknown
       try {
-        const snapshotCaptureTask = (async (): Promise<void> => {
-          const config = state.snapshotConfig
-          const runtime = state.snapshotRuntime
-          const lease = state.snapshotLease
-          if (!config || !runtime || !handle || !lease) {
-            if (state.snapshotLost) throw state.snapshotLost
-            return
-          }
-          if (!canPublishPortableSnapshot(state, lease)) return
+        const snapshotCaptureTask = Promise.resolve().then(
+          async (): Promise<void> => {
+            const config = state.snapshotConfig
+            const runtime = state.snapshotRuntime
+            const lease = state.snapshotLease
+            if (!config || !runtime || !handle || !lease) {
+              if (state.snapshotLost) throw state.snapshotLost
+              return
+            }
+            if (!canPublishPortableSnapshot(state, lease)) return
 
-          await runtime.completion.waitForRunCompletion()
-          if (!canPublishPortableSnapshot(state, lease)) return
+            await runtime.completion.waitForRunCompletion()
+            if (!canPublishPortableSnapshot(state, lease)) return
 
-          const conversation =
-            await runtime.persistence.stores.messages.loadThread(ctx.threadId)
-          if (!canPublishPortableSnapshot(state, lease)) return
+            const conversation =
+              await runtime.persistence.stores.messages.loadThread(ctx.threadId)
+            if (!canPublishPortableSnapshot(state, lease)) return
 
-          const files = await captureSandboxFiles(
-            handle,
-            {
-              blobs: config.persistence.stores.blobs,
-              workspaceRoot:
-                definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT,
-            },
-            state.snapshotPolicy,
-            definition.workspace?.secrets !== undefined
-              ? resolveAllSecrets(definition.workspace.secrets)
-              : {},
-          )
-          if (!canPublishPortableSnapshot(state, lease)) return
-
-          const artifacts = await captureSandboxArtifacts(
-            {
-              blobs: config.persistence.stores.blobs,
-              artifacts: config.persistence.stores.artifacts,
-            },
-            ctx.threadId,
-            definition.workspace?.secrets !== undefined
-              ? resolveAllSecrets(definition.workspace.secrets)
-              : {},
-          )
-          if (!canPublishPortableSnapshot(state, lease)) return
-
-          const parentCheckpointId = await config.checkpoints.getHead(
-            ctx.threadId,
-          )
-          if (!canPublishPortableSnapshot(state, lease)) return
-
-          try {
-            await config.checkpoints.append({
-              checkpoint: {
-                id: `checkpoint-${ctx.runId}`,
-                threadId: ctx.threadId,
-                parentCheckpointId,
-                createdAt: Date.now(),
-                reason: 'automatic',
-                sourceRunId: ctx.runId,
-                files: files.files,
-                conversation,
-                artifacts,
+            const files = await captureSandboxFiles(
+              handle,
+              {
+                blobs: config.persistence.stores.blobs,
+                workspaceRoot:
+                  definition.workspace?.root ?? DEFAULT_WORKSPACE_ROOT,
               },
-              expectedHeadId: parentCheckpointId,
-              writer: lease,
-            })
-          } catch (error) {
+              state.snapshotPolicy,
+              definition.workspace?.secrets !== undefined
+                ? resolveAllSecrets(definition.workspace.secrets)
+                : {},
+            )
+            if (!canPublishPortableSnapshot(state, lease)) return
+
+            const artifacts = await captureSandboxArtifacts(
+              {
+                blobs: config.persistence.stores.blobs,
+                artifacts: config.persistence.stores.artifacts,
+              },
+              ctx.threadId,
+              definition.workspace?.secrets !== undefined
+                ? resolveAllSecrets(definition.workspace.secrets)
+                : {},
+            )
+            if (!canPublishPortableSnapshot(state, lease)) return
+
+            const parentCheckpointId = await config.checkpoints.getHead(
+              ctx.threadId,
+            )
+            if (!canPublishPortableSnapshot(state, lease)) return
+
+            try {
+              await config.checkpoints.append({
+                checkpoint: {
+                  id: `checkpoint-${ctx.runId}`,
+                  threadId: ctx.threadId,
+                  parentCheckpointId,
+                  createdAt: Date.now(),
+                  reason: 'automatic',
+                  sourceRunId: ctx.runId,
+                  files: files.files,
+                  conversation,
+                  artifacts,
+                },
+                expectedHeadId: parentCheckpointId,
+                writer: lease,
+              })
+            } catch (error) {
+              if (state.snapshotLost) throw state.snapshotLost
+              throw error
+            }
             if (state.snapshotLost) throw state.snapshotLost
-            throw error
-          }
-          canPublishPortableSnapshot(state, lease)
-        })()
+          },
+        )
         state.snapshotCaptureTask = snapshotCaptureTask
         try {
           await snapshotCaptureTask
