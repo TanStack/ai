@@ -1,5 +1,6 @@
 import { toolDefinition } from '@tanstack/ai'
 import {
+  DEFAULT_GROK_ACP_PORT,
   GROK_CLI_INSTALL_COMMAND,
   grokBuildText,
 } from '@tanstack/ai-grok-build'
@@ -40,7 +41,7 @@ export function buildAppStudioSandbox(): SandboxDefinition {
     id: 'app-studio',
     provider: dockerSandbox({
       image: process.env.SANDBOX_IMAGE ?? 'node:22',
-      publishPorts: [PREVIEW_PORT],
+      publishPorts: [PREVIEW_PORT, DEFAULT_GROK_ACP_PORT],
     }),
     workspace: defineWorkspace({
       source: { type: 'none' },

@@ -10,6 +10,7 @@ import remarkGfm from 'remark-gfm'
 import {
   errorMessageFromBody,
   previewUrlFrom,
+  previewUrlFromText,
   threadIdsFromForkBody,
   variantPrompt,
 } from '../lib/app-studio-helpers'
@@ -21,6 +22,7 @@ export const Route = createFileRoute('/app-studio')({
 
 const connection = fetchServerSentEvents('/api/app-studio')
 const THREADS_KEY = 'app-studio:threads'
+const EMPTY_PREVIEW_URLS: Array<string> = []
 
 interface StudioThread {
   id: string
@@ -150,9 +152,14 @@ function latestPreview(
     const message = messages[index]
     if (!message) continue
     for (const part of message.parts) {
-      if (part.type !== 'tool-call' || part.name !== 'exposePreview') continue
-      const url = previewUrlFrom(part.output)
-      if (url && !skip.has(url)) return url
+      if (part.type === 'tool-call' && part.name === 'exposePreview') {
+        const url = previewUrlFrom(part.output)
+        if (url && !skip.has(url)) return url
+      }
+      if (part.type === 'text' && part.content) {
+        const url = previewUrlFromText(part.content)
+        if (url && !skip.has(url)) return url
+      }
     }
   }
   return null
@@ -205,14 +212,20 @@ function AppStudioPage() {
   }
 
   const titleFrom = useCallback((id: string, title: string) => {
-    setThreads((prev) =>
-      prev.map((thread) =>
-        thread.id === id &&
-        (thread.title === 'New app' || thread.title === 'Fork')
-          ? { ...thread, title }
-          : thread,
-      ),
-    )
+    setThreads((prev) => {
+      let changed = false
+      const next = prev.map((thread) => {
+        if (
+          thread.id === id &&
+          (thread.title === 'New app' || thread.title === 'Fork')
+        ) {
+          changed = true
+          return { ...thread, title }
+        }
+        return thread
+      })
+      return changed ? next : prev
+    })
   }, [])
 
   const forkOne = async (inheritedPreviewUrls: Array<string>) => {
@@ -415,7 +428,7 @@ function AppStudioPage() {
             threadId={activeId}
             inheritedPreviewUrls={
               threads.find((thread) => thread.id === activeId)
-                ?.inheritedPreviewUrls ?? []
+                ?.inheritedPreviewUrls ?? EMPTY_PREVIEW_URLS
             }
             wantCompare={wantCompare}
             setWantCompare={setWantCompare}

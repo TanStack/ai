@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { memorySandboxSnapshots } from '@tanstack/ai-sandbox'
+import { forkStudioThreads } from './app-studio-fork'
 import {
   comparePrompt,
   errorMessageFromBody,
-  forkStudioThreads,
   previewUrlFrom,
+  previewUrlFromText,
   threadIdsFromForkBody,
   variantPrompt,
 } from './app-studio-helpers'
@@ -44,6 +45,11 @@ describe('app studio helpers', () => {
       'http://127.0.0.1:5173',
     )
     expect(previewUrlFrom('not-a-url')).toBeNull()
+    expect(
+      previewUrlFromText(
+        'exposePreview returned: http://localhost:62133 and that is the app.',
+      ),
+    ).toBe('http://localhost:62133')
   })
 
   it('builds distinct compare prompts', () => {

@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { buildAppStudioSandbox } from '../lib/app-studio'
-import { forkStudioThreads } from '../lib/app-studio-helpers'
+import { forkStudioThreads } from '../lib/app-studio-fork'
 import {
   appStudioInstances,
   appStudioLocks,
