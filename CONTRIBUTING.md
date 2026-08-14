@@ -50,7 +50,8 @@ For deeper architecture details (adapter system, isomorphic tools, framework int
 
 Rules the generator follows:
 
-- Skip OpenRouter routing aliases (ids that start with `~`). Those ids move under you and cannot become JS identifiers.
+- Keep OpenRouter routing aliases (ids that start with `~`) in the OpenRouter catalog. Users can pass `chat({ model: '~anthropic/claude-haiku-latest' })`. The generated constant name maps `~` to `_`.
+- Do **not** copy those aliases into native provider files (`ai-openai`, `ai-anthropic`, `ai-gemini`, `ai-grok`). Those adapters only accept the provider's own ids.
 - For a new native-provider model, write id, modalities, and pricing. Infer features from OpenRouter `supported_parameters` when that field exists. Do **not** copy another model's tool list (`computer_use`, `google_search`, `x_search`, and similar).
 - Leave curated tools and flags on existing models alone. Edit those by hand after the sync PR opens.
 

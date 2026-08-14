@@ -36,9 +36,9 @@ describe('toModelConstName', () => {
     expect(toModelConstName('gpt-5.6-luna-pro')).toBe('GPT_5_6_LUNA_PRO')
   })
 
-  it('refuses to name a routing alias', () => {
-    expect(() => toModelConstName('~anthropic/claude-haiku-latest')).toThrow(
-      /routing alias/i,
+  it('maps a leading tilde so an OpenRouter alias is a valid JS identifier', () => {
+    expect(toModelConstName('~anthropic/claude-haiku-latest')).toBe(
+      '_ANTHROPIC_CLAUDE_HAIKU_LATEST',
     )
   })
 

@@ -2,9 +2,11 @@
  * Shared OpenRouter id helpers for `convert-openrouter-models.ts` and
  * `sync-provider-models.ts`.
  *
- * OpenRouter marks unstable routing aliases with a leading `~`
- * (`~anthropic/claude-haiku-latest`). Those aliases are not stable model
- * ids and they cannot become JS identifiers, so the generators skip them.
+ * OpenRouter marks routing aliases with a leading `~`
+ * (`~anthropic/claude-haiku-latest`). The OpenRouter catalog keeps those
+ * ids so `chat({ model: '~anthropic/claude-haiku-latest' })` type-checks.
+ * Native provider sync skips them. The `~` is mapped to `_` only in the
+ * generated constant name so the file is valid JS.
  */
 
 const CONST_NAME_RE = /^[A-Z_][A-Z0-9_]*$/
@@ -20,13 +22,8 @@ export function rejectRoutingAliases<T extends { id: string }>(
 }
 
 export function toModelConstName(modelId: string): string {
-  if (isRoutingAlias(modelId)) {
-    throw new Error(
-      `Refusing to name a routing alias ${JSON.stringify(modelId)}. Filter aliases with rejectRoutingAliases() first.`,
-    )
-  }
-
   const constName = modelId
+    .replaceAll('~', '_')
     .replaceAll('/', '_')
     .replaceAll('-', '_')
     .replaceAll('.', '_')

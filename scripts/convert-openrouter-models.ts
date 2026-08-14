@@ -12,7 +12,7 @@ import { models } from './openrouter.models'
 import { videoModels as videoApiModels } from './openrouter.video-models'
 import type { OpenRouterModel } from './openrouter.models'
 import type { OpenRouterVideoApiModel } from './openrouter.video-models'
-import { rejectRoutingAliases, toModelConstName } from './model-sync/ids'
+import { toModelConstName } from './model-sync/ids'
 
 type InputModality = 'text' | 'image' | 'audio' | 'video' | 'document'
 
@@ -317,15 +317,7 @@ function generateModelMetaString(model: OpenRouterModel): string {
 }
 
 function convertModels(sourceModels: Array<OpenRouterModel>): string {
-  const stableModels = rejectRoutingAliases(sourceModels)
-  const skipped = sourceModels.length - stableModels.length
-  if (skipped > 0) {
-    console.log(
-      `Skipped ${skipped} OpenRouter routing-alias model(s) (\`~prefix/...\`)`,
-    )
-  }
-  const modelStrings = stableModels.map(generateModelMetaString)
-  return modelStrings.join('\n')
+  return sourceModels.map(generateModelMetaString).join('\n')
 }
 
 // ============================================================
