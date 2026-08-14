@@ -265,6 +265,7 @@ interface RunStateEntry {
    * bubble in place.
    */
   streamingMessageId?: string
+  streamingMessageCreatedAt?: Date
 }
 
 const runState = new WeakMap<object, RunStateEntry>()
@@ -450,6 +451,7 @@ function finishedTranscript(
   messages: ReadonlyArray<ModelMessage>,
   info: FinishInfo,
   messageId: string | undefined,
+  createdAt: Date | undefined,
 ): Array<ModelMessage> {
   const transcript = [...messages]
   const last = transcript[transcript.length - 1]
@@ -464,6 +466,7 @@ function finishedTranscript(
       role: 'assistant',
       content: info.content,
       ...(messageId ? { id: messageId } : {}),
+      ...(createdAt ? { createdAt } : {}),
     })
   }
   return transcript
@@ -1536,11 +1539,21 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // regardless of snapshotStreaming — it's persisted onto the assistant
       // message so its identity survives hydrate and a reload resumes the same
       // bubble in place.
-      if (chunk.type === 'TEXT_MESSAGE_START') {
+      if (ctx.phase === 'modelStream') {
         const s = runState.get(ctx)
-        if (s) {
+        if (s && chunk.type === 'TEXT_MESSAGE_START') {
           s.streamingMessageId = chunk.messageId
+          s.streamingMessageCreatedAt = new Date()
           s.streamingText = ''
+        } else if (
+          s &&
+          chunk.type === 'TOOL_CALL_START' &&
+          typeof chunk.parentMessageId === 'string' &&
+          chunk.parentMessageId !== '' &&
+          s.streamingMessageId === undefined
+        ) {
+          s.streamingMessageId = chunk.parentMessageId
+          s.streamingMessageCreatedAt ??= new Date()
         }
       }
 
@@ -1570,6 +1583,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
                   content: snapshotState.streamingText,
                   ...(snapshotState.streamingMessageId
                     ? { id: snapshotState.streamingMessageId }
+                    : {}),
+                  ...(snapshotState.streamingMessageCreatedAt
+                    ? { createdAt: snapshotState.streamingMessageCreatedAt }
                     : {}),
                 },
               ])
@@ -1620,7 +1636,12 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // "finished" run whose transcript is missing the terminal turn.
       await messageStore.saveThread(
         ctx.threadId,
-        finishedTranscript(ctx.messages, info, state?.streamingMessageId),
+        finishedTranscript(
+          ctx.messages,
+          info,
+          state?.streamingMessageId,
+          state?.streamingMessageCreatedAt,
+        ),
       )
       await completeRun(runs, ctx.runId, info.usage)
       await commitPendingResumes(state, persistence.stores.interrupts)
