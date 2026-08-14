@@ -1,4 +1,5 @@
 import { mkdtemp, rm } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
@@ -143,5 +144,37 @@ describe('createFileSnippetStorage', () => {
       trustStrategy: strategy,
     })
     expect(s.trustStrategy).toBe(strategy)
+  })
+
+  describe('rejects path traversal in snippet names', () => {
+    const unsafeNames = ['..', '../escape', 'a/b', 'foo/../bar', '/abs', 'win\\seg']
+
+    it('save() throws and writes nothing outside the directory', async () => {
+      for (const name of unsafeNames) {
+        await expect(
+          storage.save(makeSnippetInput({ name })),
+        ).rejects.toThrow(/Invalid snippet name/)
+      }
+      // The `../escape` attempt must not have created a sibling of `dir`.
+      expect(existsSync(join(dir, '..', 'escape'))).toBe(false)
+    })
+
+    it('delete() throws for unsafe names', async () => {
+      await expect(storage.delete('../escape')).rejects.toThrow(
+        /Invalid snippet name/,
+      )
+    })
+
+    it('get() returns null for unsafe names', async () => {
+      expect(await storage.get('../escape')).toBeNull()
+    })
+
+    it('still accepts ordinary identifier names', async () => {
+      const saved = await storage.save(
+        makeSnippetInput({ name: 'fetch_github-stats2' }),
+      )
+      expect(saved.name).toBe('fetch_github-stats2')
+      expect(await storage.get('fetch_github-stats2')).not.toBeNull()
+    })
   })
 })

@@ -49,6 +49,26 @@ export function createFileSnippetStorage(
 
   console.log('[FileSnippetStorage] Initialized with directory:', directory)
 
+  // Snippet names are used both as on-disk directory segments and as
+  // `snippet_<name>` sandbox tool names, so they must be a single safe
+  // identifier segment. Rejecting anything else keeps an LLM-supplied name
+  // (e.g. `../../etc`) from escaping `directory` during read/write/delete.
+  const SAFE_SNIPPET_NAME = /^[A-Za-z0-9_-]+$/
+
+  function isSafeSnippetName(name: string): boolean {
+    return typeof name === 'string' && SAFE_SNIPPET_NAME.test(name)
+  }
+
+  function assertSafeSnippetName(name: string): void {
+    if (!isSafeSnippetName(name)) {
+      throw new Error(
+        `Invalid snippet name ${JSON.stringify(
+          name,
+        )}: names must match /^[A-Za-z0-9_-]+$/ (no path separators or traversal).`,
+      )
+    }
+  }
+
   async function ensureDirectory(): Promise<void> {
     if (!existsSync(directory)) {
       console.log('[FileSnippetStorage] Creating directory:', directory)
@@ -86,6 +106,11 @@ export function createFileSnippetStorage(
   }
 
   async function get(name: string): Promise<Snippet | null> {
+    // Treat an unsafe name as "not found" rather than reading outside `directory`.
+    if (!isSafeSnippetName(name)) {
+      return null
+    }
+
     const snippetDir = join(directory, name)
     const metaPath = join(snippetDir, 'meta.json')
     const codePath = join(snippetDir, 'code.ts')
@@ -106,6 +131,7 @@ export function createFileSnippetStorage(
   async function save(
     snippet: Omit<Snippet, 'createdAt' | 'updatedAt'>,
   ): Promise<Snippet> {
+    assertSafeSnippetName(snippet.name)
     await ensureDirectory()
 
     const snippetDir = join(directory, snippet.name)
@@ -153,6 +179,8 @@ export function createFileSnippetStorage(
   }
 
   async function deleteSnippet(name: string): Promise<boolean> {
+    assertSafeSnippetName(name)
+
     const snippetDir = join(directory, name)
 
     if (!existsSync(snippetDir)) {
