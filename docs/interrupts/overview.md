@@ -14,7 +14,7 @@ keywords:
 # Interrupts
 
 Most agent runs are fire and forget. The model calls tools, they run, you get an
-answer back. But some steps shouldn't happen on their own: moving money,
+answer back. But some steps must not happen on their own: moving money,
 deleting a project, sending an email. And sometimes the agent needs an answer
 only the user can give before it can go on.
 
@@ -36,16 +36,16 @@ sequenceDiagram
     participant Client
     participant Server
 
-    Client->>Server: send message — run starts
-    Server-->>Client: interrupt outcome — run ends without a final answer
+    Client->>Server: send message, run starts
+    Server-->>Client: interrupt outcome, run ends without a final answer
     Client->>User: pending decisions surface as `interrupts`
     User->>Client: approve / reject / submit a value
-    Client->>Server: continuation request with the answers — a fresh run
+    Client->>Server: continuation request with the answers, a fresh run
     Server-->>Client: the agent picks up where it paused, final answer
 ```
 
 Note that the pause spans **two runs**: the interrupted one ends, and the
-continuation is a new run. One user-visible turn, two run lifecycles — see
+continuation is a new run. One user-visible turn, two run lifecycles. See
 [Threads and runs](../chat/streaming#threads-and-runs).
 
 No database is required. The browser sends the full message history back on the
@@ -157,9 +157,9 @@ export function Pauses() {
 ```
 
 The library will not invent a binding to make these resolvable. Doing so would
-render a form whose answer gets submitted against a run that has nothing pending
-— failing only after the user has filled it in. `unbound` says plainly that the
-pause belongs to something else, and unbound items never block you from
+render a form whose answer is sent to a run that has nothing pending. The
+submit would fail only after the user has filled it in. `unbound` says that
+the pause belongs to something else. Unbound items never block you from
 resolving the ones that are yours.
 
 If an external producer wants the chat client to resume its pause, attach a

@@ -425,44 +425,46 @@ export async function POST(request: Request) {
 }
 ```
 
-Register the same definition on the client. The literal `definitionId` check
-narrowly selects this request, and `resolveInterrupt` receives the response
-shape from `reviewPlan.responseSchema`.
+Register the same definition on the client. Check `kind` and `definitionId`.
+TypeScript then treats the item as `GenericInterrupt<typeof reviewPlan>`.
+`resolveInterrupt` uses the response shape from `reviewPlan.responseSchema`.
 
 ```tsx title="review-plan-panel.tsx"
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import type { GenericInterrupt } from '@tanstack/ai-react'
 import { reviewPlan } from './review-plan'
+
+function ReviewCard({
+  interrupt,
+}: {
+  interrupt: GenericInterrupt<typeof reviewPlan>
+}) {
+  return (
+    <button
+      onClick={() => interrupt.resolveInterrupt({ approved: true })}
+    >
+      Approve plan
+    </button>
+  )
+}
 
 export function ReviewPlanPanel() {
   const { interrupts, sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
     interrupts: [reviewPlan],
   })
-  type ActiveInterrupt = (typeof interrupts)[number]
-  const reviewInterrupt = interrupts.find(
-    (
-      interrupt,
-    ): interrupt is Extract<
-      ActiveInterrupt,
-      { definitionId: typeof reviewPlan.id }
-    > =>
-      interrupt.kind === 'generic' && interrupt.definitionId === reviewPlan.id,
-  )
 
   return (
     <>
       <button onClick={() => sendMessage('Review the release plan')}>
         Start review
       </button>
-      {reviewInterrupt ? (
-        <button
-          onClick={() =>
-            reviewInterrupt.resolveInterrupt({ approved: true })
-          }
-        >
-          Approve plan
-        </button>
-      ) : null}
+      {interrupts.map((interrupt) => {
+        if (interrupt.kind !== 'generic') return null
+        if (!('definitionId' in interrupt)) return null
+        if (interrupt.definitionId !== reviewPlan.id) return null
+        return <ReviewCard key={interrupt.id} interrupt={interrupt} />
+      })}
     </>
   )
 }

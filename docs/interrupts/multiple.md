@@ -182,8 +182,8 @@ export function RobustQueue() {
     tools: [transferTool] as const,
   })
 
-  // Retry only helps a transport failure. Expired or stale batches can't be
-  // retried, so don't offer it for those.
+  // Retry only helps a transport failure. Expired or stale batches cannot
+  // be retried, so do not offer it for those.
   const canRetry = interruptErrors.some((error) => error.code === 'transport')
 
   return (

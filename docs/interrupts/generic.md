@@ -126,6 +126,9 @@ middleware.
 Register the same definitions with `useChat`. A bound generic interrupt has its
 definition id, typed display payload, and typed `resolveInterrupt` method.
 
+Check `kind` and `definitionId`. Then pass the item to a card that takes
+`GenericInterrupt<typeof reviewPlan>`.
+
 ```tsx
 // app/plan-review.tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
@@ -158,12 +161,9 @@ export function PlanReview() {
   return (
     <>
       {interrupts.map((interrupt) => {
-        if (
-          interrupt.kind !== 'generic' ||
-          interrupt.definitionId !== reviewPlan.id
-        ) {
-          return null
-        }
+        if (interrupt.kind !== 'generic') return null
+        if (!('definitionId' in interrupt)) return null
+        if (interrupt.definitionId !== reviewPlan.id) return null
         return <ReviewCard key={interrupt.id} interrupt={interrupt} />
       })}
     </>
