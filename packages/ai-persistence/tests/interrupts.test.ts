@@ -138,12 +138,13 @@ const runStarted = (): StreamChunk => ({
   timestamp: 1,
 })
 
-const toolStart = (): StreamChunk => ({
+const toolStart = (parentMessageId?: string): StreamChunk => ({
   type: EventType.TOOL_CALL_START,
   toolCallId: 'tool-call-1',
   toolCallName: 'clientSearch',
   toolName: 'clientSearch',
   timestamp: 1,
+  ...(parentMessageId ? { parentMessageId } : {}),
 })
 
 const toolArgs = (): StreamChunk => ({
@@ -186,8 +187,9 @@ const toolCallChunks = () => [
 async function persistClientToolTurn(
   persistence: ReturnType<typeof memoryPersistence>,
   tools: Array<Tool>,
+  chunks: Array<StreamChunk> = toolCallChunks(),
 ) {
-  const first = mockAdapter([toolCallChunks()])
+  const first = mockAdapter([chunks])
   await collect(
     chat({
       adapter: first.adapter,
@@ -253,6 +255,35 @@ describe('interrupt persistence', () => {
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
       { role: 'user', content: 'hi' },
     ])
+  })
+
+  it('keeps the stream messageId on an interrupted tool-call turn', async () => {
+    const persistence = memoryPersistence()
+    await persistClientToolTurn(
+      persistence,
+      [approvalClientTool('clientSearch')],
+      [
+        runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'stream-assistant',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        toolStart('stream-assistant'),
+        toolArgs(),
+        toolCallFinished(),
+      ],
+    )
+
+    const thread = await persistence.stores.messages!.loadThread('t1')
+    const toolTurn = thread.find(
+      (message) =>
+        message.role === 'assistant' &&
+        message.toolCalls?.some((call) => call.id === 'tool-call-1'),
+    )
+    expect(toolTurn?.id).toBe('stream-assistant')
+    expect(toolTurn?.createdAt).toBeInstanceOf(Date)
   })
 
   it('does not persist duplicate records before terminal interrupt outcome', async () => {

@@ -1,6 +1,11 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { EventType, chat } from '@tanstack/ai'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  ModelMessage,
+  StreamChunk,
+  Tool,
+} from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import { defineAIPersistence } from '../src/types'
@@ -72,6 +77,32 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   const out: Array<StreamChunk> = []
   for await (const c of stream) out.push(c)
   return out
+}
+
+async function expectCollectRejects(
+  stream: AsyncIterable<StreamChunk>,
+  pattern: RegExp,
+) {
+  await expect(collect(stream)).rejects.toThrow(pattern)
+}
+
+function serverSearchTool(): Tool {
+  return {
+    name: 'search',
+    description: 'Search',
+    execute: () => ({ hits: [] }),
+  }
+}
+
+function findAssistantToolCall(
+  messages: ReadonlyArray<ModelMessage>,
+  toolCallId: string,
+) {
+  return messages.find(
+    (message) =>
+      message.role === 'assistant' &&
+      message.toolCalls?.some((call) => call.id === toolCallId),
+  )
 }
 
 describe('withPersistence (state-only)', () => {
@@ -179,7 +210,12 @@ describe('withPersistence (state-only)', () => {
     // tagged with its stream messageId so a reload resumes the same bubble.
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
       { role: 'user', content: 'hi' },
-      { role: 'assistant', content: 'Half a stor', id: 'm1' },
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Half a stor',
+        id: 'm1',
+        createdAt: expect.any(Date),
+      }),
     ])
   })
 
@@ -213,8 +249,240 @@ describe('withPersistence (state-only)', () => {
     // `modelMessagesToUIMessages` reuses it and a reload can resume in place.
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
       { role: 'user', content: 'hi' },
-      { role: 'assistant', content: 'hello', id: 'assistant-42' },
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'hello',
+        id: 'assistant-42',
+        createdAt: expect.any(Date),
+      }),
     ])
+  })
+
+  it('persists a tool-call turn under the stream messageId', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'stream-assistant',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'call_1',
+          toolCallName: 'search',
+          toolName: 'search',
+          parentMessageId: 'stream-assistant',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'call_1',
+          delta: '{}',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+        },
+      ],
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'stream-final',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text('done'),
+        ev.runFinished(),
+      ],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'search' }],
+        tools: [serverSearchTool()],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const thread = await persistence.stores.messages!.loadThread('t1')
+    const toolTurn = findAssistantToolCall(thread, 'call_1')
+    expect(toolTurn?.id).toBe('stream-assistant')
+    expect(toolTurn?.createdAt).toBeInstanceOf(Date)
+    expect(thread).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: 'assistant',
+          content: 'done',
+          id: 'stream-final',
+        }),
+      ]),
+    )
+  })
+
+  it('stamps createdAt at TEXT_MESSAGE_START, not at iteration start', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+
+    try {
+      let call = 0
+      const persistence = memoryPersistence()
+      const adapter = {
+        kind: 'text',
+        name: 'mock',
+        model: 'test-model',
+        '~types': {},
+        chatStream: () => {
+          call += 1
+          return (async function* () {
+            if (call === 1) {
+              yield ev.runStarted()
+              await vi.advanceTimersByTimeAsync(5_000)
+              yield {
+                type: EventType.TEXT_MESSAGE_START,
+                messageId: 'stream-assistant',
+                role: 'assistant',
+                timestamp: 1,
+              } satisfies StreamChunk
+              yield {
+                type: EventType.TOOL_CALL_START,
+                toolCallId: 'call_1',
+                toolCallName: 'search',
+                toolName: 'search',
+                parentMessageId: 'stream-assistant',
+                timestamp: 1,
+              } satisfies StreamChunk
+              yield {
+                type: EventType.TOOL_CALL_ARGS,
+                toolCallId: 'call_1',
+                delta: '{}',
+                timestamp: 1,
+              } satisfies StreamChunk
+              yield {
+                type: EventType.RUN_FINISHED,
+                runId: 'r1',
+                threadId: 't1',
+                finishReason: 'tool_calls',
+                timestamp: 1,
+              } satisfies StreamChunk
+              return
+            }
+            yield ev.runStarted()
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: 'stream-final',
+              role: 'assistant',
+              timestamp: 1,
+            } satisfies StreamChunk
+            yield ev.text('done')
+            yield ev.runFinished()
+          })()
+        },
+        structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+      } as unknown as AnyTextAdapter
+
+      await collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'search' }],
+          tools: [serverSearchTool()],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [withPersistence(persistence)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const toolTurn = findAssistantToolCall(
+        await persistence.stores.messages!.loadThread('t1'),
+        'call_1',
+      )
+      expect(toolTurn?.createdAt).toEqual(new Date('2026-01-01T00:00:05.000Z'))
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not let structured-output TEXT_MESSAGE_START replace the agent-loop id', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'agent-tool',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'call_1',
+          toolCallName: 'search',
+          toolName: 'search',
+          parentMessageId: 'agent-tool',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'call_1',
+          delta: '{}',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+        },
+      ],
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'agent-final',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text('hello'),
+        ev.runFinished(),
+      ],
+    ])
+    adapter.structuredOutput = async () => ({
+      data: { name: 'Ada' },
+      rawText: '{"name":"Ada"}',
+    })
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        tools: [serverSearchTool()],
+        runId: 'r1',
+        threadId: 't1',
+        stream: true,
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+        },
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const thread = await persistence.stores.messages!.loadThread('t1')
+    const terminal = thread.find(
+      (message) => message.role === 'assistant' && message.content === 'hello',
+    )
+    expect(terminal?.id).toBe('agent-final')
   })
 
   it('records an interrupt and marks the run interrupted', async () => {

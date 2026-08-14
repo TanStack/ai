@@ -4076,11 +4076,11 @@ const MINIMAX_MINIMAX_M2_7 = {
   pricing: {
     text: {
       input: {
-        normal: 0.18,
-        cached: 0,
+        normal: 0.3,
+        cached: 0.435,
       },
       output: {
-        normal: 0.72,
+        normal: 1.2,
       },
     },
     image: 0,
@@ -4108,16 +4108,16 @@ const MINIMAX_MINIMAX_M3 = {
       'topP',
     ],
   },
-  context_window: 1048576,
+  context_window: 1000000,
   max_output_tokens: 512000,
   pricing: {
     text: {
       input: {
-        normal: 0.3,
-        cached: 0.06,
+        normal: 0.6,
+        cached: 0.12,
       },
       output: {
-        normal: 1.2,
+        normal: 2.4,
       },
     },
     image: 0,
