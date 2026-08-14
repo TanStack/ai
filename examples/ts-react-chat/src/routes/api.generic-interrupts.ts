@@ -7,6 +7,7 @@ import {
 } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
 import {
+  AUDIENCE_OPTIONS,
   chooseAudience,
   inspectPlan,
   playgroundInterrupts,
@@ -48,7 +49,7 @@ function createLifecycleMiddleware(
             message: 'Pick who this reply is for.',
             payload: {
               question: 'Who should the next reply speak to?',
-              options: ['students', 'staff', 'mixed'],
+              options: Array.from(AUDIENCE_OPTIONS),
             },
           }),
         ],

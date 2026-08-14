@@ -76,11 +76,8 @@ export interface ChatMiddlewareBuilder<
     TRequires extends ReadonlyArray<CapabilityHandle>,
     TProvides extends ReadonlyArray<CapabilityHandle>,
     TContext = unknown,
-    TMiddlewareInterruptDefinitions extends AnyInterruptDefinition = [
+    TMiddlewareInterruptDefinitions extends AnyInterruptDefinition =
       TInterruptDefinitions,
-    ] extends [never]
-      ? AnyInterruptDefinition
-      : TInterruptDefinitions,
   >(
     middleware: [NamesOf<TRequires>] extends [TProvided]
       ? DefinedChatMiddleware<

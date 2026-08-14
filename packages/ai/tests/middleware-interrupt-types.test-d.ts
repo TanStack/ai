@@ -179,6 +179,21 @@ const builderJson: DefinedChatMiddleware<
     return { toolResume: 'continue' }
   },
 }
+const interruptFreeBuilt = createChatMiddleware()
+  .use({
+    name: 'logging-middleware',
+    onConfig(_ctx, config) {
+      return config
+    },
+  })
+  .use({
+    name: 'second-logging-middleware',
+    onConfig(_ctx, config) {
+      return config
+    },
+  })
+  .build()
+
 const built = createChatMiddleware()
   .use(builderStandard)
   .use(builderJson)
@@ -241,6 +256,10 @@ const invalidToolResume: ChatMiddleware<unknown, Definitions> = {
 void invalidToolResume
 
 declare const adapter: AnyTextAdapter
+chat({
+  adapter,
+  middleware: interruptFreeBuilt,
+})
 chat({
   adapter,
   // @ts-expect-error Literal interrupt definition ids must be unique in one chat registry.

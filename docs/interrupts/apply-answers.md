@@ -45,20 +45,20 @@ If `resume` is present and `parentRunId` is missing, the server throws.
 A hand-built generic resume item looks like this:
 
 ```ts
-{
+import { wrapGenericInterruptContinuation } from '@tanstack/ai'
+
+const resumeItem = {
   interruptId: 'generic-1',
-  status: 'resolved',
+  status: 'resolved' as const,
   payload: { approved: true },
-  metadata: {
-    'tanstack:interruptContinuation': {
-      v: 1,
-      definitionId: 'review-plan',
-      key: 'turn-1',
-      batchIndex: 0,
-      reason: 'review',
-      message: 'Review the plan',
-    },
-  },
+  metadata: wrapGenericInterruptContinuation({
+    v: 1,
+    definitionId: 'review-plan',
+    key: 'turn-1',
+    batchIndex: 0,
+    reason: 'review',
+    message: 'Review the plan',
+  }),
 }
 ```
 

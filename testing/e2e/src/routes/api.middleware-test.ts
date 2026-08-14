@@ -198,6 +198,13 @@ async function* teeForPhaseCapture(
   }
 }
 
+function lifecycleMiddlewareStack(
+  existing: Array<ChatMiddleware>,
+  extra: ChatMiddleware<unknown, typeof reviewPlan>,
+): Array<ChatMiddleware<unknown, typeof reviewPlan>> {
+  return [...existing, extra]
+}
+
 function createGenericLifecycleMiddleware(
   captureId: string,
   scenario: GenericScenario,
@@ -596,7 +603,10 @@ export const Route = createFileRoute('/api/middleware-test')({
                   ...adapterOptions,
                   messages: params.messages,
                   tools,
-                  middleware: [...middleware, genericLifecycleMiddleware],
+                  middleware: lifecycleMiddlewareStack(
+                    middleware,
+                    genericLifecycleMiddleware,
+                  ),
                   threadId: params.threadId,
                   runId: params.runId,
                   parentRunId: params.parentRunId,
