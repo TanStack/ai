@@ -15,7 +15,13 @@ this page, `chat()` writes and restores those checkpoints.
 Create one persistence value. Pass that exact value to `withPersistence` and to
 the snapshots object. Put `withPersistence` before `withSandbox`.
 
-## Start with the memory factory
+This page is enough for automatic save and restore. When you need a named
+version, a fork, or a download, add
+[Save a Named Version](./portable-snapshots-save),
+[Branch From a Version](./portable-snapshots-fork), or
+[Send a Frozen File](./portable-snapshots-artifacts).
+
+## Create new persistence
 
 Use `memorySandboxSnapshots` for local development. It creates persistence, a
 checkpoint store, and the snapshot methods as one object. It does not load
@@ -76,13 +82,25 @@ must use this same instance store.
 Pass the session `userId` in `context` for every run. Pass that same user id as
 `tenant.userId` on `snapshots.save`.
 
-## Add snapshots to existing persistence
+## Reuse existing persistence
 
 If `withPersistence` already uses a persistence object, pass that same object
 to `createSandboxSnapshots`. Do not create a second message store.
 
-The persistence object must include `stores.messages`, `stores.artifacts`, and
-`stores.blobs`.
+The persistence object must include these stores:
+
+- `messages`
+- `artifacts` (with `listForThread`)
+- `blobs`
+
+You also need a checkpoint store. That store is not a persistence store.
+
+If you already keep generated files, you already have `artifacts` and `blobs`.
+Use those same stores.
+
+If you only have `messages`, add `artifacts` and `blobs` to that same adapter.
+See [Which stores do you need?](../persistence/build-your-own-adapter#which-stores-do-you-need)
+and [Build a generation adapter](../persistence/build-your-own-generation-adapter).
 
 ```ts
 import { chat } from '@tanstack/ai'

@@ -286,12 +286,14 @@
         {
           "label": "Controls",
           "to": "persistence/controls",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Migrations",
@@ -607,7 +609,8 @@
         {
           "label": "Keep Files After Reload",
           "to": "sandbox/portable-snapshots-configure",
-          "addedAt": "2026-08-14"
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Save a Named Version",

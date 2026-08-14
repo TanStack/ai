@@ -14,16 +14,19 @@ This work runs on the server. Your client calls routes that you own.
 
 ## Pick your path
 
-- You want files to return after a reload. Read
-  [Keep Files After Reload](./portable-snapshots-configure).
-- You want a user to mark one version. Read
-  [Save a Named Version](./portable-snapshots-save).
-- You want a user to branch from one version. Read
-  [Branch From a Version](./portable-snapshots-fork).
-- You want a user to download a generated file. Read
-  [Send a Frozen File](./portable-snapshots-artifacts).
-- You want to control which paths are stored. Read
-  [What a Snapshot Stores](./portable-snapshots-safety).
+Start with persistence. Then add a product page only when you need that action.
+
+| You have | You want | Required pages |
+| --- | --- | --- |
+| No persistence yet | Files come back after a reload | [Keep Files After Reload](./portable-snapshots-configure#create-new-persistence) |
+| Chat persistence already | Files come back after a reload | [Keep Files After Reload](./portable-snapshots-configure#reuse-existing-persistence) |
+| Snapshots already wired | A user marks one version | [Save a Named Version](./portable-snapshots-save) |
+| Snapshots already wired | A user branches from one version | [Branch From a Version](./portable-snapshots-fork) |
+| Snapshots already wired | A user downloads a generated file | [Send a Frozen File](./portable-snapshots-artifacts) |
+| Snapshots already wired | Custom include or redact rules | [What a Snapshot Stores](./portable-snapshots-safety) |
+
+Automatic save and restore needs only the configure page. Save, fork, download,
+and policy pages are extra.
 
 ## What a checkpoint holds
 
