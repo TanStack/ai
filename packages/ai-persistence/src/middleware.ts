@@ -16,7 +16,6 @@ import type {
   GenericInterruptRequest,
   InterruptDefinition,
 } from '@tanstack/ai/adapter-internals'
-import type { PendingInterruptResumeRecord } from '@tanstack/ai'
 import { base64ToUint8Array } from '@tanstack/ai-utils'
 import {
   InterruptsCapability,
@@ -43,6 +42,7 @@ import type {
   GenerationMiddlewareContext,
   Interrupt,
   ModelMessage,
+  PendingInterruptResumeRecord,
   PersistedArtifactActivity,
   PersistedArtifactRef,
   PersistedArtifactRole,
@@ -286,6 +286,74 @@ interface RunStateEntry {
 const runState = new WeakMap<object, RunStateEntry>()
 
 const validResumeStatuses = new Set(['resolved', 'cancelled'])
+
+function mergeMaps<K, V>(
+  left?: ReadonlyMap<K, V>,
+  right?: ReadonlyMap<K, V>,
+): Map<K, V> | undefined {
+  if (!left && !right) return undefined
+  return new Map([...(left ?? []), ...(right ?? [])])
+}
+
+function mergeSets<T>(
+  left?: ReadonlySet<T>,
+  right?: ReadonlySet<T>,
+): Set<T> | undefined {
+  if (!left && !right) return undefined
+  return new Set([...(left ?? []), ...(right ?? [])])
+}
+
+function mergeResumeToolState(
+  left: ChatResumeToolState | undefined,
+  right: ChatResumeToolState | undefined,
+): ChatResumeToolState | undefined {
+  if (!left) return right
+  if (!right) return left
+  return {
+    approvals: mergeMaps(left.approvals, right.approvals),
+    clientToolResults: mergeMaps(
+      left.clientToolResults,
+      right.clientToolResults,
+    ),
+    genericInterrupts: mergeMaps(
+      left.genericInterrupts,
+      right.genericInterrupts,
+    ),
+    genericInterruptRequests: mergeMaps(
+      left.genericInterruptRequests,
+      right.genericInterruptRequests,
+    ),
+    deniedToolResults: mergeMaps(
+      left.deniedToolResults,
+      right.deniedToolResults,
+    ),
+    cancelledToolCallIds: mergeSets(
+      left.cancelledToolCallIds,
+      right.cancelledToolCallIds,
+    ),
+  }
+}
+
+function rejectMixedRunPending(
+  pending: Array<InterruptRecord>,
+  ctx: Pick<ChatMiddlewareContext, 'threadId' | 'runId'>,
+): void {
+  const runIds = new Set(pending.map((interrupt) => interrupt.runId))
+  if (runIds.size <= 1) return
+  throw new InterruptResumeValidationError([
+    {
+      scope: 'batch',
+      threadId: ctx.threadId,
+      interruptedRunId: ctx.runId,
+      generation: 0,
+      interruptIds: pending.map((interrupt) => interrupt.interruptId),
+      code: 'stale',
+      message: 'Thread has pending interrupts from more than one run.',
+      source: 'server',
+      retryable: false,
+    },
+  ])
+}
 
 function validatePendingResumes(
   pending: Array<InterruptRecord>,
@@ -1832,6 +1900,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         // share the durable thread, but its owner resolves it outside this
         // resume protocol. Including it would deadlock this chat resume.
         const ownedPending = pending.filter(isChatOwnedPendingInterrupt)
+        rejectMixedRunPending(ownedPending, ctx)
         const resumeByInterruptId = validatePendingResumes(
           ownedPending,
           config.resume,
@@ -1855,10 +1924,10 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           )
           patch.resume = []
           if (resumeToolState || genericResumeState) {
-            patch.resumeToolState = {
-              ...resumeToolState,
-              ...genericResumeState,
-            }
+            patch.resumeToolState = mergeResumeToolState(
+              resumeToolState,
+              genericResumeState,
+            )
           }
         }
         // Defer marking these interrupts resolved/cancelled until the run

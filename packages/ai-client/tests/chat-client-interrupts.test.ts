@@ -452,13 +452,19 @@ describe('InterruptManager hydration', () => {
   })
 
   it('resolves a generic item regardless of its wire response schema', () => {
+    const responseSchema = {
+      $schema: 'https://json-schema.org/draft/2019-09/schema',
+      type: 'object',
+    }
     const binding: InterruptBinding = {
       v: INTERRUPT_BINDING_VERSION,
       kind: 'generic',
       interruptId: 'generic-1',
       interruptedRunId: 'run-1',
       generation: 1,
-      responseSchemaHash: 'any-schema',
+      responseSchemaHash: digestInterruptJson(
+        canonicalInterruptJson(responseSchema),
+      ),
     }
     const { manager } = createManager()
     manager.hydrate({
@@ -470,10 +476,7 @@ describe('InterruptManager hydration', () => {
           // The library does not compile or validate the wire schema, so even a
           // schema in another dialect leaves the item resolvable. The
           // application validates the value itself before resolving.
-          responseSchema: {
-            $schema: 'https://json-schema.org/draft/2019-09/schema',
-            type: 'object',
-          },
+          responseSchema,
         }),
       ],
     })
@@ -487,6 +490,81 @@ describe('InterruptManager hydration', () => {
     // stream is in flight).
     expect(manager.getInterrupts()).toEqual([])
     expect(manager.getResuming()).toBe(true)
+  })
+
+  it('does not treat a generic binding as resumable when the schema hash does not match', () => {
+    const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'generic',
+      interruptId: 'generic-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      responseSchemaHash: 'other-hash',
+    }
+    const { manager } = createManager()
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [
+        descriptor(binding, {
+          responseSchema: { type: 'object' },
+        }),
+      ],
+    })
+
+    const item = manager.getInterrupts()[0]
+    expect(item).toMatchObject({ kind: 'generic', canResolve: false })
+  })
+
+  it('records a stale error when two first-party items share a batchIndex', () => {
+    const review = defineInterrupt({
+      id: 'approval',
+      responseSchema: z.object({ answer: z.number() }),
+    })
+    const responseSchema = convertSchemaToJsonSchema(review.responseSchema)
+    const hash = digestInterruptJson(canonicalInterruptJson(responseSchema))
+    const first: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'generic',
+      interruptId: 'generic-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      definitionId: 'approval',
+      key: 'one',
+      batchIndex: 0,
+      responseSchemaHash: hash,
+    }
+    const second: InterruptBinding = {
+      ...first,
+      interruptId: 'generic-2',
+      key: 'two',
+    }
+    const manager = new InterruptManager({
+      tools,
+      interrupts: [review],
+      submit: vi.fn(async () => undefined),
+    })
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [
+        descriptor(first, { responseSchema }),
+        descriptor(second, { responseSchema }),
+      ],
+    })
+
+    for (const item of manager.getInterrupts()) {
+      expect(item).toMatchObject({
+        kind: 'generic',
+        canResolve: false,
+        status: 'error',
+      })
+      if (item.kind === 'generic') {
+        expect(item.errors[0]?.code).toBe('stale')
+      }
+    }
   })
 })
 

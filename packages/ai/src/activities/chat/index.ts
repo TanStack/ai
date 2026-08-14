@@ -1234,6 +1234,15 @@ class TextEngine<
 
       if (this.earlyTermination) {
         yield* this.emitSuccessfulEarlyTermination()
+        if (!this.terminalHookCalled) {
+          this.terminalHookCalled = true
+          await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
+            finishReason: this.lastFinishReason,
+            duration: Date.now() - this.streamStartTime,
+            content: this.accumulatedContent,
+            usage: this.finishedEvent?.usage,
+          })
+        }
         return
       }
 
@@ -2143,7 +2152,7 @@ class TextEngine<
       yield* this.emitBoundaryInterrupts(
         'afterTools',
         finishEvent,
-        [],
+        toolCalls,
         afterToolRequests,
       )
       this.setToolPhase('wait')
@@ -2240,6 +2249,7 @@ class TextEngine<
   > {
     // `stop` is a finished run, not another tool cycle. `tool_calls` here
     // makes the client auto-send after afterTools, so reject looks stuck.
+    this.lastFinishReason = 'stop'
     const finishEvent = {
       ...this.createSyntheticFinishedEvent(),
       finishReason: 'stop' as const,
@@ -2743,8 +2753,12 @@ class TextEngine<
         )
       }
     }
-    if (phase === 'afterModel' && !this.toolCallManager.hasToolCalls()) {
-      this.addAssistantTextMessageForInterrupt()
+    if (phase === 'afterModel') {
+      if (this.toolCallManager.hasToolCalls()) {
+        this.addAssistantToolCallMessage(this.toolCallManager.getToolCalls())
+      } else {
+        this.addAssistantTextMessageForInterrupt()
+      }
     }
     const actionable = this.getBoundaryActionableToolRequests(toolCalls)
     yield* this.emitActionableInterruptBoundary(
@@ -2781,9 +2795,10 @@ class TextEngine<
       if (!tool) continue
       let input: unknown = {}
       try {
-        input = JSON.parse(toolCall.function.arguments)
+        const parsed = JSON.parse(toolCall.function.arguments.trim() || '{}')
+        input = parsed && typeof parsed === 'object' ? parsed : {}
       } catch {
-        continue
+        input = {}
       }
       const approvalId = `approval_${toolCall.id}`
       if (tool.needsApproval && !approvals.has(approvalId)) {

@@ -5,7 +5,12 @@ import {
   defineChatMiddleware,
   defineInterrupt,
 } from '@tanstack/ai'
-import type { AnyTextAdapter, StreamChunk, Tool } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  ChatResumeToolState,
+  StreamChunk,
+  Tool,
+} from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import type { InterruptStore } from '../src/types'
@@ -1348,6 +1353,137 @@ describe('interrupt persistence', () => {
     expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
       1,
     )
+  })
+
+  it('rejects pending interrupts from more than one run on the same thread', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.interrupts!.create({
+      interruptId: 'from-run-1',
+      runId: 'run-1',
+      threadId: 't1',
+      requestedAt: 1,
+      payload: {},
+    })
+    await persistence.stores.interrupts!.create({
+      interruptId: 'from-run-2',
+      runId: 'run-2',
+      threadId: 't1',
+      requestedAt: 2,
+      payload: {},
+    })
+
+    const chunks = await collect(
+      chat({
+        adapter: mockAdapter([[text('SHOULD NOT RUN')]]).adapter,
+        messages: [],
+        runId: 'run-3',
+        threadId: 't1',
+        resume: [
+          { interruptId: 'from-run-1', status: 'resolved' },
+          { interruptId: 'from-run-2', status: 'cancelled' },
+        ],
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const error = chunks.find((chunk) => chunk.type === EventType.RUN_ERROR)
+    expect(error?.['tanstack:interruptErrors']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scope: 'batch',
+          code: 'stale',
+          message: 'Thread has pending interrupts from more than one run.',
+        }),
+      ]),
+    )
+    expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
+      2,
+    )
+  })
+
+  it('keeps an opaque approval when a generic interrupt is also resumed', async () => {
+    const persistence = memoryPersistence()
+    const review = defineInterrupt({
+      id: 'merge-review',
+      responseSchema: coercedCountSchema,
+    })
+    const first = await collect(
+      chat({
+        adapter: mockAdapter([[runStarted(), runFinished('r1')]]).adapter,
+        interrupts: [review],
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [
+          defineChatMiddleware({
+            onInterruptBoundary(ctx) {
+              if (ctx.phase !== 'afterModel') return
+              return {
+                interrupts: [
+                  review.interrupt({
+                    key: 'review',
+                    reason: 'review',
+                    message: 'Review this plan',
+                  }),
+                ],
+              }
+            },
+          }),
+          withPersistence(persistence),
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const terminal = first.find(isInterruptTerminal)
+    const genericId = terminal?.outcome.interrupts[0]?.id
+    if (!genericId) throw new Error('Expected a persisted generic interrupt')
+
+    await persistence.stores.interrupts!.create({
+      interruptId: 'approval-1',
+      runId: 'r1',
+      threadId: 't1',
+      requestedAt: 2,
+      payload: { toolCallId: 'tc1', metadata: { kind: 'approval' } },
+    })
+
+    const resumeStates: Array<ChatResumeToolState | undefined> = []
+    await collect(
+      chat({
+        adapter: mockAdapter([
+          [runStarted(), text('continued'), runFinished('r1')],
+        ]).adapter,
+        interrupts: [review],
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'approval-1',
+            status: 'resolved',
+            payload: { approved: true },
+          },
+          {
+            interruptId: genericId,
+            status: 'resolved',
+            payload: { count: '2' },
+          },
+        ],
+        middleware: [
+          withPersistence(persistence),
+          defineChatMiddleware({
+            name: 'observe-merged-resume-state',
+            onConfig(_ctx, config) {
+              resumeStates.push(config.resumeToolState)
+            },
+            onInterruptResolution() {
+              return { toolResume: 'continue' }
+            },
+          }),
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(resumeStates[0]?.approvals?.get('approval-1')).toBe(true)
+    expect(resumeStates[0]?.genericInterruptRequests?.has(genericId)).toBe(true)
   })
 
   it('commits a mixed resume batch once when the store supports commitBatch', async () => {

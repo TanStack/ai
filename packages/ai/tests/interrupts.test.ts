@@ -55,6 +55,22 @@ describe('first-party interrupt definitions', () => {
     expect(binding.payload).toEqual({ amount: 10 })
   })
 
+  it('accepts undefined for an optional payload schema', () => {
+    const definition = defineInterrupt({
+      id: 'optional-note',
+      payloadSchema: z.string().optional(),
+      responseSchema: z.object({ ok: z.boolean() }),
+    })
+    expect(
+      definition.interrupt({
+        key: 'one',
+        reason: 'test',
+        message: 'Test',
+        payload: undefined,
+      }).payload,
+    ).toBeUndefined()
+  })
+
   it('rejects a payload when the definition has no payload schema', () => {
     const definition = defineInterrupt({
       id: 'simple',

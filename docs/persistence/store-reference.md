@@ -237,6 +237,11 @@ interface InterruptStore {
 you implement it. The legacy `resolve` and `cancel` fallback is sequential and
 is not atomic.
 
+If you implement `commitBatch`, reject the whole batch (throw, write nothing)
+when any entry has a duplicate `interruptId`, names an interrupt that does not
+exist, or names an interrupt that is not `'pending'`. `resolve` and `cancel`
+stay no-ops for a missing `interruptId`.
+
 `create` accepts a record without `status`/`resolvedAt` so every interrupt is
 born `'pending'`; it is insert-if-absent, so a duplicate `create` never clobbers
 an already-resolved interrupt. The `list*` methods return records ordered by

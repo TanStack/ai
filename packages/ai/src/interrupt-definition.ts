@@ -405,9 +405,6 @@ function parseInterruptPayload(
       `Interrupt payload is invalid: ${result.issues.map((issue) => issue.message).join(' ')}`,
     )
   }
-  if (result.value === undefined) {
-    throw new TypeError('Interrupt payloadSchema returned no parsed payload.')
-  }
   return result.value
 }
 
@@ -531,14 +528,20 @@ export function defineInterrupt<
           'This interrupt definition does not accept a payload.',
         )
       }
-      validateJson(input.payload, 'Interrupt payload')
+      if (input.payload !== undefined) {
+        validateJson(input.payload, 'Interrupt payload')
+      }
     }
-    const payload =
+    const parsedPayload =
       'payload' in input
-        ? cloneAndDeepFreezeJson(
-            payloadIsParsed ? input.payload : parsePayload(input.payload),
-          )
+        ? payloadIsParsed
+          ? input.payload
+          : parsePayload(input.payload)
         : undefined
+    const payload =
+      parsedPayload === undefined
+        ? undefined
+        : cloneAndDeepFreezeJson(parsedPayload)
     const expiresAt =
       input.expiresAt === undefined
         ? undefined
@@ -546,7 +549,7 @@ export function defineInterrupt<
     const request = Object.freeze({
       definition,
       key,
-      ...(hasPayloadSchema && 'payload' in input ? { payload } : {}),
+      ...(hasPayloadSchema && payload !== undefined ? { payload } : {}),
       reason,
       message,
       ...(expiresAt !== undefined ? { expiresAt } : {}),
@@ -559,7 +562,7 @@ export function defineInterrupt<
           reason,
           message,
           ...(expiresAt !== undefined ? { expiresAt } : {}),
-          ...('payload' in input ? { payload: input.payload } : {}),
+          ...(parsedPayload !== undefined ? { payload: parsedPayload } : {}),
         }),
       )
     }

@@ -975,6 +975,31 @@ export class InterruptManager<
     }
 
     if (
+      candidate !== undefined &&
+      candidate.kind === 'generic' &&
+      candidate.definitionId !== undefined &&
+      candidate.key !== undefined &&
+      candidate.batchIndex !== undefined &&
+      candidate.key.length > 0 &&
+      firstPartyIndexes.get(candidate.batchIndex) !== 1
+    ) {
+      return {
+        descriptor: interrupt,
+        binding: cloneAndDeepFreezeJson(candidate),
+        kind: 'generic',
+        status: 'error',
+        canResolve: false,
+        resumable: false,
+        error: this.itemError(
+          interrupt.id,
+          'stale',
+          'Generic interrupt batch contains a duplicate batchIndex.',
+        ),
+        validationGeneration: 0,
+      }
+    }
+
+    if (
       correlated &&
       candidate.kind === 'generic' &&
       candidate.definitionId !== undefined &&
@@ -1020,7 +1045,10 @@ export class InterruptManager<
       (candidate !== undefined &&
         candidate.interruptId === interrupt.id &&
         candidate.interruptedRunId === hydration.interruptedRunId &&
-        candidate.generation === hydration.generation)
+        candidate.generation === hydration.generation &&
+        (candidate.kind !== 'generic' ||
+          responseSchemaHash(interrupt) === undefined ||
+          candidate.responseSchemaHash === responseSchemaHash(interrupt)))
     return {
       descriptor: interrupt,
       binding: genericBinding(interrupt, hydration, candidate),
