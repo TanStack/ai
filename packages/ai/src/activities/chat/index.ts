@@ -2177,7 +2177,9 @@ class TextEngine<
               ? undefined
               : JSON.stringify(message.content)
         return {
-          id: `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
+          id:
+            message.id ||
+            `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
           role: message.role,
           ...(content !== undefined ? { content } : {}),
           ...('toolCalls' in message && message.toolCalls
