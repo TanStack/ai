@@ -82,6 +82,20 @@ export default async function globalSetup() {
   mock.mount('/api/embed', ollamaEmbedMount())
   mock.mount('/mistral', mistralEmbeddingsMount())
 
+  // Gemini native image generation (#1104: GA model ids + per-model
+  // aspectRatio/imageSize). Like TTS above, this hits generateContent, but
+  // aimock's handleGemini has no image-response branch at all (it imports
+  // isTextResponse/isToolCallResponse/isContentWithToolCallsResponse/
+  // isAudioResponse from helpers.js — isImageResponse is wired only into
+  // images.js's OpenAI /v1/images/* and Gemini's :predict handling) — a
+  // fixture shaped `{image}`/`{images}` falls through every branch and 500s
+  // with "Fixture response did not match any known type". Shares the
+  // '/v1beta/models' prefix with the Veo and batch-embed mounts above; only
+  // the two model paths the #1104 spec exercises are handled here, so
+  // everything else still falls through to those mounts / aimock's native
+  // Gemini handlers.
+  mock.mount('/v1beta/models', geminiNativeImageMount())
+
   // Gemini Omni Flash video generation (Interactions API). aimock handles
   // synchronous text interactions natively, but not background video jobs
   // (POST /v1beta/interactions with background:true → poll
@@ -498,6 +512,147 @@ function geminiBatchEmbedMount(): Mountable {
           embeddings: Array.from({ length: count }, () => ({
             values: [...EMBED_VECTOR],
           })),
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * A tiny (1x1) real PNG, base64-encoded. Only needs to be a valid inline
+ * image byte string — the #1104 spec asserts on `images.length`, not pixel
+ * content. Mirrors `FAKE_MP3_BYTES`/`FAKE_PCM_BYTES` above.
+ */
+const TINY_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+
+/**
+ * Rejects with a Gemini-shaped error envelope (`{ error: { code, message,
+ * status } }`) so a validation failure surfaces as the actual missing/extra
+ * field in the adapter's thrown error message, not a generic 500.
+ */
+function rejectGeminiImageRequest(
+  res: http.ServerResponse,
+  message: string,
+): true {
+  res.statusCode = 400
+  res.setHeader('Content-Type', 'application/json')
+  res.end(
+    JSON.stringify({
+      error: { code: 400, message, status: 'INVALID_ARGUMENT' },
+    }),
+  )
+  return true
+}
+
+/**
+ * Mounts Gemini native image generation (`POST /v1beta/models/{model}:generateContent`)
+ * for the two models #1104's spec exercises: `gemini-3.1-flash-image` (the
+ * new GA id) and `gemini-2.5-flash-image` (the legacy model whose sizes are a
+ * bare aspect ratio with no resolution tier).
+ *
+ * aimock's own `handleGemini` has no image-response branch — it imports
+ * `isTextResponse`/`isToolCallResponse`/`isContentWithToolCallsResponse`/
+ * `isAudioResponse` from `helpers.js`, but never `isImageResponse` (that's
+ * wired only into `images.js`'s OpenAI `/v1/images/*` and Gemini's
+ * `:predict` handling) — so a `{image}`/`{images}` fixture matched against
+ * `generateContent` falls through every branch and 500s with "Fixture
+ * response did not match any known type". This mount hand-crafts the
+ * `candidates[0].content.parts[0].inlineData` shape directly, mirroring
+ * `geminiTTSMount` above (image/png instead of PCM audio).
+ *
+ * The request is validated against the raw, untranslated body — mounts see
+ * it before aimock's internal `geminiToCompletionRequest` translation, which
+ * drops `generationConfig.imageConfig` entirely — so this is what actually
+ * proves `imageConfig.aspectRatio` / `imageConfig.imageSize` reached the
+ * wire, per model:
+ * - `gemini-3.1-flash-image` rejects unless both `aspectRatio` AND
+ *   `imageSize` are present (this model has resolution tiers).
+ * - `gemini-2.5-flash-image` rejects if `aspectRatio` is missing, OR if
+ *   `imageSize` is present at all — Google documents no `image_size` for
+ *   this model (#1104), so `parseNativeImageSize` must produce a bare ratio
+ *   and the adapter must omit `imageSize` from the request.
+ */
+function geminiNativeImageMount(): Mountable {
+  const NATIVE_IMAGE_MODELS = new Set([
+    'gemini-3.1-flash-image',
+    'gemini-2.5-flash-image',
+  ])
+
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/v1beta/models'), so pathname
+      // looks like '/{model}:generateContent'.
+      pathname: string,
+    ): Promise<boolean> {
+      const match = pathname.match(/^\/([^/:]+):generateContent$/)
+      const model = match?.[1]
+      if (!model || !NATIVE_IMAGE_MODELS.has(model) || req.method !== 'POST') {
+        return false
+      }
+
+      const body = await readJsonRequestBody(req)
+      if (!body) {
+        return rejectGeminiImageRequest(res, 'Malformed JSON body.')
+      }
+
+      const generationConfig = asRecord(body.generationConfig)
+      const imageConfig = asRecord(generationConfig?.imageConfig)
+      const aspectRatio = imageConfig?.aspectRatio
+      const imageSize = imageConfig?.imageSize
+
+      if (typeof aspectRatio !== 'string' || aspectRatio.length === 0) {
+        return rejectGeminiImageRequest(
+          res,
+          `${model}: generationConfig.imageConfig.aspectRatio is missing.`,
+        )
+      }
+
+      if (model === 'gemini-3.1-flash-image') {
+        if (typeof imageSize !== 'string' || imageSize.length === 0) {
+          return rejectGeminiImageRequest(
+            res,
+            `${model}: generationConfig.imageConfig.imageSize is missing.`,
+          )
+        }
+      } else if (imageSize !== undefined) {
+        // gemini-2.5-flash-image: Google documents no image_size for this
+        // model (#1104) — the adapter must send a bare aspect ratio only.
+        return rejectGeminiImageRequest(
+          res,
+          `${model}: generationConfig.imageConfig.imageSize must be absent.`,
+        )
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: 'image/png',
+                      data: TINY_PNG_BASE64,
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 8,
+            candidatesTokenCount: 1290,
+            totalTokenCount: 1298,
+          },
         }),
       )
       return true
