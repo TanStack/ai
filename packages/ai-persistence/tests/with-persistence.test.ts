@@ -219,6 +219,59 @@ describe('withPersistence (state-only)', () => {
     ])
   })
 
+  it('does not let an empty TEXT_MESSAGE_START id replace parentMessageId', async () => {
+    const persistence = memoryPersistence()
+    const adapter = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () =>
+        (async function* () {
+          yield ev.runStarted()
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: '',
+            timestamp: 1,
+          }
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'call_1',
+            toolCallName: 'search',
+            toolName: 'search',
+            parentMessageId: 'stream-assistant',
+            timestamp: 1,
+          }
+          yield ev.text('Half a stor')
+          throw new Error('crash mid-stream')
+        })(),
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    await expect(
+      collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'hi' }],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [
+            withPersistence(persistence, { snapshotStreaming: true }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('crash mid-stream')
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'hi' },
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Half a stor',
+        id: 'stream-assistant',
+      }),
+    ])
+  })
+
   it('stamps the terminal assistant turn with its stream messageId', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([

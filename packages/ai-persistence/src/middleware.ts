@@ -1541,7 +1541,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // bubble in place.
       if (ctx.phase === 'modelStream') {
         const s = runState.get(ctx)
-        if (s && chunk.type === 'TEXT_MESSAGE_START') {
+        if (s && chunk.type === 'TEXT_MESSAGE_START' && chunk.messageId !== '') {
           s.streamingMessageId = chunk.messageId
           s.streamingMessageCreatedAt = new Date()
           s.streamingText = ''
