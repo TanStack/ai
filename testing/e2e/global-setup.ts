@@ -580,6 +580,12 @@ function geminiNativeImageMount(): Mountable {
     'gemini-2.5-flash-image',
   ])
 
+  // Deliberately coupled to the `size` values in
+  // testing/e2e/src/routes/api.gemini-image-ga-models.ts ('16:9_2K' and
+  // '16:9') — a future edit to one must update the other.
+  const EXPECTED_ASPECT_RATIO = '16:9'
+  const EXPECTED_FLASH_IMAGE_SIZE = '2K'
+
   return {
     async handleRequest(
       req: http.IncomingMessage,
@@ -604,18 +610,18 @@ function geminiNativeImageMount(): Mountable {
       const aspectRatio = imageConfig?.aspectRatio
       const imageSize = imageConfig?.imageSize
 
-      if (typeof aspectRatio !== 'string' || aspectRatio.length === 0) {
+      if (aspectRatio !== EXPECTED_ASPECT_RATIO) {
         return rejectGeminiImageRequest(
           res,
-          `${model}: generationConfig.imageConfig.aspectRatio is missing.`,
+          `${model}: generationConfig.imageConfig.aspectRatio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
         )
       }
 
       if (model === 'gemini-3.1-flash-image') {
-        if (typeof imageSize !== 'string' || imageSize.length === 0) {
+        if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
           return rejectGeminiImageRequest(
             res,
-            `${model}: generationConfig.imageConfig.imageSize is missing.`,
+            `${model}: generationConfig.imageConfig.imageSize must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
           )
         }
       } else if (imageSize !== undefined) {
