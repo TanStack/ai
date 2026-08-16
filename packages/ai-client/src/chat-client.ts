@@ -1852,28 +1852,17 @@ export class ChatClient<
     }
   }
 
-  /**
-   * True when the client still has user-actionable interrupts (or is mid
-   * resume submission). Staged/submitting items that are already being
-   * continued do not block a later turn once the resume stream has cleared
-   * resume state.
-   */
+  /** True while interrupt descriptors still own continuation. */
+  private hasPendingInterrupts(): boolean {
+    return this.interruptManager.getDescriptors().length > 0
+  }
+
+  /** True while an interrupt batch owns the next user turn. */
   private hasBlockingInterrupts(): boolean {
-    if (!this.lastResume && !this.activeInterruptSubmission) {
-      return false
-    }
-    if (this.activeInterruptSubmission) {
-      return true
-    }
-    return this.interruptManager
-      .getInterrupts()
-      .some(
-        (item) =>
-          item.status === 'pending' ||
-          item.status === 'validating' ||
-          item.status === 'error' ||
-          item.status === 'staged',
-      )
+    return (
+      this.activeInterruptSubmission !== undefined ||
+      this.hasPendingInterrupts()
+    )
   }
 
   /** True while a stream is active, a send is claiming the client, or the queue is draining. */
@@ -2583,6 +2572,8 @@ export class ChatClient<
    * Check if we should continue the flow and do so if needed
    */
   private async checkForContinuation(): Promise<void> {
+    if (this.hasPendingInterrupts()) return
+
     // Prevent duplicate continuation attempts
     if (this.continuationPending || this.isLoading) {
       this.continuationSkipped = true
