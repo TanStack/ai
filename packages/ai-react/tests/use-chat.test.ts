@@ -36,12 +36,21 @@ describe('useChat', () => {
   describe('interrupt state', () => {
     it('projects one immutable snapshot with the deprecated pending alias', async () => {
       const onInterruptStateChange = vi.fn()
-      const { result } = renderUseChat({
-        connection: createMockConnectionAdapter(),
-        initialResumeSnapshot: createInterruptResumeSnapshot(),
-        onInterruptStateChange,
-      })
+      const { result } = renderHook(
+        () =>
+          useChat({
+            connection: createMockConnectionAdapter(),
+            initialResumeSnapshot: createInterruptResumeSnapshot(),
+            onInterruptStateChange,
+          }),
+        { wrapper: StrictMode },
+      )
 
+      expect(onInterruptStateChange).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ interrupts: result.current.interrupts }),
+        { source: 'hydrate' },
+      )
       expect(Object.isFrozen(result.current.interrupts)).toBe(true)
       expect(result.current.pendingInterrupts).toBe(result.current.interrupts)
       expect(result.current.interrupts[0]).toMatchObject({
@@ -73,6 +82,7 @@ describe('useChat', () => {
           interrupts: result.current.interrupts,
           interruptErrors: result.current.interruptErrors,
         }),
+        { source: 'live' },
       )
     })
 
@@ -182,6 +192,36 @@ describe('useChat', () => {
         expect(result.current.messages).toEqual(persistedMessages)
       })
       expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
+    })
+
+    it('should forward synchronous persisted interrupt hydration', () => {
+      const onInterruptStateChange = vi.fn()
+      const persistence = {
+        getItem: vi.fn(() => ({
+          messages: [],
+          resume: createInterruptResumeSnapshot(),
+        })),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const { result } = renderHook(
+        () =>
+          useChat({
+            connection: createMockConnectionAdapter(),
+            threadId: 'persisted-interrupt-chat',
+            persistence,
+            onInterruptStateChange,
+          }),
+        { wrapper: StrictMode },
+      )
+
+      expect(result.current.interrupts).toHaveLength(2)
+      expect(onInterruptStateChange).toHaveBeenCalledOnce()
+      expect(onInterruptStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({ interrupts: result.current.interrupts }),
+        { source: 'hydrate' },
+      )
     })
 
     it('should preserve persisted empty messages over provided initial messages', async () => {

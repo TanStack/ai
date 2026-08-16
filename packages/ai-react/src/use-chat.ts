@@ -99,7 +99,7 @@ export function useChat<
   }, [])
 
   // Create ChatClient instance with callbacks to sync state
-  const client = useMemo(() => {
+  const { client, initializationCallbacks } = useMemo(() => {
     const messagesToUse = options.initialMessages || []
     isFirstMountRef.current = false
 
@@ -122,7 +122,19 @@ export function useChat<
       }
       return currentInstance
     }
-    const pendingInitializationErrors: Array<Error> = []
+    // ChatClient may publish while its constructor is still running. Preserve
+    // those exact notifications until this render commits; invoking them here
+    // would run state setters and user callbacks during render.
+    const initializationCallbacks: Array<() => void> = []
+    const runOrQueueForActiveInstance = (callback: () => void) => {
+      const currentInstance = instanceHolder.current
+      if (!currentInstance) {
+        initializationCallbacks.push(callback)
+        return
+      }
+      if (activeClientRef.current !== currentInstance) return
+      callback()
+    }
     const instance = new ChatClient<TTools, TContext>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
@@ -162,13 +174,9 @@ export function useChat<
         optionsRef.current.onFinish?.(message)
       },
       onError: (error: Error) => {
-        const currentInstance = instanceHolder.current
-        if (!currentInstance) {
-          pendingInitializationErrors.push(error)
-          return
-        }
-        if (activeClientRef.current !== currentInstance) return
-        optionsRef.current.onError?.(error)
+        runOrQueueForActiveInstance(() => {
+          optionsRef.current.onError?.(error)
+        })
       },
       ...(initialOptions.tools !== undefined && {
         tools: initialOptions.tools,
@@ -229,19 +237,19 @@ export function useChat<
           pendingInterrupts: nextPendingInterrupts,
         }))
       },
-      onInterruptStateChange: (nextInterruptState) => {
-        if (!getActiveInstance()) return
-        setInterruptState(nextInterruptState)
-        optionsRef.current.onInterruptStateChange?.(nextInterruptState)
+      onInterruptStateChange: (nextInterruptState, context) => {
+        runOrQueueForActiveInstance(() => {
+          setInterruptState(nextInterruptState)
+          optionsRef.current.onInterruptStateChange?.(
+            nextInterruptState,
+            context,
+          )
+        })
       },
     })
     instanceHolder.current = instance
     activeClientRef.current = instance
-    for (const error of pendingInitializationErrors) {
-      if (activeClientRef.current !== instance) break
-      optionsRef.current.onError?.(error)
-    }
-    return instance
+    return { client: instance, initializationCallbacks }
   }, [clientId, syncResumeState])
 
   useEffect(() => {
@@ -328,6 +336,10 @@ export function useChat<
       cleanupInvalidationRef.current = null
     }
     activeClientRef.current = client
+    for (const callback of initializationCallbacks.splice(0)) {
+      if (activeClientRef.current !== client) break
+      callback()
+    }
     client.mountDevtools()
     // Delivery-durability resume is transparent: the resumable SSE connection
     // adapter re-attaches via the browser's native Last-Event-ID on reconnect.
@@ -365,7 +377,7 @@ export function useChat<
       }
       cleanupDisposalRef.current = disposal
     }
-  }, [client, syncResumeState])
+  }, [client, initializationCallbacks, syncResumeState])
 
   const sendMessage = useCallback(
     async (

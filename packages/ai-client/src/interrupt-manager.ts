@@ -44,12 +44,14 @@ export interface InterruptManagerSubmission {
   fingerprint: string
 }
 
+export type InterruptManagerChangeSource = 'hydrate' | 'live'
+
 export interface InterruptManagerOptions<
   TTools extends ReadonlyArray<AnyClientTool>,
 > {
   tools?: TTools
   submit: (submission: InterruptManagerSubmission) => Promise<void>
-  onChange?: () => void
+  onChange?: (source: InterruptManagerChangeSource) => void
 }
 
 type UnknownObject = { [key: string]: unknown }
@@ -515,7 +517,10 @@ export class InterruptManager<
     this.tools = tools
   }
 
-  hydrate(hydration: InterruptManagerHydration): void {
+  hydrate(
+    hydration: InterruptManagerHydration,
+    source: InterruptManagerChangeSource = 'live',
+  ): void {
     this.hydration = {
       threadId: hydration.threadId,
       interruptedRunId: hydration.interruptedRunId,
@@ -529,7 +534,7 @@ export class InterruptManager<
     this.submissionRootErrors = Object.freeze([])
     this.retrySubmission = undefined
     this.resuming = false
-    this.publish()
+    this.publish(source)
   }
 
   getInterrupts(): BoundInterrupts<TTools> {
@@ -544,7 +549,10 @@ export class InterruptManager<
     return this.hydration?.interrupts ?? Object.freeze([])
   }
 
-  reset(options?: { preserveRootErrors?: boolean }): void {
+  reset(options?: {
+    preserveRootErrors?: boolean
+    source?: InterruptManagerChangeSource
+  }): void {
     this.hydration = undefined
     this.items = []
     this.snapshot = Object.freeze([])
@@ -560,7 +568,7 @@ export class InterruptManager<
       interruptErrors: this.rootErrors,
       resuming: false,
     })
-    this.options.onChange?.()
+    this.options.onChange?.(options?.source ?? 'live')
   }
 
   getInterruptErrors(): ReadonlyArray<BatchInterruptError> {
@@ -854,7 +862,9 @@ export class InterruptManager<
     return Object.freeze(next) as BoundInterrupts<TTools>
   }
 
-  private publish(): void {
+  // Provenance belongs to each publication because `onChange` may synchronously
+  // mutate the manager and publish again before an outer callback returns.
+  private publish(source: InterruptManagerChangeSource = 'live'): void {
     if (!this.hydration) {
       this.snapshot = Object.freeze([])
       this.state = Object.freeze({
@@ -863,7 +873,7 @@ export class InterruptManager<
         interruptErrors: this.rootErrors,
         resuming: this.resuming,
       })
-      this.options.onChange?.()
+      this.options.onChange?.(source)
       return
     }
     this.snapshot = this.buildSnapshot()
@@ -873,7 +883,7 @@ export class InterruptManager<
       interruptErrors: this.rootErrors,
       resuming: this.resuming,
     })
-    this.options.onChange?.()
+    this.options.onChange?.(source)
   }
 
   private resolveItem(

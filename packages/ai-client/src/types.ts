@@ -880,8 +880,15 @@ export interface ChatClientBaseOptions<
    */
   onRunIdChange?: (runId: string | null) => void
 
-  /** Callback when the immutable interrupt state snapshot changes. */
-  onInterruptStateChange?: (state: ChatInterruptState<TTools>) => void
+  /**
+   * Callback when the immutable interrupt state snapshot changes.
+   * Snapshot restoration passes `{ source: 'hydrate' }`; streamed and
+   * client-initiated updates pass `{ source: 'live' }`.
+   */
+  onInterruptStateChange?: (
+    state: ChatInterruptState<TTools>,
+    context: { source: 'hydrate' | 'live' },
+  ) => void
 
   /**
    * Callback when a custom event is received from a server-side tool.

@@ -85,6 +85,7 @@ test.describe('persistence durability (browser refresh)', () => {
       .poll(() => interruptCount(page), { timeout: 15_000 })
       .toBeGreaterThanOrEqual(1)
     await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible()
+    await expect(page.getByTestId('interrupt-source')).toHaveText('live')
 
     // The combined record carries the resume half while the interrupt is pending.
     const stored = await page.evaluate(() =>
@@ -105,6 +106,7 @@ test.describe('persistence durability (browser refresh)', () => {
       .toBeGreaterThanOrEqual(1)
     await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible()
     await expect(page.getByTestId('interrupt-kind')).toHaveText('generic')
+    await expect(page.getByTestId('interrupt-source')).toHaveText('hydrate')
   })
 
   test('restores a pending interrupt from the SERVER on a fresh load (persistence: true)', async ({
@@ -126,6 +128,7 @@ test.describe('persistence durability (browser refresh)', () => {
       .toBeGreaterThanOrEqual(1)
     await expect(page.getByTestId('interrupt-confirm-shipment')).toBeVisible()
     await expect(page.getByTestId('interrupt-kind')).toHaveText('generic')
+    await expect(page.getByTestId('interrupt-source')).toHaveText('hydrate')
     // Restored bound and resolvable — the reload can approve/reject, not just
     // view a dead paused tool call.
     await expect(page.getByTestId('interrupt-can-resolve')).toHaveText('true')

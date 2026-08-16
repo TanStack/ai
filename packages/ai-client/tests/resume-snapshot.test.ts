@@ -1,5 +1,11 @@
 ﻿import { describe, expect, it, vi } from 'vitest'
-import { INTERRUPT_BINDING_VERSION } from '@tanstack/ai/client'
+import {
+  EventType,
+  INTERRUPT_BINDING_VERSION,
+  hashSchemaInput,
+  toolDefinition,
+} from '@tanstack/ai/client'
+import { z } from 'zod'
 import { ChatPersistor } from '../src/client-persistor'
 import { normalizeConnectionAdapter } from '../src/connection-adapters'
 import { ChatClient } from '../src/chat-client'
@@ -368,6 +374,96 @@ describe('ChatClient auto-rejoin after reload', () => {
     expect(item?.canResolve).toBe(true)
     expect(item?.interruptedRunId).toBe('run-paused')
     expect(joinRun).not.toHaveBeenCalled()
+  })
+
+  it('publishes hydrate once before live client-tool cancellation', async () => {
+    const outputSchema = z.object({ accountId: z.string() })
+    const execute = vi.fn(async () => ({ accountId: 'account-1' }))
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up an account',
+      outputSchema,
+    }).client(execute)
+    const outputSchemaHash = hashSchemaInput(outputSchema)
+    const contexts: Array<RunAgentInputContext | undefined> = []
+    const connection: ResumableConnectConnectionAdapter = {
+      async *connect(_messages, _data, _signal, context) {
+        contexts.push(context)
+        const runId = context?.runId ?? 'run-cancelled'
+        const threadId = context?.threadId ?? 't1'
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        }
+      },
+      joinRun: async function* () {},
+      hydrate: () =>
+        Promise.resolve({
+          messages: [createUIMessage('u1', 'look up the account', 'user')],
+          activeRun: null,
+          interrupts: {
+            runId: 'run-paused',
+            pending: [
+              {
+                id: 'client-1',
+                reason: 'tanstack:client_tool_execution',
+                toolCallId: 'call-1',
+                metadata: {
+                  'tanstack:interruptBinding': {
+                    v: INTERRUPT_BINDING_VERSION,
+                    kind: 'client-tool-execution',
+                    interruptId: 'client-1',
+                    interruptedRunId: 'run-paused',
+                    generation: 1,
+                    toolName: 'lookup',
+                    toolCallId: 'call-1',
+                    outputSchemaHash,
+                    responseSchemaHash: outputSchemaHash,
+                  },
+                },
+              },
+            ],
+          },
+        }),
+    }
+    const sources: Array<'hydrate' | 'live'> = []
+    let client: ChatClient
+    client = mountedChatClient({
+      threadId: 't1',
+      connection,
+      persistence: true,
+      tools: [lookup],
+      onInterruptStateChange: (_state, context) => {
+        sources.push(context.source)
+        // Cancelling here re-enters the manager; nested publications must be
+        // live instead of inheriting the outer hydration source.
+        if (context.source === 'hydrate') client.cancelInterrupts()
+      },
+    })
+
+    await vi.waitFor(() => expect(contexts).toHaveLength(1))
+    await vi.waitFor(() => expect(client.getResumeState()).toBeNull())
+
+    expect(sources[0]).toBe('hydrate')
+    expect(sources.filter((source) => source === 'hydrate')).toEqual([
+      'hydrate',
+    ])
+    expect(sources).toContain('live')
+    expect(contexts[0]?.parentRunId).toBe('run-paused')
+    expect(contexts[0]?.resume).toEqual([
+      { interruptId: 'client-1', status: 'cancelled' },
+    ])
+    expect(contexts).toHaveLength(1)
+    expect(execute).not.toHaveBeenCalled()
   })
 
   it('restores a pending interrupt even when hydrate also reports an activeRun', async () => {
