@@ -89,6 +89,21 @@ describe('local-process process', () => {
     await sbx.destroy()
   })
 
+  it('resolves wait() when the child closes before stdout is fully consumed', async () => {
+    const sbx = await fresh()
+    const proc = await sbx.process.spawn(
+      `node -e "for (let i = 0; i < 20; i++) console.log(i)"`,
+    )
+    let out = ''
+    for await (const chunk of proc.stdout) {
+      out += chunk
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    await expect(proc.wait()).resolves.toBe(0)
+    expect(out.split('\n').filter(Boolean)).toHaveLength(20)
+    await sbx.destroy()
+  })
+
   it('advertises killableProcesses (killTree forcibly kills spawned processes)', async () => {
     const sbx = await fresh()
     // NOTE: this only reads a module constant. What makes the constant TRUE is
