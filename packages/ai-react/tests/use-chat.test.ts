@@ -1,7 +1,7 @@
 import { EventType } from '@tanstack/ai'
 import { ChatClient } from '@tanstack/ai-client'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { StrictMode, useState } from 'react'
+import { act, render, renderHook, waitFor } from '@testing-library/react'
+import { StrictMode, Suspense, createElement, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useChat } from '../src/use-chat'
 import {
@@ -222,6 +222,49 @@ describe('useChat', () => {
         expect.objectContaining({ interrupts: result.current.interrupts }),
         { source: 'hydrate' },
       )
+    })
+
+    it('does not publish async hydration from an abandoned render', async () => {
+      const hydration = createDeferred<{
+        messages: Array<UIMessage>
+        resume: ReturnType<typeof createInterruptResumeSnapshot>
+      }>()
+      const onInterruptStateChange = vi.fn()
+      const persistence = {
+        getItem: vi.fn(() => hydration.promise),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+      const suspended = new Promise<never>(() => {})
+
+      function AbandonedChat(): never {
+        useChat({
+          connection: createMockConnectionAdapter(),
+          threadId: 'abandoned-chat',
+          persistence,
+          onInterruptStateChange,
+        })
+        throw suspended
+      }
+
+      const view = render(
+        createElement(
+          Suspense,
+          { fallback: null },
+          createElement(AbandonedChat),
+        ),
+      )
+      view.unmount()
+
+      await act(async () => {
+        hydration.resolve({
+          messages: [],
+          resume: createInterruptResumeSnapshot(),
+        })
+        await hydration.promise
+      })
+
+      expect(onInterruptStateChange).not.toHaveBeenCalled()
     })
 
     it('should preserve persisted empty messages over provided initial messages', async () => {
