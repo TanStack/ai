@@ -100,7 +100,10 @@ describe('local-process process', () => {
       await new Promise((resolve) => setTimeout(resolve, 10))
     }
     await expect(proc.wait()).resolves.toBe(0)
-    expect(out.split('\n').filter(Boolean)).toHaveLength(20)
+    const lines = out.trimEnd().split(/\r?\n/)
+    expect(lines).toEqual(
+      Array.from({ length: 20 }, (_, index) => String(index)),
+    )
     await sbx.destroy()
   })
 
