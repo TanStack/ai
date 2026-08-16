@@ -183,6 +183,11 @@ A tool with a `.client()` implementation runs in the browser on its own and
 reports its own result. That is not a decision you make, so it never appears in
 `interrupts`. See [Client Tools](../tools/client-tools).
 
+If persistence restores a pending client-tool execution, the client leaves it
+pending rather than running the browser code again. See
+[Client persistence](../persistence/client-persistence#handle-restored-client-tools)
+for recovery policies.
+
 The one time a tool pauses is when you mark it `needsApproval: true`. Then it
 stops for a yes or no first, whether it runs on the server or in the browser:
 

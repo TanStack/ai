@@ -130,7 +130,12 @@ Two shortcuts cover the common cases:
   whole queue. It works only when every item is a tool approval that needs no
   payload or edits. Generic items, mixed queues, or required payloads are
   rejected.
-- `cancelInterrupts()` cancels every item with no payload.
+- `cancelInterrupts()` cancels the complete internal batch with no payload,
+  including client-tool execution steps that are hidden from `interrupts`.
+
+Use the `onInterruptStateChange` source to apply different policies to restored
+(`hydrate`) and current-session (`live`) batches. Cancellation still applies to
+the complete batch.
 
 ## When an answer is wrong
 

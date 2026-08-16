@@ -65,8 +65,10 @@ Native client-tool execution shares the atomic interrupt **batch** lifecycle
 (it can gate multi-item submits) but is **auto-resolved** — you do not call
 `resolveInterrupt` for it. See [Interrupts](../interrupts/overview) for the
 ephemeral lifecycle, batches, and migration from the historical
-`tool-input-available` custom event. Durable recovery is optional and not part
-of the default client-tool path.
+`tool-input-available` custom event. After hydration, a pending client-tool
+execution is restored but not run again. See
+[Client persistence](../persistence/client-persistence#handle-restored-client-tools)
+for recovery policies.
 
 ## Approval is a separate axis
 

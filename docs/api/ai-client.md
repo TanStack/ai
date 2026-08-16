@@ -105,6 +105,7 @@ goes away. Users of the framework hooks need no change.
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
 - `onError?` - Callback when error occurs
+- `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
 - `onMessagesChange?` - Callback when messages change
 - `onLoadingChange?` - Callback when loading state changes
 - `onErrorChange?` - Callback when error state changes
