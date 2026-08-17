@@ -198,4 +198,4 @@ The React chat example includes a repo-report page.
 
 The page clones `TanStack/ai` into a sandbox, asks the agent to inspect it, and shows the validated report.
 
-Claude Code does not need you to accept a trust dialog for that clone. The adapter turns off `.claude/settings.json` for the run so headless `-p` can start.
+Claude Code does not need you to accept a trust dialog for that clone. The adapter loads only user settings, so the clone's `.claude/settings.json` does not block headless `-p`.
