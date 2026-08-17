@@ -111,7 +111,11 @@ function npmGlobalCli(spec: string, verify: string): string {
 export const HARNESSES: Record<HarnessName, HarnessSpec> = {
   'claude-code': {
     label: 'Claude Code',
-    makeAdapter: () => claudeCodeText('sonnet'),
+    makeAdapter: () =>
+      claudeCodeText('sonnet', {
+        permissionMode: 'bypassPermissions',
+        env: { CLAUDE_CODE_SANDBOXED: '1' },
+      }),
     installCommand: npmGlobalCli(
       '@anthropic-ai/claude-code',
       'claude --version',

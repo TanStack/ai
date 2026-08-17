@@ -23,6 +23,18 @@ describe('parseJsonFromAssistantText', () => {
     expect(() => parseJsonFromAssistantText('not json')).toThrow()
   })
 
+  it('takes the last object after assistant prose', () => {
+    expect(
+      parseJsonFromAssistantText('I\'ll read the README.\n{"a":1}'),
+    ).toEqual({ a: 1 })
+  })
+
+  it('takes the last fenced object after prose', () => {
+    expect(
+      parseJsonFromAssistantText('Looking around.\n```json\n{"a":2}\n```'),
+    ).toEqual({ a: 2 })
+  })
+
   it('appends the schema instruction', () => {
     const next = appendOutputSchemaInstruction('Look around.', {
       type: 'object',

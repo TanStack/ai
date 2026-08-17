@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { BookOpen, Play, Square } from 'lucide-react'
+import { parsePartialJSON } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import {
   isReportAgent,
@@ -12,15 +13,78 @@ import {
   REPORT_REPO,
 } from '../repo-report-options'
 import { RepoReportSchema } from '../repo-report-schema'
+import type { RepoReport } from '../repo-report-schema'
 import type {
   ReportAgent,
   ReportHarness,
   ReportProvider,
 } from '../repo-report-options'
+import type { UIMessage } from '@tanstack/ai-react'
 
 export const Route = createFileRoute('/repo-report')({
   component: RepoReportPage,
 })
+
+function assistantText(messages: Array<UIMessage>): string {
+  return messages
+    .filter((message) => message.role === 'assistant')
+    .flatMap((message) => message.parts)
+    .flatMap((part) =>
+      part.type === 'text' && typeof part.content === 'string'
+        ? [part.content]
+        : [],
+    )
+    .join('\n')
+}
+
+function liveReportFromMessages(
+  messages: Array<UIMessage>,
+): Partial<RepoReport> | undefined {
+  const text = assistantText(messages)
+  const start = text.lastIndexOf('{')
+  if (start < 0) return undefined
+  const parsed: unknown = parsePartialJSON(text.slice(start))
+  if (parsed === null || parsed === undefined || typeof parsed !== 'object') {
+    return undefined
+  }
+  return parsed as Partial<RepoReport>
+}
+
+function proseWithoutJson(content: string): string | null {
+  const start = content.indexOf('{')
+  if (start < 0) return content
+  const before = content.slice(0, start).trim()
+  return before === '' ? null : before
+}
+
+function ReportCard({
+  report,
+}: {
+  report: Partial<RepoReport>
+}) {
+  return (
+    <article className="rounded-xl border border-orange-500/30 bg-gray-800 p-5 space-y-3">
+      <h3 className="text-lg font-semibold">{report.name ?? '…'}</h3>
+      <p>{report.oneLiner ?? '…'}</p>
+      <p className="text-sm text-gray-300">
+        <span className="text-gray-500">Audience: </span>
+        {report.audience ?? '…'}
+      </p>
+      <ul className="list-disc pl-5 text-sm space-y-1">
+        {(report.mainPackages ?? []).map((pkg, index) => (
+          <li key={pkg.name ?? index}>
+            <span className="font-mono text-orange-200">{pkg.name ?? '…'}</span>
+            {': '}
+            {pkg.role ?? '…'}
+          </li>
+        ))}
+      </ul>
+      {report.howToRun ? (
+        <p className="text-sm whitespace-pre-wrap">{report.howToRun}</p>
+      ) : null}
+    </article>
+  )
+}
 
 function RepoReportPage() {
   const [threadId] = useState(() => crypto.randomUUID())
@@ -43,7 +107,7 @@ function RepoReportPage() {
     void chat.sendMessage(`Report on ${REPORT_REPO}`)
   }
 
-  const report = chat.final
+  const report = chat.final ?? liveReportFromMessages(chat.messages)
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
@@ -134,7 +198,7 @@ function RepoReportPage() {
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl mx-auto space-y-6">
-          {chat.error ? (
+          {chat.error && !report ? (
             <p className="text-red-300 text-sm">{chat.error.message}</p>
           ) : null}
 
@@ -149,9 +213,11 @@ function RepoReportPage() {
             >
               {message.parts.map((part, index) => {
                 if (part.type === 'text' && part.content) {
+                  const prose = proseWithoutJson(part.content)
+                  if (prose === null) return null
                   return (
                     <p key={`text-${index}`} className="whitespace-pre-wrap">
-                      {part.content}
+                      {prose}
                     </p>
                   )
                 }
@@ -170,28 +236,7 @@ function RepoReportPage() {
             </div>
           ))}
 
-          {report ? (
-            <article className="rounded-xl border border-orange-500/30 bg-gray-800 p-5 space-y-3">
-              <h3 className="text-lg font-semibold">{report.name}</h3>
-              <p>{report.oneLiner}</p>
-              <p className="text-sm text-gray-300">
-                <span className="text-gray-500">Audience: </span>
-                {report.audience}
-              </p>
-              <ul className="list-disc pl-5 text-sm space-y-1">
-                {report.mainPackages.map((pkg) => (
-                  <li key={pkg.name}>
-                    <span className="font-mono text-orange-200">
-                      {pkg.name}
-                    </span>
-                    {': '}
-                    {pkg.role}
-                  </li>
-                ))}
-              </ul>
-              <p className="text-sm whitespace-pre-wrap">{report.howToRun}</p>
-            </article>
-          ) : null}
+          {report ? <ReportCard report={report} /> : null}
 
           {!chat.isLoading && chat.messages.length === 0 ? (
             <p className="text-center text-gray-500">
