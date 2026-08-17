@@ -2021,7 +2021,8 @@ class TextEngine<
         }
       : undefined
     const nativeCombined = this.finalStructuredOutput?.nativeCombined === true
-    const currentTurnAlreadyRecorded = this.messages.some(
+    const messages = this.middlewareCtx.messages
+    const currentTurnAlreadyRecorded = messages.some(
       (message) =>
         message.role === 'assistant' && message.id === this.currentMessageId,
     )
@@ -2058,7 +2059,7 @@ class TextEngine<
 
     if (terminalMessages.length === 0) return
 
-    this.messages = [...this.messages, ...terminalMessages]
+    this.messages = [...messages, ...terminalMessages]
     this.middlewareCtx.messages = this.messages
   }
 
