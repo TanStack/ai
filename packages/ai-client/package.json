@@ -69,6 +69,6 @@
     "@standard-schema/spec": "^1.1.0",
     "@vitest/coverage-v8": "4.0.14",
     "vite": "^8.1.4",
-    "zod": "^4.2.0"
+    "zod": "^4.4.3"
   }
 }

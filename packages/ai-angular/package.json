@@ -61,7 +61,7 @@
     "@tanstack/ai": "workspace:^"
   },
   "devDependencies": {
-    "@analogjs/vite-plugin-angular": "^2.6.2",
+    "@analogjs/vite-plugin-angular": "^2.7.0",
     "@angular/build": "^21.2.20",
     "@angular/common": "^21.2.19",
     "@angular/compiler": "^21.2.19",
@@ -71,10 +71,10 @@
     "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
     "jsdom": "^27.2.0",
-    "ng-packagr": "^21.2.0",
+    "ng-packagr": "^21.2.7",
     "typescript": "5.9.3",
     "vitest": "^4.1.10",
-    "zod": "^4.2.0",
-    "zone.js": "^0.15.0"
+    "zod": "^4.4.3",
+    "zone.js": "^0.16.2"
   }
 }

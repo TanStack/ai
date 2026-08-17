@@ -22,16 +22,16 @@
     "marked": "^15.0.6",
     "vue": "^3.5.25",
     "vue-router": "^4.5.0",
-    "zod": "^4.2.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.10.1",
     "@vitejs/plugin-vue": "^6.0.2",
-    "autoprefixer": "^10.4.21",
-    "concurrently": "^9.1.2",
-    "dotenv": "^17.2.3",
-    "express": "^5.1.0",
+    "autoprefixer": "^10.5.4",
+    "concurrently": "^9.2.4",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
     "tailwindcss": "^4.1.18",
     "tsx": "^4.21.0",
     "typescript": "5.9.3",
