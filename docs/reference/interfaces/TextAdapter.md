@@ -226,7 +226,8 @@ activity layer synthesizes a stream around the non-streaming
 Implementations must emit standard AG-UI lifecycle events (RUN_STARTED,
 TEXT_MESSAGE_*, RUN_FINISHED) carrying raw JSON text deltas, plus a final
 `CUSTOM` event named `structured-output.complete` whose `value` is
-`{ object, raw, reasoning? }`.
+`{ object, raw, reasoning? }`. Events must be timestamped when emitted so
+their timestamps follow stream order.
 
 #### Parameters
 

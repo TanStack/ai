@@ -14,7 +14,7 @@
  * and the e2e suite. This file is the orchestrator-only fixture.
  */
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
@@ -332,6 +332,54 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(complete!.value.raw).toBe(JSON.stringify(validPerson))
     })
 
+    it('timestamps fallback completion events after the provider settles', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(1_000)
+        const adapter = makeAdapter({
+          structuredOutput: async () => {
+            vi.setSystemTime(2_000)
+            return {
+              data: validPerson,
+              rawText: JSON.stringify(validPerson),
+            }
+          },
+        })
+
+        const chunks = await collectChunks(
+          chat({
+            adapter,
+            messages: [{ role: 'user', content: 'extract' }],
+            outputSchema: PersonSchema,
+            stream: true,
+          }),
+        )
+        const started = chunks.find(
+          (chunk) => chunk.type === EventType.RUN_STARTED,
+        )
+        const start = chunks.find(
+          (chunk) =>
+            chunk.type === EventType.CUSTOM &&
+            chunk.name === 'structured-output.start',
+        )
+        const complete = chunks.find(
+          (chunk) =>
+            chunk.type === EventType.CUSTOM &&
+            chunk.name === 'structured-output.complete',
+        )
+        const finished = chunks.find(
+          (chunk) => chunk.type === EventType.RUN_FINISHED,
+        )
+
+        expect(started?.timestamp).toBe(1_000)
+        expect(start?.timestamp).toBe(2_000)
+        expect(complete?.timestamp).toBeGreaterThanOrEqual(start!.timestamp!)
+        expect(finished?.timestamp).toBeGreaterThanOrEqual(complete!.timestamp!)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('forwards the fallback-synthesized structured-output.complete event without orchestrator-side schema validation', async () => {
       // Same invariant as the native-stream variant: schema validation is
       // the consumer's responsibility. The fallback synthesizes an
@@ -518,6 +566,43 @@ describe('chat({ outputSchema, stream: true })', () => {
       }
       expect(typeof startChunk.value.messageId).toBe('string')
       expect(startChunk.value.messageId.length).toBeGreaterThan(0)
+    })
+
+    it('timestamps fallback errors at the synthesized start boundary', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(1_000)
+        const adapter = makeAdapter({
+          structuredOutput: async () => {
+            vi.setSystemTime(2_000)
+            throw new Error('upstream auth failed')
+          },
+        })
+
+        const chunks = await collectChunks(
+          chat({
+            adapter,
+            messages: [{ role: 'user', content: 'extract' }],
+            outputSchema: PersonSchema,
+            stream: true,
+          }),
+        )
+        const started = chunks.find(
+          (chunk) => chunk.type === EventType.RUN_STARTED,
+        )
+        const start = chunks.find(
+          (chunk) =>
+            chunk.type === EventType.CUSTOM &&
+            chunk.name === 'structured-output.start',
+        )
+        const error = chunks.find((chunk) => chunk.type === EventType.RUN_ERROR)
+
+        expect(started?.timestamp).toBe(1_000)
+        expect(start?.timestamp).toBe(2_000)
+        expect(error?.timestamp).toBeGreaterThanOrEqual(start!.timestamp!)
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('forwards adapter-emitted lifecycle ordering (TEXT_MESSAGE_CONTENT precedes structured-output.complete)', async () => {

@@ -256,12 +256,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
       outputSchema.required,
     )
 
-    const timestamp = Date.now()
     const aguiState = {
       runId: generateId(this.name),
       threadId: chatOptions.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
-      timestamp,
       hasEmittedRunStarted: false,
     }
 
@@ -285,13 +283,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           type: EventType.REASONING_MESSAGE_END,
           messageId: reasoningMessageId,
           model: lastModel || chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
         }
         yield {
           type: EventType.REASONING_END,
           messageId: reasoningMessageId,
           model: lastModel || chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
         }
         if (stepId) {
           yield {
@@ -299,7 +297,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             stepName: stepId,
             stepId,
             model: lastModel || chatOptions.model,
-            timestamp,
+            timestamp: Date.now(),
             content: accumulatedReasoning,
           }
         }
@@ -364,7 +362,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model: chunk.model || chatOptions.model,
-            timestamp,
+            timestamp: Date.now(),
             parentRunId: chatOptions.parentRunId,
           }
         }
@@ -379,21 +377,21 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               type: EventType.REASONING_START,
               messageId: reasoningMessageId,
               model: chunk.model || chatOptions.model,
-              timestamp,
+              timestamp: Date.now(),
             }
             yield {
               type: EventType.REASONING_MESSAGE_START,
               messageId: reasoningMessageId,
               role: 'reasoning' as const,
               model: chunk.model || chatOptions.model,
-              timestamp,
+              timestamp: Date.now(),
             }
             yield {
               type: EventType.STEP_STARTED,
               stepName: stepId,
               stepId,
               model: chunk.model || chatOptions.model,
-              timestamp,
+              timestamp: Date.now(),
               stepType: 'thinking',
             }
           }
@@ -403,7 +401,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             messageId: reasoningMessageId,
             delta: reasoning.text,
             model: chunk.model || chatOptions.model,
-            timestamp,
+            timestamp: Date.now(),
           }
         }
 
@@ -420,7 +418,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               type: EventType.TEXT_MESSAGE_START,
               messageId: aguiState.messageId,
               model: chunk.model || chatOptions.model,
-              timestamp,
+              timestamp: Date.now(),
               role: 'assistant',
             }
           }
@@ -431,7 +429,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: aguiState.messageId,
             model: chunk.model || chatOptions.model,
-            timestamp,
+            timestamp: Date.now(),
             delta: deltaContent,
             content: accumulatedContent,
           }
@@ -448,7 +446,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           type: EventType.TEXT_MESSAGE_END,
           messageId: aguiState.messageId,
           model: lastModel || chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
         }
       }
 
@@ -457,7 +455,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           type: EventType.RUN_ERROR,
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
           message: `${this.name}.structuredOutputStream: response contained no content`,
           code: 'empty-response',
           error: {
@@ -476,7 +474,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           type: EventType.RUN_ERROR,
           runId: aguiState.runId,
           model: lastModel || chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
           message: `Failed to parse structured output as JSON. Content: ${accumulatedContent.slice(0, 200)}${accumulatedContent.length > 200 ? '...' : ''}`,
           code: 'parse-error',
           error: {
@@ -498,7 +496,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           ...(accumulatedReasoning ? { reasoning: accumulatedReasoning } : {}),
         },
         model: lastModel || chatOptions.model,
-        timestamp,
+        timestamp: Date.now(),
       }
 
       yield {
@@ -506,7 +504,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model: lastModel || chatOptions.model,
-        timestamp,
+        timestamp: Date.now(),
         finishReason: 'stop',
         ...(lastUsage && {
           usage: buildChatCompletionsUsage(lastUsage),
@@ -520,7 +518,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model: chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
           parentRunId: chatOptions.parentRunId,
         }
       }
@@ -540,7 +538,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
         model: lastModel || chatOptions.model,
-        timestamp,
+        timestamp: Date.now(),
         message: errorPayload.message,
         ...(resolvedCode !== undefined && { code: resolvedCode }),
         ...(rawEvent !== undefined && { rawEvent }),

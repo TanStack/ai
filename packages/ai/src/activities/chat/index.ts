@@ -2913,7 +2913,9 @@ class TextEngine<
       return null
     }
 
-    const buildSynthesizedStart = (): StreamChunk => {
+    // The synthetic event is inserted before its trigger, so share that
+    // trigger's timestamp rather than making the earlier event sort later.
+    const buildSynthesizedStart = (timestamp = Date.now()): StreamChunk => {
       const idForStart = structuredMessageId ?? generateMessageId()
       structuredMessageId = idForStart
       return {
@@ -2921,7 +2923,7 @@ class TextEngine<
         name: 'structured-output.start',
         value: { messageId: idForStart },
         model: this.params.model,
-        timestamp: Date.now(),
+        timestamp,
         threadId: this.threadId,
         ...(this.runIdOverride ? { runId: this.runIdOverride } : {}),
       }
@@ -2971,7 +2973,7 @@ class TextEngine<
             chunk.type === EventType.TEXT_MESSAGE_END)
         ) {
           startEmitted = true
-          const synthStart = buildSynthesizedStart()
+          const synthStart = buildSynthesizedStart(chunk.timestamp)
           const synthOutputs = await pipeThroughMiddleware(synthStart)
           for (const outputChunk of synthOutputs) {
             yield outputChunk
@@ -2984,7 +2986,7 @@ class TextEngine<
         // of a silent UI.
         if (!startEmitted && chunk.type === EventType.RUN_ERROR) {
           startEmitted = true
-          const synthStart = buildSynthesizedStart()
+          const synthStart = buildSynthesizedStart(chunk.timestamp)
           const synthOutputs = await pipeThroughMiddleware(synthStart)
           for (const outputChunk of synthOutputs) {
             yield outputChunk
@@ -4084,14 +4086,14 @@ async function* fallbackStructuredOutputStream(
     chatOptions.threadId ?? `fallback-${Date.now()}-${fallbackRand}`
   const messageId = `fallback-${Date.now()}-${fallbackRand}`
   const model = chatOptions.model
-  const timestamp = Date.now()
+  const startedAt = Date.now()
 
   yield {
     type: EventType.RUN_STARTED,
     runId,
     threadId,
     model,
-    timestamp,
+    timestamp: startedAt,
   }
 
   let result: StructuredOutputResult<unknown>
@@ -4105,7 +4107,7 @@ async function* fallbackStructuredOutputStream(
       runId,
       threadId,
       model,
-      timestamp,
+      timestamp: Date.now(),
       message,
       error: { message },
     }
@@ -4117,7 +4119,7 @@ async function* fallbackStructuredOutputStream(
     messageId,
     role: 'assistant',
     model,
-    timestamp,
+    timestamp: Date.now(),
   }
 
   yield {
@@ -4125,14 +4127,14 @@ async function* fallbackStructuredOutputStream(
     messageId,
     delta: result.rawText,
     model,
-    timestamp,
+    timestamp: Date.now(),
   }
 
   yield {
     type: EventType.TEXT_MESSAGE_END,
     messageId,
     model,
-    timestamp,
+    timestamp: Date.now(),
   }
 
   yield {
@@ -4140,7 +4142,7 @@ async function* fallbackStructuredOutputStream(
     name: 'structured-output.complete',
     value: { object: result.data, raw: result.rawText },
     model,
-    timestamp,
+    timestamp: Date.now(),
   }
 
   yield {
@@ -4148,7 +4150,7 @@ async function* fallbackStructuredOutputStream(
     runId,
     threadId,
     model,
-    timestamp,
+    timestamp: Date.now(),
     finishReason: 'stop',
     // Forward adapter-reported token usage so consumers reading
     // `RUN_FINISHED.usage` (and the engine's `runOnUsage` middleware hook) see
