@@ -104,6 +104,27 @@ function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
+/** Copy host Anthropic auth into the sandbox process. Docker `exec` Env replaces the container env, so a key set only at create time can vanish. */
+function hostClaudeAuthEnv(): Record<string, string> {
+  const env: Record<string, string> = {}
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (apiKey) env.ANTHROPIC_API_KEY = apiKey
+  const authToken = process.env.ANTHROPIC_AUTH_TOKEN
+  if (authToken) env.ANTHROPIC_AUTH_TOKEN = authToken
+  return env
+}
+
+/**
+ * Windows Node often has USERPROFILE but no HOME. Claude then cannot find
+ * `~/.claude.json` (the `claude login` file) and prints "Not logged in".
+ */
+function localProcessHomeEnv(provider: string): Record<string, string> {
+  if (provider !== 'local-process') return {}
+  if (process.env.HOME) return {}
+  const home = process.env.USERPROFILE
+  return home ? { HOME: home } : {}
+}
+
 /** Format a host tool-bridge as claude's `--mcp-config` JSON. */
 function bridgeToMcpConfig(bridge: HostToolBridge): string {
   return JSON.stringify({
@@ -510,6 +531,8 @@ export class ClaudeCodeTextAdapter<
         env: {
           IS_SANDBOX: '1',
           CLAUDE_CODE_SANDBOXED: '1',
+          ...hostClaudeAuthEnv(),
+          ...localProcessHomeEnv(sandbox.provider),
           ...this.adapterConfig.env,
         },
         ...(options.abortController?.signal

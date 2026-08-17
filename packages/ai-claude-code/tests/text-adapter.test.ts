@@ -221,4 +221,45 @@ describe('claude-code in-sandbox adapter', () => {
 
     await sbx.destroy()
   })
+
+  it('copies ANTHROPIC_API_KEY from the host process into the CLI env', async () => {
+    const fake = [
+      `import { writeFileSync } from 'node:fs'`,
+      `writeFileSync('auth-probe.txt', process.env.ANTHROPIC_API_KEY ? 'set' : 'missing')`,
+      `let input = ''`,
+      `process.stdin.on('data', (d) => { input += d })`,
+      `process.stdin.on('end', () => {`,
+      `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+      `  w({ type: 'system', subtype: 'init', session_id: 'sess-auth', model: 'haiku', tools: [] })`,
+      `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'ok' }] }, parent_tool_use_id: null })`,
+      `  w({ type: 'result', subtype: 'success', result: 'ok', usage: { input_tokens: 1, output_tokens: 1 } })`,
+      `})`,
+    ].join('\n')
+
+    const previous = process.env.ANTHROPIC_API_KEY
+    process.env.ANTHROPIC_API_KEY = 'sk-test-not-a-real-key'
+    const sbx = await provider.create({})
+    try {
+      await sbx.fs.write('/workspace/fake-claude.mjs', fake)
+      const adapter = claudeCodeText('haiku', {
+        claudeExecutable: 'node fake-claude.mjs',
+        streamPartials: false,
+        emitDiff: false,
+      })
+      const chunks = await collect(
+        adapter.chatStream({
+          model: 'haiku',
+          messages: [{ role: 'user', content: 'hi' }],
+          logger: noopLogger,
+          capabilities: capabilityContextWith(sbx),
+        }),
+      )
+      expect(chunks.some((c) => c.type === 'RUN_ERROR')).toBe(false)
+      expect(await sbx.fs.read('/workspace/auth-probe.txt')).toBe('set')
+    } finally {
+      if (previous === undefined) delete process.env.ANTHROPIC_API_KEY
+      else process.env.ANTHROPIC_API_KEY = previous
+      await sbx.destroy()
+    }
+  })
 })

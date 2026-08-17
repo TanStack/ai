@@ -401,20 +401,20 @@ export function buildSandbox(opts: {
     ? localProcessSandbox({ scrubEnv: ['ANTHROPIC_API_KEY'] })
     : PROVIDERS[opts.provider].make(ports)
 
-  // Inject auth secrets only for sandboxed providers — local-process inherits the
-  // host's own env (API key, or a `claude login`/`codex login`), so nothing to inject.
+  // Inject harness auth whenever it is set. Local-process also inherits the
+  // host env, but Docker `exec` replaces the container env, so the key must
+  // be on the handle too. Subscription mode still scrubs ANTHROPIC_API_KEY
+  // after merge so `claude login` can win.
   const secretEnv: Record<string, string> = {}
-  if (opts.provider !== 'local') {
-    // Harness auth: a custom mapping (e.g. codex → CODEX_API_KEY) if provided,
-    // otherwise inject whichever of its requiredEnv vars are set.
-    if (harness.sandboxSecrets) {
-      Object.assign(secretEnv, harness.sandboxSecrets())
-    } else {
-      for (const key of harness.requiredEnv) {
-        const value = process.env[key]
-        if (value) secretEnv[key] = value
-      }
+  if (harness.sandboxSecrets) {
+    Object.assign(secretEnv, harness.sandboxSecrets())
+  } else {
+    for (const key of harness.requiredEnv) {
+      const value = process.env[key]
+      if (value) secretEnv[key] = value
     }
+  }
+  if (opts.provider !== 'local') {
     // Provider auth (e.g. DAYTONA_API_KEY) — used host-side, harmless in-sandbox.
     for (const key of PROVIDERS[opts.provider].requiredEnv) {
       const value = process.env[key]

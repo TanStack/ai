@@ -174,6 +174,8 @@ Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its nat
 
 The adapter loads only user settings (`--setting-sources user`). A cloned repo's `.claude/settings.json` does not block headless `-p`.
 
+Headless Claude needs an `ANTHROPIC_API_KEY` in the process env, or a host `claude login` when you use the local-process sandbox. The adapter copies the host API key into the sandbox process. A Docker container has no host login.
+
 ```ts
 import { chat } from "@tanstack/ai"
 import { claudeCodeText } from "@tanstack/ai-claude-code"

@@ -112,7 +112,7 @@ function ReportCard({ report }: { report: Partial<RepoReport> }) {
 function RepoReportPage() {
   const [threadId] = useState(() => crypto.randomUUID())
   const [harness, setHarness] = useState<ReportHarness>('claude-code')
-  const [provider, setProvider] = useState<ReportProvider>('docker')
+  const [provider, setProvider] = useState<ReportProvider>('local')
   const [agent, setAgent] = useState<ReportAgent>('explainer')
 
   const chat = useChat({
