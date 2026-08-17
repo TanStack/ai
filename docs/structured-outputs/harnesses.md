@@ -30,7 +30,7 @@ If you only extract JSON from a prompt and you do not need a sandbox, use [One-S
 
 ## Define the schema
 
-```typescript
+```typescript group=harness-output
 import { z } from "zod";
 
 export const ReportSchema = z.object({
@@ -53,7 +53,7 @@ The return type follows from the schema. You do not need a cast.
 
 The harness needs a sandbox. Pass `withSandbox(...)`. If the client reads the stream, pass `stream: true`. Without `stream: true`, `chat()` returns a `Promise`, not SSE.
 
-```typescript
+```typescript group=harness-output
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { claudeCodeText } from "@tanstack/ai-claude-code";
 import {
@@ -63,7 +63,6 @@ import {
   withSandbox,
 } from "@tanstack/ai-sandbox";
 import { dockerSandbox } from "@tanstack/ai-sandbox-docker";
-import { ReportSchema } from "./report-schema";
 
 const sandbox = defineSandbox({
   id: "repo-report",
@@ -107,9 +106,8 @@ The typed object arrives as a `structured-output.complete` event. Tool activity 
 
 Pass the same schema to `useChat`. Read the object from `final`.
 
-```tsx
+```tsx group=harness-output
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { ReportSchema } from "./report-schema";
 
 function RepoReport() {
   const { sendMessage, isLoading, final } = useChat({
@@ -168,13 +166,7 @@ If you need approval gates or client tools, use [With Tools](./with-tools) with 
 
 If you do not stream to a browser, omit `stream: true`. The promise resolves with the typed object.
 
-```typescript
-import { chat } from "@tanstack/ai";
-import { claudeCodeText } from "@tanstack/ai-claude-code";
-import { withSandbox } from "@tanstack/ai-sandbox";
-import { ReportSchema } from "./report-schema";
-import { sandbox } from "./sandbox";
-
+```typescript group=harness-output
 const report = await chat({
   adapter: claudeCodeText("claude-opus-4-8"),
   messages: [{ role: "user", content: "What is this repository about?" }],

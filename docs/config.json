@@ -348,7 +348,7 @@
           "label": "Streaming UIs",
           "to": "structured-outputs/streaming",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-17"
         },
         {
           "label": "Multi-Turn Chat",
@@ -879,19 +879,19 @@
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-17"
         },
         {
           "label": "OpenCode",
           "to": "adapters/opencode",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-17"
         },
         {
           "label": "Grok Build",
           "to": "adapters/grok-build",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-17"
         },
         {
           "label": "ACP-Compatible",

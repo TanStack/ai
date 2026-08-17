@@ -139,7 +139,6 @@ export class CodexTextAdapter<
     )
   }
 
-  /** Mirror @openai/codex-sdk's `codex exec --experimental-json` invocation. */
   supportsCombinedToolsAndSchema(): boolean {
     return true
   }
@@ -148,6 +147,7 @@ export class CodexTextAdapter<
     return 'event'
   }
 
+  /** Mirror @openai/codex-sdk's `codex exec --experimental-json` invocation. */
   private buildCommand(
     options: TextOptions<CodexTextProviderOptions>,
     resume: string | undefined,

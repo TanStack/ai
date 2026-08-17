@@ -13,9 +13,9 @@ export function parseJsonFromAssistantText(raw: string): unknown {
   const wholeFence = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/)
   if (wholeFence?.[1]) candidates.push(wholeFence[1].trim())
   candidates.push(trimmed)
-  const lastFence = [...trimmed.matchAll(/```(?:json)?\s*([\s\S]*?)\s*```/g)].at(
-    -1,
-  )
+  const lastFence = [
+    ...trimmed.matchAll(/```(?:json)?\s*([\s\S]*?)\s*```/g),
+  ].at(-1)
   if (lastFence?.[1]) candidates.push(lastFence[1].trim())
   const extracted = extractLastJsonSlice(trimmed)
   if (extracted !== undefined) candidates.push(extracted)
@@ -34,23 +34,18 @@ export function parseJsonFromAssistantText(raw: string): unknown {
 }
 
 function extractLastJsonSlice(text: string): string | undefined {
-  let end = -1
-  for (let i = text.length - 1; i >= 0; i--) {
-    if (text[i] === '}' || text[i] === ']') {
-      end = i
-      break
-    }
-  }
-  if (end < 0) return undefined
-  for (let start = end; start >= 0; start--) {
-    const opener = text[start]
-    if (opener !== '{' && opener !== '[') continue
-    const slice = text.slice(start, end + 1)
-    try {
-      JSON.parse(slice)
-      return slice
-    } catch {
-      // Try an earlier opener. Nested braces often fail until the real start.
+  for (let end = text.length - 1; end >= 0; end--) {
+    if (text[end] !== '}' && text[end] !== ']') continue
+    for (let start = end; start >= 0; start--) {
+      const opener = text[start]
+      if (opener !== '{' && opener !== '[') continue
+      const slice = text.slice(start, end + 1)
+      try {
+        JSON.parse(slice)
+        return slice
+      } catch {
+        // Try an earlier opener, then an earlier closer.
+      }
     }
   }
   return undefined

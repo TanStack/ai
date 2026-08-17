@@ -203,7 +203,28 @@ const report = await chat({
 report.summary
 ```
 
-On the client, `useChat({ outputSchema }).final` works the same as HTTP adapters. `partial` stays empty until the end.
+On the client, pass the same schema to `useChat` and read `final`. `partial` stays empty until the end.
+
+```tsx
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+function ReportView() {
+  const { final, isLoading } = useChat({
+    connection: fetchServerSentEvents("/api/repo-report"),
+    outputSchema: Report,
+  })
+
+  if (isLoading) return <p>The agent is inspecting the repo.</p>
+  if (!final) return null
+  return <p>{final.summary}</p>
+}
+```
 
 If you only need to extract JSON from a prompt and do not need a sandbox, use `@tanstack/ai-anthropic`. That path is faster.
 

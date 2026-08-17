@@ -35,6 +35,12 @@ describe('parseJsonFromAssistantText', () => {
     ).toEqual({ a: 2 })
   })
 
+  it('ignores a brace in prose after a valid object', () => {
+    expect(parseJsonFromAssistantText('{"a":1}\nTool note: }')).toEqual({
+      a: 1,
+    })
+  })
+
   it('appends the schema instruction', () => {
     const next = appendOutputSchemaInstruction('Look around.', {
       type: 'object',

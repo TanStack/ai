@@ -182,7 +182,6 @@ export class ClaudeCodeTextAdapter<
     )
   }
 
-  /** Build the `claude` command line (prompt goes via stdin, not argv). */
   supportsCombinedToolsAndSchema(): boolean {
     return true
   }
@@ -191,6 +190,7 @@ export class ClaudeCodeTextAdapter<
     return 'event'
   }
 
+  /** Build the `claude` command line (prompt goes via stdin, not argv). */
   private buildArgv(
     options: TextOptions<ClaudeCodeTextProviderOptions>,
     resume: string | undefined,
@@ -527,20 +527,20 @@ export class ClaudeCodeTextAdapter<
       const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
         ...(stdinInput !== undefined ? { input: stdinInput } : {}),
-        // claude maps `bypassPermissions` to `--dangerously-skip-permissions`,
-        // which it refuses to run as root. Sandbox containers routinely run as
-        // root (Docker / Cloudflare), so set `IS_SANDBOX=1` — claude's
-        // documented escape hatch for skip-permissions in an isolated
-        // environment — merged over the sandbox env (a caller-provided value
-        // wins). Safe to set unconditionally; it is a no-op for stricter modes.
+        // Isolated sandboxes often run as root. Claude refuses
+        // `--dangerously-skip-permissions` as root unless IS_SANDBOX=1.
+        // CLAUDE_CODE_SANDBOXED marks a real isolation boundary. Do not set
+        // either on local-process: that provider runs on the host.
         env: {
-          IS_SANDBOX: '1',
-          CLAUDE_CODE_SANDBOXED: '1',
-          // Docker has no host `claude login`. Local-process must not force
-          // ANTHROPIC_API_KEY: `-p` would use the key instead of the login.
           ...(sandbox.provider === 'local-process'
             ? {}
-            : hostClaudeAuthEnv()),
+            : {
+                IS_SANDBOX: '1',
+                CLAUDE_CODE_SANDBOXED: '1',
+              }),
+          // Docker has no host `claude login`. Local-process must not force
+          // ANTHROPIC_API_KEY: `-p` would use the key instead of the login.
+          ...(sandbox.provider === 'local-process' ? {} : hostClaudeAuthEnv()),
           ...localProcessHomeEnv(sandbox.provider),
           ...this.adapterConfig.env,
         },

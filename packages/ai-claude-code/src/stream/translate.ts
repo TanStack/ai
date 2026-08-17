@@ -70,10 +70,7 @@ function isUsefulStructuredObject(value: unknown): boolean {
   )
 }
 
-function rememberStructuredOutput(
-  current: unknown,
-  next: unknown,
-): unknown {
+function rememberStructuredOutput(current: unknown, next: unknown): unknown {
   return isUsefulStructuredObject(next) ? next : current
 }
 

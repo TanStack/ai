@@ -684,11 +684,7 @@ describe('translateSdkStream', () => {
   it('parses JSON from assistant text when the StructuredOutput tool is missing', async () => {
     const report = { name: 'TanStack AI', oneLiner: 'SDK' }
     const chunks = await collect(
-      [
-        init,
-        assistantText(JSON.stringify(report)),
-        resultSuccess,
-      ],
+      [init, assistantText(JSON.stringify(report)), resultSuccess],
       { ...makeContext(), expectStructuredOutput: true },
     )
     const complete = chunks.find(

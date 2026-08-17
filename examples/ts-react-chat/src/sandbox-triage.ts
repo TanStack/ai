@@ -111,10 +111,13 @@ function npmGlobalCli(spec: string, verify: string): string {
 export const HARNESSES: Record<HarnessName, HarnessSpec> = {
   'claude-code': {
     label: 'Claude Code',
+    // Headless `-p` cannot answer permission prompts. Isolated sandboxes and
+    // this trusted local demo both need bypassPermissions, same as Codex
+    // `danger-full-access`. Do not set CLAUDE_CODE_SANDBOXED here: that marker
+    // is only for a real isolation boundary, which the adapter sets itself.
     makeAdapter: () =>
       claudeCodeText('sonnet', {
         permissionMode: 'bypassPermissions',
-        env: { CLAUDE_CODE_SANDBOXED: '1' },
       }),
     installCommand: npmGlobalCli(
       '@anthropic-ai/claude-code',

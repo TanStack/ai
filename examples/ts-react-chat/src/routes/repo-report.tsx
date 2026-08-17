@@ -12,8 +12,8 @@ import {
   REPORT_PROVIDERS,
   REPORT_REPO,
 } from '../repo-report-options'
-import { RepoReportSchema } from '../repo-report-schema'
-import type { RepoReport } from '../repo-report-schema'
+import { looksLikeReport, RepoReportSchema } from '../repo-report-schema'
+import type { RepoReportCard } from '../repo-report-schema'
 import type {
   ReportAgent,
   ReportHarness,
@@ -25,23 +25,9 @@ export const Route = createFileRoute('/repo-report')({
   component: RepoReportPage,
 })
 
-function looksLikeReport(value: unknown): value is Partial<RepoReport> {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return false
-  }
-  const record = value as Record<string, unknown>
-  return (
-    'name' in record ||
-    'oneLiner' in record ||
-    'audience' in record ||
-    'mainPackages' in record ||
-    'howToRun' in record
-  )
-}
-
 function reportFromMessages(
   messages: Array<UIMessage>,
-): Partial<RepoReport> | undefined {
+): RepoReportCard | undefined {
   for (const message of [...messages].reverse()) {
     for (const part of [...message.parts].reverse()) {
       if (part.type === 'structured-output') {
@@ -76,7 +62,7 @@ function isCompleteReportJson(content: string): boolean {
   }
 }
 
-function ReportCard({ report }: { report: Partial<RepoReport> }) {
+function ReportCard({ report }: { report: RepoReportCard }) {
   const packages = report.mainPackages ?? []
   return (
     <article className="rounded-xl border border-orange-500/30 bg-gray-800 p-5 space-y-3">
@@ -158,54 +144,63 @@ function RepoReportPage() {
       </header>
 
       <div className="border-b border-orange-500/10 bg-gray-900/60 px-4 py-3 flex flex-wrap items-center gap-3">
-        <select
-          value={harness}
-          onChange={(event) => {
-            if (isReportHarness(event.target.value)) {
-              setHarness(event.target.value)
-            }
-          }}
-          disabled={chat.isLoading}
-          className="rounded-lg border border-orange-500/20 bg-gray-800 px-3 py-2 text-sm"
-        >
-          {Object.entries(REPORT_HARNESSES).map(([name, spec]) => (
-            <option key={name} value={name}>
-              {spec.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={provider}
-          onChange={(event) => {
-            if (isReportProvider(event.target.value)) {
-              setProvider(event.target.value)
-            }
-          }}
-          disabled={chat.isLoading}
-          className="rounded-lg border border-orange-500/20 bg-gray-800 px-3 py-2 text-sm"
-        >
-          {Object.entries(REPORT_PROVIDERS).map(([name, spec]) => (
-            <option key={name} value={name}>
-              {spec.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={agent}
-          onChange={(event) => {
-            if (isReportAgent(event.target.value)) {
-              setAgent(event.target.value)
-            }
-          }}
-          disabled={chat.isLoading}
-          className="rounded-lg border border-orange-500/20 bg-gray-800 px-3 py-2 text-sm"
-        >
-          {Object.entries(REPORT_AGENTS).map(([name, spec]) => (
-            <option key={name} value={name}>
-              {spec.label}
-            </option>
-          ))}
-        </select>
+        <label className="flex items-center gap-2 text-sm text-gray-400">
+          Harness
+          <select
+            value={harness}
+            onChange={(event) => {
+              if (isReportHarness(event.target.value)) {
+                setHarness(event.target.value)
+              }
+            }}
+            disabled={chat.isLoading}
+            className="rounded-lg border border-orange-500/20 bg-gray-800 px-3 py-2 text-sm text-white"
+          >
+            {Object.entries(REPORT_HARNESSES).map(([name, spec]) => (
+              <option key={name} value={name}>
+                {spec.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-400">
+          Sandbox
+          <select
+            value={provider}
+            onChange={(event) => {
+              if (isReportProvider(event.target.value)) {
+                setProvider(event.target.value)
+              }
+            }}
+            disabled={chat.isLoading}
+            className="rounded-lg border border-orange-500/20 bg-gray-800 px-3 py-2 text-sm text-white"
+          >
+            {Object.entries(REPORT_PROVIDERS).map(([name, spec]) => (
+              <option key={name} value={name}>
+                {spec.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-400">
+          Agent
+          <select
+            value={agent}
+            onChange={(event) => {
+              if (isReportAgent(event.target.value)) {
+                setAgent(event.target.value)
+              }
+            }}
+            disabled={chat.isLoading}
+            className="rounded-lg border border-orange-500/20 bg-gray-800 px-3 py-2 text-sm text-white"
+          >
+            {Object.entries(REPORT_AGENTS).map(([name, spec]) => (
+              <option key={name} value={name}>
+                {spec.label}
+              </option>
+            ))}
+          </select>
+        </label>
         <span className="text-xs text-gray-500">
           {REPORT_AGENTS[agent].hint}
         </span>
@@ -289,12 +284,7 @@ function RepoReportPage() {
                 if (part.type === 'structured-output') {
                   const data = part.data ?? part.partial
                   if (!looksLikeReport(data)) return null
-                  return (
-                    <ReportCard
-                      key={`so-${index}`}
-                      report={data}
-                    />
-                  )
+                  return <ReportCard key={`so-${index}`} report={data} />
                 }
                 return null
               })}
