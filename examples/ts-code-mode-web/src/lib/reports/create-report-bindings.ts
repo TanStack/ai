@@ -73,7 +73,7 @@ function generateId(prefix: string): string {
   return `${prefix}-${Math.random().toString(36).slice(2, 10)}`
 }
 
-// Common schemas - using .catch() to gracefully handle invalid values from stored skills
+// Common schemas - using .catch() to gracefully handle invalid values from stored snippets
 const gapSchema = z.enum(['none', 'xs', 'sm', 'md', 'lg', 'xl']).catch('md')
 const alignSchema = z
   .enum(['start', 'center', 'end', 'stretch'])
@@ -1330,7 +1330,7 @@ export const reportBindings: Record<string, ToolBinding> = {
 const bankingBindings = createHandlerBindings()
 
 /**
- * Create report bindings function for use with getSkillBindings
+ * Create report bindings function for use with getSnippetBindings
  * Returns a fresh copy of the bindings record
  */
 export function createReportBindings(): Record<string, ToolBinding> {

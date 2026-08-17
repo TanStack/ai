@@ -323,7 +323,8 @@
         {
           "label": "Custom Events Reference",
           "to": "protocol/custom-events",
-          "addedAt": "2026-07-03"
+          "addedAt": "2026-07-03",
+          "updatedAt": "2026-08-14"
         }
       ]
     },
@@ -383,10 +384,10 @@
           "addedAt": "2026-04-15"
         },
         {
-          "label": "Code Mode with Skills",
-          "to": "code-mode/code-mode-with-skills",
+          "label": "Code Mode with Snippets",
+          "to": "code-mode/code-mode-with-snippets",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-06-10"
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Code Mode Isolate Drivers",

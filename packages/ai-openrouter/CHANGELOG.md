@@ -1,5 +1,20 @@
 # @tanstack/ai-openrouter
 
+## 0.17.0
+
+### Minor Changes
+
+- [#740](https://github.com/TanStack/ai/pull/740) [`efe3b07`](https://github.com/TanStack/ai/commit/efe3b07688a29960a4b3e25c44219a253bb75a00) - Add `openRouterVideo`, a video generation adapter for OpenRouter's dedicated async API (`POST /api/v1/videos`) — Seedance, Veo 3.1, Wan, Kling, and Sora 2 Pro through one API key. Follows the jobs/polling architecture (`generateVideo()` → `getVideoJobStatus()`), with per-model `size` / `duration` / provider-option types generated from OpenRouter's `GET /api/v1/videos/models` metadata and validated before submit. `duration` is typed per model on the shared typed-duration contract — the adapter implements `availableDurations()` and `snapDuration(seconds)` (matching the Veo adapter) to enumerate the valid set and coerce raw UI seconds to the closest supported value. Image-conditioned prompts map `metadata.role` onto the wire: `start_frame` / `end_frame` → `frame_images[]` (`first_frame` / `last_frame`), `reference` / `character` → `input_references[]`; frame roles are validated against each model's `supported_frame_images`. Completed videos are downloaded server-side and returned as `data:` URLs (OpenRouter's download URLs require the API key), and the gateway-reported cost is surfaced as `usage.cost`.
+
+  Image adapter fixes from the [#624](https://github.com/TanStack/ai/issues/624) review: requested `size` is now validated (the `WIDTHxHEIGHT` union previously used a Unicode `×`, so every size except `1024x1024` silently dropped its aspect ratio; unsupported sizes now throw with the supported list), `numberOfImages > 1` throws instead of silently returning one image (verified live: the gateway ignores all count keys in `image_config`), and `image_config.strength` (0.0–1.0 image-to-image influence) is exposed via `modelOptions.strength`.
+
+### Patch Changes
+
+- [#1096](https://github.com/TanStack/ai/pull/1096) [`a987581`](https://github.com/TanStack/ai/commit/a987581f5a62e6ffc37b80c9b8c16125c608aa11) - Refresh MiniMax M2.7 and M3 context and pricing metadata.
+
+- Updated dependencies [[`99fb2b7`](https://github.com/TanStack/ai/commit/99fb2b7b113548b20afa894e014bd03773815a41)]:
+  - @tanstack/ai@0.44.1
+
 ## 0.16.1
 
 ### Patch Changes

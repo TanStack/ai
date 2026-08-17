@@ -89,7 +89,7 @@ Creates both the `execute_typescript` tool and its matching system prompt. This 
 - `tools` — Array of `ServerTool` or `ToolDefinition` instances. Exposed as `external_*` functions in the sandbox
 - `timeout` — Execution timeout in ms (default: 30000)
 - `memoryLimit` — Memory limit in MB (default: 128, supported by the Node, QuickJS, and QuickJS Bun drivers)
-- `getSkillBindings` — Optional async function returning dynamic bindings
+- `getSnippetBindings` — Optional async function returning dynamic bindings
 
 ### `createCodeModeTool(config)` / `createCodeModeSystemPrompt(config)`
 

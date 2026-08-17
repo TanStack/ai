@@ -83,7 +83,7 @@
   "devDependencies": {
     "@ngrok/ngrok": "^1.7.0",
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.10",
     "vitest": "^4.1.10"
   }
 }

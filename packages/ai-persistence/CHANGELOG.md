@@ -1,5 +1,14 @@
 # @tanstack/ai-persistence
 
+## 0.1.4
+
+### Patch Changes
+
+- [#1101](https://github.com/TanStack/ai/pull/1101) [`99fb2b7`](https://github.com/TanStack/ai/commit/99fb2b7b113548b20afa894e014bd03773815a41) - Preserve stable IDs and creation timestamps for server-generated assistant messages across persistence and hydration.
+
+- Updated dependencies [[`99fb2b7`](https://github.com/TanStack/ai/commit/99fb2b7b113548b20afa894e014bd03773815a41)]:
+  - @tanstack/ai@0.44.1
+
 ## 0.1.3
 
 ### Patch Changes

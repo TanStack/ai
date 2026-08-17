@@ -1558,20 +1558,25 @@ export interface CodeModeExternalErrorEvent extends CustomEvent {
   name: 'code_mode:external_error'
   value: { function: string; error: string; duration: number }
 }
-export interface CodeModeSkillCallEvent extends CustomEvent {
-  name: 'code_mode:skill_call'
-  value: { skill: string; input: unknown; timestamp: number }
+export interface CodeModeSnippetCallEvent extends CustomEvent {
+  name: 'code_mode:snippet_call'
+  value: { snippet: string; input: unknown; timestamp: number }
 }
-export interface CodeModeSkillResultEvent extends CustomEvent {
-  name: 'code_mode:skill_result'
-  value: { skill: string; result: unknown; duration: number; timestamp: number }
+export interface CodeModeSnippetResultEvent extends CustomEvent {
+  name: 'code_mode:snippet_result'
+  value: {
+    snippet: string
+    result: unknown
+    duration: number
+    timestamp: number
+  }
 }
-export interface CodeModeSkillErrorEvent extends CustomEvent {
-  name: 'code_mode:skill_error'
-  value: { skill: string; error: string; duration: number; timestamp: number }
+export interface CodeModeSnippetErrorEvent extends CustomEvent {
+  name: 'code_mode:snippet_error'
+  value: { snippet: string; error: string; duration: number; timestamp: number }
 }
-export interface SkillRegisteredEvent extends CustomEvent {
-  name: 'skill:registered'
+export interface SnippetRegisteredEvent extends CustomEvent {
+  name: 'snippet:registered'
   value: { id: string; name: string; description: string; timestamp: number }
 }
 
@@ -1590,10 +1595,10 @@ export type KnownCustomEvent =
   | CodeModeExternalCallEvent
   | CodeModeExternalResultEvent
   | CodeModeExternalErrorEvent
-  | CodeModeSkillCallEvent
-  | CodeModeSkillResultEvent
-  | CodeModeSkillErrorEvent
-  | SkillRegisteredEvent
+  | CodeModeSnippetCallEvent
+  | CodeModeSnippetResultEvent
+  | CodeModeSnippetErrorEvent
+  | SnippetRegisteredEvent
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent
   | ApprovalRequestedEvent
