@@ -3,21 +3,29 @@ import {
   INTERRUPT_BINDING_METADATA_KEY,
   INTERRUPT_BINDING_VERSION,
   canonicalInterruptJson,
+  chat,
   digestInterruptJson,
   memoryStream,
   resumeServerSentEventsResponse,
+  toolDefinition,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import type { StreamChunk } from '@tanstack/ai'
+import {
+  memoryPersistence,
+  reconstructChat,
+  withPersistence,
+} from '@tanstack/ai-persistence'
+import { z } from 'zod'
+import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
 
 /**
  * Provider-free harness route for the browser-refresh persistence story. It
  * mirrors the production wiring of `examples/.../api.persistent-chat.ts` — a
  * `memoryStream(request)` delivery sink plus a GET resume handler that makes the
- * connection resumable — but streams a FIXED AG-UI sequence instead of calling
- * an LLM, so the e2e is deterministic with nothing to mock.
+ * connection resumable — but uses fixed AG-UI sequences and a fixed adapter
+ * instead of calling an LLM, so the e2e is deterministic with nothing to mock.
  *
- * Three scenarios (`?scenario=`):
+ * Four scenarios (`?scenario=`):
  *
  * - `text` (default) — a run that streams one assistant text message and
  *   finishes cleanly (`outcome: success`). The client persists the transcript
@@ -33,12 +41,36 @@ import type { StreamChunk } from '@tanstack/ai'
  *   GET below, which returns a `reconstructChat`-shaped JSON carrying a pending
  *   interrupt. Proves a fresh client (empty `localStorage`) re-prompts the
  *   approval from the server alone — the path that was previously broken.
+ * - `structured-output` — runs separate structured-output finalization through
+ *   `withPersistence`, then hydrates the completed structured-output part from
+ *   the server through `reconstructChat`.
  *
- * Exempt from the aimock policy: this route streams a fixed AG-UI sequence and
- * never reaches an LLM provider's HTTP layer, so there is nothing to mock.
+ * Exempt from the aimock policy: this route never reaches an LLM provider's HTTP
+ * layer, so there is nothing to mock.
  */
 
 const REPLY_TEXT = 'PERSIST_OK the lighthouse still turns.'
+
+const structuredOutputPersistence = memoryPersistence()
+const structuredOutputSchema = z.object({ name: z.string() })
+const structuredOutputTool = toolDefinition({
+  name: 'lookup_programmer',
+  description: 'Look up a programmer',
+  inputSchema: z.object({}),
+}).server(() => ({ found: true }))
+const structuredOutputAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({ threadId, runId }: { threadId: string; runId: string }) =>
+    textRun(threadId, runId),
+  structuredOutput: () =>
+    Promise.resolve({
+      data: { name: 'Ada Lovelace' },
+      rawText: '{"name":"Ada Lovelace"}',
+    }),
+} as unknown as AnyTextAdapter
 
 const confirmSchema = {
   type: 'object',
@@ -135,11 +167,12 @@ function stringField(body: unknown, key: string): string | undefined {
 
 function scenarioOf(
   request: Request,
-): 'text' | 'interrupt' | 'server-interrupt' {
+): 'text' | 'interrupt' | 'server-interrupt' | 'structured-output' {
   try {
     const value = new URL(request.url).searchParams.get('scenario')
     if (value === 'interrupt') return 'interrupt'
     if (value === 'server-interrupt') return 'server-interrupt'
+    if (value === 'structured-output') return 'structured-output'
     return 'text'
   } catch {
     return 'text'
@@ -193,6 +226,20 @@ export const Route = createFileRoute('/api/persistence-durability')({
         const body: unknown = await request.json()
         const threadId = stringField(body, 'threadId') ?? 'persistence-thread'
         const runId = stringField(body, 'runId') ?? crypto.randomUUID()
+        if (scenarioOf(request) === 'structured-output') {
+          const stream = chat({
+            adapter: structuredOutputAdapter,
+            messages: [{ role: 'user', content: 'Name the programmer' }],
+            tools: [structuredOutputTool],
+            outputSchema: structuredOutputSchema,
+            stream: true,
+            threadId,
+            runId,
+            middleware: [withPersistence(structuredOutputPersistence)],
+          })
+          for await (const _ of stream) void _
+          return Response.json({ runId, threadId })
+        }
         const stream =
           scenarioOf(request) === 'interrupt'
             ? interruptRun(threadId, runId)
@@ -212,6 +259,11 @@ export const Route = createFileRoute('/api/persistence-durability')({
       //    `reconstructChat`-shaped JSON; the `server-interrupt` scenario carries
       //    a pending approval so a fresh client re-prompts it from the server.
       GET: ({ request }) => {
+        if (scenarioOf(request) === 'structured-output') {
+          return reconstructChat(structuredOutputPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
         const durability = memoryStream(request)
         if (durability.resumeFrom() !== null) {
           return resumeServerSentEventsResponse({ adapter: durability })

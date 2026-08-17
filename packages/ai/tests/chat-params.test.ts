@@ -229,6 +229,26 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
     expect('parts' in result.messages[0]!).toBe(false)
   })
 
+  it('preserves structured-output parts', async () => {
+    const structuredOutput = {
+      type: 'structured-output',
+      status: 'complete',
+      raw: '{"name":"Ada"}',
+      data: { name: 'Ada' },
+    }
+    const result = await chatParamsFromRequestBody(
+      withMessages([
+        {
+          id: 'm1',
+          role: 'assistant',
+          content: structuredOutput.raw,
+          parts: [structuredOutput],
+        },
+      ]),
+    )
+    expect(result.messages[0]).toMatchObject({ parts: [structuredOutput] })
+  })
+
   it('rejects a malformed tool declaration', async () => {
     await expect(
       chatParamsFromRequestBody({

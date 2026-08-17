@@ -22,6 +22,7 @@ const KNOWN_PART_TYPES = new Set([
   'tool-call',
   'tool-result',
   'thinking',
+  'structured-output',
 ])
 
 function isValidParts(value: unknown): value is Array<{ type: string }> {

@@ -368,6 +368,12 @@ export interface ModelMessage<
   toolCallId?: string
   thinking?: Array<{ content: string; signature?: string }>
   /**
+   * Completed structured output represented by this assistant message.
+   * `content` remains the provider-facing JSON text; this field preserves the
+   * typed UI part across persistence and message conversion.
+   */
+  structuredOutput?: StructuredOutputPart
+  /**
    * Optional stable message id. Providers ignore it; it exists so a persisted
    * transcript can retain the streaming `messageId` and survive the
    * persist → hydrate round-trip. When present, `modelMessagesToUIMessages`

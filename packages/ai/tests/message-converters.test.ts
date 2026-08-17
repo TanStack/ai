@@ -1779,6 +1779,10 @@ describe('Message Converters', () => {
       expect(result).toHaveLength(1)
       expect(result[0]!.role).toBe('assistant')
       expect(result[0]!.content).toBe('{"title":"Cheese Toast","servings":2}')
+      expect(result[0]!.structuredOutput).toEqual(uiMessage.parts[0])
+      expect(modelMessagesToUIMessages(result)[0]!.parts).toEqual(
+        uiMessage.parts,
+      )
     })
 
     it('falls back to JSON.stringify(data) when complete but raw is empty', () => {
@@ -1802,6 +1806,7 @@ describe('Message Converters', () => {
       const result = uiMessageToModelMessages(uiMessage)
       expect(result).toHaveLength(1)
       expect(result[0]!.content).toBe(JSON.stringify(data))
+      expect(result[0]!.structuredOutput).toEqual(uiMessage.parts[0])
     })
 
     it('skips streaming structured-output parts (no in-flight JSON in history)', () => {

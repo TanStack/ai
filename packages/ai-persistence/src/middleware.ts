@@ -28,7 +28,6 @@ import type {
   GenerationFinishInfo,
   GenerationMiddleware,
   GenerationMiddlewareContext,
-  ModelMessage,
   PersistedArtifactActivity,
   PersistedArtifactRef,
   PersistedArtifactRole,
@@ -433,43 +432,6 @@ function resumeToolStateFromPending(
     return undefined
   }
   return { approvals, clientToolResults, cancelledToolCallIds }
-}
-
-/**
- * Build the transcript to persist when a run finishes successfully.
- *
- * The chat engine appends an assistant message to the middleware message list
- * only when that turn carries tool calls (to feed the agent loop); a run's
- * terminal *text* reply is never appended. So `ctx.messages` at `onFinish` is
- * missing the assistant's final answer. Reattach it from the finish info —
- * `info.content` is the last turn's accumulated text (reset each cycle) — so
- * the stored thread is the complete conversation a server-authoritative client
- * hydrates on load. A guard avoids duplicating a terminal assistant turn should
- * the engine ever start appending it itself.
- */
-function finishedTranscript(
-  messages: ReadonlyArray<ModelMessage>,
-  info: FinishInfo,
-  messageId: string | undefined,
-  createdAt: Date | undefined,
-): Array<ModelMessage> {
-  const transcript = [...messages]
-  const last = transcript[transcript.length - 1]
-  const alreadyPresent =
-    last?.role === 'assistant' &&
-    last.toolCalls === undefined &&
-    last.content === info.content
-  if (info.content && !alreadyPresent) {
-    // Stamp the terminal turn with its stream messageId so a hydrated bubble
-    // keeps the same identity as the live stream (in-place resume on reload).
-    transcript.push({
-      role: 'assistant',
-      content: info.content,
-      ...(messageId ? { id: messageId } : {}),
-      ...(createdAt ? { createdAt } : {}),
-    })
-  }
-  return transcript
 }
 
 function interruptPayload(interrupt: unknown): Record<string, unknown> {
@@ -1535,11 +1497,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     },
 
     async onChunk(ctx: ChatMiddlewareContext, chunk: StreamChunk) {
-      // Always capture the current assistant turn's stream messageId (cheap),
-      // regardless of snapshotStreaming — it's persisted onto the assistant
-      // message so its identity survives hydrate and a reload resumes the same
-      // bubble in place.
-      if (ctx.phase === 'modelStream') {
+      // Capture the current assistant turn's identity for optional in-progress
+      // snapshots. Completed messages already live in `ctx.messages`.
+      if (snapshotStreaming && ctx.phase === 'modelStream') {
         const s = runState.get(ctx)
         if (s && chunk.type === 'TEXT_MESSAGE_START') {
           s.streamingMessageId = chunk.messageId
@@ -1559,9 +1519,8 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
 
       // (B) Optional throttled snapshot of the in-progress assistant reply, so
       // partial output survives a crash/reload before onFinish. Off unless
-      // `snapshotStreaming` is set. We accumulate the terminal turn's text here
-      // (the engine only appends assistant turns with tool calls to
-      // `ctx.messages`, never a streaming text reply), then persist
+      // `snapshotStreaming` is set. The completed turn enters `ctx.messages`
+      // only after streaming ends, so accumulate its text here and persist
       // `ctx.messages` + that partial assistant message (tagged with its id).
       if (
         snapshotStreaming &&
@@ -1634,15 +1593,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // resumes stay pending so a retry can re-apply them. Completing the run
       // or consuming approvals before the durable history lands leaves a
       // "finished" run whose transcript is missing the terminal turn.
-      await messageStore.saveThread(
-        ctx.threadId,
-        finishedTranscript(
-          ctx.messages,
-          info,
-          state?.streamingMessageId,
-          state?.streamingMessageCreatedAt,
-        ),
-      )
+      await messageStore.saveThread(ctx.threadId, [...ctx.messages])
       await completeRun(runs, ctx.runId, info.usage)
       await commitPendingResumes(state, persistence.stores.interrupts)
     },

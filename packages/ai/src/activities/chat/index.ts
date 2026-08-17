@@ -42,7 +42,11 @@ import {
 } from './tools/approval-schema'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { isCancelRequestedReason } from './cancel'
-import { convertMessagesToModelMessages, generateMessageId } from './messages'
+import {
+  convertMessagesToModelMessages,
+  generateMessageId,
+  safeJsonStringify,
+} from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { getRunDetached } from './middleware/run-store'
 import { publishRunDetachedSignal } from '../../delivery-detach'
@@ -84,6 +88,7 @@ import type {
   SchemaInput,
   StreamChunk,
   StructuredOutputCompleteEvent,
+  StructuredOutputPart,
   StructuredOutputStream,
   TextMessageContentEvent,
   TextOptions,
@@ -779,8 +784,13 @@ class TextEngine<
   private readonly logger: InternalLogger
 
   // Structured-output finalization state (populated by runStructuredFinalization)
-  private structuredOutputResult: { data: unknown; rawText: string } | null =
-    null
+  private structuredOutputResult: {
+    data: unknown
+    rawText: string
+    reasoning?: string
+  } | null = null
+  private structuredOutputMessageId: string | null = null
+  private structuredOutputMessageCreatedAt: Date | null = null
   // Native combined mode: tracks whether we've already emitted the synthetic
   // `structured-output.start` event before the schema-constrained final-turn
   // text begins streaming. The event must precede the first
@@ -1146,6 +1156,7 @@ class TextEngine<
             duration: Date.now() - this.streamStartTime,
           })
         } else {
+          this.addTerminalAssistantMessages()
           this.terminalHookCalled = true
           await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
             finishReason: this.lastFinishReason,
@@ -1528,6 +1539,11 @@ class TextEngine<
       this.currentMessageCreatedAt = new Date()
       this.streamIdentityCaptured = true
     }
+  }
+
+  private captureStructuredOutputMessageIdentity(messageId: string): void {
+    this.structuredOutputMessageId = messageId
+    this.structuredOutputMessageCreatedAt ??= new Date()
   }
 
   private handleToolCallStartEvent(chunk: ToolCallStartEvent): void {
@@ -1987,6 +2003,65 @@ class TextEngine<
     this.middlewareCtx.messages = this.messages
   }
 
+  private addTerminalAssistantMessages(): void {
+    const structuredResult = this.structuredOutputResult
+    const raw = structuredResult
+      ? structuredResult.rawText || safeJsonStringify(structuredResult.data)
+      : ''
+    const structuredOutput: StructuredOutputPart | undefined = structuredResult
+      ? {
+          type: 'structured-output',
+          status: 'complete',
+          data: structuredResult.data,
+          partial: structuredResult.data,
+          raw,
+          ...(structuredResult.reasoning !== undefined
+            ? { reasoning: structuredResult.reasoning }
+            : {}),
+        }
+      : undefined
+    const nativeCombined = this.finalStructuredOutput?.nativeCombined === true
+    const currentTurnAlreadyRecorded = this.messages.some(
+      (message) =>
+        message.role === 'assistant' && message.id === this.currentMessageId,
+    )
+    const terminalMessages: Array<ModelMessage> = []
+
+    if (
+      this.accumulatedContent !== '' &&
+      !nativeCombined &&
+      !currentTurnAlreadyRecorded
+    ) {
+      terminalMessages.push({
+        role: 'assistant',
+        content: this.accumulatedContent,
+        id: this.currentMessageId ?? this.createId('msg'),
+        createdAt: this.currentMessageCreatedAt ?? new Date(),
+      })
+    }
+
+    if (structuredOutput) {
+      terminalMessages.push({
+        role: 'assistant',
+        content: raw || null,
+        id:
+          (nativeCombined
+            ? this.currentMessageId
+            : this.structuredOutputMessageId) ?? this.createId('msg'),
+        createdAt:
+          (nativeCombined
+            ? this.currentMessageCreatedAt
+            : this.structuredOutputMessageCreatedAt) ?? new Date(),
+        structuredOutput,
+      })
+    }
+
+    if (terminalMessages.length === 0) return
+
+    this.messages = [...this.messages, ...terminalMessages]
+    this.middlewareCtx.messages = this.messages
+  }
+
   /**
    * Extract client state (approvals and client tool results) from original messages.
    * This is called in the constructor BEFORE converting to ModelMessage format,
@@ -2180,6 +2255,9 @@ class TextEngine<
           id: `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
           role: message.role,
           ...(content !== undefined ? { content } : {}),
+          ...(message.structuredOutput
+            ? { parts: [message.structuredOutput] }
+            : {}),
           ...('toolCalls' in message && message.toolCalls
             ? { toolCalls: message.toolCalls }
             : {}),
@@ -2858,6 +2936,7 @@ class TextEngine<
     const buildSynthesizedStart = (): StreamChunk => {
       const idForStart = structuredMessageId ?? generateMessageId()
       structuredMessageId = idForStart
+      this.captureStructuredOutputMessageIdentity(idForStart)
       return {
         type: EventType.CUSTOM,
         name: 'structured-output.start',
@@ -2898,7 +2977,10 @@ class TextEngine<
       // synthesized start (when needed) uses the SAME id the deltas carry
       if (!structuredMessageId) {
         const extracted = extractMessageId(chunk)
-        if (extracted) structuredMessageId = extracted
+        if (extracted) {
+          structuredMessageId = extracted
+          this.captureStructuredOutputMessageIdentity(extracted)
+        }
       }
 
       // Synthesis only matters for the streaming client path — the agentic
@@ -2965,7 +3047,13 @@ class TextEngine<
           const object = this.finalStructuredOutput.normalize
             ? this.finalStructuredOutput.normalize(parsed.object)
             : parsed.object
-          this.structuredOutputResult = { data: object, rawText: parsed.raw }
+          this.structuredOutputResult = {
+            data: object,
+            rawText: parsed.raw,
+            ...(parsed.reasoning !== undefined
+              ? { reasoning: parsed.reasoning }
+              : {}),
+          }
           // Rewrite the outbound event so the yielded chunk carries the
           // normalized object (the original `chunk.value` still holds the
           // widened one). Preserve every other field — `raw`, `reasoning` —
