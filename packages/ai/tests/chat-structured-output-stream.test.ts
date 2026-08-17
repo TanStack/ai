@@ -480,6 +480,44 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(finished).toBeDefined()
       expect('usage' in finished!).toBe(false)
     })
+
+    it('keeps synthesized lifecycle timestamps ordered after a delayed provider result', async () => {
+      const adapter = makeAdapter({
+        structuredOutput: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          return { data: validPerson, rawText: JSON.stringify(validPerson) }
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      })
+
+      const chunks = await collectChunks(stream)
+      const start = chunks.find(
+        (c) =>
+          c.type === EventType.CUSTOM &&
+          (c as { name?: string }).name === 'structured-output.start',
+      )
+      const content = chunks.find((c) => c.type === EventType.TEXT_MESSAGE_CONTENT)
+      const complete = chunks.find(
+        (c) =>
+          c.type === EventType.CUSTOM &&
+          (c as { name?: string }).name === 'structured-output.complete',
+      )
+      const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
+
+      expect(start).toBeDefined()
+      expect(content).toBeDefined()
+      expect(complete).toBeDefined()
+      expect(finished).toBeDefined()
+      expect(start!.timestamp).toBeLessThanOrEqual(content!.timestamp)
+      expect(content!.timestamp).toBeLessThanOrEqual(complete!.timestamp)
+      expect(complete!.timestamp).toBeLessThanOrEqual(finished!.timestamp)
+    })
   })
 
   describe('lifecycle ordering', () => {
