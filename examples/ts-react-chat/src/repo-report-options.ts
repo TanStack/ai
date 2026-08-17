@@ -1,5 +1,5 @@
 /**
- * Client-safe picker types for /sandboxes/repo-report.
+ * Client-safe picker types for /repo-report.
  * Do not import harness packages here.
  */
 

@@ -192,7 +192,7 @@ The React chat example includes a repo-report page.
 
 1. Open [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat).
 2. Set the harness API key in `.env`.
-3. Open `/sandboxes/repo-report`.
+3. Open `/repo-report`.
 4. Pick Claude Code, Grok Build, or Codex.
 5. Run the report. The page reads the typed object from `useChat().final`.
 

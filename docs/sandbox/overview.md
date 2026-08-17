@@ -136,6 +136,6 @@ Three runnable demos:
 - [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare):
   the same idea at the edge, with the harness picked per run from the UI.
 - [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat)
-  at `/sandboxes/repo-report`: clone `TanStack/ai`, pick Claude Code, Grok Build,
+  at `/repo-report`: clone `TanStack/ai`, pick Claude Code, Grok Build,
   or Codex, and read a typed report from `useChat().final`. See
   [Harness Agents](../structured-outputs/harnesses).

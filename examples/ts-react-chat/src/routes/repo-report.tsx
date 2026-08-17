@@ -18,7 +18,7 @@ import type {
   ReportProvider,
 } from '../repo-report-options'
 
-export const Route = createFileRoute('/sandboxes/repo-report')({
+export const Route = createFileRoute('/repo-report')({
   component: RepoReportPage,
 })
 

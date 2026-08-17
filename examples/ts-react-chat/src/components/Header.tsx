@@ -205,7 +205,7 @@ export default function Header() {
           </Link>
 
           <Link
-            to="/sandboxes/repo-report"
+            to="/repo-report"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
             activeProps={{
