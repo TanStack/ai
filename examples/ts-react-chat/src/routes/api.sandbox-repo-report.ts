@@ -91,6 +91,10 @@ export async function repoReportPost(request: Request): Promise<Response> {
       provider: data.provider,
       repo: REPORT_REPO,
       threadId,
+      // Local Claude Code uses the host `claude login`. An API key in `.env`
+      // would override that login in `-p` mode.
+      useSubscription:
+        data.provider === 'local' && data.harness === 'claude-code',
     })
     const stream = chat({
       threadId,

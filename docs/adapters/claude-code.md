@@ -172,9 +172,9 @@ const stream = chat({
 
 Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its native tools, and returns a typed object. The schema JSON is passed to `--json-schema` as inline JSON (the CLI rejects a file path). Tool activity and prose stream as usual. The object arrives as `structured-output.complete`.
 
-The adapter loads only user settings (`--setting-sources user`). A cloned repo's `.claude/settings.json` does not block headless `-p`.
+The adapter loads only user settings (`--setting-sources user`). A cloned repo's `.claude/settings.json` does not block headless `-p`. The adapter does not pass `--bare`, because that flag ignores a host `claude login`.
 
-Headless Claude needs an `ANTHROPIC_API_KEY` in the process env, or a host `claude login` when you use the local-process sandbox. The adapter copies the host API key into the sandbox process. A Docker container has no host login.
+On local-process, Claude uses your host `claude login`. On Docker, pass `ANTHROPIC_API_KEY` in the process env. A container has no host login.
 
 ```ts
 import { chat } from "@tanstack/ai"

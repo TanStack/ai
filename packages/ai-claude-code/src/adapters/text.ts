@@ -20,7 +20,6 @@ import {
   resolveApproval,
   resolveDurableRunId,
   resolveDurableThreadId,
-  resolveHarnessCwd,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
@@ -31,7 +30,7 @@ import {
   CLAUDE_JSON_SCHEMA_PLACEHOLDER,
   CLAUDE_RUNNER_SOURCE,
 } from './claude-run-source'
-import { acceptClaudeTrustDialog } from './trust'
+
 import type { ClaudePolicyFlags } from './policy-map'
 import type {
   BridgeEventChannel,
@@ -201,14 +200,12 @@ export class ClaudeCodeTextAdapter<
     const modelOptions = options.modelOptions
     const exeParts = (config.claudeExecutable ?? 'claude').split(' ')
 
-    // Flags that skip project settings must come before `-p`. `-p` can take
-    // the next token as the prompt, so `claude -p --bare` treats --bare as
-    // the prompt and still loads `.claude/settings.json`.
-    // `--setting-sources user` skips project/local settings, so a cloned
-    // repo's allow-list does not trigger the trust dialog.
+    // `--setting-sources user` before `-p`. Do not pass `--bare`: that flag
+    // skips stored `claude login` credentials and prints
+    // "Not logged in · Please run /login" (claude-code#51047).
+    // `-p` can take the next token as the prompt, so these flags stay first.
     const args: Array<string> = [
       ...exeParts,
-      '--bare',
       '--setting-sources',
       'user',
       '-p',
@@ -355,7 +352,7 @@ export class ClaudeCodeTextAdapter<
       const sandbox = this.sandboxFrom(options)
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
-      await acceptClaudeTrustDialog(resolveHarnessCwd(sandbox, cwd))
+
       // Durability comes from `withSandbox(sandbox, { runs, durability })`, read
       // back off the capability bus. Absent it, everything below resolves to
       // exactly today's behavior (no journal option, no alignment, and a
@@ -531,7 +528,11 @@ export class ClaudeCodeTextAdapter<
         env: {
           IS_SANDBOX: '1',
           CLAUDE_CODE_SANDBOXED: '1',
-          ...hostClaudeAuthEnv(),
+          // Docker has no host `claude login`. Local-process must not force
+          // ANTHROPIC_API_KEY: `-p` would use the key instead of the login.
+          ...(sandbox.provider === 'local-process'
+            ? {}
+            : hostClaudeAuthEnv()),
           ...localProcessHomeEnv(sandbox.provider),
           ...this.adapterConfig.env,
         },
