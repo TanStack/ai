@@ -268,8 +268,96 @@ describe('withPersistence (state-only)', () => {
         role: 'assistant',
         content: 'Half a stor',
         id: 'stream-assistant',
+        createdAt: expect.any(Date),
       }),
     ])
+  })
+
+  it('resets streaming state on an empty-id TEXT_MESSAGE_START between turns', async () => {
+    const persistence = memoryPersistence()
+    let call = 0
+    const adapter = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () => {
+        call++
+        if (call === 1) {
+          return (async function* () {
+            yield ev.runStarted()
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: '',
+              timestamp: 1,
+            }
+            yield ev.text('Let me search.')
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'call_1',
+              toolCallName: 'search',
+              toolName: 'search',
+              parentMessageId: 'assistant-turn-1',
+              timestamp: 1,
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'call_1',
+              delta: '{}',
+              timestamp: 1,
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: 'r1',
+              threadId: 't1',
+              finishReason: 'tool_calls',
+              timestamp: 1,
+            }
+          })()
+        }
+        return (async function* () {
+          yield ev.runStarted()
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: '',
+            timestamp: 1,
+          }
+          yield ev.text('The answer is 42.')
+          throw new Error('crash mid-stream')
+        })()
+      },
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    await expect(
+      collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'search' }],
+          tools: [serverSearchTool()],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [
+            withPersistence(persistence, {
+              snapshotStreaming: true,
+              snapshotIntervalMs: 0,
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('crash mid-stream')
+
+    // The empty-id start on turn 2 still resets the per-turn accumulator: the
+    // crash-window snapshot holds only turn-2 text, and it must not inherit
+    // turn 1's tool-call id — two persisted messages may never share an id.
+    const thread = await persistence.stores.messages!.loadThread('t1')
+    expect(findAssistantToolCall(thread, 'call_1')?.id).toBe('assistant-turn-1')
+    const terminal = thread.at(-1)
+    expect(terminal).toMatchObject({
+      role: 'assistant',
+      content: 'The answer is 42.',
+    })
+    expect(terminal).not.toHaveProperty('id')
   })
 
   it('stamps the terminal assistant turn with its stream messageId', async () => {
