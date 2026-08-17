@@ -581,6 +581,124 @@ describe('translateSdkStream', () => {
     expect(chunks.some((c) => c.type === 'TOOL_CALL_RESULT')).toBe(false)
   })
 
+  it('does not let an empty StructuredOutput tool wipe a captured object', async () => {
+    const report = { name: 'TanStack AI', oneLiner: 'SDK' }
+    const chunks = await collect(
+      [
+        init,
+        {
+          type: 'assistant',
+          message: {
+            id: 'msg-so-1',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'toolu_so_full',
+                name: 'StructuredOutput',
+                input: report,
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'assistant',
+          message: {
+            id: 'msg-so-2',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'toolu_so_empty',
+                name: 'StructuredOutput',
+                input: {},
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        resultSuccess,
+      ],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete?.type === 'CUSTOM' && complete.value).toEqual(
+      expect.objectContaining({ object: report }),
+    )
+  })
+
+  it('harvests StructuredOutput from streamed input_json_delta', async () => {
+    const report = { name: 'TanStack AI', oneLiner: 'SDK' }
+    const chunks = await collect(
+      [
+        init,
+        {
+          type: 'stream_event',
+          event: { type: 'message_start', message: { id: 'msg-p' } },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_start',
+            index: 0,
+            content_block: {
+              type: 'tool_use',
+              id: 'toolu_stream',
+              name: 'StructuredOutput',
+              input: {},
+            },
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'stream_event',
+          event: {
+            type: 'content_block_delta',
+            index: 0,
+            delta: {
+              type: 'input_json_delta',
+              partial_json: JSON.stringify(report),
+            },
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'stream_event',
+          event: { type: 'content_block_stop', index: 0 },
+          parent_tool_use_id: null,
+        },
+        resultSuccess,
+      ],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete?.type === 'CUSTOM' && complete.value).toEqual(
+      expect.objectContaining({ object: report }),
+    )
+  })
+
+  it('parses JSON from assistant text when the StructuredOutput tool is missing', async () => {
+    const report = { name: 'TanStack AI', oneLiner: 'SDK' }
+    const chunks = await collect(
+      [
+        init,
+        assistantText(JSON.stringify(report)),
+        resultSuccess,
+      ],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete?.type === 'CUSTOM' && complete.value).toEqual(
+      expect.objectContaining({ object: report }),
+    )
+  })
+
   it('does not emit structured-output events when the flag is off', async () => {
     const resultWithObject: AgentSdkMessage = {
       type: 'result',

@@ -1,5 +1,8 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  appendOutputSchemaInstruction,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
@@ -435,10 +438,15 @@ export class ClaudeCodeTextAdapter<
         })
       }
 
-      const { prompt, resume } = buildPrompt(
+      const built = buildPrompt(
         options.messages,
         options.modelOptions?.sessionId,
       )
+      const resume = built.resume
+      const prompt =
+        options.outputSchema !== undefined
+          ? appendOutputSchemaInstruction(built.prompt, options.outputSchema)
+          : built.prompt
       // Both files below name themselves after `runId`, and durability makes
       // `runId` CALLER-chosen. Raw, a `/` in it would silently turn each basename
       // into a nested path (writing outside the intended directory, or failing on
