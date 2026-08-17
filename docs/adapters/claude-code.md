@@ -170,7 +170,7 @@ const stream = chat({
 
 ## Structured Output
 
-Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its native tools, and returns a typed object. The schema JSON is passed to `--json-schema` as inline JSON (the CLI rejects a file path). Tool activity and prose stream as usual. The object arrives as `structured-output.complete`.
+Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its native tools, and returns a typed object. The schema JSON is passed to `--json-schema` as inline JSON (the CLI rejects a file path). Tool activity and prose stream as usual. The object arrives as `structured-output.complete`, including when Claude delivers it through its built-in `StructuredOutput` tool.
 
 The adapter loads only user settings (`--setting-sources user`). A cloned repo's `.claude/settings.json` does not block headless `-p`. The adapter does not pass `--bare`, because that flag ignores a host `claude login`.
 

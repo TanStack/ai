@@ -515,6 +515,72 @@ describe('translateSdkStream', () => {
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
   })
 
+  it('harvests StructuredOutput tool input when result.structured_output is missing', async () => {
+    const report = {
+      name: 'TanStack AI',
+      oneLiner: 'Type-safe AI SDK',
+    }
+    const chunks = await collect(
+      [
+        init,
+        assistantText('I have enough to compile the report.'),
+        {
+          type: 'assistant',
+          message: {
+            id: 'msg-so',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'toolu_so',
+                name: 'StructuredOutput',
+                input: report,
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        {
+          type: 'user',
+          message: {
+            role: 'user',
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'toolu_so',
+                content: 'ok',
+              },
+            ],
+          },
+          parent_tool_use_id: null,
+        },
+        resultSuccess,
+      ],
+      { ...makeContext(), expectStructuredOutput: true },
+    )
+
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({
+          object: report,
+          raw: JSON.stringify(report),
+        }),
+      )
+    }
+    expect(
+      chunks.some(
+        (c) =>
+          c.type === 'TOOL_CALL_START' &&
+          'toolCallName' in c &&
+          c.toolCallName === 'StructuredOutput',
+      ),
+    ).toBe(false)
+    expect(chunks.some((c) => c.type === 'TOOL_CALL_RESULT')).toBe(false)
+  })
+
   it('does not emit structured-output events when the flag is off', async () => {
     const resultWithObject: AgentSdkMessage = {
       type: 'result',
