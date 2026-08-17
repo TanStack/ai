@@ -70,7 +70,7 @@
     "@angular/platform-browser-dynamic": "^21.2.20",
     "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
-    "jsdom": "^27.2.0",
+    "jsdom": "^27.4.0",
     "ng-packagr": "^21.2.0",
     "typescript": "5.9.3",
     "vitest": "^4.1.10",

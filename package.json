@@ -73,11 +73,11 @@
     "@types/node": "^24.10.1",
     "@typescript/typescript6": "6.0.2",
     "eslint-plugin-unused-imports": "^4.3.0",
-    "happy-dom": "^20.0.10",
+    "happy-dom": "^20.11.2",
     "kiira": "0.6.0",
     "knip": "^6.26.0",
     "markdown-link-extractor": "^4.0.3",
-    "nx": "23.1.0",
+    "nx": "23.1.1",
     "oxfmt": "^0.59.0",
     "oxlint": "^1.74.0",
     "oxlint-plugin-eslint": "^1.74.0",
@@ -85,10 +85,10 @@
     "premove": "^4.0.0",
     "publint": "^0.3.15",
     "sherif": "^1.9.0",
-    "tinyglobby": "^0.2.15",
-    "tsx": "^4.21.0",
+    "tinyglobby": "^0.2.17",
+    "tsx": "^4.23.12",
     "typescript": "7.0.2",
-    "vite": "^8.1.4",
+    "vite": "^8.2.1",
     "vitest": "^4.1.10"
   }
 }

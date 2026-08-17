@@ -60,9 +60,9 @@
   },
   "devDependencies": {
     "@types/react": "^19.2.7",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.10",
     "react": "^19.2.3",
-    "vite": "^8.1.4"
+    "vite": "^8.2.1"
   },
   "keywords": [
     "ai",
