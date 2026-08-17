@@ -54,6 +54,6 @@
   "devDependencies": {
     "@daytona/sdk": "^0.191.0",
     "@tanstack/ai-code-mode": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.1.10"
   }
 }

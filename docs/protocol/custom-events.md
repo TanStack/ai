@@ -96,10 +96,10 @@ individual interface.
 | `CodeModeExternalCallEvent` | `code_mode:external_call` | `{ function: string; args: unknown; timestamp: number }` | Code Mode, before a bound `external_*` function runs |
 | `CodeModeExternalResultEvent` | `code_mode:external_result` | `{ function: string; result: unknown; duration: number }` | Code Mode, after a successful `external_*` call |
 | `CodeModeExternalErrorEvent` | `code_mode:external_error` | `{ function: string; error: string; duration: number }` | Code Mode, when an `external_*` call throws |
-| `CodeModeSkillCallEvent` | `code_mode:skill_call` | `{ skill: string; input: unknown; timestamp: number }` | [Code Mode with Skills](../code-mode/code-mode-with-skills), before a skill runs |
-| `CodeModeSkillResultEvent` | `code_mode:skill_result` | `{ skill: string; result: unknown; duration: number; timestamp: number }` | Code Mode with Skills, after a successful skill run |
-| `CodeModeSkillErrorEvent` | `code_mode:skill_error` | `{ skill: string; error: string; duration: number; timestamp: number }` | Code Mode with Skills, when a skill throws |
-| `SkillRegisteredEvent` | `skill:registered` | `{ id: string; name: string; description: string; timestamp: number }` | when a skill is registered into the tool registry |
+| `CodeModeSnippetCallEvent` | `code_mode:snippet_call` | `{ snippet: string; input: unknown; timestamp: number }` | [Code Mode with Snippets](../code-mode/code-mode-with-snippets), before a snippet runs |
+| `CodeModeSnippetResultEvent` | `code_mode:snippet_result` | `{ snippet: string; result: unknown; duration: number; timestamp: number }` | Code Mode with Snippets, after a successful snippet run |
+| `CodeModeSnippetErrorEvent` | `code_mode:snippet_error` | `{ snippet: string; error: string; duration: number; timestamp: number }` | Code Mode with Snippets, when a snippet throws |
+| `SnippetRegisteredEvent` | `snippet:registered` | `{ id: string; name: string; description: string; timestamp: number }` | when a snippet is registered into the tool registry |
 | `StructuredOutputStartEvent` | `structured-output.start` | `{ messageId: string }` | [`chat({ outputSchema, stream: true })`](../structured-outputs/streaming), once per structured message |
 | `StructuredOutputCompleteEvent<T>` | `structured-output.complete` | `{ object: T; raw: string; reasoning?: string }` | structured-output streaming, once with the validated object |
 | `ApprovalRequestedEvent` | `approval-requested` | `{ toolCallId: string; toolName: string; input: unknown; approval: { id: string; needsApproval: true } }` | a server tool needs approval — the run pauses; see [Tool Approval Flow](../tools/tool-approval) |
