@@ -27,6 +27,7 @@ import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
 import { mapPolicyToClaudeFlags } from './policy-map'
 import { projectClaudeWorkspace } from './projection'
+import { CLAUDE_RUNNER_SOURCE } from './claude-run-source'
 import { acceptClaudeTrustDialog } from './trust'
 import type { ClaudePolicyFlags } from './policy-map'
 import type {
@@ -164,57 +165,60 @@ export class ClaudeCodeTextAdapter<
     return 'event'
   }
 
-  private buildCommand(
+  private buildArgv(
     options: TextOptions<ClaudeCodeTextProviderOptions>,
     resume: string | undefined,
     policyFlags: ClaudePolicyFlags,
     mcpConfigPath: string | undefined,
     permissionPromptTool: string | undefined,
-    jsonSchemaFile: string | undefined,
-  ): string {
+    hasJsonSchema: boolean,
+  ): Array<string> {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
-    const exe = config.claudeExecutable ?? 'claude'
+    const exeParts = (config.claudeExecutable ?? 'claude').split(' ')
 
+    // --bare before -p. `-p` can take the next token as the prompt, so
+    // `claude -p --bare` treats --bare as the prompt and still loads the
+    // cloned repo's .claude/settings.json (trust dialog).
     const args: Array<string> = [
-      '-p',
+      ...exeParts,
       '--bare',
+      '-p',
       '--output-format',
       'stream-json',
       '--verbose',
       '--model',
-      q(this.model),
+      this.model,
     ]
 
     if (config.streamPartials !== false) args.push('--include-partial-messages')
-    if (resume !== undefined) args.push('--resume', q(resume))
+    if (resume !== undefined) args.push('--resume', resume)
 
-    // Precedence: per-call modelOptions > adapter config > policy > sandbox default.
     const permissionMode =
       modelOptions?.permissionMode ??
       config.permissionMode ??
       policyFlags.permissionMode ??
       'bypassPermissions'
-    args.push('--permission-mode', q(permissionMode))
+    args.push('--permission-mode', permissionMode)
 
     const maxTurns = modelOptions?.maxTurns ?? config.maxTurns
     if (maxTurns !== undefined) args.push('--max-turns', String(maxTurns))
 
-    for (const dir of config.addDirs ?? []) args.push('--add-dir', q(dir))
+    for (const dir of config.addDirs ?? []) args.push('--add-dir', dir)
 
     const allowedTools = [
       ...(modelOptions?.allowedTools ?? config.allowedTools ?? []),
       ...policyFlags.allowedTools,
     ]
     if (allowedTools.length > 0) {
-      args.push('--allowedTools', q([...new Set(allowedTools)].join(',')))
+      args.push('--allowedTools', [...new Set(allowedTools)].join(','))
     }
     const disallowedTools = [
       ...(modelOptions?.disallowedTools ?? config.disallowedTools ?? []),
       ...policyFlags.disallowedTools,
     ]
     if (disallowedTools.length > 0) {
-      args.push('--disallowedTools', q([...new Set(disallowedTools)].join(',')))
+      args.push('--disallowedTools', [...new Set(disallowedTools)].join(','))
     }
 
     const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
@@ -226,21 +230,16 @@ export class ClaudeCodeTextAdapter<
         config.systemPromptMode === 'replace'
           ? '--system-prompt'
           : '--append-system-prompt'
-      args.push(flag, q(joined))
+      args.push(flag, joined)
     }
 
-    if (mcpConfigPath !== undefined) args.push('--mcp-config', q(mcpConfigPath))
-    if (jsonSchemaFile !== undefined) {
-      // The CLI parses this flag as JSON. A filename like
-      // `.tanstack-output-schema-….json` becomes `Unexpected token '.'`.
-      // Expand the file in the POSIX shell so git-bash does not mangle quotes.
-      args.push('--json-schema', `"$(cat ${q(jsonSchemaFile)})"`)
-    }
+    if (mcpConfigPath !== undefined) args.push('--mcp-config', mcpConfigPath)
+    if (hasJsonSchema) args.push('--json-schema', '__TANSTACK_SCHEMA__')
     if (permissionPromptTool !== undefined) {
-      args.push('--permission-prompt-tool', q(permissionPromptTool))
+      args.push('--permission-prompt-tool', permissionPromptTool)
     }
 
-    return `${exe} ${args.join(' ')}`
+    return args
   }
 
   /**
@@ -447,7 +446,10 @@ export class ClaudeCodeTextAdapter<
         await sandbox.fs.write(schemaPath, JSON.stringify(options.outputSchema))
         tempFiles.push(schemaPath)
       }
-      const command = this.buildCommand(
+      const runnerFile = `tanstack-claude-run-${runIdSegment}.mjs`
+      await sandbox.fs.write(`${cwd}/${runnerFile}`, CLAUDE_RUNNER_SOURCE)
+      tempFiles.push(`${cwd}/${runnerFile}`)
+      const argv = this.buildArgv(
         options,
         resume,
         mapPolicyToClaudeFlags(policy),
@@ -455,8 +457,9 @@ export class ClaudeCodeTextAdapter<
         bridge && permission
           ? `mcp__${bridge.name}__${permission.toolName}`
           : undefined,
-        jsonSchemaFile,
+        jsonSchemaFile !== undefined,
       )
+      const command = `node ${q(runnerFile)} ${q(JSON.stringify(argv))} ${q(jsonSchemaFile ?? '')}`
 
       // Deliver the prompt. The default feeds it over stdin (keeps it out of
       // argv). Providers without a writable host→process stdin (e.g. Cloudflare)
