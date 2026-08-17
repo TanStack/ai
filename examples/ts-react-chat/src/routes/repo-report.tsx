@@ -25,60 +25,83 @@ export const Route = createFileRoute('/repo-report')({
   component: RepoReportPage,
 })
 
-function assistantText(messages: Array<UIMessage>): string {
-  return messages
-    .filter((message) => message.role === 'assistant')
-    .flatMap((message) => message.parts)
-    .flatMap((part) =>
-      part.type === 'text' && typeof part.content === 'string'
-        ? [part.content]
-        : [],
-    )
-    .join('\n')
+function looksLikeReport(value: unknown): value is Partial<RepoReport> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+  const record = value as Record<string, unknown>
+  return (
+    'name' in record ||
+    'oneLiner' in record ||
+    'audience' in record ||
+    'mainPackages' in record ||
+    'howToRun' in record
+  )
 }
 
-function liveReportFromMessages(
+function reportFromMessages(
   messages: Array<UIMessage>,
 ): Partial<RepoReport> | undefined {
-  const text = assistantText(messages)
-  const start = text.lastIndexOf('{')
-  if (start < 0) return undefined
-  const parsed: unknown = parsePartialJSON(text.slice(start))
-  if (parsed === null || parsed === undefined || typeof parsed !== 'object') {
-    return undefined
+  for (const message of [...messages].reverse()) {
+    for (const part of [...message.parts].reverse()) {
+      if (part.type === 'structured-output') {
+        if (part.data !== undefined && looksLikeReport(part.data)) {
+          return part.data
+        }
+        if (part.partial !== undefined && looksLikeReport(part.partial)) {
+          return part.partial
+        }
+      }
+    }
   }
-  return parsed as Partial<RepoReport>
+  for (const message of [...messages].reverse()) {
+    for (const part of [...message.parts].reverse()) {
+      if (part.type !== 'text' || typeof part.content !== 'string') continue
+      const trimmed = part.content.trim()
+      if (!trimmed.startsWith('{')) continue
+      const parsed: unknown = parsePartialJSON(trimmed)
+      if (looksLikeReport(parsed)) return parsed
+    }
+  }
+  return undefined
 }
 
-function proseWithoutJson(content: string): string | null {
-  const start = content.indexOf('{')
-  if (start < 0) return content
-  const before = content.slice(0, start).trim()
-  return before === '' ? null : before
+function isCompleteReportJson(content: string): boolean {
+  const trimmed = content.trim()
+  if (!trimmed.startsWith('{')) return false
+  try {
+    return looksLikeReport(JSON.parse(trimmed))
+  } catch {
+    return false
+  }
 }
 
-function ReportCard({
-  report,
-}: {
-  report: Partial<RepoReport>
-}) {
+function ReportCard({ report }: { report: Partial<RepoReport> }) {
+  const packages = report.mainPackages ?? []
   return (
     <article className="rounded-xl border border-orange-500/30 bg-gray-800 p-5 space-y-3">
-      <h3 className="text-lg font-semibold">{report.name ?? '…'}</h3>
-      <p>{report.oneLiner ?? '…'}</p>
-      <p className="text-sm text-gray-300">
-        <span className="text-gray-500">Audience: </span>
-        {report.audience ?? '…'}
-      </p>
-      <ul className="list-disc pl-5 text-sm space-y-1">
-        {(report.mainPackages ?? []).map((pkg, index) => (
-          <li key={pkg.name ?? index}>
-            <span className="font-mono text-orange-200">{pkg.name ?? '…'}</span>
-            {': '}
-            {pkg.role ?? '…'}
-          </li>
-        ))}
-      </ul>
+      {report.name ? (
+        <h3 className="text-lg font-semibold">{report.name}</h3>
+      ) : null}
+      {report.oneLiner ? <p>{report.oneLiner}</p> : null}
+      {report.audience ? (
+        <p className="text-sm text-gray-300">
+          <span className="text-gray-500">Audience: </span>
+          {report.audience}
+        </p>
+      ) : null}
+      {packages.length > 0 ? (
+        <ul className="list-disc pl-5 text-sm space-y-1">
+          {packages.map((pkg, index) => (
+            <li key={`${pkg.name ?? 'pkg'}-${index}`}>
+              <span className="font-mono text-orange-200">
+                {pkg.name ?? '…'}
+              </span>
+              {pkg.role ? `: ${pkg.role}` : ''}
+            </li>
+          ))}
+        </ul>
+      ) : null}
       {report.howToRun ? (
         <p className="text-sm whitespace-pre-wrap">{report.howToRun}</p>
       ) : null}
@@ -107,7 +130,19 @@ function RepoReportPage() {
     void chat.sendMessage(`Report on ${REPORT_REPO}`)
   }
 
-  const report = chat.final ?? liveReportFromMessages(chat.messages)
+  const report = chat.final ?? reportFromMessages(chat.messages)
+  const last = chat.messages.at(-1)
+  const waiting =
+    chat.isLoading &&
+    (last === undefined ||
+      last.role === 'user' ||
+      last.parts.every(
+        (part) =>
+          part.type !== 'text' &&
+          part.type !== 'tool-call' &&
+          part.type !== 'thinking' &&
+          part.type !== 'structured-output',
+      ))
 
   return (
     <div className="flex flex-col h-[calc(100vh-72px)] bg-gray-900 text-white">
@@ -198,8 +233,18 @@ function RepoReportPage() {
 
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl mx-auto space-y-6">
-          {chat.error && !report ? (
-            <p className="text-red-300 text-sm">{chat.error.message}</p>
+          {chat.error ? (
+            <p className="text-red-300 text-sm whitespace-pre-wrap">
+              {chat.error.message}
+            </p>
+          ) : null}
+
+          {waiting ? (
+            <p className="text-sm text-orange-200/80">
+              Starting the sandbox and the agent. Tool calls and text show up
+              here as they arrive. Codex can take a few minutes before the first
+              line.
+            </p>
           ) : null}
 
           {chat.messages.map((message) => (
@@ -207,17 +252,26 @@ function RepoReportPage() {
               key={message.id}
               className={
                 message.role === 'assistant'
-                  ? 'rounded-lg bg-orange-500/5 p-4'
+                  ? 'rounded-lg bg-orange-500/5 p-4 space-y-2'
                   : 'text-gray-400 text-sm'
               }
             >
               {message.parts.map((part, index) => {
+                if (part.type === 'thinking' && part.content) {
+                  return (
+                    <p
+                      key={`think-${index}`}
+                      className="text-xs text-gray-400 italic whitespace-pre-wrap"
+                    >
+                      {part.content}
+                    </p>
+                  )
+                }
                 if (part.type === 'text' && part.content) {
-                  const prose = proseWithoutJson(part.content)
-                  if (prose === null) return null
+                  if (report && isCompleteReportJson(part.content)) return null
                   return (
                     <p key={`text-${index}`} className="whitespace-pre-wrap">
-                      {prose}
+                      {part.content}
                     </p>
                   )
                 }
@@ -228,7 +282,18 @@ function RepoReportPage() {
                       className="font-mono text-xs text-orange-200/80"
                     >
                       tool {part.name}
+                      {part.state ? ` (${part.state})` : ''}
                     </p>
+                  )
+                }
+                if (part.type === 'structured-output') {
+                  const data = part.data ?? part.partial
+                  if (!looksLikeReport(data)) return null
+                  return (
+                    <ReportCard
+                      key={`so-${index}`}
+                      report={data}
+                    />
                   )
                 }
                 return null
@@ -236,7 +301,12 @@ function RepoReportPage() {
             </div>
           ))}
 
-          {report ? <ReportCard report={report} /> : null}
+          {report &&
+          !chat.messages.some((message) =>
+            message.parts.some((part) => part.type === 'structured-output'),
+          ) ? (
+            <ReportCard report={report} />
+          ) : null}
 
           {!chat.isLoading && chat.messages.length === 0 ? (
             <p className="text-center text-gray-500">

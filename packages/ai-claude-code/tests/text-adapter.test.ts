@@ -201,6 +201,8 @@ describe('claude-code in-sandbox adapter', () => {
 
     const argv = await sbx.fs.read('/workspace/argv.txt')
     expect(argv).toContain('--json-schema')
+    expect(argv).toContain('"type":"object"')
+    expect(argv).toContain('"summary"')
 
     const complete = chunks.find(
       (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',

@@ -170,7 +170,7 @@ const stream = chat({
 
 ## Structured Output
 
-Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its native tools, and returns a typed object. The schema is sent with `--json-schema`. Tool activity and prose stream as usual. The object arrives as `structured-output.complete`.
+Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its native tools, and returns a typed object. The schema JSON is passed to `--json-schema` (inline, not a file path). Tool activity and prose stream as usual. The object arrives as `structured-output.complete`.
 
 ```ts
 import { chat } from "@tanstack/ai"

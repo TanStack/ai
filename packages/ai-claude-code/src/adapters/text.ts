@@ -20,12 +20,14 @@ import {
   resolveApproval,
   resolveDurableRunId,
   resolveDurableThreadId,
+  resolveHarnessCwd,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
 import { mapPolicyToClaudeFlags } from './policy-map'
 import { projectClaudeWorkspace } from './projection'
+import { acceptClaudeTrustDialog } from './trust'
 import type { ClaudePolicyFlags } from './policy-map'
 import type {
   BridgeEventChannel,
@@ -168,7 +170,7 @@ export class ClaudeCodeTextAdapter<
     policyFlags: ClaudePolicyFlags,
     mcpConfigPath: string | undefined,
     permissionPromptTool: string | undefined,
-    jsonSchemaPath: string | undefined,
+    jsonSchemaJson: string | undefined,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
@@ -227,8 +229,8 @@ export class ClaudeCodeTextAdapter<
     }
 
     if (mcpConfigPath !== undefined) args.push('--mcp-config', q(mcpConfigPath))
-    if (jsonSchemaPath !== undefined) {
-      args.push('--json-schema', q(jsonSchemaPath))
+    if (jsonSchemaJson !== undefined) {
+      args.push('--json-schema', q(jsonSchemaJson))
     }
     if (permissionPromptTool !== undefined) {
       args.push('--permission-prompt-tool', q(permissionPromptTool))
@@ -320,6 +322,7 @@ export class ClaudeCodeTextAdapter<
       const sandbox = this.sandboxFrom(options)
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
+      await acceptClaudeTrustDialog(resolveHarnessCwd(sandbox, cwd))
       // Durability comes from `withSandbox(sandbox, { runs, durability })`, read
       // back off the capability bus. Absent it, everything below resolves to
       // exactly today's behavior (no journal option, no alignment, and a
@@ -433,14 +436,10 @@ export class ClaudeCodeTextAdapter<
         tempFiles.push(mcpConfigPath)
         mcpConfigArg = mcpConfigFile
       }
-      let jsonSchemaArg: string | undefined
-      if (options.outputSchema) {
-        const schemaFile = `.tanstack-output-schema-${runIdSegment}.json`
-        const schemaPath = `${cwd}/${schemaFile}`
-        await sandbox.fs.write(schemaPath, JSON.stringify(options.outputSchema))
-        tempFiles.push(schemaPath)
-        jsonSchemaArg = schemaFile
-      }
+      const jsonSchemaJson =
+        options.outputSchema !== undefined
+          ? JSON.stringify(options.outputSchema)
+          : undefined
       const command = this.buildCommand(
         options,
         resume,
@@ -449,7 +448,7 @@ export class ClaudeCodeTextAdapter<
         bridge && permission
           ? `mcp__${bridge.name}__${permission.toolName}`
           : undefined,
-        jsonSchemaArg,
+        jsonSchemaJson,
       )
 
       // Deliver the prompt. The default feeds it over stdin (keeps it out of
