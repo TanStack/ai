@@ -99,7 +99,7 @@ generation hooks. [How persistence works](./internals) has the rest.
 | --- | --- | --- |
 | **Start of a run** (`onStart`) | Pending turn (just-submitted user message + prior history) so a reload mid-generation still shows the question | Yes. Failure does not abort the run; finish is authoritative |
 | **Interrupt boundary** | New interrupt records, run status `interrupted`, and a thread snapshot of current messages | No. Store failures propagate |
-| **Finish** (`onFinish`) | Complete transcript (including the terminal assistant reply with its stream `messageId` for in-place reload identity), run status `completed`, and commit of consumed resumes | No. The transcript is saved **before** the run is marked completed |
+| **Finish** (`onFinish`) | Complete transcript (including completed assistant messages, their stream identities, and any completed structured-output part), run status `completed`, and commit of consumed resumes | No. The transcript is saved **before** the run is marked completed |
 | **Optionally while streaming** | Throttled partial assistant text when `snapshotStreaming: true` | Yes |
 
 ```ts group=chat-persistence
@@ -111,6 +111,12 @@ const streamingMiddleware = [
 Streaming snapshots default off (finish is the authoritative save); enable
 them to trade extra writes for partial-output durability. Tune the interval
 with `snapshotIntervalMs` (default `1000`).
+
+The chat engine completes the canonical transcript before `onFinish` runs, and
+`withPersistence` saves that transcript directly. Native-combined output keeps
+the structured result on its terminal assistant message. The
+separate-finalization path can preserve a plain-text assistant message followed
+by a structured-output assistant message.
 
 On **error**, the run is marked `failed`. On **abort**, the run is marked
 `aborted` with a `finishedAt`; `interrupted` is written only at an interrupt

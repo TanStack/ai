@@ -64,10 +64,12 @@ Pass `stream: true` and the wire format changes — the client now sees tool-cal
 2. (Agent loop) `TOOL_CALL_START` → `TOOL_CALL_ARGS` → `TOOL_CALL_END` → `TOOL_CALL_RESULT`, possibly repeating for multiple tool calls or iterations
 3. `structured-output.start` (once the model begins emitting the JSON response)
 4. `TEXT_MESSAGE_CONTENT` deltas (the JSON itself)
-5. `structured-output.complete` (validated payload)
+5. `structured-output.complete` (completed payload)
 6. `RUN_FINISHED`
 
 `useChat`'s `partial` stays `{}` and `final` stays `null` while step 2 is running — the structured stream hasn't started yet. Once step 3 fires, `partial` begins filling in; on step 5, `final` snaps.
+
+On the separate-finalization path, the agent loop may also complete a plain-text assistant message before step 3. That message and the structured-output assistant message remain separate. Native-combined output keeps the structured JSON and its part on one assistant message.
 
 The tool-call parts land on the assistant message exactly as they would in a normal streaming chat. Render them however you'd render tool calls outside a structured-output run.
 
@@ -164,6 +166,6 @@ See [Client Tools](../tools/client-tools) for the full pattern (typed inputs / o
 
 ## Multi-turn + tools + structured output
 
-Composes naturally. Every turn runs the agent loop (with any tool gates), then snaps a structured-output part on that turn's assistant message. The next turn sees the prior recipe (or recommendation, or report) as assistant content and can iterate on it.
+Composes naturally. Every turn runs the agent loop (with any tool gates), then produces a structured-output assistant message when the run completes successfully. The next turn sees the prior recipe (or recommendation, or report) as assistant content and can iterate on it. The separate-finalization path can also retain the agent loop's plain-text assistant message before that structured response.
 
 The only thing to be careful of: between `sendMessage()` and the first structured-output event, the latest turn has no `structured-output` part yet — your render loop's `m.parts.find(p => p.type === "structured-output")` returns `undefined`. Render a "streaming…" placeholder when `isLoading && messages[last]?.role === "user"` to cover that gap. See [Multi-Turn Chat](./multi-turn) for the full pattern.

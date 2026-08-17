@@ -75,20 +75,26 @@ it because `stores.messages` is possibly `undefined`.
 
 ## Authoritative-history contract
 
-- **Non-empty `messages`** → finish **overwrites** the stored thread with that
-  array. Post the **complete** transcript, never a delta.
+- **Non-empty `messages`** seed the authoritative history. On finish,
+  persistence **overwrites** the stored thread with the engine's completed
+  canonical transcript. Post the complete history, never a delta.
 - **Empty `messages`** → middleware **loads** the stored thread and continues.
 
 ## When state is written
 
-| Moment             | Writes                                                            | Best-effort?                     |
-| ------------------ | ----------------------------------------------------------------- | -------------------------------- |
-| `onStart`          | Pending turn snapshot (user + history)                            | Yes — failure does not abort     |
-| Interrupt boundary | New interrupts, run → `interrupted`, message snapshot             | No                               |
-| `onFinish`         | Full transcript **first**, then run → `completed`, commit resumes | No                               |
-| Stream (optional)  | Throttled partial assistant text                                  | Yes if `snapshotStreaming: true` |
-| `onError`          | Run → `failed`                                                    | Resumes stay pending             |
-| `onAbort`          | Run → `aborted` — **but only sometimes** (see below)              | Resumes stay pending             |
+| Moment             | Writes                                                                 | Best-effort?                     |
+| ------------------ | ---------------------------------------------------------------------- | -------------------------------- |
+| `onStart`          | Pending turn snapshot (user + history)                                 | Yes — failure does not abort     |
+| Interrupt boundary | New interrupts, run → `interrupted`, message snapshot                  | No                               |
+| `onFinish`         | Canonical transcript **first**, then run → `completed`, commit resumes | No                               |
+| Stream (optional)  | Throttled partial assistant text                                       | Yes if `snapshotStreaming: true` |
+| `onError`          | Run → `failed`                                                         | Resumes stay pending             |
+| `onAbort`          | Run → `aborted` — **but only sometimes** (see below)                   | Resumes stay pending             |
+
+The canonical transcript already contains the completed terminal assistant
+messages. Native-combined output keeps the structured result on its terminal
+assistant message; the separate-finalization path can preserve plain-text and
+structured-output assistant messages separately.
 
 ```ts
 withPersistence(persistence, {

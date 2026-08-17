@@ -176,10 +176,16 @@ server event state, not the client's rendered messages.
 3. `onChunk` reacts only to a `RUN_FINISHED` interrupt outcome by committing
    the accepted resumes, storing the new interrupts, marking the run
    interrupted, and saving messages.
-4. `onFinish` and `onError` terminalize the run record. So does `onAbort`, with
-   one exception: on a run another middleware has declared detachable, a plain
-   disconnect (no cancel recorded in either band) writes nothing and leaves the
-   record `'running'` for a later takeover. See
+4. Before `onFinish`, the chat engine appends the completed terminal assistant
+   messages to `ctx.messages`. Native-combined output keeps the structured
+   result on its terminal assistant message. The separate-finalization path can
+   append the agent loop's plain-text message followed by the structured-output
+   message.
+5. `onFinish` saves that canonical transcript before marking the run completed.
+   `onError` terminalizes the run record without replacing the transcript. So
+   does `onAbort`, with one exception: on a run another middleware has declared
+   detachable, a plain disconnect (no cancel recorded in either band) writes
+   nothing and leaves the record `'running'` for a later takeover. See
    [Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
 
 Accepted resumes are committed (interrupts marked resolved/cancelled) only once

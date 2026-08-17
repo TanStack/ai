@@ -5,7 +5,7 @@ title: ModelMessage
 
 # Interface: ModelMessage\<TContent\>
 
-Defined in: [packages/ai/src/types.ts:347](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L347)
+Defined in: [packages/ai/src/types.ts:358](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L358)
 
 ## Type Parameters
 
@@ -21,7 +21,37 @@ Defined in: [packages/ai/src/types.ts:347](https://github.com/TanStack/ai/blob/m
 content: TContent;
 ```
 
-Defined in: [packages/ai/src/types.ts:354](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L354)
+Defined in: [packages/ai/src/types.ts:365](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L365)
+
+***
+
+### createdAt?
+
+```ts
+optional createdAt: Date;
+```
+
+Defined in: [packages/ai/src/types.ts:389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L389)
+
+Optional message creation timestamp. When present, message converters
+preserve it across persist → hydrate round-trips.
+
+***
+
+### id?
+
+```ts
+optional id: string;
+```
+
+Defined in: [packages/ai/src/types.ts:384](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L384)
+
+Optional stable message id. Providers ignore it; it exists so a persisted
+transcript can retain the streaming `messageId` and survive the
+persist → hydrate round-trip. When present, `modelMessagesToUIMessages`
+reuses it instead of generating a fresh id, so a hydrated message keeps the
+same identity as its live stream — which is what lets a mid-stream reload
+resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
 
 ***
 
@@ -31,7 +61,7 @@ Defined in: [packages/ai/src/types.ts:354](https://github.com/TanStack/ai/blob/m
 optional name: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:355](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L355)
+Defined in: [packages/ai/src/types.ts:366](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L366)
 
 ***
 
@@ -41,7 +71,21 @@ Defined in: [packages/ai/src/types.ts:355](https://github.com/TanStack/ai/blob/m
 role: "user" | "assistant" | "tool";
 ```
 
-Defined in: [packages/ai/src/types.ts:353](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L353)
+Defined in: [packages/ai/src/types.ts:364](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L364)
+
+***
+
+### structuredOutput?
+
+```ts
+optional structuredOutput: StructuredOutputPart<unknown>;
+```
+
+Defined in: [packages/ai/src/types.ts:375](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L375)
+
+Completed structured output represented by this assistant message.
+`content` remains the provider-facing JSON text; this field preserves the
+typed UI part across persistence and message conversion.
 
 ***
 
@@ -51,7 +95,7 @@ Defined in: [packages/ai/src/types.ts:353](https://github.com/TanStack/ai/blob/m
 optional thinking: object[];
 ```
 
-Defined in: [packages/ai/src/types.ts:358](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L358)
+Defined in: [packages/ai/src/types.ts:369](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L369)
 
 #### content
 
@@ -73,7 +117,7 @@ optional signature: string;
 optional toolCallId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:357](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L357)
+Defined in: [packages/ai/src/types.ts:368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L368)
 
 ***
 
@@ -83,4 +127,4 @@ Defined in: [packages/ai/src/types.ts:357](https://github.com/TanStack/ai/blob/m
 optional toolCalls: ToolCall<unknown>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:356](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L356)
+Defined in: [packages/ai/src/types.ts:367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L367)
