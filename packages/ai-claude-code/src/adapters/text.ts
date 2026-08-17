@@ -27,7 +27,11 @@ import { buildPrompt } from '../messages/prompt'
 import { translateSdkStream } from '../stream/translate'
 import { mapPolicyToClaudeFlags } from './policy-map'
 import { projectClaudeWorkspace } from './projection'
-import { CLAUDE_RUNNER_SOURCE } from './claude-run-source'
+import {
+  CLAUDE_JSON_SCHEMA_PLACEHOLDER,
+  CLAUDE_RUNNER_SOURCE,
+} from './claude-run-source'
+import { disableClaudeProjectSettings } from './project-settings'
 import { acceptClaudeTrustDialog } from './trust'
 import type { ClaudePolicyFlags } from './policy-map'
 import type {
@@ -234,7 +238,9 @@ export class ClaudeCodeTextAdapter<
     }
 
     if (mcpConfigPath !== undefined) args.push('--mcp-config', mcpConfigPath)
-    if (hasJsonSchema) args.push('--json-schema', '__TANSTACK_SCHEMA__')
+    if (hasJsonSchema) {
+      args.push('--json-schema', CLAUDE_JSON_SCHEMA_PLACEHOLDER)
+    }
     if (permissionPromptTool !== undefined) {
       args.push('--permission-prompt-tool', permissionPromptTool)
     }
@@ -326,6 +332,7 @@ export class ClaudeCodeTextAdapter<
       cleanupSandbox = sandbox
       const cwd = this.workdir(options)
       await acceptClaudeTrustDialog(resolveHarnessCwd(sandbox, cwd))
+      await disableClaudeProjectSettings(sandbox.fs, cwd)
       // Durability comes from `withSandbox(sandbox, { runs, durability })`, read
       // back off the capability bus. Absent it, everything below resolves to
       // exactly today's behavior (no journal option, no alignment, and a
@@ -459,7 +466,15 @@ export class ClaudeCodeTextAdapter<
           : undefined,
         jsonSchemaFile !== undefined,
       )
-      const command = `node ${q(runnerFile)} ${q(JSON.stringify(argv))} ${q(jsonSchemaFile ?? '')}`
+      // Filenames only on the shell line. JSON (schema, system prompt, MCP
+      // config path) lives in the argv file so git-bash cannot retokenize it.
+      const argvFile = `tanstack-claude-argv-${runIdSegment}.json`
+      await sandbox.fs.write(`${cwd}/${argvFile}`, JSON.stringify(argv))
+      tempFiles.push(`${cwd}/${argvFile}`)
+      const command =
+        jsonSchemaFile === undefined
+          ? `node ${q(runnerFile)} ${q(argvFile)}`
+          : `node ${q(runnerFile)} ${q(argvFile)} ${q(jsonSchemaFile)}`
 
       // Deliver the prompt. The default feeds it over stdin (keeps it out of
       // argv). Providers without a writable host→process stdin (e.g. Cloudflare)

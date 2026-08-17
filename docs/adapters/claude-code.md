@@ -170,7 +170,9 @@ const stream = chat({
 
 ## Structured Output
 
-Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its native tools, and returns a typed object. The schema JSON is passed to `--json-schema` (inline, not a file path). Tool activity and prose stream as usual. The object arrives as `structured-output.complete`.
+Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its native tools, and returns a typed object. The schema JSON is passed to `--json-schema` as inline JSON (the CLI rejects a file path). Tool activity and prose stream as usual. The object arrives as `structured-output.complete`.
+
+If the cloned repo has `.claude/settings.json`, the adapter turns those settings off for the run. Headless `-p` then does not need a trust dialog for that workspace.
 
 ```ts
 import { chat } from "@tanstack/ai"

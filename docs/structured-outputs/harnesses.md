@@ -146,7 +146,7 @@ function RepoReport() {
 
 | Adapter | How the schema is applied |
 |---|---|
-| Claude Code | Native `--json-schema` flag on the same turn |
+| Claude Code | Native `--json-schema` flag on the same turn. The value is inline JSON, not a file path. |
 | Codex | Native `--output-schema` flag on the same turn |
 | OpenCode | Schema is added to the prompt. The adapter parses the last assistant text. |
 | Grok Build | Schema is added to the prompt. The adapter parses the last assistant text. |
@@ -197,3 +197,5 @@ The React chat example includes a repo-report page.
 5. Run the report. The page reads the typed object from `useChat().final`.
 
 The page clones `TanStack/ai` into a sandbox, asks the agent to inspect it, and shows the validated report.
+
+Claude Code does not need you to accept a trust dialog for that clone. The adapter turns off `.claude/settings.json` for the run so headless `-p` can start.

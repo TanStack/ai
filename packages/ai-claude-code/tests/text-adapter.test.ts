@@ -204,6 +204,8 @@ describe('claude-code in-sandbox adapter', () => {
     expect(argv).toContain('--json-schema')
     expect(argv).toContain('"type":"object"')
     expect(argv).toContain('"summary"')
+    expect(argv).not.toContain('tanstack-output-schema')
+    expect(argv).not.toMatch(/--json-schema\s+\./)
 
     const complete = chunks.find(
       (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
@@ -214,6 +216,54 @@ describe('claude-code in-sandbox adapter', () => {
         expect.objectContaining({ object: { summary: 'ok' } }),
       )
     }
+
+    await sbx.destroy()
+  })
+
+  it('moves .claude/settings.json aside so headless -p does not need trust', async () => {
+    const fake = [
+      `import { existsSync, writeFileSync } from 'node:fs'`,
+      `writeFileSync(`,
+      `  'settings-probe.txt',`,
+      `  existsSync('.claude/settings.json') ? 'present' : 'absent',`,
+      `)`,
+      `let input = ''`,
+      `process.stdin.on('data', (d) => { input += d })`,
+      `process.stdin.on('end', () => {`,
+      `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+      `  w({ type: 'system', subtype: 'init', session_id: 'sess-trust', model: 'haiku', tools: [] })`,
+      `  w({ type: 'assistant', message: { id: 'msg-1', content: [{ type: 'text', text: 'ok' }] }, parent_tool_use_id: null })`,
+      `  w({ type: 'result', subtype: 'success', result: 'ok', usage: { input_tokens: 1, output_tokens: 1 } })`,
+      `})`,
+    ].join('\n')
+
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-claude.mjs', fake)
+    await sbx.fs.write(
+      '/workspace/.claude/settings.json',
+      JSON.stringify({ permissions: { allow: ['Bash'] } }),
+    )
+
+    const adapter = claudeCodeText('haiku', {
+      claudeExecutable: 'node fake-claude.mjs',
+      streamPartials: false,
+      emitDiff: false,
+    })
+
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'haiku',
+        messages: [{ role: 'user', content: 'hi' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    expect(chunks.some((c) => c.type === 'RUN_ERROR')).toBe(false)
+    expect(await sbx.fs.read('/workspace/settings-probe.txt')).toBe('absent')
+    expect(
+      await sbx.fs.exists('/workspace/.claude/settings.json.tanstack-disabled'),
+    ).toBe(true)
 
     await sbx.destroy()
   })
