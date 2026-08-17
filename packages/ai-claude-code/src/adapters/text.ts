@@ -170,7 +170,7 @@ export class ClaudeCodeTextAdapter<
     policyFlags: ClaudePolicyFlags,
     mcpConfigPath: string | undefined,
     permissionPromptTool: string | undefined,
-    jsonSchemaJson: string | undefined,
+    jsonSchemaFile: string | undefined,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
@@ -178,6 +178,7 @@ export class ClaudeCodeTextAdapter<
 
     const args: Array<string> = [
       '-p',
+      '--bare',
       '--output-format',
       'stream-json',
       '--verbose',
@@ -229,8 +230,11 @@ export class ClaudeCodeTextAdapter<
     }
 
     if (mcpConfigPath !== undefined) args.push('--mcp-config', q(mcpConfigPath))
-    if (jsonSchemaJson !== undefined) {
-      args.push('--json-schema', q(jsonSchemaJson))
+    if (jsonSchemaFile !== undefined) {
+      // The CLI parses this flag as JSON. A filename like
+      // `.tanstack-output-schema-….json` becomes `Unexpected token '.'`.
+      // Expand the file in the POSIX shell so git-bash does not mangle quotes.
+      args.push('--json-schema', `"$(cat ${q(jsonSchemaFile)})"`)
     }
     if (permissionPromptTool !== undefined) {
       args.push('--permission-prompt-tool', q(permissionPromptTool))
@@ -436,10 +440,13 @@ export class ClaudeCodeTextAdapter<
         tempFiles.push(mcpConfigPath)
         mcpConfigArg = mcpConfigFile
       }
-      const jsonSchemaJson =
-        options.outputSchema !== undefined
-          ? JSON.stringify(options.outputSchema)
-          : undefined
+      let jsonSchemaFile: string | undefined
+      if (options.outputSchema !== undefined) {
+        jsonSchemaFile = `tanstack-output-schema-${runIdSegment}.json`
+        const schemaPath = `${cwd}/${jsonSchemaFile}`
+        await sandbox.fs.write(schemaPath, JSON.stringify(options.outputSchema))
+        tempFiles.push(schemaPath)
+      }
       const command = this.buildCommand(
         options,
         resume,
@@ -448,7 +455,7 @@ export class ClaudeCodeTextAdapter<
         bridge && permission
           ? `mcp__${bridge.name}__${permission.toolName}`
           : undefined,
-        jsonSchemaJson,
+        jsonSchemaFile,
       )
 
       // Deliver the prompt. The default feeds it over stdin (keeps it out of
@@ -480,7 +487,11 @@ export class ClaudeCodeTextAdapter<
         // documented escape hatch for skip-permissions in an isolated
         // environment — merged over the sandbox env (a caller-provided value
         // wins). Safe to set unconditionally; it is a no-op for stricter modes.
-        env: { IS_SANDBOX: '1', ...this.adapterConfig.env },
+        env: {
+          IS_SANDBOX: '1',
+          CLAUDE_CODE_SANDBOXED: '1',
+          ...this.adapterConfig.env,
+        },
         ...(options.abortController?.signal
           ? { signal: options.abortController.signal }
           : options.request?.signal

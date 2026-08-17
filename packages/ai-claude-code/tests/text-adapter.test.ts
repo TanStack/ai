@@ -200,6 +200,7 @@ describe('claude-code in-sandbox adapter', () => {
     )
 
     const argv = await sbx.fs.read('/workspace/argv.txt')
+    expect(argv).toContain('--bare')
     expect(argv).toContain('--json-schema')
     expect(argv).toContain('"type":"object"')
     expect(argv).toContain('"summary"')
