@@ -193,21 +193,21 @@ const GEMINI_3_PRO_IMAGE_PREVIEW = {
  */
 const GEMINI_3_1_FLASH_IMAGE = {
   name: 'gemini-3.1-flash-image',
-  max_input_tokens: 65_536,
-  max_output_tokens: 65_536,
+  max_input_tokens: 131_072,
+  max_output_tokens: 32_768,
   knowledge_cutoff: '2025-01-01',
   supports: {
     input: ['text', 'image'],
     output: ['text', 'image'],
-    capabilities: ['batch_api', 'structured_output', 'thinking'],
+    capabilities: ['batch_api', 'thinking'],
     tools: ['google_search'],
   },
   pricing: {
     input: {
-      normal: 0.25,
+      normal: 0.5,
     },
     output: {
-      normal: 1.5,
+      normal: 3,
     },
   },
 } as const satisfies ModelMeta<
@@ -215,7 +215,6 @@ const GEMINI_3_1_FLASH_IMAGE = {
     GeminiSafetyOptions &
     GeminiCommonConfigOptions &
     GeminiCachedContentOptions &
-    GeminiStructuredOutputOptions &
     GeminiThinkingOptions
 >
 
@@ -1040,7 +1039,23 @@ export const GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
 
 export type GeminiModels = (typeof GEMINI_MODELS)[number]
 
-export type GeminiImageModels = (typeof GEMINI_IMAGE_MODELS)[number]
+/**
+ * @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`.
+ */
+type Gemini31FlashImagePreviewModel = 'gemini-3.1-flash-image-preview'
+
+/**
+ * @deprecated Shut down 2026-06-25. Use `gemini-3-pro-image`.
+ */
+type Gemini3ProImagePreviewModel = 'gemini-3-pro-image-preview'
+
+export type GeminiImageModels =
+  | Exclude<
+      (typeof GEMINI_IMAGE_MODELS)[number],
+      Gemini31FlashImagePreviewModel | Gemini3ProImagePreviewModel
+    >
+  | Gemini31FlashImagePreviewModel
+  | Gemini3ProImagePreviewModel
 
 /**
  * Image generation models. GA ids come first; the trailing `-preview` ids are

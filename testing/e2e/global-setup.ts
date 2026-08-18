@@ -547,32 +547,12 @@ function rejectGeminiImageRequest(
 }
 
 /**
- * Mounts Gemini native image generation (`POST /v1beta/models/{model}:generateContent`)
- * for the two models #1104's spec exercises: `gemini-3.1-flash-image` (the
- * new GA id) and `gemini-2.5-flash-image` (the legacy model whose sizes are a
- * bare aspect ratio with no resolution tier).
+ * Mounts Gemini native `generateContent` image calls for the two models the
+ * spec uses: `gemini-3.1-flash-image` and `gemini-2.5-flash-image`.
  *
- * aimock's own `handleGemini` has no image-response branch — it imports
- * `isTextResponse`/`isToolCallResponse`/`isContentWithToolCallsResponse`/
- * `isAudioResponse` from `helpers.js`, but never `isImageResponse` (that's
- * wired only into `images.js`'s OpenAI `/v1/images/*` and Gemini's
- * `:predict` handling) — so a `{image}`/`{images}` fixture matched against
- * `generateContent` falls through every branch and 500s with "Fixture
- * response did not match any known type". This mount hand-crafts the
- * `candidates[0].content.parts[0].inlineData` shape directly, mirroring
- * `geminiTTSMount` above (image/png instead of PCM audio).
- *
- * The request is validated against the raw, untranslated body — mounts see
- * it before aimock's internal `geminiToCompletionRequest` translation, which
- * drops `generationConfig.imageConfig` entirely — so this is what actually
- * proves `imageConfig.aspectRatio` / `imageConfig.imageSize` reached the
- * wire, per model:
- * - `gemini-3.1-flash-image` rejects unless both `aspectRatio` AND
- *   `imageSize` are present (this model has resolution tiers).
- * - `gemini-2.5-flash-image` rejects if `aspectRatio` is missing, OR if
- *   `imageSize` is present at all — Google documents no `image_size` for
- *   this model (#1104), so `parseNativeImageSize` must produce a bare ratio
- *   and the adapter must omit `imageSize` from the request.
+ * aimock has no `generateContent` image branch. This mount reads
+ * `generationConfig.imageConfig` and checks `aspectRatio` / `imageSize`
+ * for those two models.
  */
 function geminiNativeImageMount(): Mountable {
   const NATIVE_IMAGE_MODELS = new Set([

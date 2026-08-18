@@ -188,18 +188,11 @@ export type Gemini31FlashImageSize =
   `${GeminiExtendedImageAspectRatio}_${'512' | '1K' | '2K' | '4K'}`
 
 /**
- * Sizes for `gemini-3.1-flash-lite-image`: all 14 aspect ratios, 1K only —
- * 2K and 4K are explicitly unsupported on this model.
+ * Sizes for `gemini-3.1-flash-lite-image`: all 14 aspect ratios, 1K only.
+ * 2K and 4K are unsupported on this model.
  *
- * Caveat on the ratio set: the four extreme banner ratios (`1:4`, `4:1`,
- * `1:8`, `8:1`) are the one partially-inferred cell in this file. Unlike the
- * other three native models, Flash Lite has no per-model ratio table on the
- * Gemini API guide. The 14 rest on the Cloud model page's explicit 14-value
- * enumeration plus `ai.google.dev`'s bare assertion that the model "supports a
- * discrete set of 14 aspect ratios"; the only Gemini-API enumeration for it is
- * a 10-item bullet prefixed "New aspect ratios", read here as a what's-new
- * list rather than an exhaustive set. If a live probe shows the extremes are
- * rejected, narrow this to {@link GeminiStandardImageAspectRatio}.
+ * The four banner ratios (`1:4`, `4:1`, `1:8`, `8:1`) come from the Cloud
+ * model page. The Gemini API page states a count of 14 but does not list them.
  *
  * @see https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-1-flash-lite-image
  * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-image
