@@ -167,11 +167,14 @@ export interface GeminiNativeImageProviderOptions {
   thinkingConfig?: ThinkingConfig
 
   /**
-   * Native image output controls (aspect ratio, resolution tier, …)
-   * Merged over the values derived from the portable `size` option, so
-   * fields set here win per field while the rest of `size` is preserved
+   * Native image output controls. Merged over the values derived from the
+   * portable `size` option, so fields set here win per field while the rest
+   * of `size` is preserved.
+   *
+   * Only `aspectRatio` and `imageSize` are accepted on the Gemini Developer
+   * API. Other SDK `ImageConfig` keys throw on this surface.
    */
-  imageConfig?: ImageConfig
+  imageConfig?: GeminiNativeImageConfig
 
   /**
    * System-level instructions that steer the model for the whole request,
@@ -293,6 +296,16 @@ export type Gemini3ProImageSize =
  * guessing a tier the API never documented.
  */
 export type Gemini25FlashImageSize = GeminiStandardImageAspectRatio
+
+/**
+ * `imageConfig` fields the Gemini Developer API accepts on `generateContent`.
+ * Other `@google/genai` `ImageConfig` keys (`personGeneration`,
+ * `outputMimeType`, and more) throw on this surface.
+ */
+export type GeminiNativeImageConfig = {
+  aspectRatio?: GeminiExtendedImageAspectRatio
+  imageSize?: '512' | '1K' | '2K' | '4K'
+}
 
 /**
  * Any size accepted by any Gemini native image model. Prefer the per-model

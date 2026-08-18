@@ -263,6 +263,19 @@ describe('Gemini per-model image modelOptions gating', () => {
       })
     })
 
+    it('rejects Vertex-only imageConfig fields', () => {
+      createImageOptions({
+        adapter: geminiImage('gemini-3.1-flash-image-preview'),
+        prompt: 'a quiet harbour',
+        modelOptions: {
+          imageConfig: {
+            // @ts-expect-error - personGeneration throws on the Gemini Developer API
+            personGeneration: 'ALLOW_ADULT',
+          },
+        },
+      })
+    })
+
     it('rejects Imagen-only options', () => {
       // The probes are plain values that are structurally valid on
       // GeminiImageProviderOptions (`negativePrompt: string`,

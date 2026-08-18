@@ -9,6 +9,7 @@ import {
 import { generateImage } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { GeminiImageAdapter, createGeminiImage } from '../src/adapters/image'
+import { GEMINI_NATIVE_IMAGE_MODELS, isGeminiNativeImageModel } from '../src'
 import {
   parseNativeImageSize,
   sizeToAspectRatio,
@@ -1327,5 +1328,16 @@ describe('Gemini Image Adapter', () => {
         }),
       ).rejects.toThrow(/audio prompt parts/)
     })
+  })
+})
+
+describe('GEMINI_NATIVE_IMAGE_MODELS public routing list', () => {
+  it('exports the same membership the adapter uses', () => {
+    expect(isGeminiNativeImageModel('gemini-3.1-flash-image')).toBe(true)
+    expect(isGeminiNativeImageModel('gemini-3-pro-image')).toBe(true)
+    expect(isGeminiNativeImageModel('gemini-2.5-flash-image')).toBe(true)
+    expect(isGeminiNativeImageModel('imagen-4.0-generate-001')).toBe(false)
+    expect(isGeminiNativeImageModel('gemini-9-pro-image')).toBe(false)
+    expect(GEMINI_NATIVE_IMAGE_MODELS).toContain('gemini-3.1-flash-image')
   })
 })

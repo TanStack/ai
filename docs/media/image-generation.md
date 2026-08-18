@@ -656,8 +656,10 @@ const result = await generateImage({
     seed: 42,
     thinkingConfig: { thinkingBudget: 512 },
     systemInstruction: "Always render in watercolor.",
-    // Merged over the imageConfig derived from `size`, per field: this keeps
+    // Merged over the imageConfig derived from `size`, per field. This keeps
     // the 16:9 aspect ratio and overrides only the resolution tier.
+    // imageConfig accepts only aspectRatio and imageSize on the Gemini
+    // Developer API.
     imageConfig: { imageSize: "2K" },
   },
 });
