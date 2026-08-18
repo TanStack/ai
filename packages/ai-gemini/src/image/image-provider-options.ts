@@ -223,51 +223,111 @@ export type GeminiImageSize =
   | '1080x1920'
 
 /**
- * Aspect ratios supported by Gemini native image models (via generateContent API).
- * Matches the SDK's ImageConfig.aspectRatio values.
+ * The ten aspect ratios every Gemini native image model accepts.
+ *
+ * Note `9:21` is deliberately absent: it exists only on Vertex / Cloud and is
+ * rejected by the Gemini API (`generateContent`), which is the surface this
+ * adapter targets.
+ *
+ * @see https://ai.google.dev/gemini-api/docs/image-generation
  */
-export type GeminiNativeImageAspectRatio =
+export type GeminiStandardImageAspectRatio =
   | '1:1'
   | '2:3'
   | '3:2'
   | '3:4'
   | '4:3'
+  | '4:5'
+  | '5:4'
   | '9:16'
   | '16:9'
   | '21:9'
 
 /**
- * Resolution tiers for Gemini native image models.
- * Matches the SDK's ImageConfig.imageSize values.
+ * The ten standard ratios plus the four extreme banner/strip ratios that only
+ * the Gemini 3.1 Flash Image models accept — 14 values, matching the
+ * `generateContent` `ImageConfig.aspectRatio` field union.
+ *
+ * @see https://ai.google.dev/api/generate-content
  */
-export type GeminiNativeImageResolution = '1K' | '2K' | '4K'
+export type GeminiExtendedImageAspectRatio =
+  | GeminiStandardImageAspectRatio
+  | '1:4'
+  | '4:1'
+  | '1:8'
+  | '8:1'
 
 /**
- * Template literal size type for Gemini native image models: "16:9_4K", "1:1_2K", etc.
+ * Sizes for `gemini-3.1-flash-image` (and its shut-down `-preview` alias):
+ * all 14 aspect ratios at 512 / 1K / 2K / 4K. `512` is the wire token for the
+ * 0.5K tier — not `512px`, and the `K` is case-sensitive (`1k` is rejected).
+ */
+export type Gemini31FlashImageSize =
+  `${GeminiExtendedImageAspectRatio}_${'512' | '1K' | '2K' | '4K'}`
+
+/**
+ * Sizes for `gemini-3.1-flash-lite-image`: all 14 aspect ratios, 1K only.
+ * 2K and 4K are unsupported on this model.
+ *
+ * The four banner ratios (`1:4`, `4:1`, `1:8`, `8:1`) come from the Cloud
+ * model page. The Gemini API page states a count of 14 but does not list them.
+ *
+ * @see https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/gemini/3-1-flash-lite-image
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-image
+ */
+export type Gemini31FlashLiteImageSize = `${GeminiExtendedImageAspectRatio}_1K`
+
+/**
+ * Sizes for `gemini-3-pro-image` (and its shut-down `-preview` alias): the ten
+ * standard aspect ratios at 1K / 2K / 4K. Pro has no 512 tier and none of the
+ * extreme banner ratios on the Gemini API.
+ */
+export type Gemini3ProImageSize =
+  `${GeminiStandardImageAspectRatio}_${'1K' | '2K' | '4K'}`
+
+/**
+ * Sizes for `gemini-2.5-flash-image`: a bare aspect ratio with no resolution
+ * suffix, e.g. `'16:9'`. Google documents no `image_size` value or default for
+ * this model — it emits a single fixed 1024px-class output — so the adapter
+ * sends `imageConfig.aspectRatio` and omits `imageSize` entirely rather than
+ * guessing a tier the API never documented.
+ */
+export type Gemini25FlashImageSize = GeminiStandardImageAspectRatio
+
+/**
+ * Any size accepted by any Gemini native image model. Prefer the per-model
+ * narrowing in {@link GeminiImageModelSizeByName} — this union is the widest
+ * possible set and accepts combinations no single model supports.
  */
 export type GeminiNativeImageSize =
-  `${GeminiNativeImageAspectRatio}_${GeminiNativeImageResolution}`
+  | Gemini31FlashImageSize
+  | Gemini31FlashLiteImageSize
+  | Gemini3ProImageSize
+  | Gemini25FlashImageSize
 
 /**
  * Gemini native image models that use the generateContent API path.
- * These models support template literal sizes (aspectRatio_resolution).
+ * These models take an aspect-ratio-based size rather than Imagen's
+ * WIDTHxHEIGHT pixel strings.
  *
  * This array is the single source of truth for the native/Imagen split: the
  * `GeminiNativeImageModels` union and the per-model option/size/modality maps
  * all derive from it. The `satisfies` clause makes a typo (or a name that
- * isn't a known image model) a build error rather than a phantom key on every
+ * is not a known image model) a build error rather than a phantom key on every
  * per-model map.
  *
- * It is also the single source of truth for the adapter's *runtime* routing
+ * It is also the single source of truth for the adapter's runtime routing
  * — see {@link isGeminiNativeImageModel}. Adding a new `gemini-*` image model
- * means adding it here as well as to `GEMINI_IMAGE_MODELS` in model-meta;
- * until it is listed here it routes to the Imagen API instead and fails
+ * means adding it here as well as to `GEMINI_IMAGE_MODELS` in model-meta.
+ * Until it is listed here it routes to the Imagen API instead and fails
  * loudly on the first call, rather than silently taking the wrong option
  * shape.
  */
 export const GEMINI_NATIVE_IMAGE_MODELS = [
+  'gemini-3.1-flash-image',
   'gemini-3.1-flash-image-preview',
   'gemini-3.1-flash-lite-image',
+  'gemini-3-pro-image',
   'gemini-3-pro-image-preview',
   'gemini-2.5-flash-image',
 ] as const satisfies ReadonlyArray<GeminiImageModels>
@@ -294,11 +354,16 @@ export function isGeminiNativeImageModel(model: string): boolean {
 }
 
 /**
- * Model-specific size options mapping.
- * Gemini native image models use template literal sizes, Imagen models use pixel sizes.
+ * Model-specific size options mapping. Each native model gets its own ratio ×
+ * resolution set (they genuinely differ); Imagen models use pixel sizes.
  */
 export type GeminiImageModelSizeByName = {
-  [K in GeminiNativeImageModels]: GeminiNativeImageSize
+  'gemini-3.1-flash-image': Gemini31FlashImageSize
+  'gemini-3.1-flash-image-preview': Gemini31FlashImageSize
+  'gemini-3.1-flash-lite-image': Gemini31FlashLiteImageSize
+  'gemini-3-pro-image': Gemini3ProImageSize
+  'gemini-3-pro-image-preview': Gemini3ProImageSize
+  'gemini-2.5-flash-image': Gemini25FlashImageSize
 } & {
   [K in Exclude<GeminiImageModels, GeminiNativeImageModels>]: GeminiImageSize
 }
@@ -422,13 +487,23 @@ export function validatePrompt(options: {
 
 /**
  * Parses a Gemini native image size string into its components.
- * Format: "aspectRatio_resolution" e.g. "16:9_4K" → { aspectRatio: "16:9", resolution: "4K" }
+ *
+ * Format: `"aspectRatio_resolution"`, e.g. `"16:9_4K"` →
+ * `{ aspectRatio: "16:9", resolution: "4K" }`.
+ *
+ * The resolution suffix is optional: `gemini-2.5-flash-image` takes a bare
+ * aspect ratio (`"16:9"` → `{ aspectRatio: "16:9" }`) because Google documents
+ * no `image_size` for it, and the caller must then omit `imageSize` from the
+ * request rather than substituting a default.
  */
 export function parseNativeImageSize(
   size: string,
-): { aspectRatio: string; resolution: string } | undefined {
-  const match = size.match(/^(\d+:\d+)_(.+)$/)
+): { aspectRatio: string; resolution?: string } | undefined {
+  const match = size.match(/^(\d+:\d+)(?:_(.+))?$/)
   const [, aspectRatio, resolution] = match ?? []
-  if (aspectRatio === undefined || resolution === undefined) return undefined
-  return { aspectRatio, resolution }
+  if (aspectRatio === undefined) return undefined
+  return {
+    aspectRatio,
+    ...(resolution !== undefined && { resolution }),
+  }
 }

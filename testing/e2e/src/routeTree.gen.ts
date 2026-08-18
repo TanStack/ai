@@ -59,6 +59,7 @@ import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-t
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
+import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-image-ga-models'
 import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
@@ -337,6 +338,11 @@ const ApiGenerationPersistenceResumeRoute =
     path: '/api/generation-persistence-resume',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiGeminiImageGaModelsRoute = ApiGeminiImageGaModelsRouteImport.update({
+  id: '/api/gemini-image-ga-models',
+  path: '/api/gemini-image-ga-models',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiGeminiNativeImageWireRoute =
   ApiGeminiNativeImageWireRouteImport.update({
     id: '/api/gemini-native-image-wire',
@@ -460,6 +466,7 @@ export interface FileRoutesByFullPath {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
@@ -530,6 +537,7 @@ export interface FileRoutesByTo {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
@@ -601,6 +609,7 @@ export interface FileRoutesById {
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
   '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
@@ -673,6 +682,7 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/foreign-interrupt'
+    | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
@@ -743,6 +753,7 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/foreign-interrupt'
+    | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
@@ -813,6 +824,7 @@ export interface FileRouteTypes {
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/foreign-interrupt'
+    | '/api/gemini-image-ga-models'
     | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
@@ -884,6 +896,7 @@ export interface RootRouteChildren {
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
+  ApiGeminiImageGaModelsRoute: typeof ApiGeminiImageGaModelsRoute
   ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
@@ -1272,6 +1285,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerationPersistenceResumeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/gemini-image-ga-models': {
+      id: '/api/gemini-image-ga-models'
+      path: '/api/gemini-image-ga-models'
+      fullPath: '/api/gemini-image-ga-models'
+      preLoaderRoute: typeof ApiGeminiImageGaModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/gemini-native-image-wire': {
       id: '/api/gemini-native-image-wire'
       path: '/api/gemini-native-image-wire'
@@ -1489,6 +1509,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
+  ApiGeminiImageGaModelsRoute: ApiGeminiImageGaModelsRoute,
   ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,

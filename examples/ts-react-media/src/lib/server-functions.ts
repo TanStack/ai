@@ -207,17 +207,17 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           },
         })
       }
-      case 'gemini-3.1-flash-image-preview': {
+      case 'gemini-3.1-flash-image': {
         return generateImage({
-          adapter: geminiImage('gemini-3.1-flash-image-preview'),
+          adapter: geminiImage('gemini-3.1-flash-image'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
         })
       }
-      case 'gemini-3-pro-image-preview': {
+      case 'gemini-3-pro-image': {
         return generateImage({
-          adapter: geminiImage('gemini-3-pro-image-preview'),
+          adapter: geminiImage('gemini-3-pro-image'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',

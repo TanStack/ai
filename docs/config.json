@@ -685,7 +685,8 @@
         {
           "label": "Runtime Adapter Switching",
           "to": "advanced/runtime-adapter-switching",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Tree-Shaking",

@@ -55,13 +55,6 @@ export default async function globalSetup() {
     '/v1beta/models/gemini-3.1-flash-tts-preview:generateContent',
     geminiTTSMount(),
   )
-  // Gemini native image generation hits the same generateContent endpoint
-  // shape, one model id over — see geminiNativeImageMount for why it needs
-  // a hand-mocked response and a raw-body wire-shape check of its own.
-  mock.mount(
-    '/v1beta/models/gemini-2.5-flash-image:generateContent',
-    geminiNativeImageMount(),
-  )
   // Gemini Veo video generation. aimock 1.29 mocks Gemini's `:predict`
   // (Imagen) endpoint but not the long-running `:predictLongRunning` +
   // operations-polling pair Veo uses, so mount both here. Non-Veo paths
@@ -88,6 +81,11 @@ export default async function globalSetup() {
   mock.mount('/v1beta/models', geminiBatchEmbedMount())
   mock.mount('/api/embed', ollamaEmbedMount())
   mock.mount('/mistral', mistralEmbeddingsMount())
+
+  // Gemini native image generation. aimock has no generateContent image
+  // branch. One mount covers the #1104 size wire (aspectRatio / imageSize)
+  // and the #1103 modelOptions wire (safetySettings / thinkingConfig).
+  mock.mount('/v1beta/models', geminiNativeImageMount())
 
   // Gemini Omni Flash video generation (Interactions API). aimock handles
   // synchronous text interactions natively, but not background video jobs
@@ -270,183 +268,6 @@ function geminiTTSMount(): Mountable {
       return true
     },
   }
-}
-
-/**
- * Gemini native image generation hits the standard Gemini generateContent
- * endpoint too (POST /v1beta/models/{model}:generateContent) — the same
- * shape geminiTTSMount above targets, just with `image/png` inlineData
- * instead of PCM audio. aimock's native handleGemini recognizes only
- * text / tool-call / text-with-tool-call / audio fixture response shapes:
- * isImageResponse (helpers.js) is defined but never imported into
- * gemini.js, so there is no image-response branch at all. A fixture shaped
- * `{image}`/`{images}` matched against this endpoint falls through every
- * isXResponse() check and hits the final fallback — a 500 "Fixture response
- * did not match any known type." Native image generation needs a
- * hand-mocked response for the same reason TTS does.
- *
- * There's a second, PR-specific reason this needs its own mount rather than
- * a fixture even if one could match: aimock's request-journaling for this
- * endpoint goes through geminiToCompletionRequest, which reshapes the raw
- * Gemini request into an OpenAI-chat-shaped completionReq carrying only
- * {model, messages, stream, temperature, max_tokens, top_p, top_k, tools} —
- * it silently drops safetySettings, generationConfig.thinkingConfig, and
- * generationConfig.imageConfig before anything is journaled. So GET /journal
- * cannot show whether those fields reached the wire, even in principle.
- * This mount reads the raw, untranslated body instead (see
- * readJsonRequestBody, used the same way by the BytePlus mounts below) and
- * validates it directly — the BytePlus mounts' house pattern of turning a
- * dropped field into a failing spec rather than a silently green one.
- *
- * Mounted at the exact model+endpoint path (not the shared '/v1beta/models'
- * prefix geminiVeoMount/geminiBatchEmbedMount use below) so it can never
- * intercept an unrelated Gemini chat/text generateContent call for a
- * different model.
- *
- * `/api/gemini-native-image-wire` (see that route) drives this with
- * `modelOptions: { safetySettings, thinkingConfig }`. Reverting the
- * ai-gemini fix that stops dropping modelOptions on the native image path
- * removes both from the outgoing `nativeConfig`, so the request this mount
- * receives is missing them, this mount answers 400, and the route surfaces
- * that as `ok: false` — the companion spec's revert-detection mechanism.
- */
-function geminiNativeImageMount(): Mountable {
-  // 1x1 transparent PNG — just enough for transformGeminiResponse's
-  // inlineData branch to produce a GeneratedImage. Mirrors FAKE_PCM_BYTES /
-  // FAKE_MP3_BYTES above: content fidelity isn't under test here.
-  const PNG_1X1_BASE64 =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
-
-  // Field names that only belong on Imagen's GenerateImagesConfig, never on
-  // generateContent's GenerateContentConfig. The adapter's `nativeConfig`
-  // picks fields by name specifically so modelOptions carrying both shapes
-  // (or a future regression back to a wholesale `...modelOptions` spread)
-  // can't let one through — mirrors the field list documented on
-  // GeminiImageProviderOptions in image-provider-options.ts, minus `seed`
-  // (legitimately shared by both configs and always forwarded) and `labels`
-  // (also a real GenerateContentConfig field name, but the Gemini Developer
-  // API rejects it outright rather than letting it reach the wire, so it
-  // can't appear in a body this mount ever sees).
-  const IMAGEN_ONLY_FIELDS = [
-    'personGeneration',
-    'safetyFilterLevel',
-    'addWatermark',
-    'language',
-    'negativePrompt',
-    'outputMimeType',
-    'outputCompressionQuality',
-    'guidanceScale',
-    'enhancePrompt',
-    'includeSafetyAttributes',
-    'includeRaiReason',
-    'outputGcsUri',
-    // Imagen's own top-level `aspectRatio` (GenerateImagesConfig) is distinct
-    // from the native path's nested generationConfig.imageConfig.aspectRatio
-    // — its presence at either level here would mean the two configs got
-    // crossed.
-    'aspectRatio',
-  ]
-
-  return {
-    async handleRequest(
-      req: http.IncomingMessage,
-      res: http.ServerResponse,
-      // Exact-path mount — pathname is "/" for the one path this is
-      // registered on.
-      pathname: string,
-    ): Promise<boolean> {
-      if (pathname !== '/' || req.method !== 'POST') return false
-
-      const body = await readJsonRequestBody(req)
-      if (!body) {
-        return rejectGeminiImageRequest(res, 'Malformed JSON body.')
-      }
-      const generationConfig = asRecord(body.generationConfig)
-
-      const leaked = IMAGEN_ONLY_FIELDS.find(
-        (name) =>
-          name in body || (generationConfig && name in generationConfig),
-      )
-      if (leaked) {
-        return rejectGeminiImageRequest(
-          res,
-          `Imagen-only field "${leaked}" reached generateContent — GenerateImagesConfig and GenerateContentConfig got crossed.`,
-        )
-      }
-
-      if (
-        !Array.isArray(body.safetySettings) ||
-        body.safetySettings.length === 0
-      ) {
-        return rejectGeminiImageRequest(
-          res,
-          'Missing top-level safetySettings (modelOptions.safetySettings did not reach the wire).',
-        )
-      }
-      if (
-        !generationConfig ||
-        typeof generationConfig.thinkingConfig !== 'object' ||
-        generationConfig.thinkingConfig === null
-      ) {
-        return rejectGeminiImageRequest(
-          res,
-          'Missing generationConfig.thinkingConfig (modelOptions.thinkingConfig did not reach the wire).',
-        )
-      }
-
-      res.statusCode = 200
-      res.setHeader('Content-Type', 'application/json')
-      res.end(
-        JSON.stringify({
-          candidates: [
-            {
-              content: {
-                role: 'model',
-                parts: [
-                  {
-                    inlineData: {
-                      mimeType: 'image/png',
-                      data: PNG_1X1_BASE64,
-                    },
-                  },
-                ],
-              },
-              finishReason: 'STOP',
-              index: 0,
-            },
-          ],
-          usageMetadata: {
-            promptTokenCount: 8,
-            candidatesTokenCount: 1290,
-            totalTokenCount: 1298,
-          },
-        }),
-      )
-      return true
-    },
-  }
-}
-
-/**
- * Rejects with Gemini's real MLDev error envelope shape
- * (`{ error: { code, message, status } }`) — the same fallback shape
- * @google/genai's own `throwErrorIfNotOK` builds for a non-JSON error body,
- * so the thrown ApiError's `message` carries the actual validation failure
- * (JSON.stringify'd) for debugging, the same way rejectArkRequest /
- * rejectVoiceRequest do for BytePlus below.
- */
-function rejectGeminiImageRequest(
-  res: http.ServerResponse,
-  message: string,
-): true {
-  res.statusCode = 400
-  res.setHeader('Content-Type', 'application/json')
-  res.end(
-    JSON.stringify({
-      error: { code: 400, message, status: 'INVALID_ARGUMENT' },
-    }),
-  )
-  return true
 }
 
 function grokSTTMount(): Mountable {
@@ -682,6 +503,186 @@ function geminiBatchEmbedMount(): Mountable {
           embeddings: Array.from({ length: count }, () => ({
             values: [...EMBED_VECTOR],
           })),
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * A tiny (1x1) real PNG, base64-encoded. Only needs to be a valid inline
+ * image byte string — the #1104 spec asserts on `images.length`, not pixel
+ * content. Mirrors `FAKE_MP3_BYTES`/`FAKE_PCM_BYTES` above.
+ */
+const TINY_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+
+/**
+ * Rejects with a Gemini-shaped error envelope (`{ error: { code, message,
+ * status } }`) so a validation failure surfaces as the actual missing/extra
+ * field in the adapter's thrown error message, not a generic 500.
+ */
+function rejectGeminiImageRequest(
+  res: http.ServerResponse,
+  message: string,
+): true {
+  res.statusCode = 400
+  res.setHeader('Content-Type', 'application/json')
+  res.end(
+    JSON.stringify({
+      error: { code: 400, message, status: 'INVALID_ARGUMENT' },
+    }),
+  )
+  return true
+}
+
+/**
+ * Mounts Gemini native `generateContent` image calls for
+ * `gemini-3.1-flash-image` and `gemini-2.5-flash-image`.
+ *
+ * aimock has no `generateContent` image branch. This mount reads the raw
+ * body so two specs can assert on the wire:
+ * - `/api/gemini-image-ga-models` checks `imageConfig.aspectRatio` / `imageSize`
+ * - `/api/gemini-native-image-wire` checks top-level `safetySettings` and
+ *   `generationConfig.thinkingConfig` on `gemini-2.5-flash-image`
+ */
+function geminiNativeImageMount(): Mountable {
+  const NATIVE_IMAGE_MODELS = new Set([
+    'gemini-3.1-flash-image',
+    'gemini-2.5-flash-image',
+  ])
+
+  // Coupled to the `size` values in api.gemini-image-ga-models.ts.
+  const EXPECTED_ASPECT_RATIO = '16:9'
+  const EXPECTED_FLASH_IMAGE_SIZE = '2K'
+
+  // Imagen-only GenerateImagesConfig fields must never appear on generateContent.
+  const IMAGEN_ONLY_FIELDS = [
+    'personGeneration',
+    'safetyFilterLevel',
+    'addWatermark',
+    'language',
+    'negativePrompt',
+    'outputMimeType',
+    'outputCompressionQuality',
+    'guidanceScale',
+    'enhancePrompt',
+    'includeSafetyAttributes',
+    'includeRaiReason',
+    'outputGcsUri',
+    'aspectRatio',
+  ]
+
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/v1beta/models'), so pathname
+      // looks like '/{model}:generateContent'.
+      pathname: string,
+    ): Promise<boolean> {
+      const match = pathname.match(/^\/([^/:]+):generateContent$/)
+      const model = match?.[1]
+      if (!model || !NATIVE_IMAGE_MODELS.has(model) || req.method !== 'POST') {
+        return false
+      }
+
+      const body = await readJsonRequestBody(req)
+      if (!body) {
+        return rejectGeminiImageRequest(res, 'Malformed JSON body.')
+      }
+
+      const generationConfig = asRecord(body.generationConfig)
+      const imageConfig = asRecord(generationConfig?.imageConfig)
+      const aspectRatio = imageConfig?.aspectRatio
+      const imageSize = imageConfig?.imageSize
+      const leaked = IMAGEN_ONLY_FIELDS.find(
+        (name) =>
+          name in body || (generationConfig && name in generationConfig),
+      )
+      if (leaked) {
+        return rejectGeminiImageRequest(
+          res,
+          `Imagen-only field "${leaked}" reached generateContent — GenerateImagesConfig and GenerateContentConfig got crossed.`,
+        )
+      }
+
+      const hasModelOptions =
+        Array.isArray(body.safetySettings) ||
+        (generationConfig !== undefined &&
+          typeof generationConfig.thinkingConfig === 'object' &&
+          generationConfig.thinkingConfig !== null)
+
+      if (model === 'gemini-2.5-flash-image' && hasModelOptions) {
+        if (
+          !Array.isArray(body.safetySettings) ||
+          body.safetySettings.length === 0
+        ) {
+          return rejectGeminiImageRequest(
+            res,
+            'Missing top-level safetySettings (modelOptions.safetySettings did not reach the wire).',
+          )
+        }
+        if (
+          !generationConfig ||
+          typeof generationConfig.thinkingConfig !== 'object' ||
+          generationConfig.thinkingConfig === null
+        ) {
+          return rejectGeminiImageRequest(
+            res,
+            'Missing generationConfig.thinkingConfig (modelOptions.thinkingConfig did not reach the wire).',
+          )
+        }
+      } else {
+        if (aspectRatio !== EXPECTED_ASPECT_RATIO) {
+          return rejectGeminiImageRequest(
+            res,
+            `${model}: generationConfig.imageConfig.aspectRatio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
+          )
+        }
+
+        if (model === 'gemini-3.1-flash-image') {
+          if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
+            return rejectGeminiImageRequest(
+              res,
+              `${model}: generationConfig.imageConfig.imageSize must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
+            )
+          }
+        } else if (imageSize !== undefined) {
+          return rejectGeminiImageRequest(
+            res,
+            `${model}: generationConfig.imageConfig.imageSize must be absent.`,
+          )
+        }
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: 'image/png',
+                      data: TINY_PNG_BASE64,
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 8,
+            candidatesTokenCount: 1290,
+            totalTokenCount: 1298,
+          },
         }),
       )
       return true
