@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import { EventType, summarize } from '@tanstack/ai'
+import { EventType, generateImage, summarize } from '@tanstack/ai'
 import { createGrokText, grokText } from '../src/adapters/text'
 import { createGrokImage, grokImage } from '../src/adapters/image'
 import { createGrokSummarize, grokSummarize } from '../src/adapters/summarize'
@@ -474,6 +474,31 @@ describe('Grok adapters', () => {
         }),
       )
       expect(mockGenerate.mock.calls[0]![0]).not.toHaveProperty('size')
+    })
+
+    it('passes the 2.0-only quality option through for grok-imagine-image-2.0', async () => {
+      const adapter = createGrokImage('grok-imagine-image-2.0', 'test-api-key')
+      const mockGenerate = vi.fn().mockResolvedValue({
+        data: [{ url: 'https://example.com/out.png' }],
+      })
+      ;(adapter as any).client = { images: { generate: mockGenerate } }
+
+      // Via the public generateImage() entry point so the per-model provider
+      // options map is exercised: `quality` only type-checks on the 2.0 model.
+      await generateImage({
+        adapter,
+        prompt: 'A skyline',
+        size: '16:9',
+        modelOptions: { quality: 'low' },
+      })
+
+      expect(mockGenerate).toHaveBeenCalledWith(
+        expect.objectContaining({
+          model: 'grok-imagine-image-2.0',
+          aspect_ratio: '16:9',
+          quality: 'low',
+        }),
+      )
     })
   })
 

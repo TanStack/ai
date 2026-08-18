@@ -819,6 +819,8 @@ export type AnthropicChatModelToolCapabilitiesByName = {
   [CLAUDE_OPUS_4_8.id]: typeof CLAUDE_OPUS_4_8.supports.tools
   [CLAUDE_FABLE_5.id]: typeof CLAUDE_FABLE_5.supports.tools
   [CLAUDE_SONNET_5.id]: typeof CLAUDE_SONNET_5.supports.tools
+  [CLAUDE_OPUS_5.id]: typeof CLAUDE_OPUS_5.supports.tools
+  [CLAUDE_OPUS_5_FAST.id]: typeof CLAUDE_OPUS_5_FAST.supports.tools
 }
 
 /**
