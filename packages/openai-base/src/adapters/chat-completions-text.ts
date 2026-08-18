@@ -115,6 +115,53 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         }
       }
 
+      const rejectedToolCall = this.extractRejectedToolCall(
+        rawEvent,
+        errorPayload.message,
+      )
+      if (rejectedToolCall) {
+        const toolCallId = generateId(this.name)
+        yield {
+          type: EventType.TOOL_CALL_START,
+          toolCallId,
+          toolCallName: rejectedToolCall.toolName,
+          toolName: rejectedToolCall.toolName,
+          parentMessageId: aguiState.messageId,
+          model: options.model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId,
+          delta: rejectedToolCall.arguments,
+          args: rejectedToolCall.arguments,
+          model: options.model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TOOL_CALL_END,
+          toolCallId,
+          toolCallName: rejectedToolCall.toolName,
+          toolName: rejectedToolCall.toolName,
+          ...(rejectedToolCall.input !== undefined && {
+            input: rejectedToolCall.input,
+          }),
+          result: JSON.stringify({ error: rejectedToolCall.error }),
+          state: 'output-error',
+          model: options.model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId: aguiState.runId,
+          threadId: aguiState.threadId,
+          model: options.model,
+          timestamp: Date.now(),
+          finishReason: 'tool_calls',
+        }
+        return
+      }
+
       // Emit AG-UI RUN_ERROR. Conditional `code` spread keeps the wire
       // shape spec-compliant under `exactOptionalPropertyTypes`: AG-UI's
       // `RunErrorEvent.code` is `string?` (absent vs explicit `undefined`
@@ -140,6 +187,24 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         source: `${this.name}.chatStream`,
       })
     }
+  }
+
+  /**
+   * Extracts a rejected tool call from a provider error. Returned calls are
+   * emitted as non-executable `output-error` results so the model can repair them.
+   */
+  protected extractRejectedToolCall(
+    _rawEvent: unknown,
+    _fallbackMessage: string,
+  ):
+    | {
+        toolName: string
+        arguments: string
+        input?: unknown
+        error: string
+      }
+    | undefined {
+    return undefined
   }
 
   /**

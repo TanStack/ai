@@ -231,6 +231,11 @@ export const SCENARIO_LIST = [
     label: 'Malformed Tool Arguments (Regression #1131)',
     category: 'basic',
   },
+  {
+    id: 'provider-rejected-tool-call',
+    label: 'Provider-Rejected Tool Call',
+    category: 'basic',
+  },
   // Race condition / event flow scenarios
   {
     id: 'sequential-client-tools',
@@ -350,6 +355,7 @@ export function getToolsForScenario(scenario: string) {
       return [serverTools.check_status]
 
     case 'malformed-tool-arguments':
+    case 'provider-rejected-tool-call':
       return [serverTools.check_status]
 
     default:

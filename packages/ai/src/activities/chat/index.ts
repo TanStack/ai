@@ -741,6 +741,7 @@ class TextEngine<
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
+  private readonly streamedToolErrorResults = new Map<string, ToolResult>()
   private deferredToolCallRunFinishedChunks: Array<StreamChunk> = []
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
@@ -1282,6 +1283,7 @@ class TextEngine<
     this.currentThinkingContent = ''
     this.currentThinkingSignature = ''
     this.finishedEvent = null
+    this.streamedToolErrorResults.clear()
 
     // Update mutable context fields
     this.middlewareCtx.currentMessageId = this.currentMessageId
@@ -1588,6 +1590,20 @@ class TextEngine<
 
   private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
     this.toolCallManager.completeToolCall(chunk)
+    if (chunk.state !== 'output-error' || chunk.result === undefined) return
+
+    const toolCall = this.toolCallManager
+      .getToolCalls()
+      .find((candidate) => candidate.id === chunk.toolCallId)
+    if (!toolCall) return
+
+    this.streamedToolErrorResults.set(chunk.toolCallId, {
+      toolCallId: chunk.toolCallId,
+      toolName: toolCall.function.name,
+      result: chunk.result,
+      ...(chunk.input !== undefined && { input: chunk.input }),
+      state: 'output-error',
+    })
   }
 
   private handleRunFinishedEvent(chunk: RunFinishedEvent): void {
@@ -1843,6 +1859,9 @@ class TextEngine<
     // Handle undiscovered lazy tool calls with self-correcting error messages
     const undiscoveredLazyResults: Array<ToolResult> = []
     const executableToolCalls = toolCalls.filter((tc) => {
+      if (this.streamedToolErrorResults.has(tc.id)) {
+        return false
+      }
       if (this.lazyToolManager.isUndiscoveredLazyTool(tc.function.name)) {
         undiscoveredLazyResults.push({
           toolCallId: tc.id,
@@ -1859,14 +1878,17 @@ class TextEngine<
       return true
     })
 
-    // Non-executed outcomes (undiscovered lazy). Per-turn skips come from
-    // middleware and appear in execution results.
-    const deferredErrorResults = [...undiscoveredLazyResults]
+    // Non-executed outcomes. Per-turn skips come from middleware and appear in
+    // execution results.
+    const deferredErrorResults = [
+      ...this.streamedToolErrorResults.values(),
+      ...undiscoveredLazyResults,
+    ]
 
     if (executableToolCalls.length === 0) {
       yield* this.flushDeferredToolCallRunFinishedChunks()
-      // All tool calls were undiscovered lazy tools — errors emitted, continue
-      // loop (strategy / onShouldContinue may stop).
+      // All tool calls already have error results — emit them, then continue
+      // the loop (strategy / onShouldContinue may stop).
       if (deferredErrorResults.length > 0) {
         for (const chunk of this.buildToolResultChunks(
           deferredErrorResults,
