@@ -2648,7 +2648,14 @@ export class ChatClient<
     // A pending interrupt owns the next send. Auto-continuing after a
     // completed server tool would start a sibling run and hide the card.
     if (this.lastResume) return false
-    if (this.activeInterruptSubmission) return false
+    // Ownership follows the descriptors, not the submission handle. Generic
+    // interrupts settle the resume stream through a post-stream action that
+    // runs before `submitInterruptBatch`'s `finally` clears the handle, so
+    // gating on the handle alone would strand a legacy client tool that the
+    // native resume itself emitted (#1106).
+    if (this.activeInterruptSubmission && this.hasPendingInterrupts()) {
+      return false
+    }
     if (this.interruptManager.getInterrupts().length > 0) return false
     const messages = this.processor.getMessages()
     const lastAssistant = messages.findLast(
