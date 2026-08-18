@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.45.1
+
+### Patch Changes
+
+- [#1139](https://github.com/TanStack/ai/pull/1139) [`b97a11b`](https://github.com/TanStack/ai/commit/b97a11beaea57bd675b5646074d15c0041f4763a) - Return recoverable Groq `tool_use_failed` responses to the model as non-executable tool errors so the agent loop can repair them.
+
 ## 0.45.0
 
 ### Minor Changes
