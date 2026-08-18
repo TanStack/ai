@@ -194,7 +194,8 @@ The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-out
 | `@tanstack/ai-claude-code`                                      | Combined + event source — `--json-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                            |
 | `@tanstack/ai-codex`                                            | Combined + event source — `--output-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                          |
 | `@tanstack/ai-opencode`                                         | Combined + event source — prompt-and-parse. Read `useChat().final`. See Pattern 6.                                                                    |
-| `@tanstack/ai-grok-build`                                       | Combined + event source — prompt-and-parse (ACP and streaming-json). Read `useChat().final`. See Pattern 6.                                           |
+| `@tanstack/ai-grok-build`                                       | Combined + event source — prompt-and-parse (ACP and streaming-json). Read `useChat().final` or the `structured-output` part. See Pattern 6.            |
+| `@tanstack/ai-acp` (`acpCompatible`)                            | Combined + event source — prompt-and-parse. Read `useChat().final` or the `structured-output` part. See Pattern 6.                                    |
 | All other adapters (ollama, older Claude, Gemini 2.x, Grok 2/3) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event                                                         |
 
 **Native combined mode vs fallback** is signaled by the adapter's
@@ -347,9 +348,9 @@ Key behaviors:
 - **`partial` / `final` are derived.** The hook-level `partial` and `final` are NOT singleton state — they're derived from the latest assistant message's part (the one after the most recent user message). Between `sendMessage()` and the first chunk, `partial` reads `{}` and `final` reads `null` because no new assistant turn exists yet.
 - **Round-trip preserves history.** When the client sends turn N+1, each prior assistant turn's `structured-output` part is serialized back as `{ role: 'assistant', content: <part.raw> }` so the model sees its own prior structured response. Streaming / errored parts are dropped from the round-trip.
 
-### Pattern 6: Harness adapters (Claude Code, Codex, OpenCode, Grok Build)
+### Pattern 6: Harness adapters (Claude Code, Codex, OpenCode, Grok Build, ACP)
 
-Dedicated harness adapters honor `chat({ outputSchema })` on the same turn. Native harness tools still run. Read the object from `await chat()` or from `useChat().final`. Do not parse assistant prose.
+Dedicated harness adapters honor `chat({ outputSchema })` on the same turn. Native harness tools still run. Read the object from `await chat()`, from `useChat().final`, or from the assistant `structured-output` part on `messages[].parts`. Do not parse assistant prose.
 
 A UI endpoint must pass `stream: true`. Without it, `chat()` returns a `Promise`, not SSE.
 
@@ -403,10 +404,10 @@ const { final } = useChat({
 final?.name
 ```
 
-- Claude Code: `--json-schema`. Codex: `--output-schema`. OpenCode and Grok Build: prompt-and-parse.
+- Claude Code: `--json-schema`. Codex: `--output-schema`. OpenCode, Grok Build, and `acpCompatible`: prompt-and-parse.
 - `partial` stays empty until `structured-output.complete`.
 - Client tools and `needsApproval` fail fast. The harness cannot pause for a browser round-trip.
-- `acpCompatible` does not accept `outputSchema`.
+- Render live work from `messages[].parts` (`thinking`, `tool-call`, `text`, `structured-output`). `final` is only the latest turn.
 - See [docs/structured-outputs/harnesses.md](https://github.com/TanStack/ai/blob/main/docs/structured-outputs/harnesses.md).
 
 ## Common Mistakes

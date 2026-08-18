@@ -41,7 +41,7 @@ const stream = chat({
 
 ## Typed report from a harness
 
-If you want a typed object after the agent inspects the repo, pass `outputSchema` on the same `chat()` call. See [Harness Agents](../structured-outputs/harnesses).
+If you want a typed object after the agent inspects the repo, pass `outputSchema` on the same `chat()` call. Dedicated adapters and `acpCompatible` honor it. See [Harness Agents](../structured-outputs/harnesses).
 
 ## Harness output can go to a journal
 

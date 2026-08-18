@@ -50,8 +50,9 @@ describe('parseVerdict', () => {
 })
 
 describe('registries', () => {
-  it('has 4 harnesses and 4 providers with labels + required env arrays', () => {
+  it('has 5 harnesses and 4 providers with labels + required env arrays', () => {
     expect(Object.keys(HARNESSES).sort()).toEqual([
+      'acp',
       'claude-code',
       'codex',
       'grok',

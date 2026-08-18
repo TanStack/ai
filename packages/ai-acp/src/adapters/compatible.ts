@@ -1,5 +1,11 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  appendOutputSchemaInstruction,
+  parseJsonFromAssistantText,
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   DurableAttachNotSupportedError,
@@ -245,6 +251,14 @@ export class AcpCompatibleTextAdapter<
     }
     this.harness = config
     this.name = config.name
+  }
+
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  combinedStructuredOutputSource(): 'event' {
+    return 'event'
   }
 
   private sandboxFrom(
@@ -510,12 +524,18 @@ export class AcpCompatibleTextAdapter<
       const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
         .map((p) => p.content)
         .filter((c) => c.trim() !== '')
-      const promptText = this.applySystemPrompts(
+      let promptText = this.applySystemPrompts(
         systemPrompts,
         session.resumed || sessionId === undefined
           ? resumePrompt
           : this.buildPrompt(options.messages, undefined).prompt,
       )
+      if (options.outputSchema) {
+        promptText = appendOutputSchemaInstruction(
+          promptText,
+          options.outputSchema,
+        )
+      }
 
       session
         .prompt(promptText)
@@ -529,7 +549,9 @@ export class AcpCompatibleTextAdapter<
         })
         .catch((error: unknown) => queue.fail(error))
 
-      yield* mergeChunkStreams(
+      const wantsStructured = options.outputSchema !== undefined
+      let lastAssistantText = ''
+      for await (const chunk of mergeChunkStreams(
         translateAcpStream(queue, {
           model: this.model,
           runId,
@@ -557,7 +579,27 @@ export class AcpCompatibleTextAdapter<
             }),
         }),
         channel.stream,
-      )
+      )) {
+        if (wantsStructured) {
+          if (chunk.type === EventType.TEXT_MESSAGE_START) {
+            lastAssistantText = ''
+          } else if (
+            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+            typeof chunk.delta === 'string'
+          ) {
+            lastAssistantText += chunk.delta
+          }
+        }
+        yield chunk
+      }
+
+      if (options.outputSchema) {
+        yield* this.emitParsedStructuredOutput(
+          lastAssistantText,
+          threadId,
+          runId,
+        )
+      }
 
       // Surface any pending approval requests (interactive ask-policy actions
       // awaiting a client decision); the client approves and re-runs to continue.
@@ -641,13 +683,54 @@ export class AcpCompatibleTextAdapter<
     }
   }
 
+  private *emitParsedStructuredOutput(
+    raw: string,
+    threadId: string,
+    runId: string,
+  ): Generator<StreamChunk> {
+    try {
+      const object = parseJsonFromAssistantText(raw)
+      const messageId = this.generateId()
+      yield structuredOutputStartChunk({
+        messageId,
+        model: this.model,
+        threadId,
+        runId,
+      })
+      yield structuredOutputCompleteChunk({
+        messageId,
+        model: this.model,
+        threadId,
+        runId,
+        object,
+        raw,
+      })
+    } catch (error: unknown) {
+      const parserMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to parse structured output'
+      const preview = raw.trim().slice(0, 200)
+      const message =
+        preview === '' ? parserMessage : `${parserMessage} Content: ${preview}`
+      yield {
+        type: EventType.RUN_ERROR,
+        model: this.model,
+        timestamp: Date.now(),
+        message,
+        code: 'structured-output-parse-failed',
+        error: { message, code: 'structured-output-parse-failed' },
+      }
+    }
+  }
+
   structuredOutput(
     _options: StructuredOutputOptions<ResolvedOptions<TModelOptions>>,
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        `Structured output is not supported by the in-sandbox "${this.name}" ACP harness adapter. ` +
-          'Use a model adapter for structured output, or omit outputSchema.',
+        'This harness honors outputSchema on chat() in the same turn. ' +
+          'Pass outputSchema to chat(), or use a model adapter for a one-shot extract.',
       ),
     )
   }

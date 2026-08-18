@@ -16,7 +16,7 @@ Coding-agent CLIs that speak the [Agent Client Protocol](https://agentclientprot
 
 It is the harness equivalent of the [OpenAI-Compatible adapter](./openai-compatible). Use it when your agent speaks ACP but has no `@tanstack/ai-*` package. If a dedicated harness adapter exists ([Grok Build](./grok-build), and others), prefer it — those carry curated per-model metadata and vendor-specific behavior.
 
-`acpCompatible` does not accept `outputSchema`. If you need a typed object from a coding agent, use a dedicated harness adapter. See [Harness Agents](../structured-outputs/harnesses).
+Pass `outputSchema` on the same `chat()` call. `acpCompatible` adds the schema to the prompt and parses the last assistant text. Native harness tools still run on that turn. Read the typed object from `await chat()`, from `useChat().final`, or from the assistant `structured-output` part. See [Harness Agents](../structured-outputs/harnesses).
 
 ## Installation
 
@@ -90,6 +90,77 @@ const stream = chat({
   middleware: [withSandbox(sandbox)],
 })
 ```
+
+## Typed output
+
+Pass `outputSchema` on the same `chat()` call. The agent runs its native tools. Then the adapter parses the last assistant text as JSON.
+
+```ts
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { acpCompatibleText } from '@tanstack/ai-acp'
+import { withSandbox } from '@tanstack/ai-sandbox'
+import { z } from 'zod'
+import { sandbox } from './sandbox'
+import { messages } from './chat-context'
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+})
+
+export async function POST() {
+  const stream = chat({
+    adapter: acpCompatibleText('pi-fast', {
+      name: 'pi',
+      command: ({ model }) => `pi --acp -m ${model}`,
+    }),
+    messages,
+    outputSchema: ReportSchema,
+    stream: true,
+    middleware: [withSandbox(sandbox)],
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+On the client, walk `messages[].parts` for tool calls and reasoning. Read the typed object from the `structured-output` part or from `useChat().final`.
+
+```tsx
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { z } from 'zod'
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+})
+
+function Report() {
+  const { messages, final } = useChat({
+    connection: fetchServerSentEvents('/api/report'),
+    outputSchema: ReportSchema,
+  })
+
+  return (
+    <>
+      {messages.map((message) =>
+        message.parts.map((part, index) => {
+          if (part.type === 'tool-call') {
+            return <p key={part.id}>{part.name}</p>
+          }
+          if (part.type === 'structured-output') {
+            const report = part.data ?? part.partial
+            return report?.name ? <h2 key={index}>{report.name}</h2> : null
+          }
+          return null
+        }),
+      )}
+      {final ? <p>{final.oneLiner}</p> : null}
+    </>
+  )
+}
+```
+
+See [Harness Agents](../structured-outputs/harnesses) for the full part list and the repo-report example.
 
 ## Typed models & options
 

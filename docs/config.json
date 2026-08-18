@@ -336,7 +336,7 @@
           "label": "Overview",
           "to": "structured-outputs/overview",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "One-Shot Extraction",
@@ -348,7 +348,7 @@
           "label": "Streaming UIs",
           "to": "structured-outputs/streaming",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-17"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Multi-Turn Chat",
@@ -365,7 +365,7 @@
           "label": "Harness Agents",
           "to": "structured-outputs/harnesses",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-08-17"
+          "updatedAt": "2026-08-18"
         }
       ]
     },
@@ -536,7 +536,7 @@
           "label": "Harnesses",
           "to": "sandbox/harnesses",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Workspace",
@@ -897,7 +897,7 @@
           "label": "ACP-Compatible",
           "to": "adapters/acp-compatible",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Amazon Bedrock",

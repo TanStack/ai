@@ -1,3 +1,4 @@
+import { acpCompatibleText } from '@tanstack/ai-acp'
 import { claudeCodeText } from '@tanstack/ai-claude-code'
 import { codexText } from '@tanstack/ai-codex'
 import {
@@ -179,6 +180,26 @@ export const HARNESSES: Record<HarnessName, HarnessSpec> = {
       return key ? { XAI_API_KEY: key } : {}
     },
     exposePort: 2419,
+  },
+  acp: {
+    label: 'ACP compatible (Grok)',
+    makeAdapter: () =>
+      acpCompatibleText('composer-2.5', {
+        name: 'acp',
+        command: ({ model }) =>
+          `grok agent -m '${model}' --always-approve stdio`,
+        permissionMode: 'bypassPermissions',
+      }),
+    installCommand: GROK_CLI_INSTALL_COMMAND,
+    requiredEnv: ['XAI_API_KEY'],
+    envCheck: () =>
+      process.env.XAI_API_KEY || process.env.GROK_API_KEY
+        ? []
+        : ['XAI_API_KEY (or GROK_API_KEY)'],
+    sandboxSecrets: (): Record<string, string> => {
+      const key = process.env.XAI_API_KEY ?? process.env.GROK_API_KEY
+      return key ? { XAI_API_KEY: key } : {}
+    },
   },
 }
 

@@ -676,6 +676,9 @@ importers:
       '@tanstack/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@tanstack/ai-acp':
+        specifier: workspace:*
+        version: link:../../packages/ai-acp
       '@tanstack/ai-anthropic':
         specifier: workspace:*
         version: link:../../packages/ai-anthropic
@@ -17527,7 +17530,7 @@ snapshots:
       '@babel/code-frame': 7.29.7
       '@babel/generator': 7.29.7
       '@babel/helper-compilation-targets': 7.29.7
-      '@babel/helper-module-transforms': 7.29.7(@babel/core@7.29.0)
+      '@babel/helper-module-transforms': 7.29.7(@babel/core@7.29.0(supports-color@7.2.0))
       '@babel/helpers': 7.29.7
       '@babel/parser': 7.29.7
       '@babel/template': 7.29.7
@@ -17765,7 +17768,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@babel/helper-module-transforms@7.29.7(@babel/core@7.29.0)':
+  '@babel/helper-module-transforms@7.29.7(@babel/core@7.29.0(supports-color@7.2.0))':
     dependencies:
       '@babel/core': 7.29.0(supports-color@7.2.0)
       '@babel/helper-module-imports': 7.29.7
@@ -29712,7 +29715,7 @@ snapshots:
       less: 4.6.6
       ora: 9.4.0
       piscina: 5.2.0
-      postcss: 8.5.19
+      postcss: 8.5.26
       rollup-plugin-dts: 6.4.1(rollup@4.60.1)(typescript@5.9.3)
       rxjs: 7.8.2
       sass: 1.101.0

@@ -27,7 +27,10 @@ const SDK_URL = pathToFileURL(require.resolve('@agentclientprotocol/sdk')).href
  * params it received, and reports the given protocol version (defaults to the
  * SDK's `PROTOCOL_VERSION`).
  */
-function fakeAcpAgent(protocolVersionExpr = 'PROTOCOL_VERSION'): string {
+function fakeAcpAgent(
+  protocolVersionExpr = 'PROTOCOL_VERSION',
+  reply = 'pong',
+): string {
   return `
 import { AgentSideConnection, ndJsonStream, PROTOCOL_VERSION } from ${JSON.stringify(SDK_URL)}
 import { Readable, Writable } from 'node:stream'
@@ -54,7 +57,7 @@ new AgentSideConnection((conn) => ({
     writeFileSync('acp-prompt.txt', JSON.stringify(params))
     await conn.sessionUpdate({
       sessionId: params.sessionId,
-      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: 'pong' } },
+      update: { sessionUpdate: 'agent_message_chunk', content: { type: 'text', text: ${JSON.stringify(reply)} } },
     })
     return { stopReason: 'end_turn' }
   },
@@ -155,6 +158,15 @@ describe('acpCompatible config validation', () => {
     expect(() => acpCompatibleText('m', { name: 'pi' })).toThrow(
       /needs either a "command" or an "openTransport"/,
     )
+  })
+
+  it('opts into combined event-source structured output', () => {
+    const adapter = acpCompatibleText('pi-fast', {
+      name: 'pi',
+      command: () => 'node fake-acp-agent.mjs',
+    })
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
+    expect(adapter.combinedStructuredOutputSource()).toBe('event')
   })
 })
 
@@ -361,6 +373,77 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
     }
     expect(error).toBeDefined()
     expect(error.message).toMatch(/protocol version/i)
+
+    await sbx.destroy()
+  })
+
+  it('parses the last assistant text as structured output', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write(
+      '/workspace/fake-acp-agent.mjs',
+      fakeAcpAgent('PROTOCOL_VERSION', '{"ok":true}'),
+    )
+
+    const chunks = await collect(
+      acpCompatibleText('pi-fast', {
+        name: 'pi',
+        command: () => 'node fake-acp-agent.mjs',
+      }).chatStream({
+        model: 'pi-fast',
+        messages: [{ role: 'user', content: 'report' }],
+        outputSchema: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' } },
+          required: ['ok'],
+        },
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const complete = chunks.find(
+      (chunk) =>
+        chunk.type === 'CUSTOM' &&
+        (chunk as { name?: string }).name === 'structured-output.complete',
+    ) as { value?: { object?: unknown } } | undefined
+    expect(complete?.value?.object).toEqual({ ok: true })
+
+    const prompt = JSON.parse(
+      await sbx.fs.read('/workspace/acp-prompt.txt'),
+    ) as { prompt?: Array<{ text?: string }> }
+    const promptText = prompt.prompt?.map((part) => part.text ?? '').join('')
+    expect(promptText).toMatch(/JSON object/i)
+
+    await sbx.destroy()
+  })
+
+  it('emits a parse error when the last assistant text is not JSON', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-acp-agent.mjs', FAKE_ACP_AGENT)
+
+    const chunks = await collect(
+      acpCompatibleText('pi-fast', {
+        name: 'pi',
+        command: () => 'node fake-acp-agent.mjs',
+      }).chatStream({
+        model: 'pi-fast',
+        messages: [{ role: 'user', content: 'report' }],
+        outputSchema: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' } },
+          required: ['ok'],
+        },
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const error = chunks.find((chunk) => chunk.type === 'RUN_ERROR') as {
+      code?: string
+      message?: string
+    }
+    expect(error?.code).toBe('structured-output-parse-failed')
+    expect(error?.message).toMatch(/pong/)
 
     await sbx.destroy()
   })

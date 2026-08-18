@@ -137,7 +137,9 @@ function RepoReportPage() {
         <div>
           <h2 className="text-xl font-semibold">Repo report</h2>
           <p className="text-sm text-gray-400">
-            Clone {REPORT_REPO}, pick a harness, and grab a typed report from{' '}
+            Clone {REPORT_REPO}, pick a harness (including ACP compatible), and
+            grab a typed report from{' '}
+            <code className="text-orange-400">messages[].parts</code> and{' '}
             <code className="text-orange-400">outputSchema</code>.
           </p>
         </div>
@@ -300,7 +302,8 @@ function RepoReportPage() {
 
           {!chat.isLoading && chat.messages.length === 0 ? (
             <p className="text-center text-gray-500">
-              Pick Claude Code, Grok Build, or Codex, pick an agent, then Run.
+              Pick Claude Code, Grok Build, ACP compatible, or Codex, pick an
+              agent, then Run.
               The sandbox clones {REPORT_REPO} and the typed report lands here.
             </p>
           ) : null}

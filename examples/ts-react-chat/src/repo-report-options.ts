@@ -3,13 +3,14 @@
  * Do not import harness packages here.
  */
 
-export type ReportHarness = 'claude-code' | 'codex' | 'grok'
+export type ReportHarness = 'claude-code' | 'codex' | 'grok' | 'acp'
 export type ReportProvider = 'docker' | 'local'
 export type ReportAgent = 'explainer' | 'package-map' | 'first-hour'
 
 export const REPORT_HARNESSES: Record<ReportHarness, { label: string }> = {
   'claude-code': { label: 'Claude Code' },
   grok: { label: 'Grok Build' },
+  acp: { label: 'ACP compatible (Grok)' },
   codex: { label: 'Codex' },
 }
 

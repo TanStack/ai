@@ -58,7 +58,7 @@ Every adapter handles structured output through its provider's native API:
 | Ollama | JSON mode with schema |
 | OpenRouter / Grok / Groq | `response_format` with `json_schema` |
 | Claude Code / Codex | Native schema flag on the same harness turn (`--json-schema` / `--output-schema`) |
-| OpenCode / Grok Build | Same-turn prompt-and-parse |
+| OpenCode / Grok Build / ACP compatible | Same-turn prompt-and-parse |
 
 The provider-specific details are handled for you. The same `chat({ outputSchema })` call works across all of them. For a coding agent in a sandbox, see [Harness Agents](./harnesses).
 
