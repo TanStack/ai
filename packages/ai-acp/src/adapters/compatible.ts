@@ -551,6 +551,8 @@ export class AcpCompatibleTextAdapter<
 
       const wantsStructured = options.outputSchema !== undefined
       let lastAssistantText = ''
+      let lastTextMessageId: string | undefined
+      let heldFinished: StreamChunk | undefined
       for await (const chunk of mergeChunkStreams(
         translateAcpStream(queue, {
           model: this.model,
@@ -580,9 +582,16 @@ export class AcpCompatibleTextAdapter<
         }),
         channel.stream,
       )) {
+        if (wantsStructured && chunk.type === EventType.RUN_FINISHED) {
+          heldFinished = chunk
+          continue
+        }
         if (wantsStructured) {
           if (chunk.type === EventType.TEXT_MESSAGE_START) {
             lastAssistantText = ''
+            if (typeof chunk.messageId === 'string' && chunk.messageId !== '') {
+              lastTextMessageId = chunk.messageId
+            }
           } else if (
             chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
             typeof chunk.delta === 'string'
@@ -598,8 +607,10 @@ export class AcpCompatibleTextAdapter<
           lastAssistantText,
           threadId,
           runId,
+          lastTextMessageId,
         )
       }
+      if (heldFinished) yield heldFinished
 
       // Surface any pending approval requests (interactive ask-policy actions
       // awaiting a client decision); the client approves and re-runs to continue.
@@ -687,10 +698,10 @@ export class AcpCompatibleTextAdapter<
     raw: string,
     threadId: string,
     runId: string,
+    messageId = this.generateId(),
   ): Generator<StreamChunk> {
     try {
       const object = parseJsonFromAssistantText(raw)
-      const messageId = this.generateId()
       yield structuredOutputStartChunk({
         messageId,
         model: this.model,

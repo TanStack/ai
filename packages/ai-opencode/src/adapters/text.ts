@@ -358,7 +358,9 @@ export class OpencodeTextAdapter<
         })
         .catch((error: unknown) => queue.fail(error))
 
-      yield* mergeChunkStreams(
+      let heldFinished: StreamChunk | undefined
+      let lastTextMessageId: string | undefined
+      for await (const chunk of mergeChunkStreams(
         translateOpencodeStream(queue, {
           model: this.model,
           runId,
@@ -374,12 +376,25 @@ export class OpencodeTextAdapter<
             }),
         }),
         channel.stream,
-      )
+      )) {
+        if (options.outputSchema && chunk.type === EventType.RUN_FINISHED) {
+          heldFinished = chunk
+          continue
+        }
+        if (
+          chunk.type === EventType.TEXT_MESSAGE_START &&
+          typeof chunk.messageId === 'string' &&
+          chunk.messageId !== ''
+        ) {
+          lastTextMessageId = chunk.messageId
+        }
+        yield chunk
+      }
 
       if (options.outputSchema) {
         try {
           const object = parseJsonFromAssistantText(lastAssistantText)
-          const messageId = this.generateId()
+          const messageId = lastTextMessageId ?? this.generateId()
           yield structuredOutputStartChunk({
             messageId,
             model: this.model,
@@ -408,6 +423,7 @@ export class OpencodeTextAdapter<
           }
         }
       }
+      if (heldFinished) yield heldFinished
 
       // Surface pending approval requests (ask-policy actions awaiting a client
       // decision); the client approves and re-runs to continue.

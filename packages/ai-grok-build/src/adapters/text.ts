@@ -446,7 +446,10 @@ export class GrokBuildTextAdapter<
         })
         .catch((error: unknown) => queue.fail(error))
 
+      const wantsStructured = options.outputSchema !== undefined
       let lastAssistantText = ''
+      let lastTextMessageId: string | undefined
+      let heldFinished: StreamChunk | undefined
       for await (const chunk of mergeChunkStreams(
         translateAcpStream(queue, {
           model: this.model,
@@ -468,8 +471,22 @@ export class GrokBuildTextAdapter<
         }),
         channel.stream,
       )) {
-        if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
-          lastAssistantText += chunk.delta
+        if (wantsStructured && chunk.type === EventType.RUN_FINISHED) {
+          heldFinished = chunk
+          continue
+        }
+        if (wantsStructured) {
+          if (chunk.type === EventType.TEXT_MESSAGE_START) {
+            lastAssistantText = ''
+            if (typeof chunk.messageId === 'string' && chunk.messageId !== '') {
+              lastTextMessageId = chunk.messageId
+            }
+          } else if (
+            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+            typeof chunk.delta === 'string'
+          ) {
+            lastAssistantText += chunk.delta
+          }
         }
         yield chunk
       }
@@ -479,8 +496,10 @@ export class GrokBuildTextAdapter<
           lastAssistantText,
           threadId,
           runId,
+          lastTextMessageId,
         )
       }
+      if (heldFinished) yield heldFinished
 
       if (this.adapterConfig.emitDiff !== false) {
         yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
@@ -525,10 +544,10 @@ export class GrokBuildTextAdapter<
     raw: string,
     threadId: string,
     runId: string,
+    messageId = this.generateId(),
   ): Generator<StreamChunk> {
     try {
       const object = parseJsonFromAssistantText(raw)
-      const messageId = this.generateId()
       yield structuredOutputStartChunk({
         messageId,
         model: this.model,

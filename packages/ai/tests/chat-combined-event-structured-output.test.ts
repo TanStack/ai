@@ -249,4 +249,25 @@ describe('chat({ outputSchema }) — combined event source', () => {
       expect(errors[0].code).not.toBe('structured-output-parse-failed')
     }
   })
+
+  it('throws the adapter RUN_ERROR on the Promise path', async () => {
+    const { adapter } = createMockAdapter({
+      iterations: [
+        eventSourcedTurn({
+          prose: 'I will look around.',
+          runError: 'harness failed',
+        }),
+      ],
+      supportsCombinedToolsAndSchema: true,
+      combinedStructuredOutputSource: 'event',
+    })
+
+    await expect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+      }),
+    ).rejects.toThrow('harness failed')
+  })
 })

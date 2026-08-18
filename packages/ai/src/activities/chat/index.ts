@@ -1596,9 +1596,23 @@ class TextEngine<
   }
 
   private handleRunErrorEvent(
-    _chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+    chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.earlyTermination = true
+    if (this.finalStructuredOutput && this.finalizationError === null) {
+      const message =
+        chunk.message ||
+        chunk.error?.message ||
+        'Run failed before structured output completed'
+      this.finalizationError = {
+        message,
+        ...(chunk.code !== undefined
+          ? { code: chunk.code }
+          : chunk.error?.code !== undefined
+            ? { code: chunk.error.code }
+            : {}),
+      }
+    }
   }
 
   private finalizeCurrentThinkingStep(): void {

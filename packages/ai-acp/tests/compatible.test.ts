@@ -401,12 +401,20 @@ describe('acpCompatible in-sandbox adapter (stdio)', () => {
       }),
     )
 
-    const complete = chunks.find(
+    const completeIndex = chunks.findIndex(
       (chunk) =>
         chunk.type === 'CUSTOM' &&
         (chunk as { name?: string }).name === 'structured-output.complete',
-    ) as { value?: { object?: unknown } } | undefined
+    )
+    const finishedIndex = chunks.findIndex(
+      (chunk) => chunk.type === 'RUN_FINISHED',
+    )
+    const complete = chunks[completeIndex] as
+      | { value?: { object?: unknown } }
+      | undefined
     expect(complete?.value?.object).toEqual({ ok: true })
+    expect(completeIndex).toBeGreaterThan(-1)
+    expect(finishedIndex).toBeGreaterThan(completeIndex)
 
     const prompt = JSON.parse(
       await sbx.fs.read('/workspace/acp-prompt.txt'),
