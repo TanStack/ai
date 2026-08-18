@@ -26,7 +26,7 @@ unique across an app or the type-level coverage check conflates them.
 readonly capabilityName: TName;
 ```
 
-### has()
+### has
 
 ```ts
 has: (ctx) => boolean;

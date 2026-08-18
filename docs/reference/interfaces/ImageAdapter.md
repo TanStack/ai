@@ -82,7 +82,7 @@ providerOptions: TProviderOptions;
 
 ***
 
-### generateImages()
+### generateImages
 
 ```ts
 generateImages: (options) => Promise<ImageGenerationResult>;

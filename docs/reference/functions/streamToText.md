@@ -9,7 +9,7 @@ title: streamToText
 function streamToText(stream): Promise<string>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:24](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L24)
+Defined in: [packages/ai/src/stream-to-response.ts:43](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L43)
 
 Collect all text content from a StreamChunk async iterable and return as a string.
 
@@ -34,8 +34,7 @@ Promise<string> - The accumulated text content
 
 ```typescript
 const stream = chat({
-  adapter: openaiText(),
-  model: 'gpt-4o',
+  adapter: openaiText('gpt-5.5'),
   messages: [{ role: 'user', content: 'Hello!' }]
 });
 const text = await streamToText(stream);

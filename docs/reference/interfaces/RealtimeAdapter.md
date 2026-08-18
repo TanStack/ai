@@ -18,7 +18,7 @@ re-exports this type for backwards compatibility.
 
 ## Properties
 
-### connect()
+### connect
 
 ```ts
 connect: (token, clientTools?) => Promise<RealtimeConnection>;

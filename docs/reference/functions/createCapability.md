@@ -28,27 +28,11 @@ compile-time coverage check that keys on the literal name.)
 
 ## Returns
 
-```ts
-<TName>(name): Capability<TValue, TName>;
-```
-
-### Type Parameters
-
-#### TName
-
-`TName` *extends* `string`
-
-### Parameters
-
-#### name
-
-`TName`
-
-### Returns
-
-[`Capability`](../type-aliases/Capability.md)\<`TValue`, `TName`\>
+\<`TName`\>(`name`) => [`Capability`](../type-aliases/Capability.md)\<`TValue`, `TName`\>
 
 ## Example
+
+**Provider + consumer middleware**
 
 ```ts
 const counterCapability = createCapability<{ value: number }>()('counter')
