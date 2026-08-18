@@ -1542,7 +1542,14 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       if (ctx.phase === 'modelStream') {
         const s = runState.get(ctx)
         if (s && chunk.type === 'TEXT_MESSAGE_START') {
-          s.streamingMessageId = chunk.messageId
+          // An empty/malformed messageId means "no identity" (matching the
+          // engine's convention), leaving room for the TOOL_CALL_START
+          // parentMessageId fallback below — but the per-turn accumulator
+          // still resets so snapshots never mix text across turns.
+          s.streamingMessageId =
+            typeof chunk.messageId === 'string' && chunk.messageId !== ''
+              ? chunk.messageId
+              : undefined
           s.streamingMessageCreatedAt = new Date()
           s.streamingText = ''
         } else if (

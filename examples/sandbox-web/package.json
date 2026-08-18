@@ -35,11 +35,11 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.2",
+    "@vitejs/plugin-react": "^5.2.0",
     "dotenv": "^17.2.3",
     "nitro": "3.0.260610-beta",
     "tailwindcss": "^4.1.18",
     "typescript": "5.9.3",
-    "vite": "^8.1.4"
+    "vite": "^8.2.1"
   }
 }

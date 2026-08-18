@@ -16,10 +16,10 @@ type KnownCustomEvent =
   | CodeModeExternalCallEvent
   | CodeModeExternalResultEvent
   | CodeModeExternalErrorEvent
-  | CodeModeSkillCallEvent
-  | CodeModeSkillResultEvent
-  | CodeModeSkillErrorEvent
-  | SkillRegisteredEvent
+  | CodeModeSnippetCallEvent
+  | CodeModeSnippetResultEvent
+  | CodeModeSnippetErrorEvent
+  | SnippetRegisteredEvent
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent
   | ApprovalRequestedEvent
