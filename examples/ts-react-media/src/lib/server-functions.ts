@@ -167,6 +167,17 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           size: '16:9',
         })
       }
+      case 'grok-imagine-image-2.0': {
+        // xAI's recommended Imagine model; `quality` is a 2.0-only option
+        // ('low' | 'medium', default 'medium').
+        return generateImage({
+          adapter: grokImage('grok-imagine-image-2.0'),
+          prompt: asImagePrompt(data.prompt),
+          numberOfImages: 1,
+          size: '16:9',
+          modelOptions: { quality: 'medium' },
+        })
+      }
       case 'grok-imagine-image-quality': {
         return generateImage({
           adapter: grokImage('grok-imagine-image-quality'),
@@ -336,6 +347,18 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
         adapter: grokVideo('grok-imagine-video'),
         prompt: asTextPrompt(data.prompt),
         size: '16:9_720p',
+        duration: 5,
+      })
+    }
+    case 'grok-imagine-video-1.5': {
+      // Direct xAI Imagine API — grok-imagine-video-1.5 is xAI's recommended
+      // default and supports text-to-video with native 1080p.
+      return generateVideo({
+        stream: true,
+        pollingInterval: VIDEO_POLL_INTERVAL_MS,
+        adapter: grokVideo('grok-imagine-video-1.5'),
+        prompt: asTextPrompt(data.prompt),
+        size: '16:9_1080p',
         duration: 5,
       })
     }

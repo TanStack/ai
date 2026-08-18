@@ -1,5 +1,11 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  appendOutputSchemaInstruction,
+  parseJsonFromAssistantText,
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   AsyncQueue,
@@ -27,7 +33,8 @@ import {
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
-import { resolveGrokAcpAuthMethod } from '../auth'
+import { formatAcpRequestError, resolveGrokSessionAuthMethod } from '../auth'
+import type { GrokBuildAuthMode } from '../auth'
 import { createGrokAcpNotificationHandler } from '../process/grok-acp-notifications'
 import { openGrokAcpConnection } from '../process/acp'
 import { resolveGrokExecutable } from '../process/resolve-executable'
@@ -84,9 +91,12 @@ export interface GrokBuildTextConfig {
   /** ACP transport when `protocol` is `'acp'`. Defaults to `'auto'`. */
   transport?: AcpTransportPreference
   /**
-   * ACP auth method (`xai.api_key` for API-key runs, `grok.com` for host login).
-   * Defaults via {@link resolveGrokAcpAuthMethod}.
+   * `'api-key'` (default) calls authenticate with `xai.api_key`.
+   * `'host'` skips ACP authenticate (use `grok login`).
+   * Not inferred from the sandbox.
    */
+  authMode?: GrokBuildAuthMode
+  /** Explicit ACP auth method. Wins over {@link authMode}. */
   authMethodId?: string
   /** ACP permission policy. Defaults to `'bypassPermissions'`. */
   permissionMode?: AcpPermissionMode
@@ -195,6 +205,14 @@ export class GrokBuildTextAdapter<
     for (const a of config.extraArgs ?? []) args.push(a)
 
     return `${exe} ${args.join(' ')}`
+  }
+
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  combinedStructuredOutputSource(): 'event' {
+    return 'event'
   }
 
   private protocol(
@@ -356,13 +374,14 @@ export class GrokBuildTextAdapter<
         modelOptions?.permissionMode ??
         this.adapterConfig.permissionMode ??
         'bypassPermissions'
-      const authMethodId =
-        modelOptions?.authMethodId ??
-        this.adapterConfig.authMethodId ??
-        resolveGrokAcpAuthMethod({
+      const authMethodId = resolveGrokSessionAuthMethod(
+        modelOptions?.authMode ?? this.adapterConfig.authMode,
+        modelOptions?.authMethodId ?? this.adapterConfig.authMethodId,
+        {
           ...process.env,
           ...this.adapterConfig.env,
-        })
+        },
+      )
 
       const queue = new AsyncQueue<AcpStreamEvent>()
 
@@ -376,7 +395,7 @@ export class GrokBuildTextAdapter<
       handle = await startAcpSession({
         transport: connection.transport,
         cwd: harnessCwd,
-        authMethodId,
+        ...(authMethodId !== undefined && { authMethodId }),
         ...(sessionId !== undefined && { resumeSessionId: sessionId }),
         ...(bridge !== undefined && {
           mcpServers: [
@@ -407,12 +426,18 @@ export class GrokBuildTextAdapter<
       const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
         .map((p) => p.content)
         .filter((c) => c.trim() !== '')
-      const promptText = this.applySystemPrompts(
+      let promptText = this.applySystemPrompts(
         systemPrompts,
         session.resumed || sessionId === undefined
           ? resumePrompt
           : buildPrompt(options.messages, undefined).prompt,
       )
+      if (options.outputSchema) {
+        promptText = appendOutputSchemaInstruction(
+          promptText,
+          options.outputSchema,
+        )
+      }
 
       session
         .prompt(promptText)
@@ -426,7 +451,11 @@ export class GrokBuildTextAdapter<
         })
         .catch((error: unknown) => queue.fail(error))
 
-      yield* mergeChunkStreams(
+      const wantsStructured = options.outputSchema !== undefined
+      let lastAssistantText = ''
+      let lastTextMessageId: string | undefined
+      let heldFinished: StreamChunk | undefined
+      for await (const chunk of mergeChunkStreams(
         translateAcpStream(queue, {
           model: this.model,
           runId,
@@ -446,7 +475,36 @@ export class GrokBuildTextAdapter<
             }),
         }),
         channel.stream,
-      )
+      )) {
+        if (wantsStructured && chunk.type === EventType.RUN_FINISHED) {
+          heldFinished = chunk
+          continue
+        }
+        if (wantsStructured) {
+          if (chunk.type === EventType.TEXT_MESSAGE_START) {
+            lastAssistantText = ''
+            if (typeof chunk.messageId === 'string' && chunk.messageId !== '') {
+              lastTextMessageId = chunk.messageId
+            }
+          } else if (
+            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+            typeof chunk.delta === 'string'
+          ) {
+            lastAssistantText += chunk.delta
+          }
+        }
+        yield chunk
+      }
+
+      if (options.outputSchema) {
+        yield* this.emitParsedStructuredOutput(
+          lastAssistantText,
+          threadId,
+          runId,
+          lastTextMessageId,
+        )
+      }
+      if (heldFinished) yield heldFinished
 
       if (this.adapterConfig.emitDiff !== false) {
         yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
@@ -454,6 +512,7 @@ export class GrokBuildTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const message = formatAcpRequestError(error)
       logger.errors('grok-build.chatStream fatal', {
         error,
         source: 'grok-build.chatStream',
@@ -462,11 +521,11 @@ export class GrokBuildTextAdapter<
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
+        message,
         ...(err.code !== undefined && { code: err.code }),
         ...(rawEvent !== undefined && { rawEvent }),
         error: {
-          message: err.message || 'Unknown error occurred',
+          message,
           ...(err.code !== undefined && { code: err.code }),
         },
       }
@@ -485,6 +544,43 @@ export class GrokBuildTextAdapter<
   ): string {
     if (systemPrompts.length === 0) return prompt
     return `${systemPrompts.join('\n\n')}\n\n${prompt}`
+  }
+
+  private *emitParsedStructuredOutput(
+    raw: string,
+    threadId: string,
+    runId: string,
+    messageId = this.generateId(),
+  ): Generator<StreamChunk> {
+    try {
+      const object = parseJsonFromAssistantText(raw)
+      yield structuredOutputStartChunk({
+        messageId,
+        model: this.model,
+        threadId,
+        runId,
+      })
+      yield structuredOutputCompleteChunk({
+        messageId,
+        model: this.model,
+        threadId,
+        runId,
+        object,
+        raw,
+      })
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to parse structured output'
+      yield {
+        type: EventType.RUN_ERROR,
+        model: this.model,
+        timestamp: Date.now(),
+        message,
+        error: { message },
+      }
+    }
   }
 
   private async *emitDiffChunks(
@@ -579,10 +675,16 @@ export class GrokBuildTextAdapter<
       const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
         .map((p) => p.content)
         .filter((c) => c.trim() !== '')
-      const fullPrompt =
+      let fullPrompt =
         systemPrompts.length > 0
           ? `${systemPrompts.join('\n\n')}\n\n${prompt}`
           : prompt
+      if (options.outputSchema) {
+        fullPrompt = appendOutputSchemaInstruction(
+          fullPrompt,
+          options.outputSchema,
+        )
+      }
 
       const exe = await resolveGrokExecutable(
         sandbox,
@@ -664,6 +766,7 @@ export class GrokBuildTextAdapter<
             parentRunId: options.parentRunId,
           }),
           genId,
+          ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
           onThreadEvent: (event) =>
             logger.provider(`provider=grok-build type=${event.type}`, {
               chunk: event,
@@ -689,6 +792,7 @@ export class GrokBuildTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const message = formatAcpRequestError(error)
       logger.errors('grok-build.chatStream fatal', {
         error,
         source: 'grok-build.chatStream',
@@ -697,11 +801,11 @@ export class GrokBuildTextAdapter<
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
+        message,
         ...(err.code !== undefined && { code: err.code }),
         ...(rawEvent !== undefined && { rawEvent }),
         error: {
-          message: err.message || 'Unknown error occurred',
+          message,
           ...(err.code !== undefined && { code: err.code }),
         },
       }
@@ -715,8 +819,8 @@ export class GrokBuildTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox Grok Build adapter. ' +
-          'Use a model adapter (e.g. grok) for structured output, or omit outputSchema.',
+        'This harness honors outputSchema on chat() in the same turn. ' +
+          'Pass outputSchema to chat(), or use a model adapter for a one-shot extract.',
       ),
     )
   }

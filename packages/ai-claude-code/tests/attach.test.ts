@@ -50,8 +50,8 @@ afterAll(async () => {
 
 // Same stand-in as `text-adapter.test.ts`: ignores its flags, reads the
 // prompt from stdin, then emits stream-json (system/init → assistant text →
-// result). Its filename ("fake-claude") is asserted to be ABSENT from the
-// spawned commands on the attach path, proving the agent was never started.
+// result). The runner filename is asserted to be ABSENT from the spawned
+// commands on the attach path, proving the agent was never started.
 const FAKE_CLAUDE = [
   `let input = ''`,
   `process.stdin.on('data', (d) => { input += d })`,
@@ -152,10 +152,12 @@ describe('claude-code durable-run wiring (attach path)', () => {
     )
 
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
-    // The agent still ran directly (unjournaled): its own command shows up,
+    // The agent still ran directly (unjournaled): the argv runner shows up,
     // but no command anywhere references a journal path for this runId.
     expect(
-      recorder.spawned.some((command) => command.includes('fake-claude.mjs')),
+      recorder.spawned.some((command) =>
+        command.includes('tanstack-claude-run-'),
+      ),
     ).toBe(true)
     const paths = journalPaths(runId)
     expect(
@@ -192,9 +194,11 @@ describe('claude-code durable-run wiring (attach path)', () => {
 
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
 
-    // The agent was actually started (`startJournaledAgent` spawns it).
+    // The agent was actually started (`startJournaledAgent` spawns the runner).
     expect(
-      recorder.spawned.some((command) => command.includes('fake-claude.mjs')),
+      recorder.spawned.some((command) =>
+        command.includes('tanstack-claude-run-'),
+      ),
     ).toBe(true)
 
     // ...and its output was journaled under a path derived from THIS runId.
@@ -273,10 +277,12 @@ describe('claude-code durable-run wiring (attach path)', () => {
     expect(text).toContain('resumed')
     expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
 
-    // No command ever referenced the agent executable: the agent was never
+    // No command ever referenced the argv runner: the agent was never
     // started on the attach path.
     expect(
-      recorder.spawned.some((command) => command.includes('fake-claude.mjs')),
+      recorder.spawned.some((command) =>
+        command.includes('tanstack-claude-run-'),
+      ),
     ).toBe(false)
 
     // A read command against this run's journal DID happen.
