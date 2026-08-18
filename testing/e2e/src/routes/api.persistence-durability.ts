@@ -3,12 +3,19 @@ import {
   INTERRUPT_BINDING_METADATA_KEY,
   INTERRUPT_BINDING_VERSION,
   canonicalInterruptJson,
+  chat,
   digestInterruptJson,
   memoryStream,
   resumeServerSentEventsResponse,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import type { StreamChunk } from '@tanstack/ai'
+import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
+import type {
+  AnyTextAdapter,
+  StreamChunk,
+  TokenUsage,
+  Tool,
+} from '@tanstack/ai'
 
 /**
  * Provider-free harness route for the browser-refresh persistence story. It
@@ -17,7 +24,7 @@ import type { StreamChunk } from '@tanstack/ai'
  * connection resumable — but streams a FIXED AG-UI sequence instead of calling
  * an LLM, so the e2e is deterministic with nothing to mock.
  *
- * Three scenarios (`?scenario=`):
+ * Four scenarios (`?scenario=`):
  *
  * - `text` (default) — a run that streams one assistant text message and
  *   finishes cleanly (`outcome: success`). The client persists the transcript
@@ -33,6 +40,8 @@ import type { StreamChunk } from '@tanstack/ai'
  *   GET below, which returns a `reconstructChat`-shaped JSON carrying a pending
  *   interrupt. Proves a fresh client (empty `localStorage`) re-prompts the
  *   approval from the server alone — the path that was previously broken.
+ * - `usage` — runs two provider calls through server persistence and returns
+ *   their stored cumulative usage.
  *
  * Exempt from the aimock policy: this route streams a fixed AG-UI sequence and
  * never reaches an LLM provider's HTTP layer, so there is nothing to mock.
@@ -46,7 +55,11 @@ const confirmSchema = {
   required: ['confirmed'],
 }
 
-function textRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
+function textRun(
+  threadId: string,
+  runId: string,
+  usage?: TokenUsage,
+): AsyncIterable<StreamChunk> {
   return (async function* () {
     yield {
       type: 'RUN_STARTED',
@@ -78,8 +91,56 @@ function textRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
       runId,
       timestamp: Date.now(),
       outcome: { type: 'success' },
+      ...(usage ? { usage } : {}),
     } as StreamChunk
   })()
+}
+
+const usagePersistence = memoryPersistence()
+const usageTool: Tool = {
+  name: 'search',
+  description: 'Search',
+  execute: () => ({ hits: [] }),
+}
+const usageAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({ threadId, runId }: { threadId: string; runId: string }) =>
+    textRun(threadId, runId, {
+      promptTokens: 12,
+      completionTokens: 4,
+      totalTokens: 16,
+    }),
+  structuredOutput: () =>
+    Promise.resolve({
+      data: { name: 'Ada Lovelace' },
+      rawText: '{"name":"Ada Lovelace"}',
+      usage: {
+        promptTokens: 7,
+        completionTokens: 2,
+        totalTokens: 9,
+      },
+    }),
+} as unknown as AnyTextAdapter
+
+async function cumulativeUsage(threadId: string, runId: string) {
+  const stream = chat({
+    adapter: usageAdapter,
+    messages: [{ role: 'user', content: 'Name the programmer' }],
+    tools: [usageTool],
+    outputSchema: {
+      type: 'object',
+      properties: { name: { type: 'string' } },
+    },
+    stream: true,
+    threadId,
+    runId,
+    middleware: [withPersistence(usagePersistence)],
+  })
+  for await (const _ of stream) void _
+  return usagePersistence.stores.runs?.get(runId)
 }
 
 function interruptRun(
@@ -135,11 +196,12 @@ function stringField(body: unknown, key: string): string | undefined {
 
 function scenarioOf(
   request: Request,
-): 'text' | 'interrupt' | 'server-interrupt' {
+): 'text' | 'interrupt' | 'server-interrupt' | 'usage' {
   try {
     const value = new URL(request.url).searchParams.get('scenario')
     if (value === 'interrupt') return 'interrupt'
     if (value === 'server-interrupt') return 'server-interrupt'
+    if (value === 'usage') return 'usage'
     return 'text'
   } catch {
     return 'text'
@@ -193,6 +255,10 @@ export const Route = createFileRoute('/api/persistence-durability')({
         const body: unknown = await request.json()
         const threadId = stringField(body, 'threadId') ?? 'persistence-thread'
         const runId = stringField(body, 'runId') ?? crypto.randomUUID()
+        if (scenarioOf(request) === 'usage') {
+          const run = await cumulativeUsage(threadId, runId)
+          return Response.json({ runId, threadId, usage: run?.usage })
+        }
         const stream =
           scenarioOf(request) === 'interrupt'
             ? interruptRun(threadId, runId)

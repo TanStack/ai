@@ -244,6 +244,8 @@ export const Route = createFileRoute('/api/tools-test')({
             context: runtimeContext,
             threadId: params.threadId,
             runId: params.runId,
+            ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
+            ...(params.resume ? { resume: params.resume } : {}),
             agentLoopStrategy: maxIterations(20),
             abortController,
           })

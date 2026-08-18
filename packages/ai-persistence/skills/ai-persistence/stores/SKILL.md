@@ -172,6 +172,11 @@ predicate: `(status: RunStatus) => status is TerminalRunStatus`, so calling it
 inside a guard narrows `status` to `TerminalRunStatus` for the rest of that
 branch, with no cast needed.
 
+`RunRecord.usage` is optional. `withPersistence` sums reported numeric fields
+across provider calls for that `runId`, while opaque `providerUsageDetails`
+retains the latest reported bag. Known usage is persisted on interruption and
+every terminal status.
+
 `RunRecord.error` is a structured `RunError`, not a bare string:
 
 ```ts
@@ -253,10 +258,10 @@ store through `update`/`get` — but `cancelRequested` must round-trip
 faithfully (previous section) for the durable path to work at all.
 
 - **`createOrResume`** (required): if `runId` exists, return it **unchanged**,
-  ignoring the passed `threadId` / `startedAt` / `status`. Resuming a run does
-  not reset `startedAt` or overwrite its current status. Idempotent retries and
-  double-submit depend on this. `status` defaults to `'running'` on first
-  creation.
+  including its stored `usage`, and ignore the passed `threadId` / `startedAt` /
+  `status`. Resuming a run does not reset `startedAt` or overwrite its current
+  status. Idempotent retries and double-submit depend on this. `status` defaults
+  to `'running'` on first creation.
 - **`update`** (required): missing `runId` is a **no-op** (do not throw, do not
   insert).
 - **`get`** (required): current record, or `null` when unknown.
