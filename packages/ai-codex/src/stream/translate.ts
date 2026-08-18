@@ -1,5 +1,6 @@
 import { EventType, buildBaseUsage } from '@tanstack/ai'
 import {
+  parseJsonFromAssistantText,
   structuredOutputCompleteChunk,
   structuredOutputStartChunk,
 } from '@tanstack/ai/adapter-internals'
@@ -162,7 +163,11 @@ function buildUsage(usage: CodexUsage | undefined): TokenUsage | undefined {
  *
  * Codex reports assistant text and reasoning only as completed items (no
  * token-level deltas), so each `agent_message` / `reasoning` item becomes a
- * single START/CONTENT/END burst.
+ * single START/CONTENT/END burst. When `expectStructuredOutput` is set, earlier
+ * `agent_message` items stream as text as soon as the next message starts, or
+ * as soon as a tool or reasoning item starts if that text is not JSON. JSON
+ * stays held through later tools so a last schema message is not dropped. The
+ * last held message is parsed as the schema object on `turn.completed`.
  *
  * Invariant: every TOOL_CALL_START is eventually paired with a
  * TOOL_CALL_RESULT (synthesized as `{"status":"interrupted"}` when the run
@@ -243,7 +248,7 @@ export async function* translateThreadEvents(
     unresolvedToolCalls.add(item.id)
   }
 
-  const pendingAgentMessages: Array<{ id: string; text: string }> = []
+  let pendingStructuredMessage: { id: string; text: string } | undefined
 
   function* emitAgentText(item: {
     id: string
@@ -272,58 +277,71 @@ export async function* translateThreadEvents(
     }
   }
 
-  function* flushAgentMessages(
-    lastIsStructured: boolean,
-  ): Generator<StreamChunk> {
-    for (let index = 0; index < pendingAgentMessages.length; index++) {
-      const item = pendingAgentMessages[index]
-      if (item === undefined) continue
-      const isLast = index === pendingAgentMessages.length - 1
-      if (lastIsStructured && isLast) {
-        try {
-          const object: unknown = JSON.parse(item.text)
-          yield structuredOutputStartChunk({
-            messageId: item.id,
-            model,
-            threadId,
-            runId,
-          })
-          yield structuredOutputCompleteChunk({
-            messageId: item.id,
-            model,
-            threadId,
-            runId,
-            object,
-            raw: item.text,
-          })
-        } catch (error: unknown) {
-          const message =
-            error instanceof Error
-              ? error.message
-              : 'Invalid structured output JSON'
-          yield {
-            type: EventType.RUN_ERROR,
-            model,
-            timestamp: now(),
-            message,
-            error: { message },
-          }
-        }
-      } else {
-        yield* emitAgentText(item)
+  function* flushPendingAsText(): Generator<StreamChunk> {
+    if (pendingStructuredMessage === undefined) return
+    const item = pendingStructuredMessage
+    pendingStructuredMessage = undefined
+    yield* emitAgentText(item)
+  }
+
+  function* flushPendingIfNotStructured(): Generator<StreamChunk> {
+    if (pendingStructuredMessage === undefined) return
+    try {
+      parseJsonFromAssistantText(pendingStructuredMessage.text)
+    } catch {
+      yield* flushPendingAsText()
+    }
+  }
+
+  function* emitStructuredFromPending(): Generator<StreamChunk> {
+    if (pendingStructuredMessage === undefined) return
+    const item = pendingStructuredMessage
+    pendingStructuredMessage = undefined
+    try {
+      const object = parseJsonFromAssistantText(item.text)
+      yield structuredOutputStartChunk({
+        messageId: item.id,
+        model,
+        threadId,
+        runId,
+      })
+      yield structuredOutputCompleteChunk({
+        messageId: item.id,
+        model,
+        threadId,
+        runId,
+        object,
+        raw: item.text,
+      })
+    } catch (error: unknown) {
+      const parserMessage =
+        error instanceof Error
+          ? error.message
+          : 'Invalid structured output JSON'
+      const preview = item.text.trim().slice(0, 200)
+      const message =
+        preview === '' ? parserMessage : `${parserMessage} Content: ${preview}`
+      yield {
+        type: EventType.RUN_ERROR,
+        model,
+        timestamp: now(),
+        message,
+        code: 'structured-output-parse-failed',
+        error: { message, code: 'structured-output-parse-failed' },
       }
     }
-    pendingAgentMessages.length = 0
   }
 
   function* handleItemCompleted(item: CodexThreadItem): Generator<StreamChunk> {
     if (item.type === 'agent_message') {
       if (ctx.expectStructuredOutput === true) {
-        pendingAgentMessages.push({ id: item.id, text: item.text })
+        yield* flushPendingAsText()
+        pendingStructuredMessage = { id: item.id, text: item.text }
         return
       }
       yield* emitAgentText(item)
     } else if (item.type === 'reasoning') {
+      yield* flushPendingIfNotStructured()
       const reasoningId = item.id
       yield {
         type: EventType.REASONING_START,
@@ -358,6 +376,7 @@ export async function* translateThreadEvents(
         timestamp: now(),
       }
     } else if (isToolItem(item)) {
+      yield* flushPendingIfNotStructured()
       yield* openToolCall(item)
       unresolvedToolCalls.delete(item.id)
       const { content, isError } = toolResultForItem(item)
@@ -398,12 +417,17 @@ export async function* translateThreadEvents(
 
       if (event.type === 'item.started') {
         if (isToolItem(event.item)) {
+          yield* flushPendingIfNotStructured()
           yield* openToolCall(event.item)
         }
       } else if (event.type === 'item.completed') {
         yield* handleItemCompleted(event.item)
       } else if (event.type === 'turn.completed') {
-        yield* flushAgentMessages(ctx.expectStructuredOutput === true)
+        if (ctx.expectStructuredOutput === true) {
+          yield* emitStructuredFromPending()
+        } else {
+          yield* flushPendingAsText()
+        }
         yield* synthesizeUnresolvedResults()
         const usage = buildUsage(event.usage)
         yield {
@@ -416,7 +440,7 @@ export async function* translateThreadEvents(
           ...(usage !== undefined && { usage }),
         }
       } else if (event.type === 'turn.failed' || event.type === 'error') {
-        yield* flushAgentMessages(false)
+        yield* flushPendingAsText()
         yield* synthesizeUnresolvedResults()
         const message =
           event.type === 'turn.failed'
@@ -434,11 +458,17 @@ export async function* translateThreadEvents(
       // long-running items resolve via item.completed, and intermediate
       // updates (e.g. streaming command output) are intentionally dropped.
     }
+    if (ctx.expectStructuredOutput === true) {
+      yield* emitStructuredFromPending()
+    } else {
+      yield* flushPendingAsText()
+    }
   } catch (error) {
     // The run is dying (abort or SDK failure). Pair any started tool calls
     // with a synthetic result first so the next request's pending-tool-call
     // scan doesn't try to execute them, then let the adapter surface the
     // error as RUN_ERROR.
+    yield* flushPendingAsText()
     yield* synthesizeUnresolvedResults()
     throw error
   }

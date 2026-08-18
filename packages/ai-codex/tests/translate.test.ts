@@ -36,6 +36,30 @@ async function collect(
   return chunks
 }
 
+function structuredComplete(chunks: Array<StreamChunk>) {
+  return chunks.find(
+    (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+  )
+}
+
+function textDeltas(chunks: Array<StreamChunk>): string {
+  return chunks
+    .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+    .map((c) => ('delta' in c ? c.delta : ''))
+    .join('')
+}
+
+function expectStructuredObject(
+  chunks: Array<StreamChunk>,
+  object: Record<string, unknown>,
+) {
+  const complete = structuredComplete(chunks)
+  expect(complete).toBeDefined()
+  if (complete?.type === 'CUSTOM') {
+    expect(complete.value).toEqual(expect.objectContaining({ object }))
+  }
+}
+
 const started: CodexThreadEvent = {
   type: 'thread.started',
   thread_id: 'sess-1',
@@ -469,16 +493,14 @@ describe('translateThreadEvents', () => {
         (c) => c.type === 'CUSTOM' && c.name === 'structured-output.start',
       ),
     ).toBe(true)
-    const complete = chunks.find(
-      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
-    )
+    const complete = structuredComplete(chunks)
     expect(complete).toBeDefined()
     if (complete?.type === 'CUSTOM') {
       expect(complete.value).toEqual(
         expect.objectContaining({ object: { ok: true }, raw: '{"ok":true}' }),
       )
     }
-    expect(chunks.some((c) => c.type === 'TEXT_MESSAGE_CONTENT')).toBe(false)
+    expect(textDeltas(chunks)).toBe('')
   })
 
   it('keeps earlier agent_message text when only the last item is structured', async () => {
@@ -497,16 +519,8 @@ describe('translateThreadEvents', () => {
       ],
       makeCtx({ expectStructuredOutput: true }),
     )
-    const text = chunks
-      .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
-      .map((c) => ('delta' in c ? c.delta : ''))
-      .join('')
-    expect(text).toBe('working')
-    expect(
-      chunks.some(
-        (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
-      ),
-    ).toBe(true)
+    expect(textDeltas(chunks)).toBe('working')
+    expectStructuredObject(chunks, { ok: true })
   })
 
   it('emits RUN_ERROR when the last agent_message is not JSON', async () => {
@@ -521,6 +535,173 @@ describe('translateThreadEvents', () => {
       ],
       makeCtx({ expectStructuredOutput: true }),
     )
-    expect(chunks.some((c) => c.type === 'RUN_ERROR')).toBe(true)
+    expect(chunks.find((c) => c.type === 'RUN_ERROR')).toMatchObject({
+      type: 'RUN_ERROR',
+      code: 'structured-output-parse-failed',
+      message: expect.stringMatching(/not json/),
+    })
+  })
+
+  it('parses fenced JSON from the last agent_message', async () => {
+    const chunks = await collect(
+      [
+        started,
+        {
+          type: 'item.completed',
+          item: {
+            id: 'item-1',
+            type: 'agent_message',
+            text: '```json\n{"ok":true}\n```',
+          },
+        },
+        completedTurn,
+      ],
+      makeCtx({ expectStructuredOutput: true }),
+    )
+    expectStructuredObject(chunks, { ok: true })
+    expect(chunks.some((c) => c.type === 'RUN_ERROR')).toBe(false)
+  })
+
+  it('emits earlier agent_message text before the last structured item arrives', async () => {
+    const chunks = await collect(
+      [
+        started,
+        {
+          type: 'item.completed',
+          item: { id: 'item-1', type: 'agent_message', text: 'working' },
+        },
+        {
+          type: 'item.started',
+          item: {
+            id: 'cmd-1',
+            type: 'command_execution',
+            command: 'ls',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'item.completed',
+          item: {
+            id: 'cmd-1',
+            type: 'command_execution',
+            command: 'ls',
+            aggregated_output: 'ok',
+            status: 'completed',
+          },
+        },
+        {
+          type: 'item.completed',
+          item: { id: 'item-2', type: 'agent_message', text: '{"ok":true}' },
+        },
+        completedTurn,
+      ],
+      makeCtx({ expectStructuredOutput: true }),
+    )
+    const types = chunks.map((c) =>
+      c.type === 'CUSTOM' ? `CUSTOM:${c.name}` : c.type,
+    )
+    const workingIdx = chunks.findIndex(
+      (c) => c.type === 'TEXT_MESSAGE_CONTENT' && c.delta === 'working',
+    )
+    const toolStartIdx = types.indexOf('TOOL_CALL_START')
+    const completeIdx = types.indexOf('CUSTOM:structured-output.complete')
+    const finishedIdx = types.indexOf('RUN_FINISHED')
+    expect(workingIdx).toBeGreaterThan(-1)
+    expect(toolStartIdx).toBeGreaterThan(workingIdx)
+    expect(completeIdx).toBeGreaterThan(toolStartIdx)
+    expect(completeIdx).toBeLessThan(finishedIdx)
+  })
+
+  it('keeps a JSON agent_message as structured output when a started tool completes after it', async () => {
+    const chunks = await collect(
+      [
+        started,
+        {
+          type: 'item.started',
+          item: {
+            id: 'cmd-1',
+            type: 'command_execution',
+            command: 'ls',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'item.completed',
+          item: { id: 'item-1', type: 'agent_message', text: '{"ok":true}' },
+        },
+        {
+          type: 'item.completed',
+          item: {
+            id: 'cmd-1',
+            type: 'command_execution',
+            command: 'ls',
+            aggregated_output: 'ok',
+            status: 'completed',
+          },
+        },
+        completedTurn,
+      ],
+      makeCtx({ expectStructuredOutput: true }),
+    )
+    expect(textDeltas(chunks)).toBe('')
+    expectStructuredObject(chunks, { ok: true })
+    const types = chunks.map((c) =>
+      c.type === 'CUSTOM' ? `CUSTOM:${c.name}` : c.type,
+    )
+    expect(types.indexOf('TOOL_CALL_START')).toBeLessThan(
+      types.indexOf('CUSTOM:structured-output.complete'),
+    )
+    expect(types.indexOf('TOOL_CALL_RESULT')).toBeLessThan(
+      types.indexOf('CUSTOM:structured-output.complete'),
+    )
+  })
+
+  it('keeps a JSON agent_message as structured output when tools follow it', async () => {
+    const chunks = await collect(
+      [
+        started,
+        {
+          type: 'item.completed',
+          item: { id: 'item-1', type: 'agent_message', text: '{"ok":true}' },
+        },
+        {
+          type: 'item.started',
+          item: {
+            id: 'cmd-1',
+            type: 'command_execution',
+            command: 'ls',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'item.completed',
+          item: {
+            id: 'cmd-1',
+            type: 'command_execution',
+            command: 'ls',
+            aggregated_output: 'ok',
+            status: 'completed',
+          },
+        },
+        completedTurn,
+      ],
+      makeCtx({ expectStructuredOutput: true }),
+    )
+    expect(textDeltas(chunks)).toBe('')
+    expectStructuredObject(chunks, { ok: true })
+  })
+
+  it('does not drop the last agent_message when the stream ends without turn.completed', async () => {
+    const chunks = await collect(
+      [
+        started,
+        {
+          type: 'item.completed',
+          item: { id: 'item-1', type: 'agent_message', text: '{"ok":true}' },
+        },
+      ],
+      makeCtx({ expectStructuredOutput: true }),
+    )
+    expectStructuredObject(chunks, { ok: true })
   })
 })

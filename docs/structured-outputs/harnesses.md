@@ -171,7 +171,7 @@ Each part type:
 | Adapter | How the schema is applied |
 |---|---|
 | Claude Code | Native `--json-schema` flag on the same turn. The value is inline JSON, not a file path. |
-| Codex | Native `--output-schema` flag on the same turn |
+| Codex | Native `--output-schema` flag on the same turn. Earlier assistant text streams. The last message is the schema object. |
 | OpenCode | Schema is added to the prompt. The adapter parses the last assistant text. |
 | Grok Build | Schema is added to the prompt. The adapter parses the last assistant text. |
 | ACP compatible | Schema is added to the prompt. The adapter parses the last assistant text. |
