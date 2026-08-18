@@ -59,7 +59,7 @@ const snapshots = await memorySandboxSnapshots({
 const result = chat({
   threadId: 'app-thread',
   context: { userId },
-  adapter: grokBuildText('grok-build'),
+  adapter: grokBuildText('composer-2.5'),
   messages: [{ role: 'user', content: 'Create a landing page.' }],
   middleware: [
     withPersistence(snapshots.persistence),
@@ -123,7 +123,7 @@ const snapshots = createSandboxSnapshots({
 
 const result = chat({
   threadId: 'app-thread',
-  adapter: grokBuildText('grok-build'),
+  adapter: grokBuildText('composer-2.5'),
   messages: [{ role: 'user', content: 'Create a landing page.' }],
   middleware: [
     withPersistence(snapshots.persistence),

@@ -652,7 +652,7 @@ describe('memory sandbox snapshot persistence', () => {
     expect(await checkpoints.getHead('destination')).toBe('fork')
   })
 
-  it('supports blob streams, ranges, pagination, and artifact ordering', async () => {
+  it('supports blob ranges and pagination', async () => {
     const { persistence } = await memorySandboxSnapshots()
     const first = await persistence.stores.blobs.put('b', new Blob(['abcdef']))
     await persistence.stores.blobs.put('a', 'abc')

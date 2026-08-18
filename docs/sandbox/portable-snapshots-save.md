@@ -25,15 +25,27 @@ import { snapshots } from './sandbox-server'
 
 export async function POST(request: Request) {
   const session = await requireSession(request)
-  const { threadId, runId, label } = await request.json()
-
+  let payload: unknown
+  try {
+    payload = await request.json()
+  } catch {
+    return new Response('Invalid request', { status: 400 })
+  }
   if (
-    typeof threadId !== 'string' ||
-    typeof runId !== 'string' ||
-    typeof label !== 'string'
+    payload === null ||
+    typeof payload !== 'object' ||
+    !('threadId' in payload) ||
+    !('runId' in payload) ||
+    !('label' in payload) ||
+    typeof payload.threadId !== 'string' ||
+    typeof payload.runId !== 'string' ||
+    typeof payload.label !== 'string'
   ) {
     return new Response('Invalid request', { status: 400 })
   }
+  const threadId = payload.threadId
+  const runId = payload.runId
+  const label = payload.label
   if (!(await session.canAccessThread(threadId))) {
     return new Response('Not found', { status: 404 })
   }

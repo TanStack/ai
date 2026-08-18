@@ -58,7 +58,17 @@ export function makeFakeHandle(
         return Promise.resolve()
       },
       list: () => Promise.resolve([]),
-      lstat: () => Promise.resolve({ type: 'dir' as const, mode: 0 }),
+      lstat: (p) => {
+        const content = files.get(p)
+        if (content !== undefined) {
+          return Promise.resolve({
+            type: 'file' as const,
+            mode: 0o644,
+            size: new TextEncoder().encode(content).byteLength,
+          })
+        }
+        return Promise.resolve({ type: 'dir' as const, mode: 0o755 })
+      },
       mkdir: () => Promise.resolve(),
       remove: (p) => {
         files.delete(p)

@@ -23,7 +23,7 @@ export function POST(threadId: string, runId: string) {
   return chat({
     threadId,
     runId,
-    adapter: grokBuildText('grok-build'),
+    adapter: grokBuildText('composer-2.5'),
     messages: [{ role: 'user', content: 'Save this, then try a dark theme.' }],
     tools: [
       ...createSnapshotTools(snapshots, {
