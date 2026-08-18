@@ -90,8 +90,10 @@ new AgentSideConnection((conn) => ({
     return {
       protocolVersion: PROTOCOL_VERSION,
       agentCapabilities: { loadSession: true },
-      // Local runs omit authMethodId so host grok login can win.
-      authMethods: [{ id: 'grok.com', name: 'grok.com', description: null }],
+      authMethods: [
+        { id: 'xai.api_key', name: 'xai.api_key', description: null },
+        { id: 'grok.com', name: 'grok.com', description: null },
+      ],
     }
   },
   async authenticate() {

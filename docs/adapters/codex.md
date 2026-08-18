@@ -33,6 +33,8 @@ Your laptop can already have `codex login`. A CI runner only has
 you want `codex login`. See [Harness Auth](../sandbox/auth).
 
 ```ts
+import { codexText } from "@tanstack/ai-codex"
+
 codexText("gpt-5.5")
 codexText("gpt-5.5", { authMode: "host" })
 ```

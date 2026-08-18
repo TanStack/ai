@@ -23,6 +23,8 @@ a CLI login on the machine. The sandbox type does not pick this. See
 [Harness Auth](../sandbox/auth).
 
 ```ts
+import { acpCompatibleText } from "@tanstack/ai-acp"
+
 acpCompatibleText("composer-2.5", {
   name: "acp",
   command: ({ model }) => `grok agent -m '${model}' --always-approve stdio`,

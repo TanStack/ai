@@ -33,6 +33,8 @@ Your laptop can already have `claude login`. A CI runner only has
 when you want `claude login`. See [Harness Auth](../sandbox/auth).
 
 ```ts
+import { claudeCodeText } from "@tanstack/ai-claude-code"
+
 claudeCodeText("claude-opus-4-8")
 claudeCodeText("claude-opus-4-8", { authMode: "host" })
 ```

@@ -43,6 +43,8 @@ Both can use the same sandbox provider. The default `authMode` is `'api-key'`.
 Set `'host'` when you want `grok login`. See [Harness Auth](../sandbox/auth).
 
 ```ts
+import { grokBuildText } from "@tanstack/ai-grok-build"
+
 grokBuildText("composer-2.5")
 grokBuildText("composer-2.5", { authMode: "host" })
 ```
