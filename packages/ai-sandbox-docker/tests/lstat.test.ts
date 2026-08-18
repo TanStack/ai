@@ -50,6 +50,18 @@ describe('DockerHandle.fs.lstat', () => {
     await expect(handle.fs.lstat!(path)).resolves.toBeUndefined()
   })
 
+  it('treats a transport-padded missing sentinel as missing', async () => {
+    const handle = createHandle()
+    setExec(handle, async () => ({
+      exitCode: 0,
+      stdout: '__TANSTACK_LSTAT_MISSING__\n',
+      stderr: '',
+    }))
+    await expect(
+      handle.fs.lstat!('/workspace/missing'),
+    ).resolves.toBeUndefined()
+  })
+
   it.each([
     '/workspace/file/child',
     '/workspace/loop/child',

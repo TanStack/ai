@@ -139,6 +139,8 @@ function mockSandbox(): { sandbox: Sandbox; files: Map<string, string> } {
         statPath === '-delete/missing'
       )
         return Promise.resolve(ok('__TANSTACK_LSTAT_MISSING__'))
+      if (statPath === '/workspace/missing-padded')
+        return Promise.resolve(ok('__TANSTACK_LSTAT_MISSING__\n'))
       if (
         [
           '/workspace/file/child',
@@ -199,6 +201,12 @@ describe('CloudflareHandle', () => {
   ])('returns undefined for a verified missing path: %s', async (path) => {
     const handle = createLstatHandle()
     await expect(handle.fs.lstat!(path)).resolves.toBeUndefined()
+  })
+  it('treats a transport-padded missing sentinel as missing', async () => {
+    const handle = createLstatHandle()
+    await expect(
+      handle.fs.lstat!('/workspace/missing-padded'),
+    ).resolves.toBeUndefined()
   })
   it.each([
     '/workspace/file/child',
