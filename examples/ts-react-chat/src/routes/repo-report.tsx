@@ -303,8 +303,8 @@ function RepoReportPage() {
           {!chat.isLoading && chat.messages.length === 0 ? (
             <p className="text-center text-gray-500">
               Pick Claude Code, Grok Build, ACP compatible, or Codex, pick an
-              agent, then Run.
-              The sandbox clones {REPORT_REPO} and the typed report lands here.
+              agent, then Run. The sandbox clones {REPORT_REPO} and the typed
+              report lands here.
             </p>
           ) : null}
         </div>

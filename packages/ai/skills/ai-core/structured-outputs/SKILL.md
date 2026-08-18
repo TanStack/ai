@@ -194,7 +194,7 @@ The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-out
 | `@tanstack/ai-claude-code`                                      | Combined + event source — `--json-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                            |
 | `@tanstack/ai-codex`                                            | Combined + event source — `--output-schema` on the same harness turn. Read `useChat().final`. See Pattern 6.                                          |
 | `@tanstack/ai-opencode`                                         | Combined + event source — prompt-and-parse. Read `useChat().final`. See Pattern 6.                                                                    |
-| `@tanstack/ai-grok-build`                                       | Combined + event source — prompt-and-parse (ACP and streaming-json). Read `useChat().final` or the `structured-output` part. See Pattern 6.            |
+| `@tanstack/ai-grok-build`                                       | Combined + event source — prompt-and-parse (ACP and streaming-json). Read `useChat().final` or the `structured-output` part. See Pattern 6.           |
 | `@tanstack/ai-acp` (`acpCompatible`)                            | Combined + event source — prompt-and-parse. Read `useChat().final` or the `structured-output` part. See Pattern 6.                                    |
 | All other adapters (ollama, older Claude, Gemini 2.x, Grok 2/3) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event                                                         |
 
