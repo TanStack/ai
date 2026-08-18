@@ -430,9 +430,15 @@ export class DockerHandle implements SandboxHandle {
   }
 
   private envArray(extra?: Record<string, string>): Array<string> {
-    return Object.entries({ ...this.envVars, ...extra }).map(
-      ([k, v]) => `${k}=${v}`,
-    )
+    // Docker `exec` Env replaces the container env. Keep a PATH and HOME so
+    // CLIs still resolve and `~/.claude` has a home when secrets are the only
+    // other vars.
+    return Object.entries({
+      PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+      HOME: '/root',
+      ...this.envVars,
+      ...extra,
+    }).map(([k, v]) => `${k}=${v}`)
   }
 
   /**

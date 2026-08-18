@@ -334,21 +334,20 @@ export class BytePlusTextAdapter<
       // Mirror the base's contract: failures inside structuredOutputStream
       // surface as a RUN_STARTED → RUN_ERROR pair rather than a throw, so
       // consumers keep a single error-handling path.
-      const timestamp = Date.now()
       const runId = generateId(this.name)
       yield {
         type: EventType.RUN_STARTED,
         runId,
         threadId: options.chatOptions.threadId ?? generateId(this.name),
         model: options.chatOptions.model,
-        timestamp,
+        timestamp: Date.now(),
         parentRunId: options.chatOptions.parentRunId,
       }
       yield {
         type: EventType.RUN_ERROR,
         runId,
         model: options.chatOptions.model,
-        timestamp,
+        timestamp: Date.now(),
         message: unsupported,
         code: 'unsupported-structured-output',
         error: { message: unsupported, code: 'unsupported-structured-output' },

@@ -299,6 +299,13 @@ export function runPersistenceConformance(
           usage: { promptTokens: 3, completionTokens: 4, totalTokens: 7 },
         })
 
+        const resumedAfterUpdate = await store.createOrResume({
+          runId: 'run-1',
+          threadId: 'thread-different',
+          startedAt: 9999,
+        })
+        expect(resumedAfterUpdate).toEqual(done)
+
         // `error` is a structured RunError: the prose `message` plus the
         // optional machine-branchable `code`. Both must survive the round-trip,
         // so a backend that flattens the record to a bare string fails here.

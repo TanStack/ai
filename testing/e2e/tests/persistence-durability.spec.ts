@@ -140,3 +140,30 @@ test.describe('persistence durability (browser refresh)', () => {
     expect(stored).toBeNull()
   })
 })
+
+test.describe('server persistence', () => {
+  test('stores cumulative usage across model calls', async ({ request }) => {
+    const run = await request.post(
+      '/api/persistence-durability?scenario=usage',
+      {
+        data: {
+          threadId: `usage-${crypto.randomUUID()}`,
+          runId: crypto.randomUUID(),
+        },
+      },
+    )
+    expect(run.ok()).toBe(true)
+    const body = (await run.json()) as {
+      usage?: {
+        promptTokens: number
+        completionTokens: number
+        totalTokens: number
+      }
+    }
+    expect(body.usage).toEqual({
+      promptTokens: 19,
+      completionTokens: 6,
+      totalTokens: 25,
+    })
+  })
+})

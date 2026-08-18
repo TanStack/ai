@@ -64,6 +64,8 @@ function defaultSandboxMode(provider: string): CodexSandboxMode {
     : 'workspace-write'
 }
 
+export type CodexAuthMode = 'host' | 'api-key'
+
 export interface CodexTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
@@ -87,6 +89,11 @@ export interface CodexTextConfig {
   additionalDirectories?: Array<string>
   /** Path/name of the codex executable inside the sandbox. Defaults to `codex`. */
   codexExecutable?: string
+  /**
+   * `'api-key'` (default) expects `CODEX_API_KEY` in the process or sandbox
+   * secrets. `'host'` uses `codex login`. Not inferred from the sandbox.
+   */
+  authMode?: CodexAuthMode
   /** Extra environment variables for the codex process inside the sandbox. */
   env?: Record<string, string>
   /** Extra raw `--config key=value` overrides (values passed verbatim as TOML). */
@@ -139,6 +146,14 @@ export class CodexTextAdapter<
     )
   }
 
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  combinedStructuredOutputSource(): 'event' {
+    return 'event'
+  }
+
   /** Mirror @openai/codex-sdk's `codex exec --experimental-json` invocation. */
   private buildCommand(
     options: TextOptions<CodexTextProviderOptions>,
@@ -146,6 +161,7 @@ export class CodexTextAdapter<
     bridge: HostToolBridge | undefined,
     policyFlags: CodexPolicyFlags,
     provider: string,
+    outputSchemaPath: string | undefined,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
@@ -212,6 +228,10 @@ export class CodexTextAdapter<
     }
     for (const [key, value] of Object.entries(cfg)) {
       args.push('--config', q(`${key}=${value}`))
+    }
+
+    if (outputSchemaPath !== undefined) {
+      args.push('--output-schema', q(outputSchemaPath))
     }
 
     // Resume an existing thread (mirrors the SDK's `resume <threadId>`).
@@ -304,12 +324,21 @@ export class CodexTextAdapter<
       const policy = options.capabilities
         ? getSandboxPolicy(options.capabilities, { optional: true })
         : undefined
+      let outputSchemaArg: string | undefined
+      if (options.outputSchema) {
+        const schemaFile = `.tanstack-output-schema-${encodeRunId(runId)}.json`
+        const schemaPath = `${cwd}/${schemaFile}`
+        await sandbox.fs.write(schemaPath, JSON.stringify(options.outputSchema))
+        tempFiles.push(schemaPath)
+        outputSchemaArg = schemaFile
+      }
       const command = this.buildCommand(
         options,
         resume,
         bridge,
         mapPolicyToCodexFlags(policy),
         sandbox.provider,
+        outputSchemaArg,
       )
 
       logger.request(
@@ -409,6 +438,7 @@ export class CodexTextAdapter<
               parentRunId: options.parentRunId,
             }),
             genId,
+            ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
             onThreadEvent: (event) =>
               logger.provider(`provider=codex type=${event.type}`, {
                 chunk: event,
@@ -458,8 +488,8 @@ export class CodexTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox Codex adapter. ' +
-          'Use a model adapter for structured output, or omit outputSchema.',
+        'This harness honors outputSchema on chat() in the same turn. ' +
+          'Pass outputSchema to chat(), or use a model adapter for a one-shot extract.',
       ),
     )
   }

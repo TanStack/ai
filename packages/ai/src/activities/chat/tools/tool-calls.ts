@@ -813,7 +813,7 @@ export async function* executeToolCalls<TContext = unknown>(
       continue
     }
 
-    // Parse arguments, throwing error if invalid JSON
+    // Parse arguments
     let input: unknown = {}
     const argsStr = toolCall.function.arguments.trim() || '{}'
     if (argsStr) {
@@ -821,9 +821,17 @@ export async function* executeToolCalls<TContext = unknown>(
         const parsed = JSON.parse(argsStr)
         // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
         input = parsed && typeof parsed === 'object' ? parsed : {}
-      } catch (parseError) {
-        // If parsing fails, throw error to fail fast
-        throw new Error(`Failed to parse tool arguments as JSON: ${argsStr}`)
+      } catch {
+        results.push({
+          toolCallId: toolCall.id,
+          toolName,
+          result: {
+            error: `Failed to parse tool arguments as JSON: ${argsStr}`,
+          },
+          input,
+          state: 'output-error',
+        })
+        continue
       }
     }
 
