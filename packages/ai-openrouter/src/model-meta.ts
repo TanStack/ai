@@ -16332,7 +16332,7 @@ export const OPENROUTER_IMAGE_MODELS = [
  * all of which the upstream native adapters exclude from combined mode):
  *   - Anthropic: the Claude 4.5+ ids in the upstream
  *     `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS` gate (opus/sonnet/haiku);
- *     newer ids (e.g. 4.8) land here only once that gate adds them
+ *     newer ids land here only once that gate adds them
  *   - Google: Gemini 3.x only
  *   - OpenAI: strict-`json_schema` era (gpt-4o-2024-08-06 and later), gpt-4.1,
  *     gpt-5*, o-series, and gpt-oss-* — tool-capable text variants only
@@ -16353,17 +16353,19 @@ type OpenRouterCombinedToolsAndSchemaModelId = {
 
 const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODEL_IDS = [
   // Anthropic — the Claude 4.5+ ids the upstream gate currently blesses.
-  // Mirrors ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS exactly (it stops at
-  // 4.7), so OpenRouter-routed Claude 4.8 takes the same legacy path as the
-  // native @tanstack/ai-anthropic adapter until upstream adds it.
+  // Mirrors ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS exactly (through the
+  // Claude 5 ids), plus the OpenRouter-only `-fast` variants of gated models.
+  'anthropic/claude-fable-5',
   'anthropic/claude-haiku-4.5',
   'anthropic/claude-opus-4.5',
   'anthropic/claude-opus-4.6',
-  'anthropic/claude-opus-4.6-fast',
   'anthropic/claude-opus-4.7',
   'anthropic/claude-opus-4.7-fast',
+  'anthropic/claude-opus-4.8',
+  'anthropic/claude-opus-4.8-fast',
   'anthropic/claude-sonnet-4.5',
   'anthropic/claude-sonnet-4.6',
+  'anthropic/claude-sonnet-5',
 
   // Google — Gemini 3.x family
   'google/gemini-3-flash-preview',
