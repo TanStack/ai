@@ -11,7 +11,10 @@ an unsafe filesystem entry, it stops.
 
 Portable snapshots store regular files and directories only. When a capture or
 restore finds a symlink, an executable file, or a special filesystem entry, it
-fails.
+fails with `SandboxSnapshotError` code
+`SANDBOX_SNAPSHOT_UNSUPPORTED_ENTRY`. Exclude scripts, hooks, and other
+executable files in `policy.exclude`. An executable bit on a regular file
+stops the whole capture or restore.
 
 ## Default exclusions
 
@@ -34,9 +37,10 @@ These exclusions use paths for regular files and copied files too.
 ## Replace the default policy
 
 To keep only some files, or one file, see
-[Pick Which Files to Keep](./portable-snapshots-files). Copy
-`defaultSandboxSnapshotPolicy()` first. Then add `include`, `exclude`, or
-`redact`.
+[Pick Which Files to Keep](./portable-snapshots-files). If you pass only
+`include` or only `redact`, the default exclusions stay in place. If you
+pass `exclude`, copy `defaultSandboxSnapshotPolicy()` first. Then add your
+rules.
 
 ```ts
 import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'

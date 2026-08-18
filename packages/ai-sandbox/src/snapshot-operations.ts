@@ -1,7 +1,7 @@
 import {
   captureSandboxArtifacts,
   captureSandboxFiles,
-  defaultSandboxSnapshotPolicy,
+  resolveSandboxSnapshotPolicy,
   SandboxSnapshotError,
 } from './snapshots'
 import { resolveAllSecrets } from './secrets'
@@ -180,20 +180,7 @@ function effectivePolicy(
   supplied: SandboxSnapshotPolicy | undefined,
   workspaceHash: string | undefined,
 ): SandboxSnapshotPolicy {
-  if (supplied === undefined) return defaultSandboxSnapshotPolicy(workspaceHash)
-  const suppliedWorkspaceHash = supplied.workspaceHash
-  const include = supplied.include
-  const exclude = supplied.exclude
-  const redact = supplied.redact
-  return {
-    ...(suppliedWorkspaceHash === undefined
-      ? {}
-      : { workspaceHash: suppliedWorkspaceHash }),
-    ...(workspaceHash === undefined ? {} : { workspaceHash }),
-    ...(include === undefined ? {} : { include }),
-    ...(exclude === undefined ? {} : { exclude }),
-    ...(redact === undefined ? {} : { redact }),
-  }
+  return resolveSandboxSnapshotPolicy(supplied, workspaceHash)
 }
 
 function stageInstanceStore(store: SandboxInstanceStore): SandboxInstanceStore {

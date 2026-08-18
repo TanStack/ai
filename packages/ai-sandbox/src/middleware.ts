@@ -54,7 +54,7 @@ import {
   restoreSandboxFiles,
   captureSandboxFiles,
   captureSandboxArtifacts,
-  defaultSandboxSnapshotPolicy,
+  resolveSandboxSnapshotPolicy,
 } from './snapshots'
 import type { SandboxSnapshotPolicy } from './snapshots'
 import type {
@@ -498,14 +498,10 @@ export function withSandbox<TOffset extends string = string>(
         ? computeWorkspaceHash(definition.workspace)
         : undefined
       const snapshotPolicy = snapshotConfig
-        ? snapshotConfig.policy
-          ? {
-              ...snapshotConfig.policy,
-              ...(snapshotWorkspaceHash === undefined
-                ? {}
-                : { workspaceHash: snapshotWorkspaceHash }),
-            }
-          : defaultSandboxSnapshotPolicy(snapshotWorkspaceHash)
+        ? resolveSandboxSnapshotPolicy(
+            snapshotConfig.policy,
+            snapshotWorkspaceHash,
+          )
         : undefined
       let snapshotRuntime:
         | {

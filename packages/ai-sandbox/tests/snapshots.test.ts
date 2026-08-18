@@ -1141,6 +1141,36 @@ describe('portable sandbox snapshots', () => {
     ])
   })
 
+  it('keeps default exclusions when only include is supplied', async () => {
+    const snapshot = await captureSandboxFiles(
+      fakeHandle({
+        '/workspace/app.ts': {
+          type: 'file',
+          mode: 0o644,
+          bytes: new Uint8Array([1]),
+        },
+        '/workspace/.env': {
+          type: 'file',
+          mode: 0o644,
+          bytes: new Uint8Array([2]),
+        },
+        '/workspace/.git/config': {
+          type: 'file',
+          mode: 0o644,
+          bytes: new Uint8Array([3]),
+        },
+        '/workspace/node_modules/pkg/index.js': {
+          type: 'file',
+          mode: 0o644,
+          bytes: new Uint8Array([4]),
+        },
+      }),
+      { blobs: blobs() },
+      { include: () => true },
+    )
+    expect(snapshot.files.map((entry) => entry.path)).toEqual(['app.ts'])
+  })
+
   it('does not let include override an explicit exclusion', async () => {
     const snapshot = await captureSandboxFiles(
       fakeHandle({
@@ -1413,11 +1443,9 @@ describe('portable sandbox snapshots', () => {
   it.each(['ancestor', 'final'])(
     'rejects a %s symlink before writing',
     async (position) => {
-      const target = fakeHandle(
-        position === 'ancestor'
-          ? { '/workspace/a': { type: 'symlink', mode: 0o777 } }
-          : { '/workspace/a': { type: 'symlink', mode: 0o777 } },
-      )
+      const target = fakeHandle({
+        '/workspace/a': { type: 'symlink', mode: 0o777 },
+      })
       const bundle = { blobs: blobs() }
       const blobKey = await putSnapshotBlob(bundle.blobs, new Uint8Array([1]))
       const manifest: { files: SandboxSnapshotEntry[] } =

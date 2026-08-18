@@ -15,10 +15,14 @@ policy runs on automatic save, named save, and restore.
 This page assumes you already created a snapshots object. If you have not, start
 with [Keep Files After Reload](./portable-snapshots-configure).
 
-## Copy the default policy first
+## Default exclusions stay unless you pass exclude
 
-A custom policy replaces the default exclusions. Copy
-`defaultSandboxSnapshotPolicy()` first. Then add your rules.
+If you pass only `include` or only `redact`, the default exclusions stay
+in place. Capture still skips `.env`, `.git`, and `node_modules`.
+
+If you pass `exclude`, that function replaces the default exclusions.
+Copy `defaultSandboxSnapshotPolicy()` first. Then keep those rules and add
+yours.
 
 ```ts
 import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'
@@ -32,9 +36,6 @@ const policy = {
   },
 }
 ```
-
-If you pass only `include` or only `redact`, capture also stores `.env`,
-`.git`, and `node_modules`.
 
 The projection marker for this workspace stays protected. A custom policy
 cannot capture or restore that marker.
@@ -82,7 +83,7 @@ const snapshots = await memorySandboxSnapshots({
 
 const result = chat({
   threadId: 'app-thread',
-  adapter: grokBuildText('grok-build'),
+  adapter: grokBuildText('composer-2.5'),
   messages: [{ role: 'user', content: 'Create a landing page.' }],
   middleware: [
     withPersistence(snapshots.persistence),
@@ -118,6 +119,8 @@ Capture does not read a file that the policy skips.
 Return true only for that path. Capture still walks parent directories.
 
 ```ts
+import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'
+
 const defaults = defaultSandboxSnapshotPolicy()
 
 const policy = {
@@ -131,6 +134,8 @@ const policy = {
 ## Keep a few files
 
 ```ts
+import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'
+
 const defaults = defaultSandboxSnapshotPolicy()
 const keep = new Set(['package.json', 'src/app.ts', 'src/index.ts'])
 
@@ -145,6 +150,8 @@ const policy = {
 ## Keep one folder
 
 ```ts
+import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'
+
 const defaults = defaultSandboxSnapshotPolicy()
 
 const policy = {
@@ -160,6 +167,8 @@ const policy = {
 Allow directories so the walk can reach nested files. Then match the suffix.
 
 ```ts
+import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'
+
 const defaults = defaultSandboxSnapshotPolicy()
 
 const policy = {
@@ -175,6 +184,8 @@ const policy = {
 Keep the default `exclude`. Then add your folder.
 
 ```ts
+import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'
+
 const defaults = defaultSandboxSnapshotPolicy()
 
 const policy = {
@@ -189,9 +200,16 @@ const policy = {
 To skip a folder name at every depth, match a path segment:
 
 ```ts
-exclude(path: string, kind: 'file' | 'dir') {
-  if (defaults.exclude?.(path, kind)) return true
-  return path.split('/').includes('dist')
+import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'
+
+const defaults = defaultSandboxSnapshotPolicy()
+
+const policy = {
+  ...defaults,
+  exclude(path: string, kind: 'file' | 'dir') {
+    if (defaults.exclude?.(path, kind)) return true
+    return path.split('/').includes('dist')
+  },
 }
 ```
 

@@ -112,6 +112,34 @@ export function defaultSandboxSnapshotPolicy(
   }
 }
 
+/**
+ * Keep default exclusions unless the caller passed `exclude`.
+ * `include` or `redact` alone must not capture `.env`, `.git`, or
+ * `node_modules`.
+ */
+export function resolveSandboxSnapshotPolicy(
+  supplied: SandboxSnapshotPolicy | undefined,
+  workspaceHash?: string,
+): SandboxSnapshotPolicy {
+  const defaults = defaultSandboxSnapshotPolicy(
+    workspaceHash ?? supplied?.workspaceHash,
+  )
+  if (supplied === undefined) return defaults
+  const include = supplied.include
+  const exclude = supplied.exclude
+  const redact = supplied.redact
+  const suppliedWorkspaceHash = supplied.workspaceHash
+  return {
+    ...(suppliedWorkspaceHash === undefined
+      ? {}
+      : { workspaceHash: suppliedWorkspaceHash }),
+    ...(workspaceHash === undefined ? {} : { workspaceHash }),
+    ...(include === undefined ? {} : { include }),
+    exclude: exclude ?? defaults.exclude,
+    ...(redact === undefined ? {} : { redact }),
+  }
+}
+
 function normalize(path: string): string {
   if (path.includes('\\'))
     throw new SandboxSnapshotError(
@@ -252,9 +280,13 @@ async function redactBytes(
 export async function captureSandboxFiles(
   handle: SandboxHandle,
   bundle: SandboxSnapshotBundle,
-  policy: SandboxSnapshotPolicy = defaultSandboxSnapshotPolicy(),
+  suppliedPolicy: SandboxSnapshotPolicy = defaultSandboxSnapshotPolicy(),
   resolvedSecrets: Readonly<Record<string, string>> = {},
 ): Promise<{ files: Array<SandboxSnapshotEntry> }> {
+  const policy = resolveSandboxSnapshotPolicy(
+    suppliedPolicy,
+    suppliedPolicy.workspaceHash,
+  )
   if (!handle.fs.lstat)
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_LSTAT_REQUIRED',
@@ -583,8 +615,12 @@ export async function restoreSandboxFiles(
   handle: SandboxHandle,
   bundle: SandboxSnapshotBundle,
   snapshot: { files: ReadonlyArray<SandboxSnapshotEntry> },
-  policy: SandboxSnapshotPolicy = defaultSandboxSnapshotPolicy(),
+  suppliedPolicy: SandboxSnapshotPolicy = defaultSandboxSnapshotPolicy(),
 ): Promise<void> {
+  const policy = resolveSandboxSnapshotPolicy(
+    suppliedPolicy,
+    suppliedPolicy.workspaceHash,
+  )
   if (!handle.fs.lstat)
     throw new SandboxSnapshotError(
       'SANDBOX_SNAPSHOT_LSTAT_REQUIRED',

@@ -217,9 +217,10 @@ never overwritten. The default policy excludes `.git`, `node_modules`, and
 only at the workspace root. It also excludes root `CLAUDE.md` and `GEMINI.md`,
 plus direct `.claude/skills/<name>`, `.codex/skills/<name>`, and
 `.grok/skills/<name>` paths. These exclusions use paths even for regular files
-or copies. A custom policy replaces them, except for exact projection-marker
-protection. If you only pass `redact` or `include`, copy
-`defaultSandboxSnapshotPolicy()` first or `.env` files are captured.
+or copies. If you pass only `include` or only `redact`, the default
+exclusions stay in place. If you pass `exclude`, that function replaces
+the default exclusions, except for exact projection-marker protection.
+Copy `defaultSandboxSnapshotPolicy()` first when you write `exclude`.
 Pass `include` and `exclude` functions on `policy` to store only some files,
 including one file. There is no `save({ files })` list. See
 `docs/sandbox/portable-snapshots-files.md`. Resolved secrets are redacted before the data is stored. Symlinks,
@@ -264,9 +265,11 @@ Snapshot capture supports regular files and empty directories only. It excludes
 the exact projection marker only at the workspace root. It also excludes root
 `CLAUDE.md` and `GEMINI.md`, plus direct `.claude/skills/<name>`,
 `.codex/skills/<name>`, and `.grok/skills/<name>` paths. These exclusions use
-paths even for regular files or copies. A custom policy replaces them, except
-for exact projection-marker protection. It rejects symlinks, executable files,
-and special filesystem entries. Restore verifies the manifest and blobs before
+paths even for regular files or copies. If you pass only `include` or only
+`redact`, the default exclusions stay in place. If you pass `exclude`, that
+function replaces the default exclusions, except for exact projection-marker
+protection. It rejects symlinks, executable files, and special filesystem
+entries. Restore verifies the manifest and blobs before
 it changes a new private sandbox. It never writes into a live resumed sandbox.
 
 ## Providers

@@ -637,7 +637,8 @@
         {
           "label": "Pick Which Files to Keep",
           "to": "sandbox/portable-snapshots-files",
-          "addedAt": "2026-08-18"
+          "addedAt": "2026-08-18",
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "What a Snapshot Stores",

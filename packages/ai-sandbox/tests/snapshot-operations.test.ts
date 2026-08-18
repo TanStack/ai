@@ -942,6 +942,28 @@ describe('public sandbox snapshot operations', () => {
       await writer.release()
     })
 
+    it('keeps default exclusions when policy only sets include', async () => {
+      const fixture = await namedFixture({
+        policy: { include: () => true },
+      })
+      resumeWithHandle(
+        fixture,
+        workspaceHandle({
+          root: '/workspace',
+          files: [
+            { path: 'kept.txt', content: 'kept' },
+            { path: '.env', content: 'SECRET=1' },
+            { path: '.git/config', content: 'git' },
+            { path: 'node_modules/pkg/index.js', content: 'mod' },
+          ],
+        }),
+      )
+
+      const saved = await namedSave(fixture)
+
+      expect(saved.files.map((entry) => entry.path)).toEqual(['kept.txt'])
+    })
+
     it.each([{ custom: false }, { custom: true }])(
       'protects the workspace marker with custom policy $custom',
       async ({ custom }) => {
