@@ -1,3 +1,4 @@
+import { ByokMissingError, isProviderId } from '@tanstack/ai/byok'
 import {
   GENERATION_EVENTS,
   GENERATION_STREAM_TRUNCATED_MESSAGE,
@@ -10,7 +11,9 @@ import {
 } from './generation-types'
 import { createNoOpGenerationDevtoolsBridge } from './devtools-noop'
 import { parseSSEResponse } from './sse-parser'
+import type { ProviderId } from '@tanstack/ai/byok'
 import type { StreamChunk } from '@tanstack/ai/client'
+import type { ByokClient } from './byok'
 import type {
   ConnectConnectionAdapter,
   GenerationHydrationResult,
@@ -30,6 +33,22 @@ import type {
   GenerationResumeSnapshot,
   GenerationResumeState,
 } from './generation-types'
+
+function resolveByokProviderId(
+  byokProvider: (() => string | undefined) | undefined,
+  ...candidates: Array<unknown>
+): ProviderId | undefined {
+  const fromFn = byokProvider?.()
+  if (typeof fromFn === 'string' && isProviderId(fromFn)) {
+    return fromFn
+  }
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && isProviderId(candidate)) {
+      return candidate
+    }
+  }
+  return undefined
+}
 
 /**
  * Callbacks stored in a ref so hooks can update them without recreating the client.
@@ -117,6 +136,8 @@ export class GenerationClient<
   // the client hydrates the last generation for `threadId` from the server.
   private readonly serverDriven: boolean = false
   private body: Record<string, any>
+  private byok: ByokClient | undefined
+  private byokProvider: (() => string | undefined) | undefined
   private result: TOutput | null = null
   private input: TInput | null = null
   private progress: AIDevtoolsGenerationProgress | null = null
@@ -159,6 +180,8 @@ export class GenerationClient<
     this.hydrateGenerationHandler = options.hydrateGeneration
     this.joinRunHandler = options.joinRun
     this.body = options.body ?? {}
+    this.byok = options.byok
+    this.byokProvider = options.byokProvider
     // `persistence` is `false`/omitted (ephemeral) or `true` (server-driven:
     // hydrate the last generation for `threadId` from the server on mount).
     this.serverDriven = options.persistence === true
@@ -260,9 +283,22 @@ export class GenerationClient<
     const { signal } = abortController
 
     try {
+      let headers: Record<string, string> | undefined
+      if (this.byok) {
+        const provider = resolveByokProviderId(
+          this.byokProvider,
+          this.body.provider,
+        )
+        await this.byok.prepare(provider)
+        headers = this.byok.headers(provider)
+      }
+
       if (this.fetcher) {
         // Direct fetch path
-        const result = await this.fetcher(input, { signal })
+        const result = await this.fetcher(
+          input,
+          headers === undefined ? { signal } : { signal, headers },
+        )
         if (signal.aborted) return
         if (result instanceof Response) {
           // Server function returned SSE Response — parse stream
@@ -284,7 +320,7 @@ export class GenerationClient<
           [],
           mergedData,
           signal,
-          this.createRunContext(runId),
+          this.createRunContext(runId, headers),
         )
         await this.processStream(stream, runId, signal)
       } else {
@@ -307,6 +343,9 @@ export class GenerationClient<
     } catch (err: unknown) {
       if (signal.aborted) return
       const error = err instanceof Error ? err : new Error(String(err))
+      if (error instanceof ByokMissingError) {
+        this.byok?.request(error.provider, 'missing')
+      }
       this.setError(error)
       this.setStatus('error')
       this.recordResumeSnapshotError(error)
@@ -458,12 +497,24 @@ export class GenerationClient<
     options: Partial<
       Pick<
         GenerationClientOptions<TInput, TResult, TOutput>,
-        'body' | 'onResult' | 'onError' | 'onProgress' | 'onChunk'
+        | 'body'
+        | 'byok'
+        | 'byokProvider'
+        | 'onResult'
+        | 'onError'
+        | 'onProgress'
+        | 'onChunk'
       >
     >,
   ): void {
     if (options.body !== undefined) {
       this.body = options.body ?? {}
+    }
+    if (options.byok !== undefined) {
+      this.byok = options.byok
+    }
+    if (options.byokProvider !== undefined) {
+      this.byokProvider = options.byokProvider
     }
     if (options.onResult !== undefined) {
       this.callbacksRef.onResult = options.onResult
@@ -633,10 +684,14 @@ export class GenerationClient<
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
-  private createRunContext(runId: string): RunAgentInputContext {
+  private createRunContext(
+    runId: string,
+    headers?: Record<string, string>,
+  ): RunAgentInputContext {
     return {
       threadId: this.threadId,
       runId,
+      ...(headers ? { headers } : {}),
     }
   }
 

@@ -336,6 +336,96 @@ const stream = chat({
 
 An `AgentLoopStrategy` function.
 
+## `getByokKey(request, provider)`
+
+Read one `x-byok-<provider>` header from a `Request`. Import from `@tanstack/ai/byok`. Returns the trimmed header, or `null` when it is missing or blank. The JSON body is ignored.
+
+```typescript
+import { getByokKey } from "@tanstack/ai/byok";
+
+export async function POST(request: Request) {
+  const key = getByokKey(request, "openai");
+  return new Response(key ? "ok" : "missing");
+}
+```
+
+### Parameters
+
+- `request` - Incoming `Request`
+- `provider` - Provider id (`openai`, `anthropic`, `gemini`, `openrouter`, `groq`, `grok`, `mistral`, `elevenlabs`, `fal`, `ollama`)
+
+### Returns
+
+`string | null`
+
+## `getByokOrEnvKey(request, provider, envNames)`
+
+Prefer the BYOK header. If it is empty, read `process.env` for each name in `envNames`. Returns the first non-empty value, or `null`.
+
+```typescript
+import { getByokOrEnvKey } from "@tanstack/ai/byok";
+
+export async function POST(request: Request) {
+  const apiKey = getByokOrEnvKey(request, "openai", ["OPENAI_API_KEY"]);
+  return new Response(apiKey ? "ok" : "missing");
+}
+```
+
+### Parameters
+
+- `request` - Incoming `Request`
+- `provider` - Provider id
+- `envNames` - Env names to try, in order
+
+### Returns
+
+`string | null`
+
+## `byokMissing(provider)`
+
+Return a `401` JSON `Response` with `{ error: { type: "byok_missing", provider, message } }`. The chat and generation clients read this body and set `snapshot.prompt`.
+
+```typescript
+import { byokMissing, getByokOrEnvKey } from "@tanstack/ai/byok";
+
+export async function POST(request: Request) {
+  const apiKey = getByokOrEnvKey(request, "openai", ["OPENAI_API_KEY"]);
+  if (!apiKey) return byokMissing("openai");
+  return new Response("ok");
+}
+```
+
+### Parameters
+
+- `provider` - Provider id to put on the error body
+
+### Returns
+
+A `Response` with status `401` and `content-type: application/json`.
+
+## `maskKey(key)`
+
+Return the last four characters of a key. Keys of four characters or fewer become `"••"`.
+
+```typescript
+import { maskKey } from "@tanstack/ai/byok";
+
+maskKey("sk-abcdefghij"); // "ghij"
+```
+
+## `scrubSecrets(input, secrets)`
+
+Replace each listed secret in `input` with `[redacted]`. Use this before you log an error string.
+
+```typescript
+import { scrubSecrets } from "@tanstack/ai/byok";
+
+scrubSecrets("failed sk-live extra", ["sk-live"]);
+// "failed [redacted] extra"
+```
+
+See [Bring Your Own Key](../advanced/byok) for the client store and a full relay.
+
 ## Types
 
 ### `ModelMessage`
@@ -548,5 +638,6 @@ async function examples() {
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Bring Your Own Key](../advanced/byok) - Read user keys on the relay
 - [Tools Guide](../tools/tools) - Learn about tools
 - [Adapters](../adapters/openai) - Explore adapter options

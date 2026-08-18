@@ -1,0 +1,144 @@
+---
+title: Bring Your Own Key (BYOK)
+id: byok
+order: 9
+description: "Let users supply provider API keys in the browser. defineByok stores them. useChat sends them as x-byok headers. Your relay reads them for one call."
+keywords:
+  - tanstack ai
+  - byok
+  - bring your own key
+  - api key
+  - defineByok
+---
+
+Your users have their own provider API keys. You want those keys to stay in the browser. Your relay must read a key for one call, then forget it.
+
+`defineByok` stores the keys. Pass that store into `useChat`. The client sends keys as `x-byok-*` headers. The key never goes in the JSON body. Your relay reads the header (or an env key) and builds the adapter for that call.
+
+## Store keys on the client
+
+Create one `ByokClient` for the app. `defaultByokStorage()` uses a passkey when the browser supports it. If it does not, it keeps keys in session memory.
+
+```typescript
+import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
+
+export const byok = defineByok({ storage: defaultByokStorage() });
+```
+
+If the server can fall back to an env key, tell the client. Then a send is not blocked when the browser has no key yet:
+
+```typescript
+import { byok } from "./byok";
+
+byok.setServerCoverage({ openai: true });
+```
+
+See [`defineByok`](../api/ai-client#definebyok) for methods, the snapshot, and other storage.
+
+## Send keys with `useChat`
+
+Pass the same `byok` instance into `useChat`. The client stamps `x-byok-*` on each POST.
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { byok } from "./byok";
+
+export function Chat() {
+  const { sendMessage, isLoading } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    byok,
+    forwardedProps: { provider: "openai", model: "gpt-5.5" },
+  });
+
+  return (
+    <button
+      type="button"
+      disabled={isLoading}
+      onClick={() => {
+        void sendMessage("Hello");
+      }}
+    >
+      Send
+    </button>
+  );
+}
+```
+
+`forwardedProps.provider` selects which key to send. You can also pass `byokProvider`.
+
+## Save a key
+
+This library does not ship a dialog. Call `byok.update(provider, value)` from your own UI.
+
+```tsx
+import { useState } from "react";
+import { useByok } from "@tanstack/ai-react";
+import { byok } from "./byok";
+
+export function KeyForm() {
+  const snapshot = useByok(byok);
+  const [value, setValue] = useState("");
+  const status = snapshot.status.openai;
+  const last4 = status.state === "empty" ? "" : status.masked;
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        const next = value.trim();
+        if (!next) return;
+        void byok.update("openai", next).then(() => {
+          setValue("");
+        });
+      }}
+    >
+      <input
+        type="password"
+        autoComplete="off"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+        placeholder={last4 ? `Saved ${last4}` : "Paste a key"}
+      />
+      <button type="submit" disabled={!value.trim()}>
+        Save
+      </button>
+    </form>
+  );
+}
+```
+
+`useByok(byok)` is the live snapshot. Use it to show the last four characters, a lock state, or `snapshot.prompt` when a send needs a key.
+
+If `snapshot.locked` is true, call `byok.unlock()` first.
+
+## Read the key on the relay
+
+The header wins. If it is empty, `getByokOrEnvKey` reads env names in order. If both are empty, return `byokMissing`. The client then sets `snapshot.prompt`.
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { byokMissing, getByokOrEnvKey } from "@tanstack/ai/byok";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const apiKey = getByokOrEnvKey(request, "openai", ["OPENAI_API_KEY"]);
+  if (!apiKey) return byokMissing("openai");
+
+  const stream = chat({
+    adapter: createOpenaiChat("gpt-5.5", apiKey),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+Do not log the raw key. Use [`maskKey`](../api/ai#maskkey) or [`scrubSecrets`](../api/ai#scrubsecrets) if you write an error string.
+
+The same `byok` instance works on generation hooks. For a `fetcher`, spread `options.headers` onto the POST. See [Generation Hooks](../media/generation-hooks#usegenerateaudio).

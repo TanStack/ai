@@ -85,8 +85,10 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 - `initialMessages?` - Initial messages array
 - `id?` - Unique identifier for this chat instance
 - `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
-- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-4o' }`)
+- `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (e.g., `{ provider: 'openai', model: 'gpt-5.5' }`)
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire
+- `byok?` - Optional BYOK keyring from `defineByok`. On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
+- `byokProvider?` - Optional function that returns the provider id for this chat. If it returns a known provider, only that key is prepared and sent
 - `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `onResponse?` - Callback when response is received
 - `onChunk?` - Callback when stream chunk is received
@@ -125,6 +127,23 @@ interface UseChatReturn {
   clear: () => void;
 }
 ```
+
+## `useByok(client)`
+
+Subscribe to a `ByokClient` snapshot in React.
+
+```tsx
+import { useByok } from "@tanstack/ai-react";
+import { byok } from "./byok";
+
+export function KeyStatus() {
+  const snapshot = useByok(byok);
+  const openai = snapshot.status.openai;
+  return <p>{openai.state === "empty" ? "No key" : openai.masked}</p>;
+}
+```
+
+`snapshot` has `status`, `locked`, and `prompt`. Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
 
 ## Connection Adapters
 
@@ -387,5 +406,6 @@ Re-exported from `@tanstack/ai`:
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Bring Your Own Key](../advanced/byok) - Store keys and pass `byok` into `useChat`
 - [Tools Guide](../tools/tools) - Learn about the isomorphic tool system
 - [Client Tools](../tools/client-tools) - Learn about client-side tools

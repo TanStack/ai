@@ -7,17 +7,19 @@ import {
   mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { openaiText } from '@tanstack/ai-openai'
+import { createOpenaiChat } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { geminiText } from '@tanstack/ai-gemini'
-import { geminiTextInteractions } from '@tanstack/ai-gemini/experimental'
-import { openRouterText } from '@tanstack/ai-openrouter'
-import { grokText } from '@tanstack/ai-grok'
-import { groqText } from '@tanstack/ai-groq'
+import { createAnthropicChat } from '@tanstack/ai-anthropic'
+import { createGeminiChat } from '@tanstack/ai-gemini'
+import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
+import { createOpenRouterText } from '@tanstack/ai-openrouter'
+import { createGrokText } from '@tanstack/ai-grok'
+import { createGroqText } from '@tanstack/ai-groq'
 import { bedrockText } from '@tanstack/ai-bedrock'
 import { byteplusText } from '@tanstack/ai-byteplus'
+import { byokMissing, getByokOrEnvKey } from '@tanstack/ai/byok'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
+import type { ProviderId } from '@tanstack/ai/byok'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -44,6 +46,51 @@ type Provider =
   | 'openrouter'
   | 'bedrock'
   | 'byteplus'
+
+const BYOK_ENV_NAMES = {
+  openai: ['OPENAI_API_KEY'],
+  anthropic: ['ANTHROPIC_API_KEY'],
+  gemini: ['GOOGLE_API_KEY', 'GEMINI_API_KEY'],
+  openrouter: ['OPENROUTER_API_KEY'],
+  groq: ['GROQ_API_KEY'],
+  grok: ['XAI_API_KEY'],
+} as const satisfies Partial<Record<ProviderId, ReadonlyArray<string>>>
+
+type KeyedByokProvider = keyof typeof BYOK_ENV_NAMES
+
+function isKeyedByokProvider(value: string): value is KeyedByokProvider {
+  return Object.hasOwn(BYOK_ENV_NAMES, value)
+}
+
+function chatByokProvider(provider: Provider): KeyedByokProvider | undefined {
+  if (provider === 'gemini-interactions') return 'gemini'
+  if (isKeyedByokProvider(provider)) return provider
+  return undefined
+}
+
+function resolveByokApiKey(
+  request: Request,
+  provider: Provider,
+):
+  | { missing: false; apiKey: string | null }
+  | { missing: true; provider: KeyedByokProvider } {
+  const byokProvider = chatByokProvider(provider)
+  if (!byokProvider) return { missing: false, apiKey: null }
+  const apiKey = getByokOrEnvKey(
+    request,
+    byokProvider,
+    BYOK_ENV_NAMES[byokProvider],
+  )
+  if (!apiKey) return { missing: true, provider: byokProvider }
+  return { missing: false, apiKey }
+}
+
+function requireApiKey(apiKey: string | null): string {
+  if (!apiKey) {
+    throw new Error('API key is required')
+  }
+  return apiKey
+}
 
 const SYSTEM_PROMPT = `You are a helpful assistant for a guitar store.
 
@@ -254,18 +301,20 @@ export const Route = createFileRoute('/api/tanchat')({
         // Model is passed to the adapter factory function for type-safe autocomplete
         const adapterConfig: Record<
           Provider,
-          () => { adapter: AnyTextAdapter }
+          (apiKey: string | null) => { adapter: AnyTextAdapter }
         > = {
-          anthropic: () =>
+          anthropic: (apiKey) =>
             createChatOptions({
-              adapter: anthropicText(
+              adapter: createAnthropicChat(
                 (model || 'claude-sonnet-4-6') as 'claude-sonnet-4-6',
+                requireApiKey(apiKey),
               ),
             }),
-          openrouter: () =>
+          openrouter: (apiKey) =>
             createChatOptions({
-              adapter: openRouterText(
+              adapter: createOpenRouterText(
                 (model || 'openai/gpt-5.1') as 'openai/gpt-5.1',
+                requireApiKey(apiKey),
               ),
               modelOptions: {
                 reasoning: {
@@ -273,10 +322,11 @@ export const Route = createFileRoute('/api/tanchat')({
                 },
               },
             }),
-          gemini: () =>
+          gemini: (apiKey) =>
             createChatOptions({
-              adapter: geminiText(
+              adapter: createGeminiChat(
                 (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
+                requireApiKey(apiKey),
               ),
               modelOptions: {
                 thinkingConfig: {
@@ -285,30 +335,33 @@ export const Route = createFileRoute('/api/tanchat')({
                 },
               },
             }),
-          'gemini-interactions': () =>
+          'gemini-interactions': (apiKey) =>
             createChatOptions({
-              adapter: geminiTextInteractions(
+              adapter: createGeminiTextInteractions(
                 (model || 'gemini-3.1-pro-preview') as 'gemini-3.1-pro-preview',
+                requireApiKey(apiKey),
               ),
               modelOptions: {
                 previous_interaction_id: previousInteractionId,
                 store: true,
               },
             }),
-          grok: () =>
+          grok: (apiKey) =>
             createChatOptions({
-              adapter: grokText(
+              adapter: createGrokText(
                 (model || 'grok-build-0.1') as 'grok-build-0.1',
+                requireApiKey(apiKey),
               ),
               modelOptions: {},
             }),
-          groq: () =>
+          groq: (apiKey) =>
             createChatOptions({
-              adapter: groqText(
+              adapter: createGroqText(
                 (model || 'openai/gpt-oss-120b') as 'openai/gpt-oss-120b',
+                requireApiKey(apiKey),
               ),
             }),
-          bedrock: () =>
+          bedrock: (_apiKey) =>
             createChatOptions({
               // Default Converse API. Auth is 'auto' (BEDROCK_API_KEY /
               // AWS_BEARER_TOKEN_BEDROCK, then the SigV4 credential chain) unless
@@ -325,7 +378,7 @@ export const Route = createFileRoute('/api/tanchat')({
                 },
               ),
             }),
-          byteplus: () =>
+          byteplus: (_apiKey) =>
             createChatOptions({
               // BytePlus ModelArk (ARK_API_KEY, falling back to
               // BYTEPLUS_API_KEY). Keys are region-isolated — an EU key will
@@ -334,14 +387,17 @@ export const Route = createFileRoute('/api/tanchat')({
                 (model || 'seed-2-0-lite-260428') as 'seed-2-0-lite-260428',
               ),
             }),
-          ollama: () =>
+          ollama: (_apiKey) =>
             createChatOptions({
               adapter: ollamaText((model || 'gpt-oss:20b') as 'gpt-oss:20b'),
               modelOptions: { think: 'low', options: { top_k: 1 } },
             }),
-          openai: () =>
+          openai: (apiKey) =>
             createChatOptions({
-              adapter: openaiText((model || 'gpt-5.2') as 'gpt-5.2'),
+              adapter: createOpenaiChat(
+                (model || 'gpt-5.2') as 'gpt-5.2',
+                requireApiKey(apiKey),
+              ),
               modelOptions: {
                 prompt_cache_key: 'user-session-12345',
                 prompt_cache_retention: '24h',
@@ -355,8 +411,12 @@ export const Route = createFileRoute('/api/tanchat')({
             requestedProvider in adapterConfig
               ? (requestedProvider as Provider)
               : 'openai'
+          const resolvedKey = resolveByokApiKey(request, provider)
+          if (resolvedKey.missing) {
+            return byokMissing(resolvedKey.provider)
+          }
           // Get typed adapter options using createChatOptions pattern
-          const options = adapterConfig[provider]()
+          const options = adapterConfig[provider](resolvedKey.apiKey)
 
           // All providers (including gemini-interactions) get the full
           // server-tool set merged with whatever client-side tools the

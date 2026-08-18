@@ -20,6 +20,8 @@ import type {
   VideoGenerateResult,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 import type { Accessor } from 'solid-js'
 
 /**
@@ -38,6 +40,10 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a known provider, only that key is prepared. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -212,6 +218,8 @@ export function useGenerateVideo<TTransformed = void>(
         hydrateGeneration: options.hydrateGeneration,
       }),
       ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
+      ...(options.byok !== undefined && { byok: options.byok }),
+      byokProvider: () => options.byokProvider?.(),
       devtoolsBridgeFactory: createVideoDevtoolsBridge,
       devtools: {
         ...options.devtools,

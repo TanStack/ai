@@ -6,6 +6,11 @@ import {
   normalizeToUIMessage,
   parseWithStandardSchema,
 } from '@tanstack/ai/client'
+import {
+  ByokBlockedError,
+  ByokMissingError,
+  isProviderId,
+} from '@tanstack/ai/byok'
 import { createNoOpChatDevtoolsBridge } from './devtools-noop'
 import {
   fetcherToConnectionAdapter,
@@ -23,6 +28,8 @@ import type {
   RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai/client'
+import type { ProviderId } from '@tanstack/ai/byok'
+import type { ByokClient } from './byok'
 import type {
   ChatHydrationResult,
   ConnectionAdapter,
@@ -66,6 +73,22 @@ interface InternalQueuedMessage extends QueuedMessage {
   body?: Record<string, any>
 }
 
+function resolveByokProviderId(
+  byokProvider: (() => string | undefined) | undefined,
+  ...candidates: Array<unknown>
+): ProviderId | undefined {
+  const fromFn = byokProvider?.()
+  if (typeof fromFn === 'string' && isProviderId(fromFn)) {
+    return fromFn
+  }
+  for (const candidate of candidates) {
+    if (typeof candidate === 'string' && isProviderId(candidate)) {
+      return candidate
+    }
+  }
+  return undefined
+}
+
 type ChatClientUpdateOptionsWithoutContext<
   TTools extends ReadonlyArray<AnyClientTool>,
 > = {
@@ -74,6 +97,8 @@ type ChatClientUpdateOptionsWithoutContext<
   /** @deprecated Use `forwardedProps` instead. */
   body?: Record<string, any>
   forwardedProps?: Record<string, any>
+  byok?: ByokClient
+  byokProvider?: () => string | undefined
   tools?: TTools
   queue?: QueueOption
   onResponse?: (response?: Response) => void | Promise<void>
@@ -311,6 +336,8 @@ export class ChatClient<
   // merged on every send, with `forwardedProps` winning on key collision.
   private bodyOption: Record<string, any> = {}
   private forwardedPropsOption: Record<string, any> = {}
+  private byok: ByokClient | undefined
+  private byokProvider: (() => string | undefined) | undefined
   private context: TContext | undefined = undefined
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private queueConfig: NormalizedQueueConfig
@@ -446,6 +473,8 @@ export class ChatClient<
     // winning on key collision.
     this.bodyOption = options.body || {}
     this.forwardedPropsOption = options.forwardedProps || {}
+    this.byok = options.byok
+    this.byokProvider = options.byokProvider
     this.context = options.context
     this.queueConfig = normalizeQueueOption(options.queue)
     this.connection = normalizeConnectionAdapter(resolveTransport(options))
@@ -2126,6 +2155,17 @@ export class ChatClient<
       // AG-UI servers consuming `RunAgentInput.tools[].parameters` expect
       // JSON Schema; sending a Standard Schema instance directly would
       // serialize to an unusable shape.
+      let byokHeaders: Record<string, string> | undefined
+      if (this.byok) {
+        const provider = resolveByokProviderId(
+          this.byokProvider,
+          this.forwardedPropsOption.provider,
+          this.bodyOption.provider,
+        )
+        await this.byok.prepare(provider)
+        byokHeaders = this.byok.headers(provider)
+      }
+
       const runContext = {
         threadId: resumeThreadId ?? this.threadId,
         runId,
@@ -2141,6 +2181,7 @@ export class ChatClient<
         })),
         forwardedProps: { ...mergedBody },
         ...(resumeItems ? { resume: resumeItems } : {}),
+        ...(byokHeaders ? { headers: byokHeaders } : {}),
       }
       this.devtoolsBridge.beginRun(runContext.runId, runContext.threadId)
       activeDevtoolsRunId = runContext.runId
@@ -2209,6 +2250,9 @@ export class ChatClient<
           }
           return false
         }
+        if (err instanceof ByokMissingError) {
+          this.byok?.request(err.provider, 'missing')
+        }
         if (generation === this.streamGeneration) {
           this.reportStreamError(err)
           if (activeDevtoolsRunId) {
@@ -2220,6 +2264,12 @@ export class ChatClient<
             )
             runTerminalEventEmitted = true
           }
+        }
+        if (
+          generation === this.streamGeneration &&
+          (err instanceof ByokMissingError || err instanceof ByokBlockedError)
+        ) {
+          throw err
         }
       }
     } finally {
@@ -2859,6 +2909,12 @@ export class ChatClient<
     }
     if (options.forwardedProps !== undefined) {
       this.forwardedPropsOption = options.forwardedProps
+    }
+    if (options.byok !== undefined) {
+      this.byok = options.byok
+    }
+    if (options.byokProvider !== undefined) {
+      this.byokProvider = options.byokProvider
     }
     if ('context' in options) {
       this.context = options.context

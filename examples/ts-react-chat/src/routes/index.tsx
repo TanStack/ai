@@ -43,6 +43,8 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
+import { byok, toByokProvider } from '@/lib/byok'
+import { ByokKeyForm } from '@/components/ByokKeyForm'
 
 /**
  * Generate a random message ID
@@ -393,11 +395,13 @@ function ChatPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
   // Session-scoped Gemini Interactions id — the server surfaces it via a
   // `gemini.interactionId` CUSTOM event, and we send it back as
-  // `previous_interaction_id` on the next turn. State (not ref) so a body
-  // change triggers `useChat` to re-sync the updated body to the client.
+  // `previous_interaction_id` on the next turn. State (not ref) so a
+  // forwardedProps change triggers `useChat` to re-sync the payload.
   const [interactionId, setInteractionId] = useState<string | undefined>(
     undefined,
   )
+  const selectedProviderRef = useRef(selectedModel.provider)
+  selectedProviderRef.current = selectedModel.provider
 
   // Reset the interaction id whenever the user switches model/provider so
   // we don't chain against a stale or wrong-model interaction. Messages
@@ -410,7 +414,7 @@ function ChatPage() {
     setMessages([])
   }, [selectedModel.provider, selectedModel.model])
 
-  const body = useMemo(
+  const forwardedProps = useMemo(
     () => ({
       provider: selectedModel.provider,
       model: selectedModel.model,
@@ -432,7 +436,9 @@ function ChatPage() {
   } = useChat({
     connection: fetchServerSentEvents('/api/tanchat'),
     tools,
-    body,
+    byok,
+    byokProvider: () => toByokProvider(selectedProviderRef.current),
+    forwardedProps,
     onCustomEvent: (eventType, data, context) => {
       console.log(
         `[CustomEvent] ${eventType}`,
@@ -641,6 +647,9 @@ function ChatPage() {
               <Image className="w-4 h-4" />
               Image Gen
             </Link>
+          </div>
+          <div className="mt-3">
+            <ByokKeyForm provider={selectedModel.provider} />
           </div>
         </div>
 

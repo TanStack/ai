@@ -504,6 +504,8 @@ const { messages } = useChat({ connection: myAdapter });
 
 `runContext` carries `threadId`, `runId`, `clientTools`, and `forwardedProps`. Include them in your request payload so the server can build an AG-UI-compliant response.
 
+`RunAgentInputContext.headers` merges onto the POST request. Chat BYOK keys travel this way as `x-byok-*` headers. See [Bring Your Own Key](../advanced/byok).
+
 The runtime covers the terminal event either way:
 
 - Your `connect` stream completes without emitting `RUN_FINISHED`: one is synthesized for you.
@@ -523,6 +525,7 @@ export interface RunAgentInputContext {
   parentRunId?: string;
   clientTools?: Array<{ name: string; description: string; parameters: unknown }>;
   forwardedProps?: Record<string, unknown>;
+  headers?: Record<string, string>;
 }
 
 export interface ConnectConnectionAdapter {

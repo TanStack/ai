@@ -1,5 +1,6 @@
 // Chat
 export { injectChat } from './inject-chat'
+export { injectByok } from './inject-byok'
 
 // Generation
 export { injectGeneration } from './inject-generation'

@@ -26,6 +26,8 @@ TanStack AI is a lightweight, type-safe SDK for building production-ready AI exp
 - ✅ **Approval Flow** - Built-in support for tool approval workflows
 - ✅ **Automatic Execution** - Both server and client tools execute automatically
 
+Users can paste their own provider API keys in the browser. See [Bring Your Own Key](../advanced/byok).
+
 ## Framework Agnostic
 
 The framework-agnostic core of TanStack AI provides the building blocks for creating AI experiences in any environment, including:

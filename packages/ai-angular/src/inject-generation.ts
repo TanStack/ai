@@ -22,6 +22,8 @@ import type {
   GenerationRestoredResult,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 import type { ReactiveOption } from './internal/to-reactive'
 
 let nextId = 0
@@ -37,6 +39,10 @@ export interface InjectGenerationOptions<TInput, TResult, TOutput = TResult> {
   id?: string
   /** Additional request body params. Reactive. */
   body?: ReactiveOption<Record<string, any>>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a known provider, only that key is prepared. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -183,6 +189,8 @@ export function injectGeneration<
       hydrateGeneration: options.hydrateGeneration,
     }),
     ...(options.joinRun !== undefined && { joinRun: options.joinRun }),
+    ...(options.byok !== undefined && { byok: options.byok }),
+    byokProvider: () => options.byokProvider?.(),
     ...(options.reconstructResult
       ? { reconstructResult: options.reconstructResult }
       : {}),

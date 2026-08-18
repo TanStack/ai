@@ -99,6 +99,8 @@ goes away. Users of the framework hooks need no change.
 - `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works — values are merged into `forwardedProps` on the wire and mirrored under the legacy `data` field for backward compatibility
+- `byok?` - Optional BYOK keyring from [`defineByok`](#definebyok). On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
+- `byokProvider?` - Optional function that returns the provider id for this chat. If it returns a known provider, only that key is prepared and sent. Otherwise `forwardedProps.provider` then `body.provider` are used
 - `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `tools?` - Registered `.client()` tool implementations. The client automatically executes matching tools when the model calls them
 - `onResponse?` - Callback when response is received
@@ -460,6 +462,67 @@ const chatOptions = createChatClientOptions({
 
 Client runtime context is local to the client instance. Use `forwardedProps` for explicit client-to-server handoff of serializable values, then validate and map those values into server `chat({ context })`.
 
+## `defineByok`
+
+Factory for a headless BYOK keyring. Import it from `@tanstack/ai-client/byok`. Pass the instance into `ChatClient`, `useChat`, or a generation hook. See [Bring Your Own Key](../advanced/byok) for a full client and relay walkthrough.
+
+```typescript
+import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
+
+export const byok = defineByok({ storage: defaultByokStorage() });
+```
+
+### Factory options
+
+- `storage?` - A `KeyringStorage` implementation. Default is `memoryStorage()` (session only, not saved)
+
+### Methods
+
+- `update(provider, key)` - Save a key for a known provider id (`openai`, `anthropic`, `gemini`, `openrouter`, `groq`, `grok`, `mistral`, `elevenlabs`, `fal`, `ollama`)
+- `update(key)` - Save a key for the current `prompt` provider. Throws if `prompt` is null
+- `clear(provider?)` - Remove one key, or all keys when you omit `provider`
+- `unlock()` - Decrypt unlockable storage (passkey). No-op for memory storage
+- `validate(provider, key?)` - Check a key against the provider. Uses the stored key when `key` is omitted
+- `headers(provider?)` - Return `x-byok-*` headers. With a provider, only that key is included. With no provider, every stored key is included
+- `prepare(provider?)` - Unlock if needed. If `provider` is set, the key is empty, and the server has no coverage, throw `ByokBlockedError` and set `prompt`
+- `setServerCoverage(flags)` - Tell the client which providers the server can fill from env. Then `prepare` does not block those providers
+- `request(provider, reason)` - Set `prompt` to `{ provider, reason }` (`missing` | `locked` | `invalid`)
+- `getSnapshot()` - Return the current [`ByokSnapshot`](#snapshot)
+- `subscribe(listener)` - Call `listener` on each change. Returns an unsubscribe function
+- `keys()` - Return a copy of the raw keyring. Do not render this in the UI
+
+### Snapshot
+
+`getSnapshot()` (and framework readers such as `useByok`) return:
+
+```typescript ignore
+type ByokSnapshot = {
+  status: Record<ProviderId, KeyStatus>;
+  locked: boolean;
+  prompt: { provider: ProviderId; reason: "missing" | "locked" | "invalid" } | null;
+};
+
+type KeyStatus =
+  | { state: "empty" }
+  | { state: "set"; masked: string }
+  | { state: "locked"; masked: string }
+  | { state: "validating"; masked: string }
+  | { state: "valid"; masked: string }
+  | { state: "invalid"; masked: string }
+  | { state: "error"; masked: string; message: string };
+```
+
+`masked` is the last four characters of the key (`maskKey`). The snapshot never includes the raw key.
+
+### Storage
+
+- `defaultByokStorage(options?)` - Passkey-encrypted IndexedDB when the browser supports it. Otherwise `memoryStorage()`
+- `memoryStorage()` - Session memory. Keys are not saved across reloads
+- `passkeyStorage(options?)` - Encrypt the keyring with a WebAuthn passkey
+- `KeyringStorage` - `{ id, label, persistent, unlockable?, peek?, load, save, clear }`
+
+This library does not ship a dialog. Call `byok.update(provider, value)` from your own UI.
+
 ## Types
 
 ### `UIMessage`
@@ -573,5 +636,6 @@ const client = new ChatClient({
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Bring Your Own Key](../advanced/byok) - Store keys in the browser and send `x-byok-*` headers
 - [Connection Adapters](../chat/connection-adapters) - Learn about adapters
 - [@tanstack/ai-react API](./ai-react) - React hooks wrapper
