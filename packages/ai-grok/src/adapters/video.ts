@@ -3,8 +3,8 @@ import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
+  GROK_VIDEO_MAX_REFERENCE_AUDIOS,
   getGrokVideoDurationOptions,
-  isImageToVideoOnlyModel,
   parseGrokVideoSize,
   validateVideoSize,
 } from '../video/video-provider-options'
@@ -15,6 +15,7 @@ import type {
   TokenUsage,
   VideoGenerationOptions,
   VideoJobResult,
+  VideoPart,
   VideoStatusResult,
   VideoUrlResult,
 } from '@tanstack/ai'
@@ -62,11 +63,13 @@ interface GrokVideoStatusResponse {
 }
 
 /**
- * Convert a TanStack ImagePart to the URL string accepted by xAI's Imagine
- * video endpoint: public URLs pass through (fetched by xAI's servers), data
- * sources become base64 data URIs.
+ * Convert a TanStack image / video part to the URL string accepted by xAI's
+ * Imagine video endpoints: public URLs pass through (fetched by xAI's
+ * servers), data sources become base64 data URIs.
  */
-function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
+function mediaPartToUrl(
+  part: ImagePart<MediaInputMetadata> | VideoPart<MediaInputMetadata>,
+): string {
   if (part.source.type === 'url') return part.source.value
   return `data:${part.source.mimeType};base64,${part.source.value}`
 }
@@ -93,10 +96,9 @@ function buildGrokVideoUsage(
  * async jobs/polling architecture: create a generation request, poll it,
  * then read the completed video URL.
  *
- * `grok-imagine-video` (v1.0) supports text-to-video and image-to-video.
- * `grok-imagine-video-1.5` is image-to-video only — every request needs an
- * image prompt part as the starting frame, and the adapter rejects a
- * text-only prompt with a clear error rather than a raw API 400.
+ * Both models support text-to-video and image-to-video;
+ * `grok-imagine-video-1.5` is xAI's documented default and adds native
+ * 1080p text-to-video plus reference-to-video inputs.
  *
  * The Imagine video endpoints are not part of the OpenAI SDK surface (and
  * xAI rejects the SDK's multipart paths), so requests are plain JSON calls
@@ -109,6 +111,12 @@ function buildGrokVideoUsage(
  * - Aspect-ratio sizing via the "aspectRatio_resolution" size template
  *   (e.g. '16:9_720p'), consistent with the grok-imagine image models
  * - Image-to-video via an `image` prompt part (starting frame URL or data URI)
+ * - Reference-to-video via image prompt parts with
+ *   `metadata.role: 'reference'` (→ `reference_images`) and preset voices
+ *   via `modelOptions.reference_audios` (grok-imagine-video-1.5)
+ * - Video editing / extension via a source `video` prompt part and
+ *   `modelOptions.mode: 'edit' | 'extend'` (`/v1/videos/edits` /
+ *   `/v1/videos/extensions`; in extend mode `duration` is the added tail)
  * - Usage reporting: billed seconds (`unitsBilled`) and exact cost
  */
 export class GrokVideoAdapter<
@@ -183,75 +191,165 @@ export class GrokVideoAdapter<
 
     validateVideoSize(model, size)
 
+    // `mode` is a routing hint for this adapter, not an API field — strip it
+    // before the remaining options are spread onto the request body.
+    const { mode, ...wireOptions } = modelOptions ?? {}
+
     // Coerce the requested duration into the model's valid range (1–15s,
     // integer) instead of rejecting it — `snapDuration` clamps and rounds.
     // modelOptions wins over the generic `duration`, mirroring the size
-    // precedence below.
-    const rawDuration = modelOptions?.duration ?? options.duration
+    // precedence below. In extend mode the same range applies to the added
+    // tail.
+    const rawDuration = wireOptions.duration ?? options.duration
     const duration =
       rawDuration !== undefined ? this.snapDuration(rawDuration) : undefined
 
     // The interleaved prompt decomposes into verbatim text plus typed media
-    // buckets. The Imagine video endpoint takes a text prompt and an optional
-    // starting frame; reject the modalities it can't consume.
+    // buckets. Reference audio is voice-id based (not an audio file), so
+    // audio prompt parts have no request field to land in.
     const resolved = resolveMediaPrompt(options.prompt)
-    if (resolved.videos.length > 0) {
-      throw new Error(
-        `${this.name}.createVideoJob does not support video prompt parts (model: ${model}).`,
-      )
-    }
     if (resolved.audios.length > 0) {
       throw new Error(
-        `${this.name}.createVideoJob does not support audio prompt parts (model: ${model}).`,
+        `${this.name}.createVideoJob does not support audio prompt parts (model: ${model}). ` +
+          `To reference a preset voice, pass modelOptions.reference_audios ` +
+          `(e.g. [{ voice_id: 'eve' }]).`,
       )
     }
-    // grok-imagine-video-1.5 is image-to-video only — text-to-video is
-    // rejected by the API, so fail fast with a clear, actionable message
-    // pointing at the model that does support text-to-video.
-    if (resolved.images.length === 0 && isImageToVideoOnlyModel(model)) {
+
+    // A video prompt part is the source clip for edit / extension mode; the
+    // mode must be chosen explicitly because the two endpoints have different
+    // semantics (edit rewrites the clip, extend appends `duration` seconds).
+    if (resolved.videos.length > 1) {
       throw new Error(
-        `${this.name}: ${model} does not support text-to-video — it is image-to-video only. ` +
-          `Include an image prompt part as the starting frame, or use 'grok-imagine-video' for text-to-video.`,
+        `${this.name}: ${model} accepts at most one source video; received ${resolved.videos.length}.`,
       )
     }
-    if (resolved.images.length > 1) {
+    const [sourceVideo] = resolved.videos
+    if (sourceVideo && mode === undefined) {
       throw new Error(
-        `${this.name}: ${model} accepts at most one starting-frame image; received ${resolved.images.length}.`,
+        `${this.name}: a video prompt part needs modelOptions.mode set to ` +
+          `'edit' (rewrite the clip) or 'extend' (append to it).`,
+      )
+    }
+    if (!sourceVideo && mode !== undefined) {
+      throw new Error(
+        `${this.name}: modelOptions.mode '${mode}' requires a video prompt ` +
+          `part carrying the source clip.`,
+      )
+    }
+
+    // Image parts split by role: un-roled / 'start_frame' images become the
+    // starting frame (image-to-video); 'reference' / 'character' images
+    // become reference_images (reference-to-video). The Imagine API has no
+    // mask / control / end-frame inputs.
+    const startFrames: Array<ImagePart<MediaInputMetadata>> = []
+    const referenceImages: Array<{ url: string }> = []
+    for (const part of resolved.images) {
+      const role = part.metadata?.role
+      switch (role) {
+        case 'mask':
+        case 'control':
+        case 'end_frame':
+          throw new Error(
+            `${this.name}: the Imagine video API has no '${role}' image ` +
+              `input on model ${model}. Use an un-roled / 'start_frame' ` +
+              `image as the starting frame, or 'reference' images.`,
+          )
+        case 'reference':
+        case 'character':
+          referenceImages.push({ url: mediaPartToUrl(part) })
+          break
+        case 'start_frame':
+        case undefined:
+          startFrames.push(part)
+          break
+      }
+    }
+    if (startFrames.length > 1) {
+      throw new Error(
+        `${this.name}: ${model} accepts at most one starting-frame image; received ${startFrames.length}. ` +
+          `Use metadata.role: 'reference' for reference-to-video inputs.`,
+      )
+    }
+    if (mode !== undefined && resolved.images.length > 0) {
+      throw new Error(
+        `${this.name}: '${mode}' mode takes only the source video — image ` +
+          `prompt parts are not supported by ${mode === 'edit' ? '/videos/edits' : '/videos/extensions'}.`,
+      )
+    }
+    const referenceAudioCount = wireOptions.reference_audios?.length ?? 0
+    if (referenceAudioCount > GROK_VIDEO_MAX_REFERENCE_AUDIOS) {
+      throw new Error(
+        `${this.name}: ${model} accepts at most ${GROK_VIDEO_MAX_REFERENCE_AUDIOS} reference voices; received ${referenceAudioCount}.`,
+      )
+    }
+    if (
+      mode !== undefined &&
+      (wireOptions.reference_images !== undefined ||
+        wireOptions.reference_audios !== undefined)
+    ) {
+      throw new Error(
+        `${this.name}: reference inputs are only supported by video ` +
+          `generation, not '${mode}' mode.`,
       )
     }
 
     // Image-to-video: the single image prompt part becomes the starting frame
     // and the prompt text describes the desired motion. URL sources are
     // fetched by xAI's servers; data sources are sent as base64 data URIs.
-    const [startFrame] = resolved.images
+    const [startFrame] = startFrames
 
     // The generic `size` option carries an "aspectRatio_resolution" template
     // (e.g. '16:9_720p') and maps to the Imagine API's `aspect_ratio` /
     // `resolution` parameters; explicit modelOptions win over the template.
+    // Edit / extend outputs inherit these from the source clip, so the
+    // template is only mapped for generation requests.
     const parsedSize = size !== undefined ? parseGrokVideoSize(size) : undefined
-    const request = {
-      model,
-      prompt: resolved.text,
-      ...(startFrame && { image: { url: imagePartToUrl(startFrame) } }),
-      ...(parsedSize && {
-        aspect_ratio: parsedSize.aspectRatio,
-        ...(parsedSize.resolution !== undefined && {
-          resolution: parsedSize.resolution,
-        }),
-      }),
-      ...modelOptions,
-      // Spread after modelOptions so the snapped duration is authoritative
-      // (modelOptions.duration is folded into `duration` via snapDuration above).
-      ...(duration !== undefined && { duration }),
-    }
+    const request =
+      mode !== undefined && sourceVideo
+        ? {
+            model,
+            prompt: resolved.text,
+            video: { url: mediaPartToUrl(sourceVideo) },
+            ...wireOptions,
+            // Edit outputs also inherit their length from the source clip;
+            // extend takes the snapped duration as the added-tail length.
+            ...(mode === 'extend' && duration !== undefined && { duration }),
+          }
+        : {
+            model,
+            prompt: resolved.text,
+            ...(startFrame && { image: { url: mediaPartToUrl(startFrame) } }),
+            ...(referenceImages.length > 0 && {
+              reference_images: referenceImages,
+            }),
+            ...(parsedSize && {
+              aspect_ratio: parsedSize.aspectRatio,
+              ...(parsedSize.resolution !== undefined && {
+                resolution: parsedSize.resolution,
+              }),
+            }),
+            ...wireOptions,
+            // Spread after wireOptions so the snapped duration is
+            // authoritative (modelOptions.duration is folded into `duration`
+            // via snapDuration above).
+            ...(duration !== undefined && { duration }),
+          }
+
+    const endpoint =
+      mode === 'edit'
+        ? '/videos/edits'
+        : mode === 'extend'
+          ? '/videos/extensions'
+          : '/videos/generations'
 
     try {
       logger.request(
-        `activity=video.create provider=${this.name} model=${model} size=${size ?? 'default'} duration=${duration ?? 'default'}`,
+        `activity=video.create provider=${this.name} model=${model} mode=${mode ?? 'generate'} size=${size ?? 'default'} duration=${duration ?? 'default'}`,
         { provider: this.name, model },
       )
 
-      const response = await this.request('/videos/generations', {
+      const response = await this.request(endpoint, {
         method: 'POST',
         body: JSON.stringify(request),
       })
@@ -401,8 +499,7 @@ export class GrokVideoAdapter<
  *
  * @example
  * ```typescript
- * // grok-imagine-video (v1.0) supports text-to-video.
- * const adapter = createGrokVideo('grok-imagine-video', 'xai-...');
+ * const adapter = createGrokVideo('grok-imagine-video-1.5', 'xai-...');
  *
  * const { jobId } = await generateVideo({
  *   adapter,
@@ -440,7 +537,7 @@ export function createGrokVideo<TModel extends GrokVideoModel>(
  * // Automatically uses XAI_API_KEY from environment
  * const adapter = grokVideo('grok-imagine-video-1.5');
  *
- * // Image-to-video only: the prompt must carry a starting-frame image part.
+ * // Image-to-video: an optional image prompt part is the starting frame.
  * const { jobId } = await generateVideo({
  *   adapter,
  *   prompt: [

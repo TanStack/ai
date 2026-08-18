@@ -89,7 +89,7 @@ export function grokRealtime(
       token: RealtimeToken,
       _clientTools?: ReadonlyArray<AnyClientTool>,
     ): Promise<RealtimeConnection> {
-      const model = token.config.model ?? 'grok-voice-fast-1.0'
+      const model = token.config.model ?? 'grok-voice-think-fast-2.0'
       logger.request(`activity=realtime provider=grok model=${model}`, {
         provider: 'grok',
         model,
@@ -115,7 +115,7 @@ async function createWebRTCConnection(
   token: RealtimeToken,
   logger: InternalLogger,
 ): Promise<RealtimeConnection> {
-  const model = token.config.model ?? 'grok-voice-fast-1.0'
+  const model = token.config.model ?? 'grok-voice-think-fast-2.0'
   const eventHandlers = new Map<RealtimeEvent, Set<RealtimeEventHandler<any>>>()
 
   const pc = new RTCPeerConnection()

@@ -28,6 +28,8 @@ export {
 } from './adapters/image'
 export type {
   GrokImageProviderOptions,
+  GrokImagineImageProviderOptions,
+  GrokImagineImage2ProviderOptions,
   GrokImageModelProviderOptionsByName,
 } from './image/image-provider-options'
 
@@ -43,6 +45,7 @@ export {
   getGrokVideoDurationOptions,
 } from './video/video-provider-options'
 export type {
+  GrokVideoMode,
   GrokVideoProviderOptions,
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,

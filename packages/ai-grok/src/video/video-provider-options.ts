@@ -162,13 +162,34 @@ export function getGrokVideoDurationOptions<TModel extends GrokVideoModel>(
 }
 
 /**
- * Provider-specific options for grok video generation. These map directly
+ * Request mode for a source-video job. `'edit'` posts to `/v1/videos/edits`
+ * (modify the source clip in place — duration / aspect ratio / resolution
+ * are inherited from the input, capped at 720p); `'extend'` posts to
+ * `/v1/videos/extensions` (continue the source clip — `duration` is the
+ * length of the **added tail**, not the total). Both require exactly one
+ * video prompt part carrying the source clip.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type GrokVideoMode = 'edit' | 'extend'
+
+/**
+ * Provider-specific options for grok video generation. Apart from `mode`
+ * (a routing hint stripped before the request is sent), these map directly
  * onto the Imagine API request body and take precedence over the generic
  * `size` / `duration` options when both are provided.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface GrokVideoProviderOptions {
+  /**
+   * Selects the request mode for a source-video prompt part: `'edit'`
+   * (`/v1/videos/edits`) or `'extend'` (`/v1/videos/extensions`). Required
+   * when the prompt carries a video part; not valid without one. Omit for
+   * plain generation (`/v1/videos/generations`).
+   */
+  mode?: GrokVideoMode
+
   /**
    * Output aspect ratio.
    */
@@ -180,10 +201,34 @@ export interface GrokVideoProviderOptions {
   resolution?: GrokVideoResolution
 
   /**
-   * Video duration in integer seconds (1–15).
+   * Video duration in integer seconds (1–15). In `'extend'` mode this is
+   * the length of the added tail only, not the total output length.
    */
   duration?: number
+
+  /**
+   * Reference images for reference-to-video generation
+   * (grok-imagine-video-1.5, output capped at 720p). Usually populated from
+   * image prompt parts with `metadata.role: 'reference'`; set explicitly to
+   * override. Reference images are addressed from the prompt text as
+   * `<IMAGE_0>`, `<IMAGE_1>`, … in request order, and do not lock the first
+   * frame.
+   */
+  reference_images?: Array<{ url: string }>
+
+  /**
+   * Preset TTS voices to reference for generated speech
+   * (grok-imagine-video-1.5, max 3). Voice ids come from the xAI TTS voice
+   * roster (e.g. 'eve', 'rex') or a custom voice id, and are addressed from
+   * the prompt text as `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`.
+   */
+  reference_audios?: Array<{ voice_id: string }>
 }
+
+/**
+ * Maximum reference voices accepted by the Imagine video endpoint.
+ */
+export const GROK_VIDEO_MAX_REFERENCE_AUDIOS = 3
 
 /**
  * Type-only map from model name to its specific provider options.
@@ -207,35 +252,15 @@ export type GrokVideoModelSizeByName = {
 
 /**
  * Type-only map from model name to the non-text prompt modalities it accepts.
- * Both models accept an `image` prompt part as the starting frame:
- * `grok-imagine-video` (v1.0) does text-to-video and image-to-video, while
- * `grok-imagine-video-1.5` is image-to-video only (the image is required).
+ * Both models support text-to-video and accept an optional `image` prompt
+ * part as the starting frame; image parts with `metadata.role: 'reference'`
+ * become `reference_images` (grok-imagine-video-1.5). A `video` prompt part
+ * carries the source clip for edit / extension mode
+ * (`modelOptions.mode: 'edit' | 'extend'`).
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoModelInputModalitiesByName = {
-  'grok-imagine-video': readonly ['image']
-  'grok-imagine-video-1.5': readonly ['image']
-}
-
-/**
- * Models that only support image-to-video — a starting-frame image is
- * required and text-to-video is rejected by the Imagine API. Used by the
- * adapter to fail fast with a clear message instead of surfacing the raw
- * "Text-to-video is not supported for this model" 400.
- *
- * @experimental Video generation is an experimental feature and may change.
- */
-const GROK_VIDEO_IMAGE_TO_VIDEO_ONLY: ReadonlySet<string> = new Set([
-  'grok-imagine-video-1.5',
-])
-
-/**
- * True when the model only supports image-to-video (a starting frame is
- * required).
- *
- * @experimental Video generation is an experimental feature and may change.
- */
-export function isImageToVideoOnlyModel(model: string): boolean {
-  return GROK_VIDEO_IMAGE_TO_VIDEO_ONLY.has(model)
+  'grok-imagine-video': readonly ['image', 'video']
+  'grok-imagine-video-1.5': readonly ['image', 'video']
 }

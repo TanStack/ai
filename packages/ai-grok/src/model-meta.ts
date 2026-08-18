@@ -131,17 +131,37 @@ const GROK_IMAGINE_IMAGE_QUALITY = {
   },
 } as const satisfies ModelMeta
 
+// xAI's recommended Imagine image model. Supports the 2.0-only `quality`
+// provider option ('low' | 'medium', default 'medium').
+const GROK_IMAGINE_IMAGE_2_0 = {
+  name: 'grok-imagine-image-2.0',
+  supports: {
+    input: ['text', 'image'],
+    output: ['image'],
+  },
+  pricing: {
+    input: {
+      normal: 0,
+    },
+    output: {
+      normal: 0.04,
+    },
+  },
+} as const satisfies ModelMeta
+
 // Imagine API video models. Pricing is per second of generated video
 // (output only); generated videos carry an audio track.
 //
-// grok-imagine-video (v1.0) supports both text-to-video (a starting image is
-// optional) and image-to-video. grok-imagine-video-1.5 is image-to-video
-// only: a starting-frame image is required (the text prompt describes the
-// desired motion) — its text-to-video is rejected by the API.
+// Both models support text-to-video and image-to-video (a starting-frame
+// image is optional). grok-imagine-video-1.5 is the documented default: it
+// adds native 1080p text-to-video plus reference-to-video inputs
+// (`reference_images` / `reference_audios`, capped at 720p). Both models
+// also drive video editing (`/v1/videos/edits`) and extension
+// (`/v1/videos/extensions`) via a source video prompt part.
 const GROK_IMAGINE_VIDEO = {
   name: 'grok-imagine-video',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'video'],
     output: ['video', 'audio'],
   },
   pricing: {
@@ -158,7 +178,7 @@ const GROK_IMAGINE_VIDEO = {
 const GROK_IMAGINE_VIDEO_1_5 = {
   name: 'grok-imagine-video-1.5',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'video'],
     output: ['video', 'audio'],
   },
   pricing: {
@@ -228,6 +248,7 @@ export const GROK_CHAT_MODELS = [
 export const GROK_IMAGE_MODELS = [
   GROK_2_IMAGE.name,
   GROK_IMAGINE_IMAGE.name,
+  GROK_IMAGINE_IMAGE_2_0.name,
   GROK_IMAGINE_IMAGE_QUALITY.name,
 ] as const
 
@@ -273,8 +294,32 @@ const GROK_VOICE_FAST_1 = {
   },
 } as const satisfies ModelMeta
 
+/** @deprecated xAI has deprecated grok-voice-think-fast-1.0 — use grok-voice-think-fast-2.0. */
 const GROK_VOICE_THINK_FAST_1 = {
   name: 'grok-voice-think-fast-1.0',
+  supports: {
+    input: ['audio', 'text'],
+    output: ['audio', 'text'],
+    capabilities: ['reasoning', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+// xAI's current recommended speech-to-speech model.
+const GROK_VOICE_THINK_FAST_2 = {
+  name: 'grok-voice-think-fast-2.0',
+  supports: {
+    input: ['audio', 'text'],
+    output: ['audio', 'text'],
+    capabilities: ['reasoning', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+// Rolling alias used by xAI's realtime docs examples; always points at the
+// latest speech-to-speech model.
+const GROK_VOICE_LATEST = {
+  name: 'grok-voice-latest',
   supports: {
     input: ['audio', 'text'],
     output: ['audio', 'text'],
@@ -288,6 +333,8 @@ export const GROK_TTS_MODELS = [GROK_TTS.name] as const
 export const GROK_TRANSCRIPTION_MODELS = [GROK_STT.name] as const
 
 export const GROK_REALTIME_MODELS = [
+  GROK_VOICE_THINK_FAST_2.name,
+  GROK_VOICE_LATEST.name,
   GROK_VOICE_FAST_1.name,
   GROK_VOICE_THINK_FAST_1.name,
 ] as const
