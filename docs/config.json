@@ -94,12 +94,13 @@
           "label": "Tool Architecture",
           "to": "tools/tool-architecture",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-17"
         },
         {
           "label": "Server Tools",
           "to": "tools/server-tools",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-17"
         },
         {
           "label": "Client Tools",
