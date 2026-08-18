@@ -28,6 +28,9 @@ export {
 } from './adapters/image'
 export type {
   GeminiImageProviderOptions,
+  GeminiNativeImageConfig,
+  GeminiNativeImageProviderOptions,
+  GeminiAnyImageProviderOptions,
   GeminiImageModelProviderOptionsByName,
   GeminiAspectRatio,
   // Per-model size narrowing. `GeminiImageModelSizeByName` is the map
@@ -46,7 +49,16 @@ export type {
   PersonGeneration,
   SafetyFilterLevel,
   ImagePromptLanguage,
+  SafetySetting,
+  ThinkingConfig,
+  ImageConfig,
+  ContentUnion,
 } from './image/image-provider-options'
+// `SafetySetting` is built from two SDK enums, and enums are values — they
+// cannot travel through `export type`. Re-exported here so `safetySettings`
+// is usable with only `@tanstack/ai-gemini` installed, without the consumer
+// having to add `@google/genai` to their own dependencies.
+export { HarmBlockThreshold, HarmCategory } from '@google/genai'
 
 // Embedding adapter - for embedding vectors
 export {
@@ -116,6 +128,10 @@ export {
 } from './model-meta'
 export { GEMINI_MODELS as GeminiTextModels } from './model-meta'
 export { GEMINI_IMAGE_MODELS as GeminiImageModels } from './model-meta'
+export {
+  GEMINI_NATIVE_IMAGE_MODELS,
+  isGeminiNativeImageModel,
+} from './image/image-provider-options'
 export { GEMINI_TTS_MODELS as GeminiTTSModels } from './model-meta'
 export { GEMINI_TTS_VOICES as GeminiTTSVoices } from './model-meta'
 export { GEMINI_AUDIO_MODELS as GeminiAudioModels } from './model-meta'

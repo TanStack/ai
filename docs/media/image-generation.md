@@ -642,7 +642,7 @@ const result = await generateImage({
 
 #### Gemini Native Model Options (NanoBanana)
 
-Gemini native image models accept `GenerateContentConfig` options directly in `modelOptions`:
+Gemini native image models are served by `generateContent`, so their `modelOptions` are `GenerateContentConfig` fields — a different shape from the Imagen options above:
 
 ```typescript
 import { generateImage } from "@tanstack/ai";
@@ -652,8 +652,44 @@ const result = await generateImage({
   adapter: geminiImage("gemini-3.1-flash-image"),
   prompt: "A beautiful garden",
   size: "16:9_4K",
+  modelOptions: {
+    seed: 42,
+    thinkingConfig: { thinkingBudget: 512 },
+    systemInstruction: "Always render in watercolor.",
+    // Merged over the imageConfig derived from `size`, per field. This keeps
+    // the 16:9 aspect ratio and overrides only the resolution tier.
+    // imageConfig accepts only aspectRatio and imageSize on the Gemini
+    // Developer API.
+    imageConfig: { imageSize: "2K" },
+  },
 });
 ```
+
+`safetySettings` takes the SDK's `HarmCategory` / `HarmBlockThreshold` enums, so plain strings won't type-check. Both are re-exported from `@tanstack/ai-gemini` — you don't need `@google/genai` in your own dependencies:
+
+```typescript
+import { generateImage } from "@tanstack/ai";
+import {
+  HarmBlockThreshold,
+  HarmCategory,
+  geminiImage,
+} from "@tanstack/ai-gemini";
+
+const result = await generateImage({
+  adapter: geminiImage("gemini-3.1-flash-image-preview"),
+  prompt: "A beautiful garden",
+  modelOptions: {
+    safetySettings: [
+      {
+        category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+        threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+      },
+    ],
+  },
+});
+```
+
+`responseModalities` is not accepted — the adapter always requests `['TEXT', 'IMAGE']`, so nothing can silently disable image output.
 
 ### Response Format
 
