@@ -16,6 +16,7 @@ import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
 import { Route as SandboxesDurableRouteImport } from './routes/sandboxes-durable'
 import { Route as SandboxesRouteImport } from './routes/sandboxes'
 import { Route as ResumableRouteImport } from './routes/resumable'
+import { Route as RepoReportRouteImport } from './routes/repo-report'
 import { Route as RealtimeRouteImport } from './routes/realtime'
 import { Route as QueueingRouteImport } from './routes/queueing'
 import { Route as PersistentChatRouteImport } from './routes/persistent-chat'
@@ -45,6 +46,7 @@ import { Route as ApiStructuredOutputRouteImport } from './routes/api.structured
 import { Route as ApiStructuredChatRouteImport } from './routes/api.structured-chat'
 import { Route as ApiSandboxTriageDurableRouteImport } from './routes/api.sandbox-triage-durable'
 import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triage'
+import { Route as ApiSandboxRepoReportRouteImport } from './routes/api.sandbox-repo-report'
 import { Route as ApiResumableRouteImport } from './routes/api.resumable'
 import { Route as ApiPersistentChatRouteImport } from './routes/api.persistent-chat'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
@@ -101,6 +103,11 @@ const SandboxesRoute = SandboxesRouteImport.update({
 const ResumableRoute = ResumableRouteImport.update({
   id: '/resumable',
   path: '/resumable',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RepoReportRoute = RepoReportRouteImport.update({
+  id: '/repo-report',
+  path: '/repo-report',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RealtimeRoute = RealtimeRouteImport.update({
@@ -252,6 +259,11 @@ const ApiSandboxTriageRoute = ApiSandboxTriageRouteImport.update({
   path: '/api/sandbox-triage',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiSandboxRepoReportRoute = ApiSandboxRepoReportRouteImport.update({
+  id: '/api/sandbox-repo-report',
+  path: '/api/sandbox-repo-report',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiResumableRoute = ApiResumableRouteImport.update({
   id: '/api/resumable',
   path: '/api/resumable',
@@ -377,6 +389,7 @@ export interface FileRoutesByFullPath {
   '/persistent-chat': typeof PersistentChatRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
+  '/repo-report': typeof RepoReportRoute
   '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/sandboxes-durable': typeof SandboxesDurableRoute
@@ -399,6 +412,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
+  '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/sandbox-triage-durable': typeof ApiSandboxTriageDurableRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -437,6 +451,7 @@ export interface FileRoutesByTo {
   '/persistent-chat': typeof PersistentChatRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
+  '/repo-report': typeof RepoReportRoute
   '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/sandboxes-durable': typeof SandboxesDurableRoute
@@ -459,6 +474,7 @@ export interface FileRoutesByTo {
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
+  '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/sandbox-triage-durable': typeof ApiSandboxTriageDurableRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -498,6 +514,7 @@ export interface FileRoutesById {
   '/persistent-chat': typeof PersistentChatRoute
   '/queueing': typeof QueueingRoute
   '/realtime': typeof RealtimeRoute
+  '/repo-report': typeof RepoReportRoute
   '/resumable': typeof ResumableRoute
   '/sandboxes': typeof SandboxesRoute
   '/sandboxes-durable': typeof SandboxesDurableRoute
@@ -520,6 +537,7 @@ export interface FileRoutesById {
   '/api/mcp-status': typeof ApiMcpStatusRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
+  '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
   '/api/sandbox-triage': typeof ApiSandboxTriageRoute
   '/api/sandbox-triage-durable': typeof ApiSandboxTriageDurableRoute
   '/api/structured-chat': typeof ApiStructuredChatRoute
@@ -560,6 +578,7 @@ export interface FileRouteTypes {
     | '/persistent-chat'
     | '/queueing'
     | '/realtime'
+    | '/repo-report'
     | '/resumable'
     | '/sandboxes'
     | '/sandboxes-durable'
@@ -582,6 +601,7 @@ export interface FileRouteTypes {
     | '/api/mcp-status'
     | '/api/persistent-chat'
     | '/api/resumable'
+    | '/api/sandbox-repo-report'
     | '/api/sandbox-triage'
     | '/api/sandbox-triage-durable'
     | '/api/structured-chat'
@@ -620,6 +640,7 @@ export interface FileRouteTypes {
     | '/persistent-chat'
     | '/queueing'
     | '/realtime'
+    | '/repo-report'
     | '/resumable'
     | '/sandboxes'
     | '/sandboxes-durable'
@@ -642,6 +663,7 @@ export interface FileRouteTypes {
     | '/api/mcp-status'
     | '/api/persistent-chat'
     | '/api/resumable'
+    | '/api/sandbox-repo-report'
     | '/api/sandbox-triage'
     | '/api/sandbox-triage-durable'
     | '/api/structured-chat'
@@ -680,6 +702,7 @@ export interface FileRouteTypes {
     | '/persistent-chat'
     | '/queueing'
     | '/realtime'
+    | '/repo-report'
     | '/resumable'
     | '/sandboxes'
     | '/sandboxes-durable'
@@ -702,6 +725,7 @@ export interface FileRouteTypes {
     | '/api/mcp-status'
     | '/api/persistent-chat'
     | '/api/resumable'
+    | '/api/sandbox-repo-report'
     | '/api/sandbox-triage'
     | '/api/sandbox-triage-durable'
     | '/api/structured-chat'
@@ -741,6 +765,7 @@ export interface RootRouteChildren {
   PersistentChatRoute: typeof PersistentChatRoute
   QueueingRoute: typeof QueueingRoute
   RealtimeRoute: typeof RealtimeRoute
+  RepoReportRoute: typeof RepoReportRoute
   ResumableRoute: typeof ResumableRoute
   SandboxesRoute: typeof SandboxesRoute
   SandboxesDurableRoute: typeof SandboxesDurableRoute
@@ -763,6 +788,7 @@ export interface RootRouteChildren {
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
   ApiPersistentChatRoute: typeof ApiPersistentChatRoute
   ApiResumableRoute: typeof ApiResumableRoute
+  ApiSandboxRepoReportRoute: typeof ApiSandboxRepoReportRoute
   ApiSandboxTriageRoute: typeof ApiSandboxTriageRoute
   ApiSandboxTriageDurableRoute: typeof ApiSandboxTriageDurableRoute
   ApiStructuredChatRoute: typeof ApiStructuredChatRoute
@@ -837,6 +863,13 @@ declare module '@tanstack/react-router' {
       path: '/resumable'
       fullPath: '/resumable'
       preLoaderRoute: typeof ResumableRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/repo-report': {
+      id: '/repo-report'
+      path: '/repo-report'
+      fullPath: '/repo-report'
+      preLoaderRoute: typeof RepoReportRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/realtime': {
@@ -1042,6 +1075,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSandboxTriageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/sandbox-repo-report': {
+      id: '/api/sandbox-repo-report'
+      path: '/api/sandbox-repo-report'
+      fullPath: '/api/sandbox-repo-report'
+      preLoaderRoute: typeof ApiSandboxRepoReportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/resumable': {
       id: '/api/resumable'
       path: '/api/resumable'
@@ -1223,6 +1263,7 @@ const rootRouteChildren: RootRouteChildren = {
   PersistentChatRoute: PersistentChatRoute,
   QueueingRoute: QueueingRoute,
   RealtimeRoute: RealtimeRoute,
+  RepoReportRoute: RepoReportRoute,
   ResumableRoute: ResumableRoute,
   SandboxesRoute: SandboxesRoute,
   SandboxesDurableRoute: SandboxesDurableRoute,
@@ -1245,6 +1286,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpStatusRoute: ApiMcpStatusRoute,
   ApiPersistentChatRoute: ApiPersistentChatRoute,
   ApiResumableRoute: ApiResumableRoute,
+  ApiSandboxRepoReportRoute: ApiSandboxRepoReportRoute,
   ApiSandboxTriageRoute: ApiSandboxTriageRoute,
   ApiSandboxTriageDurableRoute: ApiSandboxTriageDurableRoute,
   ApiStructuredChatRoute: ApiStructuredChatRoute,

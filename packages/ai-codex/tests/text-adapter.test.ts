@@ -201,4 +201,56 @@ describe('codex in-sandbox adapter', () => {
     const err = chunks.find((c) => c.type === 'RUN_ERROR')
     expect((err as { message?: string }).message).toMatch(/requires a sandbox/i)
   })
+
+  it('passes --output-schema and emits structured-output.complete', async () => {
+    const fake = [
+      `import { writeFileSync } from 'node:fs'`,
+      `writeFileSync('codex-argv.txt', process.argv.join(' '))`,
+      `let input = ''`,
+      `process.stdin.on('data', (d) => { input += d })`,
+      `process.stdin.on('end', () => {`,
+      `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+      `  w({ type: 'thread.started', thread_id: 'th-so' })`,
+      `  w({ type: 'turn.started' })`,
+      `  w({ type: 'item.completed', item: { id: 'i1', type: 'agent_message', text: '{"ok":true}' } })`,
+      `  w({ type: 'turn.completed', usage: { input_tokens: 1, output_tokens: 1 } })`,
+      `})`,
+    ].join('\n')
+
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', fake)
+
+    const adapter = codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+    })
+
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'summarize' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+        outputSchema: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' } },
+          required: ['ok'],
+        },
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/codex-argv.txt')
+    expect(argv).toContain('--output-schema')
+
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({ object: { ok: true } }),
+      )
+    }
+
+    await sbx.destroy()
+  })
 })

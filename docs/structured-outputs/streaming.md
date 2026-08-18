@@ -93,7 +93,7 @@ What the hook does for you:
 - **`partial`** is `DeepPartial<z.infer<typeof PersonSchema>>` — every property optional, every nested array element optional. Updated from `TEXT_MESSAGE_CONTENT` deltas via the runtime's partial-JSON parser. The hook derives it from the latest assistant message's `structured-output` part (see [Multi-Turn Chat](./multi-turn) for why that distinction matters), so it reads `{}` between `sendMessage()` and the first chunk without any extra reset state.
 - **`final`** is `z.infer<typeof PersonSchema> | null` — the validated terminal payload from the `structured-output.complete` event. `null` until the run completes successfully.
 - **`outputSchema`** is used purely for client-side TypeScript inference. Validation still runs on the server against the schema you pass to `chat({ outputSchema })` on the server route — the client doesn't re-validate.
-- The same shape works for **non-streaming adapters too**. If an adapter (Anthropic, Gemini, Ollama) returns a single `structured-output.complete` event with no incremental deltas, `partial` stays `{}` and `final` populates when the event arrives. Same consumer code.
+- The same shape works for **non-streaming adapters too**. If an adapter (Anthropic, Gemini, Ollama) returns a single `structured-output.complete` event with no incremental deltas, `partial` stays `{}` and `final` populates when the event arrives. Same consumer code. Claude Code and Codex emit `structured-output.complete` from the harness event. OpenCode, Grok Build, and `acpCompatible` parse the last assistant text at the end. In both cases `partial` stays empty until `final` is set. See [Harness Agents](./harnesses).
 
 `outputSchema` is optional: omit it and `useChat` returns its standard shape without `partial` / `final`.
 
@@ -109,25 +109,44 @@ What the hook does for you:
 | `TEXT_MESSAGE_CONTENT` (with `outputSchema` set) | `StructuredOutputPart` on the assistant message — the JSON deltas accumulate into `part.raw` and the progressive parse populates `part.partial` |
 | `TEXT_MESSAGE_CONTENT` (no `outputSchema`) | `TextPart` on the assistant message |
 
-So render reasoning and tool calls the same way you'd render them in a normal chat UI:
+So render reasoning, tool calls, and the typed object from `messages[].parts`. `final` and `partial` are shortcuts for the latest `structured-output` part only.
 
 ```tsx ignore
-const last = messages.at(-1);
-
 return (
   <>
-    {last?.parts.map((part, i) => {
-      if (part.type === "thinking") return <ReasoningView key={i} text={part.content} />;
-      if (part.type === "tool-call") return <ToolCallView key={i} part={part} />;
-      // The structured-output part is rendered separately via the
-      // `partial` / `final` sugar below — no need to walk it here.
-      return null;
-    })}
-
-    <StructuredView data={final ?? partial} />
+    {messages.map((message) => (
+      <div key={message.id}>
+        {message.parts.map((part, i) => {
+          if (part.type === "thinking") {
+            return <ReasoningView key={i} text={part.content} />;
+          }
+          if (part.type === "tool-call") {
+            return <ToolCallView key={i} part={part} />;
+          }
+          if (part.type === "text") {
+            return <p key={i}>{part.content}</p>;
+          }
+          if (part.type === "structured-output") {
+            return (
+              <StructuredView key={i} data={part.data ?? part.partial} />
+            );
+          }
+          return null;
+        })}
+      </div>
+    ))}
   </>
 );
 ```
+
+The `structured-output` part fields:
+
+- `data`: the validated object after `structured-output.complete`
+- `partial`: a progressive parse of `raw` while JSON streams
+- `raw`: the source JSON string
+- `status`: `streaming`, `complete`, or `error`
+
+`final` equals `data` on the latest assistant turn. Walk `parts` when you need history, tool calls, or reasoning.
 
 > **Migration note:** Earlier versions of TanStack AI routed structured JSON deltas through a `TextPart` and required you to filter that part out of your renderer. That hack is gone — `TEXT_MESSAGE_CONTENT` on a structured-output run now routes into a dedicated `StructuredOutputPart` (with `raw`, `partial`, `data`, `status`, optional `errorMessage`). If your render loop still has an explicit `if (part.type === "text") return null;` line specifically for hiding structured JSON, you can remove it.
 

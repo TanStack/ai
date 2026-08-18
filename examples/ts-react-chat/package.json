@@ -19,6 +19,7 @@
     "@ngrok/ngrok": "^1.7.0",
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
+    "@tanstack/ai-acp": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-bedrock": "workspace:*",
     "@tanstack/ai-byteplus": "workspace:*",
