@@ -71,7 +71,7 @@ export async function repoReportPost(request: Request): Promise<Response> {
   if (!isReportAgent(data.agent)) {
     return json(400, 'Unknown agent.')
   }
-  const authMode = isReportAuthMode(data.authMode) ? data.authMode : 'host'
+  const authMode = isReportAuthMode(data.authMode) ? data.authMode : 'api-key'
 
   const threadId =
     typeof data.threadId === 'string' && data.threadId !== ''

@@ -98,8 +98,9 @@ export interface ClaudeCodeTextConfig {
   /** Extra environment variables for the claude process inside the sandbox. */
   env?: Record<string, string>
   /**
-   * `'host'` uses `claude login` and does not inject `ANTHROPIC_API_KEY`.
-   * `'api-key'` injects the key. Not inferred from the sandbox.
+   * `'api-key'` (default) injects `ANTHROPIC_API_KEY`.
+   * `'host'` uses `claude login` and does not inject the key.
+   * Not inferred from the sandbox.
    */
   authMode?: 'host' | 'api-key'
   /** Emit a `file.changed` CUSTOM event with the git diff after the run (default true). */
@@ -529,7 +530,9 @@ export class ClaudeCodeTextAdapter<
       )
 
       const authMode =
-        options.modelOptions?.authMode ?? this.adapterConfig.authMode
+        options.modelOptions?.authMode ??
+        this.adapterConfig.authMode ??
+        'api-key'
       const injectApiKey = authMode === 'api-key'
 
       const journalOptions = journalOptionsFor(durability, runId)
@@ -547,10 +550,7 @@ export class ClaudeCodeTextAdapter<
                 IS_SANDBOX: '1',
                 CLAUDE_CODE_SANDBOXED: '1',
               }),
-          ...(injectApiKey ||
-          (authMode === undefined && sandbox.provider !== 'local-process')
-            ? hostClaudeAuthEnv()
-            : {}),
+          ...(injectApiKey ? hostClaudeAuthEnv() : {}),
           ...localProcessHomeEnv(sandbox.provider),
           ...this.adapterConfig.env,
         },

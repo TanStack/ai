@@ -90,8 +90,8 @@ export interface CodexTextConfig {
   /** Path/name of the codex executable inside the sandbox. Defaults to `codex`. */
   codexExecutable?: string
   /**
-   * `'host'` uses `codex login`. `'api-key'` expects `CODEX_API_KEY` in the
-   * process or sandbox secrets. Not inferred from the sandbox.
+   * `'api-key'` (default) expects `CODEX_API_KEY` in the process or sandbox
+   * secrets. `'host'` uses `codex login`. Not inferred from the sandbox.
    */
   authMode?: CodexAuthMode
   /** Extra environment variables for the codex process inside the sandbox. */

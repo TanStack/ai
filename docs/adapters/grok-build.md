@@ -39,17 +39,17 @@ You also need a sandbox provider (e.g. `@tanstack/ai-sandbox-docker`) and the
 ## Authentication
 
 Your laptop can already have `grok login`. A CI runner only has `XAI_API_KEY`.
-Both can use the same sandbox provider. Set `authMode` so the adapter knows
-which credentials to use. See [Harness Auth](../sandbox/auth).
+Both can use the same sandbox provider. The default `authMode` is `'api-key'`.
+Set `'host'` when you want `grok login`. See [Harness Auth](../sandbox/auth).
 
 ```ts
+grokBuildText("composer-2.5")
 grokBuildText("composer-2.5", { authMode: "host" })
-grokBuildText("composer-2.5", { authMode: "api-key" })
 ```
 
+- `'api-key'` (default): inject `XAI_API_KEY` and authenticate with it.
 - `'host'`: skip ACP `authenticate`. Use `grok login`. Do not inject
   `XAI_API_KEY` into that process.
-- `'api-key'`: inject `XAI_API_KEY` and authenticate with it.
 
 The two modes list the model under slightly different ids. The adapter maps
 the short alias for you (see [Models](#models)).
@@ -81,7 +81,7 @@ const sandbox = defineSandbox({
 
 const stream = chat({
   threadId,
-  adapter: grokBuildText('composer-2.5', { authMode: 'api-key' }),
+  adapter: grokBuildText('composer-2.5'),
   messages,
   middleware: [withSandbox(sandbox)],
 })
@@ -113,7 +113,7 @@ Adapter config (second argument to `grokBuildText`):
 | `env`            | Extra environment variables for the `grok` process inside the sandbox.      |
 | `emitDiff`       | Emit a `file.changed` CUSTOM event with the working-tree `git diff` after the run. Defaults to `true`. |
 | `protocol`       | Harness wire protocol: `'acp'` or `'streaming-json'`. Defaults to `'acp'`. A durable sandbox run with no protocol set uses `'streaming-json'` so the run can journal. |
-| `authMode`       | `'host'` uses `grok login`. `'api-key'` uses `XAI_API_KEY`. See [Harness Auth](../sandbox/auth). |
+| `authMode`       | `'api-key'` (default) uses `XAI_API_KEY`. `'host'` uses `grok login`. See [Harness Auth](../sandbox/auth). |
 | `authMethodId`   | Explicit ACP auth method. Wins over `authMode`.                             |
 | `extraArgs`      | Extra raw CLI flags appended verbatim (advanced).                           |
 
@@ -125,7 +125,7 @@ Per-call overrides go through `modelOptions`:
 | `cwd`           | Per-call override of the harness working directory.          |
 | `maxTurns`      | Per-call cap on the number of harness turns.                 |
 | `protocol`      | Per-call override of the harness wire protocol.              |
-| `authMode`      | Per-call `'host'` or `'api-key'`.                            |
+| `authMode`      | Per-call `'host'` or `'api-key'`. Default `'api-key'`.       |
 | `authMethodId`  | Per-call ACP auth method. Wins over `authMode`.              |
 
 ## Stateful Sessions

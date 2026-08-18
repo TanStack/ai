@@ -21,7 +21,8 @@ export interface CodexTextProviderOptions {
   /** Per-call override of the git-repo safety check (defaults to skipping). */
   skipGitRepoCheck?: boolean
   /**
-   * `'host'` uses `codex login`. `'api-key'` expects `CODEX_API_KEY`.
+   * `'api-key'` (default) expects `CODEX_API_KEY`.
+   * `'host'` uses `codex login`.
    * Not inferred from the sandbox.
    */
   authMode?: 'host' | 'api-key'

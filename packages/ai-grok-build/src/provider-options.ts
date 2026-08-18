@@ -31,8 +31,8 @@ export interface GrokBuildTextProviderOptions {
   /** ACP transport when `protocol` is `'acp'`. Defaults to `'auto'`. */
   transport?: AcpTransportPreference
   /**
+   * `'api-key'` (default) calls authenticate with `xai.api_key`.
    * `'host'` skips ACP authenticate (use `grok login`).
-   * `'api-key'` calls authenticate with `xai.api_key`.
    * Not inferred from the sandbox.
    */
   authMode?: GrokBuildAuthMode

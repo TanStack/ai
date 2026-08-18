@@ -70,9 +70,10 @@ const dev = localProcessSandbox()
 
 ### Host login vs API key (`scrubEnv`)
 
-The provider is where the agent runs, not how it signs in. Set `authMode` on
-the harness adapter. A local-process run can be your laptop or a GitHub runner.
-See [Harness Auth](./auth).
+The provider is where the agent runs, not how it signs in. The default
+`authMode` is `'api-key'`. Set `'host'` when the machine already has a CLI
+login. A local-process run can be your laptop or a GitHub runner. See
+[Harness Auth](./auth).
 
 `localProcessSandbox` inherits the host environment, including any API keys
 exported there. If you set `authMode: 'host'`, pass `scrubEnv` so those keys

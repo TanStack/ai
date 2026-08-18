@@ -18,26 +18,26 @@ It is the harness equivalent of the [OpenAI-Compatible adapter](./openai-compati
 
 ## Authentication
 
-Set `authMode` when the agent can use a host CLI login or an API key. The
-sandbox type does not pick this. See [Harness Auth](../sandbox/auth).
+The default `authMode` is `'api-key'`. Set `'host'` when the agent should use
+a CLI login on the machine. The sandbox type does not pick this. See
+[Harness Auth](../sandbox/auth).
 
 ```ts
 acpCompatibleText("composer-2.5", {
   name: "acp",
   command: ({ model }) => `grok agent -m '${model}' --always-approve stdio`,
-  authMode: "host",
+  authMethodId: "xai.api_key",
 })
 
 acpCompatibleText("composer-2.5", {
   name: "acp",
   command: ({ model }) => `grok agent -m '${model}' --always-approve stdio`,
-  authMode: "api-key",
-  authMethodId: "xai.api_key",
+  authMode: "host",
 })
 ```
 
+- `'api-key'` (default): call `authenticate` with `authMethodId`.
 - `'host'`: skip ACP `authenticate`. Use the CLI login on the machine.
-- `'api-key'`: call `authenticate` with `authMethodId`.
 
 Pass `outputSchema` on the same `chat()` call. `acpCompatible` adds the schema to the prompt and parses the last assistant text. Native harness tools still run on that turn. Read the typed object from `await chat()`, from `useChat().final`, or from the assistant `structured-output` part. See [Harness Agents](../structured-outputs/harnesses).
 
@@ -241,7 +241,7 @@ declare: `sessionId` (resume), `cwd`, `authMode`, `authMethodId`, and
 | `openTransport` | Open any `AcpSessionTransport` yourself (e.g. boot a `serve` process and connect over WebSocket). Overrides `command`. |
 | `cwd` | Working directory inside the sandbox (default `/workspace`). |
 | `env` | Extra environment variables for the harness process. |
-| `authMode` | `'host'` skips ACP `authenticate`. `'api-key'` uses `authMethodId`. See [Harness Auth](../sandbox/auth). |
+| `authMode` | `'api-key'` (default) uses `authMethodId`. `'host'` skips ACP `authenticate`. See [Harness Auth](../sandbox/auth). |
 | `authMethodId` | ACP auth method to select before the session starts. Ignored when `authMode` is `'host'`. |
 | `permissionMode` | `'default'` \| `'acceptEdits'` \| `'bypassPermissions'` (default). |
 | `permissions` | `'headless'` (auto-resolve, default) or `'interactive'` (emit approval-requested events for `ask` prompts). |

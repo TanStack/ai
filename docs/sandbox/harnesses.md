@@ -20,15 +20,15 @@ to `chat({ adapter })` and run it under any provider.
 
 | Harness | Package | Adapter | Auth |
 | --- | --- | --- | --- |
-| [Grok Build](../adapters/grok-build) | `@tanstack/ai-grok-build` | `grokBuildText` | `authMode: 'host'` (`grok login`) or `authMode: 'api-key'` (`XAI_API_KEY`) |
-| [Claude Code](../adapters/claude-code) | `@tanstack/ai-claude-code` | `claudeCodeText` | `authMode: 'host'` (`claude login`) or `authMode: 'api-key'` (`ANTHROPIC_API_KEY`) |
-| [Codex](../adapters/codex) | `@tanstack/ai-codex` | `codexText` | `authMode: 'host'` (`codex login`) or `authMode: 'api-key'` (`CODEX_API_KEY`) |
+| [Grok Build](../adapters/grok-build) | `@tanstack/ai-grok-build` | `grokBuildText` | Default `'api-key'` (`XAI_API_KEY`). `'host'` uses `grok login`. |
+| [Claude Code](../adapters/claude-code) | `@tanstack/ai-claude-code` | `claudeCodeText` | Default `'api-key'` (`ANTHROPIC_API_KEY`). `'host'` uses `claude login`. |
+| [Codex](../adapters/codex) | `@tanstack/ai-codex` | `codexText` | Default `'api-key'` (`CODEX_API_KEY`). `'host'` uses `codex login`. |
 | [OpenCode](../adapters/opencode) | `@tanstack/ai-opencode` | `opencodeText` | `OPENAI_API_KEY` from the process env. No `authMode` flag. |
-| [ACP-Compatible](../adapters/acp-compatible) | `@tanstack/ai-acp` | `acpCompatible` / `acpCompatibleText` | `authMode: 'host'` skips ACP `authenticate`. `'api-key'` uses `authMethodId`. |
+| [ACP-Compatible](../adapters/acp-compatible) | `@tanstack/ai-acp` | `acpCompatible` / `acpCompatibleText` | Default `'api-key'` uses `authMethodId`. `'host'` skips ACP `authenticate`. |
 
-The provider is where the agent runs, not how it signs in. Set `authMode` on
-the adapter. A local-process run can be your laptop (`grok login`) or a GitHub
-runner (an API key). See [Harness Auth](./auth).
+The provider is where the agent runs, not how it signs in. The default
+`authMode` is `'api-key'`. Set `'host'` when the machine already has a CLI
+login. See [Harness Auth](./auth).
 
 ```ts
 import { chat } from '@tanstack/ai'

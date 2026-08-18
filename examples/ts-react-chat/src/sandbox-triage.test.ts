@@ -86,6 +86,14 @@ describe('registries', () => {
     )
   })
 
+  it('missingEnv requires harness keys when authMode is omitted', () => {
+    delete process.env.XAI_API_KEY
+    delete process.env.GROK_API_KEY
+    expect(missingEnv('grok', 'local')).toContain(
+      'XAI_API_KEY (or GROK_API_KEY)',
+    )
+  })
+
   it('missingEnv reports unset required vars', () => {
     delete process.env.ANTHROPIC_API_KEY
     delete process.env.DAYTONA_API_KEY

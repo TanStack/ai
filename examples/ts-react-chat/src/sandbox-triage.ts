@@ -354,12 +354,11 @@ export function missingEnv(
 ): Array<string> {
   const harnessSpec = HARNESSES[harness]
   const hostAuth = authMode === 'host'
-  const harnessMissing =
-    hostAuth || (authMode === undefined && provider === 'local')
-      ? []
-      : harnessSpec.envCheck
-        ? harnessSpec.envCheck()
-        : harnessSpec.requiredEnv.filter((key) => !process.env[key])
+  const harnessMissing = hostAuth
+    ? []
+    : harnessSpec.envCheck
+      ? harnessSpec.envCheck()
+      : harnessSpec.requiredEnv.filter((key) => !process.env[key])
   const spec = PROVIDERS[provider]
   const providerMissing = spec.envCheck
     ? spec.envCheck()
@@ -456,7 +455,7 @@ export function buildSandbox(opts: {
     opts.authMode ??
     (usesSubscription(opts.harness, opts.provider, opts.useSubscription)
       ? 'host'
-      : undefined)
+      : 'api-key')
   const hostAuth = authMode === 'host'
 
   const ports = harness.exposePort !== undefined ? [harness.exposePort] : []

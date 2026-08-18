@@ -9,10 +9,12 @@ runner has no browser login. It only has an API key. Both can use
 `localProcessSandbox()`.
 
 Set `authMode` on the adapter. The sandbox type does not pick the credentials.
+The default is `'api-key'`. Most harnesses run in Docker or a cloud sandbox.
+Those have no host CLI login.
 
+- `'api-key'` (default): inject the key and use it.
 - `'host'`: use the CLI login on the machine. Do not inject an API key into
   that process.
-- `'api-key'`: inject the key and use it. This is the mode for CI.
 
 Pass `authMode` in one of two places:
 
@@ -54,7 +56,8 @@ const stream = chat({
 
 ## API key
 
-Use this on a runner or any machine that has no CLI login.
+This is the default. Use it on a runner, in Docker, or on any machine that
+has no CLI login. You can omit `authMode`.
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -82,7 +85,7 @@ const sandbox = defineSandbox({
 
 const stream = chat({
   threadId,
-  adapter: grokBuildText('composer-2.5', { authMode: 'api-key' }),
+  adapter: grokBuildText('composer-2.5'),
   messages,
   middleware: [withSandbox(sandbox)],
 })
@@ -90,12 +93,12 @@ const stream = chat({
 
 ## Each harness
 
-| Adapter | `authMode: 'host'` | `authMode: 'api-key'` |
+| Adapter | `authMode: 'api-key'` (default) | `authMode: 'host'` |
 | --- | --- | --- |
-| [Grok Build](../adapters/grok-build) | `grok login` | `XAI_API_KEY` |
-| [Claude Code](../adapters/claude-code) | `claude login` | `ANTHROPIC_API_KEY` |
-| [Codex](../adapters/codex) | `codex login` | `CODEX_API_KEY` |
-| [ACP-Compatible](../adapters/acp-compatible) | skip ACP `authenticate` | set `authMethodId` (for Grok, `xai.api_key`) |
+| [Grok Build](../adapters/grok-build) | `XAI_API_KEY` | `grok login` |
+| [Claude Code](../adapters/claude-code) | `ANTHROPIC_API_KEY` | `claude login` |
+| [Codex](../adapters/codex) | `CODEX_API_KEY` | `codex login` |
+| [ACP-Compatible](../adapters/acp-compatible) | set `authMethodId` (for Grok, `xai.api_key`) | skip ACP `authenticate` |
 
 OpenCode still reads `OPENAI_API_KEY` from the process env. It has no `authMode`
 flag.
@@ -113,7 +116,7 @@ import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 function Report() {
   const { sendMessage } = useChat({
     connection: fetchServerSentEvents('/api/sandbox-repo-report'),
-    forwardedProps: { authMode: 'host' },
+    forwardedProps: { authMode: 'api-key' },
   })
 
   return (
@@ -143,9 +146,9 @@ export async function POST(request: Request) {
       ? body.forwardedProps
       : {}
   const authMode =
-    'authMode' in forwarded && forwarded.authMode === 'api-key'
-      ? 'api-key'
-      : 'host'
+    'authMode' in forwarded && forwarded.authMode === 'host'
+      ? 'host'
+      : 'api-key'
 
   const stream = chat({
     adapter: grokBuildText('composer-2.5', { authMode }),

@@ -29,16 +29,16 @@ A runnable demo lives at [`examples/sandbox-cloudflare`](https://github.com/TanS
 ## Authentication
 
 Your laptop can already have `claude login`. A CI runner only has
-`ANTHROPIC_API_KEY`. Set `authMode` so the adapter knows which credentials to
-use. See [Harness Auth](../sandbox/auth).
+`ANTHROPIC_API_KEY`. The default `authMode` is `'api-key'`. Set `'host'`
+when you want `claude login`. See [Harness Auth](../sandbox/auth).
 
 ```ts
+claudeCodeText("claude-opus-4-8")
 claudeCodeText("claude-opus-4-8", { authMode: "host" })
-claudeCodeText("claude-opus-4-8", { authMode: "api-key" })
 ```
 
+- `'api-key'` (default): inject `ANTHROPIC_API_KEY` (or pass `apiKey`).
 - `'host'`: use `claude login`. Do not inject `ANTHROPIC_API_KEY`.
-- `'api-key'`: inject `ANTHROPIC_API_KEY` (or pass `apiKey`).
 
 ## Basic Usage
 
@@ -66,7 +66,7 @@ const stream = chat({
 | `maxTurns`                   | Maximum harness-internal turns per run.                                                                                                            |
 | `systemPromptMode`           | `'append'` (default) keeps Claude Code's preset system prompt and appends your `systemPrompts`; `'replace'` sends yours as the entire prompt.       |
 | `mcpServers`                 | Extra MCP servers passed through to the harness untouched.                                                                                         |
-| `authMode`                   | `'host'` uses `claude login`. `'api-key'` injects `ANTHROPIC_API_KEY`. Also valid on `modelOptions`. See [Harness Auth](../sandbox/auth).            |
+| `authMode`                   | `'api-key'` (default) injects `ANTHROPIC_API_KEY`. `'host'` uses `claude login`. Also valid on `modelOptions`. See [Harness Auth](../sandbox/auth). |
 | `apiKey`                     | Anthropic API key for the harness subprocess.                                                                                                       |
 | `env`                        | Extra environment variables for the harness subprocess.                                                                                            |
 | `pathToClaudeCodeExecutable` | Use a specific Claude Code executable instead of the SDK's bundled one.                                                                             |

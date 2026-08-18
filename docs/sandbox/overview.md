@@ -66,9 +66,9 @@ any one without touching the others.
 hooks) into a reusable definition. `withSandbox(definition)` is the `chat()`
 middleware that turns it on for a run.
 
-The provider is where the agent runs, not how it signs in. Set `authMode` on
-the harness adapter (`'host'` for a CLI login, `'api-key'` for CI). See
-[Harness Auth](./auth).
+The provider is where the agent runs, not how it signs in. The default
+`authMode` is `'api-key'`. Set `'host'` when the machine already has a CLI
+login. See [Harness Auth](./auth).
 
 ### How a run executes
 

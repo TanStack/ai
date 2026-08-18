@@ -140,8 +140,8 @@ export interface AcpCompatibleConfig<
   /** Extra environment variables for the harness process. */
   env?: Record<string, string>
   /**
+   * `'api-key'` (default) uses {@link authMethodId} (or `modelOptions.authMethodId`).
    * `'host'` skips ACP authenticate (use the CLI login on the machine).
-   * `'api-key'` uses {@link authMethodId} (or `modelOptions.authMethodId`).
    * Not inferred from the sandbox.
    */
   authMode?: 'host' | 'api-key'
@@ -198,7 +198,8 @@ export interface AcpCompatibleProviderOptions {
   /** Per-call override of the harness working directory. */
   cwd?: string
   /**
-   * `'host'` skips ACP authenticate. `'api-key'` uses {@link authMethodId}.
+   * `'api-key'` (default) uses {@link authMethodId}.
+   * `'host'` skips ACP authenticate.
    * Not inferred from the sandbox.
    */
   authMode?: 'host' | 'api-key'
@@ -471,7 +472,8 @@ export class AcpCompatibleTextAdapter<
         modelOptions?.permissionMode ??
         this.harness.permissionMode ??
         'bypassPermissions'
-      const authMode = modelOptions?.authMode ?? this.harness.authMode
+      const authMode =
+        modelOptions?.authMode ?? this.harness.authMode ?? 'api-key'
       const authMethodId =
         authMode === 'host'
           ? undefined

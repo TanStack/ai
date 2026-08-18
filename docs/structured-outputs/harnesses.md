@@ -210,7 +210,7 @@ The React chat example includes a repo-report page.
 1. Open [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat).
 2. Open `/repo-report`.
 3. Pick Claude Code, Grok Build, ACP compatible, or Codex.
-4. Pick Auth. Use **Host login** if the machine already ran `claude login`, `grok login`, or `codex login`. Use **API key** if you run on CI and the key is in `.env`.
+4. Pick Auth. The default is **API key**. Use **Host login** if the machine already ran `claude login`, `grok login`, or `codex login`.
 5. Run the report. The page renders tool calls and reasoning from `messages[].parts`. It reads the typed object from the `structured-output` part and from `useChat().final`.
 
 The page clones `TanStack/ai` into a sandbox, asks the agent to inspect it, and shows the validated report.

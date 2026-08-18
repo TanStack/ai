@@ -41,6 +41,12 @@ describe('resolveGrokSessionAuthMethod', () => {
     )
   })
 
+  it('defaults omitted authMode to api-key', () => {
+    expect(resolveGrokSessionAuthMethod(undefined, undefined)).toBe(
+      'xai.api_key',
+    )
+  })
+
   it('lets an explicit authMethodId win', () => {
     expect(resolveGrokSessionAuthMethod('host', 'grok.com')).toBe('grok.com')
   })

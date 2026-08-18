@@ -4,13 +4,16 @@ export type GrokBuildAcpAuthMethod = 'xai.api_key' | 'grok.com'
 /**
  * How the harness should sign in.
  *
+ * - `'api-key'` (default): call `authenticate` with `xai.api_key`.
  * - `'host'`: skip ACP `authenticate`. Use `grok login` on the machine.
- * - `'api-key'`: call `authenticate` with `xai.api_key` (CI, GitHub runner).
  *
  * This is not inferred from the sandbox. A local-process run can be a laptop
  * with a login, or a runner that only has `XAI_API_KEY`.
  */
 export type GrokBuildAuthMode = 'host' | 'api-key'
+
+/** Isolated sandboxes have no host CLI login, so this is the default. */
+const DEFAULT_GROK_AUTH_MODE: GrokBuildAuthMode = 'api-key'
 
 /**
  * Pick the Grok ACP auth method for {@link startAcpSession} when using
@@ -33,7 +36,8 @@ export function resolveGrokSessionAuthMethod(
   env?: Record<string, string | undefined>,
 ): string | undefined {
   if (explicitId !== undefined) return explicitId
-  if (authMode === 'api-key') {
+  const mode = authMode ?? DEFAULT_GROK_AUTH_MODE
+  if (mode === 'api-key') {
     return resolveGrokAcpAuthMethod(env) ?? 'xai.api_key'
   }
   return undefined

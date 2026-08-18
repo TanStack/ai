@@ -21,8 +21,8 @@ export const REPORT_PROVIDERS: Record<ReportProvider, { label: string }> = {
 }
 
 export const REPORT_AUTH_MODES: Record<ReportAuthMode, { label: string }> = {
-  host: { label: 'Host login' },
   'api-key': { label: 'API key' },
+  host: { label: 'Host login' },
 }
 
 export const REPORT_AGENTS: Record<

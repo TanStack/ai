@@ -102,7 +102,7 @@ function RepoReportPage() {
   const [threadId] = useState(() => crypto.randomUUID())
   const [harness, setHarness] = useState<ReportHarness>('claude-code')
   const [provider, setProvider] = useState<ReportProvider>('local')
-  const [authMode, setAuthMode] = useState<ReportAuthMode>('host')
+  const [authMode, setAuthMode] = useState<ReportAuthMode>('api-key')
   const [agent, setAgent] = useState<ReportAgent>('explainer')
 
   const chat = useChat({
