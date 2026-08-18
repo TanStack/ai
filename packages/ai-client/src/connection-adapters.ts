@@ -2026,7 +2026,13 @@ export function webSocket(
     // an unhandled rejection if it errors. Awaiters of openPromise still see the rejection.
     openPromise.catch(() => {})
     ws.onmessage = (event: MessageEvent) => {
-      const parsed: unknown = JSON.parse(String(event.data))
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(String(event.data))
+      } catch (error) {
+        failAll(new StreamReadError(error))
+        return
+      }
       if (
         typeof parsed === 'object' &&
         parsed !== null &&
@@ -2058,7 +2064,13 @@ export function webSocket(
     }
     ws.onclose = () => {
       const session = currentSession
-      if (!session || session.signal?.aborted || session.sawTerminal) return
+      if (!session) {
+        // joinRun() never creates a session. Surface the drop so those
+        // iterators do not stay parked on a dead socket.
+        failAll(new StreamReadError(new Error('WebSocket connection closed')))
+        return
+      }
+      if (session.signal?.aborted || session.sawTerminal) return
       const lastEventId = session.tracker.lastEventId
       if (lastEventId === undefined) {
         // Non-durable run (no offset ever observed) — nothing to resume

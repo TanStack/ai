@@ -232,7 +232,8 @@
         {
           "label": "WebSockets",
           "to": "resumable-streams/websockets",
-          "addedAt": "2026-07-20"
+          "addedAt": "2026-07-20",
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Custom Durability Adapter",

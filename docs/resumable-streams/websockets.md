@@ -55,8 +55,11 @@ import type { WebSocketLike } from '@tanstack/ai'
 // AbortController chat() expects.
 function abortControllerFromSignal(signal: AbortSignal): AbortController {
   const controller = new AbortController()
-  if (signal.aborted) controller.abort()
-  else signal.addEventListener('abort', () => controller.abort(), { once: true })
+  if (signal.aborted) controller.abort(signal.reason)
+  else
+    signal.addEventListener('abort', () => controller.abort(signal.reason), {
+      once: true,
+    })
   return controller
 }
 
@@ -227,6 +230,16 @@ import { handleChatSocket } from './handle-chat-socket'
 
 const WS_PATH = '/api/chat-ws'
 
+function isWebSocketLike(value: unknown): value is WebSocketLike {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('send' in value) || typeof value.send !== 'function') return false
+  if (!('close' in value) || typeof value.close !== 'function') return false
+  if (!('addEventListener' in value) || typeof value.addEventListener !== 'function') {
+    return false
+  }
+  return true
+}
+
 export function webSocketChatPlugin(): Plugin {
   return {
     name: 'websocket-chat-plugin',
@@ -240,12 +253,12 @@ export function webSocketChatPlugin(): Plugin {
 
         wss.handleUpgrade(req, socket, head, (ws) => {
           const request = new Request(url)
-          const socketLike = ws as unknown as WebSocketLike
+          if (!isWebSocketLike(ws)) return
 
           if (url.searchParams.get('offset') !== null) {
-            resumeWebSocketStream(socketLike, { adapter: memoryStream(request) })
+            resumeWebSocketStream(ws, { adapter: memoryStream(request) })
           } else {
-            handleChatSocket(socketLike, request)
+            handleChatSocket(ws, request)
           }
         })
       })

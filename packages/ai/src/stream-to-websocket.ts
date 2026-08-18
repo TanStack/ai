@@ -179,6 +179,10 @@ export function toWebSocketStream<TOffset extends string = string>(
   async function handleInbound(input: unknown): Promise<void> {
     const params = await chatParamsFromRequestBody(input)
     const turnAbort = new AbortController()
+    // A second inbound frame with the same runId (client resubmit) must
+    // abort the earlier turn. Otherwise the old controller is overwritten
+    // and close/abort frames can no longer reach it.
+    activeTurns.get(params.runId)?.abort()
     activeTurns.set(params.runId, turnAbort)
     const ctx: WsRunContext = {
       messages: params.messages,

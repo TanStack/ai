@@ -33,6 +33,19 @@ import type { WebSocketLike } from '@tanstack/ai'
  */
 const WS_PATH = '/api/durable-delivery-ws'
 
+function isWebSocketLike(value: unknown): value is WebSocketLike {
+  if (typeof value !== 'object' || value === null) return false
+  if (!('send' in value) || typeof value.send !== 'function') return false
+  if (!('close' in value) || typeof value.close !== 'function') return false
+  if (
+    !('addEventListener' in value) ||
+    typeof value.addEventListener !== 'function'
+  ) {
+    return false
+  }
+  return true
+}
+
 export function durableDeliveryWebSocketPlugin(): Plugin {
   return {
     name: 'durable-delivery-websocket-plugin',
@@ -50,16 +63,14 @@ export function durableDeliveryWebSocketPlugin(): Plugin {
 
         wss.handleUpgrade(req, socket, head, (ws) => {
           const request = new Request(url)
-          // `ws`'s WebSocket implements the WHATWG send/close/addEventListener/
-          // bufferedAmount surface `WebSocketLike` needs.
-          const socketLike = ws as unknown as WebSocketLike
+          if (!isWebSocketLike(ws)) return
 
           if (url.searchParams.get('offset') !== null) {
-            resumeWebSocketStream(socketLike, {
+            resumeWebSocketStream(ws, {
               adapter: memoryStream(request),
             })
           } else {
-            toWebSocketStream(socketLike, request, {
+            toWebSocketStream(ws, request, {
               durability: (ctx) => memoryStream(ctx.request),
               onRun: ({ runId, threadId }) => fixedRun(threadId, runId),
             })

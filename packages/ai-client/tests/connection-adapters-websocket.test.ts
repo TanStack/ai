@@ -34,6 +34,9 @@ class FakeWebSocket {
       data: JSON.stringify(id === undefined ? chunk : { id, chunk }),
     })
   }
+  emitRaw(data: string): void {
+    this.onmessage?.({ data })
+  }
 }
 
 function drain(
@@ -421,5 +424,63 @@ describe('webSocket() fatal drop surfacing', () => {
     // original send() connection plus 3 reconnects), confirming the ceiling
     // was reached via genuine no-progress reconnects, not a shortcut.
     expect(FakeWebSocket.instances.length).toBe(4)
+  })
+
+  it('a malformed inbound frame rejects subscribe() with StreamReadError', async () => {
+    FakeWebSocket.instances = []
+    const conn = webSocket('wss://x/api/chat', {
+      WebSocketImpl: FakeWebSocket as unknown as typeof WebSocket,
+    })
+    const ac = new AbortController()
+    const iter = conn.subscribe(ac.signal)[Symbol.asyncIterator]()
+
+    await conn.send(
+      [{ role: 'user', content: 'hi' } as any],
+      undefined,
+      ac.signal,
+      { threadId: 't', runId: 'r' },
+    )
+    const ws = FakeWebSocket.instances[0]
+    if (!ws)
+      throw new Error('expected a FakeWebSocket instance to have been created')
+    await tick()
+
+    ws.emitRaw('{')
+
+    const result = await withTimeout(
+      drainToEnd(iter),
+      'subscribe() hung instead of rejecting after a malformed frame',
+    )
+      .then((received) => ({ received, error: undefined as unknown }))
+      .catch((error: unknown) => ({ received: undefined, error }))
+
+    expect(result.error).toBeDefined()
+    expect((result.error as Error).name).toBe('StreamReadError')
+  })
+
+  it('a joinRun-only socket drop rejects the iterator instead of hanging', async () => {
+    FakeWebSocket.instances = []
+    const conn = webSocket('wss://x/api/chat', {
+      WebSocketImpl: FakeWebSocket as unknown as typeof WebSocket,
+    })
+    const ac = new AbortController()
+    const iter = conn.joinRun('run-j', ac.signal)[Symbol.asyncIterator]()
+    await tick()
+
+    const ws = FakeWebSocket.instances[0]
+    if (!ws)
+      throw new Error('expected a FakeWebSocket instance to have been created')
+    ws.close()
+
+    const result = await withTimeout(
+      drainToEnd(iter),
+      'joinRun() hung instead of rejecting after the socket closed',
+    )
+      .then((received) => ({ received, error: undefined as unknown }))
+      .catch((error: unknown) => ({ received: undefined, error }))
+
+    expect(result.error).toBeDefined()
+    expect((result.error as Error).name).toBe('StreamReadError')
+    expect(FakeWebSocket.instances.length).toBe(1)
   })
 })

@@ -233,6 +233,34 @@ describe('toWebSocketStream lifecycle', () => {
     expect(aborted).toBe(true)
   })
 
+  it('aborts an in-flight turn when a second run frame reuses the same runId', async () => {
+    const socket = new FakeSocket()
+    const signals: Array<AbortSignal> = []
+    toWebSocketStream(socket, new Request('https://x/api/chat'), {
+      onRun: ({ runId, threadId, signal }): AsyncIterable<StreamChunk> =>
+        (async function* () {
+          signals.push(signal)
+          yield ev.runStarted(runId, threadId)
+          await new Promise<void>((resolve) => {
+            if (signal.aborted) {
+              resolve()
+              return
+            }
+            signal.addEventListener('abort', () => resolve(), { once: true })
+          })
+        })(),
+    })
+    socket.emitMessage(inputFrame('run-dup'))
+    await flush()
+    socket.emitMessage(inputFrame('run-dup'))
+    await flush()
+
+    expect(signals).toHaveLength(2)
+    expect(signals[0]?.aborted).toBe(true)
+    expect(signals[1]?.aborted).toBe(false)
+    expect(socket.closed).toBe(false)
+  })
+
   it('drops a malformed inbound frame without crashing the socket, and still processes a subsequent valid frame', async () => {
     const socket = new FakeSocket()
     toWebSocketStream(socket, new Request('https://x/api/chat'), {

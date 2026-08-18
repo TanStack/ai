@@ -327,7 +327,29 @@ const connection = webSocket("/api/chat-ws");
 const { messages, sendMessage } = useChat({ connection });
 ```
 
-See [WebSockets](../resumable-streams/websockets) for the server side, the wire protocol, reconnect details, and hosting on Node vs Cloudflare.
+On Cloudflare Workers or Durable Objects, pair that client with `toWebSocketResponse`. Elsewhere, accept the socket yourself and pass it to `toWebSocketStream` (see [WebSockets](../resumable-streams/websockets)):
+
+```typescript
+import { chat, memoryStream, toWebSocketResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export default {
+  fetch(request: Request): Response {
+    return toWebSocketResponse(request, {
+      durability: (ctx) => memoryStream(ctx.request),
+      onRun: ({ messages, threadId, runId }) =>
+        chat({
+          adapter: openaiText("gpt-5.5"),
+          messages,
+          threadId,
+          runId,
+        }),
+    });
+  },
+};
+```
+
+See [WebSockets](../resumable-streams/websockets) for the wire protocol, reconnect details, and hosting on Node vs Cloudflare.
 
 ## Persistent Transports (WebSockets and Friends)
 
