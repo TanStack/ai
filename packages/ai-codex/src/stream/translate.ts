@@ -1,4 +1,9 @@
 import { EventType, buildBaseUsage } from '@tanstack/ai'
+import {
+  parseJsonFromAssistantText,
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+} from '@tanstack/ai/adapter-internals'
 import type { StreamChunk, TokenUsage } from '@tanstack/ai'
 import type { CodexThreadEvent, CodexThreadItem, CodexUsage } from './sdk-types'
 
@@ -18,6 +23,8 @@ export interface TranslateContext {
   onSessionId?: (sessionId: string) => void
   /** Called for each raw SDK thread event, for logging. */
   onThreadEvent?: (event: CodexThreadEvent) => void
+  /** Treat the last agent_message as schema JSON. */
+  expectStructuredOutput?: boolean
 }
 
 /**
@@ -154,9 +161,11 @@ function buildUsage(usage: CodexUsage | undefined): TokenUsage | undefined {
  * TOOL_CALL_START/ARGS/END + TOOL_CALL_RESULT sequences so UIs can render it
  * while the TanStack engine never tries to execute them.
  *
- * Codex reports assistant text and reasoning only as completed items (no
- * token-level deltas), so each `agent_message` / `reasoning` item becomes a
- * single START/CONTENT/END burst.
+ * Codex reports assistant text on `item.started` / `item.updated` /
+ * `item.completed`. Each `agent_message` streams as START/CONTENT/END, with
+ * CONTENT deltas from growing `item.text`. When `expectStructuredOutput` is
+ * set, the last agent message is also parsed as the schema object on
+ * `turn.completed`.
  *
  * Invariant: every TOOL_CALL_START is eventually paired with a
  * TOOL_CALL_RESULT (synthesized as `{"status":"interrupted"}` when the run
@@ -237,30 +246,105 @@ export async function* translateThreadEvents(
     unresolvedToolCalls.add(item.id)
   }
 
+  const openText = new Map<string, { emitted: number; ended: boolean }>()
+  let lastAgentMessage: { id: string; text: string } | undefined
+
+  function* startText(messageId: string): Generator<StreamChunk> {
+    if (openText.has(messageId)) return
+    openText.set(messageId, { emitted: 0, ended: false })
+    yield {
+      type: EventType.TEXT_MESSAGE_START,
+      messageId,
+      model,
+      timestamp: now(),
+      role: 'assistant',
+    }
+  }
+
+  function* emitTextDelta(
+    messageId: string,
+    text: string,
+  ): Generator<StreamChunk> {
+    yield* startText(messageId)
+    const state = openText.get(messageId)
+    if (state === undefined || state.ended) return
+    if (text.length <= state.emitted) return
+    const delta = text.slice(state.emitted)
+    state.emitted = text.length
+    yield {
+      type: EventType.TEXT_MESSAGE_CONTENT,
+      messageId,
+      model,
+      timestamp: now(),
+      delta,
+      content: text,
+    }
+  }
+
+  function* endText(messageId: string): Generator<StreamChunk> {
+    const state = openText.get(messageId)
+    if (state === undefined || state.ended) return
+    state.ended = true
+    yield {
+      type: EventType.TEXT_MESSAGE_END,
+      messageId,
+      model,
+      timestamp: now(),
+    }
+  }
+
+  function* handleAgentMessage(
+    item: { id: string; text: string },
+    done: boolean,
+  ): Generator<StreamChunk> {
+    yield* emitTextDelta(item.id, item.text)
+    lastAgentMessage = { id: item.id, text: item.text }
+    if (done) yield* endText(item.id)
+  }
+
+  function* emitStructuredFromLast(): Generator<StreamChunk> {
+    if (ctx.expectStructuredOutput !== true) return
+    if (lastAgentMessage === undefined) return
+    const item = lastAgentMessage
+    lastAgentMessage = undefined
+    try {
+      const object = parseJsonFromAssistantText(item.text)
+      yield structuredOutputStartChunk({
+        messageId: item.id,
+        model,
+        threadId,
+        runId,
+      })
+      yield structuredOutputCompleteChunk({
+        messageId: item.id,
+        model,
+        threadId,
+        runId,
+        object,
+        raw: item.text,
+      })
+    } catch (error: unknown) {
+      const parserMessage =
+        error instanceof Error
+          ? error.message
+          : 'Invalid structured output JSON'
+      const preview = item.text.trim().slice(0, 200)
+      const message =
+        preview === '' ? parserMessage : `${parserMessage} Content: ${preview}`
+      yield {
+        type: EventType.RUN_ERROR,
+        model,
+        timestamp: now(),
+        message,
+        code: 'structured-output-parse-failed',
+        error: { message, code: 'structured-output-parse-failed' },
+      }
+    }
+  }
+
   function* handleItemCompleted(item: CodexThreadItem): Generator<StreamChunk> {
     if (item.type === 'agent_message') {
-      const messageId = item.id
-      yield {
-        type: EventType.TEXT_MESSAGE_START,
-        messageId,
-        model,
-        timestamp: now(),
-        role: 'assistant',
-      }
-      yield {
-        type: EventType.TEXT_MESSAGE_CONTENT,
-        messageId,
-        model,
-        timestamp: now(),
-        delta: item.text,
-        content: item.text,
-      }
-      yield {
-        type: EventType.TEXT_MESSAGE_END,
-        messageId,
-        model,
-        timestamp: now(),
-      }
+      yield* handleAgentMessage(item, true)
     } else if (item.type === 'reasoning') {
       const reasoningId = item.id
       yield {
@@ -334,13 +418,16 @@ export async function* translateThreadEvents(
       // needs RUN_STARTED first.
       yield* startRun()
 
-      if (event.type === 'item.started') {
-        if (isToolItem(event.item)) {
+      if (event.type === 'item.started' || event.type === 'item.updated') {
+        if (event.item.type === 'agent_message') {
+          yield* handleAgentMessage(event.item, false)
+        } else if (event.type === 'item.started' && isToolItem(event.item)) {
           yield* openToolCall(event.item)
         }
       } else if (event.type === 'item.completed') {
         yield* handleItemCompleted(event.item)
       } else if (event.type === 'turn.completed') {
+        yield* emitStructuredFromLast()
         yield* synthesizeUnresolvedResults()
         const usage = buildUsage(event.usage)
         yield {
@@ -366,10 +453,10 @@ export async function* translateThreadEvents(
           error: { message },
         }
       }
-      // turn.started and item.updated carry no state the chunk stream needs:
-      // long-running items resolve via item.completed, and intermediate
-      // updates (e.g. streaming command output) are intentionally dropped.
+      // turn.started carries no chunk-stream state. item.updated for tools
+      // (streaming command output, todo ticks) is dropped on purpose.
     }
+    yield* emitStructuredFromLast()
   } catch (error) {
     // The run is dying (abort or SDK failure). Pair any started tool calls
     // with a synthetic result first so the next request's pending-tool-call

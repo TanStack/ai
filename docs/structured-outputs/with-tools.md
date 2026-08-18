@@ -56,6 +56,8 @@ recommendation.reason;       // string
 
 The agent decides when to call `get_product_price`, executes the tool, integrates the result into its reasoning, and only then produces the final structured response. You see the validated object; the tool calls happen behind the scenes.
 
+> **Note:** Coding agents in a sandbox (Claude Code, Codex, OpenCode, Grok Build) run native tools and the schema on the same turn. They do not pause for TanStack tool approval or client tools. See [Harness Agents](./harnesses).
+
 ## Streaming: lifecycle events before the structured payload
 
 Pass `stream: true` and the wire format changes — the client now sees tool-call events as they happen, _then_ the structured-output stream emits its terminal event. The lifecycle ordering is:

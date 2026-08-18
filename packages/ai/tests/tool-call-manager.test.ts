@@ -932,6 +932,32 @@ describe('executeToolCalls', () => {
   })
 
   describe('argument normalization', () => {
+    it('should return malformed arguments as an error result', async () => {
+      const execute = vi.fn(() => ({ ok: true }))
+      const tool: Tool = {
+        name: 'test_tool',
+        description: 'Test tool',
+        execute,
+      }
+      const result = await drainExecuteToolCalls(
+        [makeToolCall('call_1', 'test_tool', '{')],
+        [tool],
+      )
+
+      expect(execute).not.toHaveBeenCalled()
+      expect(result.results).toEqual([
+        {
+          toolCallId: 'call_1',
+          toolName: 'test_tool',
+          result: { error: 'Failed to parse tool arguments as JSON: {' },
+          input: {},
+          state: 'output-error',
+        },
+      ])
+      expect(result.needsApproval).toHaveLength(0)
+      expect(result.needsClientExecution).toHaveLength(0)
+    })
+
     it('should normalize empty arguments to empty object', async () => {
       const tool: Tool = {
         name: 'simple_tool',

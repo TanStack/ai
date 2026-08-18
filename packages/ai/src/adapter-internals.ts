@@ -25,3 +25,11 @@ export {
   PendingTurnCapability,
   providePendingTurn,
 } from './activities/chat/middleware/pending-turn'
+export {
+  appendOutputSchemaInstruction,
+  parseJsonFromAssistantText,
+} from './utilities/structured-output-text'
+export {
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+} from './utilities/structured-output-events'
