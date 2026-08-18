@@ -219,7 +219,10 @@ plus direct `.claude/skills/<name>`, `.codex/skills/<name>`, and
 `.grok/skills/<name>` paths. These exclusions use paths even for regular files
 or copies. A custom policy replaces them, except for exact projection-marker
 protection. If you only pass `redact` or `include`, copy
-`defaultSandboxSnapshotPolicy()` first or `.env` files are captured. Resolved secrets are redacted before the data is stored. Symlinks,
+`defaultSandboxSnapshotPolicy()` first or `.env` files are captured.
+Pass `include` and `exclude` functions on `policy` to store only some files,
+including one file. There is no `save({ files })` list. See
+`docs/sandbox/portable-snapshots-files.md`. Resolved secrets are redacted before the data is stored. Symlinks,
 executables, and special filesystem entries fail the capture or restore. Each
 thread has one writer lease. Pause and detach release the lease without a
 partial checkpoint. Blob retention is manual because there is no automatic
@@ -233,6 +236,7 @@ Read these pages for the server-only setup:
 - `docs/sandbox/portable-snapshots-fork.md`
 - `docs/sandbox/portable-snapshots-artifacts.md`
 - `docs/sandbox/portable-snapshots-tools.md`
+- `docs/sandbox/portable-snapshots-files.md`
 - `docs/sandbox/portable-snapshots-safety.md`
 
 For a user-marked workspace state, call `snapshots.save` on the server. Bind

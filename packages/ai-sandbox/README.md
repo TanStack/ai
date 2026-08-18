@@ -203,6 +203,7 @@ Full guides on [tanstack.com/ai](https://tanstack.com/ai/latest/docs/sandbox/ove
 - [Tools](https://tanstack.com/ai/latest/docs/sandbox/tools) (host tool bridge)
 - [Lifecycle & snapshots](https://tanstack.com/ai/latest/docs/sandbox/lifecycle)
 - [Portable sandbox snapshots](https://tanstack.com/ai/latest/docs/sandbox/portable-snapshots)
+- [Pick which files to keep](https://tanstack.com/ai/latest/docs/sandbox/portable-snapshots-files)
 
 ## Examples
 

@@ -1,8 +1,8 @@
 ---
 title: What a Snapshot Stores
 id: portable-snapshots-safety
-order: 15
-description: "See which workspace paths a portable snapshot stores, and how to replace the default policy."
+order: 16
+description: "See which workspace paths a portable snapshot stores, and how capture treats secrets and unsafe files."
 ---
 
 You do not want secrets, git metadata, or install trees in durable storage. The
@@ -33,9 +33,10 @@ These exclusions use paths for regular files and copied files too.
 
 ## Replace the default policy
 
-A custom policy replaces the default exclusions. If you pass only `redact` or
-`include`, the capture includes `.env`, `.git`, and `node_modules` unless you
-copy the default policy first.
+To keep only some files, or one file, see
+[Pick Which Files to Keep](./portable-snapshots-files). Copy
+`defaultSandboxSnapshotPolicy()` first. Then add `include`, `exclude`, or
+`redact`.
 
 ```ts
 import { defaultSandboxSnapshotPolicy } from '@tanstack/ai-sandbox'

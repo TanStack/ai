@@ -25,10 +25,11 @@ Start with persistence. Then add a product page only when you need that action.
 | Snapshots already wired | A product page that forks and compares two directions | [Branch From a Version](./portable-snapshots-fork#see-it-in-the-example) |
 | Snapshots already wired | A user downloads a generated file | [Send a Frozen File](./portable-snapshots-artifacts) |
 | Snapshots already wired | The agent saves or forks this thread | [Let the Agent Save and Fork](./portable-snapshots-tools) |
-| Snapshots already wired | Custom include or redact rules | [What a Snapshot Stores](./portable-snapshots-safety) |
+| Snapshots already wired | Only some files, or one file | [Pick Which Files to Keep](./portable-snapshots-files) |
+| Snapshots already wired | Secrets, default excludes, restore safety | [What a Snapshot Stores](./portable-snapshots-safety) |
 
 Automatic save and restore needs only the configure page. Save, fork, download,
-and policy pages are extra.
+and file-policy pages are extra.
 
 ## What a checkpoint holds
 

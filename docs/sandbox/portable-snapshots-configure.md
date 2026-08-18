@@ -16,10 +16,11 @@ Create one persistence value. Pass that exact value to `withPersistence` and to
 the snapshots object. Put `withPersistence` before `withSandbox`.
 
 This page is enough for automatic save and restore. When you need a named
-version, a fork, or a download, add
+version, a fork, a download, or a file policy, add
 [Save a Named Version](./portable-snapshots-save),
-[Branch From a Version](./portable-snapshots-fork), or
-[Send a Frozen File](./portable-snapshots-artifacts).
+[Branch From a Version](./portable-snapshots-fork),
+[Send a Frozen File](./portable-snapshots-artifacts), or
+[Pick Which Files to Keep](./portable-snapshots-files).
 
 ## Create new persistence
 
@@ -171,6 +172,8 @@ Instance durability finds a provider sandbox across server processes. When that
 sandbox is gone, portable snapshots rebuild the workspace. See
 [Instance Durability](./durability).
 
-The default policy excludes `.git`, `node_modules`, and `.env*` paths. Read
-[What a Snapshot Stores](./portable-snapshots-safety) before you replace that
-policy.
+The default policy excludes `.git`, `node_modules`, and `.env*` paths. To keep
+only some files, or one file, see
+[Pick Which Files to Keep](./portable-snapshots-files). Read
+[What a Snapshot Stores](./portable-snapshots-safety) for secrets and restore
+safety.

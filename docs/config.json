@@ -604,13 +604,13 @@
           "label": "Portable Snapshots",
           "to": "sandbox/portable-snapshots",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Keep Files After Reload",
           "to": "sandbox/portable-snapshots-configure",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Save a Named Version",
@@ -635,9 +635,15 @@
           "addedAt": "2026-08-14"
         },
         {
+          "label": "Pick Which Files to Keep",
+          "to": "sandbox/portable-snapshots-files",
+          "addedAt": "2026-08-18"
+        },
+        {
           "label": "What a Snapshot Stores",
           "to": "sandbox/portable-snapshots-safety",
-          "addedAt": "2026-08-14"
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Instance Durability",

@@ -124,6 +124,7 @@ After that, pick the piece you need:
 - [Lifecycle & Snapshots](./lifecycle): reuse a sandbox, snapshot after setup, resume.
 - [Portable Snapshots](./portable-snapshots): keep completed files after the
   sandbox is gone. Start with [Keep Files After Reload](./portable-snapshots-configure).
+  To keep only some files, see [Pick Which Files to Keep](./portable-snapshots-files).
 - [Instance Durability](./durability): reuse it across replicas too.
 - [Durable Runs](./durable-runs): let a run outlive the tab, and turn it on.
 - [Events](./events): stream the agent's edits and tool calls to a UI, and choose what

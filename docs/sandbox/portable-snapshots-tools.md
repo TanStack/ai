@@ -1,7 +1,7 @@
 ---
 title: Let the Agent Save and Fork
 id: portable-snapshots-tools
-order: 16
+order: 17
 description: "Give a chat() run host tools that save and fork this thread without letting the model pick thread ids."
 ---
 
