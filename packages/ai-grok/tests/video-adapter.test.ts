@@ -240,7 +240,7 @@ describe('Grok Video Adapter', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
-    it('allows a text-only prompt on 1.5 (text-to-video)', async () => {
+    it('allows a text-only prompt on 1.5 (text-to-video, native 1080p)', async () => {
       const fetchMock = mockFetch(() => jsonResponse({ request_id: 'tv-15' }))
       const adapter = adapterWithFetch(fetchMock)
 
@@ -257,6 +257,8 @@ describe('Grok Video Adapter', () => {
       })
       const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
       expect(body.prompt).toBe('a red ball bouncing once')
+      expect(body.aspect_ratio).toBe('16:9')
+      expect(body.resolution).toBe('1080p')
       expect(body).not.toHaveProperty('image')
     })
 
@@ -500,6 +502,121 @@ describe('Grok Video Adapter', () => {
       expect(fetchMock).not.toHaveBeenCalled()
     })
 
+    it('sends both a starting frame and reference images when combined', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'ref-3' }))
+      const adapter = adapterWithFetch(fetchMock)
+
+      await adapter.createVideoJob({
+        model: 'grok-imagine-video-1.5',
+        prompt: [
+          { type: 'text', content: '<IMAGE_0> enters from the left' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/start.png' },
+            metadata: { role: 'start_frame' },
+          },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/person.png' },
+            metadata: { role: 'reference' },
+          },
+        ],
+        logger: testLogger,
+      })
+
+      const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+      expect(body.image).toEqual({ url: 'https://example.com/start.png' })
+      expect(body.reference_images).toEqual([
+        { url: 'https://example.com/person.png' },
+      ])
+    })
+
+    it('lets explicit modelOptions.reference_images replace the part-derived list', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'ref-4' }))
+      const adapter = adapterWithFetch(fetchMock)
+
+      await adapter.createVideoJob({
+        model: 'grok-imagine-video-1.5',
+        prompt: [
+          { type: 'text', content: 'p' },
+          {
+            type: 'image',
+            source: { type: 'url', value: 'https://example.com/from-part.png' },
+            metadata: { role: 'reference' },
+          },
+        ],
+        modelOptions: {
+          reference_images: [{ url: 'https://example.com/explicit.png' }],
+        },
+        logger: testLogger,
+      })
+
+      const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+      expect(body.reference_images).toEqual([
+        { url: 'https://example.com/explicit.png' },
+      ])
+    })
+
+    it('rejects reference inputs on grok-imagine-video (v1.0)', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
+      const adapter = createGrokVideo('grok-imagine-video', 'test-api-key', {
+        fetch: fetchMock,
+      })
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video',
+          prompt: [
+            { type: 'text', content: 'p' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/a.png' },
+              metadata: { role: 'reference' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/does not support reference-to-video inputs/)
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video',
+          prompt: 'p',
+          modelOptions: {
+            // The per-model options map hides the reference fields from
+            // v1.0 at compile time; the runtime gate covers JSON callers.
+            // @ts-expect-error reference_audios is 1.5-only
+            reference_audios: [{ voice_id: 'eve' }],
+          },
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/does not support reference-to-video inputs/)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects an unknown image metadata.role before calling the API', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
+      const adapter = adapterWithFetch(fetchMock)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video-1.5',
+          prompt: [
+            { type: 'text', content: 'p' },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/a.png' },
+              // Roles arrive untrusted from JSON callers; an unrecognised
+              // value must throw, not silently drop the part.
+              // @ts-expect-error runtime validation of a non-MediaInputRole string
+              metadata: { role: 'first_frame' },
+            },
+          ],
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/unknown image metadata\.role 'first_frame'/)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
     it('rejects mask / control / end_frame image roles', async () => {
       const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
       const adapter = adapterWithFetch(fetchMock)
@@ -601,6 +718,111 @@ describe('Grok Video Adapter', () => {
 
       const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
       expect(body.video).toEqual({ url: 'data:video/mp4;base64,CCCC' })
+    })
+
+    it('snaps the extend duration passed via modelOptions', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'ext-2' }))
+      const adapter = adapterWithFetch(fetchMock)
+
+      await adapter.createVideoJob({
+        model: 'grok-imagine-video-1.5',
+        prompt: [{ type: 'text', content: 'keep going' }, sourceVideoPart],
+        modelOptions: { mode: 'extend', duration: 2.6 },
+        logger: testLogger,
+      })
+
+      const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+      expect(body.duration).toBe(3)
+    })
+
+    it('snaps an out-of-range generic extend duration', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'ext-3' }))
+      const adapter = adapterWithFetch(fetchMock)
+
+      await adapter.createVideoJob({
+        model: 'grok-imagine-video-1.5',
+        prompt: [{ type: 'text', content: 'keep going' }, sourceVideoPart],
+        duration: 20,
+        modelOptions: { mode: 'extend' },
+        logger: testLogger,
+      })
+
+      const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+      expect(body.duration).toBe(15)
+    })
+
+    it("rejects a duration in 'edit' mode — inherited from the source", async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
+      const adapter = adapterWithFetch(fetchMock)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video-1.5',
+          prompt: [{ type: 'text', content: 'p' }, sourceVideoPart],
+          duration: 5,
+          modelOptions: { mode: 'edit' },
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/'edit' mode does not accept a duration/)
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video-1.5',
+          prompt: [{ type: 'text', content: 'p' }, sourceVideoPart],
+          modelOptions: { mode: 'edit', duration: 99 },
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/'edit' mode does not accept a duration/)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects size / aspect_ratio / resolution in edit and extend modes', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
+      const adapter = adapterWithFetch(fetchMock)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video-1.5',
+          prompt: [{ type: 'text', content: 'p' }, sourceVideoPart],
+          size: '16:9_1080p',
+          modelOptions: { mode: 'edit' },
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/does not accept size \/ aspect_ratio \/ resolution/)
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video-1.5',
+          prompt: [{ type: 'text', content: 'p' }, sourceVideoPart],
+          modelOptions: { mode: 'extend', aspect_ratio: '9:16' },
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/does not accept size \/ aspect_ratio \/ resolution/)
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video-1.5',
+          prompt: [{ type: 'text', content: 'p' }, sourceVideoPart],
+          modelOptions: { mode: 'edit', resolution: '1080p' },
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/does not accept size \/ aspect_ratio \/ resolution/)
+      expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('rejects an unknown mode instead of misrouting to generations', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
+      const adapter = adapterWithFetch(fetchMock)
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video-1.5',
+          prompt: [{ type: 'text', content: 'p' }, sourceVideoPart],
+          // Mode arrives untrusted from JSON callers; a typo must not fall
+          // through to /videos/generations with a source-video body.
+          // @ts-expect-error runtime validation of a non-GrokVideoMode string
+          modelOptions: { mode: 'remix' },
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/unknown modelOptions\.mode 'remix'/)
+      expect(fetchMock).not.toHaveBeenCalled()
     })
 
     it('rejects a video prompt part without an explicit mode', async () => {

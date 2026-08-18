@@ -46,6 +46,7 @@ export {
 } from './video/video-provider-options'
 export type {
   GrokVideoMode,
+  GrokVideoBaseProviderOptions,
   GrokVideoProviderOptions,
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
@@ -104,6 +105,7 @@ export {
   GROK_TTS_MODELS,
   GROK_TRANSCRIPTION_MODELS,
   GROK_REALTIME_MODELS,
+  GROK_DEFAULT_REALTIME_MODEL,
 } from './model-meta'
 export type {
   GrokTextMetadata,

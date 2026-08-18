@@ -1,7 +1,9 @@
 /**
  * Grok Video Generation Provider Options (xAI Imagine API)
  *
- * Based on https://docs.x.ai/docs/guides/video-generations
+ * Based on https://docs.x.ai/developers/model-capabilities/video/generation
+ * (plus the image-to-video, reference-to-video, editing, and extension pages
+ * under the same section).
  *
  * @experimental Video generation is an experimental feature and may change.
  */
@@ -163,25 +165,29 @@ export function getGrokVideoDurationOptions<TModel extends GrokVideoModel>(
 
 /**
  * Request mode for a source-video job. `'edit'` posts to `/v1/videos/edits`
- * (modify the source clip in place — duration / aspect ratio / resolution
- * are inherited from the input, capped at 720p); `'extend'` posts to
+ * (modify the source clip in place); `'extend'` posts to
  * `/v1/videos/extensions` (continue the source clip — `duration` is the
  * length of the **added tail**, not the total). Both require exactly one
  * video prompt part carrying the source clip.
+ *
+ * Output geometry (aspect ratio / resolution) is inherited from the source
+ * clip in both modes, capped at 720p, and edit outputs also inherit the
+ * source length — the adapter rejects `size`, `aspect_ratio`, `resolution`,
+ * and (in edit mode) `duration` rather than sending fields the API ignores.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoMode = 'edit' | 'extend'
 
 /**
- * Provider-specific options for grok video generation. Apart from `mode`
- * (a routing hint stripped before the request is sent), these map directly
- * onto the Imagine API request body and take precedence over the generic
- * `size` / `duration` options when both are provided.
+ * Provider options shared by both grok-imagine video models. Apart from
+ * `mode` (a routing hint stripped before the request is sent), these map
+ * directly onto the Imagine API request body and take precedence over the
+ * generic `size` / `duration` options when both are provided.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
-export interface GrokVideoProviderOptions {
+export interface GrokVideoBaseProviderOptions {
   /**
    * Selects the request mode for a source-video prompt part: `'edit'`
    * (`/v1/videos/edits`) or `'extend'` (`/v1/videos/extensions`). Required
@@ -191,36 +197,47 @@ export interface GrokVideoProviderOptions {
   mode?: GrokVideoMode
 
   /**
-   * Output aspect ratio.
+   * Output aspect ratio. Generation only — edit / extend outputs inherit
+   * the source clip's geometry and the adapter rejects this in those modes.
    */
   aspect_ratio?: GrokVideoAspectRatio
 
   /**
-   * Output resolution tier.
+   * Output resolution tier. Generation only — edit / extend outputs inherit
+   * the source clip's geometry and the adapter rejects this in those modes.
    */
   resolution?: GrokVideoResolution
 
   /**
    * Video duration in integer seconds (1–15). In `'extend'` mode this is
-   * the length of the added tail only, not the total output length.
+   * the length of the added tail only, not the total output length. Not
+   * valid in `'edit'` mode (the output inherits the source clip's length).
    */
   duration?: number
+}
 
+/**
+ * Provider options for grok-imagine-video-1.5, which adds the
+ * reference-to-video inputs on top of the shared options.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface GrokVideoProviderOptions extends GrokVideoBaseProviderOptions {
   /**
-   * Reference images for reference-to-video generation
-   * (grok-imagine-video-1.5, output capped at 720p). Usually populated from
-   * image prompt parts with `metadata.role: 'reference'`; set explicitly to
-   * override. Reference images are addressed from the prompt text as
-   * `<IMAGE_0>`, `<IMAGE_1>`, … in request order, and do not lock the first
-   * frame.
+   * Reference images for reference-to-video generation (output capped at
+   * 720p). Usually populated from image prompt parts with
+   * `metadata.role: 'reference'` (or `'character'`); set explicitly to
+   * replace the part-derived list. Reference images are addressed from the
+   * prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order, and do not
+   * lock the first frame.
    */
   reference_images?: Array<{ url: string }>
 
   /**
-   * Preset TTS voices to reference for generated speech
-   * (grok-imagine-video-1.5, max 3). Voice ids come from the xAI TTS voice
-   * roster (e.g. 'eve', 'rex') or a custom voice id, and are addressed from
-   * the prompt text as `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`.
+   * Preset TTS voices to reference for generated speech (max 3). Voice ids
+   * come from the xAI TTS voice roster (e.g. 'eve', 'rex') or a custom
+   * voice id, and are addressed from the prompt text as `<AUDIO_0>`,
+   * `<AUDIO_1>`, `<AUDIO_2>`.
    */
   reference_audios?: Array<{ voice_id: string }>
 }
@@ -231,12 +248,35 @@ export interface GrokVideoProviderOptions {
 export const GROK_VIDEO_MAX_REFERENCE_AUDIOS = 3
 
 /**
- * Type-only map from model name to its specific provider options.
+ * Models that support reference-to-video inputs (`reference_images` /
+ * `reference_audios`). The per-model provider-options map hides the fields
+ * from other models at compile time; this backs the runtime gate for
+ * untyped callers (e.g. deserialized JSON) so they get a clear error
+ * instead of a raw API 400.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+const GROK_VIDEO_REFERENCE_MODELS: ReadonlySet<string> = new Set([
+  'grok-imagine-video-1.5',
+])
+
+/**
+ * True when the model accepts reference-to-video inputs.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export function isGrokVideoReferenceModel(model: string): boolean {
+  return GROK_VIDEO_REFERENCE_MODELS.has(model)
+}
+
+/**
+ * Type-only map from model name to its specific provider options. Only
+ * grok-imagine-video-1.5 exposes the reference-to-video fields.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoModelProviderOptionsByName = {
-  'grok-imagine-video': GrokVideoProviderOptions
+  'grok-imagine-video': GrokVideoBaseProviderOptions
   'grok-imagine-video-1.5': GrokVideoProviderOptions
 }
 
@@ -254,8 +294,8 @@ export type GrokVideoModelSizeByName = {
  * Type-only map from model name to the non-text prompt modalities it accepts.
  * Both models support text-to-video and accept an optional `image` prompt
  * part as the starting frame; image parts with `metadata.role: 'reference'`
- * become `reference_images` (grok-imagine-video-1.5). A `video` prompt part
- * carries the source clip for edit / extension mode
+ * or `'character'` become `reference_images` (grok-imagine-video-1.5 only).
+ * A `video` prompt part carries the source clip for edit / extension mode
  * (`modelOptions.mode: 'edit' | 'extend'`).
  *
  * @experimental Video generation is an experimental feature and may change.

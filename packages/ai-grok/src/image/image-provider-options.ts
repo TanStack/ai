@@ -1,8 +1,9 @@
 /**
  * Grok Image Generation Provider Options
  *
- * These are provider-specific options for Grok image generation.
- * Grok uses the grok-2-image-1212 model for image generation.
+ * Provider-specific options for Grok image generation: the aspect-ratio
+ * sized Imagine API models (grok-imagine-image, grok-imagine-image-2.0,
+ * grok-imagine-image-quality) and the legacy pixel-sized grok-2-image-1212.
  */
 
 /**

@@ -155,9 +155,9 @@ const GROK_IMAGINE_IMAGE_2_0 = {
 // Both models support text-to-video and image-to-video (a starting-frame
 // image is optional). grok-imagine-video-1.5 is the documented default: it
 // adds native 1080p text-to-video plus reference-to-video inputs
-// (`reference_images` / `reference_audios`, capped at 720p). Both models
-// also drive video editing (`/v1/videos/edits`) and extension
-// (`/v1/videos/extensions`) via a source video prompt part.
+// (`reference_images` / `reference_audios`; reference output is capped at
+// 720p). Both models also drive video editing (`/v1/videos/edits`) and
+// extension (`/v1/videos/extensions`) via a source video prompt part.
 const GROK_IMAGINE_VIDEO = {
   name: 'grok-imagine-video',
   supports: {
@@ -338,6 +338,14 @@ export const GROK_REALTIME_MODELS = [
   GROK_VOICE_FAST_1.name,
   GROK_VOICE_THINK_FAST_1.name,
 ] as const
+
+/**
+ * Default speech-to-speech model used by the realtime token issuer and the
+ * realtime client adapter when no model is specified. Single source of truth
+ * so a future default bump cannot leave the two sides disagreeing.
+ */
+export const GROK_DEFAULT_REALTIME_MODEL: GrokRealtimeModel =
+  'grok-voice-think-fast-2.0'
 
 export type GrokChatModel = (typeof GROK_CHAT_MODELS)[number]
 export type GrokImageModel = (typeof GROK_IMAGE_MODELS)[number]

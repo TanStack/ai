@@ -63,6 +63,19 @@ describe('grokRealtimeToken request body', () => {
     const body = JSON.parse(init.body as string) as Record<string, unknown>
     expect(body).toEqual({ session: { model: 'grok-voice-think-fast-1.0' } })
   })
+
+  it("defaults to xAI's current recommended model when no model is given", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(makeSessionResponse(1_700_000_000))
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    await realtimeToken({ adapter: grokRealtimeToken() })
+
+    const init = fetchMock.mock.calls[0]![1]!
+    const body = JSON.parse(init.body as string) as Record<string, unknown>
+    expect(body).toEqual({ session: { model: 'grok-voice-think-fast-2.0' } })
+  })
 })
 
 describe('grokRealtimeToken expires_at unit-safety', () => {

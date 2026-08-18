@@ -5,6 +5,7 @@ import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
   GROK_VIDEO_MAX_REFERENCE_AUDIOS,
   getGrokVideoDurationOptions,
+  isGrokVideoReferenceModel,
   parseGrokVideoSize,
   validateVideoSize,
 } from '../video/video-provider-options'
@@ -42,7 +43,7 @@ export interface GrokVideoConfig extends GrokClientConfig {}
  */
 const USD_TICKS_PER_DOLLAR = 10_000_000_000
 
-/** Response of POST /v1/videos/generations. */
+/** Response of the POST /v1/videos/{generations,edits,extensions} endpoints. */
 interface GrokVideoCreateResponse {
   request_id?: string
 }
@@ -112,8 +113,9 @@ function buildGrokVideoUsage(
  *   (e.g. '16:9_720p'), consistent with the grok-imagine image models
  * - Image-to-video via an `image` prompt part (starting frame URL or data URI)
  * - Reference-to-video via image prompt parts with
- *   `metadata.role: 'reference'` (→ `reference_images`) and preset voices
- *   via `modelOptions.reference_audios` (grok-imagine-video-1.5)
+ *   `metadata.role: 'reference'` or `'character'` (→ `reference_images`)
+ *   and preset voices via `modelOptions.reference_audios`
+ *   (grok-imagine-video-1.5 only)
  * - Video editing / extension via a source `video` prompt part and
  *   `modelOptions.mode: 'edit' | 'extend'` (`/v1/videos/edits` /
  *   `/v1/videos/extensions`; in extend mode `duration` is the added tail)
@@ -123,7 +125,7 @@ export class GrokVideoAdapter<
   TModel extends GrokVideoModel,
 > extends BaseVideoAdapter<
   TModel,
-  GrokVideoProviderOptions,
+  GrokVideoModelProviderOptionsByName[TModel],
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
   GrokVideoModelInputModalitiesByName,
@@ -182,27 +184,31 @@ export class GrokVideoAdapter<
 
   async createVideoJob(
     options: VideoGenerationOptions<
-      GrokVideoProviderOptions,
+      GrokVideoModelProviderOptionsByName[TModel],
       GrokVideoModelSizeByName[TModel],
       GrokVideoModelDurationByName[TModel]
     >,
   ): Promise<VideoJobResult> {
     const { model, size, modelOptions, logger } = options
 
-    validateVideoSize(model, size)
-
     // `mode` is a routing hint for this adapter, not an API field — strip it
-    // before the remaining options are spread onto the request body.
-    const { mode, ...wireOptions } = modelOptions ?? {}
+    // before the remaining options are spread onto the request body. The
+    // per-model map narrows what callers can pass, but modelOptions often
+    // arrives as deserialized JSON, so the adapter handles the widest option
+    // surface (the 1.5 shape) uniformly and gates by model at runtime.
+    const { mode, ...wireOptions } = (modelOptions ??
+      {}) as GrokVideoProviderOptions
 
-    // Coerce the requested duration into the model's valid range (1–15s,
-    // integer) instead of rejecting it — `snapDuration` clamps and rounds.
-    // modelOptions wins over the generic `duration`, mirroring the size
-    // precedence below. In extend mode the same range applies to the added
-    // tail.
-    const rawDuration = wireOptions.duration ?? options.duration
-    const duration =
-      rawDuration !== undefined ? this.snapDuration(rawDuration) : undefined
+    // `mode` is typed 'edit' | 'extend' but reaches us untrusted from JSON
+    // callers. An unrecognised value must not fall through to the
+    // generations endpoint with a source-video body — that would silently
+    // run (and bill) a generation the caller never asked for.
+    if (mode !== undefined && mode !== 'edit' && mode !== 'extend') {
+      throw new Error(
+        `${this.name}: unknown modelOptions.mode '${String(mode)}'. ` +
+          `Expected 'edit' or 'extend'.`,
+      )
+    }
 
     // The interleaved prompt decomposes into verbatim text plus typed media
     // buckets. Reference audio is voice-id based (not an audio file), so
@@ -238,10 +244,34 @@ export class GrokVideoAdapter<
       )
     }
 
+    if (mode !== undefined && sourceVideo) {
+      return await this.createSourceVideoJob({
+        model,
+        mode,
+        sourceVideo,
+        resolved,
+        wireOptions,
+        size,
+        genericDuration: options.duration,
+        logger,
+      })
+    }
+
+    validateVideoSize(model, size)
+
+    // Coerce the requested duration into the model's valid range (1–15s,
+    // integer) instead of rejecting it — `snapDuration` clamps and rounds.
+    // modelOptions wins over the generic `duration`, mirroring the size
+    // precedence below.
+    const rawDuration = wireOptions.duration ?? options.duration
+    const duration =
+      rawDuration !== undefined ? this.snapDuration(rawDuration) : undefined
+
     // Image parts split by role: un-roled / 'start_frame' images become the
     // starting frame (image-to-video); 'reference' / 'character' images
     // become reference_images (reference-to-video). The Imagine API has no
-    // mask / control / end-frame inputs.
+    // mask / control / end-frame inputs. Unknown role strings (possible via
+    // JSON callers) throw rather than silently dropping the part.
     const startFrames: Array<ImagePart<MediaInputMetadata>> = []
     const referenceImages: Array<{ url: string }> = []
     for (const part of resolved.images) {
@@ -263,6 +293,11 @@ export class GrokVideoAdapter<
         case undefined:
           startFrames.push(part)
           break
+        default:
+          throw new Error(
+            `${this.name}: unknown image metadata.role '${String(role)}'. ` +
+              `Expected 'start_frame', 'reference', or 'character'.`,
+          )
       }
     }
     if (startFrames.length > 1) {
@@ -271,26 +306,24 @@ export class GrokVideoAdapter<
           `Use metadata.role: 'reference' for reference-to-video inputs.`,
       )
     }
-    if (mode !== undefined && resolved.images.length > 0) {
+    // Reference inputs are a grok-imagine-video-1.5 feature. The per-model
+    // options map already hides the fields from other models at compile
+    // time; this runtime gate covers prompt-part roles and untyped callers.
+    if (
+      !isGrokVideoReferenceModel(model) &&
+      (referenceImages.length > 0 ||
+        wireOptions.reference_images !== undefined ||
+        wireOptions.reference_audios !== undefined)
+    ) {
       throw new Error(
-        `${this.name}: '${mode}' mode takes only the source video — image ` +
-          `prompt parts are not supported by ${mode === 'edit' ? '/videos/edits' : '/videos/extensions'}.`,
+        `${this.name}: ${model} does not support reference-to-video inputs. ` +
+          `Use 'grok-imagine-video-1.5' for reference_images / reference_audios.`,
       )
     }
     const referenceAudioCount = wireOptions.reference_audios?.length ?? 0
     if (referenceAudioCount > GROK_VIDEO_MAX_REFERENCE_AUDIOS) {
       throw new Error(
         `${this.name}: ${model} accepts at most ${GROK_VIDEO_MAX_REFERENCE_AUDIOS} reference voices; received ${referenceAudioCount}.`,
-      )
-    }
-    if (
-      mode !== undefined &&
-      (wireOptions.reference_images !== undefined ||
-        wireOptions.reference_audios !== undefined)
-    ) {
-      throw new Error(
-        `${this.name}: reference inputs are only supported by video ` +
-          `generation, not '${mode}' mode.`,
       )
     }
 
@@ -301,53 +334,134 @@ export class GrokVideoAdapter<
 
     // The generic `size` option carries an "aspectRatio_resolution" template
     // (e.g. '16:9_720p') and maps to the Imagine API's `aspect_ratio` /
-    // `resolution` parameters; explicit modelOptions win over the template.
-    // Edit / extend outputs inherit these from the source clip, so the
-    // template is only mapped for generation requests.
+    // `resolution` parameters; explicit modelOptions win over the template
+    // (including `reference_images`, which replaces the part-derived list).
     const parsedSize = size !== undefined ? parseGrokVideoSize(size) : undefined
-    const request =
-      mode !== undefined && sourceVideo
-        ? {
-            model,
-            prompt: resolved.text,
-            video: { url: mediaPartToUrl(sourceVideo) },
-            ...wireOptions,
-            // Edit outputs also inherit their length from the source clip;
-            // extend takes the snapped duration as the added-tail length.
-            ...(mode === 'extend' && duration !== undefined && { duration }),
-          }
-        : {
-            model,
-            prompt: resolved.text,
-            ...(startFrame && { image: { url: mediaPartToUrl(startFrame) } }),
-            ...(referenceImages.length > 0 && {
-              reference_images: referenceImages,
-            }),
-            ...(parsedSize && {
-              aspect_ratio: parsedSize.aspectRatio,
-              ...(parsedSize.resolution !== undefined && {
-                resolution: parsedSize.resolution,
-              }),
-            }),
-            ...wireOptions,
-            // Spread after wireOptions so the snapped duration is
-            // authoritative (modelOptions.duration is folded into `duration`
-            // via snapDuration above).
-            ...(duration !== undefined && { duration }),
-          }
+    const request = {
+      model,
+      prompt: resolved.text,
+      ...(startFrame && { image: { url: mediaPartToUrl(startFrame) } }),
+      ...(referenceImages.length > 0 && {
+        reference_images: referenceImages,
+      }),
+      ...(parsedSize && {
+        aspect_ratio: parsedSize.aspectRatio,
+        ...(parsedSize.resolution !== undefined && {
+          resolution: parsedSize.resolution,
+        }),
+      }),
+      ...wireOptions,
+      // Spread after wireOptions so the snapped duration is
+      // authoritative (modelOptions.duration is folded into `duration`
+      // via snapDuration above).
+      ...(duration !== undefined && { duration }),
+    }
 
-    const endpoint =
-      mode === 'edit'
-        ? '/videos/edits'
-        : mode === 'extend'
-          ? '/videos/extensions'
-          : '/videos/generations'
+    return await this.postVideoJob('/videos/generations', request, {
+      model,
+      logger,
+      logLine: `activity=video.create provider=${this.name} model=${model} mode=generate size=${size ?? 'default'} duration=${duration ?? 'default'}`,
+    })
+  }
 
-    try {
-      logger.request(
-        `activity=video.create provider=${this.name} model=${model} mode=${mode ?? 'generate'} size=${size ?? 'default'} duration=${duration ?? 'default'}`,
-        { provider: this.name, model },
+  /**
+   * Build and post an edit / extension request. Both endpoints take only
+   * `model`, `prompt`, and the source `video` (plus `duration` — the length
+   * of the added tail — for extensions): output geometry is inherited from
+   * the source clip, capped at 720p, and edit outputs also inherit the
+   * source length. Rather than sending fields the API documents as ignored,
+   * the inapplicable options are rejected with actionable errors.
+   */
+  private async createSourceVideoJob(args: {
+    model: string
+    mode: 'edit' | 'extend'
+    sourceVideo: VideoPart<MediaInputMetadata>
+    resolved: ReturnType<typeof resolveMediaPrompt>
+    wireOptions: Omit<GrokVideoProviderOptions, 'mode'>
+    size: string | undefined
+    genericDuration: number | undefined
+    logger: VideoGenerationOptions<GrokVideoProviderOptions>['logger']
+  }): Promise<VideoJobResult> {
+    const { model, mode, sourceVideo, resolved, wireOptions, logger } = args
+    const endpoint = mode === 'edit' ? '/videos/edits' : '/videos/extensions'
+
+    if (resolved.images.length > 0) {
+      throw new Error(
+        `${this.name}: '${mode}' mode takes only the source video — image ` +
+          `prompt parts are not supported by ${endpoint}.`,
       )
+    }
+    if (
+      wireOptions.reference_images !== undefined ||
+      wireOptions.reference_audios !== undefined
+    ) {
+      throw new Error(
+        `${this.name}: reference inputs are only supported by video ` +
+          `generation, not '${mode}' mode.`,
+      )
+    }
+    if (
+      args.size !== undefined ||
+      wireOptions.aspect_ratio !== undefined ||
+      wireOptions.resolution !== undefined
+    ) {
+      throw new Error(
+        `${this.name}: '${mode}' mode does not accept size / aspect_ratio / ` +
+          `resolution — the output inherits the source clip's geometry ` +
+          `(capped at 720p).`,
+      )
+    }
+
+    const {
+      aspect_ratio: _aspectRatio,
+      resolution: _resolution,
+      duration: modeDuration,
+      ...passthrough
+    } = wireOptions
+    const rawDuration = modeDuration ?? args.genericDuration
+    if (mode === 'edit' && rawDuration !== undefined) {
+      throw new Error(
+        `${this.name}: 'edit' mode does not accept a duration — the output ` +
+          `inherits the source clip's length. Use mode 'extend' to append ` +
+          `seconds to the clip.`,
+      )
+    }
+    // Extend: the snapped duration is the added-tail length (1–15s).
+    const duration =
+      rawDuration !== undefined ? this.snapDuration(rawDuration) : undefined
+
+    const request = {
+      model,
+      prompt: resolved.text,
+      video: { url: mediaPartToUrl(sourceVideo) },
+      ...passthrough,
+      ...(duration !== undefined && { duration }),
+    }
+
+    return await this.postVideoJob(endpoint, request, {
+      model,
+      logger,
+      logLine: `activity=video.create provider=${this.name} model=${model} mode=${mode} duration=${duration ?? 'default'}`,
+    })
+  }
+
+  /**
+   * POST a create-job request body to one of the Imagine video endpoints
+   * (`/videos/generations`, `/videos/edits`, `/videos/extensions`) and read
+   * the `request_id` out of the shared response shape.
+   */
+  private async postVideoJob(
+    endpoint: string,
+    request: Record<string, unknown>,
+    context: {
+      model: string
+      logger: VideoGenerationOptions<GrokVideoProviderOptions>['logger']
+      logLine: string
+    },
+  ): Promise<VideoJobResult> {
+    const { model, logger, logLine } = context
+    try {
+      logger.request(logLine, { provider: this.name, model })
 
       const response = await this.request(endpoint, {
         method: 'POST',
@@ -492,7 +606,7 @@ export class GrokVideoAdapter<
  *
  * @experimental Video generation is an experimental feature and may change.
  *
- * @param model - The model name (e.g., 'grok-imagine-video')
+ * @param model - The model name (e.g., 'grok-imagine-video-1.5')
  * @param apiKey - Your xAI API key
  * @param config - Optional additional configuration
  * @returns Configured Grok video adapter instance with resolved types

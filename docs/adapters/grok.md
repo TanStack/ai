@@ -297,7 +297,7 @@ Like the Grok Imagine image models, sizing is aspect-ratio based: the `size` opt
 
 ### Reference-to-Video
 
-On `grok-imagine-video-1.5`, image prompt parts with `metadata.role: 'reference'` become `reference_images` — they guide subjects and style without locking the first frame, and are addressed from the prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order. Preset TTS voices (up to 3) can be referenced for generated speech via `modelOptions.reference_audios`, addressed as `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`. Reference-to-video output is capped at 720p:
+On `grok-imagine-video-1.5`, image prompt parts with `metadata.role: 'reference'` (or `'character'`) become `reference_images` — they guide subjects and style without locking the first frame, and are addressed from the prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order. Preset TTS voices (up to 3) can be referenced for generated speech via `modelOptions.reference_audios`, addressed as `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`. Reference-to-video output is capped at 720p. Reference inputs are a 1.5-only feature — the adapter rejects them on `grok-imagine-video`:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -327,8 +327,8 @@ const { jobId } = await generateVideo({
 
 Both models can rewrite or continue an existing clip. Pass the source clip as a `video` prompt part and pick the mode with `modelOptions.mode`:
 
-- `mode: 'edit'` posts to `/v1/videos/edits` — modifies only what the prompt asks for, keeping the rest of the clip intact. Duration, aspect ratio, and resolution are inherited from the source (capped at 720p).
-- `mode: 'extend'` posts to `/v1/videos/extensions` — continues the clip. `duration` is the length of the **added tail**, not the total: extending a 10-second clip with `duration: 5` yields 15 seconds.
+- `mode: 'edit'` posts to `/v1/videos/edits` — modifies only what the prompt asks for, keeping the rest of the clip intact. Duration, aspect ratio, and resolution are inherited from the source (capped at 720p), so the adapter rejects `size`, `aspect_ratio`, `resolution`, and `duration` in this mode rather than sending fields the API ignores.
+- `mode: 'extend'` posts to `/v1/videos/extensions` — continues the clip. `duration` is the length of the **added tail**, not the total: extending a 10-second clip with `duration: 5` yields 15 seconds. Output geometry is still inherited from the source, so `size` / `aspect_ratio` / `resolution` are rejected here too.
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -407,7 +407,7 @@ console.log(result.text);
 
 ## Realtime Voice
 
-Grok also exposes a Realtime voice adapter (`grokRealtime`) and a token issuer (`grokRealtimeToken`) for low-latency voice conversations. The default model is `grok-voice-think-fast-2.0` (xAI's current recommended speech-to-speech model); `grok-voice-latest` always points at the newest model. See [Realtime Voice Chat](../media/realtime-chat) for the end-to-end flow.
+Grok also exposes a Realtime voice adapter (`grokRealtime`) and a token issuer (`grokRealtimeToken`) for low-latency voice conversations. The default model is `grok-voice-think-fast-2.0` (xAI's current recommended speech-to-speech model); `grok-voice-latest` always points at the newest model. The 1.0 ids remain accepted for compatibility, but xAI has deprecated `grok-voice-think-fast-1.0`. See [Realtime Voice Chat](../media/realtime-chat) for the end-to-end flow.
 
 ## Environment Variables
 

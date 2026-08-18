@@ -358,7 +358,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: grokVideo('grok-imagine-video-1.5'),
         prompt: asTextPrompt(data.prompt),
-        size: '16:9_720p',
+        size: '16:9_1080p',
         duration: 5,
       })
     }

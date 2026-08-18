@@ -733,7 +733,7 @@ const { jobId } = await generateVideo({
 });
 ```
 
-Reference-to-video (`grok-imagine-video-1.5`, capped at 720p) — image prompt parts with `metadata.role: 'reference'` become `reference_images` (addressed from the prompt as `<IMAGE_0>`, `<IMAGE_1>`, …), and up to 3 preset TTS voices can be referenced via `modelOptions.reference_audios` (addressed as `<AUDIO_0>`, …):
+Reference-to-video (`grok-imagine-video-1.5` only, output capped at 720p) — image prompt parts with `metadata.role: 'reference'` or `'character'` become `reference_images` (addressed from the prompt as `<IMAGE_0>`, `<IMAGE_1>`, …), and up to 3 preset TTS voices can be referenced via `modelOptions.reference_audios` (addressed as `<AUDIO_0>`, …):
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -754,7 +754,7 @@ const { jobId } = await generateVideo({
 });
 ```
 
-Video editing and extension — pass the source clip as a `video` prompt part and pick the mode with `modelOptions.mode`. `'edit'` (`/v1/videos/edits`) modifies only what the prompt asks for and inherits duration / aspect ratio / resolution from the source (capped at 720p); `'extend'` (`/v1/videos/extensions`) continues the clip, with `duration` meaning the length of the **added tail**, not the total:
+Video editing and extension — pass the source clip as a `video` prompt part and pick the mode with `modelOptions.mode`. `'edit'` (`/v1/videos/edits`) modifies only what the prompt asks for and inherits duration / aspect ratio / resolution from the source (capped at 720p); `'extend'` (`/v1/videos/extensions`) continues the clip, with `duration` meaning the length of the **added tail**, not the total. Because the output inherits the source clip's properties, the adapter rejects `size` / `aspect_ratio` / `resolution` in both modes (and `duration` in edit mode) instead of sending fields the API ignores:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
