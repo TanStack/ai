@@ -49,7 +49,7 @@ Currently supported:
 
 - **OpenAI**: Sora-2 and Sora-2-Pro models (when available)
 - **Google Gemini**: Veo 3.1 models (via the long-running operations API), and Gemini Omni Flash (via the Interactions API)
-- **Grok (xAI)**: grok-imagine-video and grok-imagine-video-1.5 (text-to-video, image-to-video, reference-to-video, editing, extension)
+- **Grok (xAI)**: grok-imagine-video and grok-imagine-video-1.5 (text-to-video, image-to-video; 1.5 adds reference-to-video; v1.0 adds editing and extension)
 - **BytePlus**: Seedance 2.0, 1.5-pro and 1.0-pro models (text-to-video, first/last frame, and multimodal references on 2.0)
 - **fal.ai**: MiniMax, Luma, Kling, Hunyuan, and other hosted video models
 - **OpenRouter**: Seedance, Veo 3.1, Wan, Kling, Sora 2 Pro and others via the dedicated async video API (`POST /api/v1/videos`)
@@ -691,7 +691,7 @@ instead of letting the model infer the task mode).
 
 #### Grok (xAI Imagine) Model Options
 
-Based on the [xAI video generation API](https://docs.x.ai/developers/model-capabilities/video/generation). Two models are available: `grok-imagine-video` (v1.0) and `grok-imagine-video-1.5` (xAI's recommended default, with native 1080p text-to-video). Both support **text-to-video and image-to-video**; 1.5 adds **reference-to-video**, and both drive **video editing and extension**. Both are aspect-ratio sized — the generic `size` option takes an `aspectRatio_resolution` template (like the Grok Imagine image models), and clips can be 1–15 seconds long.
+Based on the [xAI video generation API](https://docs.x.ai/developers/model-capabilities/video/generation). Two models are available: `grok-imagine-video` (v1.0) and `grok-imagine-video-1.5` (xAI's recommended default, with native 1080p text-to-video). Both support **text-to-video and image-to-video**; 1.5 adds **reference-to-video**. **Video editing and extension** are `grok-imagine-video` only — 1.5 has no video input. Both are aspect-ratio sized — the generic `size` option takes an `aspectRatio_resolution` template (like the Grok Imagine image models), and clips can be 1–15 seconds long.
 
 Text-to-video:
 
@@ -754,14 +754,14 @@ const { jobId } = await generateVideo({
 });
 ```
 
-Video editing and extension — pass the source clip as a `video` prompt part and pick the mode with `modelOptions.mode`. `'edit'` (`/v1/videos/edits`) modifies only what the prompt asks for and inherits duration / aspect ratio / resolution from the source (capped at 720p); `'extend'` (`/v1/videos/extensions`) continues the clip, with `duration` meaning the length of the **added tail**, not the total. Because the output inherits the source clip's properties, the adapter rejects `size` / `aspect_ratio` / `resolution` in both modes (and `duration` in edit mode) instead of sending fields the API ignores:
+Video editing and extension (`grok-imagine-video` only) — pass the source clip as a `video` prompt part and pick the mode with `modelOptions.mode`. `'edit'` (`/v1/videos/edits`) modifies only what the prompt asks for and inherits duration / aspect ratio / resolution from the source (capped at 720p); `'extend'` (`/v1/videos/extensions`) continues the clip, with `duration` meaning the length of the **added tail**, not the total. Because the output inherits the source clip's properties, the adapter rejects `size` / `aspect_ratio` / `resolution` in both modes (and `duration` in edit mode) instead of sending fields the API ignores. The adapter rejects a source-video part or `mode` on `grok-imagine-video-1.5`.
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
 import { grokVideo } from "@tanstack/ai-grok";
 
 const { jobId } = await generateVideo({
-  adapter: grokVideo("grok-imagine-video-1.5"),
+  adapter: grokVideo("grok-imagine-video"),
   prompt: [
     { type: "text", content: "The camera keeps panning right across the bay" },
     {

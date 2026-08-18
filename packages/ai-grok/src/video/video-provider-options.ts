@@ -37,6 +37,14 @@ export type GrokVideoAspectRatio =
 export type GrokVideoResolution = '480p' | '720p' | '1080p'
 
 /**
+ * Resolutions accepted by grok-imagine-video (v1.0). Native 1080p is a
+ * grok-imagine-video-1.5 generation feature.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type GrokVideoResolutionV1 = '480p' | '720p'
+
+/**
  * Size strings for grok-imagine video models. The Imagine API is
  * aspect-ratio based rather than pixel-size based; like the grok-imagine
  * image models, the generic `size` option uses an
@@ -48,6 +56,15 @@ export type GrokVideoResolution = '480p' | '720p' | '1080p'
 export type GrokVideoSize =
   | GrokVideoAspectRatio
   | `${GrokVideoAspectRatio}_${GrokVideoResolution}`
+
+/**
+ * Size strings for grok-imagine-video (v1.0) — 1080p is not in the type.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type GrokVideoSizeV1 =
+  | GrokVideoAspectRatio
+  | `${GrokVideoAspectRatio}_${GrokVideoResolutionV1}`
 
 const GROK_VIDEO_ASPECT_RATIOS: ReadonlyArray<string> = [
   '1:1',
@@ -83,6 +100,16 @@ export function parseGrokVideoSize(
 }
 
 /**
+ * Models that accept native 1080p on text-to-video and image-to-video.
+ * Reference-to-video stays capped at 720p even on these models.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export function isGrokVideoNative1080pModel(model: string): boolean {
+  return model === 'grok-imagine-video-1.5'
+}
+
+/**
  * Validate the `size` template for a given grok video model.
  *
  * @experimental Video generation is an experimental feature and may change.
@@ -107,6 +134,12 @@ export function validateVideoSize(
     throw new Error(
       `Resolution "${parsed.resolution}" is not supported by model "${model}". ` +
         `Supported resolutions: ${GROK_VIDEO_RESOLUTIONS.join(', ')}`,
+    )
+  }
+  if (parsed.resolution === '1080p' && !isGrokVideoNative1080pModel(model)) {
+    throw new Error(
+      `Resolution "1080p" is not supported by model "${model}". ` +
+        `Use 'grok-imagine-video-1.5' for native 1080p text-to-video / image-to-video.`,
     )
   }
 }
@@ -168,7 +201,8 @@ export function getGrokVideoDurationOptions<TModel extends GrokVideoModel>(
  * (modify the source clip in place); `'extend'` posts to
  * `/v1/videos/extensions` (continue the source clip — `duration` is the
  * length of the **added tail**, not the total). Both require exactly one
- * video prompt part carrying the source clip.
+ * video prompt part carrying the source clip, and both are
+ * `grok-imagine-video` (v1.0) only.
  *
  * Output geometry (aspect ratio / resolution) is inherited from the source
  * clip in both modes, capped at 720p, and edit outputs also inherit the
@@ -180,22 +214,13 @@ export function getGrokVideoDurationOptions<TModel extends GrokVideoModel>(
 export type GrokVideoMode = 'edit' | 'extend'
 
 /**
- * Provider options shared by both grok-imagine video models. Apart from
- * `mode` (a routing hint stripped before the request is sent), these map
+ * Provider options shared by both grok-imagine video models. These map
  * directly onto the Imagine API request body and take precedence over the
  * generic `size` / `duration` options when both are provided.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export interface GrokVideoBaseProviderOptions {
-  /**
-   * Selects the request mode for a source-video prompt part: `'edit'`
-   * (`/v1/videos/edits`) or `'extend'` (`/v1/videos/extensions`). Required
-   * when the prompt carries a video part; not valid without one. Omit for
-   * plain generation (`/v1/videos/generations`).
-   */
-  mode?: GrokVideoMode
-
   /**
    * Output aspect ratio. Generation only — edit / extend outputs inherit
    * the source clip's geometry and the adapter rejects this in those modes.
@@ -205,6 +230,8 @@ export interface GrokVideoBaseProviderOptions {
   /**
    * Output resolution tier. Generation only — edit / extend outputs inherit
    * the source clip's geometry and the adapter rejects this in those modes.
+   * `1080p` is grok-imagine-video-1.5 generation only; reference-to-video
+   * is capped at 720p.
    */
   resolution?: GrokVideoResolution
 
@@ -214,6 +241,22 @@ export interface GrokVideoBaseProviderOptions {
    * valid in `'edit'` mode (the output inherits the source clip's length).
    */
   duration?: number
+}
+
+/**
+ * Provider options for grok-imagine-video (v1.0), which is the only model
+ * that accepts a source-video edit / extend job.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export interface GrokVideoSourceProviderOptions extends GrokVideoBaseProviderOptions {
+  /**
+   * Selects the request mode for a source-video prompt part: `'edit'`
+   * (`/v1/videos/edits`) or `'extend'` (`/v1/videos/extensions`). Required
+   * when the prompt carries a video part; not valid without one. Omit for
+   * plain generation (`/v1/videos/generations`). grok-imagine-video only.
+   */
+  mode?: GrokVideoMode
 }
 
 /**
@@ -243,9 +286,24 @@ export interface GrokVideoProviderOptions extends GrokVideoBaseProviderOptions {
 }
 
 /**
+ * Widest option surface. Used when `modelOptions` arrives as deserialized
+ * JSON and the adapter must validate fields the per-model map already
+ * hides at compile time.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export type GrokVideoRuntimeOptions = GrokVideoSourceProviderOptions &
+  GrokVideoProviderOptions
+
+/**
  * Maximum reference voices accepted by the Imagine video endpoint.
  */
 export const GROK_VIDEO_MAX_REFERENCE_AUDIOS = 3
+
+/**
+ * Maximum reference images accepted by the Imagine video endpoint.
+ */
+export const GROK_VIDEO_MAX_REFERENCE_IMAGES = 7
 
 /**
  * Models that support reference-to-video inputs (`reference_images` /
@@ -270,13 +328,34 @@ export function isGrokVideoReferenceModel(model: string): boolean {
 }
 
 /**
+ * Models that accept a source-video prompt part for `/v1/videos/edits`
+ * and `/v1/videos/extensions`. xAI lists video input only on
+ * grok-imagine-video (v1.0).
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+const GROK_VIDEO_SOURCE_MODELS: ReadonlySet<string> = new Set([
+  'grok-imagine-video',
+])
+
+/**
+ * True when the model accepts edit / extend source-video jobs.
+ *
+ * @experimental Video generation is an experimental feature and may change.
+ */
+export function isGrokVideoSourceModel(model: string): boolean {
+  return GROK_VIDEO_SOURCE_MODELS.has(model)
+}
+
+/**
  * Type-only map from model name to its specific provider options. Only
- * grok-imagine-video-1.5 exposes the reference-to-video fields.
+ * grok-imagine-video-1.5 exposes the reference-to-video fields. Only
+ * grok-imagine-video (v1.0) exposes `mode` for edit / extend.
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoModelProviderOptionsByName = {
-  'grok-imagine-video': GrokVideoBaseProviderOptions
+  'grok-imagine-video': GrokVideoSourceProviderOptions
   'grok-imagine-video-1.5': GrokVideoProviderOptions
 }
 
@@ -286,7 +365,7 @@ export type GrokVideoModelProviderOptionsByName = {
  * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoModelSizeByName = {
-  'grok-imagine-video': GrokVideoSize
+  'grok-imagine-video': GrokVideoSizeV1
   'grok-imagine-video-1.5': GrokVideoSize
 }
 
@@ -296,11 +375,11 @@ export type GrokVideoModelSizeByName = {
  * part as the starting frame; image parts with `metadata.role: 'reference'`
  * or `'character'` become `reference_images` (grok-imagine-video-1.5 only).
  * A `video` prompt part carries the source clip for edit / extension mode
- * (`modelOptions.mode: 'edit' | 'extend'`).
+ * on grok-imagine-video only (`modelOptions.mode: 'edit' | 'extend'`).
  *
  * @experimental Video generation is an experimental feature and may change.
  */
 export type GrokVideoModelInputModalitiesByName = {
   'grok-imagine-video': readonly ['image', 'video']
-  'grok-imagine-video-1.5': readonly ['image', 'video']
+  'grok-imagine-video-1.5': readonly ['image']
 }

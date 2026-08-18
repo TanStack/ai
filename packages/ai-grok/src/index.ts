@@ -47,7 +47,9 @@ export {
 export type {
   GrokVideoMode,
   GrokVideoBaseProviderOptions,
+  GrokVideoSourceProviderOptions,
   GrokVideoProviderOptions,
+  GrokVideoRuntimeOptions,
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
   GrokVideoModelDurationByName,

@@ -4,8 +4,10 @@ import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { getGrokApiKeyFromEnv, withGrokDefaults } from '../utils/client'
 import {
   GROK_VIDEO_MAX_REFERENCE_AUDIOS,
+  GROK_VIDEO_MAX_REFERENCE_IMAGES,
   getGrokVideoDurationOptions,
   isGrokVideoReferenceModel,
+  isGrokVideoSourceModel,
   parseGrokVideoSize,
   validateVideoSize,
 } from '../video/video-provider-options'
@@ -26,7 +28,7 @@ import type {
   GrokVideoModelInputModalitiesByName,
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
-  GrokVideoProviderOptions,
+  GrokVideoRuntimeOptions,
 } from '../video/video-provider-options'
 import type { GrokClientConfig } from '../utils/client'
 
@@ -99,7 +101,8 @@ function buildGrokVideoUsage(
  *
  * Both models support text-to-video and image-to-video;
  * `grok-imagine-video-1.5` is xAI's documented default and adds native
- * 1080p text-to-video plus reference-to-video inputs.
+ * 1080p generation plus reference-to-video inputs. Source-video edit
+ * and extend are `grok-imagine-video` only.
  *
  * The Imagine video endpoints are not part of the OpenAI SDK surface (and
  * xAI rejects the SDK's multipart paths), so requests are plain JSON calls
@@ -116,9 +119,10 @@ function buildGrokVideoUsage(
  *   `metadata.role: 'reference'` or `'character'` (→ `reference_images`)
  *   and preset voices via `modelOptions.reference_audios`
  *   (grok-imagine-video-1.5 only)
- * - Video editing / extension via a source `video` prompt part and
- *   `modelOptions.mode: 'edit' | 'extend'` (`/v1/videos/edits` /
- *   `/v1/videos/extensions`; in extend mode `duration` is the added tail)
+ * - Video editing / extension on `grok-imagine-video` via a source
+ *   `video` prompt part and `modelOptions.mode: 'edit' | 'extend'`
+ *   (`/v1/videos/edits` / `/v1/videos/extensions`; in extend mode
+ *   `duration` is the added tail)
  * - Usage reporting: billed seconds (`unitsBilled`) and exact cost
  */
 export class GrokVideoAdapter<
@@ -197,7 +201,7 @@ export class GrokVideoAdapter<
     // arrives as deserialized JSON, so the adapter handles the widest option
     // surface (the 1.5 shape) uniformly and gates by model at runtime.
     const { mode, ...wireOptions } = (modelOptions ??
-      {}) as GrokVideoProviderOptions
+      {}) as GrokVideoRuntimeOptions
 
     // `mode` is typed 'edit' | 'extend' but reaches us untrusted from JSON
     // callers. An unrecognised value must not fall through to the
@@ -222,9 +226,21 @@ export class GrokVideoAdapter<
       )
     }
 
-    // A video prompt part is the source clip for edit / extension mode; the
-    // mode must be chosen explicitly because the two endpoints have different
-    // semantics (edit rewrites the clip, extend appends `duration` seconds).
+    // A video prompt part is the source clip for edit / extension mode.
+    // Those endpoints are grok-imagine-video only — 1.5 has no video input.
+    if (
+      !isGrokVideoSourceModel(model) &&
+      (mode !== undefined || resolved.videos.length > 0)
+    ) {
+      throw new Error(
+        `${this.name}: ${model} does not support video editing or extension. ` +
+          `Use 'grok-imagine-video' for /v1/videos/edits and /v1/videos/extensions.`,
+      )
+    }
+
+    // The mode must be chosen explicitly because the two endpoints have
+    // different semantics (edit rewrites the clip, extend appends
+    // `duration` seconds).
     if (resolved.videos.length > 1) {
       throw new Error(
         `${this.name}: ${model} accepts at most one source video; received ${resolved.videos.length}.`,
@@ -326,17 +342,43 @@ export class GrokVideoAdapter<
         `${this.name}: ${model} accepts at most ${GROK_VIDEO_MAX_REFERENCE_AUDIOS} reference voices; received ${referenceAudioCount}.`,
       )
     }
+    const referenceImageCount =
+      wireOptions.reference_images?.length ?? referenceImages.length
+    if (referenceImageCount > GROK_VIDEO_MAX_REFERENCE_IMAGES) {
+      throw new Error(
+        `${this.name}: ${model} accepts at most ${GROK_VIDEO_MAX_REFERENCE_IMAGES} reference images; received ${referenceImageCount}.`,
+      )
+    }
 
     // Image-to-video: the single image prompt part becomes the starting frame
     // and the prompt text describes the desired motion. URL sources are
     // fetched by xAI's servers; data sources are sent as base64 data URIs.
     const [startFrame] = startFrames
 
+    // xAI rejects `image` + `reference_images` / `reference_audios` as a
+    // 400: only one of image-to-video or reference-to-video can be active.
+    const hasReference =
+      referenceImages.length > 0 ||
+      wireOptions.reference_images !== undefined ||
+      wireOptions.reference_audios !== undefined
+    if (startFrame && hasReference) {
+      throw new Error(
+        `${this.name}: image-to-video and reference-to-video cannot be combined. ` +
+          `Use a starting-frame image, or reference images / voices, not both.`,
+      )
+    }
+
     // The generic `size` option carries an "aspectRatio_resolution" template
     // (e.g. '16:9_720p') and maps to the Imagine API's `aspect_ratio` /
     // `resolution` parameters; explicit modelOptions win over the template
     // (including `reference_images`, which replaces the part-derived list).
     const parsedSize = size !== undefined ? parseGrokVideoSize(size) : undefined
+    const resolvedResolution = wireOptions.resolution ?? parsedSize?.resolution
+    if (hasReference && resolvedResolution === '1080p') {
+      throw new Error(
+        `${this.name}: reference-to-video is capped at 720p on ${model}.`,
+      )
+    }
     const request = {
       model,
       prompt: resolved.text,
@@ -377,10 +419,10 @@ export class GrokVideoAdapter<
     mode: 'edit' | 'extend'
     sourceVideo: VideoPart<MediaInputMetadata>
     resolved: ReturnType<typeof resolveMediaPrompt>
-    wireOptions: Omit<GrokVideoProviderOptions, 'mode'>
+    wireOptions: Omit<GrokVideoRuntimeOptions, 'mode'>
     size: string | undefined
     genericDuration: number | undefined
-    logger: VideoGenerationOptions<GrokVideoProviderOptions>['logger']
+    logger: VideoGenerationOptions<GrokVideoRuntimeOptions>['logger']
   }): Promise<VideoJobResult> {
     const { model, mode, sourceVideo, resolved, wireOptions, logger } = args
     const endpoint = mode === 'edit' ? '/videos/edits' : '/videos/extensions'
@@ -455,7 +497,7 @@ export class GrokVideoAdapter<
     request: Record<string, unknown>,
     context: {
       model: string
-      logger: VideoGenerationOptions<GrokVideoProviderOptions>['logger']
+      logger: VideoGenerationOptions<GrokVideoRuntimeOptions>['logger']
       logLine: string
     },
   ): Promise<VideoJobResult> {

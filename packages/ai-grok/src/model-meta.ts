@@ -154,10 +154,11 @@ const GROK_IMAGINE_IMAGE_2_0 = {
 //
 // Both models support text-to-video and image-to-video (a starting-frame
 // image is optional). grok-imagine-video-1.5 is the documented default: it
-// adds native 1080p text-to-video plus reference-to-video inputs
-// (`reference_images` / `reference_audios`; reference output is capped at
-// 720p). Both models also drive video editing (`/v1/videos/edits`) and
-// extension (`/v1/videos/extensions`) via a source video prompt part.
+// adds native 1080p for text-to-video / image-to-video plus
+// reference-to-video (`reference_images` / `reference_audios`; reference
+// output is capped at 720p). Source-video edit (`/v1/videos/edits`) and
+// extend (`/v1/videos/extensions`) are grok-imagine-video only — xAI's
+// 1.5 model page lists text+image input, not video.
 const GROK_IMAGINE_VIDEO = {
   name: 'grok-imagine-video',
   supports: {
@@ -178,7 +179,7 @@ const GROK_IMAGINE_VIDEO = {
 const GROK_IMAGINE_VIDEO_1_5 = {
   name: 'grok-imagine-video-1.5',
   supports: {
-    input: ['text', 'image', 'video'],
+    input: ['text', 'image'],
     output: ['video', 'audio'],
   },
   pricing: {

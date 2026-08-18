@@ -241,8 +241,8 @@ Generate short video clips (1–15 seconds, with audio) with the Grok Imagine vi
 
 Available models:
 
-- `grok-imagine-video` (v1.0) — text-to-video and image-to-video, $0.05 per second of video.
-- `grok-imagine-video-1.5` — xAI's recommended default, $0.08 per second of video. Supports text-to-video (with native 1080p), image-to-video, and reference-to-video.
+- `grok-imagine-video` (v1.0) — text-to-video, image-to-video, and source-video edit / extend, $0.05 per second of video.
+- `grok-imagine-video-1.5` — xAI's recommended default, $0.08 per second of video. Supports text-to-video (with native 1080p), image-to-video, and reference-to-video. It does not accept a source video.
 
 Text-to-video:
 
@@ -293,11 +293,11 @@ const { jobId } = await generateVideo({
 });
 ```
 
-Like the Grok Imagine image models, sizing is aspect-ratio based: the `size` option takes an `aspectRatio_resolution` template. Supported aspect ratios are `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, and `2:3`; supported resolutions are `480p`, `720p`, and `1080p` (e.g. `"9:16_1080p"`). The resolution suffix is optional.
+Like the Grok Imagine image models, sizing is aspect-ratio based: the `size` option takes an `aspectRatio_resolution` template. Supported aspect ratios are `1:1`, `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, and `2:3`; supported resolutions are `480p`, `720p`, and (on `grok-imagine-video-1.5` text-to-video / image-to-video only) `1080p` (e.g. `"9:16_1080p"`). The resolution suffix is optional.
 
 ### Reference-to-Video
 
-On `grok-imagine-video-1.5`, image prompt parts with `metadata.role: 'reference'` (or `'character'`) become `reference_images` — they guide subjects and style without locking the first frame, and are addressed from the prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order. Preset TTS voices (up to 3) can be referenced for generated speech via `modelOptions.reference_audios`, addressed as `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`. Reference-to-video output is capped at 720p. Reference inputs are a 1.5-only feature — the adapter rejects them on `grok-imagine-video`:
+On `grok-imagine-video-1.5`, image prompt parts with `metadata.role: 'reference'` (or `'character'`) become `reference_images` — they guide subjects and style without locking the first frame, and are addressed from the prompt text as `<IMAGE_0>`, `<IMAGE_1>`, … in request order. Preset TTS voices (up to 3) can be referenced for generated speech via `modelOptions.reference_audios`, addressed as `<AUDIO_0>`, `<AUDIO_1>`, `<AUDIO_2>`. Reference-to-video output is capped at 720p. A starting-frame image and reference inputs cannot be combined — xAI rejects that mix with 400. Reference inputs are a 1.5-only feature — the adapter rejects them on `grok-imagine-video`:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -325,7 +325,7 @@ const { jobId } = await generateVideo({
 
 ### Video Editing and Extension
 
-Both models can rewrite or continue an existing clip. Pass the source clip as a `video` prompt part and pick the mode with `modelOptions.mode`:
+`grok-imagine-video` (v1.0) can rewrite or continue an existing clip. `grok-imagine-video-1.5` has no video input — the adapter rejects a source-video part or `mode` on that model. Pass the source clip as a `video` prompt part and pick the mode with `modelOptions.mode`:
 
 - `mode: 'edit'` posts to `/v1/videos/edits` — modifies only what the prompt asks for, keeping the rest of the clip intact. Duration, aspect ratio, and resolution are inherited from the source (capped at 720p), so the adapter rejects `size`, `aspect_ratio`, `resolution`, and `duration` in this mode rather than sending fields the API ignores.
 - `mode: 'extend'` posts to `/v1/videos/extensions` — continues the clip. `duration` is the length of the **added tail**, not the total: extending a 10-second clip with `duration: 5` yields 15 seconds. Output geometry is still inherited from the source, so `size` / `aspect_ratio` / `resolution` are rejected here too.
@@ -334,7 +334,7 @@ Both models can rewrite or continue an existing clip. Pass the source clip as a 
 import { generateVideo } from "@tanstack/ai";
 import { grokVideo } from "@tanstack/ai-grok";
 
-const adapter = grokVideo("grok-imagine-video-1.5");
+const adapter = grokVideo("grok-imagine-video");
 
 // Edit: change the clip in place
 const edit = await generateVideo({
