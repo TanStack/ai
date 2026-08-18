@@ -958,10 +958,13 @@ export interface TextOptions<
    *    `supportsCombinedToolsAndSchema(modelOptions) === true`. The adapter
    *    should then wire the schema into the upstream request (e.g.
    *    `response_format: { type: 'json_schema', ... }`, `text.format`,
-   *    `output_format`) alongside any `tools`. The model's natural final
-   *    turn carries the schema-constrained JSON text and the engine
-   *    harvests it from the agent loop without a separate finalization
-   *    round-trip.
+   *    `output_format`, `--json-schema`) alongside any `tools`.
+   *
+   *    How the engine then takes the object depends on
+   *    `combinedStructuredOutputSource()`:
+   *    - `'text'` (default): the final-turn assistant text is the JSON.
+   *    - `'event'`: the adapter emits `structured-output.complete` during
+   *      `chatStream`. Accumulated prose is not parsed.
    *
    *    Adapters that did NOT declare the capability never see this field
    *    populated — the engine instead invokes `structuredOutput` /
@@ -1557,20 +1560,25 @@ export interface CodeModeExternalErrorEvent extends CustomEvent {
   name: 'code_mode:external_error'
   value: { function: string; error: string; duration: number }
 }
-export interface CodeModeSkillCallEvent extends CustomEvent {
-  name: 'code_mode:skill_call'
-  value: { skill: string; input: unknown; timestamp: number }
+export interface CodeModeSnippetCallEvent extends CustomEvent {
+  name: 'code_mode:snippet_call'
+  value: { snippet: string; input: unknown; timestamp: number }
 }
-export interface CodeModeSkillResultEvent extends CustomEvent {
-  name: 'code_mode:skill_result'
-  value: { skill: string; result: unknown; duration: number; timestamp: number }
+export interface CodeModeSnippetResultEvent extends CustomEvent {
+  name: 'code_mode:snippet_result'
+  value: {
+    snippet: string
+    result: unknown
+    duration: number
+    timestamp: number
+  }
 }
-export interface CodeModeSkillErrorEvent extends CustomEvent {
-  name: 'code_mode:skill_error'
-  value: { skill: string; error: string; duration: number; timestamp: number }
+export interface CodeModeSnippetErrorEvent extends CustomEvent {
+  name: 'code_mode:snippet_error'
+  value: { snippet: string; error: string; duration: number; timestamp: number }
 }
-export interface SkillRegisteredEvent extends CustomEvent {
-  name: 'skill:registered'
+export interface SnippetRegisteredEvent extends CustomEvent {
+  name: 'snippet:registered'
   value: { id: string; name: string; description: string; timestamp: number }
 }
 
@@ -1589,10 +1597,10 @@ export type KnownCustomEvent =
   | CodeModeExternalCallEvent
   | CodeModeExternalResultEvent
   | CodeModeExternalErrorEvent
-  | CodeModeSkillCallEvent
-  | CodeModeSkillResultEvent
-  | CodeModeSkillErrorEvent
-  | SkillRegisteredEvent
+  | CodeModeSnippetCallEvent
+  | CodeModeSnippetResultEvent
+  | CodeModeSnippetErrorEvent
+  | SnippetRegisteredEvent
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent
   | ApprovalRequestedEvent

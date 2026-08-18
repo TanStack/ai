@@ -90,7 +90,7 @@
     "@honcho-ai/sdk": "^2.1.1",
     "@tanstack/ai": "workspace:*",
     "@vectorize-io/hindsight-client": "^0.6.1",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.10",
     "ioredis-mock": "^8.9.0",
     "redis": "^4.7.0"
   }

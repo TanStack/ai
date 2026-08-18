@@ -24,6 +24,14 @@ export const IMAGE_MODELS = [
     provider: 'xai' as const,
   },
   {
+    id: 'grok-imagine-image-2.0',
+    name: 'Grok Imagine 2.0 (xAI Direct)',
+    description: 'xAI recommended Imagine model with the quality option',
+    defaultSize: '16:9' as const,
+    sizeType: 'aspect_ratio' as const,
+    provider: 'xai' as const,
+  },
+  {
     id: 'grok-imagine-image-quality',
     name: 'Grok Imagine Quality (xAI Direct)',
     description: 'Higher-quality xAI Imagine images via the native adapter',
@@ -48,7 +56,7 @@ export const IMAGE_MODELS = [
     provider: 'fal' as const,
   },
   {
-    id: 'gemini-3.1-flash-image-preview',
+    id: 'gemini-3.1-flash-image',
     name: 'NanoBanana 2 (Gemini 3.1 Flash)',
     description: 'Latest and fastest Gemini native image generation',
     defaultSize: '16:9_4K' as const,
@@ -56,7 +64,7 @@ export const IMAGE_MODELS = [
     provider: 'gemini' as const,
   },
   {
-    id: 'gemini-3-pro-image-preview',
+    id: 'gemini-3-pro-image',
     name: 'NanoBanana Pro (Gemini 3 Pro)',
     description: 'Higher quality Gemini native image generation',
     defaultSize: '16:9_4K' as const,
@@ -150,10 +158,17 @@ export const VIDEO_MODELS = [
     provider: 'xai' as const,
   },
   {
+    id: 'grok-imagine-video-1.5',
+    name: 'Grok Imagine Video 1.5 (Text-to-Video)',
+    description:
+      'xAI recommended video model via the native grokVideo adapter (native 1080p text-to-video)',
+    mode: 'text-to-video' as const,
+    provider: 'xai' as const,
+  },
+  {
     id: 'grok-imagine-video-1.5/image-to-video',
     name: 'Grok Imagine Video 1.5 (Image-to-Video)',
-    description:
-      'Animate a starting frame via the native grokVideo adapter (1.5 is image-to-video only)',
+    description: 'Animate a starting frame via the native grokVideo adapter',
     mode: 'image-to-video' as const,
     provider: 'xai' as const,
   },

@@ -45,3 +45,11 @@ export {
   validateInterruptResumeBatch,
 } from './interrupt-resume'
 export type { PendingInterruptResumeRecord } from './interrupt-resume'
+export {
+  appendOutputSchemaInstruction,
+  parseJsonFromAssistantText,
+} from './utilities/structured-output-text'
+export {
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+} from './utilities/structured-output-events'

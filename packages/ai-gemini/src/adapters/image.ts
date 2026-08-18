@@ -13,7 +13,7 @@ import {
   validateNumberOfImages,
   validatePrompt,
 } from '../image/image-provider-options'
-import type { GEMINI_IMAGE_MODELS } from '../model-meta'
+import type { GeminiImageModels } from '../model-meta'
 import type {
   GeminiImageModelInputModalitiesByName,
   GeminiImageModelProviderOptionsByName,
@@ -45,7 +45,7 @@ import type { GeminiClientConfig } from '../utils/client'
 export interface GeminiImageConfig extends GeminiClientConfig {}
 
 /** Model type for Gemini Image */
-export type GeminiImageModel = (typeof GEMINI_IMAGE_MODELS)[number]
+export type GeminiImageModel = GeminiImageModels
 
 /**
  * Gemini Image Generation Adapter
@@ -392,6 +392,18 @@ export class GeminiImageAdapter<
   }
 }
 
+/** @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`. */
+export function createGeminiImage(
+  model: 'gemini-3.1-flash-image-preview',
+  apiKey: string,
+  config?: Omit<GeminiImageConfig, 'apiKey'>,
+): GeminiImageAdapter<'gemini-3.1-flash-image-preview'>
+/** @deprecated Shut down 2026-06-25. Use `gemini-3-pro-image`. */
+export function createGeminiImage(
+  model: 'gemini-3-pro-image-preview',
+  apiKey: string,
+  config?: Omit<GeminiImageConfig, 'apiKey'>,
+): GeminiImageAdapter<'gemini-3-pro-image-preview'>
 /**
  * Creates a Gemini image adapter with explicit API key.
  * Type resolution happens here at the call site.
@@ -415,10 +427,25 @@ export function createGeminiImage<TModel extends GeminiImageModel>(
   model: TModel,
   apiKey: string,
   config?: Omit<GeminiImageConfig, 'apiKey'>,
+): GeminiImageAdapter<TModel>
+export function createGeminiImage<TModel extends GeminiImageModel>(
+  model: TModel,
+  apiKey: string,
+  config?: Omit<GeminiImageConfig, 'apiKey'>,
 ): GeminiImageAdapter<TModel> {
   return new GeminiImageAdapter({ apiKey, ...config }, model)
 }
 
+/** @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`. */
+export function geminiImage(
+  model: 'gemini-3.1-flash-image-preview',
+  config?: Omit<GeminiImageConfig, 'apiKey'>,
+): GeminiImageAdapter<'gemini-3.1-flash-image-preview'>
+/** @deprecated Shut down 2026-06-25. Use `gemini-3-pro-image`. */
+export function geminiImage(
+  model: 'gemini-3-pro-image-preview',
+  config?: Omit<GeminiImageConfig, 'apiKey'>,
+): GeminiImageAdapter<'gemini-3-pro-image-preview'>
 /**
  * Creates a Gemini image adapter with automatic API key detection from environment variables.
  * Type resolution happens here at the call site.
@@ -443,6 +470,10 @@ export function createGeminiImage<TModel extends GeminiImageModel>(
  * });
  * ```
  */
+export function geminiImage<TModel extends GeminiImageModel>(
+  model: TModel,
+  config?: Omit<GeminiImageConfig, 'apiKey'>,
+): GeminiImageAdapter<TModel>
 export function geminiImage<TModel extends GeminiImageModel>(
   model: TModel,
   config?: Omit<GeminiImageConfig, 'apiKey'>,

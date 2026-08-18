@@ -23,7 +23,7 @@
     "@tanstack/ai-anthropic": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
     "@tanstack/ai-code-mode": "workspace:*",
-    "@tanstack/ai-code-mode-skills": "workspace:*",
+    "@tanstack/ai-code-mode-snippets": "workspace:*",
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-isolate-cloudflare": "workspace:*",
     "@tanstack/ai-isolate-node": "workspace:*",
@@ -62,8 +62,8 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
-    "@vitejs/plugin-react": "^5.1.2",
+    "@vitejs/plugin-react": "^5.2.0",
     "typescript": "5.9.3",
-    "vite": "^8.1.4"
+    "vite": "^8.2.1"
   }
 }

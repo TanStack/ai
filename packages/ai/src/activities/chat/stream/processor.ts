@@ -1875,9 +1875,10 @@ export class StreamProcessor {
 
     if (chunk.name === 'structured-output.start' && chunk.value) {
       const v = chunk.value as { messageId?: string }
-      const targetId = v.messageId ?? messageId
+      const { messageId: targetId } = this.ensureAssistantMessage(
+        v.messageId ?? messageId ?? undefined,
+      )
       if (targetId) {
-        this.ensureAssistantMessage(targetId)
         this.structuredMessageIds.add(targetId)
         this.structuredOutputUpdateBatches.delete(targetId)
         this.events.onStructuredOutputChange?.({
@@ -1897,7 +1898,9 @@ export class StreamProcessor {
         reasoning?: string
         messageId?: string
       }
-      const targetId = v.messageId ?? messageId
+      const { messageId: targetId } = this.ensureAssistantMessage(
+        v.messageId ?? messageId ?? undefined,
+      )
       if (targetId) {
         this.flushStructuredOutputUpdate(targetId)
         this.messages = completeStructuredOutputPart(

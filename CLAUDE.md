@@ -12,9 +12,10 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 - **Build System**: Nx for task orchestration and caching
 - **TypeScript**: 7.0.2 (native Go compiler). Framework build/typecheck tools
   that still need the pre-7 JS Compiler API (svelte-package, svelte-check,
-  vue-tsc, kiira, knip) run against the `@typescript/typescript6` (6.0.2) shim
-  via `pnpm-workspace.yaml` packageExtensions; the framework packages
-  themselves stay pinned to 5.9.3. See that file's comments.
+  vue-tsc, knip, typedoc) run against the `@typescript/typescript6` (6.0.2)
+  shim via `pnpm-workspace.yaml` packageExtensions. Angular cannot run on TS7,
+  so it pins `typescript@5.9.3` instead. kiira 0.6.0 is TS7-native and does
+  not need a shim. See that file's comments.
 - **Testing**: Vitest for unit tests
 - **Linting**: oxlint (incl. type-aware rules via `oxlint-tsgolint`); a few
   ESLint-compat rules run through oxlint's JS-plugin layer

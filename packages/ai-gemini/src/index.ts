@@ -30,6 +30,18 @@ export type {
   GeminiImageProviderOptions,
   GeminiImageModelProviderOptionsByName,
   GeminiAspectRatio,
+  // Per-model size narrowing. `GeminiImageModelSizeByName` is the map
+  // `generateImage()` applies at the call site; the per-model aliases let you
+  // name a single model's set directly. `GeminiNativeImageSize` is the widest
+  // union across all native models — prefer the narrower types above it.
+  GeminiImageModelSizeByName,
+  GeminiStandardImageAspectRatio,
+  GeminiExtendedImageAspectRatio,
+  Gemini31FlashImageSize,
+  Gemini31FlashLiteImageSize,
+  Gemini3ProImageSize,
+  Gemini25FlashImageSize,
+  GeminiNativeImageSize,
   // Re-export SDK types for convenience
   PersonGeneration,
   SafetyFilterLevel,

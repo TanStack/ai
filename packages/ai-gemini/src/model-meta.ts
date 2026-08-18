@@ -118,7 +118,46 @@ const GEMINI_3_FLASH = {
     GeminiThinkingOptions
 >
 
+/**
+ * Gemini 3 Pro Image ("Nano Banana Pro") — GA. Accepts the ten standard
+ * aspect ratios at 1K / 2K / 4K.
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-3-pro-image
+ */
 const GEMINI_3_PRO_IMAGE = {
+  name: 'gemini-3-pro-image',
+  max_input_tokens: 65_536,
+  max_output_tokens: 32_768,
+  knowledge_cutoff: '2025-01-01',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text', 'image'],
+    capabilities: ['batch_api', 'structured_output', 'thinking'],
+    tools: ['google_search'],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+    },
+    output: {
+      normal: 0.134,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiStructuredOutputOptions &
+    GeminiThinkingOptions
+>
+
+/**
+ * @deprecated `gemini-3-pro-image-preview` was shut down on 2026-06-25. Use
+ * the GA id `gemini-3-pro-image` instead — the preview id now 404s.
+ * Kept in the model union so existing code still compiles.
+ * @see https://ai.google.dev/gemini-api/docs/deprecations
+ */
+const GEMINI_3_PRO_IMAGE_PREVIEW = {
   name: 'gemini-3-pro-image-preview',
   max_input_tokens: 65_536,
   max_output_tokens: 32_768,
@@ -146,7 +185,46 @@ const GEMINI_3_PRO_IMAGE = {
     GeminiThinkingOptions
 >
 
+/**
+ * Gemini 3.1 Flash Image ("Nano Banana 2") — GA. The only native image model
+ * that accepts the four extreme banner ratios (1:4, 4:1, 1:8, 8:1) and the
+ * 512 (0.5K) resolution tier.
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-image
+ */
 const GEMINI_3_1_FLASH_IMAGE = {
+  name: 'gemini-3.1-flash-image',
+  max_input_tokens: 131_072,
+  max_output_tokens: 32_768,
+  knowledge_cutoff: '2025-01-01',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text', 'image'],
+    capabilities: ['batch_api', 'thinking'],
+    tools: ['google_search'],
+  },
+  pricing: {
+    input: {
+      normal: 0.5,
+    },
+    output: {
+      normal: 3,
+    },
+  },
+} as const satisfies ModelMeta<
+  GeminiToolConfigOptions &
+    GeminiSafetyOptions &
+    GeminiCommonConfigOptions &
+    GeminiCachedContentOptions &
+    GeminiThinkingOptions
+>
+
+/**
+ * @deprecated `gemini-3.1-flash-image-preview` was shut down on 2026-06-25.
+ * Use the GA id `gemini-3.1-flash-image` instead — the preview id now 404s.
+ * Kept in the model union so existing code still compiles.
+ * @see https://ai.google.dev/gemini-api/docs/deprecations
+ */
+const GEMINI_3_1_FLASH_IMAGE_PREVIEW = {
   name: 'gemini-3.1-flash-image-preview',
   max_input_tokens: 65_536,
   max_output_tokens: 65_536,
@@ -174,6 +252,10 @@ const GEMINI_3_1_FLASH_IMAGE = {
     GeminiThinkingOptions
 >
 
+/**
+ * Gemini 3.1 Flash Lite Image ("Nano Banana 2 Lite") — GA. 1K output only.
+ * @see https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite-image
+ */
 const GEMINI_3_1_FLASH_LITE_IMAGE = {
   name: 'gemini-3.1-flash-lite-image',
   max_input_tokens: 65_536,
@@ -375,6 +457,17 @@ const GEMINI_2_5_FLASH = {
     GeminiThinkingOptions
 >
 
+/**
+ * Gemini 2.5 Flash Image ("Nano Banana") — still GA, but documented as the
+ * legacy member of the family. Google publishes no `image_size` value for it,
+ * so its size type is a bare aspect ratio and the adapter sends no
+ * `imageConfig.imageSize`.
+ * @deprecated `gemini-2.5-flash-image` shuts down on 2026-10-02. Migrate to
+ * `gemini-3.1-flash-lite-image` (cheapest successor) or
+ * `gemini-3.1-flash-image`. Google's deprecations table still names the
+ * already-dead `gemini-3.1-flash-image-preview` as the replacement.
+ * @see https://ai.google.dev/gemini-api/docs/deprecations
+ */
 const GEMINI_2_5_FLASH_IMAGE = {
   name: 'gemini-2.5-flash-image',
   max_input_tokens: 1_048_576,
@@ -946,8 +1039,29 @@ export const GEMINI_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>([
 
 export type GeminiModels = (typeof GEMINI_MODELS)[number]
 
-export type GeminiImageModels = (typeof GEMINI_IMAGE_MODELS)[number]
+/**
+ * @deprecated Shut down 2026-06-25. Use `gemini-3.1-flash-image`.
+ */
+type Gemini31FlashImagePreviewModel = 'gemini-3.1-flash-image-preview'
 
+/**
+ * @deprecated Shut down 2026-06-25. Use `gemini-3-pro-image`.
+ */
+type Gemini3ProImagePreviewModel = 'gemini-3-pro-image-preview'
+
+export type GeminiImageModels =
+  | Exclude<
+      (typeof GEMINI_IMAGE_MODELS)[number],
+      Gemini31FlashImagePreviewModel | Gemini3ProImagePreviewModel
+    >
+  | Gemini31FlashImagePreviewModel
+  | Gemini3ProImagePreviewModel
+
+/**
+ * Image generation models. GA ids come first; the trailing `-preview` ids are
+ * shut-down aliases kept only so existing code keeps compiling — new code
+ * should use the GA id above its alias.
+ */
 export const GEMINI_IMAGE_MODELS = [
   GEMINI_3_1_FLASH_IMAGE.name,
   GEMINI_3_1_FLASH_LITE_IMAGE.name,
@@ -956,6 +1070,9 @@ export const GEMINI_IMAGE_MODELS = [
   IMAGEN_4_GENERATE.name,
   IMAGEN_4_GENERATE_FAST.name,
   IMAGEN_4_GENERATE_ULTRA.name,
+  // Deprecated aliases — shut down 2026-06-25.
+  GEMINI_3_1_FLASH_IMAGE_PREVIEW.name,
+  GEMINI_3_PRO_IMAGE_PREVIEW.name,
 ] as const
 
 /**

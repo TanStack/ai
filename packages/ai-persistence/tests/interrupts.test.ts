@@ -9,6 +9,7 @@ import type {
   AnyTextAdapter,
   ChatResumeToolState,
   StreamChunk,
+  TokenUsage,
   Tool,
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
@@ -112,12 +113,13 @@ function isInterruptTerminal(chunk: StreamChunk): chunk is StreamChunk & {
   )
 }
 
-const interruptFinished = (runId = 'r1'): StreamChunk => ({
+const interruptFinished = (runId = 'r1', usage?: TokenUsage): StreamChunk => ({
   type: EventType.RUN_FINISHED,
   runId,
   threadId: 't1',
   finishReason: 'tool_calls',
   timestamp: 1,
+  ...(usage ? { usage } : {}),
   outcome: {
     type: 'interrupt',
     interrupts: [
@@ -161,27 +163,29 @@ const text = (delta: string): StreamChunk => ({
   timestamp: 1,
 })
 
-const runFinished = (runId = 'r1'): StreamChunk => ({
+const runFinished = (runId = 'r1', usage?: TokenUsage): StreamChunk => ({
   type: EventType.RUN_FINISHED,
   runId,
   threadId: 't1',
   finishReason: 'stop',
   timestamp: 1,
+  ...(usage ? { usage } : {}),
 })
 
-const toolCallFinished = (runId = 'r1'): StreamChunk => ({
+const toolCallFinished = (runId = 'r1', usage?: TokenUsage): StreamChunk => ({
   type: EventType.RUN_FINISHED,
   runId,
   threadId: 't1',
   finishReason: 'tool_calls',
   timestamp: 1,
+  ...(usage ? { usage } : {}),
 })
 
-const toolCallChunks = () => [
+const toolCallChunks = (usage?: TokenUsage) => [
   runStarted(),
   toolStart(),
   toolArgs(),
-  toolCallFinished(),
+  toolCallFinished('r1', usage),
 ]
 
 async function persistClientToolTurn(
@@ -308,6 +312,69 @@ describe('interrupt persistence', () => {
     )
   })
 
+  it('persists client-tool interrupt usage once', async () => {
+    const persistence = memoryPersistence()
+    const usage = {
+      promptTokens: 8,
+      completionTokens: 3,
+      totalTokens: 11,
+    }
+
+    await persistClientToolTurn(
+      persistence,
+      [approvalClientTool('clientSearch')],
+      toolCallChunks(usage),
+    )
+
+    expect(await persistence.stores.runs!.get('r1')).toMatchObject({
+      status: 'interrupted',
+      usage,
+    })
+  })
+
+  it('includes current usage from a direct interrupt after an earlier iteration', async () => {
+    const persistence = memoryPersistence()
+    const firstUsage = {
+      promptTokens: 8,
+      completionTokens: 3,
+      totalTokens: 11,
+    }
+    const interruptUsage = {
+      promptTokens: 13,
+      completionTokens: 5,
+      totalTokens: 18,
+    }
+    const { adapter } = mockAdapter([
+      toolCallChunks(firstUsage),
+      [runStarted(), interruptFinished('r1', interruptUsage)],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [
+          {
+            ...clientTool('clientSearch'),
+            execute: () => ({ hits: [] }),
+          },
+        ],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.runs!.get('r1')).toMatchObject({
+      status: 'interrupted',
+      usage: {
+        promptTokens: 21,
+        completionTokens: 8,
+        totalTokens: 29,
+      },
+    })
+  })
+
   it('blocks normal new input while a thread has pending interrupts', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.interrupts!.create({
@@ -337,7 +404,16 @@ describe('interrupt persistence', () => {
 
   it('treats resume entries as interrupt continuation on the same run', async () => {
     const persistence = memoryPersistence()
-    const first = mockAdapter([[runStarted(), interruptFinished()]])
+    const first = mockAdapter([
+      [
+        runStarted(),
+        interruptFinished('r1', {
+          promptTokens: 8,
+          completionTokens: 3,
+          totalTokens: 11,
+        }),
+      ],
+    ])
     await collect(
       chat({
         adapter: first.adapter,
@@ -352,7 +428,15 @@ describe('interrupt persistence', () => {
     )
 
     const continuation = mockAdapter([
-      [runStarted(), text('continued'), runFinished('r1')],
+      [
+        runStarted(),
+        text('continued'),
+        runFinished('r1', {
+          promptTokens: 16,
+          completionTokens: 6,
+          totalTokens: 22,
+        }),
+      ],
     ])
     const chunks = await collect(
       chat({
@@ -379,6 +463,11 @@ describe('interrupt persistence', () => {
     expect(
       (await persistence.stores.interrupts!.get('interrupt-1'))?.status,
     ).toBe('resolved')
+    expect((await persistence.stores.runs!.get('r1'))?.usage).toEqual({
+      promptTokens: 24,
+      completionTokens: 9,
+      totalTokens: 33,
+    })
   })
 
   // The full two-phase chain for an approval-required client tool, driven
