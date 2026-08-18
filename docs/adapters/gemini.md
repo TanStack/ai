@@ -414,7 +414,10 @@ The Gemini adapter supports two types of image generation:
 - **Gemini native image models** (NanoBanana) — Use the `generateContent` API with models like `gemini-3.1-flash-image`. These support aspect ratio control plus resolution tiers (`512`, `1K`, `2K`, `4K`); which ratios and tiers are accepted varies per model and is enforced at compile time.
 - **Imagen models** — Use the `generateImages` API with models like `imagen-4.0-generate-001`. These are dedicated image generation models with WIDTHxHEIGHT sizing.
 
-The adapter automatically routes to the correct API based on the model name — models starting with `gemini-` use `generateContent`, while `imagen-` models use `generateImages`.
+The adapter routes to `generateContent` when the model is in
+`GEMINI_NATIVE_IMAGE_MODELS`. Imagen models, and any id this package does not
+know, use `generateImages`. Import the list or `isGeminiNativeImageModel`
+from `@tanstack/ai-gemini`.
 
 ### Example: Gemini Native Image Generation (NanoBanana)
 
@@ -502,6 +505,10 @@ const result = await generateImage({
 
 ### Image Model Options
 
+`modelOptions` is typed per model family, because the two families hit different APIs.
+
+Imagen models (`generateImages`) take `GenerateImagesConfig` fields:
+
 ```typescript ignore
 import { generateImage } from "@tanstack/ai";
 import { geminiImage } from "@tanstack/ai-gemini";
@@ -516,6 +523,29 @@ const result = await generateImage({
   },
 });
 ```
+
+Gemini native models (`generateContent`) take `seed`, `safetySettings`,
+`thinkingConfig`, `imageConfig`, and `systemInstruction`.
+`imageConfig` accepts only `aspectRatio` and `imageSize` on the Gemini
+Developer API.
+
+```typescript
+import { generateImage } from "@tanstack/ai";
+import { geminiImage } from "@tanstack/ai-gemini";
+
+const result = await generateImage({
+  adapter: geminiImage("gemini-3.1-flash-image"),
+  prompt: "...",
+  size: "16:9_4K",
+  modelOptions: {
+    thinkingConfig: { thinkingBudget: 512 },
+    // Merged over the imageConfig derived from `size`, per field.
+    imageConfig: { imageSize: "2K" },
+  },
+});
+```
+
+See [Image Generation](../media/image-generation) for the full native option list.
 
 ## Text-to-Speech (Experimental)
 
@@ -604,7 +634,7 @@ Creates a Gemini summarization adapter.
 
 ### `geminiImage(model, config?)` / `createGeminiImage(model, apiKey, config?)`
 
-Creates a Gemini image adapter. Automatically routes to the correct API based on the model name — `gemini-*` models use `generateContent`, `imagen-*` models use `generateImages`.
+Creates a Gemini image adapter. Models in `GEMINI_NATIVE_IMAGE_MODELS` use `generateContent`. Imagen models, and any unknown id, use `generateImages`.
 
 ### `geminiSpeech(model, config?)` / `createGeminiSpeech(model, apiKey, config?)`
 

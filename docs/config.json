@@ -446,7 +446,7 @@
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Video Generation",
@@ -811,7 +811,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Ollama",

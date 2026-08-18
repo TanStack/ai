@@ -82,18 +82,9 @@ export default async function globalSetup() {
   mock.mount('/api/embed', ollamaEmbedMount())
   mock.mount('/mistral', mistralEmbeddingsMount())
 
-  // Gemini native image generation (#1104: GA model ids + per-model
-  // aspectRatio/imageSize). Like TTS above, this hits generateContent, but
-  // aimock's handleGemini has no image-response branch at all (it imports
-  // isTextResponse/isToolCallResponse/isContentWithToolCallsResponse/
-  // isAudioResponse from helpers.js — isImageResponse is wired only into
-  // images.js's OpenAI /v1/images/* and Gemini's :predict handling) — a
-  // fixture shaped `{image}`/`{images}` falls through every branch and 500s
-  // with "Fixture response did not match any known type". Shares the
-  // '/v1beta/models' prefix with the Veo and batch-embed mounts above; only
-  // the two model paths the #1104 spec exercises are handled here, so
-  // everything else still falls through to those mounts / aimock's native
-  // Gemini handlers.
+  // Gemini native image generation. aimock has no generateContent image
+  // branch. One mount covers the #1104 size wire (aspectRatio / imageSize)
+  // and the #1103 modelOptions wire (safetySettings / thinkingConfig).
   mock.mount('/v1beta/models', geminiNativeImageMount())
 
   // Gemini Omni Flash video generation (Interactions API). aimock handles
@@ -547,12 +538,14 @@ function rejectGeminiImageRequest(
 }
 
 /**
- * Mounts Gemini native `generateContent` image calls for the two models the
- * spec uses: `gemini-3.1-flash-image` and `gemini-2.5-flash-image`.
+ * Mounts Gemini native `generateContent` image calls for
+ * `gemini-3.1-flash-image` and `gemini-2.5-flash-image`.
  *
- * aimock has no `generateContent` image branch. This mount reads
- * `generationConfig.imageConfig` and checks `aspectRatio` / `imageSize`
- * for those two models.
+ * aimock has no `generateContent` image branch. This mount reads the raw
+ * body so two specs can assert on the wire:
+ * - `/api/gemini-image-ga-models` checks `imageConfig.aspectRatio` / `imageSize`
+ * - `/api/gemini-native-image-wire` checks top-level `safetySettings` and
+ *   `generationConfig.thinkingConfig` on `gemini-2.5-flash-image`
  */
 function geminiNativeImageMount(): Mountable {
   const NATIVE_IMAGE_MODELS = new Set([
@@ -560,11 +553,26 @@ function geminiNativeImageMount(): Mountable {
     'gemini-2.5-flash-image',
   ])
 
-  // Deliberately coupled to the `size` values in
-  // testing/e2e/src/routes/api.gemini-image-ga-models.ts ('16:9_2K' and
-  // '16:9') — a future edit to one must update the other.
+  // Coupled to the `size` values in api.gemini-image-ga-models.ts.
   const EXPECTED_ASPECT_RATIO = '16:9'
   const EXPECTED_FLASH_IMAGE_SIZE = '2K'
+
+  // Imagen-only GenerateImagesConfig fields must never appear on generateContent.
+  const IMAGEN_ONLY_FIELDS = [
+    'personGeneration',
+    'safetyFilterLevel',
+    'addWatermark',
+    'language',
+    'negativePrompt',
+    'outputMimeType',
+    'outputCompressionQuality',
+    'guidanceScale',
+    'enhancePrompt',
+    'includeSafetyAttributes',
+    'includeRaiReason',
+    'outputGcsUri',
+    'aspectRatio',
+  ]
 
   return {
     async handleRequest(
@@ -589,28 +597,64 @@ function geminiNativeImageMount(): Mountable {
       const imageConfig = asRecord(generationConfig?.imageConfig)
       const aspectRatio = imageConfig?.aspectRatio
       const imageSize = imageConfig?.imageSize
-
-      if (aspectRatio !== EXPECTED_ASPECT_RATIO) {
+      const leaked = IMAGEN_ONLY_FIELDS.find(
+        (name) =>
+          name in body || (generationConfig && name in generationConfig),
+      )
+      if (leaked) {
         return rejectGeminiImageRequest(
           res,
-          `${model}: generationConfig.imageConfig.aspectRatio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
+          `Imagen-only field "${leaked}" reached generateContent — GenerateImagesConfig and GenerateContentConfig got crossed.`,
         )
       }
 
-      if (model === 'gemini-3.1-flash-image') {
-        if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
+      const hasModelOptions =
+        Array.isArray(body.safetySettings) ||
+        (generationConfig !== undefined &&
+          typeof generationConfig.thinkingConfig === 'object' &&
+          generationConfig.thinkingConfig !== null)
+
+      if (model === 'gemini-2.5-flash-image' && hasModelOptions) {
+        if (
+          !Array.isArray(body.safetySettings) ||
+          body.safetySettings.length === 0
+        ) {
           return rejectGeminiImageRequest(
             res,
-            `${model}: generationConfig.imageConfig.imageSize must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
+            'Missing top-level safetySettings (modelOptions.safetySettings did not reach the wire).',
           )
         }
-      } else if (imageSize !== undefined) {
-        // gemini-2.5-flash-image: Google documents no image_size for this
-        // model (#1104) — the adapter must send a bare aspect ratio only.
-        return rejectGeminiImageRequest(
-          res,
-          `${model}: generationConfig.imageConfig.imageSize must be absent.`,
-        )
+        if (
+          !generationConfig ||
+          typeof generationConfig.thinkingConfig !== 'object' ||
+          generationConfig.thinkingConfig === null
+        ) {
+          return rejectGeminiImageRequest(
+            res,
+            'Missing generationConfig.thinkingConfig (modelOptions.thinkingConfig did not reach the wire).',
+          )
+        }
+      } else {
+        if (aspectRatio !== EXPECTED_ASPECT_RATIO) {
+          return rejectGeminiImageRequest(
+            res,
+            `${model}: generationConfig.imageConfig.aspectRatio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
+          )
+        }
+
+        if (model === 'gemini-3.1-flash-image') {
+          if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
+            return rejectGeminiImageRequest(
+              res,
+              `${model}: generationConfig.imageConfig.imageSize must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
+            )
+          }
+        } else if (imageSize !== undefined) {
+          return rejectGeminiImageRequest(
+            res,
+            `${model}: generationConfig.imageConfig.imageSize must be absent.`,
+          )
+        }
       }
 
       res.statusCode = 200
