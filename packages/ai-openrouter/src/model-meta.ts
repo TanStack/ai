@@ -5082,7 +5082,6 @@ const MISTRALAI_CODESTRAL_2508 = {
     supports: [
       'frequencyPenalty',
       'maxCompletionTokens',
-      'prediction',
       'presencePenalty',
       'responseFormat',
       'seed',
@@ -7126,7 +7125,6 @@ const OPENAI_GPT_4O = {
       'logprobs',
       'maxCompletionTokens',
       'maxCompletionTokens',
-      'prediction',
       'presencePenalty',
       'responseFormat',
       'seed',
@@ -7164,7 +7162,6 @@ const OPENAI_GPT_4O_2024_05_13 = {
       'logprobs',
       'maxCompletionTokens',
       'maxCompletionTokens',
-      'prediction',
       'presencePenalty',
       'responseFormat',
       'seed',
@@ -7202,7 +7199,6 @@ const OPENAI_GPT_4O_2024_08_06 = {
       'logprobs',
       'maxCompletionTokens',
       'maxCompletionTokens',
-      'prediction',
       'presencePenalty',
       'responseFormat',
       'seed',
@@ -7239,7 +7235,6 @@ const OPENAI_GPT_4O_2024_11_20 = {
       'logitBias',
       'logprobs',
       'maxCompletionTokens',
-      'prediction',
       'presencePenalty',
       'responseFormat',
       'seed',
@@ -7277,7 +7272,6 @@ const OPENAI_GPT_4O_MINI = {
       'logprobs',
       'maxCompletionTokens',
       'maxCompletionTokens',
-      'prediction',
       'presencePenalty',
       'responseFormat',
       'seed',
@@ -7314,7 +7308,6 @@ const OPENAI_GPT_4O_MINI_2024_07_18 = {
       'logitBias',
       'logprobs',
       'maxCompletionTokens',
-      'prediction',
       'presencePenalty',
       'responseFormat',
       'seed',
@@ -7351,7 +7344,6 @@ const OPENAI_GPT_4O_MINI_BATCH = {
       'logitBias',
       'logprobs',
       'maxCompletionTokens',
-      'prediction',
       'presencePenalty',
       'responseFormat',
       'seed',
@@ -7388,7 +7380,6 @@ const OPENAI_GPT_4O_BATCH = {
       'logitBias',
       'logprobs',
       'maxCompletionTokens',
-      'prediction',
       'presencePenalty',
       'responseFormat',
       'seed',
@@ -15070,7 +15061,6 @@ export type OpenRouterModelOptionsByName = {
       OpenRouterBaseOptions,
       | 'frequencyPenalty'
       | 'maxCompletionTokens'
-      | 'prediction'
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
@@ -15891,7 +15881,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'prediction'
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
@@ -15909,7 +15898,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'prediction'
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
@@ -15927,7 +15915,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'prediction'
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
@@ -15944,7 +15931,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'prediction'
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
@@ -15962,7 +15948,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logprobs'
       | 'maxCompletionTokens'
       | 'maxCompletionTokens'
-      | 'prediction'
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
@@ -15979,7 +15964,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'prediction'
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
@@ -15996,7 +15980,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'prediction'
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
@@ -16013,7 +15996,6 @@ export type OpenRouterModelOptionsByName = {
       | 'logitBias'
       | 'logprobs'
       | 'maxCompletionTokens'
-      | 'prediction'
       | 'presencePenalty'
       | 'responseFormat'
       | 'seed'
