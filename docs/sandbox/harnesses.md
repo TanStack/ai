@@ -18,12 +18,17 @@ fast at the call site unless a sandbox is provided via `withSandbox(...)`.
 Each agent has its own package with curated per-model metadata. Pass the adapter
 to `chat({ adapter })` and run it under any provider.
 
-| Harness | Package | Adapter | Auth env |
+| Harness | Package | Adapter | Auth |
 | --- | --- | --- | --- |
-| [Grok Build](../adapters/grok-build) | `@tanstack/ai-grok-build` | `grokBuildText` | `XAI_API_KEY` (or grok.com login on local-process) |
-| [Claude Code](../adapters/claude-code) | `@tanstack/ai-claude-code` | `claudeCodeText` | `ANTHROPIC_API_KEY` (or `claude login`) |
-| [Codex](../adapters/codex) | `@tanstack/ai-codex` | `codexText` | `CODEX_API_KEY` (or `OPENAI_API_KEY`) |
-| [OpenCode](../adapters/opencode) | `@tanstack/ai-opencode` | `opencodeText` | `OPENAI_API_KEY` (model-dependent) |
+| [Grok Build](../adapters/grok-build) | `@tanstack/ai-grok-build` | `grokBuildText` | Default `'api-key'` (`XAI_API_KEY`). `'host'` uses `grok login`. |
+| [Claude Code](../adapters/claude-code) | `@tanstack/ai-claude-code` | `claudeCodeText` | Default `'api-key'` (`ANTHROPIC_API_KEY`). `'host'` uses `claude login`. |
+| [Codex](../adapters/codex) | `@tanstack/ai-codex` | `codexText` | Default `'api-key'` (`CODEX_API_KEY`). `'host'` uses `codex login`. |
+| [OpenCode](../adapters/opencode) | `@tanstack/ai-opencode` | `opencodeText` | `OPENAI_API_KEY` from the process env. No `authMode` flag. |
+| [ACP-Compatible](../adapters/acp-compatible) | `@tanstack/ai-acp` | `acpCompatible` / `acpCompatibleText` | Default `'api-key'` uses `authMethodId`. `'host'` skips ACP `authenticate`. |
+
+The provider is where the agent runs, not how it signs in. The default
+`authMode` is `'api-key'`. Set `'host'` when the machine already has a CLI
+login. See [Harness Auth](./auth).
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -38,6 +43,10 @@ const stream = chat({
   middleware: [withSandbox(sandbox)],
 })
 ```
+
+## Typed report from a harness
+
+If you want a typed object after the agent inspects the repo, pass `outputSchema` on the same `chat()` call. Dedicated adapters and `acpCompatible` honor it. See [Harness Agents](../structured-outputs/harnesses).
 
 ## Harness output can go to a journal
 
@@ -120,6 +129,7 @@ and protocol coverage). For which agents you can plug in, browse the official
 
 ## Where to go next
 
+- **[Harness Auth](./auth)**: pick host login or an API key. The sandbox type does not pick this.
 - **[Providers](./providers)**: where the harness runs (local, Docker, Daytona, Vercel, Sprites).
 - **[The Run Journal](./journal)**: how a run's output survives the host that started it.
 - **[Takeover & Detached Runs](./takeover)**: detach on disconnect, and the three exports a harness adapter implements to support attach.

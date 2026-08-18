@@ -1,6 +1,7 @@
 export { CodexTextAdapter, codexText } from './adapters/text'
 export type {
   CodexTextConfig,
+  CodexAuthMode,
   CodexSandboxMode,
   CodexApprovalMode,
 } from './adapters/text'

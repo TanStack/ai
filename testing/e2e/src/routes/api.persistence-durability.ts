@@ -16,7 +16,12 @@ import {
   withPersistence,
 } from '@tanstack/ai-persistence'
 import { z } from 'zod'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  StreamChunk,
+  TokenUsage,
+  Tool,
+} from '@tanstack/ai'
 
 /**
  * Provider-free harness route for the browser-refresh persistence story. It
@@ -25,7 +30,7 @@ import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
  * connection resumable — but uses fixed AG-UI sequences and a fixed adapter
  * instead of calling an LLM, so the e2e is deterministic with nothing to mock.
  *
- * Four scenarios (`?scenario=`):
+ * Five scenarios (`?scenario=`):
  *
  * - `text` (default) — a run that streams one assistant text message and
  *   finishes cleanly (`outcome: success`). The client persists the transcript
@@ -44,6 +49,8 @@ import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
  * - `structured-output` — runs separate structured-output finalization through
  *   `withPersistence`, then hydrates the completed structured-output part from
  *   the server through `reconstructChat`.
+ * - `usage` — runs two provider calls through server persistence and returns
+ *   their stored cumulative usage.
  *
  * Exempt from the aimock policy: this route never reaches an LLM provider's HTTP
  * layer, so there is nothing to mock.
@@ -78,7 +85,11 @@ const confirmSchema = {
   required: ['confirmed'],
 }
 
-function textRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
+function textRun(
+  threadId: string,
+  runId: string,
+  usage?: TokenUsage,
+): AsyncIterable<StreamChunk> {
   return (async function* () {
     yield {
       type: 'RUN_STARTED',
@@ -110,8 +121,56 @@ function textRun(threadId: string, runId: string): AsyncIterable<StreamChunk> {
       runId,
       timestamp: Date.now(),
       outcome: { type: 'success' },
+      ...(usage ? { usage } : {}),
     } as StreamChunk
   })()
+}
+
+const usagePersistence = memoryPersistence()
+const usageTool: Tool = {
+  name: 'search',
+  description: 'Search',
+  execute: () => ({ hits: [] }),
+}
+const usageAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  chatStream: ({ threadId, runId }: { threadId: string; runId: string }) =>
+    textRun(threadId, runId, {
+      promptTokens: 12,
+      completionTokens: 4,
+      totalTokens: 16,
+    }),
+  structuredOutput: () =>
+    Promise.resolve({
+      data: { name: 'Ada Lovelace' },
+      rawText: '{"name":"Ada Lovelace"}',
+      usage: {
+        promptTokens: 7,
+        completionTokens: 2,
+        totalTokens: 9,
+      },
+    }),
+} as unknown as AnyTextAdapter
+
+async function cumulativeUsage(threadId: string, runId: string) {
+  const stream = chat({
+    adapter: usageAdapter,
+    messages: [{ role: 'user', content: 'Name the programmer' }],
+    tools: [usageTool],
+    outputSchema: {
+      type: 'object',
+      properties: { name: { type: 'string' } },
+    },
+    stream: true,
+    threadId,
+    runId,
+    middleware: [withPersistence(usagePersistence)],
+  })
+  for await (const _ of stream) void _
+  return usagePersistence.stores.runs?.get(runId)
 }
 
 function interruptRun(
@@ -167,12 +226,13 @@ function stringField(body: unknown, key: string): string | undefined {
 
 function scenarioOf(
   request: Request,
-): 'text' | 'interrupt' | 'server-interrupt' | 'structured-output' {
+): 'text' | 'interrupt' | 'server-interrupt' | 'structured-output' | 'usage' {
   try {
     const value = new URL(request.url).searchParams.get('scenario')
     if (value === 'interrupt') return 'interrupt'
     if (value === 'server-interrupt') return 'server-interrupt'
     if (value === 'structured-output') return 'structured-output'
+    if (value === 'usage') return 'usage'
     return 'text'
   } catch {
     return 'text'
@@ -226,7 +286,8 @@ export const Route = createFileRoute('/api/persistence-durability')({
         const body: unknown = await request.json()
         const threadId = stringField(body, 'threadId') ?? 'persistence-thread'
         const runId = stringField(body, 'runId') ?? crypto.randomUUID()
-        if (scenarioOf(request) === 'structured-output') {
+        const scenario = scenarioOf(request)
+        if (scenario === 'structured-output') {
           const stream = chat({
             adapter: structuredOutputAdapter,
             messages: [{ role: 'user', content: 'Name the programmer' }],
@@ -240,8 +301,12 @@ export const Route = createFileRoute('/api/persistence-durability')({
           for await (const _ of stream) void _
           return Response.json({ runId, threadId })
         }
+        if (scenario === 'usage') {
+          const run = await cumulativeUsage(threadId, runId)
+          return Response.json({ runId, threadId, usage: run?.usage })
+        }
         const stream =
-          scenarioOf(request) === 'interrupt'
+          scenario === 'interrupt'
             ? interruptRun(threadId, runId)
             : textRun(threadId, runId)
         return toServerSentEventsResponse(stream, {

@@ -678,6 +678,72 @@ describe('chat()', () => {
       })
     })
 
+    it('preserves existing message ids on the interrupt MESSAGES_SNAPSHOT', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart('stream-assistant'),
+            {
+              ...ev.toolStart('call_1', 'clientSearch'),
+              parentMessageId: 'stream-assistant',
+            },
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          runId: 'interrupt-run',
+          messages: [{ id: 'user-1', role: 'user', content: 'Search' }],
+          tools: [clientTool('clientSearch')],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const snapshot = chunks.find(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      expect(snapshot).toMatchObject({
+        messages: [
+          { id: 'user-1', role: 'user', content: 'Search' },
+          { id: 'stream-assistant', role: 'assistant' },
+        ],
+      })
+    })
+
+    it('generates a snapshot id on the interrupt MESSAGES_SNAPSHOT when a message has no id', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'clientSearch'),
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          runId: 'interrupt-run',
+          messages: [{ role: 'user', content: 'Search' }],
+          tools: [clientTool('clientSearch')],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const snapshot = chunks.find(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      expect(snapshot?.messages[0]).toMatchObject({
+        id: 'snapshot_interrupt-run_0',
+        role: 'user',
+      })
+    })
+
     it('preserves structured-output parts on the interrupt MESSAGES_SNAPSHOT', async () => {
       const structuredOutput = {
         type: 'structured-output' as const,

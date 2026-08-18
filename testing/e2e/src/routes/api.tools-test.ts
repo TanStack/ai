@@ -11,17 +11,39 @@ import type { TestRuntimeContext } from '@/lib/tools-test-tools'
 import { createTextAdapter } from '@/lib/providers'
 import { getToolsForScenario } from '@/lib/tools-test-tools'
 
-const runtimeContextScenarios = new Set([
+const providerFreeScenarios = new Set([
   'server-context',
   'client-context',
   'client-server-context',
+  'malformed-tool-arguments',
 ])
 
-function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
+function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
+  const config =
+    scenario === 'malformed-tool-arguments'
+      ? {
+          arguments: '{',
+          initialText: 'Checking system status.',
+          input: undefined,
+          name: 'malformed-tool-arguments-test',
+          responseText: 'Recovered from malformed tool arguments.',
+          toolName: 'check_status',
+        }
+      : {
+          arguments: '{}',
+          initialText: 'Reading runtime context.',
+          input: {},
+          name: 'runtime-context-test',
+          responseText: 'Runtime context was read.',
+          toolName:
+            scenario === 'client-context'
+              ? 'read_client_context'
+              : 'read_server_context',
+        }
   return {
     kind: 'text',
-    name: 'runtime-context-test',
-    model: 'runtime-context-test',
+    name: config.name,
+    model: config.name,
     '~types': {
       providerOptions: {},
       inputModalities: ['text'],
@@ -31,7 +53,7 @@ function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
       systemPromptMetadata: undefined,
     },
     async *chatStream(options): AsyncGenerator<StreamChunk> {
-      const model = 'runtime-context-test'
+      const model = config.name
       const runId = options.runId ?? 'runtime-context-run'
       const threadId = options.threadId ?? 'runtime-context-thread'
       const messageId = `${runId}-message`
@@ -48,10 +70,6 @@ function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
       }
 
       if (!hasToolResult) {
-        const toolName =
-          scenario === 'client-context'
-            ? 'read_client_context'
-            : 'read_server_context'
         const toolCallId = `${scenario}-tool-call`
 
         yield {
@@ -64,7 +82,7 @@ function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
         yield {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId,
-          delta: 'Reading runtime context.',
+          delta: config.initialText,
           model,
           timestamp: Date.now(),
         }
@@ -77,24 +95,24 @@ function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
         yield {
           type: EventType.TOOL_CALL_START,
           toolCallId,
-          toolCallName: toolName,
-          toolName,
+          toolCallName: config.toolName,
+          toolName: config.toolName,
           model,
           timestamp: Date.now(),
         }
         yield {
           type: EventType.TOOL_CALL_ARGS,
           toolCallId,
-          delta: '{}',
+          delta: config.arguments,
           model,
           timestamp: Date.now(),
         }
         yield {
           type: EventType.TOOL_CALL_END,
           toolCallId,
-          toolCallName: toolName,
-          toolName,
-          input: {},
+          toolCallName: config.toolName,
+          toolName: config.toolName,
+          ...(config.input === undefined ? {} : { input: config.input }),
           model,
           timestamp: Date.now(),
         }
@@ -119,7 +137,7 @@ function createRuntimeContextAdapter(scenario: string): AnyTextAdapter {
       yield {
         type: EventType.TEXT_MESSAGE_CONTENT,
         messageId,
-        delta: 'Runtime context was read.',
+        delta: config.responseText,
         model,
         timestamp: Date.now(),
       }
@@ -200,8 +218,8 @@ export const Route = createFileRoute('/api/tools-test')({
             return toServerSentEventsResponse(errorStream, { abortController })
           }
 
-          const adapterOptions = runtimeContextScenarios.has(scenario)
-            ? { adapter: createRuntimeContextAdapter(scenario) }
+          const adapterOptions = providerFreeScenarios.has(scenario)
+            ? { adapter: createProviderFreeAdapter(scenario) }
             : createTextAdapter('openai', undefined, aimockPort, testId)
 
           const tools = getToolsForScenario(scenario)
@@ -226,6 +244,8 @@ export const Route = createFileRoute('/api/tools-test')({
             context: runtimeContext,
             threadId: params.threadId,
             runId: params.runId,
+            ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
+            ...(params.resume ? { resume: params.resume } : {}),
             agentLoopStrategy: maxIterations(20),
             abortController,
           })

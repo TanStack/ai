@@ -170,22 +170,28 @@ server event state, not the client's rendered messages.
 
 1. `setup` provides persistence, interrupt, and lock capabilities when their
    stores exist.
-2. `onConfig` creates or resumes the run, loads pending interrupts, and
-   validates the request's resume batch against them, then merges stored
-   messages into the request when the request carries no history.
-3. `onChunk` reacts only to a `RUN_FINISHED` interrupt outcome by committing
-   the accepted resumes, storing the new interrupts, marking the run
-   interrupted, and saving messages.
-4. Before `onFinish`, the chat engine appends the completed terminal assistant
+2. `onConfig` creates or resumes the run, seeds usage from the existing run
+   record, loads pending interrupts, and validates the request's resume batch
+   against them, then merges stored messages into the request when the request
+   carries no history.
+3. `onUsage` accumulates each provider terminal.
+4. `onChunk` reacts only to a `RUN_FINISHED` interrupt outcome. A direct adapter
+   terminal arrives before `onUsage`, so the handler includes its usage and
+   ignores the following `onUsage`. A synthesized tool boundary arrives after
+   the original terminal's `onUsage`, so the handler reuses that aggregate. It
+   then commits accepted resumes, stores the new interrupts, marks the run
+   interrupted, and saves messages.
+5. Before `onFinish`, the chat engine appends the completed terminal assistant
    messages to `ctx.messages`. Native-combined output keeps the structured
    result on its terminal assistant message. The separate-finalization path can
    append the agent loop's plain-text message followed by the structured-output
    message.
-5. `onFinish` saves that canonical transcript before marking the run completed.
-   `onError` terminalizes the run record without replacing the transcript. So
-   does `onAbort`, with one exception: on a run another middleware has declared
-   detachable, a plain disconnect (no cancel recorded in either band) writes
-   nothing and leaves the record `'running'` for a later takeover. See
+6. `onFinish` saves that canonical transcript before marking the run completed.
+   `onError` terminalizes the run record without replacing the transcript. Both
+   retain known usage. So does terminal `onAbort`, with one exception: on a run
+   another middleware has declared detachable, a plain disconnect (no cancel
+   recorded in either band) writes nothing and leaves the record `'running'`
+   for a later takeover. See
    [Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
 
 Accepted resumes are committed (interrupts marked resolved/cancelled) only once

@@ -56,6 +56,8 @@ recommendation.reason;       // string
 
 The agent decides when to call `get_product_price`, executes the tool, integrates the result into its reasoning, and only then produces the final structured response. You see the validated object; the tool calls happen behind the scenes.
 
+> **Note:** Coding agents in a sandbox (Claude Code, Codex, OpenCode, Grok Build) run native tools and the schema on the same turn. They do not pause for TanStack tool approval or client tools. See [Harness Agents](./harnesses).
+
 ## Streaming: lifecycle events before the structured payload
 
 Pass `stream: true` and the wire format changes — the client now sees tool-call events as they happen, _then_ the structured-output stream emits its terminal event. The lifecycle ordering is:
@@ -130,7 +132,7 @@ The full server-tool approval pattern lives in [Tool Approval Flow](../tools/too
 
 ## Client tools mid-run
 
-Client tools — defined with `.client((input) => ...)` on the tool definition — execute automatically when the model calls them. The runtime sees the queued `tool-input-available` custom event, looks up the registered `.client()` implementation, runs it, and posts the result back. The agent loop continues to the structured-output stream once every client tool resolves. There's no `onToolCall` option to wire up on the hook side.
+Client tools — defined with `.client((input) => ...)` on the tool definition — execute automatically when the model calls them. The server ends the current run with an internal `client-tool-execution` interrupt that does not appear in the public `interrupts` array. The client runs the registered `.client()` implementation and submits its output in a resume batch. Once every client tool resolves, the agent loop continues into the structured-output stream. There's no `onToolCall` option to wire up on the hook side.
 
 ```tsx
 import { toolDefinition } from "@tanstack/ai";

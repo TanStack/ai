@@ -72,10 +72,10 @@ schema changes through your deployment workflow instead. See
 ## Threads, runs, and turns
 
 The transcript is stored per `threadId`, and each run gets a `runs` record with its
-status, timings and usage. One thing follows from that and matters when you wire a
-client: a reconnecting client never has to present a run id it may no longer know.
-The store resolves the thread's live run with `findActiveRun(threadId)` and the client
-tails that.
+status, timings, and reported usage across provider calls. One thing follows from
+that and matters when you wire a client: a reconnecting client never has to present
+a run id it may no longer know. The store resolves the thread's live run with
+`findActiveRun(threadId)` and the client tails that.
 
 [Id map](./id-map) covers how to choose a thread id and what both ids mean on the
 generation hooks. [How persistence works](./internals) has the rest.
@@ -98,8 +98,8 @@ generation hooks. [How persistence works](./internals) has the rest.
 | Moment | What is written | Best-effort? |
 | --- | --- | --- |
 | **Start of a run** (`onStart`) | Pending turn (just-submitted user message + prior history) so a reload mid-generation still shows the question | Yes. Failure does not abort the run; finish is authoritative |
-| **Interrupt boundary** | New interrupt records, run status `interrupted`, and a thread snapshot of current messages | No. Store failures propagate |
-| **Finish** (`onFinish`) | Complete transcript (including completed assistant messages, their stream identities, and any completed structured-output part), run status `completed`, and commit of consumed resumes | No. The transcript is saved **before** the run is marked completed |
+| **Interrupt boundary** | New interrupt records, run status `interrupted`, known usage, and a thread snapshot of current messages | No. Store failures propagate |
+| **Finish** (`onFinish`) | Complete transcript (including completed assistant messages, the terminal reply's stream `messageId` for in-place reload identity, and any completed structured-output part), run status `completed`, known usage, and commit of consumed resumes | No. The transcript is saved **before** the run is marked completed |
 | **Optionally while streaming** | Throttled partial assistant text when `snapshotStreaming: true` | Yes |
 
 ```ts group=chat-persistence
@@ -120,9 +120,10 @@ by a structured-output assistant message.
 
 On **error**, the run is marked `failed`. On **abort**, the run is marked
 `aborted` with a `finishedAt`; `interrupted` is written only at an interrupt
-boundary, and it is not terminal. Resumes accepted in `onConfig` are **not**
-consumed until a success boundary (interrupt or finish), so a failed run leaves
-pending interrupts retryable with the same resume batch.
+boundary, and it is not terminal. Both terminal paths retain usage reported
+before the failure or abort. Resumes accepted in `onConfig` are **not** consumed
+until a success boundary (interrupt or finish), so a failed run leaves pending
+interrupts retryable with the same resume batch.
 
 One abort does **not** terminalize: a plain client disconnect on a run that some
 other middleware has declared *detachable* (a durable event log plus a run
@@ -136,8 +137,11 @@ either one makes the abort terminal again. See
 [Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
 
 The lifecycle a run record moves through. `completed`, `failed`, and `aborted`
-are terminal; `interrupted` is **parked**, not terminal, and a continuation
-after one is a new run with a fresh `runId`:
+are terminal; `interrupted` is **parked**, not terminal. The normal client flow
+starts a continuation with a fresh `runId`. A server integration can reuse the
+same `runId`; `createOrResume` leaves its status `interrupted` until the next
+interrupt or terminal boundary. `findActiveRun` only returns `running` records,
+so it cannot discover a same-ID continuation while that continuation executes.
 
 ```mermaid
 stateDiagram-v2
@@ -150,7 +154,11 @@ stateDiagram-v2
     completed --> [*]
     failed --> [*]
     aborted --> [*]
-    interrupted --> [*] : continuation runs under a new runId
+    interrupted --> [*] : continuation may use a new runId
+    interrupted --> interrupted : same runId pauses again
+    interrupted --> completed : same runId completes
+    interrupted --> failed : same runId fails
+    interrupted --> aborted : same runId aborts
 ```
 
 ## Interrupts survive a restart

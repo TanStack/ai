@@ -5,6 +5,7 @@ import type {
   ModelMessage,
   StreamChunk,
   Tool,
+  TokenUsage,
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
@@ -46,12 +47,17 @@ const ev = {
     delta,
     timestamp: 1,
   }),
-  runFinished: (runId = 'r1', threadId = 't1'): StreamChunk => ({
+  runFinished: (
+    runId = 'r1',
+    threadId = 't1',
+    usage?: TokenUsage,
+  ): StreamChunk => ({
     type: EventType.RUN_FINISHED,
     runId,
     threadId,
     finishReason: 'stop',
     timestamp: 1,
+    ...(usage ? { usage } : {}),
   }),
   interrupted: (interruptId = 'interrupt-1'): StreamChunk => ({
     type: EventType.RUN_FINISHED,
@@ -133,6 +139,88 @@ describe('withPersistence (state-only)', () => {
       { role: 'user', content: 'hi' },
       expect.objectContaining({ role: 'assistant', content: 'hello' }),
     ])
+  })
+
+  it('persists cumulative usage across model calls', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'agent-tool',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'call_1',
+          toolCallName: 'search',
+          toolName: 'search',
+          parentMessageId: 'agent-tool',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'call_1',
+          delta: '{}',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+          usage: {
+            promptTokens: 10,
+            completionTokens: 2,
+            totalTokens: 12,
+            promptTokensDetails: { cachedTokens: 3 },
+            cost: 1,
+          },
+        },
+      ],
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'agent-final',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text('hello'),
+        ev.runFinished('r1', 't1', {
+          promptTokens: 20,
+          completionTokens: 4,
+          totalTokens: 24,
+          completionTokensDetails: { reasoningTokens: 2 },
+          providerUsageDetails: { requestId: 'final' },
+          cost: 2,
+        }),
+      ],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'search' }],
+        tools: [serverSearchTool()],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect((await persistence.stores.runs!.get('r1'))?.usage).toEqual({
+      promptTokens: 30,
+      completionTokens: 6,
+      totalTokens: 36,
+      promptTokensDetails: { cachedTokens: 3 },
+      completionTokensDetails: { reasoningTokens: 2 },
+      providerUsageDetails: { requestId: 'final' },
+      cost: 3,
+    })
   })
 
   it('persists the pending user turn at start, so it survives a failed run', async () => {
@@ -218,6 +306,147 @@ describe('withPersistence (state-only)', () => {
     ])
   })
 
+  it('does not let an empty TEXT_MESSAGE_START id replace parentMessageId', async () => {
+    const persistence = memoryPersistence()
+    const adapter = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () =>
+        (async function* () {
+          yield ev.runStarted()
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: '',
+            timestamp: 1,
+          }
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'call_1',
+            toolCallName: 'search',
+            toolName: 'search',
+            parentMessageId: 'stream-assistant',
+            timestamp: 1,
+          }
+          yield ev.text('Half a stor')
+          throw new Error('crash mid-stream')
+        })(),
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    await expect(
+      collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'hi' }],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [
+            withPersistence(persistence, { snapshotStreaming: true }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('crash mid-stream')
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'hi' },
+      expect.objectContaining({
+        role: 'assistant',
+        content: 'Half a stor',
+        id: 'stream-assistant',
+        createdAt: expect.any(Date),
+      }),
+    ])
+  })
+
+  it('resets streaming state on an empty-id TEXT_MESSAGE_START between turns', async () => {
+    const persistence = memoryPersistence()
+    let call = 0
+    const adapter = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () => {
+        call++
+        if (call === 1) {
+          return (async function* () {
+            yield ev.runStarted()
+            yield {
+              type: EventType.TEXT_MESSAGE_START,
+              messageId: '',
+              timestamp: 1,
+            }
+            yield ev.text('Let me search.')
+            yield {
+              type: EventType.TOOL_CALL_START,
+              toolCallId: 'call_1',
+              toolCallName: 'search',
+              toolName: 'search',
+              parentMessageId: 'assistant-turn-1',
+              timestamp: 1,
+            }
+            yield {
+              type: EventType.TOOL_CALL_ARGS,
+              toolCallId: 'call_1',
+              delta: '{}',
+              timestamp: 1,
+            }
+            yield {
+              type: EventType.RUN_FINISHED,
+              runId: 'r1',
+              threadId: 't1',
+              finishReason: 'tool_calls',
+              timestamp: 1,
+            }
+          })()
+        }
+        return (async function* () {
+          yield ev.runStarted()
+          yield {
+            type: EventType.TEXT_MESSAGE_START,
+            messageId: '',
+            timestamp: 1,
+          }
+          yield ev.text('The answer is 42.')
+          throw new Error('crash mid-stream')
+        })()
+      },
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    await expect(
+      collect(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'search' }],
+          tools: [serverSearchTool()],
+          runId: 'r1',
+          threadId: 't1',
+          middleware: [
+            withPersistence(persistence, {
+              snapshotStreaming: true,
+              snapshotIntervalMs: 0,
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      ),
+    ).rejects.toThrow('crash mid-stream')
+
+    // The empty-id start on turn 2 still resets the per-turn accumulator: the
+    // crash-window snapshot holds only turn-2 text, and it must not inherit
+    // turn 1's tool-call id — two persisted messages may never share an id.
+    const thread = await persistence.stores.messages!.loadThread('t1')
+    expect(findAssistantToolCall(thread, 'call_1')?.id).toBe('assistant-turn-1')
+    const terminal = thread.at(-1)
+    expect(terminal).toMatchObject({
+      role: 'assistant',
+      content: 'The answer is 42.',
+    })
+    expect(terminal).not.toHaveProperty('id')
+  })
+
   it('stamps the terminal assistant turn with its stream messageId', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([
@@ -230,7 +459,11 @@ describe('withPersistence (state-only)', () => {
           timestamp: 1,
         },
         ev.text('hello'),
-        ev.runFinished(),
+        ev.runFinished('r1', 't1', {
+          promptTokens: 20,
+          completionTokens: 4,
+          totalTokens: 24,
+        }),
       ],
     ])
 
@@ -288,6 +521,11 @@ describe('withPersistence (state-only)', () => {
           threadId: 't1',
           finishReason: 'tool_calls',
           timestamp: 1,
+          usage: {
+            promptTokens: 10,
+            completionTokens: 2,
+            totalTokens: 12,
+          },
         },
       ],
       [
@@ -554,7 +792,7 @@ describe('withPersistence (state-only)', () => {
     ])
   })
 
-  it('persists separate-finalization output under its structured message id', async () => {
+  it('preserves message ids and cumulative usage through structured output', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([
       [
@@ -585,6 +823,11 @@ describe('withPersistence (state-only)', () => {
           threadId: 't1',
           finishReason: 'tool_calls',
           timestamp: 1,
+          usage: {
+            promptTokens: 10,
+            completionTokens: 2,
+            totalTokens: 12,
+          },
         },
       ],
       [
@@ -596,12 +839,21 @@ describe('withPersistence (state-only)', () => {
           timestamp: 1,
         },
         ev.text('hello'),
-        ev.runFinished(),
+        ev.runFinished('r1', 't1', {
+          promptTokens: 20,
+          completionTokens: 4,
+          totalTokens: 24,
+        }),
       ],
     ])
     adapter.structuredOutput = async () => ({
       data: { name: 'Ada' },
       rawText: '{"name":"Ada"}',
+      usage: {
+        promptTokens: 5,
+        completionTokens: 1,
+        totalTokens: 6,
+      },
     })
 
     const chunks = await collect(
@@ -654,6 +906,11 @@ describe('withPersistence (state-only)', () => {
       },
     })
     expect(thread.indexOf(agentFinal!)).toBeLessThan(thread.indexOf(terminal!))
+    expect((await persistence.stores.runs!.get('r1'))?.usage).toEqual({
+      promptTokens: 35,
+      completionTokens: 7,
+      totalTokens: 42,
+    })
   })
 
   it('records an interrupt and marks the run interrupted', async () => {
