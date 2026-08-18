@@ -1,5 +1,11 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  appendOutputSchemaInstruction,
+  parseJsonFromAssistantText,
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   DurableAttachNotSupportedError,
@@ -108,6 +114,14 @@ export class OpencodeTextAdapter<
       )
     }
     return getSandbox(ctx)
+  }
+
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  combinedStructuredOutputSource(): 'event' {
+    return 'event'
   }
 
   private applySystemPrompts(
@@ -321,22 +335,32 @@ export class OpencodeTextAdapter<
 
       queue.push({ kind: 'session', sessionId: session.sessionId })
 
-      const promptText = this.applySystemPrompts(
+      let promptText = this.applySystemPrompts(
         options,
         session.resumed || sessionId === undefined
           ? resumePrompt
           : buildPrompt(options.messages, undefined).prompt,
       )
+      if (options.outputSchema) {
+        promptText = appendOutputSchemaInstruction(
+          promptText,
+          options.outputSchema,
+        )
+      }
 
+      let lastAssistantText = ''
       session
         .prompt(promptText)
-        .then(({ message }) => {
+        .then(({ message, text }) => {
+          lastAssistantText = text
           queue.push({ kind: 'done', message })
           queue.end()
         })
         .catch((error: unknown) => queue.fail(error))
 
-      yield* mergeChunkStreams(
+      let heldFinished: StreamChunk | undefined
+      let lastTextMessageId: string | undefined
+      for await (const chunk of mergeChunkStreams(
         translateOpencodeStream(queue, {
           model: this.model,
           runId,
@@ -352,7 +376,54 @@ export class OpencodeTextAdapter<
             }),
         }),
         channel.stream,
-      )
+      )) {
+        if (options.outputSchema && chunk.type === EventType.RUN_FINISHED) {
+          heldFinished = chunk
+          continue
+        }
+        if (
+          chunk.type === EventType.TEXT_MESSAGE_START &&
+          typeof chunk.messageId === 'string' &&
+          chunk.messageId !== ''
+        ) {
+          lastTextMessageId = chunk.messageId
+        }
+        yield chunk
+      }
+
+      if (options.outputSchema) {
+        try {
+          const object = parseJsonFromAssistantText(lastAssistantText)
+          const messageId = lastTextMessageId ?? this.generateId()
+          yield structuredOutputStartChunk({
+            messageId,
+            model: this.model,
+            threadId,
+            runId,
+          })
+          yield structuredOutputCompleteChunk({
+            messageId,
+            model: this.model,
+            threadId,
+            runId,
+            object,
+            raw: lastAssistantText,
+          })
+        } catch (error: unknown) {
+          const message =
+            error instanceof Error
+              ? error.message
+              : 'Failed to parse structured output'
+          yield {
+            type: EventType.RUN_ERROR,
+            model: this.model,
+            timestamp: Date.now(),
+            message,
+            error: { message },
+          }
+        }
+      }
+      if (heldFinished) yield heldFinished
 
       // Surface pending approval requests (ask-policy actions awaiting a client
       // decision); the client approves and re-runs to continue.
@@ -392,8 +463,8 @@ export class OpencodeTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox OpenCode adapter. ' +
-          'Use a model adapter for structured output, or omit outputSchema.',
+        'This harness honors outputSchema on chat() in the same turn. ' +
+          'Pass outputSchema to chat(), or use a model adapter for a one-shot extract.',
       ),
     )
   }

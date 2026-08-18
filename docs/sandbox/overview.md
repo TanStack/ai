@@ -66,6 +66,10 @@ any one without touching the others.
 hooks) into a reusable definition. `withSandbox(definition)` is the `chat()`
 middleware that turns it on for a run.
 
+The provider is where the agent runs, not how it signs in. The default
+`authMode` is `'api-key'`. Set `'host'` when the machine already has a CLI
+login. See [Harness Auth](./auth).
+
 ### How a run executes
 
 ```txt
@@ -112,6 +116,8 @@ After that, pick the piece you need:
   (`sbxSandbox`), Daytona, Vercel, Sprites, and what each one can do.
 - [Harnesses](./harnesses): which agent runs. Grok Build, Claude Code, Codex,
   OpenCode, or any ACP agent.
+- [Harness Auth](./auth): host CLI login or an API key. The sandbox type does
+  not pick this.
 - [Workspace](./workspace): the source repo, clone depth, and setup commands.
 - [Tools](./tools): bridge your app's own tools into the in-sandbox agent.
 - [Policy](./policy): allow, ask or deny guardrails on what the agent may run.
@@ -127,7 +133,7 @@ build an adapter.
 
 ## Try it
 
-Two runnable demos:
+Three runnable demos:
 
 - [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web):
   a "build me an app" agent on Docker with durable runs wired. It scaffolds an app,
@@ -135,3 +141,7 @@ Two runnable demos:
   and a closed tab, and Stop is a real cancel.
 - [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare):
   the same idea at the edge, with the harness picked per run from the UI.
+- [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat)
+  at `/repo-report`: clone `TanStack/ai`, pick the harness, pick Auth
+  (`host` or `api-key`), and read a typed report from `useChat().final`. See
+  [Harness Agents](../structured-outputs/harnesses).

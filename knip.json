@@ -17,6 +17,7 @@
     "**/*.test-d.ts",
     "packages/ai-code-mode-snippets/test-cli/**",
     ".claude/worktrees/**",
+    "worktrees/**",
     "packages/ai-openai/live-tests/**",
     "packages/ai-openai/src/**/*.test.ts",
     "packages/ai-openai/src/audio/audio-provider-options.ts",

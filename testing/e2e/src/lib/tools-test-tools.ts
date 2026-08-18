@@ -226,6 +226,11 @@ export const SCENARIO_LIST = [
     label: 'Null Tool Input (Regression #265)',
     category: 'basic',
   },
+  {
+    id: 'malformed-tool-arguments',
+    label: 'Malformed Tool Arguments (Regression #1131)',
+    category: 'basic',
+  },
   // Race condition / event flow scenarios
   {
     id: 'sequential-client-tools',
@@ -342,6 +347,9 @@ export function getToolsForScenario(scenario: string) {
       return [failingTool]
 
     case 'null-tool-input':
+      return [serverTools.check_status]
+
+    case 'malformed-tool-arguments':
       return [serverTools.check_status]
 
     default:

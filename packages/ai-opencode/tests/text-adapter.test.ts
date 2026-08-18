@@ -94,6 +94,12 @@ describe('startOpencodeServerInSandbox', () => {
 })
 
 describe('opencode adapter', () => {
+  it('opts into combined event-source structured output', () => {
+    const adapter = opencodeText('anthropic/claude-sonnet-4-5')
+    expect(adapter.supportsCombinedToolsAndSchema()).toBe(true)
+    expect(adapter.combinedStructuredOutputSource()).toBe('event')
+  })
+
   it('requires a sandbox capability', async () => {
     const adapter = opencodeText('anthropic/claude-sonnet-4-5')
     const result = await collect(

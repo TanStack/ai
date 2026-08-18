@@ -1,4 +1,9 @@
 import { EventType, buildBaseUsage } from '@tanstack/ai'
+import {
+  parseJsonFromAssistantText,
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+} from '@tanstack/ai/adapter-internals'
 import type { StreamChunk, TokenUsage } from '@tanstack/ai'
 import type {
   AgentSdkMessage,
@@ -18,6 +23,13 @@ export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 const BRIDGED_MCP_PREFIX = `mcp__${BRIDGED_MCP_SERVER_NAME}__`
 
+/**
+ * Claude Code `--json-schema` injects a fake tool named StructuredOutput.
+ * The model "calls" it with the schema JSON. The result message may omit
+ * `structured_output`; harvest the tool input in that case.
+ */
+export const SYNTHETIC_STRUCTURED_OUTPUT_TOOL = 'StructuredOutput'
+
 /** Claude Code-specific usage details attached to RUN_FINISHED usage. */
 export type ClaudeCodeProviderUsageDetails = {
   /** Total cost of the harness run in USD, as reported by Claude Code. */
@@ -34,6 +46,8 @@ export interface TranslateContext {
   onSessionId?: (sessionId: string) => void
   /** Called for each raw SDK message, for logging. */
   onSdkMessage?: (message: AgentSdkMessage) => void
+  /** Emit structured-output events from `result.structured_output`. */
+  expectStructuredOutput?: boolean
 }
 
 /**
@@ -45,6 +59,19 @@ export function stripMcpPrefix(name: string): string {
   return name.startsWith(BRIDGED_MCP_PREFIX)
     ? name.slice(BRIDGED_MCP_PREFIX.length)
     : name
+}
+
+function isUsefulStructuredObject(value: unknown): boolean {
+  return (
+    value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    Object.keys(value).length > 0
+  )
+}
+
+function rememberStructuredOutput(current: unknown, next: unknown): unknown {
+  return isUsefulStructuredObject(next) ? next : current
 }
 
 function stringifyToolResultContent(
@@ -109,6 +136,11 @@ export async function* translateSdkStream(
   let runStarted = false
   /** Tool calls started but with no result yet. */
   const unresolvedToolCalls = new Set<string>()
+  const syntheticOutputToolIds = new Set<string>()
+  let capturedStructuredOutput: unknown
+  let assistantTextForHarvest = ''
+  let partialStructuredJson = ''
+  let partialIsStructuredOutput = false
   /** Anthropic message ids whose text/thinking already streamed via partials. */
   const streamedMessageIds = new Set<string>()
 
@@ -179,12 +211,42 @@ export async function* translateSdkStream(
     partialReasoningId = null
   }
 
+  function* emitStructuredOutput(object: unknown): Generator<StreamChunk> {
+    const raw = JSON.stringify(object)
+    const messageId = genId()
+    yield structuredOutputStartChunk({
+      messageId,
+      model,
+      threadId,
+      runId,
+    })
+    yield structuredOutputCompleteChunk({
+      messageId,
+      model,
+      threadId,
+      runId,
+      object,
+      raw,
+    })
+  }
+
   function* emitToolUse(block: {
     id: string
     name: string
     input: unknown
   }): Generator<StreamChunk> {
     const toolCallName = stripMcpPrefix(block.name)
+    if (
+      ctx.expectStructuredOutput === true &&
+      toolCallName === SYNTHETIC_STRUCTURED_OUTPUT_TOOL
+    ) {
+      capturedStructuredOutput = rememberStructuredOutput(
+        capturedStructuredOutput,
+        block.input,
+      )
+      syntheticOutputToolIds.add(block.id)
+      return
+    }
     const args = JSON.stringify(block.input ?? {})
     yield {
       type: EventType.TOOL_CALL_START,
@@ -226,6 +288,7 @@ export async function* translateSdkStream(
         if (alreadyStreamed) continue
         const messageId = message.message.id ?? genId()
         const text = (block as { text: string }).text
+        if (!alreadyStreamed) assistantTextForHarvest += text
         yield {
           type: EventType.TEXT_MESSAGE_START,
           messageId,
@@ -301,6 +364,10 @@ export async function* translateSdkStream(
         content?: SdkToolResultContent
         is_error?: boolean
       }
+      if (syntheticOutputToolIds.has(toolResult.tool_use_id)) {
+        syntheticOutputToolIds.delete(toolResult.tool_use_id)
+        continue
+      }
       unresolvedToolCalls.delete(toolResult.tool_use_id)
       yield {
         type: EventType.TOOL_CALL_RESULT,
@@ -320,6 +387,29 @@ export async function* translateSdkStream(
     yield* synthesizeUnresolvedResults()
 
     const usage = buildUsage(message.usage, message.total_cost_usd)
+    if (ctx.expectStructuredOutput === true) {
+      const fromResult = isUsefulStructuredObject(message.structured_output)
+        ? message.structured_output
+        : undefined
+      const fromTool = isUsefulStructuredObject(capturedStructuredOutput)
+        ? capturedStructuredOutput
+        : undefined
+      let fromText: unknown
+      if (fromResult === undefined && fromTool === undefined) {
+        const raw = assistantTextForHarvest || message.result || ''
+        if (raw.trim() !== '') {
+          try {
+            fromText = parseJsonFromAssistantText(raw)
+          } catch {
+            fromText = undefined
+          }
+        }
+      }
+      const object = fromResult ?? fromTool ?? fromText
+      if (isUsefulStructuredObject(object)) {
+        yield* emitStructuredOutput(object)
+      }
+    }
     if (message.subtype === 'success') {
       yield {
         type: EventType.RUN_FINISHED,
@@ -365,6 +455,24 @@ export async function* translateSdkStream(
       streamedMessageIds.add(partialMessageId)
     } else if (event.type === 'content_block_start') {
       partialBlockType = event.content_block.type
+      const startedBlock = event.content_block
+      partialIsStructuredOutput =
+        ctx.expectStructuredOutput === true &&
+        startedBlock.type === 'tool_use' &&
+        'name' in startedBlock &&
+        startedBlock.name === SYNTHETIC_STRUCTURED_OUTPUT_TOOL
+      if (partialIsStructuredOutput) {
+        partialStructuredJson = ''
+        if ('id' in startedBlock && typeof startedBlock.id === 'string') {
+          syntheticOutputToolIds.add(startedBlock.id)
+        }
+        if ('input' in startedBlock) {
+          capturedStructuredOutput = rememberStructuredOutput(
+            capturedStructuredOutput,
+            startedBlock.input,
+          )
+        }
+      }
       if (partialBlockType === 'text') {
         partialTextMessageId = partialMessageId ?? genId()
         partialTextContent = ''
@@ -402,6 +510,7 @@ export async function* translateSdkStream(
         typeof event.delta.text === 'string'
       ) {
         partialTextContent += event.delta.text
+        assistantTextForHarvest += event.delta.text
         yield {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: partialTextMessageId,
@@ -410,6 +519,12 @@ export async function* translateSdkStream(
           delta: event.delta.text,
           content: partialTextContent,
         }
+      } else if (
+        event.delta.type === 'input_json_delta' &&
+        partialIsStructuredOutput &&
+        typeof event.delta.partial_json === 'string'
+      ) {
+        partialStructuredJson += event.delta.partial_json
       } else if (
         event.delta.type === 'thinking_delta' &&
         partialReasoningId &&
@@ -424,12 +539,24 @@ export async function* translateSdkStream(
         }
       }
     } else if (event.type === 'content_block_stop') {
+      if (partialIsStructuredOutput && partialStructuredJson !== '') {
+        try {
+          capturedStructuredOutput = rememberStructuredOutput(
+            capturedStructuredOutput,
+            JSON.parse(partialStructuredJson),
+          )
+        } catch {
+          // Incomplete JSON; the complete assistant tool_use may still arrive.
+        }
+      }
       if (partialBlockType === 'text') {
         yield* closePartialText()
       } else if (partialBlockType === 'thinking') {
         yield* closePartialReasoning()
       }
       partialBlockType = null
+      partialIsStructuredOutput = false
+      partialStructuredJson = ''
     }
   }
 
