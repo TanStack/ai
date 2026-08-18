@@ -14,7 +14,9 @@ keywords:
   - semantic conventions
 ---
 
-The `otelMiddleware` factory wires TanStack AI into your existing OpenTelemetry setup. Every `chat()` call produces a root span, one child span per agent-loop iteration, and one grandchild span per tool call — all with [GenAI semantic-convention attributes](https://opentelemetry.io/docs/specs/semconv/gen-ai/). It also records GenAI token and duration histograms when a `Meter` is provided.
+The `otelMiddleware` factory wires TanStack AI into your existing OpenTelemetry setup. Every `chat()` call produces a root span, one child span per provider model call (agent-loop turn **or** structured-output finalization), and one grandchild span per tool call — all with [GenAI semantic-convention attributes](https://opentelemetry.io/docs/specs/semconv/gen-ai/). It also records GenAI token and duration histograms when a `Meter` is provided.
+
+Structured-output calls with no tools skip the agent loop and only run the finalization request. That path still opens an iteration span (via the `structuredOutput` middleware phase) so backends that key off generation spans (e.g. PostHog `$ai_generation`) and `captureContent` both work. Native combined mode (`supportsCombinedToolsAndSchema`) does not fire that phase — the single `beforeModel` span covers the combined call.
 
 ## Setup
 
@@ -57,7 +59,7 @@ chat gpt-5.5              (root, kind: INTERNAL)
 └── chat gpt-5.5 #1       (iteration, kind: CLIENT)
 ```
 
-Iteration spans are numbered (`#0`, `#1`, ...) so distinct iterations of the same chat are easy to pick apart in trace viewers.
+Iteration spans are numbered (`#0`, `#1`, ...) in the order model calls are observed, so distinct provider round-trips of the same chat are easy to pick apart in trace viewers.
 
 ### Attribute reference
 
@@ -230,8 +232,9 @@ Each media call produces one `CLIENT` span tagged with the activity's `gen_ai.op
 | `generateAudio` | `audio_generation` |
 | `generateSpeech` | `text_to_speech` |
 | `generateTranscription` | `transcription` |
+| `summarize` | `summarize` |
 
-The span carries `gen_ai.system` and `gen_ai.request.model` at start and, on finish, the same `gen_ai.usage.*` / `tanstack.ai.usage.*` attributes documented above — including `tanstack.ai.usage.units_billed` for unit-billed media. When a `Meter` is supplied it records the `gen_ai.client.operation.duration` histogram, tagged per activity. For streaming video the span covers the full create → poll → complete lifecycle; for non-streaming `generateVideo` it covers job submission. If a streaming video consumer abandons the stream before completion, the span is ended via `onAbort` (status `ERROR`, `tanstack.ai.completion.reason = cancelled`) rather than leaked.
+The span carries `gen_ai.system` and `gen_ai.request.model` at start and, on finish, the same `gen_ai.usage.*` / `tanstack.ai.usage.*` attributes documented above — including `tanstack.ai.usage.units_billed` for unit-billed media. When a `Meter` is supplied it records the `gen_ai.client.operation.duration` histogram, tagged per activity. For streaming video the span covers the full create → poll → complete lifecycle. Non-streaming video is two calls, so the submit itself emits no span — the run opens once the provider accepts the job, and the `getVideoJobStatus()` poll that observes a terminal state ends it. If a streaming video consumer abandons the stream before completion, the span is ended via `onAbort` (status `ERROR`, `tanstack.ai.completion.reason = cancelled`) rather than leaked.
 
 `otelMiddleware` applies the same `spanNameFormatter`, `attributeEnricher`, `onBeforeSpanStart`, and `onSpanEnd` extension points to media spans — the span info is discriminated by `kind`, where media spans report `kind: 'generation'`. For a custom backend, implement the base `GenerationMiddleware` contract directly; its hooks (`onStart` / `onUsage` / `onFinish` / `onAbort` / `onError`) receive the `GenerationMiddlewareContext` and fire for every activity, chat included. The `GenerationMiddleware` types are exported from the package root, while the `otelMiddleware` value lives on the `@tanstack/ai/middlewares/otel` subpath so importing `@tanstack/ai` never requires the optional `@opentelemetry/api` peer.
 

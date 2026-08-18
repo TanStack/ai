@@ -76,7 +76,7 @@ interface FakeHandle {
 }
 
 function makeFakeHandle(
-  options: { closeStdoutOnKill?: boolean } = {},
+  options: { closeStdoutOnKill?: boolean; stdoutError?: Error } = {},
 ): FakeHandle {
   const counts = { spawn: 0, kill: 0, end: 0 }
   const stdinWrites: Array<string> = []
@@ -87,9 +87,21 @@ function makeFakeHandle(
     close: closeStdout,
   } = createPushIterable()
 
+  // A stdout async-iterable that throws instead of yielding — a transport reset
+  // or provider stream error mid-drain.
+  const stdoutError = options.stdoutError
+  const stdout: AsyncIterable<string> =
+    stdoutError === undefined
+      ? iterable
+      : {
+          [Symbol.asyncIterator](): AsyncIterator<string> {
+            return { next: () => Promise.reject(stdoutError) }
+          },
+        }
+
   const spawnHandle: SpawnHandle = {
     pid: 1,
-    stdout: iterable,
+    stdout,
     stderr: (async function* empty() {})(),
     stdin: {
       write: (data: string) => {
@@ -123,6 +135,7 @@ function makeFakeHandle(
       ports: false,
       backgroundProcesses: true,
       writableStdin: true,
+      killableProcesses: true,
       snapshots: false,
       networkPolicy: false,
       durableFilesystem: false,
@@ -184,6 +197,7 @@ function makeExecFakeHandle(responses: Array<ExecResponse>): ExecFakeHandle {
       ports: false,
       backgroundProcesses: true,
       writableStdin: false,
+      killableProcesses: false,
       snapshots: false,
       networkPolicy: false,
       durableFilesystem: false,
@@ -356,6 +370,91 @@ describe('createBootstrapShell', () => {
 
     expect(fake.counts.kill).toBe(1)
     expect(fake.counts.end).toBe(1)
+  })
+
+  it('rejects promptly — without spinning — when stdout ends before the sentinel', async () => {
+    /*
+     * Regression for the bootstrap OOM. `sh` can exit before it ever prints the
+     * sentinel (a missing binary, an OOM kill, the provider reaping the sandbox
+     * mid-bootstrap). The old loop's only exit was the sentinel, and `nextLine()`
+     * answered `''` forever once the stream was done, so `run()` became a hot
+     * microtask loop pushing empty strings into its output buffer until the host
+     * process died of memory exhaustion.
+     *
+     * BOTH assertions matter. "It rejects" alone would also pass an
+     * implementation that spins for a while first, so the reject is raced
+     * against a REAL timer (a microtask hot loop starves the macrotask queue, so
+     * the watchdog can only fire if the loop actually yields), and the heap is
+     * checked to prove the output buffer did not grow.
+     */
+    const fake = makeFakeHandle()
+    const shell = await createBootstrapShell(fake.handle)
+    // The shell is dead: stdout ends with nothing on it.
+    fake.closeStdout()
+
+    const heapBefore = process.memoryUsage().heapUsed
+    let watchdog: ReturnType<typeof setTimeout> | undefined
+    const timedOut = new Promise<never>((_, reject) => {
+      watchdog = setTimeout(
+        () => reject(new Error('run() did not settle within 1s')),
+        1000,
+      )
+    })
+    try {
+      await expect(
+        Promise.race([shell.run('echo hi'), timedOut]),
+      ).rejects.toThrow(/exited before the sentinel/)
+    } finally {
+      clearTimeout(watchdog)
+    }
+
+    const grownMb = (process.memoryUsage().heapUsed - heapBefore) / 1024 / 1024
+    expect(grownMb).toBeLessThan(50)
+  })
+
+  it('rejects when the stdout iterator throws mid-drain instead of parking waiters', async () => {
+    /*
+     * `drainStdout()` is started but not awaited. A throw while iterating stdout
+     * used to skip the `streamDone = true` / waiter-flush entirely, so every
+     * `run()` parked on a promise nobody would ever resolve (and the rejection
+     * was unhandled). The drain must record the error and unblock waiters.
+     */
+    const boom = new Error('stdout transport reset')
+    const fake = makeFakeHandle({ stdoutError: boom })
+    const shell = await createBootstrapShell(fake.handle)
+
+    let watchdog: ReturnType<typeof setTimeout> | undefined
+    const timedOut = new Promise<never>((_, reject) => {
+      watchdog = setTimeout(
+        () => reject(new Error('run() never settled — waiter parked forever')),
+        1000,
+      )
+    })
+    try {
+      const settled = await Promise.race([
+        shell.run('echo hi').then(
+          () => undefined,
+          (error: unknown) => error,
+        ),
+        timedOut,
+      ])
+      expect(settled).toBeInstanceOf(Error)
+      expect(String(settled)).toMatch(/exited before the sentinel/)
+      // The original stream failure is preserved as the cause, so the operator
+      // can tell a transport reset from a clean early exit.
+      expect(settled instanceof Error ? settled.cause : undefined).toBe(boom)
+    } finally {
+      clearTimeout(watchdog)
+    }
+  })
+
+  it('rejects with a deadline when the shell stays alive but never answers', async () => {
+    // Belt-and-braces: stdout neither ends nor produces a sentinel.
+    const fake = makeFakeHandle()
+    const shell = await createBootstrapShell(fake.handle, {
+      commandTimeoutMs: 25,
+    })
+    await expect(shell.run('sleep forever')).rejects.toThrow(/timed out/)
   })
 
   it('forkState() returns the current cwd and parsed exported env vars', async () => {

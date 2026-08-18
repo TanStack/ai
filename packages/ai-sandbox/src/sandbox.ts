@@ -9,11 +9,13 @@
 import { bootstrapWorkspace } from './bootstrap'
 import { resolveAllSecrets } from './secrets'
 import { computeSandboxKey } from './key'
-import { InMemoryLockStore, InMemorySandboxStore } from './store'
+import { InMemoryLockStore } from '@tanstack/ai/locks'
+import type { LockStore } from '@tanstack/ai/locks'
 import type { SandboxFileHookEvent } from '@tanstack/ai'
+import { InMemorySandboxInstanceStore } from './instance-store'
+import type { SandboxInstanceStore } from './instance-store'
 import type { SandboxHandle, SandboxProvider } from './contracts'
 import type { SandboxKeyInput } from './key'
-import type { LockStore, SandboxStore } from './store'
 import type { SandboxPolicy } from './policy'
 import type { WorkspaceDefinition } from './workspace'
 
@@ -69,11 +71,13 @@ export interface SandboxEnsureContext {
   threadId: string
   runId: string
   /** Persistence seam; falls back to an in-memory store when absent. */
-  store?: SandboxStore
+  store?: SandboxInstanceStore
   /** Lock seam; falls back to an in-memory lock when absent. */
   locks?: LockStore
   tenant?: { userId?: string; orgId?: string }
   signal?: AbortSignal
+  /** Harness adapter name (`grok-build`, `claude-code`, `codex`, `opencode`). Optional. */
+  adapterName?: string
 }
 
 export interface SandboxDefinition {
@@ -109,10 +113,35 @@ function parseMaxAgeMs(value: string | undefined): number | undefined {
   return undefined
 }
 
+/**
+ * Bound for the unfenced teardown `destroy` call (see `destroy` below). Long
+ * enough that a slow provider API still completes, short enough that a wedged
+ * one cannot pin the process forever.
+ */
+const DESTROY_TIMEOUT_MS = 60 * 1000
+
 // Process-lifetime fallbacks shared across all definitions so concurrent
 // ensures for the same key serialize even without an injected store/lock.
-const fallbackStore = new InMemorySandboxStore()
+const fallbackStore = new InMemorySandboxInstanceStore()
 const fallbackLocks = new InMemoryLockStore()
+
+/**
+ * Put workspace secrets onto a live handle. Resume and snapshot restore skip
+ * bootstrap, so this is the only path that re-injects them after reconnect.
+ * Create injects secrets via `provider.create({ env })`, but resume/restore
+ * return a handle whose process env is empty unless we set it here. sbx in
+ * particular has no Docker Env on resume, so this is the only way secrets
+ * come back for that provider.
+ */
+async function applyWorkspaceSecrets(
+  handle: SandboxHandle,
+  workspace: WorkspaceDefinition | undefined,
+): Promise<void> {
+  if (workspace?.secrets === undefined) return
+  const resolved = resolveAllSecrets(workspace.secrets)
+  if (Object.keys(resolved).length === 0) return
+  await handle.env.set(resolved)
+}
 
 export function defineSandbox(config: SandboxConfig): SandboxDefinition {
   const keyInputFor = (ctx: SandboxEnsureContext): SandboxKeyInput => ({
@@ -151,6 +180,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
             signal: ctx.signal,
           })
           if (resumed) {
+            await applyWorkspaceSecrets(resumed, config.workspace)
             await store.upsert({
               ...existing,
               latestRunId: ctx.runId,
@@ -174,6 +204,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
                   : undefined,
               signal: ctx.signal,
             })
+            await applyWorkspaceSecrets(restored, config.workspace)
             await store.upsert({
               ...existing,
               providerSandboxId: restored.id,
@@ -199,6 +230,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
             ? resolveAllSecrets(config.workspace.secrets)
             : undefined,
         signal: ctx.signal,
+        adapterName: ctx.adapterName,
       })
 
       if (config.workspace) {
@@ -242,10 +274,31 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     const key = computeSandboxKey(keyInputFor(ctx))
     const existing = await store.get(key)
     if (!existing) return
-    await config.provider.destroy({
-      id: existing.providerSandboxId,
-      signal: ctx.signal,
-    })
+    /*
+     * TEARDOWN IS DELIBERATELY NOT FENCED BY `ctx.signal`.
+     *
+     * `destroy` runs on every teardown path INCLUDING the one caused by that
+     * very signal aborting, so forwarding it hands the provider a signal that is
+     * already aborted: a provider that honors it does nothing and returns
+     * successfully, and `store.delete` below then removes the only pointer to a
+     * live, billed sandbox. `SandboxInstanceStore` has no `list` (see the note
+     * at the top of `reclaim.ts`), so that sandbox is unreachable from then on.
+     *
+     * Same reasoning as `close()` never being fenced by the run claim (see
+     * `fenceDurability` in `claim.ts`): cleanup must outlive whatever cancelled
+     * the work. A fresh controller with its own bounded timeout keeps the call
+     * from hanging forever without letting the caller's abort cancel it.
+     */
+    const teardown = new AbortController()
+    const timer = setTimeout(() => teardown.abort(), DESTROY_TIMEOUT_MS)
+    try {
+      await config.provider.destroy({
+        id: existing.providerSandboxId,
+        signal: teardown.signal,
+      })
+    } finally {
+      clearTimeout(timer)
+    }
     await store.delete(key)
   }
 

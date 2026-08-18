@@ -11,8 +11,11 @@ export type Provider =
   | 'bedrock-responses'
   | 'openrouter'
   | 'openrouter-responses'
+  | 'vercel-gateway'
+  | 'vercel-gateway-responses'
   | 'openai-compatible'
   | 'mistral'
+  | 'byteplus'
   | 'elevenlabs'
 
 export type Feature =
@@ -33,6 +36,7 @@ export type Feature =
   | 'multimodal-structured'
   | 'summarize'
   | 'summarize-stream'
+  | 'embedding'
   | 'image-gen'
   | 'image-to-image'
   | 'audio-gen'
@@ -56,8 +60,11 @@ export const ALL_PROVIDERS: Provider[] = [
   'bedrock-responses',
   'openrouter',
   'openrouter-responses',
+  'vercel-gateway',
+  'vercel-gateway-responses',
   'openai-compatible',
   'mistral',
+  'byteplus',
   'elevenlabs',
 ]
 
@@ -79,6 +86,7 @@ export const ALL_FEATURES: Feature[] = [
   'multimodal-structured',
   'summarize',
   'summarize-stream',
+  'embedding',
   'image-gen',
   'image-to-image',
   'audio-gen',

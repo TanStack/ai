@@ -1,11 +1,17 @@
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
 import {
   DuplicateToolNameError,
   MCPConnectionError,
   MCPTaskRequiredToolError,
   MCPToolNotFoundError,
 } from './errors'
-import { makeMcpExecute, requiresTaskExecution, toServerTools } from './tools'
+import {
+  makeMcpExecute,
+  requiresTaskExecution,
+  toolMcpMetadata,
+  toServerTools,
+} from './tools'
 import { isTransportInstance, resolveTransport } from './transport'
 import type { TransportConfig } from './transport'
 import type {
@@ -14,6 +20,7 @@ import type {
   DescriptorTools,
   MCPClientOptions,
   MappedServerTools,
+  McpServerTool,
   ServerDescriptor,
   ToolsOptions,
 } from './types'
@@ -35,6 +42,9 @@ export interface MCPClient<
    * Auto-discovery: every server tool as a ServerTool. With a generated
    * descriptor, tool names are typed as the descriptor's name literals;
    * args/results stay untyped — use the `tools(defs)` overload for typed args.
+   *
+   * Both overloads yield {@link McpServerTool}s, so `tool.metadata.mcp` (the
+   * server's title / annotations) is typed without an annotation or a cast.
    */
   tools: {
     (options?: ToolsOptions): Promise<DescriptorTools<TServer>>
@@ -76,6 +86,15 @@ export interface MCPClient<
   getInfo: () => {
     transport: TransportConfig | undefined
     prefix: string | undefined
+    /**
+     * The options this client was built with, so a caller that reconstructs it
+     * from this descriptor keeps them. Without it a rebuilt client silently
+     * reverts to the SDK defaults — including the AJV validator that edge
+     * runtimes cannot compile.
+     *
+     * Optional so an existing hand-rolled `MCPClient` keeps compiling.
+     */
+    clientOptions?: ClientOptions
   }
   close: () => Promise<void>
   [Symbol.asyncDispose]: () => Promise<void>
@@ -91,23 +110,37 @@ class MCPClientImpl<
   // The ORIGINAL serializable transport config (undefined for clients built
   // from a ready-made Transport instance, which is single-use / not reconnectable).
   readonly #transport: TransportConfig | undefined
+  // Retained for the same reason as #transport: the MCP Apps call handler
+  // rebuilds a client per call from getInfo(), and a rebuilt client that lost
+  // `jsonSchemaValidator` falls straight back to AJV.
+  readonly #clientOptions: ClientOptions | undefined
 
   constructor(
     prefix?: string,
     name = 'tanstack-ai-mcp',
     version = '0.0.1',
     transport?: TransportConfig,
+    clientOptions?: ClientOptions,
   ) {
     this.prefix = prefix
     this.#transport = transport
-    this.#client = new Client({ name, version })
+    this.#clientOptions = clientOptions
+    // `clientOptions` is spread rather than passed straight through so an
+    // omitted option keeps the SDK's default. See MCPClientOptions.clientOptions
+    // for why edge runtimes need `jsonSchemaValidator` in particular.
+    this.#client = new Client({ name, version }, clientOptions)
   }
 
   getInfo(): {
     transport: TransportConfig | undefined
     prefix: string | undefined
+    clientOptions?: ClientOptions
   } {
-    return { transport: this.#transport, prefix: this.prefix }
+    return {
+      transport: this.#transport,
+      prefix: this.prefix,
+      ...(this.#clientOptions ? { clientOptions: this.#clientOptions } : {}),
+    }
   }
 
   async connect(transport: Transport): Promise<void> {
@@ -122,7 +155,7 @@ class MCPClientImpl<
   async tools(
     defsOrOptions?: ReadonlyArray<AnyToolDefinition> | ToolsOptions,
     maybeOptions: ToolsOptions = {},
-  ): Promise<Array<ServerTool>> {
+  ): Promise<Array<McpServerTool>> {
     if (this.#closed) throw new MCPConnectionError('MCP client is closed')
 
     const isDefs = Array.isArray(defsOrOptions)
@@ -131,7 +164,7 @@ class MCPClientImpl<
       : // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         ((defsOrOptions as ToolsOptions) ?? {}) // SDK interop: defsOrOptions may be undefined at runtime even though TS types it as ToolsOptions here
 
-    let tools: Array<ServerTool>
+    let tools: Array<McpServerTool>
     if (isDefs) {
       // Explicit path: bind each TanStack toolDefinition to the server by name.
       const available = new Map(
@@ -144,22 +177,34 @@ class MCPClientImpl<
         // on every callTool with -32600) — unlike discovery, which skips them.
         if (requiresTaskExecution(serverTool))
           throw new MCPTaskRequiredToolError(def.name)
-        const tool = def.server(
+        const bound = def.server(
           makeMcpExecute(this.#client, def.name, Boolean(def.outputSchema)),
         ) as ServerTool
-        if (this.prefix) tool.name = `${this.prefix}_${def.name}`
-        if (options.lazy) tool.lazy = true
-        // Stamp MCP metadata so `serverToolNameOf` (and the call handler) can
-        // recover the UNPREFIXED native name + serverId — mirror toServerTools.
-        // `metadata.mcp` is `unknown`; only spread it when it's a plain object.
-        const existingMcp = tool.metadata?.mcp
+        // A caller-supplied definition may already carry its own `mcp` block,
+        // and `metadata.mcp` is untyped there — only spread it when it really
+        // is a plain object.
+        const existingMcp: unknown = bound.metadata?.mcp
         const mcpBase =
           existingMcp !== null && typeof existingMcp === 'object'
             ? existingMcp
             : {}
-        tool.metadata = {
-          ...tool.metadata,
-          mcp: { ...mcpBase, serverToolName: def.name, serverId: this.prefix },
+        // Rebuilt rather than mutated in place: assigning `metadata` on a
+        // `ServerTool` can't narrow its declared `Record<string, any> |
+        // undefined` type, so a fresh literal is what lets the return value be
+        // an `McpServerTool` (typed `metadata.mcp`) without a cast.
+        //
+        // Stamping MCP metadata lets `serverToolNameOf` (and the call handler)
+        // recover the UNPREFIXED native name + serverId, and carries the
+        // server's display title / annotations to the host — mirrors
+        // toServerTools.
+        const tool: McpServerTool = {
+          ...bound,
+          ...(this.prefix ? { name: `${this.prefix}_${def.name}` } : {}),
+          ...(options.lazy ? { lazy: true } : {}),
+          metadata: {
+            ...bound.metadata,
+            mcp: { ...mcpBase, ...toolMcpMetadata(serverTool, this.prefix) },
+          },
         }
         return tool
       })
@@ -239,6 +284,7 @@ export async function createMCPClient<
     // Only a serializable config is reconnectable; a ready-made Transport
     // instance is single-use, so it is not retained as a descriptor.
     isTransportInstance(options.transport) ? undefined : options.transport,
+    options.clientOptions,
   )
   await impl.connect(transport)
   return impl
@@ -247,8 +293,18 @@ export async function createMCPClient<
 /** Test-only: connect directly from a transport instance (skips resolveTransport). */
 export async function createMCPClientFromTransport<
   TServer extends ServerDescriptor = AutomaticDescriptor,
->(transport: Transport, prefix?: string): Promise<MCPClient<TServer>> {
-  const impl = new MCPClientImpl<TServer>(prefix)
+>(
+  transport: Transport,
+  prefix?: string,
+  clientOptions?: ClientOptions,
+): Promise<MCPClient<TServer>> {
+  const impl = new MCPClientImpl<TServer>(
+    prefix,
+    undefined,
+    undefined,
+    undefined,
+    clientOptions,
+  )
   await impl.connect(transport)
   return impl
 }

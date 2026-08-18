@@ -59,14 +59,10 @@ chat({
       },
     ],
     // Tool config
-    toolConfig: {
-      /* ToolConfig */
-    },
+    toolConfig: {/* ToolConfig */},
     // Structured output
     responseMimeType: 'application/json',
-    responseSchema: {
-      /* Schema */
-    },
+    responseSchema: {/* Schema */},
     // Cached content
     cachedContent: 'cachedContents/abc123',
     // Response modalities

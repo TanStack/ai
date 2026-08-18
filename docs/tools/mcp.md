@@ -271,6 +271,113 @@ Run the CLI against a live server to generate per-server `interface` types, then
 
 > See [MCP Type Generation](./mcp-codegen) for the full `mcp.config.ts` setup, the `generate` CLI, and how to wire the generated types into `createMCPClient` and `createMCPClients`.
 
+## Tool Titles & Annotations
+
+MCP servers can ship display and behavior metadata alongside each tool: a human-readable `title` and a set of `annotations` hints (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`, plus a legacy `annotations.title`). `@tanstack/ai-mcp` forwards all of it onto each discovered tool's `metadata.mcp`, on **both** the auto-discovery and explicit-definition paths, so you can label tools in your UI and decide which ones need a confirmation step.
+
+| `metadata.mcp` field | Value |
+|---|---|
+| `title` | `string` — display name, resolved with the spec's precedence: the tool's `title` → `annotations.title` → `name`. Always set. |
+| `annotations` | The server's `annotations` object, forwarded verbatim. Absent when the server declares none. |
+| `serverToolName` | `string` — server-native (unprefixed) tool name. |
+| `serverId` | The client's `prefix` (undefined when there is none). |
+| `uiResourceUri` | [MCP Apps](../mcp/apps) widget link, when the tool declares one. |
+
+The block is typed, so just read it. `tools()` returns `McpServerTool`s — a plain `ServerTool` (it still drops straight into `chat({ tools })`) whose `metadata.mcp` is statically known to be present and shaped like the table above. No annotation, no cast, and a misspelled field is a compile error:
+
+```ts
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+const url = 'https://my-mcp-server.example.com/mcp'
+
+// Trust comes from YOUR configuration — an allowlist of servers you operate or
+// have vetted — never from anything the server itself sends.
+const trustedServers = new Set(['https://my-mcp-server.example.com/mcp'])
+const serverIsTrusted = trustedServers.has(url)
+
+const mcp = await createMCPClient({ transport: { type: 'http', url } })
+
+const tools = (await mcp.tools()).map((tool) => {
+  const meta = tool.metadata.mcp
+  const advertisedReadOnly = meta.annotations?.readOnlyHint === true
+  return {
+    ...tool,
+    // Approval is the default. A hint may only relax it for a server whose
+    // trust you established independently; on any other server the same hint
+    // is a label/recommendation and changes nothing about approval.
+    needsApproval: !(serverIsTrusted && advertisedReadOnly),
+  }
+})
+```
+
+> **Annotations are advisory, never a security boundary.** The MCP spec is explicit that every field — including `title` — is a hint that may not faithfully describe what the tool actually does, and a malicious or compromised server can claim anything (`readOnlyHint: true` on a tool that deletes records). Do not use them as the security boundary for an untrusted server: never let a hint alone waive approval, sandboxing, or authorization. On a server you have independently established as trusted, a hint may *relax* a confirmation step, as above; everywhere else, treat annotations as display labels and recommendations only — surface `readOnlyHint` as a badge (see the UI example below) rather than acting on it.
+
+Titles are display-only: they never change the tool `name` sent to the model, and a `prefix` still applies to the name (`wx_get_weather`), not to the title.
+
+`McpToolMetadata` and `McpServerTool` are both exported if you need to name the shapes in your own signatures (`ToolAnnotations` too, re-exported from the MCP SDK). You don't need them just to read the block.
+
+To label tools in your UI, expose the forwarded metadata from a server route — the MCP client itself must stay server-side:
+
+```ts ignore
+// src/routes/api.mcp-tools.ts
+import { createFileRoute } from '@tanstack/react-router'
+import { createMCPClient } from '@tanstack/ai-mcp'
+
+export const Route = createFileRoute('/api/mcp-tools')({
+  server: {
+    handlers: {
+      GET: async () => {
+        await using mcp = await createMCPClient({
+          transport: { type: 'http', url: process.env.MCP_URL! },
+        })
+        const catalog = (await mcp.tools()).map((tool) => ({
+          name: tool.name,
+          // `title` is always set — the fallback chain already ran.
+          title: tool.metadata.mcp.title,
+          description: tool.description,
+          readOnly: tool.metadata.mcp.annotations?.readOnlyHint === true,
+        }))
+        return Response.json({ tools: catalog })
+      },
+    },
+  },
+})
+```
+
+```tsx
+// src/components/ToolCatalog.tsx
+import { useEffect, useState } from 'react'
+
+interface ToolSummary {
+  name: string
+  title: string
+  description?: string
+  readOnly: boolean
+}
+
+export function ToolCatalog() {
+  const [tools, setTools] = useState<Array<ToolSummary>>([])
+
+  useEffect(() => {
+    fetch('/api/mcp-tools')
+      .then((res) => res.json())
+      .then((body: { tools: Array<ToolSummary> }) => setTools(body.tools))
+  }, [])
+
+  return (
+    <ul>
+      {tools.map((tool) => (
+        <li key={tool.name}>
+          {/* Server-declared title, with the hint driving the badge */}
+          <strong>{tool.title}</strong> {tool.readOnly ? '(read-only)' : '(writes)'}
+          <div>{tool.description}</div>
+        </li>
+      ))}
+    </ul>
+  )
+}
+```
+
 ## Multi-Server Pool
 
 `createMCPClients` connects to many servers in parallel and merges their tools into one flat array. Each server's tools are automatically prefixed with the config key to prevent name collisions.

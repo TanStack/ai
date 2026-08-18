@@ -1,13 +1,24 @@
 import type {
   AnyClientTool,
+  ApprovalCapabilityOf,
+  ApprovalSchemaOf,
   AudioPart,
+  BatchInterruptError,
   ChunkStrategy,
   ContentPart,
   DocumentPart,
   ImagePart,
+  InferSchemaType,
   InferToolInput,
   InferToolOutput,
+  InputSchemaOf,
+  Interrupt,
+  InterruptBinding,
+  ItemInterruptError,
   ModelMessage,
+  NoSchema,
+  RunAgentResumeItem,
+  SchemaInput,
   StreamChunk,
   StructuredOutputPart,
   UIResourcePart,
@@ -17,7 +28,181 @@ import type { ConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
 
-export type { StructuredOutputPart } from '@tanstack/ai/client'
+export type { StructuredOutputPart }
+
+export interface ChatResumeState {
+  threadId: string
+  runId: string
+}
+
+export type ChatPendingInterrupt = Interrupt
+
+/**
+ * The durable pointer a chat keeps for the run it may need to rejoin, plus any
+ * interrupt that run is waiting on.
+ *
+ * @internal
+ */
+export interface ChatResumeSnapshot {
+  resumeState: ChatResumeState
+  pendingInterrupts?: Array<ChatPendingInterrupt>
+}
+
+export type InterruptItemStatus =
+  | 'pending'
+  | 'validating'
+  | 'staged'
+  | 'submitting'
+  | 'error'
+
+export interface BoundInterruptBase {
+  readonly id: string
+  readonly interruptId: string
+  readonly reason: string
+  readonly message?: string
+  readonly responseSchema?: Readonly<Record<string, unknown>>
+  readonly expiresAt?: string
+  readonly metadata?: Readonly<Record<string, unknown>>
+  readonly threadId: string
+  readonly interruptedRunId: string
+  readonly generation: number
+  readonly status: InterruptItemStatus
+  readonly errors: ReadonlyArray<ItemInterruptError>
+  /** @deprecated Use `errors[0]`. */
+  readonly error?: ItemInterruptError
+  /**
+   * Whether the binding/schema allows resolution at hydrate time.
+   * Does not flip on submit/expiry — gate UI on `status`, `resuming`, and
+   * `errors` for those lifecycle states.
+   */
+  readonly canResolve: boolean
+  cancel: () => void
+  clearResolution: () => void
+}
+
+export interface GenericAGUIInterrupt extends BoundInterruptBase {
+  readonly kind: 'generic'
+  readonly binding: Readonly<Extract<InterruptBinding, { kind: 'generic' }>>
+  resolveInterrupt: (payload: unknown) => void
+}
+
+/**
+ * An interrupt that arrived on the stream carrying no resume binding this
+ * client understands — no `tanstack:interruptBinding`, or one written at a
+ * protocol version we don't recognise.
+ *
+ * These are surfaced rather than hidden so a UI can show that the run is
+ * paused, but they are never resolvable here: something else owns them. A
+ * workflow engine's durable approval projected into the same AG-UI stream
+ * lands in this bucket, and resolving it through the chat resume path would
+ * send an answer no one is waiting for. Render it, or route it to whatever
+ * actually owns the pause.
+ */
+export interface UnboundInterrupt extends BoundInterruptBase {
+  readonly kind: 'unbound'
+  readonly binding?: undefined
+  readonly canResolve: false
+}
+
+type ApprovalBranchSchema<TTool, TBranch extends 'approve' | 'reject'> =
+  ApprovalSchemaOf<TTool> extends infer TApproval
+    ? TApproval extends { approve?: SchemaInput; reject?: SchemaInput }
+      ? Exclude<TApproval[TBranch], undefined>
+      : TApproval extends SchemaInput
+        ? TApproval
+        : never
+    : never
+
+type ApprovalEdits<TTool> =
+  InputSchemaOf<TTool> extends NoSchema
+    ? { editedArgs?: never }
+    : { editedArgs?: InferToolInput<TTool> }
+
+type ApprovalPayload<TSchema> = [TSchema] extends [never]
+  ? { payload?: never }
+  : TSchema extends SchemaInput
+    ? { payload: InferSchemaType<TSchema> }
+    : { payload?: never }
+
+type ApproveArguments<TTool> = [
+  ApprovalBranchSchema<TTool, 'approve'>,
+] extends [never]
+  ? InputSchemaOf<TTool> extends NoSchema
+    ? [options?: never]
+    : [options?: ApprovalEdits<TTool> & { payload?: never }]
+  : [
+      options: ApprovalEdits<TTool> &
+        ApprovalPayload<ApprovalBranchSchema<TTool, 'approve'>>,
+    ]
+
+type RejectArguments<TTool> = [ApprovalBranchSchema<TTool, 'reject'>] extends [
+  never,
+]
+  ? [options?: never]
+  : [
+      options: { editedArgs?: never } & ApprovalPayload<
+        ApprovalBranchSchema<TTool, 'reject'>
+      >,
+    ]
+
+export type ToolApprovalInterrupt<TTool extends AnyClientTool = AnyClientTool> =
+  TTool extends AnyClientTool
+    ? BoundInterruptBase & {
+        readonly kind: 'tool-approval'
+        readonly binding: Readonly<
+          Extract<InterruptBinding, { kind: 'tool-approval' }>
+        >
+        readonly toolName: TTool['name']
+        readonly toolCallId: string
+        readonly originalArgs: InferToolInput<TTool>
+        // A single generic call signature — not two overloads. Overloads break
+        // editor autocomplete: a half-typed options literal (e.g.
+        // `resolveInterrupt(true, { payload: {` ) satisfies neither overload,
+        // so TS resolves no signature and offers no contextual completions.
+        // Making `approved` a generic discriminant lets TS infer it from the
+        // first argument and pick the matching branch for the rest params, so
+        // `payload` / `editedArgs` / the correct schema's fields complete
+        // per-branch (a plain union-of-tuples would offer both branches'
+        // fields) while still enforcing the right shape.
+        resolveInterrupt: <TApproved extends boolean>(
+          approved: TApproved,
+          ...args: TApproved extends true
+            ? ApproveArguments<TTool>
+            : RejectArguments<TTool>
+        ) => void
+      }
+    : never
+
+type ApprovalInterrupts<TTools extends ReadonlyArray<AnyClientTool>> =
+  TTools[number] extends infer TTool
+    ? TTool extends AnyClientTool
+      ? ApprovalCapabilityOf<TTool> extends true
+        ? ToolApprovalInterrupt<TTool>
+        : never
+      : never
+    : never
+
+// Client tools resolve through their `.client()` implementation (auto-run) or
+// `addToolResult` — never as a bound interrupt. The `client-tool-execution`
+// pause is handled internally and is intentionally absent from this public
+// union.
+export type ChatInterrupt<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+> = GenericAGUIInterrupt | UnboundInterrupt | ApprovalInterrupts<TTools>
+
+export type BoundInterrupts<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+> = ReadonlyArray<ChatInterrupt<TTools>>
+
+export interface ChatInterruptState<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+> {
+  readonly interrupts: BoundInterrupts<TTools>
+  /** @deprecated Use `interrupts`. Same snapshot today. */
+  readonly pendingInterrupts: BoundInterrupts<TTools>
+  readonly interruptErrors: ReadonlyArray<BatchInterruptError>
+  readonly resuming: boolean
+}
 
 /**
  * `messages` is the full UIMessage history (not a delta). `data` is the
@@ -31,6 +216,8 @@ export interface ChatFetcherInput {
   data?: Record<string, unknown>
   threadId: string
   runId: string
+  parentRunId?: string
+  resume?: Array<RunAgentResumeItem>
 }
 
 export interface ChatFetcherOptions {
@@ -363,22 +550,83 @@ export interface UIMessage<
   createdAt?: Date
 }
 
+/**
+ * A generic key/value storage adapter. `getItem` may be sync or async; the
+ * chat persistence layer treats every call as best-effort. The provided
+ * `localStoragePersistence` / `sessionStoragePersistence` / `indexedDBPersistence`
+ * factories return one of these, and `ChatStorageAdapter<ChatPersistedState>`
+ * is assignable to {@link ChatClientPersistence}.
+ */
+export interface ChatStorageAdapter<TValue> {
+  getItem: (
+    id: string,
+  ) => TValue | null | undefined | Promise<TValue | null | undefined>
+  setItem: (id: string, value: TValue) => void | Promise<void>
+  removeItem: (id: string) => void | Promise<void>
+}
+
+/**
+ * The single record a `ChatClientPersistence` adapter stores per chat. It folds
+ * the two things that must survive a full page reload into one blob under one
+ * key: the message transcript and the optional resume snapshot (which run to
+ * rejoin / which interrupts to rehydrate). One adapter, one key — see
+ * {@link ChatClientPersistence}.
+ */
+export interface ChatPersistedState<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> {
+  messages: Array<UIMessage<TTools>>
+  /** Present while a run is in flight or paused on an interrupt; absent otherwise. */
+  resume?: ChatResumeSnapshot
+}
+
+/**
+ * Storage adapter for durable chat state. A single adapter persists both the
+ * message transcript and the resume snapshot as one {@link ChatPersistedState}
+ * record, so a full page reload restores the conversation AND can rejoin an
+ * in-flight run / rehydrate pending interrupts.
+ *
+ * For backward compatibility `getItem` may also return a bare `UIMessage[]`
+ * (the legacy messages-only format); the client normalizes it to
+ * `{ messages }`. `setItem` always writes the combined record.
+ */
 export interface ChatClientPersistence<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > {
   getItem: (
     id: string,
   ) =>
+    | ChatPersistedState<TTools>
     | Array<UIMessage<TTools>>
     | null
     | undefined
-    | Promise<Array<UIMessage<TTools>> | null | undefined>
+    | Promise<
+        ChatPersistedState<TTools> | Array<UIMessage<TTools>> | null | undefined
+      >
   setItem: (
     id: string,
-    messages: Array<UIMessage<TTools>>,
+    state: ChatPersistedState<TTools>,
   ) => void | Promise<void>
   removeItem: (id: string) => void | Promise<void>
 }
+
+/**
+ * The `persistence` option for a chat.
+ *
+ * - `false` (default): ephemeral. Messages live in memory only; a reload starts
+ *   from empty.
+ * - `true`: server-authoritative. Nothing is cached in the browser. On mount the
+ *   client hydrates the thread from the server by its `threadId` (paints the
+ *   stored transcript and tails any run still generating), so a reload or the
+ *   same thread opened on another device both just resume. Requires a connection
+ *   with a `hydrate` handler.
+ * - a {@link ChatClientPersistence} adapter: client-authoritative. The combined
+ *   {@link ChatPersistedState} record (transcript plus resume pointer) is cached
+ *   in the browser and restored on reload with no network.
+ */
+export type ChatPersistenceOption<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> = boolean | ChatClientPersistence<TTools>
 
 type IsUnknown<T> = unknown extends T
   ? [T] extends [unknown]
@@ -471,21 +719,48 @@ export interface ChatClientBaseOptions<
   initialMessages?: Array<UIMessage<TTools>>
 
   /**
-   * Optional persistence adapter for chat messages.
+   * How this chat persists across reloads. See {@link ChatPersistenceOption}.
+   *
+   * - Omit or `false`: ephemeral, in-memory only.
+   * - `true`: server-authoritative. The client caches nothing and hydrates the
+   *   thread from the server by its `threadId` on mount (needs a connection with
+   *   a `hydrate` handler). Big transcripts never touch the browser, and the same
+   *   thread opens the same way on another device.
+   * - a {@link ChatClientPersistence} adapter: client-authoritative. The combined
+   *   {@link ChatPersistedState} record (transcript plus resume pointer) is cached
+   *   in the browser, restoring the transcript, pending interrupts, and an
+   *   in-flight run on reload.
+   *
+   * Use `initialResumeSnapshot` for a host-supplied in-memory rehydrate instead.
    */
-  persistence?: ChatClientPersistence<TTools>
+  persistence?: ChatPersistenceOption<TTools>
 
   /**
-   * Unique identifier for this chat instance
-   * Used for managing multiple chats
+   * Optional storage-key override for this chat instance, and the devtools
+   * instance id. Persistence keys on `threadId` by default; set `id` only when
+   * you need the persisted record keyed separately from the wire thread.
+   * Prefer a stable `threadId` for the common case.
+   *
+   * The framework hooks (`useChat` / `createChat`) do NOT expose `id`: a hook's
+   * identity is its `threadId`. This lower-level escape hatch exists only for
+   * direct `ChatClient` construction.
    */
   id?: string
 
   /**
-   * Thread ID to use for this chat session. Persists across sends within
-   * the session. If omitted, a unique thread ID is generated.
+   * The conversation id for this chat, stable across sends and reloads. It is
+   * the AG-UI thread key on the wire AND the key client persistence stores the
+   * conversation under, so set a stable `threadId` to have a reload restore the
+   * same conversation. If omitted, a unique thread id is generated per session.
    */
   threadId?: string
+
+  /**
+   * Initial resumable run state, useful when rehydrating a persisted client
+   * after a full page reload. This restores the client-side interrupt
+   * descriptors needed to send AG-UI resume entries.
+   */
+  initialResumeSnapshot?: ChatResumeSnapshot
 
   /**
    * Arbitrary client-controlled JSON forwarded to the server in the
@@ -590,6 +865,23 @@ export interface ChatClientBaseOptions<
    * or flush).
    */
   onQueueChange?: (queue: Array<QueuedMessage>) => void
+
+  /**
+   * Callback when resumable run state or pending interrupts change.
+   */
+  onResumeStateChange?: (
+    resumeState: ChatResumeState | null,
+    pendingInterrupts: BoundInterrupts<TTools>,
+  ) => void
+
+  /**
+   * Callback when the id of the run this client has in flight changes: the new
+   * id when a run starts (a send, or a `joinRun` rejoin), `null` when it settles.
+   */
+  onRunIdChange?: (runId: string | null) => void
+
+  /** Callback when the immutable interrupt state snapshot changes. */
+  onInterruptStateChange?: (state: ChatInterruptState<TTools>) => void
 
   /**
    * Callback when a custom event is received from a server-side tool.

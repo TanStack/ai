@@ -1,7 +1,11 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
+import { onMount } from 'svelte'
 import type {
   ChatClientState,
+  ChatInterrupt,
+  ChatInterruptState,
+  ChatResumeState,
   ConnectionStatus,
   InferredClientContext,
   QueuedMessage,
@@ -12,6 +16,7 @@ import type {
   AnyClientTool,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
   StreamChunk,
 } from '@tanstack/ai'
@@ -22,6 +27,9 @@ import type {
   MultimodalContent,
   UIMessage,
 } from './types'
+
+const EMPTY_INTERRUPTS = Object.freeze([])
+const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 /**
  * Creates a reactive chat instance for Svelte 5.
@@ -60,11 +68,6 @@ export function createChat<
 >(
   options: CreateChatOptions<TTools, TSchema, TContext>,
 ): CreateChatReturn<TTools, TSchema, TContext> {
-  // Generate a unique ID for this chat instance
-  const clientId =
-    options.id ||
-    `chat-${Date.now()}-${Math.random().toString(36).substring(7)}`
-
   // Create reactive state using Svelte 5 runes
   let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
   let isLoading = $state(false)
@@ -74,6 +77,13 @@ export function createChat<
   let connectionStatus = $state<ConnectionStatus>('disconnected')
   let sessionGenerating = $state(false)
   let queue = $state<Array<QueuedMessage>>([])
+  let runId = $state<string | null>(null)
+  let interruptState = $state.raw<ChatInterruptState<TTools>>({
+    interrupts: EMPTY_INTERRUPTS,
+    pendingInterrupts: EMPTY_INTERRUPTS,
+    interruptErrors: EMPTY_INTERRUPT_ERRORS,
+    resuming: false,
+  })
 
   // Structured-output `partial` / `final` are derived from `messages` —
   // specifically from the structured-output part on the latest assistant
@@ -96,15 +106,20 @@ export function createChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
+  // The hook's identity is its `threadId`, which ChatClient also uses as the
+  // persistence key — no separate `id`. When no `threadId` is given the client
+  // generates one, so an ephemeral chat still works but is not restored on reload.
   const client = new ChatClient<TTools, TContext>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
-    id: clientId,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
     ...(options.persistence !== undefined && {
       persistence: options.persistence,
+    }),
+    ...(options.initialResumeSnapshot !== undefined && {
+      initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(options.body !== undefined && { body: options.body }),
     ...(options.threadId !== undefined && { threadId: options.threadId }),
@@ -140,6 +155,7 @@ export function createChat<
     },
     onLoadingChange: (newIsLoading: boolean) => {
       isLoading = newIsLoading
+      syncResumeState()
     },
     onStatusChange: (newStatus: ChatClientState) => {
       status = newStatus
@@ -160,9 +176,22 @@ export function createChat<
     onQueueChange: (nextQueue: Array<QueuedMessage>) => {
       queue = nextQueue
     },
+    onRunIdChange: (nextRunId) => {
+      runId = nextRunId
+    },
+    onInterruptStateChange: (nextInterruptState) => {
+      interruptState = nextInterruptState
+      options.onInterruptStateChange?.(nextInterruptState)
+    },
   })
 
+  function syncResumeState() {
+    runId = client.getCurrentRunId()
+    interruptState = client.getInterruptState()
+  }
+
   messages = client.getMessages()
+  interruptState = client.getInterruptState()
 
   if (options.live) {
     client.subscribe()
@@ -170,27 +199,64 @@ export function createChat<
 
   client.mountDevtools()
 
-  // Note: Cleanup is handled by calling stop() directly when needed.
-  // Unlike React/Vue/Solid, Svelte 5 runes like $effect can only be used
-  // during component initialization, so we don't add automatic cleanup here.
-  // Users should call chat.stop() in their component's cleanup if needed.
+  if (typeof window !== 'undefined') {
+    try {
+      onMount(() => {
+        // Delivery-durability resume is transparent: the resumable SSE
+        // connection adapter reattaches via the browser's native
+        // Last-Event-ID on reconnect. We only seed interrupt (state) resume.
+        syncResumeState()
+        client.attach()
+        // ONLY THE VIEW ON SCREEN HOLDS A STREAM. `onMount`'s returned function
+        // runs when the component is destroyed, which is the one automatic
+        // teardown Svelte gives us here — and it is enough, because a connection
+        // is all that must go. A page can own many chats and a browser allows
+        // only ~6 connections per origin, so one long-lived stream per chat
+        // starves every other request once a few views have been open.
+        //
+        // `detach` keeps the transcript and the resume pointer, so re-entering
+        // the view picks the run back up from the durable log.
+        return () => {
+          client.detach()
+        }
+      })
+    } catch {
+      // Svelte lifecycle hooks are only valid during component initialization.
+    }
+  }
+
+  // Note: `dispose()` remains manual — it releases devtools and marks the client
+  // dead, which only the owner can decide. The CONNECTION is released
+  // automatically by the `onMount` teardown above.
 
   // Define methods
   const sendMessage = async (
     content: string | MultimodalContent,
     sendOptions?: SendMessageOptions,
   ) => {
-    await client.sendMessage(content, undefined, sendOptions)
+    try {
+      await client.sendMessage(content, undefined, sendOptions)
+    } finally {
+      syncResumeState()
+    }
   }
 
   const cancelQueued = (id: string) => client.cancelQueued(id)
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
-    await client.append(message)
+    try {
+      await client.append(message)
+    } finally {
+      syncResumeState()
+    }
   }
 
   const reload = async () => {
-    await client.reload()
+    try {
+      await client.reload()
+    } finally {
+      syncResumeState()
+    }
   }
 
   const stop = () => {
@@ -203,6 +269,7 @@ export function createChat<
 
   const clear = () => {
     client.clear()
+    syncResumeState()
   }
 
   const setMessages = (newMessages: Array<UIMessage<TTools>>) => {
@@ -224,7 +291,40 @@ export function createChat<
     approved: boolean
   }) => {
     await client.addToolApprovalResponse(response)
+    syncResumeState()
   }
+
+  const resumeInterrupts = async (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => {
+    const result = await client.resumeInterrupts(resumeItems, state)
+    syncResumeState()
+    return result
+  }
+
+  const resolveInterrupts = (
+    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+  ) => {
+    if (typeof resolution === 'boolean') {
+      client.resolveInterrupts(resolution)
+    } else {
+      client.resolveInterrupts(resolution)
+    }
+  }
+
+  const cancelInterrupts = () => {
+    client.cancelInterrupts()
+  }
+
+  const retryInterrupts = () => {
+    client.retryInterrupts()
+  }
+
+  const resumeInterruptsUnsafe = (
+    resumeItems: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => client.resumeInterruptsUnsafe(resumeItems, state)
 
   /**
    * @deprecated Use `updateForwardedProps` instead.
@@ -282,7 +382,7 @@ export function createChat<
 
   // Return the chat interface with reactive getters
   // Using getters allows Svelte to track reactivity without needing $ prefix
-  // eslint-disable-next-line no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema, TContext> due to TSchema conditional partial/final fields; TS can't structurally narrow.
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- rune return shape diverges from generic CreateChatReturn<TTools, TSchema, TContext> due to TSchema conditional partial/final fields; TS can't structurally narrow.
   return {
     get messages() {
       return messages
@@ -308,6 +408,21 @@ export function createChat<
     get queue() {
       return queue
     },
+    get runId() {
+      return runId
+    },
+    get interrupts() {
+      return interruptState.interrupts
+    },
+    get pendingInterrupts() {
+      return interruptState.interrupts
+    },
+    get interruptErrors() {
+      return interruptState.interruptErrors
+    },
+    get resuming() {
+      return interruptState.resuming
+    },
     get partial() {
       return partial
     },
@@ -324,6 +439,11 @@ export function createChat<
     clear,
     addToolResult,
     addToolApprovalResponse,
+    resolveInterrupts,
+    cancelInterrupts,
+    retryInterrupts,
+    resumeInterruptsUnsafe,
+    resumeInterrupts,
     updateBody,
     updateForwardedProps,
     updateContext,

@@ -9,6 +9,7 @@ import {
   toWebSocketStream,
 } from '../src/stream-to-websocket'
 import { memoryStream } from '../src/stream-durability'
+import { RUN_ACCEPTED_EVENT } from '../src/stream-to-response'
 import { ev } from './test-utils'
 import type { WebSocketLike } from '../src/stream-to-websocket'
 import type { StreamDurability } from '../src/stream-durability'
@@ -179,9 +180,11 @@ describe('toWebSocketStream (durable)', () => {
       true,
     )
     expect(frames.map((f) => f.chunk.type)).toEqual([
+      'CUSTOM',
       'TEXT_MESSAGE_CONTENT',
       'RUN_FINISHED',
     ])
+    expect(frames[0].chunk.name).toBe(RUN_ACCEPTED_EVENT)
   })
 })
 
@@ -284,7 +287,12 @@ describe('resumeWebSocketStream', () => {
     await flush()
 
     const chunkTypes = joiner.sent.map((s) => JSON.parse(s).chunk.type)
-    expect(chunkTypes).toEqual(['TEXT_MESSAGE_CONTENT', 'RUN_FINISHED'])
+    expect(chunkTypes).toEqual([
+      'CUSTOM',
+      'TEXT_MESSAGE_CONTENT',
+      'RUN_FINISHED',
+    ])
+    expect(JSON.parse(joiner.sent[0]!).chunk.name).toBe(RUN_ACCEPTED_EVENT)
     // Regression: the replay pump must close the socket once the durability
     // log is exhausted, even on the success path (terminal already present).
     // Otherwise a client that auto-reconnects to `?runId&offset` after a
@@ -305,6 +313,7 @@ describe('resumeWebSocketStream', () => {
         yield { offset: 'off-1', chunk: ev.textContent('partial') }
       },
       close: () => Promise.resolve(),
+      snapshot: () => Promise.resolve([]),
     }
     const joiner = new FakeSocket()
 
@@ -338,6 +347,7 @@ describe('resumeWebSocketStream', () => {
         throw new Error('boom')
       },
       close: () => Promise.resolve(),
+      snapshot: () => Promise.resolve([]),
     }
     const joiner = new FakeSocket()
 

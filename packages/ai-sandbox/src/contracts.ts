@@ -30,12 +30,27 @@ export interface SandboxCapabilities {
   backgroundProcesses: boolean
   /**
    * A spawned process exposes a writable host→process stdin
-   * ({@link SpawnHandle.stdin}). `true` for host/Docker; some edge providers
-   * (e.g. Cloudflare) run background processes WITHOUT a writable stdin, so
-   * harness adapters that feed a prompt over stdin must instead deliver it via a
-   * file + shell redirection.
+   * ({@link SpawnHandle.stdin}). `true` for host (`localProcessSandbox`).
+   * `false` for Docker container, Docker Sandboxes (`sbx`), Daytona, Vercel,
+   * and Cloudflare. When `false`, harness adapters that feed a prompt over
+   * stdin must instead deliver it via a file + shell redirection.
    */
   writableStdin: boolean
+  /**
+   * A spawned process can be forcibly terminated via {@link SpawnHandle.kill}
+   * and aborted mid-flight via the {@link ProcessOptions.signal} passed to
+   * {@link SandboxProcess.spawn}. `true` for host and Docker container.
+   * `false` for Docker Sandboxes (`sbx`) until measured, and for Daytona,
+   * Vercel, and Cloudflare. Those providers implement `kill()` as a no-op or
+   * have not been measured yet, so a long-running follower process
+   * (e.g. `tail -f`) started there can never be stopped by the caller, only
+   * polled and abandoned.
+   * Callers MUST branch on this before relying on `kill`/abort to reclaim a
+   * background process: a bring-your-own provider that omits it would
+   * otherwise be silently treated as killable, leaking an unstoppable process
+   * inside the sandbox.
+   */
+  killableProcesses: boolean
   /** Capture/restore filesystem snapshots via {@link SandboxHandle.snapshot}. */
   snapshots: boolean
   /** Declarative network egress allow/deny policy. */
@@ -207,6 +222,8 @@ export interface SandboxCreateInput {
   policy?: SandboxPolicy
   env?: Record<string, string>
   signal?: AbortSignal
+  /** Harness adapter name. Optional. Providers that do not use it ignore it. */
+  adapterName?: string
 }
 
 /** Input passed to {@link SandboxProvider.resume}. */

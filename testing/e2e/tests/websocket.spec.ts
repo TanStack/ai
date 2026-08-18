@@ -17,6 +17,7 @@ import { expect, test } from '@playwright/test'
  */
 
 const FIXED_TYPES = [
+  'CUSTOM',
   'RUN_STARTED',
   'TEXT_MESSAGE_CONTENT',
   'TEXT_MESSAGE_CONTENT',
@@ -151,15 +152,18 @@ test.describe('delivery durability (websocket)', () => {
       { runId: 'e2e-ws-2', input: runInput('e2e-ws-2') },
     )
 
-    // First connection saw RUN_STARTED + the first content delta.
+    // First connection saw the run-accepted marker + RUN_STARTED, then
+    // dropped. A fresh durable producer prepends CUSTOM run.accepted so a
+    // joiner never sees an empty log.
     expect(result.firstChunks.map((c) => c.type)).toEqual([
+      'CUSTOM',
       'RUN_STARTED',
-      'TEXT_MESSAGE_CONTENT',
     ])
 
-    // Resume delivers exactly the remaining 4 content deltas + RUN_FINISHED,
-    // in order, with no duplicates of anything already delivered.
+    // Resume delivers the 5 content deltas + RUN_FINISHED, in order, with
+    // no duplicates of anything already delivered.
     expect(result.resumedChunks.map((c) => c.type)).toEqual([
+      'TEXT_MESSAGE_CONTENT',
       'TEXT_MESSAGE_CONTENT',
       'TEXT_MESSAGE_CONTENT',
       'TEXT_MESSAGE_CONTENT',

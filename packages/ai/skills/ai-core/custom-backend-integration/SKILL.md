@@ -9,7 +9,7 @@ description: >
   not @tanstack/ai-client.
 type: composition
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/chat/connection-adapters.md'
 ---

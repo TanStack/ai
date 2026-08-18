@@ -64,6 +64,9 @@ describe('delivery durability contract', () => {
         }
       },
       close,
+      // This fake never stores an appended chunk, so it has nothing to
+      // report at a point in time.
+      snapshot: () => Promise.resolve([]),
     } satisfies StreamDurability
 
     const response = toServerSentEventsResponse(oneChunkStream(), {
@@ -80,10 +83,16 @@ describe('delivery durability contract', () => {
     const close = vi.fn(() => closing.promise)
     const durability = {
       resumeFrom: () => null,
-      append: async (chunks: Array<StreamChunk>) =>
-        chunks.map((_, index) => `backend:normal:${index}`),
+      append: (() => {
+        let seq = 0
+        return async (chunks: Array<StreamChunk>) =>
+          chunks.map(() => `backend:normal:${seq++}`)
+      })(),
       read: async function* () {},
       close,
+      // This fake synthesizes offsets from the batch index and never stores
+      // the appended chunks, so there is nothing to snapshot.
+      snapshot: () => Promise.resolve([]),
     } satisfies StreamDurability
     const bodyPromise = readBody(
       toServerSentEventsResponse(oneChunkStream(), {
@@ -102,25 +111,96 @@ describe('delivery durability contract', () => {
     await expect(bodyPromise).resolves.toContain('backend:normal:0')
   })
 
-  it('persists an aborted RUN_ERROR and awaits close when the reader cancels', async () => {
+  // Persistence-on semantics: a durable run is decoupled from its HTTP
+  // response, so a reader cancel (a page reload / dropped socket) must NOT kill
+  // the run. The producer keeps draining into the durable log to its own real
+  // terminal, so a rejoining client can tail it to completion — never a
+  // synthetic RUN_ERROR. A genuine caller abort (stop(), or a request signal)
+  // still terminalizes; that case is covered by the next test.
+  it('keeps producing to the durable log when the reader cancels (persistence survives disconnect)', async () => {
+    const abortController = new AbortController()
+    const closing = deferred()
+    const sourceClosed = deferred()
+    const proceed = deferred()
+    const appended: Array<StreamChunk> = []
+    const close = vi.fn(() => closing.promise)
+    let seq = 0
+    const durability = {
+      resumeFrom: () => null,
+      append: async (chunks: Array<StreamChunk>) => {
+        appended.push(...chunks)
+        return chunks.map(() => `backend:cancel:${seq++}`)
+      },
+      read: async function* () {},
+      close,
+      // `appended` here only records chunks for this test's own assertions,
+      // not paired with the offsets `append` returned, so it cannot be
+      // replayed as a snapshot; there is no stored state to expose.
+      snapshot: () => Promise.resolve([]),
+    } satisfies StreamDurability
+    const source: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        try {
+          yield ev.runStarted()
+          yield ev.textContent('before cancel')
+          // Still producing while the reader is gone.
+          await proceed.promise
+          yield ev.textContent('after cancel')
+          yield ev.runFinished()
+        } finally {
+          sourceClosed.resolve()
+        }
+      },
+    }
+    const response = toServerSentEventsResponse(source, {
+      abortController,
+      durability: { adapter: durability, batch: 1 },
+    })
+    if (!response.body) throw new Error('Expected a response body')
+    const reader = response.body.getReader()
+
+    await reader.read() // RUN_STARTED
+    await reader.cancel() // client disconnect — must not kill the run
+
+    // The producer's own controller was NOT aborted by the disconnect.
+    expect(abortController.signal.aborted).toBe(false)
+
+    // Let the detached run finish; it drains the rest into the log.
+    proceed.resolve()
+    await sourceClosed.promise
+    closing.resolve()
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce())
+
+    // The log carries the run's REAL terminal, never a synthetic abort error.
+    await vi.waitFor(() => expect(appended.at(-1)?.type).toBe('RUN_FINISHED'))
+    expect(appended.some((chunk) => chunk.type === 'RUN_ERROR')).toBe(false)
+    expect(
+      appended.some((chunk) => chunk.type === 'TEXT_MESSAGE_CONTENT'),
+    ).toBe(true)
+  })
+
+  it('persists a synthetic RUN_ERROR and awaits close when the producer is aborted', async () => {
     const abortController = new AbortController()
     const closing = deferred()
     const sourceClosed = deferred()
     const appended: Array<StreamChunk> = []
     const close = vi.fn(() => closing.promise)
+    let seq = 0
     const durability = {
       resumeFrom: () => null,
       append: async (chunks: Array<StreamChunk>) => {
         appended.push(...chunks)
-        return chunks.map((_, index) => `backend:cancel:${index}`)
+        return chunks.map(() => `backend:abort:${seq++}`)
       },
       read: async function* () {},
       close,
+      snapshot: async () => [],
     } satisfies StreamDurability
     const source: AsyncIterable<StreamChunk> = {
       async *[Symbol.asyncIterator]() {
         try {
-          yield ev.textContent('before cancel')
+          yield ev.runStarted()
+          yield ev.textContent('before abort')
           if (!abortController.signal.aborted) {
             await new Promise<void>((resolve) => {
               abortController.signal.addEventListener(
@@ -144,14 +224,10 @@ describe('delivery durability contract', () => {
     if (!response.body) throw new Error('Expected a response body')
     const reader = response.body.getReader()
 
-    await reader.read()
-    const cancelPromise = reader.cancel()
-    let cancelSettled = false
-    void cancelPromise.then(() => {
-      cancelSettled = true
-    })
+    await reader.read() // RUN_STARTED
+    // A genuine caller abort (stop(), or a request signal) DOES stop the run.
+    abortController.abort()
 
-    await vi.waitFor(() => expect(abortController.signal.aborted).toBe(true))
     await vi.waitFor(() => {
       expect(appended.at(-1)?.type).toBe('RUN_ERROR')
     })
@@ -162,11 +238,8 @@ describe('delivery durability contract', () => {
       code: 'aborted',
       error: { message: 'Request aborted', code: 'aborted' },
     })
-    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce())
-    expect(cancelSettled).toBe(false)
-
     closing.resolve()
-    await expect(cancelPromise).resolves.toBeUndefined()
+    await vi.waitFor(() => expect(close).toHaveBeenCalledOnce())
     await sourceClosed.promise
   })
 
@@ -174,6 +247,7 @@ describe('delivery durability contract', () => {
     const providerError = new Error('provider exploded')
     const closeError = new Error('close exploded')
     const appended: Array<StreamChunk> = []
+    let seq = 0
     const close = vi.fn(async () => {
       throw closeError
     })
@@ -181,10 +255,13 @@ describe('delivery durability contract', () => {
       resumeFrom: () => null,
       append: async (chunks: Array<StreamChunk>) => {
         appended.push(...chunks)
-        return chunks.map((_, index) => `backend:error:${index}`)
+        return chunks.map(() => `backend:error:${seq++}`)
       },
       read: async function* () {},
       close,
+      // Same as above: `appended` tracks chunks only, not the offsets
+      // `append` returned, so there is no offset-paired state to snapshot.
+      snapshot: () => Promise.resolve([]),
     } satisfies StreamDurability
     const source: AsyncIterable<StreamChunk> = {
       async *[Symbol.asyncIterator]() {
@@ -224,6 +301,7 @@ describe('delivery durability contract', () => {
 
   it('aggregates provider, terminal persistence, and close failures', async () => {
     const appended: Array<StreamChunk> = []
+    let seq = 0
     const durability = {
       resumeFrom: () => null,
       append: async (chunks: Array<StreamChunk>) => {
@@ -231,12 +309,15 @@ describe('delivery durability contract', () => {
         if (chunks.some((chunk) => chunk.type === 'RUN_ERROR')) {
           throw new Error('terminal persistence exploded')
         }
-        return chunks.map((_, index) => `backend:aggregate:${index}`)
+        return chunks.map(() => `backend:aggregate:${seq++}`)
       },
       read: async function* () {},
       close: async () => {
         throw new Error('aggregate close exploded')
       },
+      // Same as the other fakes above: `appended` tracks chunks only, not
+      // the offsets `append` returned, so there is no state to snapshot.
+      snapshot: () => Promise.resolve([]),
     } satisfies StreamDurability
     const source: AsyncIterable<StreamChunk> = {
       async *[Symbol.asyncIterator]() {

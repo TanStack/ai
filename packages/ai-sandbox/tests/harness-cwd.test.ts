@@ -8,6 +8,8 @@ function fakeHandle(
   id: string,
   workspaceRoot?: string,
 ): SandboxHandle {
+  // resolveHarnessCwd only reads provider / id / workspaceRoot. A full
+  // SandboxHandle would need fs, git, process, ports, and env stubs.
   return { provider, id, workspaceRoot } as SandboxHandle
 }
 
@@ -24,7 +26,7 @@ describe('resolveHarnessCwd', () => {
     const root = '/tmp/tanstack-ai-sandboxes/abc'
     expect(
       resolveHarnessCwd(fakeHandle('local-process', root), '/workspace/my-app'),
-    ).toBe(path.join(root, 'my-app'))
+    ).toBe(path.posix.join(root, 'my-app'))
   })
 
   it('passes virtual paths through when workspaceRoot is /workspace', () => {

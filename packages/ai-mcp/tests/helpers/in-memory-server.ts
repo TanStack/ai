@@ -22,6 +22,37 @@ export async function makeServerWithWeatherTool() {
   return { server, clientTransport }
 }
 
+/**
+ * Build a connected (server, clientTransport) pair whose tool declares a
+ * display `title` plus the full set of MCP `annotations` hints, so the
+ * annotation-forwarding path can be exercised against a real server.
+ */
+export async function makeServerWithAnnotatedTool() {
+  const server = new McpServer({ name: 'annotated', version: '1.0.0' })
+  server.registerTool(
+    'get_weather',
+    {
+      title: 'Weather Lookup',
+      description: 'Get weather for a city',
+      inputSchema: { city: z.string() },
+      annotations: {
+        title: 'Legacy Weather Title',
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ city }) => ({
+      content: [{ type: 'text' as const, text: `Sunny in ${city}` }],
+    }),
+  )
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
 /** Build a connected (server, clientTransport) pair whose only tool always returns an MCP error result. */
 export async function makeServerWithFailingTool() {
   const server = new McpServer({ name: 'failing', version: '1.0.0' })
@@ -177,6 +208,33 @@ export async function makeFullServer() {
     }),
   )
 
+  const [clientTransport, serverTransport] =
+    InMemoryTransport.createLinkedPair()
+  await server.connect(serverTransport)
+  return { server, clientTransport }
+}
+
+/**
+ * A tool that declares an `outputSchema` and returns `structuredContent`.
+ *
+ * The SDK validates that payload against the schema on every call, which is the
+ * only path that reaches `ClientOptions.jsonSchemaValidator` — a tool without an
+ * output schema never builds a validator at all.
+ */
+export async function makeServerWithStructuredTool() {
+  const server = new McpServer({ name: 'structured', version: '1.0.0' })
+  server.registerTool(
+    'lookup_user',
+    {
+      description: 'Look a user up by id',
+      inputSchema: { id: z.string() },
+      outputSchema: { id: z.string(), name: z.string() },
+    },
+    async ({ id }) => ({
+      content: [{ type: 'text' as const, text: `user ${id}` }],
+      structuredContent: { id, name: 'Ada' },
+    }),
+  )
   const [clientTransport, serverTransport] =
     InMemoryTransport.createLinkedPair()
   await server.connect(serverTransport)

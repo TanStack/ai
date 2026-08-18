@@ -41,7 +41,55 @@ const client = new ChatClient({
     console.log("Messages updated:", messages);
   },
 });
+
+// A new client is IDLE. Attach it when your view appears, detach when it goes.
+client.attach();
 ```
+
+### Lifecycle: `attach()` and `detach()`
+
+One page can hold many chats. A browser allows only about six connections to one
+origin, and a chat that is tailing a run holds one for as long as that run lasts. If
+every chat held a connection, a handful of open views would use every slot and every
+other request would queue behind them, including the request that loads your messages.
+
+So the connection follows the view. A new client holds none, `attach()` starts it, and
+`detach()` stops it.
+
+If you use a framework package (`@tanstack/ai-react`, `-vue`, `-solid`, `-svelte`,
+`-preact`, `-angular`), the hook already does this: it attaches when its view mounts
+and detaches when it unmounts. Call these yourself only when you use `ChatClient`
+directly.
+
+```typescript
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents("/api/chat"),
+  threadId: "thread-1",
+  persistence: true,
+});
+
+client.attach(); // start: rejoin a run in progress, and load the thread
+client.detach(); // stop: drop the connection, keep messages and the run pointer
+```
+
+What each one guarantees:
+
+- `attach()` is safe to call more than once. Attaching an attached client does nothing.
+- `detach()` keeps the transcript, the resume pointer and the run id. The run keeps
+  going on the server while nobody watches, so re-attaching repaints at once and picks
+  it back up from the durable log.
+- `detach()` is neither `stop()` (which ends the run) nor `dispose()` (which ends the
+  client). It says only that no view is watching right now.
+- A chat with no persistence has no resume pointer and no stored thread, so `attach()`
+  issues no request at all.
+
+#### Migrating from constructor tailing
+
+Earlier versions started tailing inside the constructor. If you build a `ChatClient`
+yourself, add `client.attach()` where your view appears and `client.detach()` where it
+goes away. Users of the framework hooks need no change.
 
 ### Constructor Options
 
@@ -96,6 +144,18 @@ import { client } from "./client";
 
 await client.reload();
 ```
+
+#### `attach()`
+
+Start tailing. Rejoins a run that is still in progress and, in server-authoritative
+mode, loads the stored thread. Idempotent. See
+[Lifecycle](#lifecycle-attach-and-detach).
+
+#### `detach()`
+
+Stop tailing and drop the connection. Keeps messages, the run pointer and the run
+id, so a later `attach()` continues where it left off. See
+[Lifecycle](#lifecycle-attach-and-detach).
 
 #### `stop()`
 

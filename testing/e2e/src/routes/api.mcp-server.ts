@@ -32,9 +32,19 @@ function createMockMcpServer(): McpServer {
   server.registerTool(
     'get_guitar_price',
     {
+      // A display `title` plus behavior `annotations` — server-declared hints
+      // that @tanstack/ai-mcp must forward onto `metadata.mcp` so a host can
+      // label the tool and shape its approval UI (see api.mcp-status-test).
+      title: 'Guitar Price Lookup',
       description: 'Get the price of a guitar by its id',
       inputSchema: { id: z.string() },
       outputSchema: { id: z.string(), price: z.number() },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
     },
     ({ id }) => {
       const payload = { id, price: 1999 }

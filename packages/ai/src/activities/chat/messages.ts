@@ -184,8 +184,12 @@ function buildUserOrToolMessage(uiMessage: UIMessage): ModelMessage {
   }
 
   return {
+    id: uiMessage.id,
     role: uiMessage.role as 'user' | 'assistant' | 'tool',
     content: collapseContentParts(contentParts),
+    ...(uiMessage.createdAt !== undefined && {
+      createdAt: uiMessage.createdAt,
+    }),
   }
 }
 
@@ -211,6 +215,7 @@ function isToolCallIncluded(part: ToolCallPart): boolean {
   return (
     part.state === 'input-complete' ||
     part.state === 'complete' ||
+    part.state === 'approval-requested' ||
     part.state === 'approval-responded' ||
     part.state === 'error' ||
     part.output !== undefined
@@ -227,6 +232,8 @@ function isToolCallIncluded(part: ToolCallPart): boolean {
  * result is emitted as a tool message.
  */
 function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
+  // A single UI message can fan out into several model messages. Keep the
+  // shared UI id on each one so persistence can retain the original identity.
   const messageList: Array<ModelMessage> = []
   let current = createSegment()
   let pendingThinking: Array<{ content: string; signature?: string }> = []
@@ -243,10 +250,14 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
 
     if (hasContent || hasToolCalls) {
       messageList.push({
+        id: uiMessage.id,
         role: 'assistant',
         content,
         ...(hasToolCalls && { toolCalls: current.toolCalls }),
         ...(pendingThinking.length > 0 && { thinking: pendingThinking }),
+        ...(uiMessage.createdAt !== undefined && {
+          createdAt: uiMessage.createdAt,
+        }),
       })
       pendingThinking = []
     }
@@ -287,9 +298,13 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
           !emittedToolResultIds.has(part.toolCallId)
         ) {
           messageList.push({
+            id: uiMessage.id,
             role: 'tool',
             content: part.content,
             toolCallId: part.toolCallId,
+            ...(uiMessage.createdAt !== undefined && {
+              createdAt: uiMessage.createdAt,
+            }),
           })
           emittedToolResultIds.add(part.toolCallId)
         }
@@ -346,9 +361,13 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     // emit the concrete output regardless of approval metadata.
     if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
       messageList.push({
+        id: uiMessage.id,
         role: 'tool',
         content: normalizeToolResult(part.output),
         toolCallId: part.id,
+        ...(uiMessage.createdAt !== undefined && {
+          createdAt: uiMessage.createdAt,
+        }),
       })
       emittedToolResultIds.add(part.id)
     }
@@ -362,6 +381,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     ) {
       const approved = part.approval.approved
       messageList.push({
+        id: uiMessage.id,
         role: 'tool',
         content: JSON.stringify({
           approved,
@@ -371,6 +391,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             : 'User denied this action',
         }),
         toolCallId: part.id,
+        ...(uiMessage.createdAt !== undefined && {
+          createdAt: uiMessage.createdAt,
+        }),
       })
       emittedToolResultIds.add(part.id)
     }
@@ -379,8 +402,12 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   // If no messages were produced (e.g., empty parts), emit a minimal assistant message
   if (messageList.length === 0) {
     messageList.push({
+      id: uiMessage.id,
       role: 'assistant',
       content: null,
+      ...(uiMessage.createdAt !== undefined && {
+        createdAt: uiMessage.createdAt,
+      }),
     })
   }
 
@@ -468,6 +495,9 @@ export function modelMessageToUIMessage(
     id: id || generateMessageId(),
     role: modelMessage.role === 'tool' ? 'assistant' : modelMessage.role,
     parts,
+    ...(modelMessage.createdAt !== undefined && {
+      createdAt: modelMessage.createdAt,
+    }),
   }
 }
 
@@ -614,12 +644,13 @@ export function modelMessagesToUIMessages(
         })
       } else {
         // No assistant message to merge into, create a standalone one
-        const toolResultUIMessage = modelMessageToUIMessage(msg)
+        const toolResultUIMessage = modelMessageToUIMessage(msg, msg.id)
         uiMessages.push(toolResultUIMessage)
       }
     } else {
-      // Regular message
-      const uiMessage = modelMessageToUIMessage(msg)
+      // Regular message. Preserve a persisted stable id so a hydrated message
+      // keeps the same identity as its live stream (enables in-place resume).
+      const uiMessage = modelMessageToUIMessage(msg, msg.id)
       uiMessages.push(uiMessage)
 
       // Track assistant messages for potential tool result merging
@@ -657,7 +688,7 @@ export function normalizeToUIMessage(
     // ModelMessage - convert to UIMessage
     return {
       ...modelMessageToUIMessage(message, generateId()),
-      createdAt: new Date(),
+      createdAt: message.createdAt ?? new Date(),
     }
   }
 }

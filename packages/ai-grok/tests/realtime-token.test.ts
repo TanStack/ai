@@ -19,7 +19,10 @@ afterEach(() => {
   }
 })
 
-function makeSessionResponse(expiresAt: number) {
+function makeSessionResponse(
+  expiresAt: number,
+  model = 'grok-voice-think-fast-2.0',
+) {
   return {
     ok: true,
     status: 200,
@@ -27,7 +30,7 @@ function makeSessionResponse(expiresAt: number) {
       Promise.resolve({
         id: 'sess_1',
         object: 'realtime.session',
-        model: 'grok-voice-fast-1.0',
+        model,
         modalities: ['audio', 'text'],
         instructions: '',
         voice: 'eve',
@@ -52,7 +55,9 @@ describe('grokRealtimeToken request body', () => {
   it('wraps the model under the `session` key per xAI /v1/realtime/client_secrets schema', async () => {
     const fetchMock = vi
       .fn<typeof fetch>()
-      .mockResolvedValue(makeSessionResponse(1_700_000_000))
+      .mockResolvedValue(
+        makeSessionResponse(1_700_000_000, 'grok-voice-think-fast-1.0'),
+      )
     globalThis.fetch = fetchMock as unknown as typeof fetch
 
     await realtimeToken({
@@ -62,6 +67,20 @@ describe('grokRealtimeToken request body', () => {
     const init = fetchMock.mock.calls[0]![1]!
     const body = JSON.parse(init.body as string) as Record<string, unknown>
     expect(body).toEqual({ session: { model: 'grok-voice-think-fast-1.0' } })
+  })
+
+  it("defaults to xAI's current recommended model when no model is given", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(makeSessionResponse(1_700_000_000))
+    globalThis.fetch = fetchMock as unknown as typeof fetch
+
+    const token = await realtimeToken({ adapter: grokRealtimeToken() })
+
+    const init = fetchMock.mock.calls[0]![1]!
+    const body = JSON.parse(init.body as string) as Record<string, unknown>
+    expect(body).toEqual({ session: { model: 'grok-voice-think-fast-2.0' } })
+    expect(token.config.model).toBe('grok-voice-think-fast-2.0')
   })
 })
 

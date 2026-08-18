@@ -86,6 +86,7 @@ export class NoOpChatDevtoolsBridge {
     return ''
   }
   observeChunk(_chunk: StreamChunk): void {}
+  recordMemoryState(_value: unknown): void {}
   beginRun(_runId: string, _threadId: string): void {}
   getCurrentRunEventContext(): ChatClientRunEventContext | undefined {
     return undefined
@@ -190,12 +191,12 @@ void _bridgeParity
 export const createNoOpChatDevtoolsBridge: ChatDevtoolsBridgeFactory = (
   options,
 ) =>
-  // eslint-disable-next-line no-restricted-syntax -- see comment above
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- see comment above
   new NoOpChatDevtoolsBridge(options) as unknown as ChatDevtoolsBridge
 
 export const createNoOpGenerationDevtoolsBridge: GenerationDevtoolsBridgeFactory =
   <TOutput>(options: GenerationDevtoolsBridgeOptions<TOutput>) =>
-    // eslint-disable-next-line no-restricted-syntax -- see comment above
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- see comment above
     new NoOpGenerationDevtoolsBridge<TOutput>(
       options,
     ) as unknown as GenerationDevtoolsBridge<TOutput>
@@ -205,7 +206,7 @@ export const createNoOpVideoDevtoolsBridge: VideoDevtoolsBridgeFactory = <
 >(
   options: VideoDevtoolsBridgeOptions<TOutput>,
 ) =>
-  // eslint-disable-next-line no-restricted-syntax -- see comment above
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- see comment above
   new NoOpVideoDevtoolsBridge<TOutput>(
     options,
   ) as unknown as VideoDevtoolsBridge<TOutput>

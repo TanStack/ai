@@ -4,6 +4,7 @@
   "nxCloudId": "6928ccd60a2e27ab22f38ad0",
   "useDaemonProcess": true,
   "useInferencePlugins": false,
+  "analytics": false,
   "parallel": 15,
   "tui": {
     "enabled": false
@@ -19,11 +20,7 @@
       "{projectRoot}/**/*",
       "!{projectRoot}/**/*.md"
     ],
-    "production": [
-      "default",
-      "!{projectRoot}/tests/**/*",
-      "!{projectRoot}/eslint.config.js"
-    ]
+    "production": ["default", "!{projectRoot}/tests/**/*"]
   },
   "targetDefaults": {
     "test:lib": {
@@ -38,10 +35,10 @@
       "inputs": ["default", "^production"],
       "outputs": ["{projectRoot}/coverage"]
     },
-    "test:eslint": {
+    "test:oxlint": {
       "cache": true,
       "dependsOn": ["^build"],
-      "inputs": ["default", "^production", "{workspaceRoot}/eslint.config.js"]
+      "inputs": ["default", "^production", "{workspaceRoot}/.oxlintrc.json"]
     },
     "test:types": {
       "cache": true,

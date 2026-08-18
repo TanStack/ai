@@ -143,6 +143,52 @@ describe('codex in-sandbox adapter', () => {
     await sbx.destroy()
   })
 
+  it('defaults to danger-full-access on Daytona-like providers', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', FAKE_CODEX)
+    const daytonaHandle: SandboxHandle = { ...sbx, provider: 'daytona' }
+
+    const adapter = codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+    })
+    await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(daytonaHandle),
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/codex-argv.txt')
+    expect(argv).toContain('--sandbox danger-full-access')
+    expect(argv).not.toContain('--sandbox workspace-write')
+
+    await sbx.destroy()
+  })
+
+  it('keeps workspace-write on local-process when no sandboxMode is set', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', FAKE_CODEX)
+
+    const adapter = codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+    })
+    await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/codex-argv.txt')
+    expect(argv).toContain('--sandbox workspace-write')
+
+    await sbx.destroy()
+  })
+
   it('requires a sandbox capability', async () => {
     const adapter = codexText('gpt-5.5-codex')
     const chunks = await collect(

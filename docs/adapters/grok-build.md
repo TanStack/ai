@@ -105,6 +105,7 @@ Adapter config (second argument to `grokBuildText`):
 | `grokExecutable` | Path/name of the `grok` executable inside the sandbox. Defaults to `grok`.  |
 | `env`            | Extra environment variables for the `grok` process inside the sandbox.      |
 | `emitDiff`       | Emit a `file.changed` CUSTOM event with the working-tree `git diff` after the run. Defaults to `true`. |
+| `protocol`       | Harness wire protocol: `'acp'` or `'streaming-json'`. Defaults to `'acp'`. A durable sandbox run with no protocol set uses `'streaming-json'` so the run can journal. |
 | `extraArgs`      | Extra raw CLI flags appended verbatim (advanced).                           |
 
 Per-call overrides go through `modelOptions`:
@@ -114,6 +115,7 @@ Per-call overrides go through `modelOptions`:
 | `sessionId`     | Resume an existing Grok Build session (see below).           |
 | `cwd`           | Per-call override of the harness working directory.          |
 | `maxTurns`      | Per-call cap on the number of harness turns.                 |
+| `protocol`      | Per-call override of the harness wire protocol.              |
 
 ## Stateful Sessions
 
@@ -165,6 +167,23 @@ Two kinds of tools flow through this adapter:
 tools inside a live process and can't pause across an HTTP round-trip. A tool
 without a server `execute()` (or marked `needsApproval`) fails fast; run those
 with a regular provider adapter.
+
+## Durable runs
+
+A durable sandbox run (you pass `runs` and `durability` to `withSandbox`)
+journals the agent output so a later request can take the run over. ACP does
+not journal. When durability is wired and you do not set `protocol`, the
+adapter uses `'streaming-json'`.
+
+Set `protocol: 'acp'` only when you want ACP on that call. A fresh ACP run
+with durability wired logs a warning. An attach against ACP throws
+`DurableAttachNotSupportedError`.
+
+## Headless NDJSON flags
+
+On the `'streaming-json'` path with auto-approve, the adapter adds
+`--always-approve --no-plan --no-auto-update`. Those flags keep Plan Mode and
+the CLI update check from blocking a headless run.
 
 ## Limitations
 

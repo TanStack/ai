@@ -3,7 +3,11 @@ import { createFileRoute } from '@tanstack/react-router'
 import { uiMessagesToWire } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import { clientTools } from '@tanstack/ai-client'
-import type { ChatClientPersistence, UIMessage } from '@tanstack/ai-client'
+import type {
+  ChatClientPersistence,
+  ChatPersistedState,
+  UIMessage,
+} from '@tanstack/ai-client'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { Feature, Mode, Provider } from '@/lib/types'
 import { ALL_FEATURES, ALL_PROVIDERS } from '@/lib/types'
@@ -16,6 +20,7 @@ import { TTSUI } from '@/components/TTSUI'
 import { TranscriptionUI } from '@/components/TranscriptionUI'
 import { VideoGenUI } from '@/components/VideoGenUI'
 import { AudioGenUI } from '@/components/AudioGenUI'
+import { EmbeddingUI } from '@/components/EmbeddingUI'
 
 const VALID_MODES = new Set<Mode>(['sse', 'http-stream', 'fetcher'])
 
@@ -23,9 +28,11 @@ export const Route = createFileRoute('/$provider/$feature')({
   component: FeaturePage,
   validateSearch: (search: Record<string, unknown>) => {
     const port =
-      typeof search.aimockPort === 'string'
-        ? parseInt(search.aimockPort, 10)
-        : undefined
+      typeof search.aimockPort === 'number'
+        ? search.aimockPort
+        : typeof search.aimockPort === 'string'
+          ? parseInt(search.aimockPort, 10)
+          : undefined
     const rawMode = typeof search.mode === 'string' ? search.mode : undefined
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
@@ -36,6 +43,10 @@ export const Route = createFileRoute('/$provider/$feature')({
           : undefined,
       persistence:
         search.persistence === 'localStorage' ? 'localStorage' : undefined,
+      serverPersistence:
+        search.serverPersistence === true ||
+        search.serverPersistence === 1 ||
+        search.serverPersistence === '1',
     }
   },
 })
@@ -51,6 +62,7 @@ const MEDIA_FEATURES = new Set<Feature>([
   'interactions-video',
   'audio-gen',
   'sound-effects',
+  'embedding',
 ])
 
 const addToCartClient = addToCartToolDef.client((args) => ({
@@ -60,31 +72,90 @@ const addToCartClient = addToCartToolDef.client((args) => ({
   quantity: args.quantity,
 }))
 
-const localStoragePersistence: ChatClientPersistence = {
-  getItem: (id) => {
-    const item = window.localStorage.getItem(id)
-    return item
-      ? (JSON.parse(item) as Array<UIMessage>).map((message) => ({
-          ...message,
-          createdAt:
-            typeof message.createdAt === 'string'
-              ? new Date(message.createdAt)
-              : message.createdAt,
-        }))
-      : null
-  },
-  setItem: (id, messages) => {
-    window.localStorage.setItem(id, JSON.stringify(messages))
-  },
-  removeItem: (id) => {
-    window.localStorage.removeItem(id)
-  },
+type StoredUIMessage = Omit<UIMessage, 'createdAt'> & {
+  createdAt?: Date | string
+}
+
+function serializeJson(value: unknown): string {
+  const serialized = JSON.stringify(value)
+  if (serialized === undefined) {
+    throw new TypeError('The persistence value is not JSON serializable')
+  }
+  return serialized
 }
 
 const isProvider = (s: string): s is Provider =>
   (ALL_PROVIDERS as ReadonlyArray<string>).includes(s)
 const isFeature = (s: string): s is Feature =>
   (ALL_FEATURES as ReadonlyArray<string>).includes(s)
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value)
+
+function isStoredUIMessage(value: unknown): value is StoredUIMessage {
+  return (
+    isRecord(value) &&
+    typeof value.id === 'string' &&
+    (value.role === 'system' ||
+      value.role === 'user' ||
+      value.role === 'assistant') &&
+    Array.isArray(value.parts) &&
+    (value.createdAt === undefined ||
+      value.createdAt instanceof Date ||
+      typeof value.createdAt === 'string')
+  )
+}
+
+function deserializeMessages(parsed: unknown): Array<UIMessage> {
+  if (!Array.isArray(parsed) || !parsed.every(isStoredUIMessage)) {
+    throw new TypeError('Stored messages are invalid')
+  }
+  return parsed.map(({ createdAt, ...message }) => ({
+    ...message,
+    ...(createdAt
+      ? {
+          createdAt:
+            createdAt instanceof Date ? createdAt : new Date(createdAt),
+        }
+      : {}),
+  }))
+}
+
+/**
+ * `setItem` receives the combined `{ messages, resume? }` record, so `getItem`
+ * has to read that shape back — reading it as a bare array throws, the catch
+ * below swallows it, and the conversation silently fails to restore. A bare
+ * array is still accepted because the contract allows the legacy format.
+ *
+ * Only the transcript is returned: this page exercises message-list
+ * persistence, and the resume snapshot has its own harness in
+ * `persistence-durability.tsx` (which uses the real `localStoragePersistence`).
+ */
+function deserializePersistedState(raw: string): ChatPersistedState {
+  const parsed: unknown = JSON.parse(raw)
+  if (Array.isArray(parsed)) return { messages: deserializeMessages(parsed) }
+  if (!isRecord(parsed)) {
+    throw new TypeError('Stored chat state is invalid')
+  }
+  return { messages: deserializeMessages(parsed.messages) }
+}
+
+/** Simple localStorage adapter (no @tanstack/ai-client storage helpers). */
+const messagePersistence: ChatClientPersistence = {
+  getItem(id) {
+    try {
+      const raw = localStorage.getItem(id)
+      return raw === null ? null : deserializePersistedState(raw)
+    } catch {
+      return null
+    }
+  },
+  setItem(id, state) {
+    localStorage.setItem(id, serializeJson(state))
+  },
+  removeItem(id) {
+    localStorage.removeItem(id)
+  },
+}
 
 function FeaturePage() {
   const { provider, feature } = Route.useParams()
@@ -195,6 +266,16 @@ function MediaFeature({
           feature="interactions-video"
         />
       )
+    case 'embedding':
+      // embed() is Promise-based (no streaming), so the embedding page has a
+      // single fetch flow and ignores the `mode` search param.
+      return (
+        <EmbeddingUI
+          provider={provider}
+          testId={testId}
+          aimockPort={aimockPort}
+        />
+      )
     case 'audio-gen':
     case 'sound-effects':
       return (
@@ -224,10 +305,15 @@ function ChatFeature({
   const showImageInput =
     feature === 'multimodal-image' || feature === 'multimodal-structured'
 
-  const tools = needsApproval ? clientTools(addToCartClient) : undefined
+  // Stable tools tuple so `useChat` / `BoundInterrupts` keep approval typing
+  // (and ChatUI can accept `interrupts` without casts).
+  const approvalTools = clientTools(addToCartClient)
+  const tools = needsApproval ? approvalTools : undefined
 
-  const { testId, aimockPort, persistence } = Route.useSearch()
+  const { testId, aimockPort, persistence, serverPersistence } =
+    Route.useSearch()
   const persistenceEnabled = persistence === 'localStorage'
+  const serverPersistenceEnabled = serverPersistence === true
   const baseChatId = `e2e-chat-${testId ?? `${provider}-${feature}`}`
   // When persistence is on, expose a tiny thread switcher so e2e can verify that
   // changing the `id` in place swaps to that id's own persisted history (the
@@ -254,6 +340,7 @@ function ChatFeature({
               data?: unknown
               threadId: string
               runId: string
+              resume?: Array<unknown>
             },
             options: { signal: AbortSignal },
           ) =>
@@ -280,6 +367,7 @@ function ChatFeature({
                 tools: [],
                 context: [],
                 forwardedProps: input.data,
+                ...(input.resume ? { resume: input.resume } : {}),
               }),
               signal: options.signal,
             }),
@@ -290,13 +378,14 @@ function ChatFeature({
     messages,
     sendMessage,
     isLoading,
-    addToolApprovalResponse,
+    runId,
+    interrupts,
     stop,
     clear,
     queue,
     cancelQueued,
   } = useChat({
-    id: chatId,
+    threadId: chatId,
     ...transport,
     tools,
     body: {
@@ -305,9 +394,11 @@ function ChatFeature({
       testId,
       aimockPort,
       previousInteractionId: interactionId,
+      serverPersistence: serverPersistenceEnabled,
     },
-    persistence:
-      persistence === 'localStorage' ? localStoragePersistence : undefined,
+    // Message list persistence only. Interrupt resume snapshots are in-memory
+    // on this branch (durable resume adapters live on feat/persistence).
+    persistence: persistenceEnabled ? messagePersistence : undefined,
     onCustomEvent: (eventType, data) => {
       if (eventType === 'structured-output.complete') {
         const value = data as { object: unknown; raw: string } | undefined
@@ -328,6 +419,12 @@ function ChatFeature({
 
   return (
     <>
+      {runId && <div data-testid="run-id" data-run-id={runId} hidden />}
+      <div
+        data-testid="pending-interrupt-count"
+        data-count={String(interrupts.length)}
+        hidden
+      />
       {interactionId && (
         <div data-testid="gemini-interaction-id" hidden>
           {interactionId}
@@ -388,9 +485,8 @@ function ChatFeature({
               }
             : undefined
         }
-        addToolApprovalResponse={
-          needsApproval ? addToolApprovalResponse : undefined
-        }
+        interrupts={needsApproval ? interrupts : undefined}
+        hasPendingInterrupt={interrupts.some((i) => i.status === 'pending')}
         showImageInput={showImageInput}
         onStop={stop}
       />

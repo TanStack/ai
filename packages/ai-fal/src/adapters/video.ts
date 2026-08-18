@@ -179,9 +179,11 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
         ...(duration ? { duration } : {}),
       } as FalModelInput<TModel>
 
-      // Submit to queue and get request ID
+      // Submit to queue and get request ID. Request-specific abortSignal only —
+      // never via fal.config() (global; would cancel concurrent jobs).
       const { request_id } = await fal.queue.submit(this.model, {
         input,
+        ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
       })
 
       return {

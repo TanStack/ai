@@ -2,8 +2,8 @@ import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createFileRoute } from '@tanstack/react-router'
 import { createCodeMode } from '@tanstack/ai-code-mode'
-import { createAlwaysTrustedStrategy } from '@tanstack/ai-code-mode-skills'
-import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
+import { createAlwaysTrustedStrategy } from '@tanstack/ai-code-mode-snippets'
+import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -62,7 +62,7 @@ let codeModeCache: {
 async function getCodeModeTools() {
   if (!codeModeCache) {
     const { createIsolateDriver } = await import('@/lib/create-isolate-driver')
-    const driver = await createIsolateDriver('node')
+    const driver = await createIsolateDriver()
     const { tool, systemPrompt } = createCodeMode({
       driver,
       tools: cityTools,
@@ -75,10 +75,10 @@ async function getCodeModeTools() {
 }
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const skillsDir = resolve(__dirname, '../../../.structured-output-skills')
+const snippetsDir = resolve(__dirname, '../../../.structured-output-snippets')
 const trustStrategy = createAlwaysTrustedStrategy()
-const skillStorage = createFileSkillStorage({
-  directory: skillsDir,
+const snippetStorage = createFileSnippetStorage({
+  directory: snippetsDir,
   trustStrategy,
 })
 
@@ -89,11 +89,11 @@ export const Route = createFileRoute(
     handlers: {
       POST: async ({ request }) => {
         const body = await request.json()
-        const { prompt, provider, model, withSkills } = body as {
+        const { prompt, provider, model, withSnippets } = body as {
           prompt: string
           provider?: Provider
           model?: string
-          withSkills?: boolean
+          withSnippets?: boolean
         }
 
         const adapter = getAdapter(provider || 'anthropic', model)
@@ -111,9 +111,9 @@ export const Route = createFileRoute(
               driver,
               codeTools: cityTools,
             },
-            skills: withSkills
+            snippets: withSnippets
               ? {
-                  storage: skillStorage,
+                  storage: snippetStorage,
                   trustStrategy,
                   timeout: 30000,
                   memoryLimit: 128,

@@ -48,18 +48,3 @@ jobs:
         run: pnpm run build:all
       - name: Publish Previews
         run: pnpx pkg-pr-new publish --pnpm './packages/*'
-  version-preview:
-    name: Version Preview
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      pull-requests: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-        with:
-          persist-credentials: false
-      - name: Setup Tools
-        uses: TanStack/config/.github/setup@190f659075ff0845850e330883eb26d7ffd0671f # main
-      - name: Changeset Preview
-        uses: TanStack/config/.github/changeset-preview@190f659075ff0845850e330883eb26d7ffd0671f # main

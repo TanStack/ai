@@ -3,17 +3,18 @@ name: ai-code-mode
 description: >
   LLM-generated TypeScript execution in sandboxed environments:
   createCodeModeTool() with isolate drivers (createNodeIsolateDriver,
-  createQuickJSIsolateDriver, createCloudflareIsolateDriver),
-  codeModeWithSkills() for persistent skill libraries, trust strategies,
-  skill storage (FileSystem, LocalStorage, InMemory, Mongo), client-side
+  createQuickJSIsolateDriver, createQuickJSBunIsolateDriver,
+  createCloudflareIsolateDriver),
+  codeModeWithSnippets() for persistent snippet libraries, trust strategies,
+  snippet storage (FileSystem, LocalStorage, InMemory, Mongo), client-side
   execution progress via code_mode:* custom events in useChat.
 type: core
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.3.8'
 sources:
   - 'TanStack/ai:docs/code-mode/code-mode.md'
   - 'TanStack/ai:docs/code-mode/code-mode-isolates.md'
-  - 'TanStack/ai:docs/code-mode/code-mode-with-skills.md'
+  - 'TanStack/ai:docs/code-mode/code-mode-with-snippets.md'
   - 'TanStack/ai:docs/code-mode/client-integration.md'
   - 'TanStack/ai:docs/code-mode/lazy-tools.md'
 ---
@@ -90,7 +91,7 @@ const stream = chat({
 
 ### 1. Choosing an Isolate Driver
 
-Three drivers implement the `IsolateDriver` interface. All are interchangeable.
+Four drivers implement the `IsolateDriver` interface. All are interchangeable.
 
 **Node.js** (`createNodeIsolateDriver`) -- Full V8 with JIT. Fastest option. Requires `isolated-vm` native C++ addon.
 
@@ -116,6 +117,18 @@ const driver = createQuickJSIsolateDriver({
 })
 ```
 
+**QuickJS Bun** (`createQuickJSBunIsolateDriver`) -- Native QuickJS on the Bun runtime via `bun:ffi`. Requires Bun >= 1.3.14 (throws a descriptive error on Node.js). No native deps or build step. Each context gets a dedicated QuickJS runtime with its own memory limit, stack size, and interrupt-based timeout. Recommended QuickJS option on Bun, where the WASM driver's asyncify bridge is unreliable for async host tool calls.
+
+```typescript
+import { createQuickJSBunIsolateDriver } from '@tanstack/ai-isolate-quickjs-bun'
+
+const driver = createQuickJSBunIsolateDriver({
+  memoryLimit: 128, // MB, default 128
+  timeout: 30_000, // ms, default 30000
+  maxStackSize: 524288, // bytes, default 512 KiB
+})
+```
+
 **Cloudflare** (`createCloudflareIsolateDriver`) -- Edge execution via a deployed Cloudflare Worker. Requires a `workerUrl` pointing to your deployed worker. Network latency on each tool call.
 
 ```typescript
@@ -129,29 +142,30 @@ const driver = createCloudflareIsolateDriver({
 })
 ```
 
-| Driver     | Best for                    | Native deps     | Browser support | Performance          |
-| ---------- | --------------------------- | --------------- | --------------- | -------------------- |
-| Node       | Server-side Node.js         | Yes (C++ addon) | No              | Fast (V8 JIT)        |
-| QuickJS    | Browsers, edge, portability | None (WASM)     | Yes             | Slower (interpreted) |
-| Cloudflare | Edge deployments            | None            | N/A             | Fast (V8 on edge)    |
+| Driver      | Best for                    | Native deps     | Browser support | Performance           |
+| ----------- | --------------------------- | --------------- | --------------- | --------------------- |
+| Node        | Server-side Node.js         | Yes (C++ addon) | No              | Fast (V8 JIT)         |
+| QuickJS     | Browsers, edge, portability | None (WASM)     | Yes             | Slower (interpreted)  |
+| QuickJS Bun | Bun servers                 | None            | No              | Fast (native QuickJS) |
+| Cloudflare  | Edge deployments            | None            | N/A             | Fast (V8 on edge)     |
 
-### 2. Adding Persistent Skills with codeModeWithSkills()
+### 2. Adding Persistent Snippets with codeModeWithSnippets()
 
-Skills let the LLM save reusable code snippets. On future requests, relevant skills are loaded and exposed as callable tools.
+Snippets let the LLM save reusable code snippets. On future requests, relevant snippets are loaded and exposed as callable tools.
 
 ```typescript
 import { chat, maxIterations } from '@tanstack/ai'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
-import { codeModeWithSkills } from '@tanstack/ai-code-mode-skills'
-import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
+import { codeModeWithSnippets } from '@tanstack/ai-code-mode-snippets'
+import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
 import {
   createDefaultTrustStrategy,
   createAlwaysTrustedStrategy,
   createCustomTrustStrategy,
-} from '@tanstack/ai-code-mode-skills'
+} from '@tanstack/ai-code-mode-snippets'
 import { openaiText } from '@tanstack/ai-openai'
 
-// Trust strategies control how skills earn trust through executions
+// Trust strategies control how snippets earn trust through executions
 // Default: untrusted -> provisional (10+ runs, >=90%) -> trusted (100+ runs, >=95%)
 // Relaxed: untrusted -> provisional (3+ runs, >=80%) -> trusted (10+ runs, >=90%)
 // Always trusted: immediately trusted (dev/testing)
@@ -159,26 +173,26 @@ import { openaiText } from '@tanstack/ai-openai'
 const trustStrategy = createDefaultTrustStrategy()
 
 // Storage options: file system (production) or memory (testing)
-const storage = createFileSkillStorage({
-  directory: './.skills',
+const storage = createFileSnippetStorage({
+  directory: './.snippets',
   trustStrategy,
 })
 
 const driver = createNodeIsolateDriver()
 
-// High-level API: automatic LLM-based skill selection
-const { toolsRegistry, systemPrompt, selectedSkills } =
-  await codeModeWithSkills({
+// High-level API: automatic LLM-based snippet selection
+const { toolsRegistry, systemPrompt, selectedSnippets } =
+  await codeModeWithSnippets({
     config: {
       driver,
       tools: [myTool1, myTool2],
       timeout: 60_000,
       memoryLimit: 128,
     },
-    adapter: openaiText('gpt-4o-mini'), // cheap model for skill selection
-    skills: {
+    adapter: openaiText('gpt-4o-mini'), // cheap model for snippet selection
+    snippets: {
       storage,
-      maxSkillsInContext: 5,
+      maxSnippetsInContext: 5,
     },
     messages,
   })
@@ -192,7 +206,7 @@ const stream = chat({
 })
 ```
 
-The registry includes: `execute_typescript`, `search_skills`, `get_skill`, `register_skill`, and one tool per selected skill.
+The registry includes: `execute_typescript`, `search_snippets`, `get_snippet`, `register_snippet`, and one tool per selected snippet.
 
 Custom trust strategy example:
 
@@ -207,13 +221,13 @@ const strategy = createCustomTrustStrategy({
 Storage implementations:
 
 ```typescript
-// File storage (production) -- persists skills as files on disk
-import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
-const fileStorage = createFileSkillStorage({ directory: './.skills' })
+// File storage (production) -- persists snippets as files on disk
+import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
+const fileStorage = createFileSnippetStorage({ directory: './.snippets' })
 
 // Memory storage (testing) -- in-memory, lost on restart
-import { createMemorySkillStorage } from '@tanstack/ai-code-mode-skills/storage'
-const memStorage = createMemorySkillStorage()
+import { createMemorySnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
+const memStorage = createMemorySnippetStorage()
 ```
 
 ### 3. Client-Side Execution Progress Display
@@ -320,14 +334,14 @@ The `onCustomEvent` callback signature is identical across all framework integra
 (eventType: string, data: unknown, context: { toolCallId?: string }) => void
 ```
 
-Skill-specific events (when using `codeModeWithSkills`):
+Snippet-specific events (when using `codeModeWithSnippets`):
 
-| Event                    | When               | Key fields                    |
-| ------------------------ | ------------------ | ----------------------------- |
-| `code_mode:skill_call`   | Skill tool invoked | `skill`, `input`, `timestamp` |
-| `code_mode:skill_result` | Skill completed    | `skill`, `result`, `duration` |
-| `code_mode:skill_error`  | Skill failed       | `skill`, `error`, `duration`  |
-| `skill:registered`       | New skill saved    | `id`, `name`, `description`   |
+| Event                      | When                 | Key fields                      |
+| -------------------------- | -------------------- | ------------------------------- |
+| `code_mode:snippet_call`   | Snippet tool invoked | `snippet`, `input`, `timestamp` |
+| `code_mode:snippet_result` | Snippet completed    | `snippet`, `result`, `duration` |
+| `code_mode:snippet_error`  | Snippet failed       | `snippet`, `error`, `duration`  |
+| `snippet:registered`       | New snippet saved    | `id`, `name`, `description`     |
 
 ### 4. Lazy Tools
 
@@ -495,10 +509,11 @@ Source: ai-isolate-node source (probeIsolatedVm implementation)
 
 ### MEDIUM: Expecting identical behavior across isolate drivers
 
-The three drivers have different capabilities. Same code may work in Node but fail elsewhere.
+The four drivers have different capabilities. Same code may work in Node but fail elsewhere.
 
 - **Node**: Full V8 support, JIT compilation, configurable memory limit
 - **QuickJS**: Interpreted, limited stdlib (no File I/O), configurable stack size, asyncified execution (serialized through global queue)
+- **QuickJS Bun**: Bun runtime only (throws on Node.js), native QuickJS via `bun:ffi`, dedicated runtime per context with per-context memory/stack limits and normalized `MemoryLimitError`/`StackOverflowError`/`TimeoutError`
 - **Cloudflare**: Network latency per tool call round-trip, `maxToolRounds` limit (default 10), requires deployed worker with `UNSAFE_EVAL` or `eval` unsafe binding
 
 Test generated code against your target driver. If you need portability, target QuickJS's subset.

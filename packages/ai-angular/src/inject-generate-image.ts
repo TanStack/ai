@@ -1,34 +1,42 @@
 import { injectGeneration } from './inject-generation'
+import { reconstructImageResult } from '@tanstack/ai-client'
 import type { Signal } from '@angular/core'
 import type { ImageGenerationResult } from '@tanstack/ai'
 import type {
   GenerationClientState,
+  GenerationPersistenceOptions,
   ImageGenerateInput,
   InferGenerationOutputFromReturn,
 } from '@tanstack/ai-client'
-import type { InjectGenerationOptions } from './inject-generation'
+import type {
+  InjectGenerationOptions,
+  InjectGenerationResult,
+} from './inject-generation'
 
 export type InjectGenerateImageOptions<TOutput = ImageGenerationResult> = Omit<
   InjectGenerationOptions<ImageGenerateInput, ImageGenerationResult, TOutput>,
-  'onResult'
+  'onResult' | 'reconstructResult'
 > & {
   onResult?: (result: ImageGenerationResult) => TOutput | null | void
 }
 
-export interface InjectGenerateImageResult<TOutput = ImageGenerationResult> {
+export interface InjectGenerateImageResult<
+  TOutput = ImageGenerationResult,
+> extends Omit<InjectGenerationResult<TOutput>, 'generate'> {
   generate: (input: ImageGenerateInput) => Promise<void>
   result: Signal<TOutput | null>
   isLoading: Signal<boolean>
   error: Signal<Error | undefined>
   status: Signal<GenerationClientState>
-  stop: () => void
-  reset: () => void
 }
 
 export function injectGenerateImage<TTransformed = void>(
-  options: Omit<InjectGenerateImageOptions, 'onResult'> & {
+  options: Omit<
+    InjectGenerateImageOptions,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
     onResult?: (result: ImageGenerationResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): InjectGenerateImageResult<
   InferGenerationOutputFromReturn<ImageGenerationResult, TTransformed>
 > {
@@ -38,18 +46,14 @@ export function injectGenerateImage<TTransformed = void>(
     hookName: 'injectGenerateImage',
     outputKind: 'image' as const,
   }
-  const { generate, result, isLoading, error, status, stop, reset } =
-    injectGeneration<ImageGenerateInput, ImageGenerationResult, TTransformed>({
-      ...options,
-      devtools,
-    })
-  return {
-    generate: generate as (input: ImageGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
-  }
+  const generation = injectGeneration<
+    ImageGenerateInput,
+    ImageGenerationResult,
+    TTransformed
+  >({
+    ...options,
+    devtools,
+    reconstructResult: reconstructImageResult,
+  })
+  return generation
 }

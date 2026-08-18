@@ -10,10 +10,17 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 
 - **Package Manager**: pnpm@10.17.0 (required)
 - **Build System**: Nx for task orchestration and caching
-- **TypeScript**: 5.9.3
+- **TypeScript**: 7.0.2 (native Go compiler). Framework build/typecheck tools
+  that still need the pre-7 JS Compiler API (svelte-package, svelte-check,
+  vue-tsc, knip, typedoc) run against the `@typescript/typescript6` (6.0.2)
+  shim via `pnpm-workspace.yaml` packageExtensions. Angular cannot run on TS7,
+  so it pins `typescript@5.9.3` instead. kiira 0.6.0 is TS7-native and does
+  not need a shim. See that file's comments.
 - **Testing**: Vitest for unit tests
-- **Linting**: ESLint with custom TanStack config
-- **Formatting**: Prettier
+- **Linting**: oxlint (incl. type-aware rules via `oxlint-tsgolint`); a few
+  ESLint-compat rules run through oxlint's JS-plugin layer
+  (`oxlint-plugin-eslint`, `eslint-plugin-unused-imports`, `@stylistic`)
+- **Formatting**: oxfmt
 
 Run `pnpm install` before starting any task and again after every merge with
 `main`.
@@ -32,7 +39,7 @@ pnpm test:pr
 # Run specific test suites
 pnpm test:lib              # Run unit tests for affected packages
 pnpm test:lib:dev          # Watch mode for unit tests
-pnpm test:eslint           # Lint affected packages
+pnpm test:oxlint           # Lint affected packages (oxlint, incl. type-aware)
 pnpm test:types            # Type check affected packages
 pnpm test:build            # Verify build artifacts with publint
 pnpm test:coverage         # Generate coverage reports
@@ -53,7 +60,7 @@ cd packages/ai
 pnpm test:lib              # Run tests for this package
 pnpm test:lib:dev          # Watch mode
 pnpm test:types            # Type check
-pnpm test:eslint           # Lint
+pnpm test:oxlint           # Lint (oxlint)
 ```
 
 ### Building
@@ -73,7 +80,7 @@ pnpm dev  # alias for watch
 ### Code Quality
 
 ```bash
-pnpm format                # Format all files with Prettier
+pnpm format                # Format all files with oxfmt
 ```
 
 ### Changesets (Release Management)
@@ -214,7 +221,7 @@ Each framework integration uses the headless `ai-client` under the hood.
 4. Run tests: `pnpm test:lib` (or package-specific tests)
 5. Run E2E tests: `pnpm --filter @tanstack/ai-e2e test:e2e`
 6. Run type checks: `pnpm test:types`
-7. Run linter: `pnpm test:eslint`
+7. Run linter: `pnpm test:oxlint`
 8. Format code: `pnpm format`
 9. Verify build: `pnpm test:build` or `pnpm build`
 
@@ -230,14 +237,14 @@ The single canonical command is:
 pnpm test:pr
 ```
 
-This runs the exact target set the `PR` workflow runs in CI: `nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:eslint,test:lib,test:types,test:build,build`. There is **no** `--exclude=examples/**,testing/**` carve-out — the example apps and `testing/` packages are included, so Nx runs whatever of these targets they define (in practice `build` and `test:types`). Including them means `test:types` is checked at the call sites where the library is actually consumed, catching call-site type regressions that only manifest there (see issue #820). To type-check just the example apps + `testing/` packages locally, run `nx run-many --targets=test:types --projects=examples/**,testing/**`.
+This runs the exact target set the `PR` workflow runs in CI: `nx affected --targets=test:sherif,test:knip,test:docs,test:kiira,test:oxlint,test:lib,test:types,test:build,build`. There is **no** `--exclude=examples/**,testing/**` carve-out — the example apps and `testing/` packages are included, so Nx runs whatever of these targets they define (in practice `build` and `test:types`). Including them means `test:types` is checked at the call sites where the library is actually consumed, catching call-site type regressions that only manifest there (see issue #820). To type-check just the example apps + `testing/` packages locally, run `nx run-many --targets=test:types --projects=examples/**,testing/**`.
 
 If you can't run `test:pr` (e.g. it's too slow on your machine), at minimum run each of these and confirm they're green before pushing:
 
 - `pnpm test:sherif` — workspace consistency
 - `pnpm test:knip` — unused dependencies
 - `pnpm test:docs` — doc link verification
-- `pnpm test:eslint` — lint
+- `pnpm test:oxlint` — lint (oxlint, incl. type-aware)
 - `pnpm test:types` — typecheck (packages)
 - `nx run-many --targets=test:types --projects=examples/**,testing/**` — typecheck the example apps + `testing/` packages
 - `pnpm test:lib` — unit tests
@@ -268,8 +275,24 @@ pnpm dev      # start dev server
 
 ### Workspace Dependencies
 
-- Use `workspace:*` protocol for internal package dependencies in `package.json`
-- Example: `"@tanstack/ai": "workspace:*"`
+Use the `workspace:` protocol for internal package dependencies in
+`package.json`. Which suffix to use depends on whether the field is published:
+
+- **`dependencies`, `peerDependencies`, `optionalDependencies` → `workspace:^`**
+  Example: `"@tanstack/ai": "workspace:^"`
+  These fields reach consumers. At publish time pnpm rewrites the specifier to
+  a real range, so `workspace:^` becomes `^0.43.1` while `workspace:*` becomes
+  the exact pin `0.43.1`. An exact pin stops consumers from deduping and makes
+  a peer dependency unsatisfiable the moment the internal package releases its
+  next patch. Because every package here is still `0.x`, `^0.43.1` resolves to
+  `0.43.x` only — it permits patches without allowing a breaking minor.
+- **`devDependencies` → `workspace:*`**
+  Example: `"@tanstack/ai": "workspace:*"`
+  Never published, so the specifier has no effect on consumers, and `*` is the
+  correct intent: always build against the local copy.
+
+Private packages (`examples/`, `testing/`) are never published, so `workspace:*`
+is fine there in any field.
 
 ### Tree-Shakeable Exports
 
@@ -345,6 +368,12 @@ OPENAI_API_KEY=sk-... pnpm --filter @tanstack/ai-e2e record
     links, code-fence languages, formatting, factual fixes — must **not**
     touch `addedAt` or `updatedAt`. Only genuinely new or changed content
     moves these dates.
+- **Docs nav: use `"tab"` for reserved words.** The site sorts sidebar entries
+  into tabs by keyword-matching `"<sectionLabel> <pageLabel> <to>"` — `overview`,
+  `introduction`, `installation`, `quick start`, `tutorial`, `example`,
+  `community` — which yanks a page out of its own section. Don't rename around
+  it; set `"tab"` on the section or entry in `docs/config.json`
+  (`home | get-started | tutorial | guides | api | examples`).
 
 ## Key Dependencies
 

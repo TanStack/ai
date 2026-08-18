@@ -24,7 +24,7 @@ The Codex adapter runs [OpenAI Codex](https://developers.openai.com/codex) (via 
 npm install @tanstack/ai-codex
 ```
 
-A runnable demo lives at [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) — switch the harness (Claude Code, Codex, OpenCode, Grok Build) and sandbox provider per run, with session resume, the harness tool timeline, sandbox modes, and tool bridging, wired into a TanStack Start app.
+A runnable demo lives at [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare) — pick Claude Code, Codex, or Grok Build in the UI, with session resume, the harness tool timeline, and tool bridging, wired into a TanStack Start app on Workers. For the same wiring on plain Node with durable, refresh-surviving runs (Claude Code on Docker), see [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) — swapping in this adapter is a one-line change (`src/sandbox-agent.ts`).
 
 ## Authentication
 
@@ -53,7 +53,7 @@ const stream = chat({
 | Option                 | Description                                                                                                                                  |
 | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | `cwd`                  | Working directory for the harness session. Defaults to `process.cwd()`.                                                                       |
-| `sandboxMode`          | Codex sandbox: `'read-only'` (harness default), `'workspace-write'`, or `'danger-full-access'`. This is the safety boundary on a server.       |
+| `sandboxMode`          | Codex sandbox: `'read-only'`, `'workspace-write'`, or `'danger-full-access'`. Default is `'workspace-write'` on local-process and Docker. Default is `'danger-full-access'` on Daytona and Cloudflare, because those providers cannot create a nested bubblewrap namespace. Isolation is then the outer VM plus `defineSandboxPolicy`. |
 | `approvalPolicy`       | Codex approval policy. Defaults to `'never'` — headless runs have no approval UI, so anything else can stall a turn.                           |
 | `modelReasoningEffort` | `'minimal'` \| `'low'` \| `'medium'` \| `'high'` \| `'xhigh'`.                                                                                 |
 | `skipGitRepoCheck`     | Skip the harness's git-repo safety check. Defaults to `true` (server adapters routinely point at scratch directories).                         |

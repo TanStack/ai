@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-code-mode",
-  "version": "0.3.8",
+  "version": "0.3.11",
   "description": "Secure TypeScript Code Mode for TanStack AI agents to execute sandboxed tool orchestration programs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -38,9 +38,9 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -63,12 +63,12 @@
     "sucrase": "^3.35.0"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*",
+    "@tanstack/ai": "workspace:^",
     "zod": "^3.0.0 || ^4.0.0"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.10",
     "zod": "^4.2.0"
   }
 }

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type OpenAI from 'openai'
-import { EventType } from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
@@ -960,7 +960,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       }
     })
 
-    it('uses the internal function_call item id for tool call correlation', async () => {
+    it('uses call_id for tool correlation and preserves the item id as metadata', async () => {
       const streamChunks = [
         {
           type: 'response.created',
@@ -1027,26 +1027,26 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         chunks.push(chunk)
       }
 
-      // TOOL_CALL_* events should use the internal function_call item id
-      // (matches main's OpenAI adapter behavior; the agent loop carries this
-      // id back as `toolCallId` on the tool ModelMessage, which the Responses
-      // API accepts as `call_id` for function_call_output).
+      // `call_id` correlates the eventual function_call_output. The separate
+      // output item ID is provider metadata that the agent loop carries into
+      // the next request so both opaque identifiers can be replayed.
       const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
       expect(toolStart).toBeDefined()
       if (toolStart?.type === 'TOOL_CALL_START') {
-        expect(toolStart.toolCallId).toBe('fc_internal_001')
+        expect(toolStart.toolCallId).toBe('call_api_abc123')
+        expect(toolStart.metadata).toEqual({ itemId: 'fc_internal_001' })
       }
 
       const toolArgs = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
       expect(toolArgs.length).toBeGreaterThan(0)
       if (toolArgs[0]?.type === 'TOOL_CALL_ARGS') {
-        expect(toolArgs[0].toolCallId).toBe('fc_internal_001')
+        expect(toolArgs[0].toolCallId).toBe('call_api_abc123')
       }
 
       const toolEnd = chunks.find((c) => c.type === 'TOOL_CALL_END')
       expect(toolEnd).toBeDefined()
       if (toolEnd?.type === 'TOOL_CALL_END') {
-        expect(toolEnd.toolCallId).toBe('fc_internal_001')
+        expect(toolEnd.toolCallId).toBe('call_api_abc123')
       }
     })
 
@@ -1798,6 +1798,51 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       )
     })
 
+    it('forwards response.usage on structuredOutput', async () => {
+      setupMockResponsesClient([], {
+        output: [
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: '{"name":"Alice","age":30}',
+              },
+            ],
+          },
+        ],
+        usage: {
+          input_tokens: 9,
+          output_tokens: 4,
+          total_tokens: 13,
+        },
+      })
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const result = await adapter.structuredOutput({
+        chatOptions: {
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Give me a person object' }],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            age: { type: 'number' },
+          },
+          required: ['name', 'age'],
+        },
+      })
+
+      expect(result.usage).toEqual({
+        promptTokens: 9,
+        completionTokens: 4,
+        totalTokens: 13,
+      })
+    })
+
     it('passes provider nulls through unchanged (engine un-widens, not the adapter)', async () => {
       const nonStreamResponse = {
         output: [
@@ -2128,6 +2173,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
                   name: 'lookup_weather',
                   arguments: '{"location":"Berlin"}',
                 },
+                metadata: { itemId: 'fc_123' },
               },
             ],
           },
@@ -2147,6 +2193,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         expect.arrayContaining([
           expect.objectContaining({
             type: 'function_call',
+            id: 'fc_123',
             call_id: 'call_123',
             name: 'lookup_weather',
             arguments: '{"location":"Berlin"}',
@@ -2160,6 +2207,132 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
             type: 'function_call_output',
             call_id: 'call_123',
             output: '{"temp":72}',
+          }),
+        ]),
+      )
+    })
+
+    /**
+     * End-to-end guard for the `call_id` / output-item-`id` split, covering
+     * every adapter that inherits this base (`@tanstack/ai-openai`,
+     * `@tanstack/ai-grok`, `@tanstack/ai-bedrock`, and the OpenAI-compatible
+     * adapter — none of them override `convertMessagesToInput`).
+     *
+     * Unlike the request-mapping test above, this drives the real `chat()`
+     * agent loop, so it proves the output item id actually survives the round
+     * trip: adapter -> TOOL_CALL_START metadata -> assistant ModelMessage ->
+     * adapter. Hand-building the assistant message would assume the very
+     * propagation that can break.
+     *
+     * This has to live here, in a unit test. The mock-based E2E suite cannot
+     * catch it: aimock maps an incoming `function_call.call_id` straight onto
+     * `tool_calls[].id`, so a request that uses the *wrong* id consistently in
+     * both the `function_call` and its `function_call_output` still correlates
+     * and still passes. Only a provider that knows the real item -> call_id
+     * mapping rejects it.
+     */
+    it('round-trips distinct output item and call IDs through a server tool', async () => {
+      const firstTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_item_1',
+            call_id: 'call_abc',
+            name: 'lookup_weather',
+            arguments: '',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_item_1',
+          output_index: 0,
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'fc_item_1',
+                call_id: 'call_abc',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      const secondTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Sunny',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+          },
+        },
+      ]
+
+      mockResponsesCreate = vi
+        .fn()
+        .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+        .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+      const execute = vi.fn().mockReturnValue({ temperature: 72 })
+
+      for await (const _chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'How is the weather?' }],
+        tools: [{ ...weatherTool, execute }],
+      })) {
+        // consume both agent-loop turns
+      }
+
+      expect(execute).toHaveBeenCalledOnce()
+      expect(mockResponsesCreate).toHaveBeenCalledTimes(2)
+
+      const secondRequest = mockResponsesCreate.mock.calls[1]![0]
+      expect(secondRequest.input).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'function_call',
+            id: 'fc_item_1',
+            call_id: 'call_abc',
+          }),
+          expect.objectContaining({
+            type: 'function_call_output',
+            call_id: 'call_abc',
           }),
         ]),
       )

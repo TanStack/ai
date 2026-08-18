@@ -1,7 +1,6 @@
 import { defineConfig } from 'vite'
 import { tanstackStart } from '@tanstack/react-start/plugin/vite'
 import viteReact from '@vitejs/plugin-react'
-import viteTsConfigPaths from 'vite-tsconfig-paths'
 import tailwindcss from '@tailwindcss/vite'
 import { nitroV2Plugin } from '@tanstack/nitro-v2-vite-plugin'
 import { durableDeliveryWebSocketPlugin } from './src/lib/durable-delivery-ws-plugin'
@@ -17,15 +16,13 @@ const config = defineConfig({
   ssr: {
     external: ['@elevenlabs/elevenlabs-js'],
   },
+  resolve: { tsconfigPaths: true },
   plugins: [
     durableDeliveryWebSocketPlugin(),
     nitroV2Plugin({
       externals: {
         external: ['@elevenlabs/elevenlabs-js'],
       },
-    }),
-    viteTsConfigPaths({
-      projects: ['./tsconfig.json'],
     }),
     tailwindcss(),
     tanstackStart(),

@@ -3,9 +3,9 @@
  * isolation: fs/exec/git operate inside the remote sandbox; paths are real
  * sandbox paths (default workdir `/home/daytona/workspace`).
  *
- * fs is implemented over `process.executeCommand` with base64 piping
- * (binary-safe, no extra round trips); the sandbox image must provide `sh`,
- * `base64`, and coreutils (true for the default Daytona images).
+ * fs and git use the native Daytona SDK. Blocking exec sends env through
+ * `executeCommand`'s env argument so secret values never enter the stored
+ * command string. Spawn sources a workdir env file for the same reason.
  *
  * NOTE: Daytona's `executeCommand` returns a single combined `result` string
  * (stdout+stderr interleaved) plus an `exitCode`; there is no separate stderr
@@ -14,17 +14,16 @@
  * separately via Daytona sessions.
  */
 import { randomUUID } from 'node:crypto'
-import {
-  UnsupportedCapabilityError,
-  createExecBackedGit,
-} from '@tanstack/ai-sandbox'
+import { UnsupportedCapabilityError } from '@tanstack/ai-sandbox'
 import type { Sandbox } from '@daytona/sdk'
 import type {
   ExecResult,
   ProcessOptions,
   SandboxCapabilities,
   SandboxChannel,
+  SandboxGit,
   SandboxHandle,
+  SnapshotRef,
   SpawnHandle,
 } from '@tanstack/ai-sandbox'
 
@@ -34,12 +33,34 @@ export const DAYTONA_CAPS: SandboxCapabilities = {
   env: true,
   ports: true,
   backgroundProcesses: true,
-  // Daytona background commands run in a session; there is no host→process
-  // stdin stream, so adapters that feed a prompt over stdin must deliver it via
-  // a file + shell redirection instead.
-  writableStdin: false,
-  snapshots: false,
-  networkPolicy: false,
+  writableStdin: true,
+  // FALSE, and it must not be flipped back without a MEASUREMENT against a real
+  // Daytona sandbox. It read `true` on an asserted comment: that `kill()` "deletes
+  // the Daytona session via `deleteSession`, which terminates the session's running
+  // command". Nothing here establishes that, and three things argue against it:
+  //
+  //  1. What `kill()` actually does is `controller.abort()` — a CLIENT-side stop of
+  //     the poll loop. That is the same shape as the docker defect, where
+  //     `stream.destroy()` detached the client while the container-side process
+  //     kept running (measured: `sleep` survived `kill()`).
+  //  2. `kill()` does not await any termination. The `deleteSession` call lives in
+  //     the pump's `finally`, reached only after the status poll notices the abort
+  //     (up to one 400ms sleep plus an in-flight status round trip later). It is
+  //     also `.catch(() => {})`-swallowed, so a failed delete is indistinguishable
+  //     from a successful one.
+  //  3. `deleteSession`'s own SDK doc describes it as "Clean up a completed
+  //     session"; terminating a RUNNING async command is not a documented effect.
+  //
+  // Even if the session teardown does signal, the session command is a shell
+  // (`cd <cwd> && <command>`) and `journalFollowCommand` is a three-statement
+  // command, so the `tail -f` is necessarily a forked CHILD — the local-process
+  // defect, where killing the `sh` left the command alive. `journalReadStrategy`
+  // therefore takes the slower-but-correct `'poll'` path. A wrong `true` leaks a
+  // `tail -f` per run; see `tests/journal.conformance.test.ts`, which measures this
+  // as soon as `DAYTONA_API_KEY` is present.
+  killableProcesses: false,
+  snapshots: true,
+  networkPolicy: true,
   // The sandbox filesystem persists for the sandbox's lifetime (across exec
   // calls and stop/resume) until it is deleted.
   durableFilesystem: true,
@@ -131,59 +152,51 @@ export class DaytonaHandle implements SandboxHandle {
 
     this.fs = {
       read: async (p) => {
-        const r = await this.exec(`base64 ${q(this.abs(p))}`)
-        if (r.exitCode !== 0) throw new Error(`read failed: ${r.stdout.trim()}`)
-        return Buffer.from(r.stdout, 'base64').toString('utf8')
+        const buf = await this.sandbox.fs.downloadFile(this.abs(p))
+        return buf.toString('utf8')
       },
       readBytes: async (p) => {
-        const r = await this.exec(`base64 ${q(this.abs(p))}`)
-        if (r.exitCode !== 0) throw new Error(`read failed: ${r.stdout.trim()}`)
-        return new Uint8Array(Buffer.from(r.stdout, 'base64'))
+        const buf = await this.sandbox.fs.downloadFile(this.abs(p))
+        return new Uint8Array(buf)
       },
       write: async (p, data) => {
         const abs = this.abs(p)
-        const b64 = Buffer.from(
-          typeof data === 'string' ? Buffer.from(data, 'utf8') : data,
-        ).toString('base64')
-        const dir = abs.replace(/\/[^/]*$/, '') || '/'
-        const r = await this.exec(
-          `mkdir -p ${q(dir)} && printf %s ${q(b64)} | base64 -d > ${q(abs)}`,
-        )
-        if (r.exitCode !== 0)
-          throw new Error(`write failed: ${r.stdout.trim()}`)
+        const parent = abs.replace(/\/[^/]*$/, '') || '/'
+        await this.sandbox.fs.createFolder(parent, '755')
+        const buf =
+          typeof data === 'string'
+            ? Buffer.from(data, 'utf8')
+            : Buffer.from(data)
+        await this.sandbox.fs.uploadFile(buf, abs)
       },
       list: async (p) => {
-        const r = await this.exec(`ls -1Ap ${q(this.abs(p))}`)
-        if (r.exitCode !== 0) throw new Error(`list failed: ${r.stdout.trim()}`)
-        return r.stdout
-          .split('\n')
-          .filter((line) => line.trim() !== '')
-          .map((entry) => {
-            const isDir = entry.endsWith('/')
-            const name = isDir ? entry.slice(0, -1) : entry
-            return {
-              name,
-              path: `${p.replace(/\/$/, '')}/${name}`,
-              type: isDir ? ('dir' as const) : ('file' as const),
-            }
-          })
+        const entries = await this.sandbox.fs.listFiles(this.abs(p))
+        return entries.map((entry) => ({
+          name: entry.name,
+          path: `${p.replace(/\/$/, '')}/${entry.name}`,
+          type: entry.isDir ? ('dir' as const) : ('file' as const),
+        }))
       },
       mkdir: async (p) => {
-        await this.exec(`mkdir -p ${q(this.abs(p))}`)
+        await this.sandbox.fs.createFolder(this.abs(p), '755')
       },
       remove: async (p) => {
-        await this.exec(`rm -rf ${q(this.abs(p))}`)
+        await this.sandbox.fs.deleteFile(this.abs(p), true)
       },
       rename: async (from, to) => {
-        await this.exec(`mv ${q(this.abs(from))} ${q(this.abs(to))}`)
+        await this.sandbox.fs.moveFiles(this.abs(from), this.abs(to))
       },
       exists: async (p) => {
-        const r = await this.exec(`test -e ${q(this.abs(p))}`)
-        return r.exitCode === 0
+        try {
+          await this.sandbox.fs.getFileDetails(this.abs(p))
+          return true
+        } catch {
+          return false
+        }
       },
     }
 
-    this.git = createExecBackedGit(this.process, this.workdir)
+    this.git = this.createNativeGit()
 
     this.ports = {
       connect: (port) => this.connectPort(port),
@@ -206,17 +219,71 @@ export class DaytonaHandle implements SandboxHandle {
     return p
   }
 
+  private mergedEnv(extra?: Record<string, string>): Record<string, string> {
+    return { ...this.envVars, ...extra }
+  }
+
   /**
-   * Prefix a command with `export`s for the sandbox env vars so they apply to
-   * the executed command. Done in-shell rather than via the SDK's env argument
-   * to stay independent of `executeCommand`'s positional-argument ordering.
+   * Session execute has no env field. Write values to a workdir file,
+   * then source that file so the stored command never contains secrets.
    */
-  private withEnv(command: string, extra?: Record<string, string>): string {
-    const merged = { ...this.envVars, ...extra }
-    const exports = Object.entries(merged)
-      .map(([k, v]) => `export ${k}=${q(v)}; `)
-      .join('')
-    return `${exports}${command}`
+  private async persistSpawnEnvFile(
+    env: Record<string, string>,
+  ): Promise<string | undefined> {
+    if (!this.sandbox.fs) return undefined
+    const path = `${this.workdir}/.tanstack-ai-env`
+    const body = Object.entries(env)
+      .map(([key, value]) => `${key}=${q(value)}`)
+      .join('\n')
+    await this.sandbox.fs.createFolder(this.workdir, '755')
+    await this.sandbox.fs.uploadFile(Buffer.from(`${body}\n`, 'utf8'), path)
+    return path
+  }
+
+  private createNativeGit(): SandboxGit {
+    const repoPath = (dir?: string): string => this.abs(dir ?? this.workdir)
+    return {
+      clone: async ({ url, dir, ref, auth }) => {
+        const path = this.abs(dir ?? this.workdir)
+        const parent = path.replace(/\/[^/]*$/, '') || '/'
+        if (this.sandbox.fs) {
+          await this.sandbox.fs.createFolder(parent, '755')
+        }
+        await this.sandbox.git.clone(
+          url,
+          path,
+          ref,
+          undefined,
+          auth?.username,
+          auth?.token,
+        )
+      },
+      status: async (dir) => {
+        const status = await this.sandbox.git.status(repoPath(dir))
+        return JSON.stringify(status)
+      },
+      add: async (paths, dir) => {
+        await this.sandbox.git.add(repoPath(dir), paths)
+      },
+      commit: async (message, dir) => {
+        await this.sandbox.git.commit(
+          repoPath(dir),
+          message,
+          'tanstack-ai',
+          'sandbox@tanstack.ai',
+        )
+      },
+      push: async (dir) => {
+        await this.sandbox.git.push(repoPath(dir))
+      },
+      pull: async (dir) => {
+        await this.sandbox.git.pull(repoPath(dir))
+      },
+      branch: async (dir) => {
+        const status = await this.sandbox.git.status(repoPath(dir))
+        return status.currentBranch
+      },
+    }
   }
 
   private async exec(
@@ -224,9 +291,11 @@ export class DaytonaHandle implements SandboxHandle {
     opts?: ProcessOptions,
   ): Promise<ExecResult> {
     const cwd = opts?.cwd ? this.abs(opts.cwd) : this.workdir
+    const env = this.mergedEnv(opts?.env)
     const response = await this.sandbox.process.executeCommand(
-      this.withEnv(command, opts?.env),
+      command,
       cwd,
+      Object.keys(env).length > 0 ? env : undefined,
     )
     return {
       // Daytona returns a single combined output string; there is no separate
@@ -245,7 +314,14 @@ export class DaytonaHandle implements SandboxHandle {
     await this.sandbox.process.createSession(sessionId)
 
     const cwd = opts?.cwd ? this.abs(opts.cwd) : this.workdir
-    const wrapped = this.withEnv(`cd ${q(cwd)} && ${command}`, opts?.env)
+    const env = this.mergedEnv(opts?.env)
+    const envFile =
+      Object.keys(env).length > 0
+        ? await this.persistSpawnEnvFile(env)
+        : undefined
+    const wrapped = envFile
+      ? `set -a; . ${q(envFile)}; set +a; cd ${q(cwd)} && ${command}`
+      : `cd ${q(cwd)} && ${command}`
     const started = await this.sandbox.process.executeSessionCommand(
       sessionId,
       { command: wrapped, runAsync: true },
@@ -261,50 +337,41 @@ export class DaytonaHandle implements SandboxHandle {
     let exitCode = 0
 
     // `kill()` and the caller's signal both feed this controller; its
-    // `signal.aborted` flag stops the poll loop.
+    // `signal.aborted` flag stops the wait. The remote command is not killed.
     const controller = new AbortController()
     const onAbort = (): void => controller.abort()
     opts?.signal?.addEventListener('abort', onAbort, { once: true })
 
-    // Poll the session command logs + status. Daytona surfaces cumulative
-    // stdout/stderr buffers, so we emit only the newly appended bytes.
+    // Stream logs over the WebSocket form. Still poll command status so
+    // `kill()` can stop the client wait without waiting for the stream.
+    // Keep the promise so we can drain trailing chunks and so a dropped
+    // socket cannot become an unhandled rejection.
+    const logStream = this.sandbox.process
+      .getSessionCommandLogs(
+        sessionId,
+        cmdId,
+        (chunk) => stdoutQ.push(chunk),
+        (chunk) => stderrQ.push(chunk),
+      )
+      .catch(() => undefined)
+
     const pump = (async (): Promise<void> => {
-      let lastOut = 0
-      let lastErr = 0
-      const flush = async (): Promise<boolean> => {
-        const logs = await this.sandbox.process.getSessionCommandLogs(
-          sessionId,
-          cmdId,
-        )
-        const out = logs.stdout ?? ''
-        const err = logs.stderr ?? ''
-        if (out.length > lastOut) {
-          stdoutQ.push(out.slice(lastOut))
-          lastOut = out.length
-        }
-        if (err.length > lastErr) {
-          stderrQ.push(err.slice(lastErr))
-          lastErr = err.length
-        }
-        const cmd = await this.sandbox.process.getSessionCommand(
-          sessionId,
-          cmdId,
-        )
-        if (cmd.exitCode !== undefined) {
-          exitCode = cmd.exitCode
-          return true
-        }
-        return false
-      }
       try {
         while (!controller.signal.aborted) {
-          if (await flush()) break
+          const cmd = await this.sandbox.process.getSessionCommand(
+            sessionId,
+            cmdId,
+          )
+          if (cmd.exitCode !== undefined) {
+            exitCode = cmd.exitCode
+            break
+          }
           await sleep(400)
         }
-        // Final flush to capture any bytes written between the last poll and exit.
-        await flush()
       } finally {
         opts?.signal?.removeEventListener('abort', onAbort)
+        // Let the log stream finish so trailing output is not dropped.
+        await Promise.race([logStream, sleep(1000)])
         stdoutQ.end()
         stderrQ.end()
         await this.sandbox.process.deleteSession(sessionId).catch(() => {})
@@ -316,12 +383,8 @@ export class DaytonaHandle implements SandboxHandle {
       stdout: stdoutQ,
       stderr: stderrQ,
       stdin: {
-        write: () =>
-          Promise.reject(
-            new Error(
-              'daytona: background process stdin is not writable (see capabilities.writableStdin)',
-            ),
-          ),
+        write: (data) =>
+          this.sandbox.process.sendSessionCommandInput(sessionId, cmdId, data),
         end: () => Promise.resolve(),
       },
       wait: async () => {
@@ -350,8 +413,25 @@ export class DaytonaHandle implements SandboxHandle {
     return { url: signed.url, token: signed.token }
   }
 
-  // Daytona snapshots/fork are not wired through the uniform handle yet.
-  snapshot = undefined
+  async snapshot(label?: string): Promise<SnapshotRef> {
+    // Daytona container snapshots are cold: the sandbox must be stopped.
+    // Hyphen-only names match Daytona's snapshot identifier rules.
+    const name = `tanstack-ai-sandbox-snapshot-${this.id.slice(0, 12)}-${label ?? 'snap'}`
+    await this.sandbox.stop()
+    try {
+      await this.sandbox._experimental_createSnapshot(name)
+    } catch (error) {
+      try {
+        await this.sandbox.start()
+      } catch {
+        // Keep the snapshot error. A failed start must not hide it.
+      }
+      throw error
+    }
+    // `ensure()` still needs a live handle after a successful snapshot.
+    await this.sandbox.start()
+    return { id: name, ...(label !== undefined ? { label } : {}) }
+  }
 
   fork = (): Promise<SandboxHandle> => {
     throw new UnsupportedCapabilityError('daytona', 'fork')

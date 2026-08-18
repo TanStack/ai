@@ -50,6 +50,7 @@ import type {
 } from './types'
 import type {
   ContentPart,
+  Interrupt,
   MessagePart,
   ModelMessage,
   StreamChunk,
@@ -917,6 +918,12 @@ export class StreamProcessor {
    * `tool-call` part is absent from the snapshot, carry the `tool-call` part
    * forward from the pre-snapshot state (state and output untouched) so a
    * subsequent `addToolResult(toolCallId)` can still locate the call.
+   *
+   * Post-pass (c): AG-UI wire snapshots rebuild `tool-call` parts as
+   * `input-complete` without `output` (ModelMessage has no result field on
+   * the call). After anchoring results, copy each `tool-result` onto its
+   * matching `tool-call` (and prefer pre-snapshot complete/output when the
+   * snapshot is poorer) so server tools keep the same UI shape as client tools.
    */
   private reconcileSnapshotToolCalls(
     snapshot: Array<UIMessage>,
@@ -1016,7 +1023,87 @@ export class StreamProcessor {
       target.parts = parts
     }
 
-    return reconciled
+    return this.enrichSnapshotToolCallsFromResults(reconciled, prevToolCalls)
+  }
+
+  /**
+   * Post-pass (c): fold `tool-result` content into sibling `tool-call` parts
+   * and prefer pre-snapshot complete/output when the snapshot rebuilt a
+   * poorer `input-complete` call (AG-UI ModelMessage has no result on calls).
+   */
+  private enrichSnapshotToolCallsFromResults(
+    messages: Array<UIMessage>,
+    prevToolCalls: Map<string, ToolCallPart>,
+  ): Array<UIMessage> {
+    const resultsByCallId = new Map<string, ToolResultPart>()
+    for (const msg of messages) {
+      for (const part of msg.parts) {
+        if (part.type === 'tool-result') {
+          resultsByCallId.set(part.toolCallId, part)
+        }
+      }
+    }
+
+    return messages.map((msg) => {
+      const parts = msg.parts.map((part) => {
+        if (part.type !== 'tool-call') return part
+
+        const prev = prevToolCalls.get(part.id)
+        const result = resultsByCallId.get(part.id)
+        let next: ToolCallPart = part
+
+        // Prefer a pre-snapshot call that already carried output/complete —
+        // the client observed TOOL_CALL_END/RESULT before the snapshot wipe.
+        if (
+          prev &&
+          (prev.output !== undefined ||
+            prev.state === 'complete' ||
+            prev.state === 'error') &&
+          (part.output === undefined ||
+            part.state === 'input-complete' ||
+            part.state === 'input-streaming' ||
+            part.state === 'awaiting-input')
+        ) {
+          next = {
+            ...part,
+            ...(prev.output !== undefined ? { output: prev.output } : {}),
+            state: prev.state,
+            ...(prev.approval !== undefined ? { approval: prev.approval } : {}),
+            ...(prev.metadata !== undefined ? { metadata: prev.metadata } : {}),
+          }
+        }
+
+        // Apply sibling tool-result when the call still has no output.
+        if (result && next.output === undefined) {
+          let output: unknown
+          if (Array.isArray(result.content)) {
+            output = result.content
+          } else {
+            try {
+              output = JSON.parse(result.content)
+            } catch {
+              output = result.content
+            }
+          }
+          const errorText =
+            result.state === 'error'
+              ? this.extractToolResultError(output)
+              : undefined
+          next = {
+            ...next,
+            output: errorText ? { error: errorText } : output,
+            state: result.state === 'error' ? 'error' : 'complete',
+          }
+        }
+
+        return next
+      })
+      // Rebuild only when a part object identity changed.
+      const partsChanged = parts.some(
+        (part, index) => part !== msg.parts[index],
+      )
+      return partsChanged ? { ...msg, parts } : msg
+    })
   }
 
   /**
@@ -1449,11 +1536,83 @@ export class StreamProcessor {
     this.finishReason = chunk.finishReason ?? null
     this.activeRuns.delete(chunk.runId)
 
+    if (chunk.outcome?.type === 'interrupt') {
+      this.handleInterrupts(chunk.outcome.interrupts)
+    }
+
     if (this.activeRuns.size === 0) {
       this.isDone = true
       this.completeAllToolCalls()
       this.finalizeStream()
     }
+  }
+
+  private handleInterrupts(interrupts: Array<Interrupt>): void {
+    for (const interrupt of interrupts) {
+      const metadata =
+        interrupt.metadata && typeof interrupt.metadata === 'object'
+          ? interrupt.metadata
+          : {}
+      const kind = typeof metadata.kind === 'string' ? metadata.kind : undefined
+      const toolCallId = interrupt.toolCallId
+      if (!toolCallId) continue
+
+      const toolName =
+        typeof metadata.toolName === 'string'
+          ? metadata.toolName
+          : this.findToolCallName(toolCallId)
+      const input = Object.hasOwn(metadata, 'input') ? metadata.input : {}
+
+      if (kind === 'approval' || interrupt.reason === 'approval_required') {
+        // An interrupt terminal arrives after MESSAGES_SNAPSHOT, which may have
+        // rebuilt the message list without the live active-message/tool-call
+        // maps. Fall back to locating the assistant message that actually owns
+        // the tool-call part so the approval UI (part.state) still updates.
+        const resolvedMessageId =
+          this.getActiveAssistantMessageId() ??
+          this.toolCallToMessage.get(toolCallId) ??
+          this.messages.find(
+            (m) =>
+              m.role === 'assistant' &&
+              m.parts.some(
+                (p) => p.type === 'tool-call' && p.id === toolCallId,
+              ),
+          )?.id
+        if (resolvedMessageId) {
+          this.messages = updateToolCallApproval(
+            this.messages,
+            resolvedMessageId,
+            toolCallId,
+            interrupt.id,
+          )
+          this.emitMessagesChange()
+        }
+
+        this.events.onApprovalRequest?.({
+          toolCallId,
+          toolName,
+          input,
+          approvalId: interrupt.id,
+        })
+        continue
+      }
+
+      if (kind === 'client_tool' || interrupt.reason === 'client_tool_input') {
+        this.events.onToolCall?.({
+          toolCallId,
+          toolName,
+          input,
+        })
+      }
+    }
+  }
+
+  private findToolCallName(toolCallId: string): string {
+    for (const state of this.messageStates.values()) {
+      const toolCall = state.toolCalls.get(toolCallId)
+      if (toolCall) return toolCall.name
+    }
+    return ''
   }
 
   /**
@@ -1676,10 +1835,15 @@ export class StreamProcessor {
   /**
    * Handle CUSTOM event.
    *
-   * Handles special custom events emitted by the TextEngine (not adapters):
-   * - 'tool-input-available': Client tool needs execution. Fires onToolCall.
-   * - 'approval-requested': Tool needs user approval. Updates tool-call part
-   *   state and fires onApprovalRequest.
+   * Handles custom events consumed by the processor:
+   * - 'tool-input-available': Legacy/replay-compatible input for client tool
+   *   execution. Fires onToolCall.
+   * - 'approval-requested': Legacy/replay-compatible input for tool approval.
+   *   Updates tool-call part state and fires onApprovalRequest.
+   *
+   * Current core streams represent user-actionable waits through
+   * RUN_FINISHED.outcome.type === 'interrupt'; these custom events are not the
+   * source of truth for new emissions.
    *
    * @see docs/chat-architecture.md#client-tools-and-approval-flows — Full flow details
    */
@@ -1910,6 +2074,13 @@ export class StreamProcessor {
       return
     }
 
+    // RUN_FINISHED interrupt handling can mark the rendered part as waiting on
+    // user action before the completion safety net runs. Keep the parsed
+    // argument bookkeeping above, but do not downgrade that visible state.
+    if (this.isToolCallPartAwaitingUserAction(toolCall.id)) {
+      return
+    }
+
     // Update UIMessage. The arguments are complete now, so surface the parsed
     // input on the part. For adapters that skip TOOL_CALL_ARGS the arguments
     // string was back-filled from TOOL_CALL_END.input, so this parse matches
@@ -1934,6 +2105,19 @@ export class StreamProcessor {
       toolCall.id,
       'input-complete',
       toolCall.arguments,
+    )
+  }
+
+  private isToolCallPartAwaitingUserAction(toolCallId: string): boolean {
+    return this.messages.some((msg) =>
+      // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- `parts` is typed as required, but seeded ModelMessage-shaped messages can lack it at runtime.
+      msg.parts?.some(
+        (part) =>
+          part.type === 'tool-call' &&
+          part.id === toolCallId &&
+          (part.state === 'approval-requested' ||
+            part.state === 'approval-responded'),
+      ),
     )
   }
 

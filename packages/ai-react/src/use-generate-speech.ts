@@ -1,10 +1,12 @@
 import { useGeneration } from './use-generation'
+import { reconstructSpeechResult } from '@tanstack/ai-client'
 import type { StreamChunk, TTSResult } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   SpeechGenerateInput,
 } from '@tanstack/ai-client'
@@ -19,12 +21,51 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for speech generation */
   fetcher?: GenerationFetcher<SpeechGenerateInput, TTSResult>
-  /** Unique identifier for this generation instance */
+  /**
+   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
+   */
   id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
+  /**
+   * How this generation persists across reloads.
+   * - Omit / `false`: ephemeral, in-memory only.
+   * - `true`: server-driven — on mount the client hydrates the last generation
+   *   for its `threadId` from the server (needs a connection with a
+   *   `hydrateGeneration` handler) and repaints it; it never auto-starts a run.
+   */
+  persistence?: boolean
+  /**
+   * The **scope** this generation belongs to: a stable, app-chosen name for the
+   * slot successive runs fill — not a link to a chat conversation.
+   *
+   * The hook starts empty and produces many runs over its life; each gets its
+   * own `runId`, but all belong to one scope. Persistence keys on this, so
+   * derive it from your own domain and keep it identical across reloads (e.g.
+   * `` `video-${videoId}-start-frame` ``). It is also sent as the AG-UI thread
+   * id on the wire, which the protocol requires.
+   *
+   * **Required whenever `persistence` is set** — an app that cannot name the
+   * scope has nothing to restore to. Optional for ephemeral generations, where
+   * it falls back to `id` purely to satisfy the wire.
+   */
+  threadId?: string
+  /**
+   * Server-driven hydration handler for `persistence: true` when the
+   * connection doesn't carry one (e.g. alongside `fetcher`, or a `stream()` /
+   * `rpcStream()` adapter built without handlers) — typically a one-line
+   * server-function call. The connection's own handler takes precedence.
+   */
+  hydrateGeneration?: ConnectConnectionAdapter['hydrateGeneration']
+  /**
+   * Re-attach handler that replays a run still generating to completion on
+   * mount, when the connection doesn't carry one. Without it, a restored
+   * `running` snapshot surfaces as an (interrupted) error. The connection's
+   * own handler takes precedence.
+   */
+  joinRun?: ConnectConnectionAdapter['joinRun']
   /**
    * Callback when speech is generated. Can optionally return a transformed value.
    *
@@ -61,6 +102,13 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
   stop: () => void
   /** Clear result, error, and return to idle */
   reset: () => void
+  /**
+   * The id of the generation job currently running, or `null` when nothing is in
+   * flight. Each call to `generate` is one job with its own id. Pass it to your
+   * own endpoint to cancel or poll the provider job — `stop()` only aborts the
+   * local stream, it does not stop work already running on the provider.
+   */
+  runId: string | null
 }
 
 /**
@@ -90,9 +138,12 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
  * ```
  */
 export function useGenerateSpeech<TTransformed = void>(
-  options: Omit<UseGenerateSpeechOptions, 'onResult'> & {
+  options: Omit<
+    UseGenerateSpeechOptions,
+    'onResult' | 'persistence' | 'threadId' | 'id'
+  > & {
     onResult?: (result: TTSResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): UseGenerateSpeechReturn<
   InferGenerationOutputFromReturn<TTSResult, TTransformed>
 > {
@@ -102,19 +153,15 @@ export function useGenerateSpeech<TTransformed = void>(
     hookName: 'useGenerateSpeech',
     outputKind: 'audio' as const,
   }
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<SpeechGenerateInput, TTSResult, TTransformed>({
-      ...options,
-      devtools,
-    })
+  const generation = useGeneration<
+    SpeechGenerateInput,
+    TTSResult,
+    TTransformed
+  >({
+    ...options,
+    devtools,
+    reconstructResult: reconstructSpeechResult,
+  })
 
-  return {
-    generate: generate as (input: SpeechGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
-  }
+  return generation
 }

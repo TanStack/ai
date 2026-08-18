@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-durable-stream",
-  "version": "0.0.0",
+  "version": "0.1.1",
   "description": "Delivery durability for TanStack AI over the durable-streams HTTP protocol — a resumable StreamDurability transport sink (append/read/resume) that stores zero delivery events itself.",
   "author": "",
   "license": "MIT",
@@ -33,10 +33,10 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
-    "test:lib": "vitest",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
@@ -45,6 +45,7 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@tanstack/ai-sandbox": "workspace:*",
+    "@vitest/coverage-v8": "4.1.10"
   }
 }

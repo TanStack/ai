@@ -11,6 +11,17 @@ import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
+import {
+  INTERRUPT_BINDING_METADATA_KEY,
+  InterruptResumeValidationError,
+  readUnopenedInterruptBinding,
+  validateInterruptResumeBatch,
+} from '../../interrupt-resume'
+import { INTERRUPT_BINDING_VERSION } from '../../interrupts'
+import {
+  canonicalInterruptJson,
+  digestInterruptJson,
+} from '../../interrupt-serialization'
 import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
@@ -25,18 +36,33 @@ import {
   isStandardSchema,
   parseWithStandardSchema,
 } from './tools/schema-converter'
+import {
+  hashSchemaInput,
+  normalizeApprovalSchema,
+} from './tools/approval-schema'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
+import { isCancelRequestedReason } from './cancel'
 import { convertMessagesToModelMessages, generateMessageId } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
+import { getRunDetached } from './middleware/run-store'
+import { publishRunDetachedSignal } from '../../delivery-detach'
+import { publishRunDisconnectHandler } from '../../delivery-disconnect'
 import { provideSandboxRuntime } from './middleware/sandbox-runtime'
+import { provideRunDisconnect } from './middleware/run-disconnect'
 import { CapabilityRegistry } from './middleware/capabilities'
 import { validateCapabilities } from './middleware/validate'
 import { MCPManager } from './mcp/manager'
+import type {
+  InterruptBinding,
+  InterruptSubmissionError,
+  ToolApprovalResolution,
+} from '../../interrupts'
 import type {
   ApprovalRequest,
   ClientToolRequest,
   ToolResult,
 } from './tools/tool-calls'
+import type { ApprovalSchemaConfig } from './tools/tool-definition'
 import type {
   AnyTextAdapter,
   StructuredOutputOptions,
@@ -45,13 +71,15 @@ import type {
 import type {
   AgentLoopStrategy,
   AnyTool,
-  ChatStream,
   ConstrainedModelMessage,
   CustomEvent,
   InferSchemaType,
+  Interrupt,
   JSONSchema,
   LazyToolsConfig,
+  MessagesSnapshotEvent,
   ModelMessage,
+  ProviderTool,
   RunFinishedEvent,
   SchemaInput,
   StreamChunk,
@@ -63,6 +91,7 @@ import type {
   ToolCallArgsEvent,
   ToolCallEndEvent,
   ToolCallStartEvent,
+  TypedStreamChunk,
   UIMessage,
 } from '../../types'
 import type {
@@ -70,6 +99,7 @@ import type {
   ChatMiddleware,
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
+  ChatResumeToolState,
   SandboxFileHookEvent,
   StructuredOutputMiddlewareConfig,
 } from './middleware/types'
@@ -77,7 +107,6 @@ import type { CheckCoverage } from './middleware/builder'
 import type { SystemPrompt } from '../../system-prompts'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
-import type { ProviderTool } from '../../tools/provider-tool'
 import type {
   ContextFromMiddleware,
   ContextFromTool,
@@ -95,6 +124,150 @@ import type { ChatMCPOptions } from './mcp/types'
 export const kind = 'text' as const
 
 type AnyRuntimeTool = AnyTool
+type RuntimeToolWithApproval = AnyRuntimeTool & {
+  approvalSchema?: ApprovalSchemaConfig
+}
+const interruptBindingMetadataKey = INTERRUPT_BINDING_METADATA_KEY
+
+interface StructuralInterruptFailure {
+  error: Error
+  errors: ReadonlyArray<InterruptSubmissionError>
+}
+
+function isInterruptSubmissionError(
+  value: unknown,
+): value is InterruptSubmissionError {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+  if (
+    !('scope' in value) ||
+    !('code' in value) ||
+    !('message' in value) ||
+    !('source' in value) ||
+    !('retryable' in value) ||
+    !('threadId' in value) ||
+    !('interruptedRunId' in value) ||
+    !('generation' in value) ||
+    typeof value.code !== 'string' ||
+    typeof value.message !== 'string' ||
+    typeof value.retryable !== 'boolean' ||
+    typeof value.threadId !== 'string' ||
+    typeof value.interruptedRunId !== 'string' ||
+    typeof value.generation !== 'number'
+  ) {
+    return false
+  }
+  if (value.scope === 'item') {
+    return (
+      'interruptId' in value &&
+      typeof value.interruptId === 'string' &&
+      (value.source === 'client' || value.source === 'server')
+    )
+  }
+  return (
+    value.scope === 'batch' &&
+    'interruptIds' in value &&
+    Array.isArray(value.interruptIds) &&
+    value.interruptIds.every((id) => typeof id === 'string') &&
+    (value.source === 'client' ||
+      value.source === 'server' ||
+      value.source === 'transport')
+  )
+}
+
+function structuralInterruptFailure(
+  error: unknown,
+): StructuralInterruptFailure | undefined {
+  if (
+    !(error instanceof Error) ||
+    error.name !== 'InterruptResumeValidationError' ||
+    !('errors' in error) ||
+    !Array.isArray(error.errors) ||
+    error.errors.length === 0 ||
+    !error.errors.every(isInterruptSubmissionError)
+  ) {
+    return undefined
+  }
+  return {
+    error,
+    errors: error.errors,
+  }
+}
+
+function normalizePublicInterruptBinding(
+  value: unknown,
+  expectedInterruptId: string,
+): InterruptBinding | undefined {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined
+  }
+  const binding: Record<string, unknown> = Object.fromEntries(
+    Object.entries(value),
+  )
+  if (
+    binding.interruptId !== expectedInterruptId ||
+    // A binding version we don't recognise belongs to another producer. Drop
+    // it rather than reading our fields out of it.
+    (binding.v !== undefined && binding.v !== INTERRUPT_BINDING_VERSION) ||
+    typeof binding.interruptedRunId !== 'string' ||
+    typeof binding.generation !== 'number' ||
+    !Number.isInteger(binding.generation) ||
+    binding.generation < 0 ||
+    typeof binding.responseSchemaHash !== 'string' ||
+    (binding.expiresAt !== undefined && typeof binding.expiresAt !== 'string')
+  ) {
+    return undefined
+  }
+  const base = {
+    v: INTERRUPT_BINDING_VERSION,
+    interruptId: binding.interruptId,
+    interruptedRunId: binding.interruptedRunId,
+    generation: binding.generation,
+    responseSchemaHash: binding.responseSchemaHash,
+    ...(typeof binding.expiresAt === 'string'
+      ? { expiresAt: binding.expiresAt }
+      : {}),
+  }
+  if (binding.kind === 'generic') {
+    return { kind: binding.kind, ...base }
+  }
+  if (
+    typeof binding.toolName !== 'string' ||
+    typeof binding.toolCallId !== 'string'
+  ) {
+    return undefined
+  }
+  if (
+    binding.kind === 'client-tool-execution' &&
+    typeof binding.outputSchemaHash === 'string'
+  ) {
+    return {
+      kind: binding.kind,
+      ...base,
+      toolName: binding.toolName,
+      toolCallId: binding.toolCallId,
+      outputSchemaHash: binding.outputSchemaHash,
+    }
+  }
+  if (
+    binding.kind === 'tool-approval' &&
+    Object.prototype.hasOwnProperty.call(binding, 'originalArgs') &&
+    typeof binding.inputSchemaHash === 'string' &&
+    typeof binding.approvalSchemaHash === 'string'
+  ) {
+    return {
+      kind: binding.kind,
+      ...base,
+      toolName: binding.toolName,
+      toolCallId: binding.toolCallId,
+      originalArgs: binding.originalArgs,
+      inputSchemaHash: binding.inputSchemaHash,
+      approvalSchemaHash: binding.approvalSchemaHash,
+    }
+  }
+  return undefined
+}
 
 // The leaf context-inference primitives (KnownContext, MergeContext,
 // UnionToIntersection, DefinedContext, ContextFromTool, ContextFromMiddleware)
@@ -171,6 +344,7 @@ type TextActivityOptionsWithContext<
  * @template TAdapter - The text adapter type (created by a provider function)
  * @template TSchema - Optional Standard Schema for structured output
  * @template TStream - Whether to stream the output (default: true)
+ * @template TContext - Runtime context value threaded to middleware hooks and server tools
  */
 export interface TextActivityOptions<
   TAdapter extends AnyTextAdapter,
@@ -178,7 +352,7 @@ export interface TextActivityOptions<
   TStream extends boolean,
   TContext = unknown,
 > {
-  /** The text adapter to use (created by a provider function like openaiText('gpt-4o')) */
+  /** The text adapter to use (created by a provider function like openaiText('gpt-5.5')) */
   adapter: TAdapter
   /**
    * Conversation messages. Accepts:
@@ -221,7 +395,7 @@ export interface TextActivityOptions<
    *    compile-time error on the array element.
    */
   tools?:
-    | Array<
+    | ReadonlyArray<
         | (AnyRuntimeTool & { readonly '~toolKind'?: never })
         | ProviderTool<string, TAdapter['~types']['toolCapabilities'][number]>
       >
@@ -241,11 +415,6 @@ export interface TextActivityOptions<
   /** Strategy for controlling the agent loop */
   agentLoopStrategy?: TextOptions['agentLoopStrategy']
   /**
-   * Cap how many tool calls from a single model turn are executed.
-   * Excess calls receive error results. See {@link TextOptions.maxToolCallsPerTurn}.
-   */
-  maxToolCallsPerTurn?: TextOptions['maxToolCallsPerTurn']
-  /**
    * Optional configuration for lazy-tool discovery (tools marked `lazy: true`).
    * Tunes how much of each lazy tool's description appears in the discovery
    * catalog. Optional — defaults to `{ includeDescription: 'none' }`.
@@ -259,6 +428,13 @@ export interface TextActivityOptions<
   runId?: TextOptions['runId']
   /** Parent run ID for AG-UI protocol nested run correlation. */
   parentRunId?: TextOptions['parentRunId']
+  /** Application state mirrored in a STATE_SNAPSHOT before an interrupt terminal. */
+  state?: TextOptions['state']
+  /**
+   * AG-UI interrupt resume responses. Persistence middleware validates these
+   * before accepting new input on a thread with pending interrupts.
+   */
+  resume?: TextOptions['resume']
   /**
    * Optional Standard Schema for structured output.
    * When provided, the activity will:
@@ -270,7 +446,7 @@ export interface TextActivityOptions<
    * @example
    * ```ts
    * const result = await chat({
-   *   adapter: openaiText('gpt-4o'),
+   *   adapter: openaiText('gpt-5.5'),
    *   messages: [{ role: 'user', content: 'Generate a person' }],
    *   outputSchema: z.object({ name: z.string(), age: z.number() })
    * })
@@ -280,7 +456,7 @@ export interface TextActivityOptions<
   outputSchema?: TSchema
   /**
    * Whether to stream the text result.
-   * When true (default), returns an AsyncIterable<StreamChunk> for streaming output.
+   * When true (default), returns an AsyncIterable<TypedStreamChunk<TTools>> for streaming output.
    * When false, returns a Promise<string> with the collected text content.
    *
    * Note: If outputSchema is provided, this option is ignored and the result
@@ -291,7 +467,7 @@ export interface TextActivityOptions<
    * @example Non-streaming text
    * ```ts
    * const text = await chat({
-   *   adapter: openaiText('gpt-4o'),
+   *   adapter: openaiText('gpt-5.5'),
    *   messages: [{ role: 'user', content: 'Hello!' }],
    *   stream: false
    * })
@@ -306,7 +482,7 @@ export interface TextActivityOptions<
    * @example
    * ```ts
    * const stream = chat({
-   *   adapter: openaiText('gpt-4o'),
+   *   adapter: openaiText('gpt-5.5'),
    *   messages: [...],
    *   middleware: [loggingMiddleware, redactionMiddleware],
    * })
@@ -372,12 +548,18 @@ export function createChatOptions<
     TTools,
     TMiddleware
   >,
-): TextActivityOptions<
-  TAdapter,
-  TSchema,
-  TStream,
-  InferredContext<TTools, TMiddleware>
-> {
+  // Preserve the concrete `tools` tuple on the returned options (so a later
+  // `chat({ ...opts })` still narrows tool-call events to the tool names)
+  // while threading the inferred runtime context like the bare options type.
+): Omit<
+  TextActivityOptions<
+    TAdapter,
+    TSchema,
+    TStream,
+    InferredContext<TTools, TMiddleware>
+  >,
+  'tools'
+> & { tools?: TTools } {
   return options
 }
 
@@ -394,7 +576,10 @@ export function createChatOptions<
  * - If outputSchema is provided without explicit stream:true:
  *   Promise<InferSchemaType<TSchema>>.
  * - If stream is explicitly false (no schema): Promise<string>.
- * - Otherwise (default): AsyncIterable<StreamChunk>.
+ * - Otherwise (default): AsyncIterable<TypedStreamChunk<TTools>>.
+ *
+ * When tools with typed schemas are provided, the stream chunks include
+ * type-safe `toolName` and `input` fields on tool call events.
  *
  * `[TStream] extends [true]` is used (not `TStream extends true`) so that the
  * default `boolean` value of `TStream` does *not* match the streaming branch.
@@ -404,13 +589,23 @@ export function createChatOptions<
 export type TextActivityResult<
   TSchema extends SchemaInput | undefined,
   TStream extends boolean = boolean,
+  // Unconstrained so `chat()` can forward its inferred `options['tools']` type
+  // (which may be `undefined` or the broad `AnyRuntimeTool | ProviderTool`
+  // array) directly; non-tool-array inputs normalize to the default below.
+  TTools = ReadonlyArray<AnyTool>,
 > = TSchema extends SchemaInput
   ? [TStream] extends [true]
     ? StructuredOutputStream<InferSchemaType<TSchema>>
     : Promise<InferSchemaType<TSchema>>
   : [TStream] extends [false]
     ? Promise<string>
-    : ChatStream
+    : AsyncIterable<
+        TypedStreamChunk<
+          TTools extends ReadonlyArray<AnyTool>
+            ? TTools
+            : ReadonlyArray<AnyTool>
+        >
+      >
 
 // ===========================
 // ChatEngine Implementation
@@ -479,23 +674,6 @@ type ToolPhaseResult = 'continue' | 'stop' | 'wait'
 type CyclePhase = 'processText' | 'executeToolCalls'
 
 /**
- * Validate and normalize `maxToolCallsPerTurn`.
- * Unset → unlimited. `0` → execute none. Negatives / non-finite → throw
- * (Array#slice treats negatives as "from end", which is not a useful cap).
- */
-function resolveMaxToolCallsPerTurn(
-  cap: number | undefined,
-): number | undefined {
-  if (cap == null) return undefined
-  if (!Number.isFinite(cap) || cap < 0) {
-    throw new Error(
-      `maxToolCallsPerTurn must be a non-negative finite number, got ${cap}`,
-    )
-  }
-  return Math.floor(cap)
-}
-
-/**
  * Combine two optional AbortSignals into one that aborts when either does.
  * Returns the other signal directly when one is absent or already aborted.
  * (Manual implementation — `AbortSignal.any` requires Node >= 20.3.)
@@ -551,6 +729,8 @@ class TextEngine<
   private streamStartTime = 0
   private totalChunkCount = 0
   private currentMessageId: string | null = null
+  private currentMessageCreatedAt: Date | null = null
+  private streamIdentityCaptured = false
   private accumulatedContent = ''
   private accumulatedThinking: Array<{ content: string; signature?: string }> =
     []
@@ -559,13 +739,17 @@ class TextEngine<
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
+  private deferredToolCallRunFinishedChunks: Array<StreamChunk> = []
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
   private cyclePhase: CyclePhase = 'processText'
-  private readonly maxToolCallsPerTurn: number | undefined
   // Client state extracted from initial messages (before conversion to ModelMessage)
-  private readonly initialApprovals: Map<string, boolean>
+  private readonly initialApprovals: Map<string, ToolApprovalResolution>
   private readonly initialClientToolResults: Map<string, any>
+  private readonly resumeApprovals = new Map<string, ToolApprovalResolution>()
+  private readonly resumeClientToolResults = new Map<string, any>()
+  private readonly resumeDeniedToolResults = new Map<string, unknown>()
+  private readonly resumeCancelledToolCallIds = new Set<string>()
 
   // AG-UI protocol IDs
   private readonly threadId: string
@@ -583,6 +767,14 @@ class TextEngine<
   // observe both cancellation sources via ctx.abortSignal.
   private readonly toolAbortSignal?: AbortSignal
   private terminalHookCalled = false
+  /**
+   * Latched the first time the delivery socket closes; see `notifyDisconnected`.
+   * Also read by `subscribe` so a listener registered AFTER the disconnect (a
+   * middleware whose `setup` was still running at the time — the common case) is
+   * called immediately rather than never.
+   */
+  private disconnected = false
+  private readonly disconnectListeners: Array<() => void | Promise<void>> = []
 
   private readonly logger: InternalLogger
 
@@ -628,9 +820,6 @@ class TextEngine<
     this.systemPrompts = config.params.systemPrompts || []
     this.loopStrategy =
       config.params.agentLoopStrategy || maxIterationsStrategy(5)
-    this.maxToolCallsPerTurn = resolveMaxToolCallsPerTurn(
-      config.params.maxToolCallsPerTurn,
-    )
     this.initialMessageCount = config.params.messages.length
 
     // Extract client state (approvals, client tool results) from original messages BEFORE conversion
@@ -692,6 +881,7 @@ class TextEngine<
       requestId: this.requestId,
       streamId: this.streamId,
       runId: this.runIdOverride ?? this.requestId,
+      parentRunId: this.parentRunIdOverride,
       threadId: this.threadId,
       // Legacy alias kept on the ctx so middleware that reads
       // `ctx.conversationId` keeps working. Always equals `threadId`.
@@ -738,6 +928,22 @@ class TextEngine<
         capability[0](this.middlewareCtx, { optional: true }),
       provide: (capability, value) => capability[1](this.middlewareCtx, value),
     }
+
+    // Provide the internal RunDisconnect capability BEFORE `setup` runs, so a
+    // middleware can subscribe from inside its own `setup` — which is where the
+    // subscription has to happen, because `setup` is the long await the common
+    // disconnect lands in.
+    //
+    // `subscribe` calls back IMMEDIATELY when the socket has already closed. That
+    // ordering is load-bearing rather than defensive: a middleware whose `setup`
+    // was still running during the disconnect would otherwise register a listener
+    // for an event that has already been and gone, and silently never detach.
+    provideRunDisconnect(this.middlewareCtx, {
+      subscribe: (listener) => {
+        this.disconnectListeners.push(listener)
+        if (this.disconnected) this.runDisconnectListener(listener)
+      },
+    })
 
     // Provide the internal SandboxRuntime capability so harness adapters and
     // sandbox middleware can emit file events. The sink logs, fans the event
@@ -829,6 +1035,7 @@ class TextEngine<
         initialConfig,
       )
       this.applyMiddlewareConfig(transformedConfig)
+      await this.applyEphemeralInterruptResume(transformedConfig)
 
       // Run onStart (devtools middleware emits text:request:started and initial messages here)
       await this.middlewareRunner.runOnStart(this.middlewareCtx)
@@ -882,7 +1089,7 @@ class TextEngine<
           }
 
           this.endCycle()
-        } while (this.shouldContinue())
+        } while (await this.shouldContinue())
       }
 
       this.logger.agentLoop('run finished', {
@@ -893,12 +1100,15 @@ class TextEngine<
       // requested AND the run hasn't already errored/aborted, run it through
       // the middleware pipeline. The terminal hook fires once at the very
       // end (after finalization), not after the agent loop.
+      // Actionable waits already emitted a RUN_FINISHED interrupt terminal, so
+      // do not run finalization after `processToolCalls()` pauses the stream.
       //
       // Native combined mode takes a different path: the agent loop's final-
       // turn text IS the schema-constrained JSON, so we harvest it from
       // `accumulatedContent` instead of issuing a second provider call.
       if (
         this.finalStructuredOutput &&
+        this.toolPhase !== 'wait' &&
         !this.isCancelled() &&
         !this.finalizationError
       ) {
@@ -946,6 +1156,41 @@ class TextEngine<
         }
       }
     } catch (error: unknown) {
+      if (
+        error instanceof Error &&
+        error.name === 'InterruptReplaySignal' &&
+        'continuationRunId' in error &&
+        typeof error.continuationRunId === 'string'
+      ) {
+        this.terminalHookCalled = true
+        yield {
+          type: EventType.RUN_FINISHED,
+          timestamp: Date.now(),
+          threadId: this.threadId,
+          runId: this.runIdOverride ?? this.requestId,
+          finishReason: 'stop',
+          outcome: { type: 'success' },
+          result: {
+            replayed: true,
+            continuationRunId: error.continuationRunId,
+          },
+        }
+        return
+      }
+      const interruptFailure = structuralInterruptFailure(error)
+      if (interruptFailure) {
+        this.terminalHookCalled = true
+        this.logger.errors('chat interrupt resume failed', {
+          error,
+          threadId: this.middlewareCtx.threadId,
+        })
+        await this.middlewareRunner.runOnError(this.middlewareCtx, {
+          error: interruptFailure.error,
+          duration: Date.now() - this.streamStartTime,
+        })
+        yield this.buildInterruptRunErrorChunk(error)
+        return
+      }
       if (!this.terminalHookCalled) {
         this.terminalHookCalled = true
         if (error instanceof MiddlewareAbortError) {
@@ -954,6 +1199,7 @@ class TextEngine<
           await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
             reason: error.message,
             duration: Date.now() - this.streamStartTime,
+            cancelRequested: isCancelRequestedReason(error.message),
           })
         } else {
           // Genuine error — call onError
@@ -975,9 +1221,11 @@ class TextEngine<
       // Check for abort terminal hook
       if (!this.terminalHookCalled && this.isCancelled()) {
         this.terminalHookCalled = true
+        const reason = this.resolveAbortReason()
         await this.middlewareRunner.runOnAbort(this.middlewareCtx, {
-          reason: this.abortReason,
+          reason,
           duration: Date.now() - this.streamStartTime,
+          cancelRequested: isCancelRequestedReason(reason),
         })
       }
 
@@ -1022,6 +1270,8 @@ class TextEngine<
 
   private async beginIteration(): Promise<void> {
     this.currentMessageId = this.createId('msg')
+    this.currentMessageCreatedAt = new Date()
+    this.streamIdentityCaptured = false
     this.accumulatedContent = ''
     this.accumulatedThinking = []
     this.currentThinkingContent = ''
@@ -1080,6 +1330,15 @@ class TextEngine<
         ? this.finalStructuredOutput.jsonSchema
         : undefined
 
+    const { approvals } = this.collectClientState()
+    const adapterApprovals = new Map<string, boolean>()
+    for (const [approvalId, resolution] of approvals) {
+      adapterApprovals.set(
+        approvalId,
+        typeof resolution === 'boolean' ? resolution : resolution.approved,
+      )
+    }
+
     for await (const chunk of this.adapter.chatStream({
       model: this.params.model,
       messages: this.messages,
@@ -1095,7 +1354,7 @@ class TextEngine<
       // Expose provided capabilities (e.g. sandbox) to harness adapters.
       capabilities: this.middlewareCtx,
       // Client approval decisions, for harness interactive-approval resolution.
-      approvals: this.initialApprovals,
+      approvals: adapterApprovals,
       ...(combinedSchema ? { outputSchema: combinedSchema } : {}),
     })) {
       if (this.isCancelled()) {
@@ -1170,6 +1429,10 @@ class TextEngine<
         ) {
           continue
         }
+        if (this.shouldDeferToolCallRunFinished(outputChunk)) {
+          this.deferredToolCallRunFinishedChunks.push(outputChunk)
+          continue
+        }
         this.logger.output(`type=${outputChunk.type}`, { chunk: outputChunk })
         yield outputChunk
         this.middlewareCtx.chunkIndex++
@@ -1196,6 +1459,11 @@ class TextEngine<
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- AG-UI EventType enum members vs string-literal case labels; default branch handles untraced events.
     switch (chunk.type) {
       // AG-UI Events
+      case 'TEXT_MESSAGE_START':
+        if (typeof chunk.messageId === 'string' && chunk.messageId !== '') {
+          this.captureStreamMessageIdentity(chunk.messageId)
+        }
+        break
       case 'TEXT_MESSAGE_CONTENT':
         this.handleTextMessageContentEvent(chunk)
         break
@@ -1234,8 +1502,7 @@ class TextEngine<
         break
 
       default:
-        // RUN_STARTED, TEXT_MESSAGE_START, TEXT_MESSAGE_END,
-        // STATE_SNAPSHOT, STATE_DELTA, CUSTOM
+        // RUN_STARTED, TEXT_MESSAGE_END, STATE_SNAPSHOT, STATE_DELTA, CUSTOM
         // - no special handling needed in chat activity
         break
     }
@@ -1254,7 +1521,22 @@ class TextEngine<
     this.middlewareCtx.accumulatedContent = this.accumulatedContent
   }
 
+  private captureStreamMessageIdentity(messageId: string): void {
+    this.currentMessageId = messageId
+    this.middlewareCtx.currentMessageId = messageId
+    if (!this.streamIdentityCaptured) {
+      this.currentMessageCreatedAt = new Date()
+      this.streamIdentityCaptured = true
+    }
+  }
+
   private handleToolCallStartEvent(chunk: ToolCallStartEvent): void {
+    if (
+      typeof chunk.parentMessageId === 'string' &&
+      chunk.parentMessageId !== ''
+    ) {
+      this.captureStreamMessageIdentity(chunk.parentMessageId)
+    }
     this.toolCallManager.addToolCallStartEvent(chunk)
   }
 
@@ -1334,14 +1616,13 @@ class TextEngine<
 
     const finishEvent = this.createSyntheticFinishedEvent()
 
-    // Same fan-out budget as live model turns (seeded history / resume).
     // Count is deduped so wait→resume after a live turn does not double-count.
-    const { toExecute: budgetedToolCalls, skippedResults } =
-      this.applyToolCallBudget(pendingToolCalls)
+    // Per-turn execution caps are app middleware via onBeforeToolCall skip.
+    this.recordToolCalls(pendingToolCalls)
 
     // Handle undiscovered lazy tool calls with self-correcting error messages
     const undiscoveredLazyResults: Array<ToolResult> = []
-    const executablePendingCalls = budgetedToolCalls.filter((tc) => {
+    const executablePendingCalls = pendingToolCalls.filter((tc) => {
       if (this.lazyToolManager.isUndiscoveredLazyTool(tc.function.name)) {
         undiscoveredLazyResults.push({
           toolCallId: tc.id,
@@ -1358,9 +1639,10 @@ class TextEngine<
       return true
     })
 
-    // Non-executed outcomes (undiscovered lazy + per-turn fan-out skips).
-    // Emitted after executed results so the stream prefers real results first.
-    const deferredErrorResults = [...undiscoveredLazyResults, ...skippedResults]
+    // Non-executed outcomes (undiscovered lazy). Emitted after executed
+    // results so the stream prefers real results first. Per-turn skips are
+    // produced by middleware via onBeforeToolCall and appear in execution results.
+    const deferredErrorResults = [...undiscoveredLazyResults]
 
     // Build args lookup so buildToolResultChunks can emit TOOL_CALL_START +
     // TOOL_CALL_ARGS before TOOL_CALL_END during continuation re-executions.
@@ -1421,6 +1703,10 @@ class TextEngine<
       },
       this.middlewareCtx.context,
       this.toolAbortSignal,
+      {
+        deniedToolResults: this.resumeDeniedToolResults,
+        cancelledToolCallIds: this.resumeCancelledToolCallIds,
+      },
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -1446,39 +1732,27 @@ class TextEngine<
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
+      this.discardDeferredToolCallRunFinishedChunks()
+
       if (allResults.length > 0) {
         for (const chunk of this.buildToolResultChunks(
           allResults,
           finishEvent,
-          argsMap,
         )) {
           yield* this.pipeThroughMiddleware(chunk)
         }
       }
 
-      for (const chunk of this.buildApprovalChunks(
+      const emitted = yield* this.emitActionableInterruptBoundary(
+        finishEvent,
         executionResult.needsApproval,
-        finishEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
-
-      for (const chunk of this.buildClientToolChunks(
         executionResult.needsClientExecution,
-        finishEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
-
-      this.setToolPhase('wait')
-      return 'wait'
+      )
+      this.setToolPhase(emitted ? 'wait' : 'stop')
+      return emitted ? 'wait' : 'stop'
     }
 
-    const toolResultChunks = this.buildToolResultChunks(
-      allResults,
-      finishEvent,
-      argsMap,
-    )
+    const toolResultChunks = this.buildToolResultChunks(allResults, finishEvent)
 
     for (const chunk of toolResultChunks) {
       yield* this.pipeThroughMiddleware(chunk)
@@ -1504,15 +1778,15 @@ class TextEngine<
       return
     }
 
-    // Count every model-emitted tool call (including ones we may skip).
-    const { toExecute: budgetedToolCalls, skippedResults } =
-      this.applyToolCallBudget(toolCalls)
+    // Count every model-emitted tool call. Per-turn execution caps are app
+    // middleware via onBeforeToolCall skip.
+    this.recordToolCalls(toolCalls)
 
     this.addAssistantToolCallMessage(toolCalls)
 
     // Handle undiscovered lazy tool calls with self-correcting error messages
     const undiscoveredLazyResults: Array<ToolResult> = []
-    const executableToolCalls = budgetedToolCalls.filter((tc) => {
+    const executableToolCalls = toolCalls.filter((tc) => {
       if (this.lazyToolManager.isUndiscoveredLazyTool(tc.function.name)) {
         undiscoveredLazyResults.push({
           toolCallId: tc.id,
@@ -1529,13 +1803,14 @@ class TextEngine<
       return true
     })
 
-    // Non-executed outcomes (undiscovered lazy + per-turn fan-out skips).
-    // Emitted after executed results so the stream prefers real results first.
-    const deferredErrorResults = [...undiscoveredLazyResults, ...skippedResults]
+    // Non-executed outcomes (undiscovered lazy). Per-turn skips come from
+    // middleware and appear in execution results.
+    const deferredErrorResults = [...undiscoveredLazyResults]
 
     if (executableToolCalls.length === 0) {
-      // All tool calls were undiscovered lazy tools and/or skipped by the
-      // per-turn fan-out cap — errors emitted, continue loop (strategy may stop).
+      yield* this.flushDeferredToolCallRunFinishedChunks()
+      // All tool calls were undiscovered lazy tools — errors emitted, continue
+      // loop (strategy / onShouldContinue may stop).
       if (deferredErrorResults.length > 0) {
         for (const chunk of this.buildToolResultChunks(
           deferredErrorResults,
@@ -1589,6 +1864,10 @@ class TextEngine<
       },
       this.middlewareCtx.context,
       this.toolAbortSignal,
+      {
+        deniedToolResults: this.resumeDeniedToolResults,
+        cancelledToolCallIds: this.resumeCancelledToolCallIds,
+      },
     )
 
     // Consume the async generator, yielding custom events and collecting the return value
@@ -1626,23 +1905,16 @@ class TextEngine<
         }
       }
 
-      for (const chunk of this.buildApprovalChunks(
+      const emitted = yield* this.emitActionableInterruptBoundary(
+        finishEvent,
         executionResult.needsApproval,
-        finishEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
-
-      for (const chunk of this.buildClientToolChunks(
         executionResult.needsClientExecution,
-        finishEvent,
-      )) {
-        yield* this.pipeThroughMiddleware(chunk)
-      }
-
-      this.setToolPhase('wait')
+      )
+      this.setToolPhase(emitted ? 'wait' : 'stop')
       return
     }
+
+    yield* this.flushDeferredToolCallRunFinishedChunks()
 
     const toolResultChunks = this.buildToolResultChunks(allResults, finishEvent)
 
@@ -1666,6 +1938,28 @@ class TextEngine<
     this.setToolPhase('continue')
   }
 
+  private shouldDeferToolCallRunFinished(chunk: StreamChunk): boolean {
+    return (
+      chunk.type === EventType.RUN_FINISHED &&
+      this.finishedEvent?.finishReason === 'tool_calls' &&
+      this.tools.length > 0 &&
+      this.toolCallManager.hasToolCalls()
+    )
+  }
+
+  private *flushDeferredToolCallRunFinishedChunks(): Generator<StreamChunk> {
+    for (const chunk of this.deferredToolCallRunFinishedChunks) {
+      this.logger.output(`type=${chunk.type}`, { chunk })
+      yield chunk
+      this.middlewareCtx.chunkIndex++
+    }
+    this.deferredToolCallRunFinishedChunks = []
+  }
+
+  private discardDeferredToolCallRunFinishedChunks(): void {
+    this.deferredToolCallRunFinishedChunks = []
+  }
+
   private shouldExecuteToolPhase(): boolean {
     return (
       this.finishedEvent?.finishReason === 'tool_calls' &&
@@ -1683,11 +1977,14 @@ class TextEngine<
         role: 'assistant',
         content: this.accumulatedContent || null,
         toolCalls,
+        id: this.currentMessageId ?? undefined,
+        createdAt: this.currentMessageCreatedAt ?? undefined,
         ...(this.accumulatedThinking.length > 0 && {
           thinking: this.accumulatedThinking,
         }),
       },
     ]
+    this.middlewareCtx.messages = this.messages
   }
 
   /**
@@ -1698,10 +1995,10 @@ class TextEngine<
   private extractClientStateFromOriginalMessages(
     originalMessages: Array<any>,
   ): {
-    approvals: Map<string, boolean>
+    approvals: Map<string, ToolApprovalResolution>
     clientToolResults: Map<string, any>
   } {
-    const approvals = new Map<string, boolean>()
+    const approvals = new Map<string, ToolApprovalResolution>()
     const clientToolResults = new Map<string, any>()
 
     for (const message of originalMessages) {
@@ -1730,12 +2027,18 @@ class TextEngine<
   }
 
   private collectClientState(): {
-    approvals: Map<string, boolean>
+    approvals: Map<string, ToolApprovalResolution>
     clientToolResults: Map<string, any>
   } {
     // Start with the initial client state extracted from original messages
     const approvals = new Map(this.initialApprovals)
     const clientToolResults = new Map(this.initialClientToolResults)
+    for (const [approvalId, approved] of this.resumeApprovals) {
+      approvals.set(approvalId, approved)
+    }
+    for (const [toolCallId, result] of this.resumeClientToolResults) {
+      clientToolResults.set(toolCallId, result)
+    }
 
     // Also check current messages for any additional tool results (from server tools)
     for (const message of this.messages) {
@@ -1774,54 +2077,303 @@ class TextEngine<
     return { approvals, clientToolResults }
   }
 
-  private buildApprovalChunks(
+  private buildActionableInterrupts(
     approvals: Array<ApprovalRequest>,
-    finishEvent: RunFinishedEvent,
-  ): Array<StreamChunk> {
-    const chunks: Array<StreamChunk> = []
+    clientRequests: Array<ClientToolRequest>,
+  ): Array<Interrupt> {
+    const interrupts: Array<Interrupt> = []
 
     for (const approval of approvals) {
-      chunks.push({
-        type: 'CUSTOM',
-        timestamp: Date.now(),
-        model: finishEvent.model,
-        name: 'approval-requested',
-        value: {
-          toolCallId: approval.toolCallId,
+      const tool = this.tools.find(
+        (candidate) => candidate.name === approval.toolName,
+      ) as RuntimeToolWithApproval | undefined
+      const normalized = normalizeApprovalSchema(
+        tool?.approvalSchema,
+        tool?.inputSchema,
+      )
+      interrupts.push({
+        id: approval.approvalId,
+        // Display hint only. `reason` is free-form AG-UI text that another
+        // producer can also spell `tool_call`, so it never decides ownership —
+        // the binding in `metadata` does.
+        reason: 'tool_call',
+        message: `Approval required to run ${approval.toolName}`,
+        toolCallId: approval.toolCallId,
+        responseSchema: normalized.responseSchema,
+        metadata: {
+          kind: 'approval',
           toolName: approval.toolName,
           input: approval.input,
-          approval: {
-            id: approval.approvalId,
-            needsApproval: true,
+          [interruptBindingMetadataKey]: {
+            v: INTERRUPT_BINDING_VERSION,
+            kind: 'tool-approval',
+            interruptId: approval.approvalId,
+            toolName: approval.toolName,
+            toolCallId: approval.toolCallId,
+            originalArgs: approval.input,
+            inputSchemaHash: hashSchemaInput(tool?.inputSchema),
+            approvalSchemaHash: normalized.approvalSchemaHash,
+            responseSchemaHash: normalized.responseSchemaHash,
           },
         },
-      } as StreamChunk)
+      })
     }
-
-    return chunks
-  }
-
-  private buildClientToolChunks(
-    clientRequests: Array<ClientToolRequest>,
-    finishEvent: RunFinishedEvent,
-  ): Array<StreamChunk> {
-    const chunks: Array<StreamChunk> = []
 
     for (const clientTool of clientRequests) {
-      chunks.push({
-        type: 'CUSTOM',
-        timestamp: Date.now(),
-        model: finishEvent.model,
-        name: 'tool-input-available',
-        value: {
-          toolCallId: clientTool.toolCallId,
+      const tool = this.tools.find(
+        (candidate) => candidate.name === clientTool.toolName,
+      )
+      const responseSchema = convertSchemaToJsonSchema(tool?.outputSchema) ?? {}
+      interrupts.push({
+        id: `client_tool_${clientTool.toolCallId}`,
+        reason: 'tanstack:client_tool_execution',
+        message: `Client tool ${clientTool.toolName} is ready to run`,
+        toolCallId: clientTool.toolCallId,
+        responseSchema,
+        metadata: {
+          kind: 'client_tool',
           toolName: clientTool.toolName,
           input: clientTool.input,
+          [interruptBindingMetadataKey]: {
+            v: INTERRUPT_BINDING_VERSION,
+            kind: 'client-tool-execution',
+            interruptId: `client_tool_${clientTool.toolCallId}`,
+            toolName: clientTool.toolName,
+            toolCallId: clientTool.toolCallId,
+            outputSchemaHash: hashSchemaInput(tool?.outputSchema),
+            responseSchemaHash: digestInterruptJson(
+              canonicalInterruptJson(responseSchema),
+            ),
+          },
         },
-      } as StreamChunk)
+      })
     }
 
-    return chunks
+    return interrupts
+  }
+
+  private buildInterruptFinishedChunk(
+    finishEvent: RunFinishedEvent,
+    approvals: Array<ApprovalRequest>,
+    clientRequests: Array<ClientToolRequest>,
+  ): StreamChunk {
+    return {
+      ...finishEvent,
+      timestamp: Date.now(),
+      outcome: {
+        type: 'interrupt',
+        interrupts: this.buildActionableInterrupts(approvals, clientRequests),
+      },
+    }
+  }
+
+  private buildMessagesSnapshotChunk(): StreamChunk {
+    const messages: MessagesSnapshotEvent['messages'] = this.messages.map(
+      (message, index) => {
+        const content =
+          typeof message.content === 'string'
+            ? message.content
+            : message.content === null
+              ? undefined
+              : JSON.stringify(message.content)
+        return {
+          id:
+            message.id ||
+            `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
+          role: message.role,
+          ...(content !== undefined ? { content } : {}),
+          ...('toolCalls' in message && message.toolCalls
+            ? { toolCalls: message.toolCalls }
+            : {}),
+          ...('toolCallId' in message && message.toolCallId
+            ? { toolCallId: message.toolCallId }
+            : {}),
+        } as MessagesSnapshotEvent['messages'][number]
+      },
+    )
+    return {
+      type: EventType.MESSAGES_SNAPSHOT,
+      timestamp: Date.now(),
+      model: this.params.model,
+      messages,
+    }
+  }
+
+  private publicInterruptTerminal(chunk: StreamChunk): StreamChunk {
+    if (
+      chunk.type !== EventType.RUN_FINISHED ||
+      chunk.outcome?.type !== 'interrupt'
+    ) {
+      return chunk
+    }
+    return {
+      ...chunk,
+      outcome: {
+        ...chunk.outcome,
+        interrupts: chunk.outcome.interrupts.map((interrupt) => {
+          if (
+            !interrupt.metadata ||
+            typeof interrupt.metadata !== 'object' ||
+            Array.isArray(interrupt.metadata)
+          ) {
+            return interrupt
+          }
+          const metadata = { ...interrupt.metadata }
+          const binding = normalizePublicInterruptBinding(
+            metadata[interruptBindingMetadataKey],
+            interrupt.id,
+          )
+          if (binding) {
+            metadata[interruptBindingMetadataKey] = binding
+          } else {
+            delete metadata[interruptBindingMetadataKey]
+          }
+          return { ...interrupt, metadata }
+        }),
+      },
+    }
+  }
+
+  private interruptFailure(error: unknown): {
+    message: string
+    code: string
+    errors?: ReadonlyArray<InterruptSubmissionError>
+  } {
+    const structured = structuralInterruptFailure(error)
+    if (structured) {
+      return {
+        message: structured.error.message,
+        code: structured.errors[0]?.code ?? 'server',
+        errors: structured.errors,
+      }
+    }
+    if (error && typeof error === 'object' && 'errors' in error) {
+      const errors = error.errors
+      if (Array.isArray(errors)) {
+        const first = errors[0]
+        if (first && typeof first === 'object') {
+          const message =
+            'message' in first && typeof first.message === 'string'
+              ? first.message
+              : 'Interrupt persistence failed.'
+          const code =
+            'code' in first && typeof first.code === 'string'
+              ? first.code
+              : 'server'
+          return { message, code }
+        }
+      }
+    }
+    return {
+      message:
+        error instanceof Error
+          ? error.message
+          : 'Interrupt persistence failed.',
+      code: 'server',
+    }
+  }
+
+  private buildInterruptRunErrorChunk(error: unknown): StreamChunk {
+    const failure = this.interruptFailure(error)
+    return {
+      type: EventType.RUN_ERROR,
+      timestamp: Date.now(),
+      runId: this.runIdOverride ?? this.requestId,
+      threadId: this.threadId,
+      message: failure.message,
+      code: failure.code,
+      error: { message: failure.message, code: failure.code },
+      ...(failure.errors !== undefined
+        ? { 'tanstack:interruptErrors': failure.errors }
+        : {}),
+    }
+  }
+
+  private async *emitInterruptRunError(
+    error: unknown,
+  ): AsyncGenerator<StreamChunk, void, void> {
+    const failure = this.interruptFailure(error)
+    this.finalizationError = {
+      message: failure.message,
+      code: failure.code,
+      cause: error,
+    }
+    yield* this.pipeThroughMiddleware(this.buildInterruptRunErrorChunk(error))
+  }
+
+  private async *emitActionableInterruptBoundary(
+    finishEvent: RunFinishedEvent,
+    approvals: Array<ApprovalRequest>,
+    clientRequests: Array<ClientToolRequest>,
+  ): AsyncGenerator<StreamChunk, boolean, void> {
+    const terminal = this.completeEphemeralInterruptBindings(
+      this.buildInterruptFinishedChunk(finishEvent, approvals, clientRequests),
+    )
+    let terminalOutputs: Array<StreamChunk>
+    try {
+      terminalOutputs = await this.middlewareRunner.runOnChunk(
+        this.middlewareCtx,
+        terminal,
+      )
+    } catch (error) {
+      yield* this.emitInterruptRunError(error)
+      return false
+    }
+
+    yield* this.pipeThroughMiddleware(this.buildMessagesSnapshotChunk())
+    if (this.params.state !== undefined) {
+      yield* this.pipeThroughMiddleware({
+        type: EventType.STATE_SNAPSHOT,
+        timestamp: Date.now(),
+        model: this.params.model,
+        snapshot: this.params.state,
+      })
+    }
+    for (const output of terminalOutputs) {
+      yield this.publicInterruptTerminal(output)
+      this.middlewareCtx.chunkIndex++
+    }
+    return true
+  }
+
+  private completeEphemeralInterruptBindings(chunk: StreamChunk): StreamChunk {
+    if (
+      chunk.type !== EventType.RUN_FINISHED ||
+      chunk.outcome?.type !== 'interrupt'
+    ) {
+      return chunk
+    }
+    const interruptedRunId = this.runIdOverride ?? this.requestId
+    return {
+      ...chunk,
+      outcome: {
+        ...chunk.outcome,
+        interrupts: chunk.outcome.interrupts.map((interrupt) => {
+          if (
+            !interrupt.metadata ||
+            typeof interrupt.metadata !== 'object' ||
+            Array.isArray(interrupt.metadata)
+          ) {
+            return interrupt
+          }
+          const metadata = { ...interrupt.metadata }
+          const unopened = metadata[interruptBindingMetadataKey]
+          if (
+            unopened === null ||
+            typeof unopened !== 'object' ||
+            Array.isArray(unopened)
+          ) {
+            return interrupt
+          }
+          metadata[interruptBindingMetadataKey] = {
+            ...unopened,
+            interruptedRunId,
+            generation: 0,
+          }
+          return { ...interrupt, metadata }
+        }),
+      },
+    }
   }
 
   private buildToolResultChunks(
@@ -1845,6 +2397,7 @@ class TextEngine<
       // argsMap is set only on continuation re-executions, where the adapter
       // never streamed these calls. Otherwise it already emitted END, so a
       // second one here would be an orphan that fails verifyEvents (#519).
+      // When we do emit END, attach parsed `input`/`output` for TypedStreamChunk.
       if (argsMap) {
         chunks.push({
           type: 'TOOL_CALL_START',
@@ -1853,7 +2406,7 @@ class TextEngine<
           toolCallId: result.toolCallId,
           toolCallName: result.toolName,
           toolName: result.toolName,
-        } as StreamChunk)
+        })
 
         const args = argsMap.get(result.toolCallId) ?? '{}'
         chunks.push({
@@ -1873,8 +2426,10 @@ class TextEngine<
           toolCallName: result.toolName,
           toolName: result.toolName,
           result: wireContent,
+          ...(result.input !== undefined && { input: result.input }),
+          ...(result.output !== undefined && { output: result.output }),
           ...(result.state !== undefined && { state: result.state }),
-        } as StreamChunk)
+        })
       }
 
       // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
@@ -1922,6 +2477,7 @@ class TextEngine<
       } else {
         this.messages = [...this.messages, newToolMessage]
       }
+      this.middlewareCtx.messages = this.messages
     }
 
     return chunks
@@ -1976,6 +2532,54 @@ class TextEngine<
     return pending
   }
 
+  /**
+   * Find a tool call by id in message history (including already-completed ones).
+   * Used when the client has already attached a tool result for UI before resume.
+   */
+  private findToolCallInMessages(toolCallId: string): ToolCall | undefined {
+    for (const message of this.messages) {
+      if (message.role !== 'assistant' || !message.toolCalls) continue
+      for (const toolCall of message.toolCalls) {
+        if (toolCall.id === toolCallId) return toolCall
+      }
+    }
+    return undefined
+  }
+
+  /**
+   * Tool calls that must be reconstructed as interrupt pending for ephemeral
+   * resume. Includes outstanding tools plus client tools that already have
+   * results in history when the resume batch still carries `client_tool_*`
+   * entries (the client writes local tool results before submitting resume).
+   */
+  private getToolCallsForEphemeralResume(
+    resume: ReadonlyArray<{ interruptId: string }> | undefined,
+  ): Array<ToolCall> {
+    const pending = this.getPendingToolCallsFromMessages()
+    const byId = new Map(pending.map((toolCall) => [toolCall.id, toolCall]))
+    for (const entry of resume ?? []) {
+      // Recover tool calls the client already finalized in history for two
+      // resume-batch cases that no longer look "pending":
+      //  - `client_tool_*`: a client tool wrote its output before resuming.
+      //  - `approval_*`: a DENIED approval wrote its denial result, so the
+      //    call reads as completed. Without this it drops out of the
+      //    reconstructed batch and the resume entry fails as unknown-interrupt.
+      let toolCallId: string | undefined
+      if (entry.interruptId.startsWith('client_tool_')) {
+        toolCallId = entry.interruptId.slice('client_tool_'.length)
+      } else if (entry.interruptId.startsWith('approval_')) {
+        toolCallId = entry.interruptId.slice('approval_'.length)
+      }
+      if (toolCallId === undefined || byId.has(toolCallId)) continue
+      const toolCall = this.findToolCallInMessages(toolCallId)
+      if (toolCall && !isProviderExecutedToolCall(toolCall)) {
+        pending.push(toolCall)
+        byId.set(toolCallId, toolCall)
+      }
+    }
+    return pending
+  }
+
   private createSyntheticFinishedEvent(): RunFinishedEvent {
     return {
       type: 'RUN_FINISHED',
@@ -1987,35 +2591,44 @@ class TextEngine<
     } as RunFinishedEvent
   }
 
-  private shouldContinue(): boolean {
+  private async shouldContinue(): Promise<boolean> {
+    // Always enter the tool-execution half-cycle after a model turn.
     if (this.cyclePhase === 'executeToolCalls') {
       return true
     }
 
+    const state = {
+      iterationCount: this.iterationCount,
+      messages: this.messages,
+      finishReason: this.lastFinishReason,
+      toolCallCount: this.toolCallCount,
+      lastTurnToolCallCount: this.lastTurnToolCallCount,
+    }
+
+    // Evaluate strategy and middleware unconditionally (even when the
+    // strategy already says stop) so every onShouldContinue observer still
+    // sees the final counters; AND all three at the end.
+    const strategyContinues = this.loopStrategy(state)
+    const middlewareContinues = await this.middlewareRunner.runOnShouldContinue(
+      this.middlewareCtx,
+      state,
+    )
+
     return (
-      this.loopStrategy({
-        iterationCount: this.iterationCount,
-        messages: this.messages,
-        finishReason: this.lastFinishReason,
-        toolCallCount: this.toolCallCount,
-        lastTurnToolCallCount: this.lastTurnToolCallCount,
-      }) && this.toolPhase === 'continue'
+      strategyContinues && middlewareContinues && this.toolPhase === 'continue'
     )
   }
 
   /**
-   * Record tool calls (deduped by id) and return the subset that should be
-   * executed after applying `maxToolCallsPerTurn`. Excess calls get synthetic
-   * error results so every tool_call still has a matching result.
+   * Record tool calls (deduped by id) toward `toolCallCount` /
+   * `lastTurnToolCallCount` for strategies and middleware `onShouldContinue`.
    *
    * Used for both live model turns and pending/resume batches. IDs already
    * counted in this run (e.g. wait→resume after a live turn) are not
-   * re-added to `toolCallCount`.
+   * re-added to `toolCallCount`. Per-turn execution caps are app middleware
+   * (`onBeforeToolCall` skip), not engine policy.
    */
-  private applyToolCallBudget(toolCalls: Array<ToolCall>): {
-    toExecute: Array<ToolCall>
-    skippedResults: Array<ToolResult>
-  } {
+  private recordToolCalls(toolCalls: Array<ToolCall>): void {
     this.lastTurnToolCallCount = toolCalls.length
     let newlyCounted = 0
     for (const tc of toolCalls) {
@@ -2025,34 +2638,6 @@ class TextEngine<
       }
     }
     this.toolCallCount += newlyCounted
-
-    const cap = this.maxToolCallsPerTurn
-    if (cap == null || toolCalls.length <= cap) {
-      return { toExecute: toolCalls, skippedResults: [] }
-    }
-
-    this.logger.agentLoop(
-      `maxToolCallsPerTurn=${cap} skipped=${toolCalls.length - cap}`,
-      {
-        maxToolCallsPerTurn: cap,
-        emitted: toolCalls.length,
-        skipped: toolCalls.length - cap,
-      },
-    )
-
-    const toExecute = toolCalls.slice(0, cap)
-    const skippedResults: Array<ToolResult> = toolCalls
-      .slice(cap)
-      .map((tc) => ({
-        toolCallId: tc.id,
-        toolName: tc.function.name,
-        result: {
-          error: `Skipped: exceeded maxToolCallsPerTurn (${cap})`,
-        },
-        state: 'output-error' as const,
-      }))
-
-    return { toExecute, skippedResults }
   }
 
   private isAborted(): boolean {
@@ -2065,6 +2650,100 @@ class TextEngine<
 
   private isCancelled(): boolean {
     return this.isAborted() || this.isMiddlewareAborted()
+  }
+
+  /**
+   * The reason to report on `AbortInfo` for a cancelled run.
+   *
+   * `this.abortReason` only ever holds a *middleware*-initiated reason
+   * (`ctx.abort(reason)` / `MiddlewareAbortError`). A caller that aborts its own
+   * controller — `abortController.abort(RUN_CANCEL_REASON)`, the in-process
+   * cancel channel — never touches that field, so the reason has to be read back
+   * off the caller's signal, which is the signal `isCancelled()` consults via
+   * `isAborted()`. A signal aborted with no reason carries a DOMException rather
+   * than a string, so non-string reasons are reported as absent.
+   */
+  private resolveAbortReason(): string | undefined {
+    if (this.abortReason !== undefined) return this.abortReason
+    const signalReason: unknown = this.effectiveSignal?.reason
+    return typeof signalReason === 'string' ? signalReason : undefined
+  }
+
+  /**
+   * Whether this run's teardown declared its abort a DETACH — see
+   * {@link RunDetachedCapability}. Only `withSandbox`'s `onAbort` publishes it,
+   * and only for a plain, intentless disconnect of a detachable run, so every
+   * other exit path answers `false`.
+   *
+   * Surfaced on the engine (rather than the ctx being handed out) so the
+   * capability read stays inside core, and so the delivery sink learns the
+   * verdict through {@link publishRunDetachedSignal} instead of reaching into a
+   * middleware context it has no business holding.
+   *
+   * @internal
+   */
+  wasDetached(): boolean {
+    return getRunDetached(this.middlewareCtx, { optional: true }) === true
+  }
+
+  /**
+   * The delivery socket closed while this run was still going.
+   *
+   * Notifies every subscriber (see {@link RunDisconnectCapability}) and RETURNS
+   * IMMEDIATELY. Synchronous on purpose: it is called from
+   * `ReadableStream.cancel()`, which must not be made to wait on a run-store
+   * write, and the caller ({@link notifyRunDisconnected}) has no consumer left to
+   * report to anyway.
+   *
+   * Subscribers therefore run CONCURRENTLY with the still-executing run — which is
+   * the entire point. The run is typically suspended inside a slow middleware
+   * `setup` at this moment, so anything dispatched from the run's own unwinding
+   * would be minutes late. Nothing on this path aborts the run: a durable run
+   * outlives its viewer.
+   *
+   * Each subscriber's promise is parked on `deferredPromises`, which the run awaits
+   * in its `finally`, so bookkeeping cannot be lost to a race with the run's own
+   * completion even though nothing awaits it here.
+   *
+   * IDEMPOTENT. A second cancel, or one arriving after a terminal hook already ran,
+   * is ignored: the terminal hooks own the run's outcome, and re-stamping
+   * `detachedSince` on a run that has already finished would hand a completed run
+   * to the reaper as reclaimable work.
+   *
+   * @internal
+   */
+  notifyDisconnected(): void {
+    if (this.disconnected || this.terminalHookCalled) return
+    this.disconnected = true
+    for (const listener of this.disconnectListeners) {
+      this.runDisconnectListener(listener)
+    }
+  }
+
+  /**
+   * Invoke one disconnect listener, isolated and with its failure SWALLOWED after
+   * logging.
+   *
+   * There is no caller left to report to — the socket this would report on is the
+   * one that just closed — and a rejection parked on `deferredPromises` would
+   * surface as the run's failure, replacing a healthy outcome with a bookkeeping
+   * error. Isolation matters for the usual reason too: one subscriber's failing
+   * write must not skip the next one's.
+   */
+  private runDisconnectListener(listener: () => void | Promise<void>): void {
+    let result: void | Promise<void>
+    try {
+      result = listener()
+    } catch (error) {
+      this.logger.errors('run disconnect listener failed', { error })
+      return
+    }
+    if (result === undefined) return
+    this.deferredPromises.push(
+      result.catch((error: unknown) => {
+        this.logger.errors('run disconnect listener failed', { error })
+      }),
+    )
   }
 
   /**
@@ -2622,12 +3301,181 @@ class TextEngine<
       messages: this.messages,
       systemPrompts: [...this.systemPrompts],
       tools: [...this.tools],
+      resume: this.params.resume,
+      resumeToolState: {
+        approvals: this.resumeApprovals,
+        clientToolResults: this.resumeClientToolResults,
+        deniedToolResults: this.resumeDeniedToolResults,
+        cancelledToolCallIds: this.resumeCancelledToolCallIds,
+      },
       metadata: this.params.metadata,
       modelOptions: this.params.modelOptions,
     }
   }
 
+  private async applyEphemeralInterruptResume(
+    config: ChatMiddlewareConfig,
+  ): Promise<void> {
+    if ((config.resume?.length ?? 0) === 0) {
+      return
+    }
+
+    const interruptedRunId = this.parentRunIdOverride
+    if (!interruptedRunId) {
+      throw new InterruptResumeValidationError([
+        {
+          scope: 'batch',
+          threadId: this.threadId,
+          interruptedRunId: this.runIdOverride ?? this.requestId,
+          generation: 0,
+          interruptIds: config.resume?.map((entry) => entry.interruptId) ?? [],
+          code: 'stale',
+          message:
+            'Interrupt continuation requires parentRunId to identify the interrupted run.',
+          source: 'server',
+          retryable: false,
+        },
+      ])
+    }
+
+    const approvalRequests: Array<ApprovalRequest> = []
+    const clientRequests: Array<ClientToolRequest> = []
+    // Prefer resume-aware reconstruction so client-tool outputs already written
+    // into history for UI still validate against the resume batch.
+    const pendingToolCalls = this.getToolCallsForEphemeralResume(config.resume)
+    const resumeInterruptIds = new Set(
+      config.resume?.map((entry) => entry.interruptId),
+    )
+    const toolInputs = new Map<string, unknown>()
+    const toolsByCallId = new Map<string, AnyRuntimeTool>()
+    const clientExecutionCallIds = new Set<string>()
+
+    for (const toolCall of pendingToolCalls) {
+      const tool = this.tools.find(
+        (candidate) => candidate.name === toolCall.function.name,
+      )
+      if (!tool) continue
+      toolsByCallId.set(toolCall.id, tool)
+      let input: unknown = {}
+      try {
+        const parsed = JSON.parse(toolCall.function.arguments.trim() || '{}')
+        input = parsed && typeof parsed === 'object' ? parsed : {}
+      } catch {
+        input = {}
+      }
+      toolInputs.set(toolCall.id, input)
+      if (
+        !tool.execute &&
+        resumeInterruptIds.has(`client_tool_${toolCall.id}`)
+      ) {
+        clientExecutionCallIds.add(toolCall.id)
+      }
+    }
+
+    // Mirror executeToolCalls' scheduling boundary. Server execution remains
+    // gated while any approval is outstanding, but plain client tools are
+    // represented in the same interrupt batch because requesting their output
+    // does not execute a server-side effect.
+    for (const toolCall of pendingToolCalls) {
+      const tool = toolsByCallId.get(toolCall.id)
+      if (tool?.needsApproval && !clientExecutionCallIds.has(toolCall.id)) {
+        approvalRequests.push({
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+          input: toolInputs.get(toolCall.id) ?? {},
+          approvalId: `approval_${toolCall.id}`,
+        })
+      }
+    }
+
+    for (const toolCall of pendingToolCalls) {
+      const tool = toolsByCallId.get(toolCall.id)
+      if (
+        tool !== undefined &&
+        !tool.execute &&
+        (!tool.needsApproval || clientExecutionCallIds.has(toolCall.id))
+      ) {
+        clientRequests.push({
+          toolCallId: toolCall.id,
+          toolName: toolCall.function.name,
+          input: toolInputs.get(toolCall.id) ?? {},
+        })
+      }
+    }
+
+    const pending = this.buildActionableInterrupts(
+      approvalRequests,
+      clientRequests,
+    ).flatMap((descriptor) => {
+      const unopened = readUnopenedInterruptBinding(descriptor)
+      return unopened
+        ? [
+            {
+              interruptId: descriptor.id,
+              payload: descriptor,
+              binding: {
+                ...unopened,
+                interruptedRunId,
+                generation: 0,
+              } satisfies InterruptBinding,
+            },
+          ]
+        : []
+    })
+    const validated = await validateInterruptResumeBatch({
+      threadId: this.threadId,
+      interruptedRunId,
+      generation: 0,
+      pending,
+      resume: config.resume,
+      tools: this.tools,
+    })
+    if (validated.errors.length > 0 || !validated.resumeToolState) {
+      throw new InterruptResumeValidationError(validated.errors)
+    }
+
+    // A client-tool execution interrupt can only be emitted after an
+    // approval-required client tool was approved in the preceding ephemeral
+    // run. Reconstruct that phase marker from the trusted `client_tool_*`
+    // continuation so executeToolCalls consumes the validated client output
+    // instead of asking for approval again.
+    const approvals = new Map(validated.resumeToolState.approvals)
+    for (const request of clientRequests) {
+      if (toolsByCallId.get(request.toolCallId)?.needsApproval) {
+        approvals.set(request.toolCallId, true)
+      }
+    }
+    this.applyResumeToolState({
+      ...validated.resumeToolState,
+      approvals,
+    })
+  }
+
+  private applyResumeToolState(state: ChatResumeToolState | undefined): void {
+    if (state?.approvals) {
+      for (const [approvalId, resolution] of state.approvals) {
+        this.resumeApprovals.set(approvalId, resolution)
+      }
+    }
+    if (state?.clientToolResults) {
+      for (const [toolCallId, result] of state.clientToolResults) {
+        this.resumeClientToolResults.set(toolCallId, result)
+      }
+    }
+    if (state?.deniedToolResults) {
+      for (const [toolCallId, result] of state.deniedToolResults) {
+        this.resumeDeniedToolResults.set(toolCallId, result)
+      }
+    }
+    if (state?.cancelledToolCallIds) {
+      for (const toolCallId of state.cancelledToolCallIds) {
+        this.resumeCancelledToolCallIds.add(toolCallId)
+      }
+    }
+  }
+
   private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
+    this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
     this.systemPrompts = config.systemPrompts
     this.tools = config.tools
@@ -2718,7 +3566,7 @@ class TextEngine<
       model: this.params.model,
       name: eventName,
       value,
-    } as CustomEvent
+    }
   }
 
   private createId(prefix: string): string {
@@ -2745,7 +3593,7 @@ class TextEngine<
  * import { openaiText } from '@tanstack/ai-openai'
  *
  * for await (const chunk of chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'What is the weather?' }],
  *   tools: [weatherTool]
  * })) {
@@ -2758,7 +3606,7 @@ class TextEngine<
  * @example One-shot text (streaming without tools)
  * ```ts
  * for await (const chunk of chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Hello!' }]
  * })) {
  *   console.log(chunk)
@@ -2768,7 +3616,7 @@ class TextEngine<
  * @example Non-streaming text (stream: false)
  * ```ts
  * const text = await chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Hello!' }],
  *   stream: false
  * })
@@ -2780,7 +3628,7 @@ class TextEngine<
  * import { z } from 'zod'
  *
  * const result = await chat({
- *   adapter: openaiText('gpt-4o'),
+ *   adapter: openaiText('gpt-5.5'),
  *   messages: [{ role: 'user', content: 'Research and summarize the topic' }],
  *   tools: [researchTool, analyzeTool],
  *   outputSchema: z.object({
@@ -2820,7 +3668,7 @@ export function chat<
     TTools,
     TMiddleware
   >,
-): TextActivityResult<TSchema, TStream> {
+): TextActivityResult<TSchema, TStream, TTools> {
   validateCapabilities(options.middleware ?? [], options.adapter)
 
   const { outputSchema, stream } = options
@@ -2833,7 +3681,7 @@ export function chat<
       ...options,
       outputSchema,
       stream,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // If outputSchema is provided, run agentic structured output (Promise<T>)
@@ -2841,7 +3689,7 @@ export function chat<
     return runAgenticStructuredOutput({
       ...options,
       outputSchema,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // If stream is explicitly false, run non-streaming text
@@ -2850,7 +3698,7 @@ export function chat<
       ...options,
       outputSchema: undefined,
       stream,
-    }) as TextActivityResult<TSchema, TStream>
+    }) as TextActivityResult<TSchema, TStream, TTools>
   }
 
   // Otherwise, run streaming text (default)
@@ -2858,14 +3706,70 @@ export function chat<
     ...options,
     outputSchema: undefined,
     stream,
-  }) as TextActivityResult<TSchema, TStream>
+  }) as TextActivityResult<TSchema, TStream, TTools>
 }
 
 /**
- * Run streaming text (agentic or one-shot depending on tools)
+ * The slice of the engine that the durable delivery sink reaches back into, in
+ * BOTH directions: it reads the detach verdict (`wasDetached`) and pushes the
+ * socket-closed fact in (`notifyDisconnected`). Filled by the generator body as
+ * soon as its engine exists.
  */
-async function* runStreamingText<TContext = unknown>(
+interface DeliveryEngineRef {
+  current?: {
+    wasDetached: () => boolean
+    notifyDisconnected: () => void
+  }
+}
+
+/**
+ * Publish both delivery-side seams for `stream`.
+ *
+ * Shared by the two streaming paths so they cannot drift apart — the
+ * structured-output path having been wired for one seam and not the other is
+ * exactly the bug `publishRunDetachedSignal` picked up last time (a durable
+ * `chat({ outputSchema, stream: true })` could never detach).
+ */
+function publishDeliverySeams(
+  stream: object,
+  engineRef: DeliveryEngineRef,
+): void {
+  // A thunk, evaluated on the sink's teardown path: the engine does not exist
+  // yet, and the verdict it will report is only written during `onAbort`.
+  publishRunDetachedSignal(
+    stream,
+    () => engineRef.current?.wasDetached() === true,
+  )
+  // The inbound direction. Dropped if the socket closes before the body has run
+  // far enough to have an engine, which is correct: there is no run state to
+  // record yet, and `setup` has not begun, so nothing is leaked by not knowing.
+  publishRunDisconnectHandler(stream, () => {
+    engineRef.current?.notifyDisconnected()
+  })
+}
+
+/**
+ * Run streaming text (agentic or one-shot depending on tools).
+ *
+ * A thin, NON-generator wrapper, because the stream object is also the key the
+ * durable delivery sink looks the run's detach verdict up under (see
+ * `../../delivery-detach`) and delivers its disconnect notification through (see
+ * `../../delivery-disconnect`). A generator function cannot reach the generator it
+ * returns, so the identity has to be minted out here and the engine reached back
+ * through `engineRef`, which the body fills as soon as its engine exists.
+ */
+function runStreamingText<TContext = unknown>(
   options: TextActivityOptions<AnyTextAdapter, undefined, true, TContext>,
+): AsyncIterable<StreamChunk> {
+  const engineRef: DeliveryEngineRef = {}
+  const stream = streamTextChunks(options, engineRef)
+  publishDeliverySeams(stream, engineRef)
+  return stream
+}
+
+async function* streamTextChunks<TContext = unknown>(
+  options: TextActivityOptions<AnyTextAdapter, undefined, true, TContext>,
+  engineRef: DeliveryEngineRef,
 ): AsyncIterable<StreamChunk> {
   const { adapter, middleware, context, debug, mcp, ...textOptions } = options
   const model = adapter.model
@@ -2890,6 +3794,7 @@ async function* runStreamingText<TContext = unknown>(
     },
     logger,
   )
+  engineRef.current = engine
 
   try {
     for await (const chunk of engine.run()) {
@@ -2909,7 +3814,7 @@ function runNonStreamingText<TContext = unknown>(
 ): Promise<string> {
   // Run the streaming text and collect all text using streamToText.
   const stream = runStreamingText(
-    // eslint-disable-next-line no-restricted-syntax -- generic-stream remap: caller is non-streaming (false), but runStreamingText is invoked internally to collect text; concrete `false`→`true` literals don't structurally overlap.
+    // oxlint-disable-next-line eslint-js/no-restricted-syntax -- generic-stream remap: caller is non-streaming (false), but runStreamingText is invoked internally to collect text; concrete `false`→`true` literals don't structurally overlap.
     options as unknown as TextActivityOptions<
       AnyTextAdapter,
       undefined,
@@ -3233,25 +4138,36 @@ function runStreamingStructuredOutput<
     undoNullWidening(data, nullWideningMap)
 
   // The implementation generator yields the broader internal type
-  // (`StreamChunk | StructuredOutputCompleteEvent<T>`) so agent-loop
-  // CustomEvents can flow through; the public-facing type narrows to
-  // `Exclude<StreamChunk, CustomEvent> | StructuredOutputCompleteEvent<T>`
-  // which lets consumers narrow `chunk.value` cleanly. The widen→narrow
-  // is contained here so consumers see only the strict type.
-  return runStreamingStructuredOutputImpl(
+  // (`StreamChunk | StructuredOutputCompleteEvent<T>`) so middleware and
+  // tool-emitted CustomEvents can flow through. Core approval/client-tool
+  // waits are represented by RUN_FINISHED interrupt outcomes, not by direct
+  // CUSTOM wait events.
+  // The contained cast keeps the public stream type focused on
+  // structured-output completion.
+  //
+  // Same seam as `runStreamingText`: this wrapper is NOT a generator, so the
+  // stream identity can be minted here and the engine reached back through
+  // `engineRef` once the impl body has its engine. Without this a durable
+  // structured-output stream could never detach — the sink would find no verdict
+  // and terminalize a healthy detached run's log — nor survive a disconnect.
+  const engineRef: DeliveryEngineRef = {}
+  const stream = runStreamingStructuredOutputImpl(
     options,
     jsonSchema,
     normalize,
-  ) as StructuredOutputStream<InferSchemaType<TSchema>>
+    engineRef,
+  )
+  publishDeliverySeams(stream, engineRef)
+  return stream as StructuredOutputStream<InferSchemaType<TSchema>>
 }
 
 /**
  * Internal generator return type — broader than the public
- * `StructuredOutputStream<T>`. The public type pins three tagged `CUSTOM`
- * events (`structured-output.complete`, `approval-requested`,
- * `tool-input-available`) so consumers can narrow `chunk.value` cleanly by
- * literal `name`. At runtime, tools can also emit arbitrary user-defined
- * `CustomEvent`s through the `emitCustomEvent` context API; those flow
+ * `StructuredOutputStream<T>`. The structured-output completion event remains
+ * the pinned public CUSTOM event for this stream; approval and client-tool
+ * waits now surface as RUN_FINISHED interrupt outcomes. At runtime, tools can
+ * still emit arbitrary user-defined `CustomEvent`s through the
+ * `emitCustomEvent` context API; those flow
  * through this generator with `name: string` and are widened out at the
  * public boundary because keeping them would collapse the typed narrow back
  * to `any`. The cast inside `runStreamingStructuredOutput` is where that
@@ -3268,6 +4184,7 @@ async function* runStreamingStructuredOutputImpl<
   options: TextActivityOptions<AnyTextAdapter, TSchema, true, TContext>,
   jsonSchema: NonNullable<ReturnType<typeof convertSchemaToJsonSchema>>,
   normalize: (data: unknown) => unknown,
+  engineRef: DeliveryEngineRef,
 ): StructuredOutputStreamInternal<InferSchemaType<TSchema>> {
   const {
     adapter,
@@ -3318,6 +4235,7 @@ async function* runStreamingStructuredOutputImpl<
     },
     logger,
   )
+  engineRef.current = engine
 
   try {
     for await (const chunk of engine.run()) {

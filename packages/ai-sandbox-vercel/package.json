@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-vercel",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Vercel Sandbox provider for TanStack AI — run harness adapters inside isolated Vercel microVM sandboxes through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",
@@ -34,9 +34,9 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -49,6 +49,6 @@
   },
   "devDependencies": {
     "@tanstack/ai-sandbox": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.1.10"
   }
 }
