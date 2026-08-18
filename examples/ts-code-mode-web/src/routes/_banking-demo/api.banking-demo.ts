@@ -192,7 +192,7 @@ async function getCodeModeTools() {
       tools: allTools,
       timeout: 60000,
       memoryLimit: 128,
-      getSkillBindings: async () => createReportBindings(),
+      getSnippetBindings: async () => createReportBindings(),
     })
     codeModeCache = { tool, systemPrompt }
   }

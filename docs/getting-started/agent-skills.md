@@ -14,7 +14,7 @@ keywords:
   - SKILL.md
   - AGENTS.md
 ---
-> **Looking for runtime skills inside Code Mode?** Those are a different feature — see [Code Mode with Skills](../code-mode/code-mode-with-skills). This page is about _agent-authoring_ skills: markdown files that teach your coding assistant how TanStack AI works.
+> **Looking for runtime snippets inside Code Mode?** Those are a different feature — see [Code Mode with Snippets](../code-mode/code-mode-with-snippets). This page is about _agent-authoring_ skills: markdown files that teach your coding assistant how TanStack AI works.
 ## Step 1: Install TanStack AI
 
 If you haven't already, install `@tanstack/ai` plus any adapter packages you need. See the [Quick Start](./quick-start) for a full walkthrough.

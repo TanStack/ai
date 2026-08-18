@@ -45,8 +45,8 @@
     "tool-calling"
   ],
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^8.1.4"
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "^8.2.1"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",

@@ -67,8 +67,8 @@
   },
   "devDependencies": {
     "@standard-schema/spec": "^1.1.0",
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^8.1.4",
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "^8.2.1",
     "zod": "^4.2.0"
   }
 }

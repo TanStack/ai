@@ -5,11 +5,11 @@ import { chat, maxIterations, toServerSentEventsStream } from '@tanstack/ai'
 import { createCodeMode } from '@tanstack/ai-code-mode'
 import {
   createAlwaysTrustedStrategy,
-  createSkillManagementTools,
-  createSkillsSystemPrompt,
-  skillsToTools,
-} from '@tanstack/ai-code-mode-skills'
-import { createFileSkillStorage } from '@tanstack/ai-code-mode-skills/storage'
+  createSnippetManagementTools,
+  createSnippetsSystemPrompt,
+  snippetsToTools,
+} from '@tanstack/ai-code-mode-snippets'
+import { createFileSnippetStorage } from '@tanstack/ai-code-mode-snippets/storage'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { openaiText } from '@tanstack/ai-openai'
 import { geminiText } from '@tanstack/ai-gemini'
@@ -78,70 +78,70 @@ async function getCodeModeTools() {
   return codeModeCache
 }
 
-// --- Skills storage ---
+// --- Snippets storage ---
 
 const __dirname = fileURLToPath(new URL('.', import.meta.url))
-const skillsDir = resolve(__dirname, '../../../.db-skills')
+const snippetsDir = resolve(__dirname, '../../../.db-snippets')
 const trustStrategy = createAlwaysTrustedStrategy()
-const skillStorage = createFileSkillStorage({
-  directory: skillsDir,
+const snippetStorage = createFileSnippetStorage({
+  directory: snippetsDir,
   trustStrategy,
 })
 
-let skillManagementToolsCache: ReturnType<
-  typeof createSkillManagementTools
+let snippetManagementToolsCache: ReturnType<
+  typeof createSnippetManagementTools
 > | null = null
 
-function getSkillManagementTools() {
-  if (!skillManagementToolsCache) {
-    skillManagementToolsCache = createSkillManagementTools({
-      storage: skillStorage,
+function getSnippetManagementTools() {
+  if (!snippetManagementToolsCache) {
+    snippetManagementToolsCache = createSnippetManagementTools({
+      storage: snippetStorage,
       trustStrategy,
     })
   }
-  return skillManagementToolsCache
+  return snippetManagementToolsCache
 }
 
-const SKILL_REGISTRATION_PROMPT = `## Skill Registration — MANDATORY
+const SNIPPET_REGISTRATION_PROMPT = `## Snippet Registration — MANDATORY
 
-After every successful \`execute_typescript\` call you MUST register the code as a reusable skill using \`register_skill\` — unless an identical skill already exists.
+After every successful \`execute_typescript\` call you MUST register the code as a reusable snippet using \`register_snippet\` — unless an identical snippet already exists.
 
 Rules:
 - \`name\`: descriptive snake_case (e.g. \`revenue_by_city_and_category\`)
 - \`code\`: the TypeScript code, parameterised with an \`input\` variable where useful
 - \`inputSchema\` / \`outputSchema\`: valid JSON Schema **strings**
-- If a skill with the same name exists, skip registration
+- If a snippet with the same name exists, skip registration
 
-This is not optional — skill registration is a core part of your workflow.`
+This is not optional — snippet registration is a core part of your workflow.`
 
-async function getSkillToolsAndPrompt(driver: IsolateDriver): Promise<{
-  skillTools: Array<AnyServerTool>
-  skillsPrompt: string
+async function getSnippetToolsAndPrompt(driver: IsolateDriver): Promise<{
+  snippetTools: Array<AnyServerTool>
+  snippetsPrompt: string
 }> {
-  const allSkills = await skillStorage.loadAll()
-  const skillIndex = await skillStorage.loadIndex()
+  const allSnippets = await snippetStorage.loadAll()
+  const snippetIndex = await snippetStorage.loadIndex()
 
-  const skillTools =
-    allSkills.length > 0
-      ? skillsToTools({
-          skills: allSkills,
+  const snippetTools =
+    allSnippets.length > 0
+      ? snippetsToTools({
+          snippets: allSnippets,
           driver,
           tools: databaseTools,
-          storage: skillStorage,
+          storage: snippetStorage,
           timeout: 60000,
           memoryLimit: 128,
         })
       : []
 
-  const libraryPrompt = createSkillsSystemPrompt({
-    selectedSkills: allSkills,
-    totalSkillCount: skillIndex.length,
-    skillsAsTools: true,
+  const libraryPrompt = createSnippetsSystemPrompt({
+    selectedSnippets: allSnippets,
+    totalSnippetCount: snippetIndex.length,
+    snippetsAsTools: true,
   })
 
-  const skillsPrompt = libraryPrompt + '\n\n' + SKILL_REGISTRATION_PROMPT
+  const snippetsPrompt = libraryPrompt + '\n\n' + SNIPPET_REGISTRATION_PROMPT
 
-  return { skillTools, skillsPrompt }
+  return { snippetTools, snippetsPrompt }
 }
 
 // --- Instrumentation helpers ---
@@ -244,7 +244,7 @@ export const Route = createFileRoute(
         const provider: Provider = data?.provider || 'anthropic'
         const model: string | undefined = data?.model
         const useCodeMode: boolean = data?.useCodeMode !== false
-        const withSkills: boolean = data?.withSkills === true
+        const withSnippets: boolean = data?.withSnippets === true
 
         const rawAdapter = getAdapter(provider, model)
         const { adapter: instrumentedAdapter } = instrumentAdapter(rawAdapter)
@@ -258,19 +258,19 @@ export const Route = createFileRoute(
             tools = [tool, getSchemaInfoTool]
             systemPrompts = [DATABASE_DEMO_SYSTEM_PROMPT, systemPrompt]
 
-            if (withSkills) {
-              const { skillTools, skillsPrompt } =
-                await getSkillToolsAndPrompt(driver)
+            if (withSnippets) {
+              const { snippetTools, snippetsPrompt } =
+                await getSnippetToolsAndPrompt(driver)
               tools = [
                 tool,
                 getSchemaInfoTool,
-                ...getSkillManagementTools(),
-                ...skillTools,
+                ...getSnippetManagementTools(),
+                ...snippetTools,
               ]
               systemPrompts = [
                 DATABASE_DEMO_SYSTEM_PROMPT,
                 systemPrompt,
-                skillsPrompt,
+                snippetsPrompt,
               ]
             }
           } else {
