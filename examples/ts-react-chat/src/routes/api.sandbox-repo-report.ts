@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import {
   isReportAgent,
+  isReportAuthMode,
   isReportHarness,
   isReportProvider,
   REPORT_AGENTS,
@@ -12,6 +13,7 @@ import type { ReportAgent } from '../repo-report-options'
 interface ReportBody {
   harness: unknown
   provider: unknown
+  authMode: unknown
   agent: unknown
   threadId: unknown
 }
@@ -69,12 +71,13 @@ export async function repoReportPost(request: Request): Promise<Response> {
   if (!isReportAgent(data.agent)) {
     return json(400, 'Unknown agent.')
   }
+  const authMode = isReportAuthMode(data.authMode) ? data.authMode : 'host'
 
   const threadId =
     typeof data.threadId === 'string' && data.threadId !== ''
       ? data.threadId
       : crypto.randomUUID()
-  const missing = missingEnv(data.harness, data.provider)
+  const missing = missingEnv(data.harness, data.provider, authMode)
   if (missing.length > 0) {
     return json(
       500,
@@ -91,14 +94,11 @@ export async function repoReportPost(request: Request): Promise<Response> {
       provider: data.provider,
       repo: REPORT_REPO,
       threadId,
-      // Local Claude Code uses the host `claude login`. An API key in `.env`
-      // would override that login in `-p` mode.
-      useSubscription:
-        data.provider === 'local' && data.harness === 'claude-code',
+      authMode,
     })
     const stream = chat({
       threadId,
-      adapter: buildHarnessAdapter(data.harness, data.provider),
+      adapter: buildHarnessAdapter(data.harness, data.provider, { authMode }),
       messages: [{ role: 'user', content: buildRepoReportPrompt(data.agent) }],
       outputSchema: RepoReportSchema,
       stream: true,

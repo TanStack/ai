@@ -5,9 +5,11 @@ import { parsePartialJSON } from '@tanstack/ai'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
 import {
   isReportAgent,
+  isReportAuthMode,
   isReportHarness,
   isReportProvider,
   REPORT_AGENTS,
+  REPORT_AUTH_MODES,
   REPORT_HARNESSES,
   REPORT_PROVIDERS,
   REPORT_REPO,
@@ -16,6 +18,7 @@ import { looksLikeReport, RepoReportSchema } from '../repo-report-schema'
 import type { RepoReportCard } from '../repo-report-schema'
 import type {
   ReportAgent,
+  ReportAuthMode,
   ReportHarness,
   ReportProvider,
 } from '../repo-report-options'
@@ -99,13 +102,14 @@ function RepoReportPage() {
   const [threadId] = useState(() => crypto.randomUUID())
   const [harness, setHarness] = useState<ReportHarness>('claude-code')
   const [provider, setProvider] = useState<ReportProvider>('local')
+  const [authMode, setAuthMode] = useState<ReportAuthMode>('host')
   const [agent, setAgent] = useState<ReportAgent>('explainer')
 
   const chat = useChat({
     threadId,
     outputSchema: RepoReportSchema,
     connection: fetchServerSentEvents('/api/sandbox-repo-report'),
-    forwardedProps: { harness, provider, agent, threadId },
+    forwardedProps: { harness, provider, authMode, agent, threadId },
   })
 
   const canRun = !chat.isLoading
@@ -178,6 +182,25 @@ function RepoReportPage() {
             className="rounded-lg border border-orange-500/20 bg-gray-800 px-3 py-2 text-sm text-white"
           >
             {Object.entries(REPORT_PROVIDERS).map(([name, spec]) => (
+              <option key={name} value={name}>
+                {spec.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="flex items-center gap-2 text-sm text-gray-400">
+          Auth
+          <select
+            value={authMode}
+            onChange={(event) => {
+              if (isReportAuthMode(event.target.value)) {
+                setAuthMode(event.target.value)
+              }
+            }}
+            disabled={chat.isLoading}
+            className="rounded-lg border border-orange-500/20 bg-gray-800 px-3 py-2 text-sm text-white"
+          >
+            {Object.entries(REPORT_AUTH_MODES).map(([name, spec]) => (
               <option key={name} value={name}>
                 {spec.label}
               </option>

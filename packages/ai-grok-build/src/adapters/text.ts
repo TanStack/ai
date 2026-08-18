@@ -33,7 +33,8 @@ import {
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
-import { resolveGrokAcpAuthMethod } from '../auth'
+import { formatAcpRequestError, resolveGrokSessionAuthMethod } from '../auth'
+import type { GrokBuildAuthMode } from '../auth'
 import { createGrokAcpNotificationHandler } from '../process/grok-acp-notifications'
 import { openGrokAcpConnection } from '../process/acp'
 import { resolveGrokExecutable } from '../process/resolve-executable'
@@ -90,9 +91,12 @@ export interface GrokBuildTextConfig {
   /** ACP transport when `protocol` is `'acp'`. Defaults to `'auto'`. */
   transport?: AcpTransportPreference
   /**
-   * ACP auth method (`xai.api_key` for API-key runs, `grok.com` for host login).
-   * Defaults via {@link resolveGrokAcpAuthMethod}.
+   * `'host'` skips ACP authenticate (use `grok login`).
+   * `'api-key'` calls authenticate with `xai.api_key`.
+   * Not inferred from the sandbox.
    */
+  authMode?: GrokBuildAuthMode
+  /** Explicit ACP auth method. Wins over {@link authMode}. */
   authMethodId?: string
   /** ACP permission policy. Defaults to `'bypassPermissions'`. */
   permissionMode?: AcpPermissionMode
@@ -370,13 +374,14 @@ export class GrokBuildTextAdapter<
         modelOptions?.permissionMode ??
         this.adapterConfig.permissionMode ??
         'bypassPermissions'
-      const authMethodId =
-        modelOptions?.authMethodId ??
-        this.adapterConfig.authMethodId ??
-        resolveGrokAcpAuthMethod({
+      const authMethodId = resolveGrokSessionAuthMethod(
+        modelOptions?.authMode ?? this.adapterConfig.authMode,
+        modelOptions?.authMethodId ?? this.adapterConfig.authMethodId,
+        {
           ...process.env,
           ...this.adapterConfig.env,
-        })
+        },
+      )
 
       const queue = new AsyncQueue<AcpStreamEvent>()
 
@@ -390,7 +395,7 @@ export class GrokBuildTextAdapter<
       handle = await startAcpSession({
         transport: connection.transport,
         cwd: harnessCwd,
-        authMethodId,
+        ...(authMethodId !== undefined && { authMethodId }),
         ...(sessionId !== undefined && { resumeSessionId: sessionId }),
         ...(bridge !== undefined && {
           mcpServers: [
@@ -507,6 +512,7 @@ export class GrokBuildTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const message = formatAcpRequestError(error)
       logger.errors('grok-build.chatStream fatal', {
         error,
         source: 'grok-build.chatStream',
@@ -515,11 +521,11 @@ export class GrokBuildTextAdapter<
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
+        message,
         ...(err.code !== undefined && { code: err.code }),
         ...(rawEvent !== undefined && { rawEvent }),
         error: {
-          message: err.message || 'Unknown error occurred',
+          message,
           ...(err.code !== undefined && { code: err.code }),
         },
       }
@@ -786,6 +792,7 @@ export class GrokBuildTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const message = formatAcpRequestError(error)
       logger.errors('grok-build.chatStream fatal', {
         error,
         source: 'grok-build.chatStream',
@@ -794,11 +801,11 @@ export class GrokBuildTextAdapter<
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
+        message,
         ...(err.code !== undefined && { code: err.code }),
         ...(rawEvent !== undefined && { rawEvent }),
         error: {
-          message: err.message || 'Unknown error occurred',
+          message,
           ...(err.code !== undefined && { code: err.code }),
         },
       }

@@ -140,9 +140,15 @@ export interface AcpCompatibleConfig<
   /** Extra environment variables for the harness process. */
   env?: Record<string, string>
   /**
+   * `'host'` skips ACP authenticate (use the CLI login on the machine).
+   * `'api-key'` uses {@link authMethodId} (or `modelOptions.authMethodId`).
+   * Not inferred from the sandbox.
+   */
+  authMode?: 'host' | 'api-key'
+  /**
    * ACP auth method to select before the session starts, when the harness
    * advertises one (e.g. `'pi-api-key'`). Overridable per call via
-   * `modelOptions.authMethodId`.
+   * `modelOptions.authMethodId`. Ignored when {@link authMode} is `'host'`.
    */
   authMethodId?: string
   /** ACP permission policy. Defaults to `'bypassPermissions'`. */
@@ -191,7 +197,12 @@ export interface AcpCompatibleProviderOptions {
   sessionId?: string
   /** Per-call override of the harness working directory. */
   cwd?: string
-  /** Per-call override of the ACP auth method. */
+  /**
+   * `'host'` skips ACP authenticate. `'api-key'` uses {@link authMethodId}.
+   * Not inferred from the sandbox.
+   */
+  authMode?: 'host' | 'api-key'
+  /** Per-call override of the ACP auth method. Ignored when authMode is `'host'`. */
   authMethodId?: string
   /** Per-call override of the ACP permission policy. */
   permissionMode?: AcpPermissionMode
@@ -460,8 +471,11 @@ export class AcpCompatibleTextAdapter<
         modelOptions?.permissionMode ??
         this.harness.permissionMode ??
         'bypassPermissions'
+      const authMode = modelOptions?.authMode ?? this.harness.authMode
       const authMethodId =
-        modelOptions?.authMethodId ?? this.harness.authMethodId
+        authMode === 'host'
+          ? undefined
+          : (modelOptions?.authMethodId ?? this.harness.authMethodId)
 
       const approvalRequests: Array<StreamChunk> = []
       const permissionHandler = this.makePermissionHandler({

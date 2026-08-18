@@ -20,9 +20,9 @@ to `chat({ adapter })` and run it under any provider.
 
 | Harness | Package | Adapter | Auth env |
 | --- | --- | --- | --- |
-| [Grok Build](../adapters/grok-build) | `@tanstack/ai-grok-build` | `grokBuildText` | `XAI_API_KEY` (or grok.com login on local-process) |
-| [Claude Code](../adapters/claude-code) | `@tanstack/ai-claude-code` | `claudeCodeText` | `ANTHROPIC_API_KEY` (or `claude login`) |
-| [Codex](../adapters/codex) | `@tanstack/ai-codex` | `codexText` | `CODEX_API_KEY` (or `OPENAI_API_KEY`) |
+| [Grok Build](../adapters/grok-build) | `@tanstack/ai-grok-build` | `grokBuildText` | `authMode: 'host'` (`grok login`) or `authMode: 'api-key'` (`XAI_API_KEY`) |
+| [Claude Code](../adapters/claude-code) | `@tanstack/ai-claude-code` | `claudeCodeText` | `authMode: 'host'` (`claude login`) or `authMode: 'api-key'` (`ANTHROPIC_API_KEY`) |
+| [Codex](../adapters/codex) | `@tanstack/ai-codex` | `codexText` | `authMode: 'host'` (`codex login`) or `authMode: 'api-key'` (`CODEX_API_KEY`) |
 | [OpenCode](../adapters/opencode) | `@tanstack/ai-opencode` | `opencodeText` | `OPENAI_API_KEY` (model-dependent) |
 
 ```ts

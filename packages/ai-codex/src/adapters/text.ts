@@ -64,6 +64,8 @@ function defaultSandboxMode(provider: string): CodexSandboxMode {
     : 'workspace-write'
 }
 
+export type CodexAuthMode = 'host' | 'api-key'
+
 export interface CodexTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
@@ -87,6 +89,11 @@ export interface CodexTextConfig {
   additionalDirectories?: Array<string>
   /** Path/name of the codex executable inside the sandbox. Defaults to `codex`. */
   codexExecutable?: string
+  /**
+   * `'host'` uses `codex login`. `'api-key'` expects `CODEX_API_KEY` in the
+   * process or sandbox secrets. Not inferred from the sandbox.
+   */
+  authMode?: CodexAuthMode
   /** Extra environment variables for the codex process inside the sandbox. */
   env?: Record<string, string>
   /** Extra raw `--config key=value` overrides (values passed verbatim as TOML). */

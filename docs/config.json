@@ -891,7 +891,7 @@
           "label": "Grok Build",
           "to": "adapters/grok-build",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-17"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "ACP-Compatible",

@@ -5,6 +5,7 @@
 
 export type ReportHarness = 'claude-code' | 'codex' | 'grok' | 'acp'
 export type ReportProvider = 'docker' | 'local'
+export type ReportAuthMode = 'host' | 'api-key'
 export type ReportAgent = 'explainer' | 'package-map' | 'first-hour'
 
 export const REPORT_HARNESSES: Record<ReportHarness, { label: string }> = {
@@ -17,6 +18,11 @@ export const REPORT_HARNESSES: Record<ReportHarness, { label: string }> = {
 export const REPORT_PROVIDERS: Record<ReportProvider, { label: string }> = {
   docker: { label: 'Docker' },
   local: { label: 'Local process' },
+}
+
+export const REPORT_AUTH_MODES: Record<ReportAuthMode, { label: string }> = {
+  host: { label: 'Host login' },
+  'api-key': { label: 'API key' },
 }
 
 export const REPORT_AGENTS: Record<
@@ -47,6 +53,10 @@ export function isReportProvider(value: unknown): value is ReportProvider {
 
 export function isReportAgent(value: unknown): value is ReportAgent {
   return typeof value === 'string' && value in REPORT_AGENTS
+}
+
+export function isReportAuthMode(value: unknown): value is ReportAuthMode {
+  return typeof value === 'string' && value in REPORT_AUTH_MODES
 }
 
 export const REPORT_REPO = 'TanStack/ai'

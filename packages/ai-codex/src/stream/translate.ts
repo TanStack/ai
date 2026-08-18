@@ -161,13 +161,11 @@ function buildUsage(usage: CodexUsage | undefined): TokenUsage | undefined {
  * TOOL_CALL_START/ARGS/END + TOOL_CALL_RESULT sequences so UIs can render it
  * while the TanStack engine never tries to execute them.
  *
- * Codex reports assistant text and reasoning only as completed items (no
- * token-level deltas), so each `agent_message` / `reasoning` item becomes a
- * single START/CONTENT/END burst. When `expectStructuredOutput` is set, earlier
- * `agent_message` items stream as text as soon as the next message starts, or
- * as soon as a tool or reasoning item starts if that text is not JSON. JSON
- * stays held through later tools so a last schema message is not dropped. The
- * last held message is parsed as the schema object on `turn.completed`.
+ * Codex reports assistant text on `item.started` / `item.updated` /
+ * `item.completed`. Each `agent_message` streams as START/CONTENT/END, with
+ * CONTENT deltas from growing `item.text`. When `expectStructuredOutput` is
+ * set, the last agent message is also parsed as the schema object on
+ * `turn.completed`.
  *
  * Invariant: every TOOL_CALL_START is eventually paired with a
  * TOOL_CALL_RESULT (synthesized as `{"status":"interrupted"}` when the run
@@ -248,55 +246,67 @@ export async function* translateThreadEvents(
     unresolvedToolCalls.add(item.id)
   }
 
-  let pendingStructuredMessage: { id: string; text: string } | undefined
+  const openText = new Map<string, { emitted: number; ended: boolean }>()
+  let lastAgentMessage: { id: string; text: string } | undefined
 
-  function* emitAgentText(item: {
-    id: string
-    text: string
-  }): Generator<StreamChunk> {
+  function* startText(messageId: string): Generator<StreamChunk> {
+    if (openText.has(messageId)) return
+    openText.set(messageId, { emitted: 0, ended: false })
     yield {
       type: EventType.TEXT_MESSAGE_START,
-      messageId: item.id,
+      messageId,
       model,
       timestamp: now(),
       role: 'assistant',
     }
+  }
+
+  function* emitTextDelta(
+    messageId: string,
+    text: string,
+  ): Generator<StreamChunk> {
+    yield* startText(messageId)
+    const state = openText.get(messageId)
+    if (state === undefined || state.ended) return
+    if (text.length <= state.emitted) return
+    const delta = text.slice(state.emitted)
+    state.emitted = text.length
     yield {
       type: EventType.TEXT_MESSAGE_CONTENT,
-      messageId: item.id,
+      messageId,
       model,
       timestamp: now(),
-      delta: item.text,
-      content: item.text,
+      delta,
+      content: text,
     }
+  }
+
+  function* endText(messageId: string): Generator<StreamChunk> {
+    const state = openText.get(messageId)
+    if (state === undefined || state.ended) return
+    state.ended = true
     yield {
       type: EventType.TEXT_MESSAGE_END,
-      messageId: item.id,
+      messageId,
       model,
       timestamp: now(),
     }
   }
 
-  function* flushPendingAsText(): Generator<StreamChunk> {
-    if (pendingStructuredMessage === undefined) return
-    const item = pendingStructuredMessage
-    pendingStructuredMessage = undefined
-    yield* emitAgentText(item)
+  function* handleAgentMessage(
+    item: { id: string; text: string },
+    done: boolean,
+  ): Generator<StreamChunk> {
+    yield* emitTextDelta(item.id, item.text)
+    lastAgentMessage = { id: item.id, text: item.text }
+    if (done) yield* endText(item.id)
   }
 
-  function* flushPendingIfNotStructured(): Generator<StreamChunk> {
-    if (pendingStructuredMessage === undefined) return
-    try {
-      parseJsonFromAssistantText(pendingStructuredMessage.text)
-    } catch {
-      yield* flushPendingAsText()
-    }
-  }
-
-  function* emitStructuredFromPending(): Generator<StreamChunk> {
-    if (pendingStructuredMessage === undefined) return
-    const item = pendingStructuredMessage
-    pendingStructuredMessage = undefined
+  function* emitStructuredFromLast(): Generator<StreamChunk> {
+    if (ctx.expectStructuredOutput !== true) return
+    if (lastAgentMessage === undefined) return
+    const item = lastAgentMessage
+    lastAgentMessage = undefined
     try {
       const object = parseJsonFromAssistantText(item.text)
       yield structuredOutputStartChunk({
@@ -334,14 +344,8 @@ export async function* translateThreadEvents(
 
   function* handleItemCompleted(item: CodexThreadItem): Generator<StreamChunk> {
     if (item.type === 'agent_message') {
-      if (ctx.expectStructuredOutput === true) {
-        yield* flushPendingAsText()
-        pendingStructuredMessage = { id: item.id, text: item.text }
-        return
-      }
-      yield* emitAgentText(item)
+      yield* handleAgentMessage(item, true)
     } else if (item.type === 'reasoning') {
-      yield* flushPendingIfNotStructured()
       const reasoningId = item.id
       yield {
         type: EventType.REASONING_START,
@@ -376,7 +380,6 @@ export async function* translateThreadEvents(
         timestamp: now(),
       }
     } else if (isToolItem(item)) {
-      yield* flushPendingIfNotStructured()
       yield* openToolCall(item)
       unresolvedToolCalls.delete(item.id)
       const { content, isError } = toolResultForItem(item)
@@ -415,19 +418,16 @@ export async function* translateThreadEvents(
       // needs RUN_STARTED first.
       yield* startRun()
 
-      if (event.type === 'item.started') {
-        if (isToolItem(event.item)) {
-          yield* flushPendingIfNotStructured()
+      if (event.type === 'item.started' || event.type === 'item.updated') {
+        if (event.item.type === 'agent_message') {
+          yield* handleAgentMessage(event.item, false)
+        } else if (event.type === 'item.started' && isToolItem(event.item)) {
           yield* openToolCall(event.item)
         }
       } else if (event.type === 'item.completed') {
         yield* handleItemCompleted(event.item)
       } else if (event.type === 'turn.completed') {
-        if (ctx.expectStructuredOutput === true) {
-          yield* emitStructuredFromPending()
-        } else {
-          yield* flushPendingAsText()
-        }
+        yield* emitStructuredFromLast()
         yield* synthesizeUnresolvedResults()
         const usage = buildUsage(event.usage)
         yield {
@@ -440,7 +440,6 @@ export async function* translateThreadEvents(
           ...(usage !== undefined && { usage }),
         }
       } else if (event.type === 'turn.failed' || event.type === 'error') {
-        yield* flushPendingAsText()
         yield* synthesizeUnresolvedResults()
         const message =
           event.type === 'turn.failed'
@@ -454,21 +453,15 @@ export async function* translateThreadEvents(
           error: { message },
         }
       }
-      // turn.started and item.updated carry no state the chunk stream needs:
-      // long-running items resolve via item.completed, and intermediate
-      // updates (e.g. streaming command output) are intentionally dropped.
+      // turn.started carries no chunk-stream state. item.updated for tools
+      // (streaming command output, todo ticks) is dropped on purpose.
     }
-    if (ctx.expectStructuredOutput === true) {
-      yield* emitStructuredFromPending()
-    } else {
-      yield* flushPendingAsText()
-    }
+    yield* emitStructuredFromLast()
   } catch (error) {
     // The run is dying (abort or SDK failure). Pair any started tool calls
     // with a synthetic result first so the next request's pending-tool-call
     // scan doesn't try to execute them, then let the adapter surface the
     // error as RUN_ERROR.
-    yield* flushPendingAsText()
     yield* synthesizeUnresolvedResults()
     throw error
   }

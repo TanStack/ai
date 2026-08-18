@@ -77,6 +77,15 @@ describe('registries', () => {
     expect(isProvider(42)).toBe(false)
   })
 
+  it('missingEnv skips harness keys when authMode is host', () => {
+    delete process.env.XAI_API_KEY
+    delete process.env.GROK_API_KEY
+    expect(missingEnv('grok', 'docker', 'host')).not.toContain('XAI_API_KEY')
+    expect(missingEnv('grok', 'local', 'api-key')).toContain(
+      'XAI_API_KEY (or GROK_API_KEY)',
+    )
+  })
+
   it('missingEnv reports unset required vars', () => {
     delete process.env.ANTHROPIC_API_KEY
     delete process.env.DAYTONA_API_KEY

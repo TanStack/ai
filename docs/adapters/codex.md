@@ -170,7 +170,7 @@ const stream = chat({
 
 ## Structured Output
 
-Pass `outputSchema` on `chat()`. Codex runs one harness turn and constrains the last message with `--output-schema`. Tool activity and earlier assistant text still stream. The last message is parsed as the schema object and arrives as `structured-output.complete`.
+Pass `outputSchema` on `chat()`. Codex runs one harness turn and constrains the last message with `--output-schema`. Tool activity and assistant text stream as Codex writes them. The last message is also parsed as the schema object and arrives as `structured-output.complete`.
 
 ```ts
 import { chat } from "@tanstack/ai"

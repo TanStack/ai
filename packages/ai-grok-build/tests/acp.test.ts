@@ -1,5 +1,9 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { resolveGrokAcpAuthMethod } from '../src/auth'
+import {
+  formatAcpRequestError,
+  resolveGrokAcpAuthMethod,
+  resolveGrokSessionAuthMethod,
+} from '../src/auth'
 import {
   buildGrokAcpServeCommand,
   buildGrokAcpStdioCommand,
@@ -19,8 +23,41 @@ describe('resolveGrokAcpAuthMethod', () => {
     )
   })
 
-  it('falls back to grok.com for host login flows', () => {
-    expect(resolveGrokAcpAuthMethod()).toBe('grok.com')
+  it('omits auth when no API key is set so host login can win', () => {
+    expect(resolveGrokAcpAuthMethod()).toBeUndefined()
+  })
+})
+
+describe('resolveGrokSessionAuthMethod', () => {
+  it('skips authenticate on host mode even when an API key is set', () => {
+    process.env.XAI_API_KEY = 'sk-test'
+    expect(resolveGrokSessionAuthMethod('host', undefined)).toBeUndefined()
+  })
+
+  it('uses xai.api_key on api-key mode', () => {
+    process.env.XAI_API_KEY = 'sk-test'
+    expect(resolveGrokSessionAuthMethod('api-key', undefined)).toBe(
+      'xai.api_key',
+    )
+  })
+
+  it('lets an explicit authMethodId win', () => {
+    expect(resolveGrokSessionAuthMethod('host', 'grok.com')).toBe('grok.com')
+  })
+})
+
+describe('formatAcpRequestError', () => {
+  it('prefers RequestError.data over Internal error', () => {
+    const error = Object.assign(new Error('Internal error'), {
+      data: 'Unauthorized (401) from https://cli-chat-proxy.grok.com/v1/responses',
+    })
+    expect(formatAcpRequestError(error)).toMatch(/Unauthorized \(401\)/)
+  })
+
+  it('falls back to Error.message when data is missing', () => {
+    expect(formatAcpRequestError(new Error('stream broke'))).toBe(
+      'stream broke',
+    )
   })
 })
 

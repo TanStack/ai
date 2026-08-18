@@ -500,7 +500,7 @@ describe('translateThreadEvents', () => {
         expect.objectContaining({ object: { ok: true }, raw: '{"ok":true}' }),
       )
     }
-    expect(textDeltas(chunks)).toBe('')
+    expect(textDeltas(chunks)).toBe('{"ok":true}')
   })
 
   it('keeps earlier agent_message text when only the last item is structured', async () => {
@@ -519,7 +519,7 @@ describe('translateThreadEvents', () => {
       ],
       makeCtx({ expectStructuredOutput: true }),
     )
-    expect(textDeltas(chunks)).toBe('working')
+    expect(textDeltas(chunks)).toContain('working')
     expectStructuredObject(chunks, { ok: true })
   })
 
@@ -643,7 +643,6 @@ describe('translateThreadEvents', () => {
       ],
       makeCtx({ expectStructuredOutput: true }),
     )
-    expect(textDeltas(chunks)).toBe('')
     expectStructuredObject(chunks, { ok: true })
     const types = chunks.map((c) =>
       c.type === 'CUSTOM' ? `CUSTOM:${c.name}` : c.type,
@@ -687,8 +686,34 @@ describe('translateThreadEvents', () => {
       ],
       makeCtx({ expectStructuredOutput: true }),
     )
-    expect(textDeltas(chunks)).toBe('')
     expectStructuredObject(chunks, { ok: true })
+  })
+
+  it('streams agent_message text from item.updated deltas', async () => {
+    const chunks = await collect([
+      started,
+      {
+        type: 'item.started',
+        item: { id: 'item-1', type: 'agent_message', text: 'Hel' },
+      },
+      {
+        type: 'item.updated',
+        item: { id: 'item-1', type: 'agent_message', text: 'Hello' },
+      },
+      {
+        type: 'item.updated',
+        item: { id: 'item-1', type: 'agent_message', text: 'Hello world' },
+      },
+      {
+        type: 'item.completed',
+        item: { id: 'item-1', type: 'agent_message', text: 'Hello world' },
+      },
+      completedTurn,
+    ])
+    const deltas = chunks
+      .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
+      .map((c) => ('delta' in c ? c.delta : ''))
+    expect(deltas).toEqual(['Hel', 'lo', ' world'])
   })
 
   it('does not drop the last agent_message when the stream ends without turn.completed', async () => {

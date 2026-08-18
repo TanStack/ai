@@ -97,6 +97,11 @@ export interface ClaudeCodeTextConfig {
   streamPartials?: boolean
   /** Extra environment variables for the claude process inside the sandbox. */
   env?: Record<string, string>
+  /**
+   * `'host'` uses `claude login` and does not inject `ANTHROPIC_API_KEY`.
+   * `'api-key'` injects the key. Not inferred from the sandbox.
+   */
+  authMode?: 'host' | 'api-key'
   /** Emit a `file.changed` CUSTOM event with the git diff after the run (default true). */
   emitDiff?: boolean
 }
@@ -523,6 +528,10 @@ export class ClaudeCodeTextAdapter<
         { provider: 'claude-code', model: this.model },
       )
 
+      const authMode =
+        options.modelOptions?.authMode ?? this.adapterConfig.authMode
+      const injectApiKey = authMode === 'api-key'
+
       const journalOptions = journalOptionsFor(durability, runId)
       const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
@@ -538,9 +547,10 @@ export class ClaudeCodeTextAdapter<
                 IS_SANDBOX: '1',
                 CLAUDE_CODE_SANDBOXED: '1',
               }),
-          // Docker has no host `claude login`. Local-process must not force
-          // ANTHROPIC_API_KEY: `-p` would use the key instead of the login.
-          ...(sandbox.provider === 'local-process' ? {} : hostClaudeAuthEnv()),
+          ...(injectApiKey ||
+          (authMode === undefined && sandbox.provider !== 'local-process')
+            ? hostClaudeAuthEnv()
+            : {}),
           ...localProcessHomeEnv(sandbox.provider),
           ...this.adapterConfig.env,
         },

@@ -38,13 +38,23 @@ You also need a sandbox provider (e.g. `@tanstack/ai-sandbox-docker`) and the
 
 ## Authentication
 
-Grok Build resolves credentials the same way the `grok` CLI does:
+Pick the mode. Do not infer it from the sandbox. A local-process run can be
+your laptop (`grok login`) or a GitHub runner that only has `XAI_API_KEY`.
 
-- the `XAI_API_KEY` environment variable (headless / sandbox — inject it as a
-  workspace secret), or
-- an existing grok.com browser login on the machine (local dev).
+```ts
+// Machine already has `grok login`
+grokBuildText('composer-2.5', { authMode: 'host' })
 
-The two auth modes expose the model under slightly different ids; the adapter
+// CI / runner: inject the key and authenticate with it
+grokBuildText('composer-2.5', { authMode: 'api-key' })
+```
+
+- `'host'`: skip ACP `authenticate`. The CLI uses the host login. Do not
+  inject `XAI_API_KEY` into that process, or the CLI may prefer a bad key.
+- `'api-key'`: call ACP `authenticate` with `xai.api_key`. Inject
+  `XAI_API_KEY` as a workspace secret.
+
+The two auth modes expose the model under slightly different ids. The adapter
 maps the short alias for you (see [Models](#models)).
 
 ## Basic Usage
