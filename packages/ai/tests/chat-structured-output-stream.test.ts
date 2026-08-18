@@ -493,7 +493,9 @@ describe('chat({ outputSchema, stream: true })', () => {
           c.type === EventType.CUSTOM &&
           (c as { name?: string }).name === 'structured-output.start',
       )
-      const content = chunks.find((c) => c.type === EventType.TEXT_MESSAGE_CONTENT)
+      const content = chunks.find(
+        (c) => c.type === EventType.TEXT_MESSAGE_CONTENT,
+      )
       const complete = chunks.find(
         (c) =>
           c.type === EventType.CUSTOM &&
