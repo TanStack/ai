@@ -306,6 +306,18 @@ export const GROK_VIDEO_MAX_REFERENCE_AUDIOS = 3
 export const GROK_VIDEO_MAX_REFERENCE_IMAGES = 7
 
 /**
+ * Model names whose per-model options declare the reference fields. Keeps
+ * the runtime set below provably in sync with
+ * {@link GrokVideoModelProviderOptionsByName} — a typo or a new
+ * reference-capable model missing from the set is a compile error.
+ */
+type GrokVideoReferenceModel = {
+  [TModel in GrokVideoModel]: 'reference_images' extends keyof GrokVideoModelProviderOptionsByName[TModel]
+    ? TModel
+    : never
+}[GrokVideoModel]
+
+/**
  * Models that support reference-to-video inputs (`reference_images` /
  * `reference_audios`). The per-model provider-options map hides the fields
  * from other models at compile time; this backs the runtime gate for
@@ -314,9 +326,8 @@ export const GROK_VIDEO_MAX_REFERENCE_IMAGES = 7
  *
  * @experimental Video generation is an experimental feature and may change.
  */
-const GROK_VIDEO_REFERENCE_MODELS: ReadonlySet<string> = new Set([
-  'grok-imagine-video-1.5',
-])
+const GROK_VIDEO_REFERENCE_MODELS: ReadonlySet<string> =
+  new Set<GrokVideoReferenceModel>(['grok-imagine-video-1.5'])
 
 /**
  * True when the model accepts reference-to-video inputs.
@@ -328,15 +339,24 @@ export function isGrokVideoReferenceModel(model: string): boolean {
 }
 
 /**
+ * Model names whose per-model options declare `mode`. Same
+ * provably-in-sync construction as {@link GrokVideoReferenceModel}.
+ */
+type GrokVideoSourceModel = {
+  [TModel in GrokVideoModel]: 'mode' extends keyof GrokVideoModelProviderOptionsByName[TModel]
+    ? TModel
+    : never
+}[GrokVideoModel]
+
+/**
  * Models that accept a source-video prompt part for `/v1/videos/edits`
  * and `/v1/videos/extensions`. xAI lists video input only on
  * grok-imagine-video (v1.0).
  *
  * @experimental Video generation is an experimental feature and may change.
  */
-const GROK_VIDEO_SOURCE_MODELS: ReadonlySet<string> = new Set([
-  'grok-imagine-video',
-])
+const GROK_VIDEO_SOURCE_MODELS: ReadonlySet<string> =
+  new Set<GrokVideoSourceModel>(['grok-imagine-video'])
 
 /**
  * True when the model accepts edit / extend source-video jobs.

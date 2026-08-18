@@ -546,11 +546,15 @@ const edited = await generateVideo({
 Other video adapters: `openaiVideo('sora-2')` (pixel sizes like `'1280x720'`,
 durations 4/8/12s, single `input_reference` image prompt part), `grokVideo(...)`
 (`grok-imagine-video` and `grok-imagine-video-1.5` both do text-to-video + image-to-video;
-1.5 adds reference-to-video — `'reference'`-roled image parts → `reference_images`, preset
-voices via `modelOptions.reference_audios` (max 3); only `grok-imagine-video` edits/extends a source `video`
-prompt part via `modelOptions.mode: 'edit' | 'extend'` (extend `duration` = added tail);
-aspect-ratio size template like `'16:9_720p'`, integer durations 1-15s, reports
-`usage.unitsBilled` seconds and exact `usage.cost`), `byteplusVideo(...)` (Seedance —
+1.5 adds reference-to-video — `'reference'`/`'character'`-roled image parts →
+`reference_images` (max 7), preset voices via `modelOptions.reference_audios` (max 3) —
+1.5-only, capped at 720p, and not combinable with a starting-frame image; only
+`grok-imagine-video` edits/extends a source `video` prompt part via
+`modelOptions.mode: 'edit' | 'extend'` (extend `duration` = added tail). Edit/extend
+outputs inherit the source clip's properties, so `size`/`aspect_ratio`/`resolution`
+throw in both modes and `duration` throws in edit mode — pass none of them there;
+generation uses the aspect-ratio size template like `'16:9_720p'` (1080p is 1.5-only),
+integer durations 1-15s, reports `usage.unitsBilled` seconds and exact `usage.cost`), `byteplusVideo(...)` (Seedance —
 aspect-ratio size template like `'16:9_720p'`, durations 4-15s on the 2.0 family,
 4-12s on 1.5-pro, 2-12s on the 1.0-pro models; reads `ARK_API_KEY`),
 `openRouterVideo(...)` (OpenRouter's dedicated `POST /api/v1/videos` gateway),

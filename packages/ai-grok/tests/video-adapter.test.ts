@@ -425,8 +425,56 @@ describe('Grok Video Adapter', () => {
           logger: testLogger,
         }),
       ).rejects.toThrow(
-        /video generation request failed \(400.*Duration must be between 1 and 15 seconds/,
+        /\/videos\/generations request failed \(400.*Duration must be between 1 and 15 seconds/,
       )
+    })
+
+    it('strips a JSON-null duration instead of sending it', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
+      const adapter = adapterWithFetch(fetchMock)
+
+      await adapter.createVideoJob({
+        model: 'grok-imagine-video-1.5',
+        prompt: i2vPrompt(),
+        // Serializers commonly encode "unset" as null; it must read as
+        // absent, not go on the wire as `"duration": null`.
+        // @ts-expect-error runtime handling of a JSON-null option
+        modelOptions: { duration: null },
+        logger: testLogger,
+      })
+
+      const body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+      expect(body).not.toHaveProperty('duration')
+    })
+
+    it('treats null / empty reference fields as unset', async () => {
+      const fetchMock = mockFetch(() => jsonResponse({ request_id: 'r' }))
+
+      // Empty array on 1.5: nothing sent.
+      const adapter15 = adapterWithFetch(fetchMock)
+      await adapter15.createVideoJob({
+        model: 'grok-imagine-video-1.5',
+        prompt: 'p',
+        modelOptions: { reference_audios: [] },
+        logger: testLogger,
+      })
+      let body = JSON.parse(String(fetchMock.mock.calls[0]![1]?.body))
+      expect(body).not.toHaveProperty('reference_audios')
+
+      // JSON-null on v1.0: reads as unset — no reference-gate throw, no
+      // field on the wire.
+      const adapter10 = createGrokVideo('grok-imagine-video', 'test-api-key', {
+        fetch: fetchMock,
+      })
+      await adapter10.createVideoJob({
+        model: 'grok-imagine-video',
+        prompt: 'p',
+        // @ts-expect-error runtime handling of a JSON-null option
+        modelOptions: { reference_images: null },
+        logger: testLogger,
+      })
+      body = JSON.parse(String(fetchMock.mock.calls[1]![1]?.body))
+      expect(body).not.toHaveProperty('reference_images')
     })
 
     it('throws when the response carries no request_id', async () => {
@@ -886,6 +934,24 @@ describe('Grok Video Adapter', () => {
         }),
       ).rejects.toThrow(/does not accept size \/ aspect_ratio \/ resolution/)
       expect(fetchMock).not.toHaveBeenCalled()
+    })
+
+    it('names the edit endpoint in failure messages', async () => {
+      const fetchMock = mockFetch(() =>
+        jsonResponse({ code: 'invalid-argument', error: 'bad clip' }, 400),
+      )
+      const adapter = createGrokVideo('grok-imagine-video', 'test-api-key', {
+        fetch: fetchMock,
+      })
+
+      await expect(
+        adapter.createVideoJob({
+          model: 'grok-imagine-video',
+          prompt: [{ type: 'text', content: 'p' }, sourceVideoPart],
+          modelOptions: { mode: 'edit' },
+          logger: testLogger,
+        }),
+      ).rejects.toThrow(/\/videos\/edits request failed \(400.*bad clip/)
     })
 
     it('rejects an unknown mode instead of misrouting to generations', async () => {
