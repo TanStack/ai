@@ -61,30 +61,35 @@ const dev = localProcessSandbox()
 - **Isolation:** none. The harness runs directly on your host, inheriting your
   host environment. Use it for trusted or dev work only. There is no boundary
   between the agent and your machine.
-- **Auth / env:** inherits the host environment. No API key injection is required
-  if your host CLI is already logged in.
+- **Auth / env:** inherits the host environment. Set `authMode` on the harness
+  (`'host'` or `'api-key'`). The provider does not pick this. See
+  [Harness Auth](./auth).
 - **Snapshot / resume:** no snapshots and no durable resume-by-id; each run
   re-creates and re-bootstraps under the same identity. The snapshot step is
   skipped silently (see [Capabilities](#capabilities)).
 
-### Use a host CLI's own auth (`scrubEnv`)
+### Host login vs API key (`scrubEnv`)
 
-Because `localProcessSandbox` runs the harness on your host, it inherits your host
-environment, including any API keys exported there. Use `scrubEnv` to remove
-variables before spawning, so the host CLI falls back to its own logged-in
-session instead of billing the API. For example, drop `XAI_API_KEY` so Grok Build
-uses your **grok.com login** (the same trick works for Claude Code with
-`ANTHROPIC_API_KEY` → `claude login`):
+The provider is where the agent runs, not how it signs in. Set `authMode` on
+the harness adapter. A local-process run can be your laptop or a GitHub runner.
+See [Harness Auth](./auth).
+
+`localProcessSandbox` inherits the host environment, including any API keys
+exported there. If you set `authMode: 'host'`, pass `scrubEnv` so those keys
+do not override the CLI login:
 
 ```ts
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 
-const hostLogin = localProcessSandbox({ scrubEnv: ['XAI_API_KEY'] })
+const hostLogin = localProcessSandbox({
+  scrubEnv: ['XAI_API_KEY', 'GROK_API_KEY'],
+})
 ```
 
-> Only local-process can do this. It is the only provider that runs your host
-> CLI. Isolated and cloud providers have no host login, so they always use an
-> injected API key (supplied as a workspace secret).
+If the same local-process sandbox runs on a CI machine, set
+`authMode: 'api-key'`. Then inject the key as a workspace secret. Isolated and
+cloud providers have no host CLI login. Use `authMode: 'api-key'` and
+workspace secrets there.
 
 ### Windows process teardown (`logger`)
 

@@ -28,10 +28,17 @@ A runnable demo lives at [`examples/sandbox-cloudflare`](https://github.com/TanS
 
 ## Authentication
 
-The harness resolves credentials the same way the Codex CLI does:
+Your laptop can already have `codex login`. A CI runner only has
+`CODEX_API_KEY`. Set `authMode` so the adapter knows which credentials to use.
+See [Harness Auth](../sandbox/auth).
 
-- the `apiKey` config option (exported to the subprocess as `CODEX_API_KEY`; usage-based billing), or
-- an existing ChatGPT login on the machine (`codex login`).
+```ts
+codexText("gpt-5.5", { authMode: "host" })
+codexText("gpt-5.5", { authMode: "api-key" })
+```
+
+- `'host'`: use `codex login`. Do not inject `CODEX_API_KEY`.
+- `'api-key'`: inject `CODEX_API_KEY` (or pass `apiKey`).
 
 ## Basic Usage
 
@@ -60,13 +67,16 @@ const stream = chat({
 | `networkAccessEnabled` | Allow network access inside the `workspace-write` sandbox.                                                                                     |
 | `webSearchMode`        | `'disabled'` \| `'cached'` \| `'live'`.                                                                                                        |
 | `additionalDirectories`| Extra writable directories beyond `cwd`.                                                                                                       |
+| `authMode`             | `'host'` uses `codex login`. `'api-key'` expects `CODEX_API_KEY`. See [Harness Auth](../sandbox/auth).                                          |
 | `apiKey`               | OpenAI API key for the harness subprocess.                                                                                                     |
 | `baseUrl`              | Override the Codex backend base URL.                                                                                                           |
 | `codexPathOverride`    | Use a specific codex executable instead of the SDK's bundled binary.                                                                           |
 | `env`                  | Environment variables for the subprocess. When set, `process.env` is **not** inherited (Codex SDK semantics).                                  |
 | `config`               | Extra `--config key=value` overrides passed to the Codex CLI (e.g. additional `mcp_servers` entries).                                          |
 
-Per-call overrides — `sessionId`, `sandboxMode`, `approvalPolicy`, `modelReasoningEffort`, `workingDirectory`, `skipGitRepoCheck` — go through `modelOptions`.
+Per-call overrides go through `modelOptions`: `sessionId`, `sandboxMode`,
+`approvalPolicy`, `modelReasoningEffort`, `workingDirectory`,
+`skipGitRepoCheck`, and `authMode`.
 
 ## Stateful Sessions
 

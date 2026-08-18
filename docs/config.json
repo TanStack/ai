@@ -518,25 +518,30 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Quick Start",
           "to": "sandbox/quick-start",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Harnesses",
           "to": "sandbox/harnesses",
           "addedAt": "2026-06-30",
           "updatedAt": "2026-08-18"
+        },
+        {
+          "label": "Harness Auth",
+          "to": "sandbox/auth",
+          "addedAt": "2026-08-18"
         },
         {
           "label": "Workspace",
@@ -873,7 +878,7 @@
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-17"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Codex",

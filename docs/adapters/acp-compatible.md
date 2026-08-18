@@ -16,6 +16,29 @@ Coding-agent CLIs that speak the [Agent Client Protocol](https://agentclientprot
 
 It is the harness equivalent of the [OpenAI-Compatible adapter](./openai-compatible). Use it when your agent speaks ACP but has no `@tanstack/ai-*` package. If a dedicated harness adapter exists ([Grok Build](./grok-build), and others), prefer it — those carry curated per-model metadata and vendor-specific behavior.
 
+## Authentication
+
+Set `authMode` when the agent can use a host CLI login or an API key. The
+sandbox type does not pick this. See [Harness Auth](../sandbox/auth).
+
+```ts
+acpCompatibleText("composer-2.5", {
+  name: "acp",
+  command: ({ model }) => `grok agent -m '${model}' --always-approve stdio`,
+  authMode: "host",
+})
+
+acpCompatibleText("composer-2.5", {
+  name: "acp",
+  command: ({ model }) => `grok agent -m '${model}' --always-approve stdio`,
+  authMode: "api-key",
+  authMethodId: "xai.api_key",
+})
+```
+
+- `'host'`: skip ACP `authenticate`. Use the CLI login on the machine.
+- `'api-key'`: call `authenticate` with `authMethodId`.
+
 Pass `outputSchema` on the same `chat()` call. `acpCompatible` adds the schema to the prompt and parses the last assistant text. Native harness tools still run on that turn. Read the typed object from `await chat()`, from `useChat().final`, or from the assistant `structured-output` part. See [Harness Agents](../structured-outputs/harnesses).
 
 ## Installation
@@ -203,7 +226,8 @@ const stream = chat({
 ```
 
 The base options are always available on `modelOptions` regardless of what you
-declare: `sessionId` (resume), `cwd`, `authMethodId`, and `permissionMode`.
+declare: `sessionId` (resume), `cwd`, `authMode`, `authMethodId`, and
+`permissionMode`.
 
 ## Configuration
 
@@ -217,7 +241,8 @@ declare: `sessionId` (resume), `cwd`, `authMethodId`, and `permissionMode`.
 | `openTransport` | Open any `AcpSessionTransport` yourself (e.g. boot a `serve` process and connect over WebSocket). Overrides `command`. |
 | `cwd` | Working directory inside the sandbox (default `/workspace`). |
 | `env` | Extra environment variables for the harness process. |
-| `authMethodId` | ACP auth method to select before the session starts. |
+| `authMode` | `'host'` skips ACP `authenticate`. `'api-key'` uses `authMethodId`. See [Harness Auth](../sandbox/auth). |
+| `authMethodId` | ACP auth method to select before the session starts. Ignored when `authMode` is `'host'`. |
 | `permissionMode` | `'default'` \| `'acceptEdits'` \| `'bypassPermissions'` (default). |
 | `permissions` | `'headless'` (auto-resolve, default) or `'interactive'` (emit approval-requested events for `ask` prompts). |
 | `onPermissionRequest` | Custom permission handler; overrides `permissions`/`permissionMode`. |

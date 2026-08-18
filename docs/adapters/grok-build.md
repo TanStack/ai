@@ -38,24 +38,21 @@ You also need a sandbox provider (e.g. `@tanstack/ai-sandbox-docker`) and the
 
 ## Authentication
 
-Pick the mode. Do not infer it from the sandbox. A local-process run can be
-your laptop (`grok login`) or a GitHub runner that only has `XAI_API_KEY`.
+Your laptop can already have `grok login`. A CI runner only has `XAI_API_KEY`.
+Both can use the same sandbox provider. Set `authMode` so the adapter knows
+which credentials to use. See [Harness Auth](../sandbox/auth).
 
 ```ts
-// Machine already has `grok login`
-grokBuildText('composer-2.5', { authMode: 'host' })
-
-// CI / runner: inject the key and authenticate with it
-grokBuildText('composer-2.5', { authMode: 'api-key' })
+grokBuildText("composer-2.5", { authMode: "host" })
+grokBuildText("composer-2.5", { authMode: "api-key" })
 ```
 
-- `'host'`: skip ACP `authenticate`. The CLI uses the host login. Do not
-  inject `XAI_API_KEY` into that process, or the CLI may prefer a bad key.
-- `'api-key'`: call ACP `authenticate` with `xai.api_key`. Inject
-  `XAI_API_KEY` as a workspace secret.
+- `'host'`: skip ACP `authenticate`. Use `grok login`. Do not inject
+  `XAI_API_KEY` into that process.
+- `'api-key'`: inject `XAI_API_KEY` and authenticate with it.
 
-The two auth modes expose the model under slightly different ids. The adapter
-maps the short alias for you (see [Models](#models)).
+The two modes list the model under slightly different ids. The adapter maps
+the short alias for you (see [Models](#models)).
 
 ## Basic Usage
 
@@ -84,7 +81,7 @@ const sandbox = defineSandbox({
 
 const stream = chat({
   threadId,
-  adapter: grokBuildText('grok-build'),
+  adapter: grokBuildText('composer-2.5', { authMode: 'api-key' }),
   messages,
   middleware: [withSandbox(sandbox)],
 })
@@ -116,6 +113,8 @@ Adapter config (second argument to `grokBuildText`):
 | `env`            | Extra environment variables for the `grok` process inside the sandbox.      |
 | `emitDiff`       | Emit a `file.changed` CUSTOM event with the working-tree `git diff` after the run. Defaults to `true`. |
 | `protocol`       | Harness wire protocol: `'acp'` or `'streaming-json'`. Defaults to `'acp'`. A durable sandbox run with no protocol set uses `'streaming-json'` so the run can journal. |
+| `authMode`       | `'host'` uses `grok login`. `'api-key'` uses `XAI_API_KEY`. See [Harness Auth](../sandbox/auth). |
+| `authMethodId`   | Explicit ACP auth method. Wins over `authMode`.                             |
 | `extraArgs`      | Extra raw CLI flags appended verbatim (advanced).                           |
 
 Per-call overrides go through `modelOptions`:
@@ -126,6 +125,8 @@ Per-call overrides go through `modelOptions`:
 | `cwd`           | Per-call override of the harness working directory.          |
 | `maxTurns`      | Per-call cap on the number of harness turns.                 |
 | `protocol`      | Per-call override of the harness wire protocol.              |
+| `authMode`      | Per-call `'host'` or `'api-key'`.                            |
+| `authMethodId`  | Per-call ACP auth method. Wins over `authMode`.              |
 
 ## Stateful Sessions
 

@@ -18,12 +18,17 @@ fast at the call site unless a sandbox is provided via `withSandbox(...)`.
 Each agent has its own package with curated per-model metadata. Pass the adapter
 to `chat({ adapter })` and run it under any provider.
 
-| Harness | Package | Adapter | Auth env |
+| Harness | Package | Adapter | Auth |
 | --- | --- | --- | --- |
 | [Grok Build](../adapters/grok-build) | `@tanstack/ai-grok-build` | `grokBuildText` | `authMode: 'host'` (`grok login`) or `authMode: 'api-key'` (`XAI_API_KEY`) |
 | [Claude Code](../adapters/claude-code) | `@tanstack/ai-claude-code` | `claudeCodeText` | `authMode: 'host'` (`claude login`) or `authMode: 'api-key'` (`ANTHROPIC_API_KEY`) |
 | [Codex](../adapters/codex) | `@tanstack/ai-codex` | `codexText` | `authMode: 'host'` (`codex login`) or `authMode: 'api-key'` (`CODEX_API_KEY`) |
-| [OpenCode](../adapters/opencode) | `@tanstack/ai-opencode` | `opencodeText` | `OPENAI_API_KEY` (model-dependent) |
+| [OpenCode](../adapters/opencode) | `@tanstack/ai-opencode` | `opencodeText` | `OPENAI_API_KEY` from the process env. No `authMode` flag. |
+| [ACP-Compatible](../adapters/acp-compatible) | `@tanstack/ai-acp` | `acpCompatible` / `acpCompatibleText` | `authMode: 'host'` skips ACP `authenticate`. `'api-key'` uses `authMethodId`. |
+
+The provider is where the agent runs, not how it signs in. Set `authMode` on
+the adapter. A local-process run can be your laptop (`grok login`) or a GitHub
+runner (an API key). See [Harness Auth](./auth).
 
 ```ts
 import { chat } from '@tanstack/ai'
@@ -124,6 +129,7 @@ and protocol coverage). For which agents you can plug in, browse the official
 
 ## Where to go next
 
+- **[Harness Auth](./auth)**: pick host login or an API key. The sandbox type does not pick this.
 - **[Providers](./providers)**: where the harness runs (local, Docker, Daytona, Vercel, Sprites).
 - **[The Run Journal](./journal)**: how a run's output survives the host that started it.
 - **[Takeover & Detached Runs](./takeover)**: detach on disconnect, and the three exports a harness adapter implements to support attach.
