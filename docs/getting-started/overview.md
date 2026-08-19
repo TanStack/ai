@@ -109,6 +109,7 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 - **@tanstack/ai-openai** - OpenAI (GPT series)
 - **@tanstack/ai-anthropic** - Anthropic (Claude)
 - **@tanstack/ai-gemini** - Google Gemini
+- **@tanstack/ai-vertex** - Gemini on Google Vertex AI
 - **@tanstack/ai-ollama** - Ollama (local models)
 - **@tanstack/ai-groq** - Groq
 - **@tanstack/ai-grok** - xAI Grok

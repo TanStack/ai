@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-07"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Quick Start: React",
@@ -66,7 +66,7 @@
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -807,7 +807,7 @@
           "label": "From Vercel AI SDK",
           "to": "migration/migration-from-vercel-ai",
           "addedAt": "2026-04-20",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "AG-UI Client Compliance",
@@ -894,12 +894,13 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Google Vertex AI",
           "to": "adapters/vertex",
-          "addedAt": "2026-08-19"
+          "addedAt": "2026-08-19",
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Ollama",

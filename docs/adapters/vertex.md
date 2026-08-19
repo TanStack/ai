@@ -111,7 +111,11 @@ const adapter = vertexText("gemini-3.7-flash", {
 
 Or set `GOOGLE_VERTEX_API_KEY`.
 
-## Example: chat on the server
+## Example: server and client
+
+Keep Vertex credentials on the server. The browser only talks to your route.
+
+Server:
 
 ```typescript
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
@@ -131,6 +135,46 @@ export async function POST(request: Request) {
   return toServerSentEventsResponse(stream);
 }
 ```
+
+Client:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+export function Chat() {
+  const { messages, sendMessage } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+  });
+
+  return (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        const form = event.currentTarget;
+        const input = new FormData(form).get("text");
+        if (typeof input === "string" && input.trim()) {
+          sendMessage(input);
+          form.reset();
+        }
+      }}
+    >
+      {messages.map((message) => (
+        <div key={message.id}>
+          {message.role}:{" "}
+          {message.parts
+            .filter((part) => part.type === "text")
+            .map((part) => part.content)
+            .join("")}
+        </div>
+      ))}
+      <input name="text" />
+      <button type="submit">Send</button>
+    </form>
+  );
+}
+```
+
+`useChat` does not know this is Vertex. It only consumes the SSE stream from your server.
 
 ## Other Gemini activities
 
