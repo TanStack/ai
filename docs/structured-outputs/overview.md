@@ -113,10 +113,14 @@ exactly once at the end of the entire run.
 > - Anthropic Claude 4.5+
 > - Gemini 3.x
 > - Grok 4.x family
+> - OpenRouter, when every routed model is in
+>   `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS` (see the
+>   [OpenRouter adapter](../adapters/openrouter.md#tools-and-structured-output-together))
 >
 > **Adapters without native combined-mode support** (Anthropic 4.4-, Gemini
-> 2.x, Grok 2/3, Groq, Ollama, OpenRouter) keep the legacy finalization
-> path and the `'structuredOutput'` phase fires as before.
+> 2.x, Grok 2/3, Groq, Ollama, and OpenRouter models outside that set) keep
+> the legacy finalization path and the `'structuredOutput'` phase fires as
+> before.
 
 ### Observing structured-output chunks
 

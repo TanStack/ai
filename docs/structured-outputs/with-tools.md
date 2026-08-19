@@ -17,6 +17,8 @@ You want the agent to use tools to gather information, then return a structured 
 
 This page covers the combined `outputSchema` + `tools` shape, including the pause/resume points (server-tool approval prompts, client-tool invocations) that can land mid-run before the structured object arrives.
 
+On adapters that support native combined mode (modern OpenAI, Claude 4.5+, Gemini 3.x, Grok 4.x, and [OpenRouter on those same upstream models](../adapters/openrouter.md#tools-and-structured-output-together)), `chat({ tools, outputSchema, stream: true })` is one streaming request. The extra finalization call does not run.
+
 > **Note:** If you're not yet familiar with how tools work in TanStack AI, read [Tool Architecture](../tools/tool-architecture) and [Server Tools](../tools/server-tools) first. The patterns here build on the regular agent-loop flow — `outputSchema` just adds a final terminal event.
 
 ## Non-streaming: tools first, then structured object
