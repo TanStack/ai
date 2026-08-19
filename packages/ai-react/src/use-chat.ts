@@ -41,10 +41,10 @@ export function useChat<
 ): UseChatReturn<TTools, TSchema> {
   // The hook's identity is its `threadId` — also the persistence key, so a
   // reload with the same `threadId` restores the same conversation. `hookId` is
-  // only a stable fallback for React's client-recreation keying when no
-  // `threadId` is given (an ephemeral chat), never a persistence key.
+  // a stable fallback when an empty or missing `threadId` creates an ephemeral
+  // chat, never a persistence key.
   const hookId = useId()
-  const clientId = options.threadId ?? hookId
+  const clientId = options.threadId || hookId
 
   const [messages, setMessages] = useState<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
@@ -128,10 +128,7 @@ export function useChat<
       ...transport,
       initialMessages: messagesToUse,
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
-      ...(initialOptions.threadId !== undefined && {
-        threadId: initialOptions.threadId,
-      }),
-      ...(initialOptions.threadId === undefined && { threadId: hookId }),
+      threadId: clientId,
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
