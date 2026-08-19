@@ -616,18 +616,24 @@ describe('createVideoJob content roles', () => {
     )
   })
 
-  it('rejects 1080p and 4k on Seedance 2.5', async () => {
+  it('accepts 1080p on Seedance 2.5', async () => {
+    const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
+    const adapter = adapterWithFetch(fetchMock, 'dreamina-seedance-2-5-260628')
+
+    await adapter.createVideoJob(createOptions({ size: '16:9_1080p' }))
+
+    expect(sentRequest(fetchMock).resolution).toBe('1080p')
+  })
+
+  it('rejects 4k on Seedance 2.5', async () => {
     const fetchMock = mockFetch(() => jsonResponse({ id: JOB_ID }))
     const adapter = adapterWithFetch(fetchMock, 'dreamina-seedance-2-5-260628')
 
     await expect(
       adapter.createVideoJob(
-        createOptions({ size: '16:9_1080p' as '16:9_720p' }),
+        createOptions({ size: '16:9_4k' as '16:9_1080p' }),
       ),
-    ).rejects.toThrow(/resolution "1080p" is not supported.*480p, 720p/s)
-    await expect(
-      adapter.createVideoJob(createOptions({ size: '16:9_4k' as '16:9_720p' })),
-    ).rejects.toThrow(/resolution "4k" is not supported/)
+    ).rejects.toThrow(/resolution "4k" is not supported.*480p, 720p, 1080p/s)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -1185,7 +1191,7 @@ describe('model id typing', () => {
     // does not offer stays a compile error.
     expectTypeOf<
       ResolveBytePlusVideoSize<'dreamina-seedance-2-5-260628'>
-    >().toEqualTypeOf<BytePlusVideoSize<'480p' | '720p'>>()
+    >().toEqualTypeOf<BytePlusVideoSize<'480p' | '720p' | '1080p'>>()
     expectTypeOf<
       ResolveBytePlusVideoSize<'dreamina-seedance-2-0-fast-260128'>
     >().toEqualTypeOf<BytePlusVideoSize<'480p' | '720p'>>()

@@ -9,7 +9,7 @@ title: createImageOptions
 function createImageOptions<TAdapter, TStream>(options): ImageActivityOptions<TAdapter, TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/generateImage/index.ts:360](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/index.ts#L360)
+Defined in: [packages/ai/src/activities/generateImage/index.ts:420](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateImage/index.ts#L420)
 
 Create typed options for the generateImage() function without executing.
 

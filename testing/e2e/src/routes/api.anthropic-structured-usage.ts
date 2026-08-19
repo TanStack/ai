@@ -15,9 +15,8 @@ const DUMMY_KEY = 'sk-e2e-test-dummy-key'
  * aimock path returns a tool-forced `structured_output` response whose `usage`
  * carries `input_tokens` / `output_tokens` / `cache_read_input_tokens`.
  *
- * Regression for #758: before the fix the fallback dropped `result.usage`, so
- * `RUN_FINISHED.usage` was `undefined` on every fallback-path provider. The
- * companion spec asserts the usage now reaches `RUN_FINISHED.usage`.
+ * Regressions for #758 and #1125: the companion spec asserts that usage reaches
+ * `RUN_FINISHED.usage` and fallback timestamps follow stream order.
  */
 export const Route = createFileRoute('/api/anthropic-structured-usage')({
   server: {
@@ -44,13 +43,37 @@ export const Route = createFileRoute('/api/anthropic-structured-usage')({
         })
 
         let usage: Record<string, unknown> | undefined
+        const timestamps: Record<string, number> = {}
         try {
           for await (const chunk of chat({
             ...options,
             messages: [{ role: 'user', content: 'recommend a guitar as json' }],
           })) {
+            if (
+              chunk.type === 'RUN_STARTED' &&
+              typeof chunk.timestamp === 'number'
+            ) {
+              timestamps.runStarted = chunk.timestamp
+            }
+            if (
+              chunk.type === 'CUSTOM' &&
+              chunk.name === 'structured-output.start' &&
+              typeof chunk.timestamp === 'number'
+            ) {
+              timestamps.structuredOutputStart = chunk.timestamp
+            }
+            if (
+              chunk.type === 'CUSTOM' &&
+              chunk.name === 'structured-output.complete' &&
+              typeof chunk.timestamp === 'number'
+            ) {
+              timestamps.structuredOutputComplete = chunk.timestamp
+            }
             if (chunk.type === 'RUN_FINISHED') {
               usage = chunk.usage as Record<string, unknown> | undefined
+              if (typeof chunk.timestamp === 'number') {
+                timestamps.runFinished = chunk.timestamp
+              }
             }
           }
         } catch (error) {
@@ -63,7 +86,7 @@ export const Route = createFileRoute('/api/anthropic-structured-usage')({
           )
         }
 
-        return new Response(JSON.stringify({ ok: true, usage }), {
+        return new Response(JSON.stringify({ ok: true, usage, timestamps }), {
           status: 200,
           headers: { 'Content-Type': 'application/json' },
         })

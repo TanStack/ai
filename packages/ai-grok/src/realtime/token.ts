@@ -1,4 +1,5 @@
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
+import { GROK_DEFAULT_REALTIME_MODEL } from '../model-meta'
 import { getGrokApiKeyFromEnv } from '../utils'
 import type { RealtimeToken, RealtimeTokenAdapter } from '@tanstack/ai'
 import type { GrokRealtimeModel } from '../model-meta'
@@ -27,7 +28,7 @@ const DEFAULT_TOKEN_FETCH_TIMEOUT_MS = 15_000
  * import { grokRealtimeToken } from '@tanstack/ai-grok'
  *
  * const token = await realtimeToken({
- *   adapter: grokRealtimeToken({ model: 'grok-voice-fast-1.0' }),
+ *   adapter: grokRealtimeToken({ model: 'grok-voice-think-fast-2.0' }),
  * })
  * ```
  */
@@ -41,7 +42,8 @@ export function grokRealtimeToken(
     provider: 'grok',
 
     async generateToken(): Promise<RealtimeToken> {
-      const model: GrokRealtimeModel = options.model ?? 'grok-voice-fast-1.0'
+      const model: GrokRealtimeModel =
+        options.model ?? GROK_DEFAULT_REALTIME_MODEL
 
       logger.request(`activity=realtimeToken provider=grok model=${model}`, {
         provider: 'grok',

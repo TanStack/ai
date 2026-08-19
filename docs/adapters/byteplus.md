@@ -332,7 +332,7 @@ Seedance options are model-specific, and **Ark rejects an inapplicable field wit
 
 `watermark` defaults to `false` for video (the opposite of Seedream images). `generate_audio` is accepted everywhere but only Seedance 2.5, 2.0 and 1.5-pro actually produce an audio track.
 
-Resolutions are per model too: there is **no 2K tier on any Seedance model**, `4k` exists only on `dreamina-seedance-2-0-260128`, Seedance 2.5 is **480p/720p only**, and `seedance-1-0-pro-fast-251015` does accept `1080p` despite older prose listing it as 480p/720p only. An unsupported combination is caught locally with a clear error before the request goes out.
+Resolutions are per model too: there is **no 2K tier on any Seedance model**, `4k` exists only on `dreamina-seedance-2-0-260128`, Seedance 2.5 accepts **480p/720p/1080p**, and `seedance-1-0-pro-fast-251015` does accept `1080p` despite older prose listing it as 480p/720p only. An unsupported combination is caught locally with a clear error before the request goes out.
 
 Reference media follows the shared [role hints](../media/video-generation#role-hints) — `start_frame`, `end_frame` and `reference`. Seedance 2.5 and the 2.0 family take full multimodal references (reference images, video and audio); Seedance 2.5 additionally accepts **audio-only** reference input and up to 30 reference images / 10 videos / 10 audio clips (2.0 is 9 / 3 / 3). The 1.x models take start/end frames only, and `seedance-1-0-pro-fast-251015` takes a start frame only.
 
@@ -347,7 +347,7 @@ import { byteplusVideo } from '@tanstack/ai-byteplus'
 const { jobId } = await generateVideo({
   adapter: byteplusVideo('dreamina-seedance-2-5-260628'),
   prompt: 'a guitar being played in a store',
-  size: '16:9_720p',
+  size: '16:9_1080p',
   duration: 10,
   modelOptions: {
     generate_audio: true,
@@ -360,7 +360,7 @@ const { jobId } = await generateVideo({
 | Capability | Seedance 2.5 |
 | --- | --- |
 | Duration | 4–30s, or `-1` (model chooses; required for video-editing tasks) |
-| Resolution | `480p`, `720p` (default `720p`) — no 1080p / 4k |
+| Resolution | `480p`, `720p`, `1080p` (default `720p`) — no 4k |
 | Reference media | images 1–30, videos 0–10, audio 0–10; **audio-only allowed** |
 | First + last frame | yes |
 | `priority` / `generate_audio` | yes |

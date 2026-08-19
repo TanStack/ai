@@ -149,6 +149,43 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
       expect(complete!.value.raw).toBe(json)
     })
 
+    it('timestamps lifecycle events when they are emitted', async () => {
+      vi.useFakeTimers()
+      try {
+        vi.setSystemTime(1_000)
+        setupStreamingMock([
+          eventCreated(),
+          eventOutputTextDelta('{"name":"John","age":30}'),
+          eventCompleted(),
+        ])
+        const adapter = new TestAdapter()
+        const chunks: Array<StreamChunk> = []
+
+        for await (const chunk of adapter.structuredOutputStream!({
+          chatOptions: {
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+          },
+          outputSchema: personSchema,
+        })) {
+          chunks.push(chunk)
+          vi.advanceTimersByTime(1)
+        }
+
+        const timestamps = chunks
+          .map((chunk) => chunk.timestamp)
+          .filter(
+            (timestamp): timestamp is number => typeof timestamp === 'number',
+          )
+        expect(timestamps).toHaveLength(chunks.length)
+        expect(timestamps).toEqual([...timestamps].sort((a, b) => a - b))
+        expect(timestamps.at(-1)).toBeGreaterThan(timestamps[0]!)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     it('sends text.format: { type: "json_schema", strict: true } in the request', async () => {
       setupStreamingMock([
         eventCreated(),

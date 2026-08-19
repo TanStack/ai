@@ -163,6 +163,84 @@ describe('chat onAbort status', () => {
     expect(run?.status).toBe('aborted')
     expect(run?.finishedAt).toBeTypeOf('number')
   })
+
+  it('preserves known usage when the run is cancelled during a tool call', async () => {
+    const persistence = memoryPersistence()
+    const controller = new AbortController()
+    const usage = {
+      promptTokens: 9,
+      completionTokens: 2,
+      totalTokens: 11,
+    }
+    const adapter = {
+      kind: 'text',
+      name: 'mock',
+      model: 'test-model',
+      '~types': {},
+      chatStream: () =>
+        (async function* () {
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: 'usage-abort',
+            threadId: 't1',
+            timestamp: 1,
+          } satisfies StreamChunk
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'tool-1',
+            toolCallName: 'cancel',
+            toolName: 'cancel',
+            timestamp: 1,
+          } satisfies StreamChunk
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'tool-1',
+            delta: '{}',
+            timestamp: 1,
+          } satisfies StreamChunk
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: 'usage-abort',
+            threadId: 't1',
+            finishReason: 'tool_calls',
+            timestamp: 1,
+            usage,
+          } satisfies StreamChunk
+        })(),
+      structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+    } as unknown as AnyTextAdapter
+
+    const stream = chat({
+      adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [
+        {
+          name: 'cancel',
+          description: 'Cancel',
+          execute: () => {
+            controller.abort(RUN_CANCEL_REASON)
+            return { cancelled: true }
+          },
+        },
+      ],
+      runId: 'usage-abort',
+      threadId: 't1',
+      abortController: controller,
+      middleware: [withPersistence(persistence)],
+    }) as AsyncIterable<StreamChunk>
+    try {
+      for await (const _ of stream) {
+        // drain
+      }
+    } catch {
+      // cancellation may reject the stream
+    }
+
+    expect(await persistence.stores.runs!.get('usage-abort')).toMatchObject({
+      status: 'aborted',
+      usage,
+    })
+  })
 })
 
 describe('interrupt status shape', () => {

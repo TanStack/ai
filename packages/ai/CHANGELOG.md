@@ -1,5 +1,49 @@
 # @tanstack/ai
 
+## 0.45.1
+
+### Patch Changes
+
+- [#1139](https://github.com/TanStack/ai/pull/1139) [`b97a11b`](https://github.com/TanStack/ai/commit/b97a11beaea57bd675b5646074d15c0041f4763a) - Return recoverable Groq `tool_use_failed` responses to the model as non-executable tool errors so the agent loop can repair them.
+
+## 0.45.0
+
+### Minor Changes
+
+- [#1110](https://github.com/TanStack/ai/pull/1110) [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad) - Harness adapters honor `chat({ outputSchema })` on the same turn.
+
+  Claude Code and Codex pass a native schema flag. OpenCode, Grok Build, and `acpCompatible` parse JSON from the final assistant text. The engine reads a `structured-output.complete` event so harness prose is not parsed as JSON.
+
+- [#1114](https://github.com/TanStack/ai/pull/1114) [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d) - Rename Code Mode "skills" to "snippets" to disambiguate them from agent skills (the `SKILL.md` packaging system).
+
+  **Breaking — package rename.** `@tanstack/ai-code-mode-skills` is now published as **`@tanstack/ai-code-mode-snippets`**. Update your dependency and imports. The `/storage` subpath is unchanged.
+
+  **Breaking — API rename.** Every `Skill`/`skill` identifier in the package public API becomes `Snippet`/`snippet`, for example:
+  - `codeModeWithSkills()` → `codeModeWithSnippets()`
+  - `skillsToTools()` / `skillToTool()` → `snippetsToTools()` / `snippetToTool()`
+  - `skillsToBindings()` / `skillsToSimpleBindings()` → `snippetsToBindings()` / `snippetsToSimpleBindings()`
+  - `selectRelevantSkills()` → `selectRelevantSnippets()`
+  - `createSkillManagementTools()` → `createSnippetManagementTools()`
+  - `createSkillsSystemPrompt()` → `createSnippetsSystemPrompt()`
+  - `generateSkillTypes()` → `generateSnippetTypes()`
+  - `createFileSkillStorage()` / `createMemorySkillStorage()` → `createFileSnippetStorage()` / `createMemorySnippetStorage()`
+  - Types: `Skill`, `SkillStorage`, `SkillIndexEntry`, `SkillStats`, `SkillBinding`, `SkillsConfig`, `CodeModeWithSkillsOptions`/`Result` → the `Snippet…` equivalents
+  - Options: `skills` → `snippets`, `skillsAsTools` → `snippetsAsTools`, `maxSkillsInContext` → `maxSnippetsInContext`
+  - Runtime tools: `search_skills` / `get_skill` / `register_skill` → `search_snippets` / `get_snippet` / `register_snippet`
+  - Sandbox bindings are now exposed with the `snippet_` prefix (was `skill_`)
+
+  **Breaking — sandbox hook (`@tanstack/ai-code-mode`).** The `createCodeModeTool` config option `getSkillBindings` is renamed to **`getSnippetBindings`** (same signature — an optional `() => Promise<Record<string, ToolBinding>>` returning dynamic bindings merged at execution time).
+
+  **Breaking — wire contract (`@tanstack/ai`).** The Code Mode custom events are renamed: `code_mode:skill_call` / `_result` / `_error` → `code_mode:snippet_*` (payload field `skill` → `snippet`), and `skill:registered` → `snippet:registered`. The exported event types `CodeModeSkillCallEvent` / `CodeModeSkillResultEvent` / `CodeModeSkillErrorEvent` / `SkillRegisteredEvent` are renamed to their `Snippet` equivalents.
+
+### Patch Changes
+
+- [#1116](https://github.com/TanStack/ai/pull/1116) [`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37) - Preserve existing message IDs on interrupt `MESSAGES_SNAPSHOT` events.
+
+- [#1132](https://github.com/TanStack/ai/pull/1132) [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b) - Timestamp native and fallback structured-output events when they are emitted so their lifecycle remains chronologically ordered.
+
+- [#1134](https://github.com/TanStack/ai/pull/1134) [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8) - Return malformed tool arguments to the model as an error result so the agent loop can repair them.
+
 ## 0.44.1
 
 ### Patch Changes

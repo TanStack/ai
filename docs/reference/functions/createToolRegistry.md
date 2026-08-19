@@ -6,7 +6,7 @@ title: createToolRegistry
 # Function: createToolRegistry()
 
 ```ts
-function createToolRegistry<TTool>(initialTools): ToolRegistry<TTool>;
+function createToolRegistry<TTool>(initialTools?): ToolRegistry<TTool>;
 ```
 
 Defined in: [packages/ai/src/tool-registry.ts:78](https://github.com/TanStack/ai/blob/main/packages/ai/src/tool-registry.ts#L78)
@@ -24,7 +24,7 @@ changes will be reflected in subsequent agent loop iterations.
 
 ## Parameters
 
-### initialTools
+### initialTools?
 
 `TTool`[] = `[]`
 

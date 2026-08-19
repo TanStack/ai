@@ -49,7 +49,7 @@ Currently supported:
 
 - **OpenAI**: Sora-2 and Sora-2-Pro models (when available)
 - **Google Gemini**: Veo 3.1 models (via the long-running operations API), and Gemini Omni Flash (via the Interactions API)
-- **Grok (xAI)**: grok-imagine-video (text-to-video + image-to-video) and grok-imagine-video-1.5 (image-to-video only) models
+- **Grok (xAI)**: grok-imagine-video and grok-imagine-video-1.5 (text-to-video, image-to-video; 1.5 adds reference-to-video; v1.0 adds editing and extension)
 - **BytePlus**: Seedance 2.0, 1.5-pro and 1.0-pro models (text-to-video, first/last frame, and multimodal references on 2.0)
 - **fal.ai**: MiniMax, Luma, Kling, Hunyuan, and other hosted video models
 - **OpenRouter**: Seedance, Veo 3.1, Wan, Kling, Sora 2 Pro and others via the dedicated async video API (`POST /api/v1/videos`)
@@ -691,16 +691,16 @@ instead of letting the model infer the task mode).
 
 #### Grok (xAI Imagine) Model Options
 
-Based on the [xAI video generation API](https://docs.x.ai/docs/guides/video-generations). Two models are available: `grok-imagine-video` (v1.0) supports **text-to-video and image-to-video**, while `grok-imagine-video-1.5` is **image-to-video only** (a text-only prompt is rejected by the API; the adapter throws a clear error pointing you at `grok-imagine-video`). Both are aspect-ratio sized — the generic `size` option takes an `aspectRatio_resolution` template (like the Grok Imagine image models), and clips can be 1–15 seconds long.
+Based on the [xAI video generation API](https://docs.x.ai/developers/model-capabilities/video/generation). Two models are available: `grok-imagine-video` (v1.0) and `grok-imagine-video-1.5` (xAI's recommended default, with native 1080p text-to-video). Both support **text-to-video and image-to-video**; 1.5 adds **reference-to-video**. **Video editing and extension** are `grok-imagine-video` only — 1.5 has no video input. Both are aspect-ratio sized — the generic `size` option takes an `aspectRatio_resolution` template (like the Grok Imagine image models), and clips can be 1–15 seconds long.
 
-Text-to-video with the base model:
+Text-to-video:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
 import { grokVideo } from "@tanstack/ai-grok";
 
 const { jobId } = await generateVideo({
-  adapter: grokVideo("grok-imagine-video"),
+  adapter: grokVideo("grok-imagine-video-1.5"),
   prompt: "A beautiful sunset over the ocean",
   size: "16:9_720p", // aspect ratio: '1:1' | '16:9' | '9:16' | '4:3' | '3:4' | '3:2' | '2:3'
   // resolution (optional suffix): '480p' | '720p' | '1080p'
@@ -713,7 +713,7 @@ const { jobId } = await generateVideo({
 });
 ```
 
-Image-to-video (required for `grok-imagine-video-1.5`) — include an `image` prompt part as the starting frame. URL sources are fetched by xAI's servers (so they must be publicly reachable); use a `data` source for a base64 starting frame:
+Image-to-video — include an `image` prompt part as the starting frame. URL sources are fetched by xAI's servers (so they must be publicly reachable); use a `data` source for a base64 starting frame:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -733,12 +733,53 @@ const { jobId } = await generateVideo({
 });
 ```
 
+Reference-to-video (`grok-imagine-video-1.5` only, output capped at 720p) — image prompt parts with `metadata.role: 'reference'` or `'character'` become `reference_images` (addressed from the prompt as `<IMAGE_0>`, `<IMAGE_1>`, …), and up to 3 preset TTS voices can be referenced via `modelOptions.reference_audios` (addressed as `<AUDIO_0>`, …):
+
+```typescript
+import { generateVideo } from "@tanstack/ai";
+import { grokVideo } from "@tanstack/ai-grok";
+
+const { jobId } = await generateVideo({
+  adapter: grokVideo("grok-imagine-video-1.5"),
+  prompt: [
+    { type: "text", content: "<IMAGE_0> waves at the camera while <AUDIO_0> says hello" },
+    {
+      type: "image",
+      source: { type: "url", value: "https://example.com/character.png" },
+      metadata: { role: "reference" },
+    },
+  ],
+  size: "16:9_720p",
+  modelOptions: { reference_audios: [{ voice_id: "eve" }] },
+});
+```
+
+Video editing and extension (`grok-imagine-video` only) — pass the source clip as a `video` prompt part and pick the mode with `modelOptions.mode`. `'edit'` (`/v1/videos/edits`) modifies only what the prompt asks for and inherits duration / aspect ratio / resolution from the source (capped at 720p); `'extend'` (`/v1/videos/extensions`) continues the clip, with `duration` meaning the length of the **added tail**, not the total. Because the output inherits the source clip's properties, the adapter rejects `size` / `aspect_ratio` / `resolution` in both modes (and `duration` in edit mode) instead of sending fields the API ignores. The adapter rejects a source-video part or `mode` on `grok-imagine-video-1.5`.
+
+```typescript
+import { generateVideo } from "@tanstack/ai";
+import { grokVideo } from "@tanstack/ai-grok";
+
+const { jobId } = await generateVideo({
+  adapter: grokVideo("grok-imagine-video"),
+  prompt: [
+    { type: "text", content: "The camera keeps panning right across the bay" },
+    {
+      type: "video",
+      source: { type: "url", value: "https://example.com/clip.mp4" },
+    },
+  ],
+  duration: 5, // 'extend' mode: seconds added to the clip, not the total
+  modelOptions: { mode: "extend" },
+});
+```
+
 Both models accept any whole second in the **1–15** range. A raw `duration` is coerced into that range rather than rejected — values are clamped to `[1, 15]` and rounded to the nearest second. Inspect or pre-snap the range the same way as Veo:
 
 ```typescript
 import { grokVideo } from "@tanstack/ai-grok";
 
-const adapter = grokVideo("grok-imagine-video");
+const adapter = grokVideo("grok-imagine-video-1.5");
 
 adapter.availableDurations(); // { kind: 'range', min: 1, max: 15, step: 1, unit: 'seconds' }
 adapter.snapDuration(2.5); // 3 — clamped/rounded into range
@@ -749,7 +790,7 @@ Generated clips include an audio track. When the job completes, the adapter repo
 
 #### BytePlus (Seedance) Model Options
 
-Seedance is aspect-ratio sized like Grok Imagine — `size` takes a `ratio` or `ratio_resolution` template. Ratios are `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, `21:9` and `adaptive`; resolutions are `480p`, `720p`, `1080p` and (on `dreamina-seedance-2-0-260128` only) `4k`. Seedance 2.5 (`dreamina-seedance-2-5-260628`) is 480p/720p only and runs up to 30 seconds. There is no 2K tier on any Seedance model:
+Seedance is aspect-ratio sized like Grok Imagine — `size` takes a `ratio` or `ratio_resolution` template. Ratios are `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, `21:9` and `adaptive`; resolutions are `480p`, `720p`, `1080p` and (on `dreamina-seedance-2-0-260128` only) `4k`. Seedance 2.5 (`dreamina-seedance-2-5-260628`) accepts 480p/720p/1080p and runs up to 30 seconds. There is no 2K tier on any Seedance model:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";

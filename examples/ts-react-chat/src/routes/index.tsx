@@ -223,6 +223,13 @@ function Messages({
               <Github size={24} className="text-orange-400" />
               <span className="text-sm text-gray-300">Sandboxes</span>
             </Link>
+            <Link
+              to="/repo-report"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <FileText size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Repo report</span>
+            </Link>
           </div>
         </div>
       </div>

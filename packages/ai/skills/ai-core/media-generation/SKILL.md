@@ -151,9 +151,16 @@ function ImageGenerator() {
 ### 1. Image Generation
 
 Supported adapters: `openaiImage` (dall-e-2, dall-e-3, gpt-image-1,
-gpt-image-1-mini, gpt-image-2), `geminiImage` (gemini-3.1-flash-image-preview,
-gemini-3.1-flash-lite-image, imagen-4.0-generate-001, etc.) and `byteplusImage`
-(Seedream — `seedream-4-0-250828`, `seedream-4-5-251128`, the 5.0 family).
+gpt-image-1-mini, gpt-image-2), `geminiImage` (gemini-3.1-flash-image,
+gemini-3.1-flash-lite-image, gemini-3-pro-image, imagen-4.0-generate-001, etc.)
+and `byteplusImage` (Seedream — `seedream-4-0-250828`, `seedream-4-5-251128`,
+the 5.0 family).
+
+> **Use the GA Gemini image ids.** `gemini-3.1-flash-image-preview` and
+> `gemini-3-pro-image-preview` were shut down on 2026-06-25 and now 404. They
+> survive in the type union only as deprecated aliases so existing code keeps
+> compiling — a call to them typechecks and then fails at runtime. Use
+> `gemini-3.1-flash-image` / `gemini-3-pro-image` instead.
 
 > **Seedream quirks:** `watermark` defaults to **`true`** (pass
 > `modelOptions: { watermark: false }` for a clean image), `size` is a token
@@ -182,7 +189,7 @@ const openaiResult = await generateImage({
 
 // Gemini native model with aspect-ratio sizes
 const geminiResult = await generateImage({
-  adapter: geminiImage('gemini-3.1-flash-image-preview'),
+  adapter: geminiImage('gemini-3.1-flash-image'),
   prompt: 'A futuristic cityscape at night',
   size: '16:9_4K',
 })
@@ -295,18 +302,19 @@ with `allowUrlFetch: true` on the adapter config
 
 **Provider support matrix:**
 
-| Provider   | `generateImage` image parts                                                                                                                                                                              | `generateVideo` image parts                                                                                                                                                                                                                                                                    |
-| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| OpenAI     | gpt-image-2 / gpt-image-1 / -mini → `images.edit()` (up to 16). dall-e-2 → edit (1). dall-e-3 throws.                                                                                                    | Sora-2 / -pro → `input_reference` (single). Throws if >1.                                                                                                                                                                                                                                      |
-| Gemini     | Native (gemini-\*-flash-image, "nano-banana") → multimodal `contents`. Imagen throws.                                                                                                                    | Veo → first un-roled / `'start_frame'` image is the input image; `'end_frame'` → `lastFrame`; `'reference'` / `'character'` → `referenceImages`. Omni Flash sends image/video parts as interaction content blocks (no role routing).                                                           |
-| fal        | Per-endpoint field names from a generated map (`pnpm generate:fal-image-fields`). Defaults: 1 input → `image_url`; >1 → `image_urls`; roles → `mask_url` / `control_image_url` / `reference_image_urls`. | Per-endpoint map (e.g. Kling i2v start frame → `image_url`). Defaults: 1 input → `image_url`; `start_frame`/`end_frame` → `start_image_url`/`end_image_url`; `reference` → `reference_image_urls`.                                                                                             |
-| Grok       | grok-imagine models → `/v1/images/edits` JSON endpoint (≤3 sources, addressed by xAI in request order; prompt sent verbatim; mask/control throw). grok-2-image-1212 throws.                              | n/a                                                                                                                                                                                                                                                                                            |
-| OpenRouter | Prompt parts map 1:1 onto multimodal `text` / `image_url` content parts, preserving interleaved order.                                                                                                   | Dedicated async API (`openRouterVideo`): `start_frame`/`end_frame` → `frame_images[]` (`first_frame`/`last_frame`); `reference`/`character` → `input_references[]`; an unroled image defaults to the start frame. Frame roles validated against the model's `supported_frame_images` metadata. |
-| Anthropic  | n/a (no image generation API).                                                                                                                                                                           | n/a                                                                                                                                                                                                                                                                                            |
+| Provider   | `generateImage` image parts                                                                                                                                                                              | `generateVideo` image parts                                                                                                                                                                                                                                                                                  |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| OpenAI     | gpt-image-2 / gpt-image-1 / -mini → `images.edit()` (up to 16). dall-e-2 → edit (1). dall-e-3 throws.                                                                                                    | Sora-2 / -pro → `input_reference` (single). Throws if >1.                                                                                                                                                                                                                                                    |
+| Gemini     | Native (gemini-\*-flash-image, "nano-banana") → multimodal `contents`. Imagen throws.                                                                                                                    | Veo → first un-roled / `'start_frame'` image is the input image; `'end_frame'` → `lastFrame`; `'reference'` / `'character'` → `referenceImages`. Omni Flash sends image/video parts as interaction content blocks (no role routing).                                                                         |
+| fal        | Per-endpoint field names from a generated map (`pnpm generate:fal-image-fields`). Defaults: 1 input → `image_url`; >1 → `image_urls`; roles → `mask_url` / `control_image_url` / `reference_image_urls`. | Per-endpoint map (e.g. Kling i2v start frame → `image_url`). Defaults: 1 input → `image_url`; `start_frame`/`end_frame` → `start_image_url`/`end_image_url`; `reference` → `reference_image_urls`.                                                                                                           |
+| Grok       | grok-imagine models → `/v1/images/edits` JSON endpoint (≤3 sources, addressed by xAI in request order; prompt sent verbatim; mask/control throw). grok-2-image-1212 throws.                              | Un-roled / `'start_frame'` image → starting frame; `'reference'` / `'character'` → `reference_images` (1.5). Starting frame and reference inputs cannot be combined. A `video` part + `modelOptions.mode: 'edit' \| 'extend'` routes to `/videos/edits` / `/videos/extensions` on `grok-imagine-video` only. |
+| OpenRouter | Prompt parts map 1:1 onto multimodal `text` / `image_url` content parts, preserving interleaved order.                                                                                                   | Dedicated async API (`openRouterVideo`): `start_frame`/`end_frame` → `frame_images[]` (`first_frame`/`last_frame`); `reference`/`character` → `input_references[]`; an unroled image defaults to the start frame. Frame roles validated against the model's `supported_frame_images` metadata.               |
+| Anthropic  | n/a (no image generation API).                                                                                                                                                                           | n/a                                                                                                                                                                                                                                                                                                          |
 
 Video and audio prompt parts follow the same `metadata.role` convention
-for video-to-video and lipsync flows on fal; other providers throw when
-they're passed.
+for video-to-video and lipsync flows on fal. Grok accepts one source
+`video` part on `grok-imagine-video` with `modelOptions.mode: 'edit' | 'extend'`
+and rejects audio parts. Other providers throw when those parts are passed.
 
 ### 2. Audio Generation (Music, Sound Effects)
 
@@ -544,10 +552,16 @@ const edited = await generateVideo({
 
 Other video adapters: `openaiVideo('sora-2')` (pixel sizes like `'1280x720'`,
 durations 4/8/12s, single `input_reference` image prompt part), `grokVideo(...)`
-(`grok-imagine-video` does text-to-video + image-to-video; `grok-imagine-video-1.5` is
-image-to-video only — needs an `image` prompt part as the starting frame, text-only throws;
-aspect-ratio size template like `'16:9_720p'`, integer durations 1-15s, reports
-`usage.billed` seconds ({ quantity, unit: 'seconds' }) and exact `usage.cost`), `byteplusVideo(...)` (Seedance —
+(`grok-imagine-video` and `grok-imagine-video-1.5` both do text-to-video + image-to-video;
+1.5 adds reference-to-video — `'reference'`/`'character'`-roled image parts →
+`reference_images` (max 7), preset voices via `modelOptions.reference_audios` (max 3) —
+1.5-only, capped at 720p, and not combinable with a starting-frame image; only
+`grok-imagine-video` edits/extends a source `video` prompt part via
+`modelOptions.mode: 'edit' | 'extend'` (extend `duration` = added tail). Edit/extend
+outputs inherit the source clip's properties, so `size`/`aspect_ratio`/`resolution`
+throw in both modes and `duration` throws in edit mode — pass none of them there;
+generation uses the aspect-ratio size template like `'16:9_720p'` (1080p is 1.5-only),
+integer durations 1-15s, reports `usage.billed` seconds ({ quantity, unit: 'seconds' }) and exact `usage.cost`), `byteplusVideo(...)` (Seedance —
 aspect-ratio size template like `'16:9_720p'`, durations 4-15s on the 2.0 family,
 4-12s on 1.5-pro, 2-12s on the 1.0-pro models; reads `ARK_API_KEY`),
 `openRouterVideo(...)` (OpenRouter's dedicated `POST /api/v1/videos` gateway),
@@ -997,7 +1011,7 @@ generateImage({
 })
 
 generateImage({
-  adapter: geminiImage('gemini-3.1-flash-image-preview'), // native multimodal
+  adapter: geminiImage('gemini-3.1-flash-image'), // native multimodal
   prompt: [
     { type: 'text', content: 'Edit this' },
     { type: 'image', source: { type: 'url', value: url } },

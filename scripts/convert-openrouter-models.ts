@@ -248,6 +248,7 @@ function generateModelMetaString(model: OpenRouterModel): string {
     'include_reasoning',
     'verbosity',
     'web_search_options',
+    'prediction',
   ])
 
   // Build the object as a formatted string

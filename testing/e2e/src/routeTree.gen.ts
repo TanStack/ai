@@ -60,12 +60,15 @@ import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-t
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
+import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
+import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-image-ga-models'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
@@ -342,6 +345,17 @@ const ApiGenerationPersistenceResumeRoute =
     path: '/api/generation-persistence-resume',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiGeminiNativeImageWireRoute =
+  ApiGeminiNativeImageWireRouteImport.update({
+    id: '/api/gemini-native-image-wire',
+    path: '/api/gemini-native-image-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiGeminiImageGaModelsRoute = ApiGeminiImageGaModelsRouteImport.update({
+  id: '/api/gemini-image-ga-models',
+  path: '/api/gemini-image-ga-models',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
   id: '/api/foreign-interrupt',
   path: '/api/foreign-interrupt',
@@ -372,6 +386,12 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiByteplusSeedance1080pWireRoute =
+  ApiByteplusSeedance1080pWireRouteImport.update({
+    id: '/api/byteplus-seedance-1080p-wire',
+    path: '/api/byteplus-seedance-1080p-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAudioRoute = ApiAudioRouteImport.update({
   id: '/api/audio',
   path: '/api/audio',
@@ -453,12 +473,15 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
+  '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -523,12 +546,15 @@ export interface FileRoutesByTo {
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
+  '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -594,12 +620,15 @@ export interface FileRoutesById {
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
+  '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -666,12 +695,15 @@ export interface FileRouteTypes {
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/foreign-interrupt'
+    | '/api/gemini-image-ga-models'
+    | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/image'
@@ -736,12 +768,15 @@ export interface FileRouteTypes {
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/foreign-interrupt'
+    | '/api/gemini-image-ga-models'
+    | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/image'
@@ -806,12 +841,15 @@ export interface FileRouteTypes {
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/foreign-interrupt'
+    | '/api/gemini-image-ga-models'
+    | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/image'
@@ -877,12 +915,15 @@ export interface RootRouteChildren {
   ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
+  ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
+  ApiGeminiImageGaModelsRoute: typeof ApiGeminiImageGaModelsRoute
+  ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
@@ -1278,6 +1319,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerationPersistenceResumeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/gemini-native-image-wire': {
+      id: '/api/gemini-native-image-wire'
+      path: '/api/gemini-native-image-wire'
+      fullPath: '/api/gemini-native-image-wire'
+      preLoaderRoute: typeof ApiGeminiNativeImageWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/gemini-image-ga-models': {
+      id: '/api/gemini-image-ga-models'
+      path: '/api/gemini-image-ga-models'
+      fullPath: '/api/gemini-image-ga-models'
+      preLoaderRoute: typeof ApiGeminiImageGaModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/foreign-interrupt': {
       id: '/api/foreign-interrupt'
       path: '/api/foreign-interrupt'
@@ -1318,6 +1373,13 @@ declare module '@tanstack/react-router' {
       path: '/api/chat'
       fullPath: '/api/chat'
       preLoaderRoute: typeof ApiChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/byteplus-seedance-1080p-wire': {
+      id: '/api/byteplus-seedance-1080p-wire'
+      path: '/api/byteplus-seedance-1080p-wire'
+      fullPath: '/api/byteplus-seedance-1080p-wire'
+      preLoaderRoute: typeof ApiByteplusSeedance1080pWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/audio': {
@@ -1482,12 +1544,15 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
+  ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
+  ApiGeminiImageGaModelsRoute: ApiGeminiImageGaModelsRoute,
+  ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
