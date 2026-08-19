@@ -35,6 +35,7 @@ import { Route as GenerationsStructuredOutputRouteImport } from './routes/genera
 import { Route as GenerationsStructuredChatRouteImport } from './routes/generations.structured-chat'
 import { Route as GenerationsSpeechRouteImport } from './routes/generations.speech'
 import { Route as GenerationsPersistentGenerationRouteImport } from './routes/generations.persistent-generation'
+import { Route as GenerationsOpenrouterCombinedRouteImport } from './routes/generations.openrouter-combined'
 import { Route as GenerationsImageRouteImport } from './routes/generations.image'
 import { Route as GenerationsAudioRouteImport } from './routes/generations.audio'
 import { Route as ExampleRuntimeContextRouteImport } from './routes/example.runtime-context'
@@ -48,6 +49,7 @@ import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triag
 import { Route as ApiSandboxRepoReportRouteImport } from './routes/api.sandbox-repo-report'
 import { Route as ApiResumableRouteImport } from './routes/api.resumable'
 import { Route as ApiPersistentChatRouteImport } from './routes/api.persistent-chat'
+import { Route as ApiOpenrouterCombinedRouteImport } from './routes/api.openrouter-combined'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
@@ -203,6 +205,12 @@ const GenerationsPersistentGenerationRoute =
     path: '/generations/persistent-generation',
     getParentRoute: () => rootRouteImport,
   } as any)
+const GenerationsOpenrouterCombinedRoute =
+  GenerationsOpenrouterCombinedRouteImport.update({
+    id: '/generations/openrouter-combined',
+    path: '/generations/openrouter-combined',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const GenerationsImageRoute = GenerationsImageRouteImport.update({
   id: '/generations/image',
   path: '/generations/image',
@@ -266,6 +274,11 @@ const ApiResumableRoute = ApiResumableRouteImport.update({
 const ApiPersistentChatRoute = ApiPersistentChatRouteImport.update({
   id: '/api/persistent-chat',
   path: '/api/persistent-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpenrouterCombinedRoute = ApiOpenrouterCombinedRouteImport.update({
+  id: '/api/openrouter-combined',
+  path: '/api/openrouter-combined',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
@@ -403,6 +416,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -416,6 +430,7 @@ export interface FileRoutesByFullPath {
   '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
+  '/generations/openrouter-combined': typeof GenerationsOpenrouterCombinedRoute
   '/generations/persistent-generation': typeof GenerationsPersistentGenerationRoute
   '/generations/speech': typeof GenerationsSpeechRoute
   '/generations/structured-chat': typeof GenerationsStructuredChatRoute
@@ -464,6 +479,7 @@ export interface FileRoutesByTo {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -477,6 +493,7 @@ export interface FileRoutesByTo {
   '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
+  '/generations/openrouter-combined': typeof GenerationsOpenrouterCombinedRoute
   '/generations/persistent-generation': typeof GenerationsPersistentGenerationRoute
   '/generations/speech': typeof GenerationsSpeechRoute
   '/generations/structured-chat': typeof GenerationsStructuredChatRoute
@@ -526,6 +543,7 @@ export interface FileRoutesById {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -539,6 +557,7 @@ export interface FileRoutesById {
   '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
+  '/generations/openrouter-combined': typeof GenerationsOpenrouterCombinedRoute
   '/generations/persistent-generation': typeof GenerationsPersistentGenerationRoute
   '/generations/speech': typeof GenerationsSpeechRoute
   '/generations/structured-chat': typeof GenerationsStructuredChatRoute
@@ -589,6 +608,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/openrouter-combined'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -602,6 +622,7 @@ export interface FileRouteTypes {
     | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
+    | '/generations/openrouter-combined'
     | '/generations/persistent-generation'
     | '/generations/speech'
     | '/generations/structured-chat'
@@ -650,6 +671,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/openrouter-combined'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -663,6 +685,7 @@ export interface FileRouteTypes {
     | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
+    | '/generations/openrouter-combined'
     | '/generations/persistent-generation'
     | '/generations/speech'
     | '/generations/structured-chat'
@@ -711,6 +734,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/openrouter-combined'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -724,6 +748,7 @@ export interface FileRouteTypes {
     | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
+    | '/generations/openrouter-combined'
     | '/generations/persistent-generation'
     | '/generations/speech'
     | '/generations/structured-chat'
@@ -773,6 +798,7 @@ export interface RootRouteChildren {
   ApiMcpManualRoute: typeof ApiMcpManualRoute
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
+  ApiOpenrouterCombinedRoute: typeof ApiOpenrouterCombinedRoute
   ApiPersistentChatRoute: typeof ApiPersistentChatRoute
   ApiResumableRoute: typeof ApiResumableRoute
   ApiSandboxRepoReportRoute: typeof ApiSandboxRepoReportRoute
@@ -786,6 +812,7 @@ export interface RootRouteChildren {
   ExampleRuntimeContextRoute: typeof ExampleRuntimeContextRoute
   GenerationsAudioRoute: typeof GenerationsAudioRoute
   GenerationsImageRoute: typeof GenerationsImageRoute
+  GenerationsOpenrouterCombinedRoute: typeof GenerationsOpenrouterCombinedRoute
   GenerationsPersistentGenerationRoute: typeof GenerationsPersistentGenerationRoute
   GenerationsSpeechRoute: typeof GenerationsSpeechRoute
   GenerationsStructuredChatRoute: typeof GenerationsStructuredChatRoute
@@ -985,6 +1012,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GenerationsPersistentGenerationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/generations/openrouter-combined': {
+      id: '/generations/openrouter-combined'
+      path: '/generations/openrouter-combined'
+      fullPath: '/generations/openrouter-combined'
+      preLoaderRoute: typeof GenerationsOpenrouterCombinedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/generations/image': {
       id: '/generations/image'
       path: '/generations/image'
@@ -1074,6 +1108,13 @@ declare module '@tanstack/react-router' {
       path: '/api/persistent-chat'
       fullPath: '/api/persistent-chat'
       preLoaderRoute: typeof ApiPersistentChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openrouter-combined': {
+      id: '/api/openrouter-combined'
+      path: '/api/openrouter-combined'
+      fullPath: '/api/openrouter-combined'
+      preLoaderRoute: typeof ApiOpenrouterCombinedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp-status': {
@@ -1263,6 +1304,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpManualRoute: ApiMcpManualRoute,
   ApiMcpPoolRoute: ApiMcpPoolRoute,
   ApiMcpStatusRoute: ApiMcpStatusRoute,
+  ApiOpenrouterCombinedRoute: ApiOpenrouterCombinedRoute,
   ApiPersistentChatRoute: ApiPersistentChatRoute,
   ApiResumableRoute: ApiResumableRoute,
   ApiSandboxRepoReportRoute: ApiSandboxRepoReportRoute,
@@ -1276,6 +1318,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExampleRuntimeContextRoute: ExampleRuntimeContextRoute,
   GenerationsAudioRoute: GenerationsAudioRoute,
   GenerationsImageRoute: GenerationsImageRoute,
+  GenerationsOpenrouterCombinedRoute: GenerationsOpenrouterCombinedRoute,
   GenerationsPersistentGenerationRoute: GenerationsPersistentGenerationRoute,
   GenerationsSpeechRoute: GenerationsSpeechRoute,
   GenerationsStructuredChatRoute: GenerationsStructuredChatRoute,

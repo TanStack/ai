@@ -205,6 +205,19 @@ export default function Header() {
           </Link>
 
           <Link
+            to="/generations/openrouter-combined"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Layers size={20} />
+            <span className="font-medium">OpenRouter Combined</span>
+          </Link>
+
+          <Link
             to="/repo-report"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"

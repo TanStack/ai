@@ -19,6 +19,8 @@ This page covers the combined `outputSchema` + `tools` shape, including the paus
 
 On adapters that support native combined mode (modern OpenAI, Claude 4.5+, Gemini 3.x, Grok 4.x, and [OpenRouter on those same upstream models](../adapters/openrouter.md#tools-and-structured-output-together)), `chat({ tools, outputSchema, stream: true })` is one streaming request. The extra finalization call does not run.
 
+The React chat example has a live OpenRouter page at `/generations/openrouter-combined`.
+
 > **Note:** If you're not yet familiar with how tools work in TanStack AI, read [Tool Architecture](../tools/tool-architecture) and [Server Tools](../tools/server-tools) first. The patterns here build on the regular agent-loop flow — `outputSchema` just adds a final terminal event.
 
 ## Non-streaming: tools first, then structured object

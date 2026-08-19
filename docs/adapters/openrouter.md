@@ -237,6 +237,10 @@ See [Structured Outputs with tools](../structured-outputs/with-tools) for the
 event order, and [Middleware](../advanced/middleware) for how
 `structuredOutput` phase behaves on this path.
 
+To try this in a browser, run `examples/ts-react-chat` and open
+`/generations/openrouter-combined`. The page shows the tool call, the typed
+object, and the adapter call counts. `structuredOutputStream` must stay at 0.
+
 ## Environment Variables
 
 Set your API key in environment variables:
