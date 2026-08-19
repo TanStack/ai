@@ -452,7 +452,7 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Generation Hooks",
@@ -916,7 +916,7 @@
           "label": "BytePlus",
           "to": "adapters/byteplus",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-07"
+          "updatedAt": "2026-08-19"
         }
       ]
     },

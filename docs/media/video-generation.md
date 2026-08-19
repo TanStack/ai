@@ -790,7 +790,7 @@ Generated clips include an audio track. When the job completes, the adapter repo
 
 #### BytePlus (Seedance) Model Options
 
-Seedance is aspect-ratio sized like Grok Imagine — `size` takes a `ratio` or `ratio_resolution` template. Ratios are `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, `21:9` and `adaptive`; resolutions are `480p`, `720p`, `1080p` and (on `dreamina-seedance-2-0-260128` only) `4k`. Seedance 2.5 (`dreamina-seedance-2-5-260628`) is 480p/720p only and runs up to 30 seconds. There is no 2K tier on any Seedance model:
+Seedance is aspect-ratio sized like Grok Imagine — `size` takes a `ratio` or `ratio_resolution` template. Ratios are `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, `21:9` and `adaptive`; resolutions are `480p`, `720p`, `1080p` and (on `dreamina-seedance-2-0-260128` only) `4k`. Seedance 2.5 (`dreamina-seedance-2-5-260628`) accepts 480p/720p/1080p and runs up to 30 seconds. There is no 2K tier on any Seedance model:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
