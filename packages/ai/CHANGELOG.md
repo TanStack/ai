@@ -1,5 +1,64 @@
 # @tanstack/ai
 
+## 0.46.0
+
+### Minor Changes
+
+- [#896](https://github.com/TanStack/ai/pull/896) [`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b) - Add a self-describing `billed` field to `TokenUsage` so billed quantities carry the unit they are counted in ([#816](https://github.com/TanStack/ai/issues/816)). `usage.billed` is `{ quantity, unit }` with a `BillingUnit` union (`'seconds'`, `'units'`, `'images'`, `'tokens'`, ... open-ended). The deprecated `unitsBilled` / `durationSeconds` counts are still populated for backward compatibility. The fal adapters report `{ quantity, unit: 'units' }`, Grok video `{ quantity, unit: 'seconds' }`, the OpenAI/Grok/BytePlus duration-billed transcription paths `{ quantity, unit: 'seconds' }`, BytePlus Seedream images `{ quantity, unit: 'images' }`, BytePlus Seedance video `{ quantity, unit: 'tokens' }`, and Cohere/OpenRouter rerank `{ quantity, unit: 'units' }` (search units). Persistence sums `billed` when both reports use the same unit. `otelMiddleware` emits the pair as `tanstack.ai.usage.billed_quantity` / `tanstack.ai.usage.billed_unit` span attributes.
+
+- [#969](https://github.com/TanStack/ai/pull/969) [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd) - WebSocket transport: a full-duplex, resumable third transport alongside SSE and
+  NDJSON, reusing the same delivery-durability seam.
+
+  On the server, `@tanstack/ai` adds `toWebSocketStream(socket, request, { onRun,
+durability, batch, heartbeatMs, idleTimeoutMs, debug })` — a portable core that
+  pumps a conversation over an already-accepted WHATWG `WebSocketLike` server
+  socket (Node via `ws`, Bun, etc.), and `toWebSocketResponse(request, { onRun,
+… })`, a thin wrapper that upgrades via `WebSocketPair` and returns a 101
+  `Response` on Cloudflare Workers/Durable Objects (it throws elsewhere, pointing
+  you at `toWebSocketStream`). Because one socket outlives many `chat()` turns
+  (client-tool resubmits, follow-up user messages), you pass an `onRun(ctx) =>
+AsyncIterable<StreamChunk>` factory instead of a prebuilt stream — the helper
+  calls it per inbound `RunAgentInput` frame. The socket is conversation-scoped:
+  it stays open across turns and closes on client close or the idle timeout
+  (which never fires while a turn is still streaming), with a periodic
+  `{ type: 'ping' }` heartbeat. An `{ type: 'abort', runId }` control frame
+  aborts only that turn, leaving the socket open. A turn that fails is surfaced
+  to the client as a live `RUN_ERROR` frame, mirroring the HTTP transports. Durability is keyed per turn and reuses
+  the existing `durableStreamSource`, so server→client frames carry the same
+  `{ id, chunk }` envelope as NDJSON. `resumeWebSocketStream(socket, { adapter })`
+  and `resumeWebSocketResponse({ adapter })` replay a run read-only from the
+  durability log (no model call).
+
+  On the client, `webSocket(url, options)` (in `@tanstack/ai-client`, re-exported
+  from `@tanstack/ai-react`, `-solid`, `-vue`, `-svelte`, and `-angular`) is a
+  full-duplex `subscribe` + `send` connection adapter for `useChat`. `send()`
+  writes a `RunAgentInput` frame; `subscribe()` yields inbound chunks, ignores
+  heartbeats, unwraps durable envelopes, and auto-reconnects a dropped durable run
+  by reopening with `?runId=&offset=` (browsers can't set a `Last-Event-ID`
+  handshake header, so the offset rides in the URL). The reconnect bookkeeping
+  (offset de-dupe, no-progress ceiling → `StreamReconnectLimitError`) is shared
+  with the HTTP adapters via the new `createReconnectTracker`, and a fatal drop
+  surfaces to the consumer (`StreamReadError` / `StreamReconnectLimitError`)
+  instead of hanging. Aborting a run (`stop()` in `useChat`) sends the
+  `{ type: 'abort', runId }` frame so the server cancels the turn instead of
+  generating to completion, and `joinRun()` opens its own replay socket so a
+  rejoin never collides with the live conversation socket.
+
+### Patch Changes
+
+- [#1147](https://github.com/TanStack/ai/pull/1147) [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a) - Preserve reasoning in server chat message history and interrupt snapshots.
+
+- [#932](https://github.com/TanStack/ai/pull/932) [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b) - Classify Anthropic, Gemini, and OpenAI native tools with stable runtime discriminators so ordinary functions can use the same public names without selecting provider-native behavior. Native tools must come from the adapter factory (`webSearchTool()`, `googleSearchTool()`, and the rest). A reserved `name` alone does not select a native converter. `chat()` throws `DuplicateToolNameError` when a factory tool and a custom function share the same public name.
+
+  Previously the converters picked provider-native behavior by `tool.name`. Tool names are public application identifiers, so a plain function called `web_search`, `google_search`, or `code_execution` was routed into a native converter: it lost its `inputSchema` and was sent as a provider-only payload (and on Anthropic could also flip on `code_execution` / skills beta headers). Native tools are now identified by adapter-owned metadata, which converters strip before building the wire payload, so provider API versions stay confined to the wire converters.
+
+  Also preserves Anthropic `webSearchTool` options (`max_uses`, `allowed_domains`, `blocked_domains`, `user_location`, `cache_control`) on the wire payload.
+
+  Also fixes `googleSearchTool({ searchTypes: … })` being silently dropped on the experimental `geminiTextInteractions()` adapter. The Interactions converter read a snake_case `search_types` array, but the public factory takes the Generate Content shape (`GoogleSearch.searchTypes: { webSearch?, imageSearch? }`), so the field never matched and every request fell back to the provider default of web-search-only. The camelCase config is now translated to the Interactions wire list.
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b)]:
+  - @tanstack/ai-event-client@0.9.0
+
 ## 0.45.1
 
 ### Patch Changes
