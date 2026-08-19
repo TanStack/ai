@@ -48,7 +48,7 @@ providerOptions: TProviderOptions;
 
 ***
 
-### generateSpeech()
+### generateSpeech
 
 ```ts
 generateSpeech: (options) => Promise<TTSResult>;

@@ -14,7 +14,7 @@ Audio content part in a realtime message
 ### audioData?
 
 ```ts
-optional audioData: ArrayBuffer;
+optional audioData?: ArrayBuffer;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:112](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L112)
@@ -26,7 +26,7 @@ Raw audio data (optional, if stored)
 ### durationMs?
 
 ```ts
-optional durationMs: number;
+optional durationMs?: number;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:114](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L114)

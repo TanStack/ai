@@ -293,7 +293,6 @@ export class BedrockConverseTextAdapter<
     options: StructuredOutputOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
     const { chatOptions, outputSchema } = options
-    const timestamp = Date.now()
     const runId = this.generateId()
     const threadId = chatOptions.threadId ?? this.generateId()
     const messageId = this.generateId()
@@ -326,7 +325,7 @@ export class BedrockConverseTextAdapter<
             runId,
             threadId,
             model: chatOptions.model,
-            timestamp,
+            timestamp: Date.now(),
             parentRunId: chatOptions.parentRunId,
           }
         }
@@ -347,7 +346,7 @@ export class BedrockConverseTextAdapter<
                 messageId,
                 role: 'assistant',
                 model: chatOptions.model,
-                timestamp,
+                timestamp: Date.now(),
               }
             }
             accumulatedRaw += fragment
@@ -357,7 +356,7 @@ export class BedrockConverseTextAdapter<
               delta: fragment,
               content: accumulatedRaw,
               model: chatOptions.model,
-              timestamp,
+              timestamp: Date.now(),
             }
           }
           continue
@@ -385,7 +384,7 @@ export class BedrockConverseTextAdapter<
           runId,
           threadId,
           model: chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
           parentRunId: chatOptions.parentRunId,
         }
       }
@@ -395,7 +394,7 @@ export class BedrockConverseTextAdapter<
           type: EventType.TEXT_MESSAGE_END,
           messageId,
           model: chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
         }
       }
 
@@ -404,7 +403,7 @@ export class BedrockConverseTextAdapter<
           type: EventType.RUN_ERROR,
           runId,
           model: chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
           message: `${this.name}.structuredOutputStream: response contained no content`,
           code: 'empty-response',
           error: {
@@ -423,7 +422,7 @@ export class BedrockConverseTextAdapter<
           type: EventType.RUN_ERROR,
           runId,
           model: chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
           message: `Failed to parse structured output as JSON. Content: ${accumulatedRaw.slice(0, 200)}${accumulatedRaw.length > 200 ? '...' : ''}`,
           code: 'parse-error',
           error: {
@@ -442,7 +441,7 @@ export class BedrockConverseTextAdapter<
           raw: accumulatedRaw,
         },
         model: chatOptions.model,
-        timestamp,
+        timestamp: Date.now(),
       }
 
       yield {
@@ -450,7 +449,7 @@ export class BedrockConverseTextAdapter<
         runId,
         threadId,
         model: chatOptions.model,
-        timestamp,
+        timestamp: Date.now(),
         finishReason,
       }
     } catch (error: unknown) {
@@ -461,7 +460,7 @@ export class BedrockConverseTextAdapter<
           runId,
           threadId,
           model: chatOptions.model,
-          timestamp,
+          timestamp: Date.now(),
           parentRunId: chatOptions.parentRunId,
         }
       }
@@ -477,7 +476,7 @@ export class BedrockConverseTextAdapter<
         type: EventType.RUN_ERROR,
         runId,
         model: chatOptions.model,
-        timestamp,
+        timestamp: Date.now(),
         message: errorPayload.message,
         ...(errorPayload.code !== undefined && { code: errorPayload.code }),
         error: {

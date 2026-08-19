@@ -1201,4 +1201,244 @@ describe('ChatClient resume', () => {
     ])
     expect(client.getInterruptState().interruptErrors).toEqual([])
   })
+
+  it('continues a legacy client tool emitted by a native resume', async () => {
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up',
+      inputSchema: z.object({ query: z.string() }),
+      outputSchema: z.object({ answer: z.number() }),
+    }).client(async () => ({ answer: 42 }))
+    const { adapter, contexts } = recordingAdapter([
+      // The initial run pauses on a native interrupt.
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'interrupted-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'interrupted-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+          outcome: {
+            type: 'interrupt',
+            interrupts: [
+              {
+                id: 'interrupt-1',
+                reason: 'approval_required',
+                metadata: {
+                  kind: 'approval',
+                  toolName: 'confirm',
+                  input: {},
+                },
+              },
+            ],
+          },
+        },
+      ],
+      // The native resume emits a legacy client tool, not another interrupt.
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'resume-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'legacy-tool-call',
+          toolCallName: 'lookup',
+          toolName: 'lookup',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'legacy-tool-call',
+          delta: JSON.stringify({ query: 'answer' }),
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.CUSTOM,
+          name: 'tool-input-available',
+          value: {
+            toolCallId: 'legacy-tool-call',
+            toolName: 'lookup',
+            input: { query: 'answer' },
+          },
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'resume-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          finishReason: 'tool_calls',
+          timestamp: Date.now(),
+        },
+      ],
+      // The legacy tool result continues through an ordinary request.
+      (ctx) => [
+        {
+          type: EventType.RUN_STARTED,
+          runId: ctx?.runId ?? 'final-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          timestamp: Date.now(),
+        },
+        text('done'),
+        {
+          type: EventType.RUN_FINISHED,
+          runId: ctx?.runId ?? 'final-run',
+          threadId: ctx?.threadId ?? 'thread-1',
+          finishReason: 'stop',
+          timestamp: Date.now(),
+        },
+      ],
+    ])
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      tools: [lookup],
+    })
+
+    await client.sendMessage('hi')
+    resolveGenericInterrupt(client)
+
+    await vi.waitFor(() => {
+      expect(contexts).toHaveLength(3)
+      expect(
+        client
+          .getMessages()
+          .some((message) =>
+            message.parts.some(
+              (part) => part.type === 'text' && part.content === 'done',
+            ),
+          ),
+      ).toBe(true)
+    })
+    expect(contexts[1]?.resume).toEqual([
+      {
+        interruptId: 'interrupt-1',
+        status: 'resolved',
+        payload: { answer: 'continue' },
+      },
+    ])
+    expect(contexts[2]?.resume).toBeUndefined()
+    expect(contexts[2]?.parentRunId).toBeUndefined()
+  })
+
+  it('keeps native interrupt ownership when a sequential client tool resume fails', async () => {
+    const outputSchema = z.object({ answer: z.number() })
+    const lookup = toolDefinition({
+      name: 'lookup',
+      description: 'Look up',
+      inputSchema: z.object({ query: z.string() }),
+      outputSchema,
+    }).client(async ({ query }) => ({ answer: query === 'first' ? 42 : 43 }))
+    const outputSchemaHash = hashSchemaInput(outputSchema)
+    const responseSchema = convertSchemaToJsonSchema(outputSchema) ?? {}
+    const responseSchemaHash = digestInterruptJson(
+      canonicalInterruptJson(responseSchema),
+    )
+    const interrupt =
+      (toolCallId: string, query: string): Script =>
+      (ctx) => {
+        const runId = ctx?.runId ?? `run-${toolCallId}`
+        const threadId = ctx?.threadId ?? 'thread-1'
+        return [
+          {
+            type: EventType.RUN_STARTED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.TOOL_CALL_START,
+            toolCallId,
+            toolCallName: 'lookup',
+            toolName: 'lookup',
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId,
+            delta: JSON.stringify({ query }),
+            timestamp: Date.now(),
+          },
+          {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                {
+                  id: `client_tool_${toolCallId}`,
+                  reason: 'tanstack:client_tool_execution',
+                  toolCallId,
+                  responseSchema,
+                  metadata: {
+                    kind: 'client_tool',
+                    toolName: 'lookup',
+                    input: { query },
+                    'tanstack:interruptBinding': {
+                      kind: 'client-tool-execution',
+                      interruptId: `client_tool_${toolCallId}`,
+                      interruptedRunId: runId,
+                      generation: 0,
+                      toolName: 'lookup',
+                      toolCallId,
+                      outputSchemaHash,
+                      responseSchemaHash,
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        ]
+      }
+
+    const { adapter, contexts } = recordingAdapter([
+      interrupt('tool-call-1', 'first'),
+      interrupt('tool-call-2', 'second'),
+      {
+        chunks: [],
+        error: new Error('resume failed'),
+      },
+    ])
+    const client = new ChatClient({
+      connection: adapter,
+      threadId: 'thread-1',
+      tools: [lookup],
+    })
+
+    await client.sendMessage('hi')
+    await vi.waitFor(() => {
+      expect(contexts).toHaveLength(3)
+      expect(client.getInterruptState().interruptErrors[0]?.code).toBe(
+        'transport',
+      )
+    })
+
+    expect(contexts[0]?.resume).toBeUndefined()
+    expect(contexts[1]?.parentRunId).toBe(contexts[0]?.runId)
+    expect(contexts[1]?.resume).toEqual([
+      {
+        interruptId: 'client_tool_tool-call-1',
+        status: 'resolved',
+        payload: { answer: 42 },
+      },
+    ])
+    expect(contexts[2]?.parentRunId).toBe(contexts[1]?.runId)
+    expect(contexts[2]?.resume).toEqual([
+      {
+        interruptId: 'client_tool_tool-call-2',
+        status: 'resolved',
+        payload: { answer: 43 },
+      },
+    ])
+  })
 })

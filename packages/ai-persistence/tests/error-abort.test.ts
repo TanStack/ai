@@ -94,6 +94,69 @@ describe('chat persistence error/abort hooks', () => {
     expect(run?.error).toEqual({ message: 'provider exploded' })
   })
 
+  it('preserves known usage when structured-output finalization fails', async () => {
+    const persistence = memoryPersistence()
+    const usage = {
+      promptTokens: 12,
+      completionTokens: 4,
+      totalTokens: 16,
+    }
+    const { adapter } = mockAdapter([
+      [
+        runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'm1',
+          delta: 'draft',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'stop',
+          timestamp: 1,
+          usage,
+        },
+      ],
+    ])
+    adapter.structuredOutput = () =>
+      Promise.reject(new Error('finalization failed'))
+
+    const chunks = await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [
+          {
+            name: 'search',
+            description: 'Search',
+            execute: () => ({ hits: [] }),
+          },
+        ],
+        outputSchema: {
+          type: 'object',
+          properties: { answer: { type: 'string' } },
+        },
+        stream: true,
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    expect(chunks).toContainEqual(
+      expect.objectContaining({
+        type: EventType.RUN_ERROR,
+        message: 'finalization failed',
+      }),
+    )
+
+    expect(await persistence.stores.runs!.get('r1')).toMatchObject({
+      status: 'failed',
+      usage,
+    })
+  })
+
   it('coerces a non-Error thrown value into the run error message', async () => {
     const persistence = memoryPersistence()
 

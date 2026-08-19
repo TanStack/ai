@@ -19,7 +19,7 @@ export const Route = createFileRoute('/api/image')({
         const defaultModels: Record<Provider, string> = {
           openai: 'gpt-image-1',
           gemini: 'gemini-2.5-flash-image',
-          openrouter: 'google/gemini-3.1-flash-image-preview',
+          openrouter: 'google/gemini-3.1-flash-image',
         }
         const model: string =
           data.model || body.model || defaultModels[provider]

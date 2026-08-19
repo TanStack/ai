@@ -1,4 +1,9 @@
 import { EventType, buildBaseUsage } from '@tanstack/ai'
+import {
+  parseJsonFromAssistantText,
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+} from '@tanstack/ai/adapter-internals'
 import { GrokThoughtRouter } from './thought-router'
 import type { StreamChunk, TokenUsage } from '@tanstack/ai'
 import type {
@@ -23,6 +28,8 @@ export interface TranslateContext {
   onSessionId?: (sessionId: string) => void
   /** Called for each raw harness event, for logging. */
   onThreadEvent?: (event: GrokBuildStreamEvent) => void
+  /** Parse accumulated assistant text as schema JSON at run end. */
+  expectStructuredOutput?: boolean
 }
 
 /**
@@ -153,6 +160,7 @@ export async function* translateThreadEvents(
   let assistantMessageId: string | null = null
   let reasoningMessageId: string | null = null
   let thoughtRouter: GrokThoughtRouter | null = null
+  let assistantText = ''
 
   const unresolvedToolCalls = new Set<string>()
   const openedToolItems = new Set<string>()
@@ -255,12 +263,45 @@ export async function* translateThreadEvents(
           model,
           timestamp: now(),
         }
+        assistantText += event.data
         break
       }
       case 'end': {
         yield* getThoughtRouter().finalize()
         yield* closeReasoning()
         yield* closeAssistant()
+        if (ctx.expectStructuredOutput === true) {
+          try {
+            const object = parseJsonFromAssistantText(assistantText)
+            const messageId = genId()
+            yield structuredOutputStartChunk({
+              messageId,
+              model,
+              threadId,
+              runId,
+            })
+            yield structuredOutputCompleteChunk({
+              messageId,
+              model,
+              threadId,
+              runId,
+              object,
+              raw: assistantText,
+            })
+          } catch (error: unknown) {
+            const message =
+              error instanceof Error
+                ? error.message
+                : 'Failed to parse structured output'
+            yield {
+              type: EventType.RUN_ERROR,
+              model,
+              timestamp: now(),
+              message,
+              error: { message },
+            }
+          }
+        }
         if (event.sessionId) {
           onSessionId?.(event.sessionId)
           yield {

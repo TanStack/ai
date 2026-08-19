@@ -5,32 +5,30 @@ title: CodeModeExternalResultEvent
 
 # Interface: CodeModeExternalResultEvent
 
-Defined in: [packages/ai/src/types.ts:1466](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1466)
+Defined in: [packages/ai/src/types.ts:1553](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1553)
 
 Custom event for extensibility.
 
 @ag-ui/core provides: `name`, `value`
 TanStack AI adds: `model?`
 
+Uses `Pick` (not `extends`) so the Zod passthrough index signature does not
+erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCustomEvent.md) /
+[TypedStreamChunk](../type-aliases/TypedStreamChunk.md) unions.
+
 ## Extends
 
 - [`CustomEvent`](CustomEvent.md)
-
-## Indexable
-
-```ts
-[k: string]: unknown
-```
 
 ## Properties
 
 ### model?
 
 ```ts
-optional model: string;
+optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
+Defined in: [packages/ai/src/types.ts:1410](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1410)
 
 Model identifier for multi-model support
 
@@ -46,7 +44,7 @@ Model identifier for multi-model support
 name: "code_mode:external_result";
 ```
 
-Defined in: [packages/ai/src/types.ts:1467](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1467)
+Defined in: [packages/ai/src/types.ts:1554](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1554)
 
 #### Overrides
 
@@ -56,13 +54,60 @@ CustomEvent.name
 
 ***
 
+### runId?
+
+```ts
+optional runId?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:1418](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1418)
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`runId`](CustomEvent.md#runid)
+
+***
+
+### threadId?
+
+```ts
+optional threadId?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:1417](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1417)
+
+Routing metadata the TanStack engine attaches when emitting CUSTOM
+events that need to be correlated with a specific thread/run.
+Stripped by `strip-to-spec-middleware` before going on the wire so
+the AG-UI consumer never sees them (when that middleware is enabled).
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`threadId`](CustomEvent.md#threadid)
+
+***
+
+### type
+
+```ts
+type: "CUSTOM";
+```
+
+Defined in: [packages/ai/src/types.ts:1408](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1408)
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`type`](CustomEvent.md#type)
+
+***
+
 ### value
 
 ```ts
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1468](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1468)
+Defined in: [packages/ai/src/types.ts:1555](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1555)
 
 #### duration
 

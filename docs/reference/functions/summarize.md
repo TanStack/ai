@@ -9,7 +9,7 @@ title: summarize
 function summarize<TAdapter, TStream>(options): SummarizeActivityResult<TStream>;
 ```
 
-Defined in: [packages/ai/src/activities/summarize/index.ts:152](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/summarize/index.ts#L152)
+Defined in: [packages/ai/src/activities/summarize/index.ts:207](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/summarize/index.ts#L207)
 
 Summarize activity - generates summaries from text.
 
@@ -37,6 +37,8 @@ Supports both streaming and non-streaming modes.
 
 ## Examples
 
+**Basic summarization**
+
 ```ts
 import { summarize } from '@tanstack/ai'
 import { openaiSummarize } from '@tanstack/ai-openai'
@@ -49,6 +51,8 @@ const result = await summarize({
 console.log(result.summary)
 ```
 
+**Summarization with style**
+
 ```ts
 const result = await summarize({
   adapter: openaiSummarize('gpt-4o-mini'),
@@ -58,6 +62,8 @@ const result = await summarize({
 })
 ```
 
+**Focused summarization**
+
 ```ts
 const result = await summarize({
   adapter: openaiSummarize('gpt-4o-mini'),
@@ -65,6 +71,8 @@ const result = await summarize({
   focus: ['key findings', 'methodology']
 })
 ```
+
+**Streaming summarization**
 
 ```ts
 for await (const chunk of summarize({

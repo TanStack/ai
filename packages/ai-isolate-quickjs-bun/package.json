@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-isolate-quickjs-bun",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Native QuickJS sandbox driver for TanStack AI Code Mode TypeScript execution on Bun via bun:ffi.",
   "author": "Tanner Linsley",
   "license": "MIT",
