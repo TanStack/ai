@@ -74,20 +74,22 @@ export type CombinedModeStats = {
   nativeCombined: boolean
 }
 
-function createAdapter(provider: Provider, model: CombinedModel) {
-  return provider === 'openrouter-responses'
-    ? openRouterResponsesText(model)
-    : openRouterText(model)
-}
-
 /**
  * Count adapter entry points so the UI can prove native combined mode:
  * schema rides on `chatStream`, and `structuredOutputStream` stays at 0.
+ *
+ * Infer T from one concrete adapter (Chat Completions or Responses). A union
+ * of those two classes made the wrapper `options` parameter implicit `any`.
  */
-function instrumentAdapter(adapter: ReturnType<typeof createAdapter>): {
-  adapter: ReturnType<typeof createAdapter>
-  snapshot: () => CombinedModeStats
-} {
+function instrumentAdapter<
+  T extends {
+    model: string
+    chatStream: (options: never) => AsyncIterable<StreamChunk>
+    structuredOutputStream?: (options: never) => AsyncIterable<StreamChunk>
+    structuredOutput: (options: never) => Promise<unknown>
+    supportsCombinedToolsAndSchema: () => boolean
+  },
+>(adapter: T): { adapter: T; snapshot: () => CombinedModeStats } {
   const stats = {
     supportsCombined: adapter.supportsCombinedToolsAndSchema() === true,
     chatStreamCalls: 0,
@@ -97,24 +99,24 @@ function instrumentAdapter(adapter: ReturnType<typeof createAdapter>): {
   }
 
   const origChatStream = adapter.chatStream.bind(adapter)
-  adapter.chatStream = (options) => {
+  adapter.chatStream = (options: { outputSchema?: unknown }) => {
     stats.chatStreamCalls += 1
     if (options.outputSchema) {
       stats.chatStreamWithSchema += 1
     }
-    return origChatStream(options)
+    return origChatStream(options as never)
   }
 
   const origStructuredStream = adapter.structuredOutputStream?.bind(adapter)
   if (origStructuredStream) {
-    adapter.structuredOutputStream = (options) => {
+    adapter.structuredOutputStream = (options: never) => {
       stats.structuredOutputStreamCalls += 1
       return origStructuredStream(options)
     }
   }
 
   const origStructured = adapter.structuredOutput.bind(adapter)
-  adapter.structuredOutput = (options) => {
+  adapter.structuredOutput = (options: never) => {
     stats.structuredOutputCalls += 1
     return origStructured(options)
   }
@@ -229,9 +231,10 @@ export const Route = createFileRoute('/api/openrouter-combined')({
             ? params.forwardedProps.model
             : 'openai/gpt-5.5'
 
-          const { adapter, snapshot: combinedSnapshot } = instrumentAdapter(
-            createAdapter(provider, model),
-          )
+          const { adapter, snapshot: combinedSnapshot } =
+            provider === 'openrouter-responses'
+              ? instrumentAdapter(openRouterResponsesText(model))
+              : instrumentAdapter(openRouterText(model))
           const counter = phaseCounterMiddleware()
 
           const streamIterable = chat({
