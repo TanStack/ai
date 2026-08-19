@@ -239,7 +239,12 @@ export const Route = createFileRoute('/api/tools-test')({
 
           const adapterOptions = providerFreeScenarios.has(scenario)
             ? { adapter: createProviderFreeAdapter(scenario) }
-            : createTextAdapter('openai', undefined, aimockPort, testId)
+            : createTextAdapter(
+                'openai',
+                scenario === 'client-tool-reasoning' ? 'gpt-5.2' : undefined,
+                aimockPort,
+                testId,
+              )
 
           const tools = getToolsForScenario(scenario)
           const runtimeContext: TestRuntimeContext =

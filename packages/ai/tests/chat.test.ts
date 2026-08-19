@@ -744,6 +744,68 @@ describe('chat()', () => {
       })
     })
 
+    it('preserves thinking parts on the interrupt MESSAGES_SNAPSHOT', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.stepStarted('think-1'),
+            chunk(EventType.REASONING_MESSAGE_CONTENT, {
+              messageId: 'reasoning-1',
+              delta: 'Need to search.',
+            }),
+            chunk(EventType.STEP_FINISHED, {
+              stepName: 'think-1',
+              stepId: 'think-1',
+              content: 'Need to search.',
+              signature: 'sig-think-1',
+            }),
+            {
+              ...ev.toolStart('call_1', 'clientSearch'),
+              parentMessageId: 'stream-assistant',
+            },
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ id: 'user-1', role: 'user', content: 'Search' }],
+          tools: [clientTool('clientSearch')],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const snapshot = chunks.find(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      expect(snapshot).toMatchObject({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            id: 'stream-assistant',
+            role: 'assistant',
+            parts: [
+              {
+                type: 'thinking',
+                content: 'Need to search.',
+                signature: 'sig-think-1',
+              },
+              {
+                type: 'tool-call',
+                id: 'call_1',
+                name: 'clientSearch',
+                arguments: '{"query":"test"}',
+                state: 'input-complete',
+                input: { query: 'test' },
+              },
+            ],
+          }),
+        ]),
+      })
+    })
+
     it('should yield an interrupt outcome for client tools', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
@@ -3036,6 +3098,49 @@ describe('chat()', () => {
       expect((stepChunks[0] as any).stepName).toBeDefined()
       expect((stepChunks[1] as any).stepName).toBeDefined()
     })
+
+    it('should preserve STEP_FINISHED content in terminal message history', async () => {
+      let messages: ReadonlyArray<ModelMessage> = []
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.stepStarted('think-1'),
+            chunk(EventType.STEP_FINISHED, {
+              stepName: 'think-1',
+              stepId: 'think-1',
+              content: 'Let me think.',
+              signature: 'sig-think-1',
+            }),
+            ev.textStart(),
+            ev.textContent('Answer!'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Think about it' }],
+          middleware: [
+            defineChatMiddleware({
+              name: 'capture-message-history',
+              onFinish(ctx) {
+                messages = ctx.messages
+              },
+            }),
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(messages.at(-1)).toMatchObject({
+        role: 'assistant',
+        content: 'Answer!',
+        thinking: [{ content: 'Let me think.', signature: 'sig-think-1' }],
+      })
+    })
   })
 
   // ==========================================================================
@@ -3113,10 +3218,20 @@ describe('chat()', () => {
           [
             ev.runStarted(),
             ev.stepStarted('think-1'),
-            {
-              ...ev.stepFinished('Need inventory.', 'think-1'),
+            chunk(EventType.REASONING_MESSAGE_CONTENT, {
+              messageId: 'reasoning-1',
+              delta: 'Need ',
+            }),
+            chunk(EventType.REASONING_MESSAGE_CONTENT, {
+              messageId: 'reasoning-1',
+              delta: 'inventory.',
+            }),
+            chunk(EventType.STEP_FINISHED, {
+              stepName: 'think-1',
+              stepId: 'think-1',
+              content: 'Need inventory.',
               signature: 'sig-think-1',
-            },
+            }),
             ev.toolStart('call_1', 'getInventory'),
             ev.toolArgs('call_1', '{}'),
             ev.runFinished('tool_calls'),

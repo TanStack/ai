@@ -42,7 +42,11 @@ import {
 } from './tools/approval-schema'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { isCancelRequestedReason } from './cancel'
-import { convertMessagesToModelMessages, generateMessageId } from './messages'
+import {
+  convertMessagesToModelMessages,
+  generateMessageId,
+  modelMessageToUIMessage,
+} from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { getRunDetached } from './middleware/run-store'
 import { publishRunDetachedSignal } from '../../delivery-detach'
@@ -738,6 +742,7 @@ class TextEngine<
     []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
+  private hasSeenReasoningEvents = false
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
@@ -1152,6 +1157,7 @@ class TextEngine<
             duration: Date.now() - this.streamStartTime,
           })
         } else {
+          this.addTerminalReasoningMessage()
           this.terminalHookCalled = true
           await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
             finishReason: this.lastFinishReason,
@@ -1282,6 +1288,7 @@ class TextEngine<
     this.accumulatedThinking = []
     this.currentThinkingContent = ''
     this.currentThinkingSignature = ''
+    this.hasSeenReasoningEvents = false
     this.finishedEvent = null
     this.streamedToolErrorResults.clear()
 
@@ -1533,16 +1540,19 @@ class TextEngine<
         this.handleStepFinishedEvent(chunk)
         break
 
+      case 'REASONING_MESSAGE_CONTENT':
+        this.handleReasoningMessageContentEvent(chunk)
+        break
+
       case 'TOOL_CALL_RESULT':
         // Tool result is already added to messages in buildToolResultChunks
         break
 
       case 'REASONING_START':
       case 'REASONING_MESSAGE_START':
-      case 'REASONING_MESSAGE_CONTENT':
       case 'REASONING_MESSAGE_END':
       case 'REASONING_END':
-        // Reasoning events are handled by StreamProcessor
+        // No special handling needed
         break
 
       default:
@@ -1651,12 +1661,27 @@ class TextEngine<
   private handleStepFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
-    if (chunk.delta) {
-      this.currentThinkingContent += chunk.delta
+    if (!this.hasSeenReasoningEvents) {
+      if (chunk.delta) {
+        this.currentThinkingContent += chunk.delta
+      } else if (chunk.content) {
+        if (chunk.content.startsWith(this.currentThinkingContent)) {
+          this.currentThinkingContent = chunk.content
+        } else if (!this.currentThinkingContent.startsWith(chunk.content)) {
+          this.currentThinkingContent += chunk.content
+        }
+      }
     }
     if (chunk.signature) {
       this.currentThinkingSignature = chunk.signature
     }
+  }
+
+  private handleReasoningMessageContentEvent(
+    chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
+  ): void {
+    this.hasSeenReasoningEvents = true
+    this.currentThinkingContent += chunk.delta
   }
 
   /**
@@ -2065,6 +2090,30 @@ class TextEngine<
     this.middlewareCtx.messages = this.messages
   }
 
+  private addTerminalReasoningMessage(): void {
+    this.finalizeCurrentThinkingStep()
+    if (this.accumulatedThinking.length === 0) return
+
+    const messages = this.middlewareCtx.messages
+    const alreadyPresent = messages.some(
+      (message) =>
+        message.role === 'assistant' && message.id === this.currentMessageId,
+    )
+    if (alreadyPresent) return
+
+    this.messages = [
+      ...messages,
+      {
+        role: 'assistant',
+        content: this.accumulatedContent || null,
+        id: this.currentMessageId ?? undefined,
+        createdAt: this.currentMessageCreatedAt ?? undefined,
+        thinking: this.accumulatedThinking,
+      },
+    ]
+    this.middlewareCtx.messages = this.messages
+  }
+
   /**
    * Extract client state (approvals and client tool results) from original messages.
    * This is called in the constructor BEFORE converting to ModelMessage format,
@@ -2254,12 +2303,18 @@ class TextEngine<
             : message.content === null
               ? undefined
               : JSON.stringify(message.content)
+        const id =
+          message.id ||
+          `snapshot_${this.runIdOverride ?? this.requestId}_${index}`
+        const parts =
+          message.role === 'assistant' && message.thinking?.length
+            ? modelMessageToUIMessage(message, id).parts
+            : undefined
         return {
-          id:
-            message.id ||
-            `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
+          id,
           role: message.role,
           ...(content !== undefined ? { content } : {}),
+          ...(parts ? { parts } : {}),
           ...('toolCalls' in message && message.toolCalls
             ? { toolCalls: message.toolCalls }
             : {}),
