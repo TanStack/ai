@@ -1,5 +1,15 @@
 # @tanstack/ai-byteplus
 
+## 0.1.3
+
+### Patch Changes
+
+- [#1149](https://github.com/TanStack/ai/pull/1149) [`870e5cc`](https://github.com/TanStack/ai/commit/870e5ccf811479651f00a360a6a4eae195da6afe) - Allow 1080p on Seedance 2.5 (`dreamina-seedance-2-5-260628`).
+
+  BytePlus ModelArk and the live fal Seedance 2.5 spec now accept native
+  `480p` / `720p` / `1080p` (default still `720p`). `4k` remains exclusive
+  to `dreamina-seedance-2-0-260128`.
+
 ## 0.1.2
 
 ### Patch Changes
