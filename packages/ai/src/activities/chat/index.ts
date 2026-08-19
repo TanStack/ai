@@ -5114,8 +5114,6 @@ async function* fallbackStructuredOutputStream(
     return
   }
 
-  const completedAt = Date.now()
-
   yield {
     type: EventType.TEXT_MESSAGE_START,
     messageId,
