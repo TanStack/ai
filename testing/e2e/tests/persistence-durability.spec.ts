@@ -184,6 +184,49 @@ test.describe('structured output persistence', () => {
       },
     ])
   })
+
+  test('restores event-sourced harness structured output from server persistence', async ({
+    request,
+  }) => {
+    const threadId = `harness-output-${crypto.randomUUID()}`
+    const runId = crypto.randomUUID()
+    const run = await request.post(
+      '/api/persistence-durability?scenario=harness-output',
+      { data: { threadId, runId } },
+    )
+    expect(run.ok()).toBe(true)
+
+    const hydration = await request.get(
+      `/api/persistence-durability?scenario=harness-output&threadId=${threadId}`,
+    )
+    expect(hydration.ok()).toBe(true)
+    const body = (await hydration.json()) as {
+      messages: Array<{
+        role: string
+        parts: Array<Record<string, unknown>>
+      }>
+    }
+    const assistants = body.messages.filter(
+      (message) => message.role === 'assistant',
+    )
+
+    expect(assistants).toHaveLength(2)
+    expect(assistants[0]?.parts).toEqual([
+      {
+        type: 'text',
+        content: 'looking around the repo',
+      },
+    ])
+    expect(assistants[1]?.parts).toEqual([
+      {
+        type: 'structured-output',
+        status: 'complete',
+        data: { name: 'Ada Lovelace' },
+        partial: { name: 'Ada Lovelace' },
+        raw: '{"name":"Ada Lovelace"}',
+      },
+    ])
+  })
 })
 
 test.describe('server persistence', () => {

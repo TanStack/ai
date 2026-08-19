@@ -49,6 +49,9 @@ import type {
  * - `structured-output` — runs separate structured-output finalization through
  *   `withPersistence`, then hydrates the completed structured-output part from
  *   the server through `reconstructChat`.
+ * - `harness-output` — emits event-sourced structured output (the harness
+ *   adapter path) through `withPersistence`, then hydrates the prose message
+ *   and the structured-output message from `reconstructChat`.
  * - `usage` — runs two provider calls through server persistence and returns
  *   their stored cumulative usage.
  *
@@ -77,6 +80,76 @@ const structuredOutputAdapter: AnyTextAdapter = {
       data: { name: 'Ada Lovelace' },
       rawText: '{"name":"Ada Lovelace"}',
     }),
+} as unknown as AnyTextAdapter
+
+const harnessOutputPersistence = memoryPersistence()
+const HARNESS_PROSE = 'looking around the repo'
+const HARNESS_RAW = '{"name":"Ada Lovelace"}'
+
+function harnessOutputRun(
+  threadId: string,
+  runId: string,
+): AsyncIterable<StreamChunk> {
+  return (async function* () {
+    yield {
+      type: 'RUN_STARTED',
+      threadId,
+      runId,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TEXT_MESSAGE_START',
+      messageId: 'harness-prose',
+      role: 'assistant',
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TEXT_MESSAGE_CONTENT',
+      messageId: 'harness-prose',
+      delta: HARNESS_PROSE,
+      content: HARNESS_PROSE,
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'TEXT_MESSAGE_END',
+      messageId: 'harness-prose',
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'CUSTOM',
+      name: 'structured-output.start',
+      value: { messageId: 'harness-so' },
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'CUSTOM',
+      name: 'structured-output.complete',
+      value: {
+        messageId: 'harness-so',
+        object: { name: 'Ada Lovelace' },
+        raw: HARNESS_RAW,
+      },
+      timestamp: Date.now(),
+    } as StreamChunk
+    yield {
+      type: 'RUN_FINISHED',
+      threadId,
+      runId,
+      timestamp: Date.now(),
+      outcome: { type: 'success' },
+    } as StreamChunk
+  })()
+}
+
+const harnessOutputAdapter: AnyTextAdapter = {
+  kind: 'text',
+  name: 'fixed',
+  model: 'test-model',
+  '~types': {},
+  supportsCombinedToolsAndSchema: () => true,
+  combinedStructuredOutputSource: () => 'event',
+  chatStream: ({ threadId, runId }: { threadId: string; runId: string }) =>
+    harnessOutputRun(threadId, runId),
 } as unknown as AnyTextAdapter
 
 const confirmSchema = {
@@ -226,12 +299,19 @@ function stringField(body: unknown, key: string): string | undefined {
 
 function scenarioOf(
   request: Request,
-): 'text' | 'interrupt' | 'server-interrupt' | 'structured-output' | 'usage' {
+):
+  | 'text'
+  | 'interrupt'
+  | 'server-interrupt'
+  | 'structured-output'
+  | 'harness-output'
+  | 'usage' {
   try {
     const value = new URL(request.url).searchParams.get('scenario')
     if (value === 'interrupt') return 'interrupt'
     if (value === 'server-interrupt') return 'server-interrupt'
     if (value === 'structured-output') return 'structured-output'
+    if (value === 'harness-output') return 'harness-output'
     if (value === 'usage') return 'usage'
     return 'text'
   } catch {
@@ -301,6 +381,19 @@ export const Route = createFileRoute('/api/persistence-durability')({
           for await (const _ of stream) void _
           return Response.json({ runId, threadId })
         }
+        if (scenario === 'harness-output') {
+          const stream = chat({
+            adapter: harnessOutputAdapter,
+            messages: [{ role: 'user', content: 'Name the programmer' }],
+            outputSchema: structuredOutputSchema,
+            stream: true,
+            threadId,
+            runId,
+            middleware: [withPersistence(harnessOutputPersistence)],
+          })
+          for await (const _ of stream) void _
+          return Response.json({ runId, threadId })
+        }
         if (scenario === 'usage') {
           const run = await cumulativeUsage(threadId, runId)
           return Response.json({ runId, threadId, usage: run?.usage })
@@ -326,6 +419,11 @@ export const Route = createFileRoute('/api/persistence-durability')({
       GET: ({ request }) => {
         if (scenarioOf(request) === 'structured-output') {
           return reconstructChat(structuredOutputPersistence, request, {
+            authorize: (threadId) => threadId.length > 0,
+          })
+        }
+        if (scenarioOf(request) === 'harness-output') {
+          return reconstructChat(harnessOutputPersistence, request, {
             authorize: (threadId) => threadId.length > 0,
           })
         }

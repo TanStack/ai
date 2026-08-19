@@ -253,7 +253,8 @@
         {
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Client Persistence",
@@ -321,7 +322,8 @@
         {
           "label": "How Persistence Works",
           "to": "persistence/internals",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -361,7 +363,8 @@
         {
           "label": "Multi-Turn Chat",
           "to": "structured-outputs/multi-turn",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "With Tools",
@@ -373,7 +376,7 @@
           "label": "Harness Agents",
           "to": "structured-outputs/harnesses",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         }
       ]
     },

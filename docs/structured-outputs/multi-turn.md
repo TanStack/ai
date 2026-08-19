@@ -191,7 +191,7 @@ That's it. The render loop above produces a card per structured response. When t
 
 ## Streaming the latest turn
 
-Every `structured-output` part transitions through `streaming` → `complete` (or `streaming` → `error`). The `data` field only populates on `complete` — while the model is still emitting JSON, only `partial` and `raw` are filled in. Render against `part.data ?? part.partial` and the UI fills in field by field as bytes arrive, then snaps to the completed typed object on the terminal event.
+A `structured-output` part normally goes `streaming` → `complete` (or `streaming` → `error`). A terminal-only `complete` event can also arrive with no prior streaming deltas. The `data` field only populates on `complete`. While the model is still emitting JSON, only `partial` and `raw` are filled in. Render against `part.data ?? part.partial` and the UI fills in field by field as bytes arrive, then snaps to the completed typed object on the terminal event.
 
 The hook-level `partial` and `final` are still available. They're derived from the most recent structured-output part after the latest user message — the same part the render loop above already finds. `partial` returns `{}` between `sendMessage()` and the first chunk (because no structured-output part exists yet to derive from), and `final` returns `null` until the latest turn lands its `complete` event. Use them for sticky-summary widgets ("Latest recipe title: …"); use the `messages` walk for the full history view.
 

@@ -187,7 +187,7 @@ The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-out
 | `@tanstack/ai-openai` (Responses + Chat Completions)            | **Native combined mode (#605)** — schema wired into the regular `chatStream` call alongside `tools`; engine harvests JSON, no finalization round-trip |
 | `@tanstack/ai-anthropic` (Claude 4.5+ only)                     | **Native combined mode (#605)** — `output_config.format` + `tools` in one beta Messages call. Older Claude models fall back                           |
 | `@tanstack/ai-gemini` (Gemini 3.x only)                         | **Native combined mode (#605)** — `responseSchema` + `tools` in one `generateContentStream`. Gemini 2.x falls back                                    |
-| `@tanstack/ai-grok` (Grok 4 family only)                        | **Native combined mode (#605)** — `response_format: json_schema` + `tools`. Grok 2 / 3 fall back                                                      |
+| `@tanstack/ai-grok`                                             | **Native combined mode (#605)** — OpenAI Responses `text.format` + `tools` for grok-4.6, grok-4.5, grok-4.3, and grok-build-0.1                       |
 | `@tanstack/ai-openrouter`                                       | Native single-request stream (legacy `structuredOutputStream` path; per-call combined-mode lookup is a follow-up)                                     |
 | `@tanstack/ai-groq`                                             | Legacy `structuredOutputStream` only (no tools — Groq's API rejects schema + tools + stream)                                                          |
 | `@tanstack/ai-bedrock`                                          | Separate native `structuredOutputStream` finalization through Converse or an OpenAI-compatible API                                                    |
@@ -197,7 +197,7 @@ The terminal event is a `CUSTOM` chunk: `{ type: 'CUSTOM', name: 'structured-out
 | `@tanstack/ai-opencode`                                         | Combined + event source — prompt-and-parse. Read `useChat().final`. See Pattern 6.                                                                    |
 | `@tanstack/ai-grok-build`                                       | Combined + event source — prompt-and-parse (ACP and streaming-json). Read `useChat().final` or the `structured-output` part. See Pattern 6.           |
 | `@tanstack/ai-acp` (`acpCompatible`)                            | Combined + event source — prompt-and-parse. Read `useChat().final` or the `structured-output` part. See Pattern 6.                                    |
-| All other adapters (ollama, older Claude, Gemini 2.x, Grok 2/3) | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event                                                         |
+| All other adapters (ollama, older Claude, Gemini 2.x)           | Fallback: runs non-streaming `structuredOutput`, emits one `structured-output.complete` event                                                         |
 
 **Native-combined output vs separate finalization** is signaled by the adapter's
 optional `supportsCombinedToolsAndSchema(modelOptions)` method. When
@@ -409,6 +409,7 @@ final?.name
 - `partial` stays empty until `structured-output.complete`.
 - Client tools and `needsApproval` fail fast. The harness cannot pause for a browser round-trip.
 - Render live work from `messages[].parts` (`thinking`, `tool-call`, `text`, `structured-output`). `final` is only the latest turn.
+- `withPersistence` stores harness prose and the structured-output message as two assistant messages. Hydrate with `reconstructChat`.
 - See [docs/structured-outputs/harnesses.md](https://github.com/TanStack/ai/blob/main/docs/structured-outputs/harnesses.md).
 
 ## Common Mistakes

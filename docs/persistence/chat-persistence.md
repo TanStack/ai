@@ -113,10 +113,49 @@ them to trade extra writes for partial-output durability. Tune the interval
 with `snapshotIntervalMs` (default `1000`).
 
 The chat engine completes the canonical transcript before `onFinish` runs, and
-`withPersistence` saves that transcript directly. Native-combined output keeps
-the structured result on its terminal assistant message. The
-separate-finalization path can preserve a plain-text assistant message followed
-by a structured-output assistant message.
+`withPersistence` saves that transcript directly.
+
+- Native-combined output keeps the structured result on its terminal assistant
+  message.
+- Separate finalization can preserve a plain-text assistant message followed by
+  a structured-output assistant message.
+- Harness adapters that emit `structured-output.complete` during the run keep
+  the agent prose and the structured-output message as two assistant messages.
+
+A server-authoritative client hydrates that transcript on mount. Walk
+`messages[].parts` for the reconstructed structured-output part:
+
+```tsx group=chat-persistence
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { z } from 'zod'
+
+const PersonSchema = z.object({ name: z.string() })
+
+function PersistentStructuredChat({ threadId }: { threadId: string }) {
+  const { messages } = useChat({
+    threadId,
+    connection: fetchServerSentEvents('/api/chat'),
+    persistence: true,
+    outputSchema: PersonSchema,
+  })
+
+  return (
+    <div>
+      {messages.map((message) => {
+        const part = message.parts.find(
+          (candidate) => candidate.type === 'structured-output',
+        )
+        if (!part) return null
+        const person = part.data ?? part.partial
+        return <p key={message.id}>{person?.name}</p>
+      })}
+    </div>
+  )
+}
+```
+
+The matching server `GET` uses `reconstructChat`. See
+[Client persistence](./client-persistence).
 
 On **error**, the run is marked `failed`. On **abort**, the run is marked
 `aborted` with a `finishedAt`; `interrupted` is written only at an interrupt
