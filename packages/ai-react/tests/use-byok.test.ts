@@ -10,7 +10,7 @@ describe('useByok', () => {
     const client = defineByok({ storage: memoryStorage() })
     const { result } = renderHook(() => useByok(client))
 
-    expect(result.current.status.openai.state).toBe('empty')
+    expect(result.current.status.openai).toBeUndefined()
     expect(JSON.stringify(result.current)).not.toContain(RAW_KEY)
 
     await act(async () => {

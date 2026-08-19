@@ -1,3 +1,4 @@
+export { opencodeByok } from './byok'
 export { OpencodeTextAdapter, opencodeText } from './adapters/text'
 export type { OpencodeTextConfig } from './adapters/text'
 export type { OpencodeTextProviderOptions } from './provider-options'

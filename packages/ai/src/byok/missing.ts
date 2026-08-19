@@ -24,6 +24,9 @@ export function isByokMissingBody(value: unknown): value is ByokMissingBody {
 }
 
 export function byokMissing(provider: ProviderId): Response {
+  if (!isProviderId(provider)) {
+    throw new Error(`Invalid BYOK provider id: ${provider}`)
+  }
   const body: ByokMissingBody = {
     error: {
       type: 'byok_missing',

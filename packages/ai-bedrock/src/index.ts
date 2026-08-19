@@ -6,6 +6,8 @@
  * factory branches between the Converse adapter (DEFAULT), the Chat Completions
  * adapter (`api: 'chat'`), and the Responses adapter (`api: 'responses'`).
  */
+
+export { bedrockByok } from './byok'
 import { BedrockTextAdapter } from './adapters/text'
 import { BedrockResponsesTextAdapter } from './adapters/responses-text'
 import { BedrockConverseTextAdapter } from './adapters/converse-text'

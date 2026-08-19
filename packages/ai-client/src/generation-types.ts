@@ -379,7 +379,7 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   byok?: ByokClient
 
   /**
-   * Optional provider id for this generation. If it returns a known provider,
+   * Optional provider id for this generation. If it returns a provider slug,
    * only that key is prepared and sent. Otherwise `body.provider` is used.
    */
   byokProvider?: () => string | undefined

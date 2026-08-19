@@ -100,7 +100,7 @@ goes away. Users of the framework hooks need no change.
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works — values are merged into `forwardedProps` on the wire and mirrored under the legacy `data` field for backward compatibility
 - `byok?` - Optional BYOK keyring from [`defineByok`](#definebyok). On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
-- `byokProvider?` - Optional function that returns the provider id for this chat. If it returns a known provider, only that key is prepared and sent. Otherwise `forwardedProps.provider` then `body.provider` are used
+- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise `forwardedProps.provider` then `body.provider` are used
 - `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `tools?` - Registered `.client()` tool implementations. The client automatically executes matching tools when the model calls them
 - `onResponse?` - Callback when response is received
@@ -475,17 +475,19 @@ export const byok = defineByok({ storage: defaultByokStorage() });
 ### Factory options
 
 - `storage?` - A `KeyringStorage` implementation. Default is `memoryStorage()` (session only, not saved)
+- `providers?` - Adapter-exported `{ id, label, validate? }` objects. `id` is required. Their `validate` entries feed `byok.validate()`
+- `validate?` - Optional per-slug `{ url, headers(key) }` map. Wins over `providers` for the same slug. Slugs without an entry stay `set`
 
 ### Methods
 
-- `update(provider, key)` - Save a key for a known provider id (`openai`, `anthropic`, `gemini`, `openrouter`, `groq`, `grok`, `mistral`, `elevenlabs`, `fal`, `ollama`)
+- `update(provider, key)` - Save a key for a provider slug (`[a-z][a-z0-9-]{0,63}`). Throws if the id is not a slug
 - `update(key)` - Save a key for the current `prompt` provider. Throws if `prompt` is null
 - `clear(provider?)` - Remove one key, or all keys when you omit `provider`
 - `unlock()` - Decrypt unlockable storage (passkey). No-op for memory storage
-- `validate(provider, key?)` - Check a key against the provider. Uses the stored key when `key` is omitted
+- `validate(provider, key?)` - Check a key if you passed `validate` into `defineByok`. Uses the stored key when `key` is omitted. Without a config for that slug, the status stays `set`
 - `headers(provider?)` - Return `x-byok-*` headers. With a provider, only that key is included. With no provider, every stored key is included
 - `prepare(provider?)` - Unlock if needed. If `provider` is set, the key is empty, and the server has no coverage, throw `ByokBlockedError` and set `prompt`
-- `setServerCoverage(flags)` - Tell the client which providers the server can fill from env. Then `prepare` does not block those providers
+- `setServerCoverage(flags)` - `true` means the server can fill any slug from env. `false` clears coverage. A record merges per-slug flags. Then `prepare` does not block covered slugs
 - `request(provider, reason)` - Set `prompt` to `{ provider, reason }` (`missing` | `locked` | `invalid`)
 - `getSnapshot()` - Return the current [`ByokSnapshot`](#snapshot)
 - `subscribe(listener)` - Call `listener` on each change. Returns an unsubscribe function
@@ -497,9 +499,9 @@ export const byok = defineByok({ storage: defaultByokStorage() });
 
 ```typescript ignore
 type ByokSnapshot = {
-  status: Record<ProviderId, KeyStatus>;
+  status: Partial<Record<string, KeyStatus>>;
   locked: boolean;
-  prompt: { provider: ProviderId; reason: "missing" | "locked" | "invalid" } | null;
+  prompt: { provider: string; reason: "missing" | "locked" | "invalid" } | null;
 };
 
 type KeyStatus =
@@ -512,7 +514,7 @@ type KeyStatus =
   | { state: "error"; masked: string; message: string };
 ```
 
-`masked` is the last four characters of the key (`maskKey`). The snapshot never includes the raw key.
+`status` is sparse: only slugs that have a key, a lock, or a validation result appear. A missing entry means no key. `masked` is the last four characters of the key (`maskKey`). The snapshot never includes the raw key.
 
 ### Storage
 

@@ -63,6 +63,24 @@ describe('ChatClient byok', () => {
     expect(JSON.stringify(record.data)).not.toContain(OPENAI_KEY)
   })
 
+  it('stamps headers for slugs outside the old first-party list', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('bedrock', OPENAI_KEY)
+    const record: {
+      headers?: Record<string, string>
+      data?: Record<string, unknown>
+    } = {}
+    const client = new ChatClient({
+      connection: recordingConnection(record),
+      byok,
+      forwardedProps: { provider: 'bedrock', model: 'claude' },
+    })
+
+    await client.sendMessage('Hello')
+
+    expect(record.headers).toEqual({ 'x-byok-bedrock': OPENAI_KEY })
+  })
+
   it('rejects ByokBlockedError and does not connect when the provider is empty', async () => {
     const byok = defineByok()
     const connect = vi.fn(async function* () {

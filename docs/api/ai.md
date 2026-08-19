@@ -336,6 +336,35 @@ const stream = chat({
 
 An `AgentLoopStrategy` function.
 
+## `defineByokProvider({ id, label, validate? })`
+
+Declare a BYOK provider from an adapter package. `id` is the `x-byok-<id>` slug and is **required** — an optional or missing `id` does not type-check.
+
+```typescript
+import { defineByokProvider } from "@tanstack/ai/byok";
+
+export const openaiByok = defineByokProvider({
+  id: "openai",
+  label: "OpenAI",
+  validate: {
+    url: "https://api.openai.com/v1/models",
+    headers: (key) => ({ Authorization: `Bearer ${key}` }),
+  },
+});
+```
+
+Import the object from the adapter (`openaiByok` from `@tanstack/ai-openai`) and pass it to `defineByok({ providers })`.
+
+### Parameters
+
+- `id` - Required slug (`[a-z][a-z0-9-]{0,63}`)
+- `label` - Display name
+- `validate?` - Optional `{ url, headers(key) }` used by `byok.validate()`
+
+### Returns
+
+A `{ id, label, validate? }` object. `id` is the literal slug type.
+
 ## `getByokKey(request, provider)`
 
 Read one `x-byok-<provider>` header from a `Request`. Import from `@tanstack/ai/byok`. Returns the trimmed header, or `null` when it is missing or blank. The JSON body is ignored.
@@ -352,7 +381,7 @@ export async function POST(request: Request) {
 ### Parameters
 
 - `request` - Incoming `Request`
-- `provider` - Provider id (`openai`, `anthropic`, `gemini`, `openrouter`, `groq`, `grok`, `mistral`, `elevenlabs`, `fal`, `ollama`)
+- `provider` - Provider slug (`[a-z][a-z0-9-]{0,63}`). Becomes the `x-byok-<slug>` header. Not a fixed catalog.
 
 ### Returns
 
@@ -374,7 +403,7 @@ export async function POST(request: Request) {
 ### Parameters
 
 - `request` - Incoming `Request`
-- `provider` - Provider id
+- `provider` - Provider slug
 - `envNames` - Env names to try, in order
 
 ### Returns
@@ -397,7 +426,7 @@ export async function POST(request: Request) {
 
 ### Parameters
 
-- `provider` - Provider id to put on the error body
+- `provider` - Provider slug to put on the error body
 
 ### Returns
 

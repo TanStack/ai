@@ -792,7 +792,7 @@ export interface ChatClientBaseOptions<
   byok?: ByokClient
 
   /**
-   * Optional provider id for this chat. If it returns a known provider,
+   * Optional provider id for this chat. If it returns a provider slug,
    * only that key is prepared and sent. Otherwise `forwardedProps.provider`
    * then `body.provider` are used.
    */

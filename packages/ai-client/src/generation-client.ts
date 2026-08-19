@@ -1,4 +1,5 @@
-import { ByokMissingError, isProviderId } from '@tanstack/ai/byok'
+import { ByokMissingError } from '@tanstack/ai/byok'
+import { resolveByokProviderId } from './byok/resolve'
 import {
   GENERATION_EVENTS,
   GENERATION_STREAM_TRUNCATED_MESSAGE,
@@ -11,7 +12,6 @@ import {
 } from './generation-types'
 import { createNoOpGenerationDevtoolsBridge } from './devtools-noop'
 import { parseSSEResponse } from './sse-parser'
-import type { ProviderId } from '@tanstack/ai/byok'
 import type { StreamChunk } from '@tanstack/ai/client'
 import type { ByokClient } from './byok'
 import type {
@@ -33,22 +33,6 @@ import type {
   GenerationResumeSnapshot,
   GenerationResumeState,
 } from './generation-types'
-
-function resolveByokProviderId(
-  byokProvider: (() => string | undefined) | undefined,
-  ...candidates: Array<unknown>
-): ProviderId | undefined {
-  const fromFn = byokProvider?.()
-  if (typeof fromFn === 'string' && isProviderId(fromFn)) {
-    return fromFn
-  }
-  for (const candidate of candidates) {
-    if (typeof candidate === 'string' && isProviderId(candidate)) {
-      return candidate
-    }
-  }
-  return undefined
-}
 
 /**
  * Callbacks stored in a ref so hooks can update them without recreating the client.

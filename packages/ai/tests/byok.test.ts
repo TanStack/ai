@@ -1,9 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, expectTypeOf, it } from 'vitest'
 import {
   BYOK_HEADER_PREFIX,
   ByokMissingError,
   byokHeaderName,
   byokMissing,
+  byokValidateMap,
+  defineByokProvider,
   getByokKey,
   getByokOrEnvKey,
   isByokMissingBody,
@@ -11,16 +13,80 @@ import {
   maskKey,
   scrubSecrets,
 } from '../src/byok'
+import type { ByokProviderInit } from '../src/byok'
 
-describe('byok registry', () => {
+describe('byok slugs', () => {
   it('names the header x-byok-<provider>', () => {
     expect(byokHeaderName('openai')).toBe('x-byok-openai')
+    expect(byokHeaderName('bedrock')).toBe('x-byok-bedrock')
     expect(BYOK_HEADER_PREFIX).toBe('x-byok-')
   })
 
-  it('guards known provider ids', () => {
+  it('accepts any lowercase slug, not a catalog', () => {
     expect(isProviderId('openai')).toBe(true)
-    expect(isProviderId('not-a-provider')).toBe(false)
+    expect(isProviderId('not-a-provider')).toBe(true)
+    expect(isProviderId('bedrock')).toBe(true)
+    expect(isProviderId('my-llm')).toBe(true)
+    expect(isProviderId('OpenAI')).toBe(false)
+    expect(isProviderId('foo_bar')).toBe(false)
+    expect(isProviderId('-leading')).toBe(false)
+    expect(isProviderId('1abc')).toBe(false)
+    expect(isProviderId('has space')).toBe(false)
+    expect(isProviderId('')).toBe(false)
+    expect(isProviderId(`a${'b'.repeat(64)}`)).toBe(false)
+  })
+
+  it('throws on an invalid header id', () => {
+    expect(() => byokHeaderName('OpenAI')).toThrow(/Invalid BYOK provider id/)
+  })
+})
+
+describe('defineByokProvider', () => {
+  it('requires a slug and returns it', () => {
+    const provider = defineByokProvider({
+      id: 'openai',
+      label: 'OpenAI',
+      validate: {
+        url: 'https://api.openai.com/v1/models',
+        headers: (key) => ({ Authorization: `Bearer ${key}` }),
+      },
+    })
+    expect(provider.id).toBe('openai')
+    expect(provider.label).toBe('OpenAI')
+    expect(provider.validate?.url).toBe('https://api.openai.com/v1/models')
+    expectTypeOf(provider.id).toEqualTypeOf<'openai'>()
+  })
+
+  it('makes an optional slug unassignable to ByokProviderInit', () => {
+    expectTypeOf<{ id?: 'openai'; label: string }>().not.toMatchTypeOf<
+      ByokProviderInit<'openai'>
+    >()
+    expectTypeOf<{ label: string }>().not.toMatchTypeOf<
+      ByokProviderInit<'openai'>
+    >()
+  })
+
+  it('throws on an invalid slug', () => {
+    expect(() =>
+      defineByokProvider({
+        id: 'OpenAI',
+        label: 'OpenAI',
+      }),
+    ).toThrow(/Invalid BYOK provider id/)
+  })
+
+  it('builds a validate map from providers that have one', () => {
+    const openai = defineByokProvider({
+      id: 'openai',
+      label: 'OpenAI',
+      validate: {
+        url: 'https://api.openai.com/v1/models',
+        headers: (key) => ({ Authorization: `Bearer ${key}` }),
+      },
+    })
+    const ollama = defineByokProvider({ id: 'ollama', label: 'Ollama' })
+    const map = byokValidateMap([openai, ollama])
+    expect(Object.keys(map)).toEqual(['openai'])
   })
 })
 
@@ -37,10 +103,15 @@ describe('isByokMissingBody', () => {
     ).toBe(true)
   })
 
-  it('rejects unknown providers and other shapes', () => {
+  it('accepts any slug provider and rejects invalid shapes', () => {
     expect(
       isByokMissingBody({
-        error: { type: 'byok_missing', provider: 'nope', message: 'x' },
+        error: { type: 'byok_missing', provider: 'bedrock', message: 'x' },
+      }),
+    ).toBe(true)
+    expect(
+      isByokMissingBody({
+        error: { type: 'byok_missing', provider: 'OpenAI', message: 'x' },
       }),
     ).toBe(false)
     expect(isByokMissingBody({ error: 'nope' })).toBe(false)
@@ -93,6 +164,16 @@ describe('byokMissing', () => {
     if (isByokMissingBody(body)) {
       expect(body.error.provider).toBe('openai')
     }
+  })
+
+  it('accepts slugs outside the old first-party list', async () => {
+    const response = byokMissing('bedrock')
+    const body: unknown = await response.json()
+    expect(isByokMissingBody(body)).toBe(true)
+  })
+
+  it('throws on an invalid provider id', () => {
+    expect(() => byokMissing('OpenAI')).toThrow(/Invalid BYOK provider id/)
   })
 })
 

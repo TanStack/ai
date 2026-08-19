@@ -6,11 +6,8 @@ import {
   normalizeToUIMessage,
   parseWithStandardSchema,
 } from '@tanstack/ai/client'
-import {
-  ByokBlockedError,
-  ByokMissingError,
-  isProviderId,
-} from '@tanstack/ai/byok'
+import { ByokBlockedError, ByokMissingError } from '@tanstack/ai/byok'
+import { resolveByokProviderId } from './byok/resolve'
 import { createNoOpChatDevtoolsBridge } from './devtools-noop'
 import {
   fetcherToConnectionAdapter,
@@ -28,7 +25,6 @@ import type {
   RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai/client'
-import type { ProviderId } from '@tanstack/ai/byok'
 import type { ByokClient } from './byok'
 import type {
   ChatHydrationResult,
@@ -71,22 +67,6 @@ import type { InterruptManagerSubmission } from './interrupt-manager'
 /** Internal queue entry — public {@link QueuedMessage} plus optional per-send body. */
 interface InternalQueuedMessage extends QueuedMessage {
   body?: Record<string, any>
-}
-
-function resolveByokProviderId(
-  byokProvider: (() => string | undefined) | undefined,
-  ...candidates: Array<unknown>
-): ProviderId | undefined {
-  const fromFn = byokProvider?.()
-  if (typeof fromFn === 'string' && isProviderId(fromFn)) {
-    return fromFn
-  }
-  for (const candidate of candidates) {
-    if (typeof candidate === 'string' && isProviderId(candidate)) {
-      return candidate
-    }
-  }
-  return undefined
 }
 
 type ChatClientUpdateOptionsWithoutContext<

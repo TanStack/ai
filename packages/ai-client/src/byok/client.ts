@@ -1,13 +1,16 @@
 import {
   ByokBlockedError,
-  PROVIDER_IDS,
   byokHeaderName,
+  byokValidateMap,
   isProviderId,
   maskKey,
-  providerValidateConfig,
 } from '@tanstack/ai/byok'
 import { memoryStorage } from './storage'
-import type { ProviderId } from '@tanstack/ai/byok'
+import type {
+  ByokProvider,
+  ProviderId,
+  ProviderValidateConfig,
+} from '@tanstack/ai/byok'
 import type { Keyring, KeyringStorage } from './storage'
 
 export type KeyStatus =
@@ -25,7 +28,7 @@ export type ByokPrompt = {
 }
 
 export type ByokSnapshot = {
-  status: Record<ProviderId, KeyStatus>
+  status: Partial<Record<string, KeyStatus>>
   locked: boolean
   prompt: ByokPrompt | null
 }
@@ -34,9 +37,26 @@ export type ValidationStatus = 'valid' | 'invalid' | 'unsupported'
 
 export interface DefineByokOptions {
   storage?: KeyringStorage
+  /**
+   * Adapter-exported {@link ByokProvider} objects. Each one must have an `id`
+   * slug. Their `validate` entries are used unless `validate` overrides them.
+   */
+  providers?: ReadonlyArray<ByokProvider>
+  /**
+   * Optional per-provider key checks. Ids without an entry stay `set`
+   * (no network). Wins over `providers` for the same slug.
+   */
+  validate?: Readonly<Record<string, ProviderValidateConfig>>
 }
 
 const EMPTY: KeyStatus = { state: 'empty' }
+
+function requireProviderId(value: string): ProviderId {
+  if (!isProviderId(value)) {
+    throw new Error(`Invalid BYOK provider id: ${value}`)
+  }
+  return value
+}
 
 function sanitizeKeyring(value: unknown): Keyring {
   if (typeof value !== 'object' || value === null) return {}
@@ -49,28 +69,24 @@ function sanitizeKeyring(value: unknown): Keyring {
   return keys
 }
 
-function recordFromProviders<T>(
-  getValue: (provider: ProviderId) => T,
-): Record<ProviderId, T> {
-  const record = {} as Record<ProviderId, T>
-  for (const provider of PROVIDER_IDS) {
-    record[provider] = getValue(provider)
-  }
-  return record
-}
-
 export class ByokClient {
   readonly storage: KeyringStorage
   #keys: Keyring = {}
-  #statuses: Partial<Record<ProviderId, KeyStatus>> = {}
+  #statuses: Partial<Record<string, KeyStatus>> = {}
   #locked: boolean
   #prompt: ByokPrompt | null = null
-  #coverage: Partial<Record<ProviderId, boolean>> = {}
+  #coverageAll = false
+  #coverage: Record<string, boolean> = {}
+  readonly #validate: Readonly<Record<string, ProviderValidateConfig>>
   readonly #listeners = new Set<() => void>()
   #snapshot: ByokSnapshot
 
   constructor(options: DefineByokOptions = {}) {
     this.storage = options.storage ?? memoryStorage()
+    this.#validate = {
+      ...(options.providers ? byokValidateMap(options.providers) : {}),
+      ...options.validate,
+    }
     this.#locked = Boolean(this.storage.unlockable)
     this.#snapshot = this.#buildSnapshot()
     void this.#hydrate()
@@ -87,9 +103,7 @@ export class ByokClient {
 
   #buildSnapshot(): ByokSnapshot {
     return {
-      status: recordFromProviders(
-        (provider) => this.#statuses[provider] ?? EMPTY,
-      ),
+      status: { ...this.#statuses },
       locked: this.#locked,
       prompt: this.#prompt,
     }
@@ -100,23 +114,38 @@ export class ByokClient {
   }
 
   request(provider: ProviderId, reason: ByokPrompt['reason']): void {
-    this.#prompt = { provider, reason }
+    this.#prompt = { provider: requireProviderId(provider), reason }
     this.#emit()
   }
 
-  setServerCoverage(flags: Partial<Record<ProviderId, boolean>>): void {
+  /**
+   * `true` — the server can fill any slug from env.
+   * `false` — no env coverage.
+   * A record merges per-id flags and clears the all/none boolean.
+   */
+  setServerCoverage(flags: boolean | Readonly<Record<string, boolean>>): void {
+    if (typeof flags === 'boolean') {
+      this.#coverageAll = flags
+      this.#coverage = {}
+      return
+    }
+    this.#coverageAll = false
     this.#coverage = { ...this.#coverage, ...flags }
+  }
+
+  #hasCoverage(provider: string): boolean {
+    return this.#coverageAll || this.#coverage[provider] === true
   }
 
   headers(provider?: ProviderId): Record<string, string> {
     const headers: Record<string, string> = {}
     if (provider) {
+      requireProviderId(provider)
       const key = this.#keys[provider]
       if (key) headers[byokHeaderName(provider)] = key
       return headers
     }
-    for (const id of PROVIDER_IDS) {
-      const key = this.#keys[id]
+    for (const [id, key] of Object.entries(this.#keys)) {
       if (key) headers[byokHeaderName(id)] = key
     }
     return headers
@@ -127,8 +156,9 @@ export class ByokClient {
       await this.unlock()
     }
     if (!provider) return
+    requireProviderId(provider)
     if (this.#keys[provider]) return
-    if (this.#coverage[provider]) return
+    if (this.#hasCoverage(provider)) return
     this.request(provider, 'missing')
     throw new ByokBlockedError(provider, 'missing')
   }
@@ -146,10 +176,7 @@ export class ByokClient {
       provider = this.#prompt.provider
       nextKey = providerOrKey
     } else {
-      if (!isProviderId(providerOrKey)) {
-        throw new Error(`Unknown BYOK provider: ${providerOrKey}`)
-      }
-      provider = providerOrKey
+      provider = requireProviderId(providerOrKey)
       nextKey = key
     }
     if (this.storage.unlockable && this.#locked) {
@@ -166,13 +193,14 @@ export class ByokClient {
 
   async clear(provider?: ProviderId): Promise<void> {
     if (provider) {
+      requireProviderId(provider)
       if (this.storage.unlockable && this.#locked) {
         await this.unlock()
       }
       const next = { ...this.#keys }
       delete next[provider]
       this.#keys = next
-      this.#statuses[provider] = EMPTY
+      delete this.#statuses[provider]
       this.#emit()
       await this.storage.save(next)
       return
@@ -201,18 +229,19 @@ export class ByokClient {
   }
 
   async validate(provider: ProviderId, key?: string): Promise<KeyStatus> {
+    requireProviderId(provider)
     const target = key ?? this.#keys[provider]
     if (!target) {
       const existing = this.#statuses[provider]
       if (existing?.state === 'locked') return existing
-      this.#statuses[provider] = EMPTY
+      delete this.#statuses[provider]
       this.#emit()
       return EMPTY
     }
     const masked = maskKey(target)
     this.#statuses[provider] = { state: 'validating', masked }
     this.#emit()
-    const config = providerValidateConfig(provider)
+    const config = this.#validate[provider]
     if (!config) {
       const result: KeyStatus = { state: 'set', masked }
       this.#statuses[provider] = result

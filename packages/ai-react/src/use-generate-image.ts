@@ -31,7 +31,7 @@ export interface UseGenerateImageOptions<TOutput = ImageGenerationResult> {
   body?: Record<string, any>
   /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
   byok?: ByokClient
-  /** Optional provider id. If it returns a known provider, only that key is prepared. */
+  /** Optional provider id. If it returns a provider slug, only that key is prepared. */
   byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions

@@ -15,22 +15,31 @@ Your users have their own provider API keys. You want those keys to stay in the 
 
 `defineByok` stores the keys. Pass that store into `useChat`. The client sends keys as `x-byok-*` headers. The key never goes in the JSON body. Your relay reads the header (or an env key) and builds the adapter for that call.
 
+Provider ids are open slugs (`openai`, `bedrock`, `my-llm`), not a fixed catalog. A slug is `[a-z][a-z0-9-]{0,63}`. The header is `x-byok-<slug>`.
+
 ## Store keys on the client
 
 Create one `ByokClient` for the app. `defaultByokStorage()` uses a passkey when the browser supports it. If it does not, it keeps keys in session memory.
 
 ```typescript
 import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
+import { openaiByok } from "@tanstack/ai-openai";
+import { anthropicByok } from "@tanstack/ai-anthropic";
 
-export const byok = defineByok({ storage: defaultByokStorage() });
+export const byok = defineByok({
+  storage: defaultByokStorage(),
+  providers: [openaiByok, anthropicByok],
+});
 ```
+
+Each adapter exports a `{ id, label, validate? }` object. `id` is the slug and is required. Pass those objects into `providers` so `byok.validate()` can hit the adapter's check URL.
 
 If the server can fall back to an env key, tell the client. Then a send is not blocked when the browser has no key yet:
 
 ```typescript
 import { byok } from "./byok";
 
-byok.setServerCoverage({ openai: true });
+byok.setServerCoverage(true);
 ```
 
 See [`defineByok`](../api/ai-client#definebyok) for methods, the snapshot, and other storage.
@@ -79,7 +88,7 @@ export function KeyForm() {
   const snapshot = useByok(byok);
   const [value, setValue] = useState("");
   const status = snapshot.status.openai;
-  const last4 = status.state === "empty" ? "" : status.masked;
+  const last4 = status?.masked ?? "";
 
   return (
     <form

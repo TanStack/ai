@@ -5,6 +5,8 @@
  * Provides tree-shakeable adapters for Groq's Chat Completions API and TTS API.
  */
 
+export { groqByok } from './byok'
+
 // Text (Chat) adapter
 export {
   GroqTextAdapter,

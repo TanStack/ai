@@ -26,7 +26,7 @@ function ByokPage() {
   const snapshot = useByok(byok)
   const [hydrated, setHydrated] = useState(false)
   const openaiStatus = snapshot.status.openai
-  const last4 = openaiStatus.state === 'empty' ? '' : openaiStatus.masked
+  const last4 = openaiStatus?.masked ?? ''
 
   useEffect(() => {
     setHydrated(true)

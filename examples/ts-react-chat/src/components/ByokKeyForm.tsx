@@ -17,7 +17,7 @@ export function ByokKeyForm({ provider }: { provider: Provider }) {
   }
 
   const status = snapshot.status[byokProvider]
-  const last4 = status.state === 'empty' ? undefined : status.masked
+  const last4 = status?.masked
 
   const handleSave = async () => {
     const next = keyInput.trim()
@@ -51,7 +51,7 @@ export function ByokKeyForm({ provider }: { provider: Provider }) {
         <button
           type="button"
           onClick={() => void byok.clear(byokProvider)}
-          disabled={status.state === 'empty'}
+          disabled={!status}
           className="px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-50 text-sm font-medium"
         >
           Clear

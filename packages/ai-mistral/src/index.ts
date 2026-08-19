@@ -5,6 +5,8 @@
  * Provides tree-shakeable adapters for Mistral's Chat Completions API.
  */
 
+export { mistralByok } from './byok'
+
 // Text (Chat) adapter
 export {
   MistralTextAdapter,

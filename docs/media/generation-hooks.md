@@ -481,7 +481,7 @@ function EmbeddingGenerator() {
 | `connection` | `ConnectConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
 | `fetcher` | `GenerationFetcher<TInput, TResult>` | Direct async function (no streaming protocol needed) |
 | `byok` | `ByokClient` | Optional keyring. Keys go in `x-byok-*` headers, never the body |
-| `byokProvider` | `() => ProviderId \| undefined` | Optional provider id. If it returns a known provider, only that key is prepared |
+| `byokProvider` | `() => ProviderId \| undefined` | Optional provider slug. If it returns a slug, only that key is prepared |
 | `id` | `string` | Unique identifier for this generation instance |
 | `body` | `Record<string, any>` | Additional body parameters sent with connection requests |
 | `onResult` | `(result: TResult) => TOutput \| null \| void` | Transform or react to results |

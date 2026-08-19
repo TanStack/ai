@@ -1,16 +1,16 @@
 export {
-  BYOK_PROVIDERS,
-  PROVIDER_IDS,
+  BYOK_PROVIDER_ID_PATTERN,
   BYOK_HEADER_PREFIX,
   byokHeaderName,
   isProviderId,
-  providerValidateConfig,
 } from './byok/providers'
+export type { ProviderId } from './byok/providers'
+export { defineByokProvider, byokValidateMap } from './byok/define-provider'
 export type {
-  ProviderId,
-  ProviderConfig,
+  ByokProvider,
+  ByokProviderInit,
   ProviderValidateConfig,
-} from './byok/providers'
+} from './byok/define-provider'
 export { isByokMissingBody, byokMissing } from './byok/missing'
 export type { ByokMissingBody } from './byok/missing'
 export { ByokMissingError, ByokBlockedError } from './byok/errors'
