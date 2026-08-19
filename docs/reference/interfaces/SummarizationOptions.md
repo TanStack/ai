@@ -5,7 +5,7 @@ title: SummarizationOptions
 
 # Interface: SummarizationOptions\<TProviderOptions\>
 
-Defined in: [packages/ai/src/types.ts:1983](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1983)
+Defined in: [packages/ai/src/types.ts:1987](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1987)
 
 ## Type Parameters
 
@@ -21,7 +21,7 @@ Defined in: [packages/ai/src/types.ts:1983](https://github.com/TanStack/ai/blob/
 optional abortSignal?: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/types.ts:2013](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2013)
+Defined in: [packages/ai/src/types.ts:2017](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2017)
 
 Effective abort signal composed by the activity from caller `abortSignal`
 and/or `timeout`. Adapters should forward this to the provider SDK when
@@ -35,7 +35,7 @@ supported. Request-specific — never store on a global client config.
 optional focus?: string[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1990](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1990)
+Defined in: [packages/ai/src/types.ts:1994](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1994)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [packages/ai/src/types.ts:1990](https://github.com/TanStack/ai/blob/
 logger: InternalLogger;
 ```
 
-Defined in: [packages/ai/src/types.ts:2007](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2007)
+Defined in: [packages/ai/src/types.ts:2011](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2011)
 
 Internal logger threaded from the summarize() entry point. Adapters must
 call logger.request() before the SDK call and logger.errors() in catch blocks.
@@ -58,7 +58,7 @@ call logger.request() before the SDK call and logger.errors() in catch blocks.
 optional maxLength?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:1988](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1988)
+Defined in: [packages/ai/src/types.ts:1992](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1992)
 
 ***
 
@@ -68,7 +68,7 @@ Defined in: [packages/ai/src/types.ts:1988](https://github.com/TanStack/ai/blob/
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1986](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1986)
+Defined in: [packages/ai/src/types.ts:1990](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1990)
 
 ***
 
@@ -78,7 +78,7 @@ Defined in: [packages/ai/src/types.ts:1986](https://github.com/TanStack/ai/blob/
 optional modelOptions?: TProviderOptions;
 ```
 
-Defined in: [packages/ai/src/types.ts:1992](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1992)
+Defined in: [packages/ai/src/types.ts:1996](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1996)
 
 Provider-specific options forwarded by the summarize() activity.
 
@@ -90,7 +90,7 @@ Provider-specific options forwarded by the summarize() activity.
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2001](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2001)
+Defined in: [packages/ai/src/types.ts:2005](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2005)
 
 Run identity forwarded from the summarize() activity. When set, the
 streaming adapter stamps it onto the emitted `RUN_STARTED` (via the wrapped
@@ -107,7 +107,7 @@ their own.
 optional style?: "bullet-points" | "paragraph" | "concise";
 ```
 
-Defined in: [packages/ai/src/types.ts:1989](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1989)
+Defined in: [packages/ai/src/types.ts:1993](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1993)
 
 ***
 
@@ -117,7 +117,7 @@ Defined in: [packages/ai/src/types.ts:1989](https://github.com/TanStack/ai/blob/
 text: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1987](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1987)
+Defined in: [packages/ai/src/types.ts:1991](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1991)
 
 ***
 
@@ -127,4 +127,4 @@ Defined in: [packages/ai/src/types.ts:1987](https://github.com/TanStack/ai/blob/
 optional threadId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2002](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2002)
+Defined in: [packages/ai/src/types.ts:2006](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2006)

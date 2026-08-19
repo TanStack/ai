@@ -9,7 +9,7 @@ title: createChatOptions
 function createChatOptions<TAdapter, TSchema, TStream, TTools, TMiddleware>(options): Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>>, "tools"> & object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:522](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L522)
+Defined in: [packages/ai/src/activities/chat/index.ts:527](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L527)
 
 Create typed options for the chat() function without executing.
 This is useful for pre-defining configurations with full type inference.

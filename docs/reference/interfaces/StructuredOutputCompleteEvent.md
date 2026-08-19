@@ -5,7 +5,7 @@ title: StructuredOutputCompleteEvent
 
 # Interface: StructuredOutputCompleteEvent\<T\>
 
-Defined in: [packages/ai/src/types.ts:1439](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1439)
+Defined in: [packages/ai/src/types.ts:1443](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1443)
 
 Final event of a streaming structured-output run. Carries the validated
 `object` (typed as `T` after the orchestrator runs Standard Schema parsing),
@@ -42,7 +42,7 @@ if (chunk.type === 'CUSTOM' && chunk.name === 'structured-output.complete') {
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1410](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1410)
+Defined in: [packages/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1414)
 
 Model identifier for multi-model support
 
@@ -58,7 +58,7 @@ Model identifier for multi-model support
 name: "structured-output.complete";
 ```
 
-Defined in: [packages/ai/src/types.ts:1442](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1442)
+Defined in: [packages/ai/src/types.ts:1446](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1446)
 
 #### Overrides
 
@@ -74,7 +74,7 @@ CustomEvent.name
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1418](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1418)
+Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
 
 #### Inherited from
 
@@ -88,7 +88,7 @@ Defined in: [packages/ai/src/types.ts:1418](https://github.com/TanStack/ai/blob/
 optional threadId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1417](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1417)
+Defined in: [packages/ai/src/types.ts:1421](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1421)
 
 Routing metadata the TanStack engine attaches when emitting CUSTOM
 events that need to be correlated with a specific thread/run.
@@ -107,7 +107,7 @@ the AG-UI consumer never sees them (when that middleware is enabled).
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1408](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1408)
+Defined in: [packages/ai/src/types.ts:1412](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1412)
 
 #### Inherited from
 
@@ -121,7 +121,7 @@ Defined in: [packages/ai/src/types.ts:1408](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1443](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1443)
+Defined in: [packages/ai/src/types.ts:1447](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1447)
 
 #### object
 

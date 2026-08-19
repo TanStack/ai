@@ -5,7 +5,7 @@ title: CodeModeSnippetCallEvent
 
 # Interface: CodeModeSnippetCallEvent
 
-Defined in: [packages/ai/src/types.ts:1561](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1561)
+Defined in: [packages/ai/src/types.ts:1565](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1565)
 
 Custom event for extensibility.
 
@@ -28,7 +28,7 @@ erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCu
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1410](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1410)
+Defined in: [packages/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1414)
 
 Model identifier for multi-model support
 
@@ -44,7 +44,7 @@ Model identifier for multi-model support
 name: "code_mode:snippet_call";
 ```
 
-Defined in: [packages/ai/src/types.ts:1562](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1562)
+Defined in: [packages/ai/src/types.ts:1566](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1566)
 
 #### Overrides
 
@@ -60,7 +60,7 @@ CustomEvent.name
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1418](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1418)
+Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
 
 #### Inherited from
 
@@ -74,7 +74,7 @@ Defined in: [packages/ai/src/types.ts:1418](https://github.com/TanStack/ai/blob/
 optional threadId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1417](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1417)
+Defined in: [packages/ai/src/types.ts:1421](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1421)
 
 Routing metadata the TanStack engine attaches when emitting CUSTOM
 events that need to be correlated with a specific thread/run.
@@ -93,7 +93,7 @@ the AG-UI consumer never sees them (when that middleware is enabled).
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1408](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1408)
+Defined in: [packages/ai/src/types.ts:1412](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1412)
 
 #### Inherited from
 
@@ -107,7 +107,7 @@ Defined in: [packages/ai/src/types.ts:1408](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1563](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1563)
+Defined in: [packages/ai/src/types.ts:1567](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1567)
 
 #### input
 

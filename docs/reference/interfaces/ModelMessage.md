@@ -5,7 +5,7 @@ title: ModelMessage
 
 # Interface: ModelMessage\<TContent\>
 
-Defined in: [packages/ai/src/types.ts:358](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L358)
+Defined in: [packages/ai/src/types.ts:360](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L360)
 
 ## Type Parameters
 
@@ -21,7 +21,7 @@ Defined in: [packages/ai/src/types.ts:358](https://github.com/TanStack/ai/blob/m
 content: TContent;
 ```
 
-Defined in: [packages/ai/src/types.ts:365](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L365)
+Defined in: [packages/ai/src/types.ts:367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L367)
 
 ***
 
@@ -31,7 +31,7 @@ Defined in: [packages/ai/src/types.ts:365](https://github.com/TanStack/ai/blob/m
 optional createdAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:383](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L383)
+Defined in: [packages/ai/src/types.ts:385](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L385)
 
 Optional message creation timestamp. When present, message converters
 preserve it across persist → hydrate round-trips.
@@ -44,7 +44,7 @@ preserve it across persist → hydrate round-trips.
 optional id?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:378](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L378)
+Defined in: [packages/ai/src/types.ts:380](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L380)
 
 Optional stable message id. Providers ignore it; it exists so a persisted
 transcript can retain the streaming `messageId` and survive the
@@ -61,7 +61,7 @@ resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
 optional name?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:366](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L366)
+Defined in: [packages/ai/src/types.ts:368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L368)
 
 ***
 
@@ -71,7 +71,7 @@ Defined in: [packages/ai/src/types.ts:366](https://github.com/TanStack/ai/blob/m
 role: "user" | "assistant" | "tool";
 ```
 
-Defined in: [packages/ai/src/types.ts:364](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L364)
+Defined in: [packages/ai/src/types.ts:366](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L366)
 
 ***
 
@@ -81,7 +81,7 @@ Defined in: [packages/ai/src/types.ts:364](https://github.com/TanStack/ai/blob/m
 optional thinking?: object[];
 ```
 
-Defined in: [packages/ai/src/types.ts:369](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L369)
+Defined in: [packages/ai/src/types.ts:371](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L371)
 
 #### content
 
@@ -103,7 +103,7 @@ optional signature?: string;
 optional toolCallId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L368)
+Defined in: [packages/ai/src/types.ts:370](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L370)
 
 ***
 
@@ -113,4 +113,4 @@ Defined in: [packages/ai/src/types.ts:368](https://github.com/TanStack/ai/blob/m
 optional toolCalls?: ToolCall<unknown>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L367)
+Defined in: [packages/ai/src/types.ts:369](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L369)

@@ -5,7 +5,7 @@ title: ToolCallStartEvent
 
 # Interface: ToolCallStartEvent\<TToolName\>
 
-Defined in: [packages/ai/src/types.ts:1216](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1216)
+Defined in: [packages/ai/src/types.ts:1220](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1220)
 
 Emitted when a tool call starts.
 
@@ -43,7 +43,7 @@ Constrained tool name type. Defaults to `string` (untyped).
 optional index?: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:1234](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1234)
+Defined in: [packages/ai/src/types.ts:1238](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1238)
 
 Index for parallel tool calls
 
@@ -55,7 +55,7 @@ Index for parallel tool calls
 optional metadata?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1239](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1239)
+Defined in: [packages/ai/src/types.ts:1243](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1243)
 
 Provider-specific metadata to carry into the ToolCall.
 Untyped at the event layer because events flow through a discriminated
@@ -70,7 +70,7 @@ union that does not survive generics; adapters cast it to their typed
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1224](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1224)
+Defined in: [packages/ai/src/types.ts:1228](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1228)
 
 Model identifier for multi-model support
 
@@ -82,7 +82,7 @@ Model identifier for multi-model support
 toolName: TToolName;
 ```
 
-Defined in: [packages/ai/src/types.ts:1232](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1232)
+Defined in: [packages/ai/src/types.ts:1236](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1236)
 
 #### Deprecated
 
@@ -100,4 +100,4 @@ Carries `TToolName` on the base interface; for `toolCallName` narrowing use
 type: "TOOL_CALL_START";
 ```
 
-Defined in: [packages/ai/src/types.ts:1222](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1222)
+Defined in: [packages/ai/src/types.ts:1226](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1226)

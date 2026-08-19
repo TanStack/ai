@@ -5,7 +5,7 @@ title: FileChangedEvent
 
 # Interface: FileChangedEvent
 
-Defined in: [packages/ai/src/types.ts:1527](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1527)
+Defined in: [packages/ai/src/types.ts:1531](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1531)
 
 Custom event for extensibility.
 
@@ -28,7 +28,7 @@ erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCu
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1410](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1410)
+Defined in: [packages/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1414)
 
 Model identifier for multi-model support
 
@@ -44,7 +44,7 @@ Model identifier for multi-model support
 name: "file.changed";
 ```
 
-Defined in: [packages/ai/src/types.ts:1528](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1528)
+Defined in: [packages/ai/src/types.ts:1532](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1532)
 
 #### Overrides
 
@@ -60,7 +60,7 @@ CustomEvent.name
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1418](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1418)
+Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
 
 #### Inherited from
 
@@ -74,7 +74,7 @@ Defined in: [packages/ai/src/types.ts:1418](https://github.com/TanStack/ai/blob/
 optional threadId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1417](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1417)
+Defined in: [packages/ai/src/types.ts:1421](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1421)
 
 Routing metadata the TanStack engine attaches when emitting CUSTOM
 events that need to be correlated with a specific thread/run.
@@ -93,7 +93,7 @@ the AG-UI consumer never sees them (when that middleware is enabled).
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1408](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1408)
+Defined in: [packages/ai/src/types.ts:1412](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1412)
 
 #### Inherited from
 
@@ -107,7 +107,7 @@ Defined in: [packages/ai/src/types.ts:1408](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1529](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1529)
+Defined in: [packages/ai/src/types.ts:1533](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1533)
 
 #### diff
 

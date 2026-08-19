@@ -5,7 +5,7 @@ title: AudioGenerationResult
 
 # Interface: AudioGenerationResult
 
-Defined in: [packages/ai/src/types.ts:2356](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2356)
+Defined in: [packages/ai/src/types.ts:2361](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2361)
 
 Result of audio generation
 
@@ -17,7 +17,7 @@ Result of audio generation
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2366](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2366)
+Defined in: [packages/ai/src/types.ts:2371](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2371)
 
 Persisted artifact references for generated assets, when available
 
@@ -29,7 +29,7 @@ Persisted artifact references for generated assets, when available
 audio: GeneratedAudio;
 ```
 
-Defined in: [packages/ai/src/types.ts:2362](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2362)
+Defined in: [packages/ai/src/types.ts:2367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2367)
 
 The generated audio
 
@@ -41,7 +41,7 @@ The generated audio
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2358](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2358)
+Defined in: [packages/ai/src/types.ts:2363](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2363)
 
 Unique identifier for the generation
 
@@ -53,7 +53,7 @@ Unique identifier for the generation
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2360](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2360)
+Defined in: [packages/ai/src/types.ts:2365](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2365)
 
 Model used for generation
 
@@ -65,6 +65,6 @@ Model used for generation
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2364](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2364)
+Defined in: [packages/ai/src/types.ts:2369](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2369)
 
 Token usage information (if available)
