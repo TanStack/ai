@@ -221,6 +221,44 @@ describe('claude-code in-sandbox adapter', () => {
     await sbx.destroy()
   })
 
+  it('uses user as the default setting source', async () => {
+    const fake = [
+      `import { writeFileSync } from 'node:fs'`,
+      `writeFileSync('argv.txt', process.argv.slice(2).join(' '))`,
+      `let input = ''`,
+      `process.stdin.on('data', (d) => { input += d })`,
+      `process.stdin.on('end', () => {`,
+      `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+      `  w({ type: 'system', subtype: 'init', session_id: 'sess-default', model: 'haiku', tools: [] })`,
+      `  w({ type: 'result', subtype: 'success', result: 'ok', usage: { input_tokens: 1, output_tokens: 1 } })`,
+      `})`,
+    ].join('\n')
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-claude.mjs', fake)
+
+    try {
+      const adapter = claudeCodeText('haiku', {
+        claudeExecutable: 'node fake-claude.mjs',
+        streamPartials: false,
+        emitDiff: false,
+      })
+      await collect(
+        adapter.chatStream({
+          model: 'haiku',
+          messages: [{ role: 'user', content: 'hi' }],
+          logger: noopLogger,
+          capabilities: capabilityContextWith(sbx),
+        }),
+      )
+
+      expect(await sbx.fs.read('/workspace/argv.txt')).toMatch(
+        /--setting-sources user/,
+      )
+    } finally {
+      await sbx.destroy()
+    }
+  })
+
   it('copies ANTHROPIC_API_KEY from the host process into the CLI env', async () => {
     const fake = [
       `import { writeFileSync } from 'node:fs'`,
