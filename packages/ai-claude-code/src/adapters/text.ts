@@ -62,6 +62,8 @@ export type ClaudeCodePermissionMode =
   | 'bypassPermissions'
   | 'plan'
 
+export type ClaudeCodeSettingSource = 'user' | 'project' | 'local'
+
 const DEFAULT_WORKDIR = '/workspace'
 
 export interface ClaudeCodeTextConfig {
@@ -85,6 +87,8 @@ export interface ClaudeCodeTextConfig {
   addDirs?: Array<string>
   /** Maximum harness-internal turns (`--max-turns`). */
   maxTurns?: number
+  /** Claude Code filesystem settings loaded via `--setting-sources`. Defaults to `['user']`. */
+  settingSources?: Array<ClaudeCodeSettingSource>
   /**
    * How `systemPrompts` from `chat()` are applied:
    * - `'append'` (default): `--append-system-prompt` on top of the preset.
@@ -208,6 +212,7 @@ export class ClaudeCodeTextAdapter<
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exeParts = (config.claudeExecutable ?? 'claude').split(' ')
+    const settingSources = config.settingSources ?? ['user']
 
     // `--setting-sources user` before `-p`. Do not pass `--bare`: that flag
     // skips stored `claude login` credentials and prints
@@ -216,7 +221,7 @@ export class ClaudeCodeTextAdapter<
     const args: Array<string> = [
       ...exeParts,
       '--setting-sources',
-      'user',
+      settingSources.join(','),
       '-p',
       '--output-format',
       'stream-json',

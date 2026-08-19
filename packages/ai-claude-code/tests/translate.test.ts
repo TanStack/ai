@@ -40,6 +40,7 @@ const init: AgentSdkMessage = {
   session_id: 'sess-abc',
   model: 'claude-opus-4-6',
   tools: ['Bash', 'Read'],
+  skills: ['repo-search'],
   cwd: '/tmp',
 }
 
@@ -106,8 +107,20 @@ describe('translateSdkStream', () => {
         sessionId: 'sess-abc',
         model: 'claude-opus-4-6',
         tools: ['Bash', 'Read'],
+        skills: ['repo-search'],
       },
     })
+  })
+
+  it('uses an empty skill list when the SDK init message omits skills', async () => {
+    const { skills: _skills, ...initWithoutSkills } = init
+    const chunks = await collect([
+      initWithoutSkills,
+      assistantText('hi'),
+      resultSuccess,
+    ])
+    const custom = chunks.find((c) => c.type === 'CUSTOM')
+    expect(custom).toMatchObject({ value: { skills: [] } })
   })
 
   it('maps usage onto RUN_FINISHED including cache token details', async () => {

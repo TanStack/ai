@@ -181,6 +181,7 @@ describe('claude-code in-sandbox adapter', () => {
       claudeExecutable: 'node fake-claude.mjs',
       streamPartials: false,
       emitDiff: false,
+      settingSources: ['project', 'local'],
     })
 
     const chunks = await collect(
@@ -200,7 +201,7 @@ describe('claude-code in-sandbox adapter', () => {
     const argv = await sbx.fs.read('/workspace/argv.txt')
     expect(argv).not.toContain('--bare')
     expect(argv).toContain('--setting-sources')
-    expect(argv).toContain('user')
+    expect(argv).toContain('project,local')
     expect(argv).toContain('--json-schema')
     expect(argv).toContain('"type":"object"')
     expect(argv).toContain('"summary"')

@@ -576,6 +576,7 @@ export async function* translateSdkStream(
             sessionId: sdkMessage.session_id,
             model: sdkMessage.model,
             tools: sdkMessage.tools,
+            skills: sdkMessage.skills ?? [],
           },
         }
         continue
