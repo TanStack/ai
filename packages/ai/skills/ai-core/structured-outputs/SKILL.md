@@ -409,7 +409,7 @@ final?.name
 - `partial` stays empty until `structured-output.complete`.
 - Client tools and `needsApproval` fail fast. The harness cannot pause for a browser round-trip.
 - Render live work from `messages[].parts` (`thinking`, `tool-call`, `text`, `structured-output`). `final` is only the latest turn.
-- `withPersistence` stores harness prose and the structured-output message as two assistant messages. Hydrate with `reconstructChat`.
+- `withPersistence` stores the structured-output part. Distinct event ids become two assistant messages. A reused text id stays on one message. Hydrate with `reconstructChat`.
 - See [docs/structured-outputs/harnesses.md](https://github.com/TanStack/ai/blob/main/docs/structured-outputs/harnesses.md).
 
 ## Common Mistakes

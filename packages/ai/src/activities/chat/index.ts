@@ -1426,6 +1426,11 @@ class TextEngine<
           this.structuredOutputResult = { data: object, rawText: parsed.raw }
           this.combinedCompleteEmitted = true
           const value = chunk.value
+          const completeMessageId = readCustomEventMessageId(value)
+          if (completeMessageId) {
+            this.combinedStructuredMessageId = completeMessageId
+            this.captureStructuredOutputMessageIdentity(completeMessageId)
+          }
           if (object !== parsed.object && value && typeof value === 'object') {
             outboundChunk = { ...chunk, value: { ...value, object } }
           }
@@ -2123,68 +2128,84 @@ class TextEngine<
         }
       : undefined
     const nativeCombined = this.finalStructuredOutput?.nativeCombined === true
-    // Event-source harness adapters emit prose and a later
-    // structured-output.complete event. Keep both in the transcript.
-    // Text-harvest native-combined output stays one assistant message.
+    const eventSourced = this.finalStructuredOutput?.source === 'event'
+    const structuredId =
+      this.structuredOutputMessageId ??
+      this.combinedStructuredMessageId ??
+      this.currentMessageId ??
+      this.createId('msg')
+    // Codex, OpenCode, ACP, and grok-build reuse the last text messageId
+    // on structured-output.complete. Split only when the event uses a
+    // different id (Claude Code). Same-id output stays on one message.
     const splitStructuredMessage =
-      !nativeCombined || this.finalStructuredOutput?.source === 'event'
-    const messages = this.middlewareCtx.messages
+      Boolean(structuredOutput) &&
+      (!nativeCombined || eventSourced) &&
+      this.currentMessageId != null &&
+      structuredId !== this.currentMessageId
+    const messages = [...this.middlewareCtx.messages]
+    const existingStructuredIndex = messages.findIndex(
+      (message) => message.role === 'assistant' && message.id === structuredId,
+    )
     const currentTurnAlreadyRecorded = messages.some(
       (message) =>
         message.role === 'assistant' && message.id === this.currentMessageId,
     )
     const thinking =
       this.accumulatedThinking.length > 0 ? this.accumulatedThinking : undefined
-    const terminalMessages: Array<ModelMessage> = []
+    const startedLength = messages.length
 
-    if (
-      !currentTurnAlreadyRecorded &&
-      splitStructuredMessage &&
-      (this.accumulatedContent !== '' || thinking)
-    ) {
-      terminalMessages.push({
-        role: 'assistant',
-        content: this.accumulatedContent || null,
-        id: this.currentMessageId ?? this.createId('msg'),
-        createdAt: this.currentMessageCreatedAt ?? new Date(),
-        ...(thinking ? { thinking } : {}),
-      })
+    if (structuredOutput && existingStructuredIndex >= 0) {
+      const existing = messages[existingStructuredIndex]
+      if (existing) {
+        messages[existingStructuredIndex] = {
+          ...existing,
+          content: raw || existing.content,
+          structuredOutput,
+        }
+      }
+    } else if (structuredOutput && !splitStructuredMessage) {
+      if (!currentTurnAlreadyRecorded) {
+        messages.push({
+          role: 'assistant',
+          content: this.accumulatedContent || raw || null,
+          id: structuredId,
+          createdAt:
+            this.currentMessageCreatedAt ??
+            this.structuredOutputMessageCreatedAt ??
+            new Date(),
+          structuredOutput,
+          ...(thinking ? { thinking } : {}),
+        })
+      }
+    } else {
+      if (
+        !currentTurnAlreadyRecorded &&
+        (this.accumulatedContent !== '' || thinking)
+      ) {
+        messages.push({
+          role: 'assistant',
+          content: this.accumulatedContent || null,
+          id: this.currentMessageId ?? this.createId('msg'),
+          createdAt: this.currentMessageCreatedAt ?? new Date(),
+          ...(thinking ? { thinking } : {}),
+        })
+      }
+      if (structuredOutput) {
+        messages.push({
+          role: 'assistant',
+          content: raw || null,
+          id: structuredId,
+          createdAt: this.structuredOutputMessageCreatedAt ?? new Date(),
+          structuredOutput,
+        })
+      }
     }
 
-    if (structuredOutput) {
-      const structuredId =
-        (splitStructuredMessage
-          ? (this.structuredOutputMessageId ?? this.combinedStructuredMessageId)
-          : this.currentMessageId) ?? this.createId('msg')
-      terminalMessages.push({
-        role: 'assistant',
-        content: raw || null,
-        id: structuredId,
-        createdAt: splitStructuredMessage
-          ? (this.structuredOutputMessageCreatedAt ?? new Date())
-          : (this.currentMessageCreatedAt ?? new Date()),
-        structuredOutput,
-        ...(!splitStructuredMessage && thinking && !currentTurnAlreadyRecorded
-          ? { thinking }
-          : {}),
-      })
-    } else if (
-      thinking &&
-      !currentTurnAlreadyRecorded &&
-      terminalMessages.length === 0
-    ) {
-      terminalMessages.push({
-        role: 'assistant',
-        content: this.accumulatedContent || null,
-        id: this.currentMessageId ?? undefined,
-        createdAt: this.currentMessageCreatedAt ?? undefined,
-        thinking,
-      })
+    if (messages.length === startedLength && existingStructuredIndex < 0) {
+      return
     }
 
-    if (terminalMessages.length === 0) return
-
-    this.messages = [...messages, ...terminalMessages]
+    this.messages = messages
     this.middlewareCtx.messages = this.messages
   }
 
@@ -4205,6 +4226,15 @@ async function runAgenticStructuredOutput<
  * Uses an `unknown`-input runtime check rather than `as` casts so the engine
  * stays cast-free in its hot path.
  */
+function readCustomEventMessageId(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  if (!('messageId' in value)) return undefined
+  const messageId = value.messageId
+  return typeof messageId === 'string' && messageId !== ''
+    ? messageId
+    : undefined
+}
+
 function readStructuredOutputCompleteValue(
   value: unknown,
 ): { object: unknown; raw: string; reasoning?: string } | null {

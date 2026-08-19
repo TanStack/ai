@@ -119,8 +119,9 @@ The chat engine completes the canonical transcript before `onFinish` runs, and
   message.
 - Separate finalization can preserve a plain-text assistant message followed by
   a structured-output assistant message.
-- Harness adapters that emit `structured-output.complete` during the run keep
-  the agent prose and the structured-output message as two assistant messages.
+- Harness adapters emit `structured-output.complete` during the run. A new
+  message id stores prose and structured output as two assistant messages. The
+  last text message id keeps both on one assistant message.
 
 A server-authoritative client hydrates that transcript on mount. Walk
 `messages[].parts` for the reconstructed structured-output part:

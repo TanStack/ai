@@ -832,6 +832,125 @@ describe('withPersistence (state-only)', () => {
     ])
   })
 
+  it('keeps event-sourced output on one message when complete reuses the text id', async () => {
+    const persistence = memoryPersistence()
+    const raw = '{"name":"Ada"}'
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'harness-prose',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text(raw),
+        {
+          type: EventType.CUSTOM,
+          name: 'structured-output.start',
+          value: { messageId: 'harness-prose' },
+          timestamp: 1,
+        },
+        {
+          type: EventType.CUSTOM,
+          name: 'structured-output.complete',
+          value: { object: { name: 'Ada' }, raw, messageId: 'harness-prose' },
+          timestamp: 1,
+        },
+        ev.runFinished(),
+      ],
+    ])
+    adapter.supportsCombinedToolsAndSchema = () => true
+    adapter.combinedStructuredOutputSource = () => 'event'
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        runId: 'r1',
+        threadId: 't1',
+        stream: true,
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+        },
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'extract' },
+      expect.objectContaining({
+        id: 'harness-prose',
+        role: 'assistant',
+        content: raw,
+        structuredOutput: {
+          type: 'structured-output',
+          status: 'complete',
+          raw,
+          data: { name: 'Ada' },
+          partial: { name: 'Ada' },
+        },
+      }),
+    ])
+  })
+
+  it('uses the complete event messageId when start omits it', async () => {
+    const persistence = memoryPersistence()
+    const raw = '{"name":"Ada"}'
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'harness-prose',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text('looking around'),
+        {
+          type: EventType.CUSTOM,
+          name: 'structured-output.complete',
+          value: { object: { name: 'Ada' }, raw, messageId: 'msg-so' },
+          timestamp: 1,
+        },
+        ev.runFinished(),
+      ],
+    ])
+    adapter.supportsCombinedToolsAndSchema = () => true
+    adapter.combinedStructuredOutputSource = () => 'event'
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        runId: 'r1',
+        threadId: 't1',
+        stream: true,
+        outputSchema: {
+          type: 'object',
+          properties: { name: { type: 'string' } },
+        },
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
+      { role: 'user', content: 'extract' },
+      expect.objectContaining({
+        id: 'harness-prose',
+        role: 'assistant',
+        content: 'looking around',
+      }),
+      expect.objectContaining({
+        id: 'msg-so',
+        role: 'assistant',
+        content: raw,
+        structuredOutput: expect.objectContaining({ raw }),
+      }),
+    ])
+  })
+
   it('persists thinking on a completed assistant message', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([

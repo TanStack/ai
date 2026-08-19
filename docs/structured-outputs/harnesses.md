@@ -168,9 +168,11 @@ Each part type:
 
 ## Persist the typed object
 
-Add `withPersistence` next to `withSandbox`. The engine stores the harness
-prose and the structured-output message separately. A reload hydrates both
-through `reconstructChat`. See [Chat Persistence](../persistence/chat-persistence).
+Add `withPersistence` next to `withSandbox`. The engine stores the completed
+structured-output part on the transcript. A new message id keeps harness prose
+and the structured object as two assistant messages. The last text message id
+keeps both on one message. A reload hydrates that transcript through
+`reconstructChat`. See [Chat Persistence](../persistence/chat-persistence).
 
 ```typescript group=harness-output
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";

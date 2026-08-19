@@ -94,7 +94,8 @@ it because `stores.messages` is possibly `undefined`.
 The canonical transcript already contains the completed terminal assistant
 messages. Native-combined output keeps the structured result on its terminal
 assistant message. Separate finalization and event-sourced harness output can
-preserve plain-text and structured-output assistant messages separately.
+preserve plain-text and structured-output assistant messages separately when
+those messages use different ids.
 
 ```ts
 withPersistence(persistence, {

@@ -184,8 +184,8 @@ server event state, not the client's rendered messages.
 5. Before `onFinish`, the chat engine appends the completed terminal assistant
    messages to `ctx.messages`. Native-combined output keeps the structured
    result on its terminal assistant message. Separate finalization and
-   event-sourced harness output can append the agent-loop assistant message
-   followed by a structured-output assistant message.
+   event-sourced harness output append a second structured-output message only
+   when that event uses a different message id.
 6. `onFinish` saves that canonical transcript before marking the run completed.
    `onError` terminalizes the run record without replacing the transcript. Both
    retain known usage. So does terminal `onAbort`, with one exception: on a run
