@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { anthropicVertexText } from '../src/vertex'
+import {
+  ANTHROPIC_VERTEX_CHAT_MODELS,
+  anthropicVertexText,
+} from '../src/vertex'
 
 const mocks = vi.hoisted(() => {
   return {
@@ -24,6 +27,14 @@ vi.mock('@anthropic-ai/vertex-sdk', () => {
   return {
     AnthropicVertex: MockAnthropicVertex,
   }
+})
+
+describe('ANTHROPIC_VERTEX_CHAT_MODELS', () => {
+  it('does not include Anthropic-only model ids', () => {
+    expect(ANTHROPIC_VERTEX_CHAT_MODELS).toContain('claude-sonnet-5')
+    expect(ANTHROPIC_VERTEX_CHAT_MODELS).toContain('claude-opus-5')
+    expect(ANTHROPIC_VERTEX_CHAT_MODELS).not.toContain('claude-opus-5-fast')
+  })
 })
 
 describe('anthropicVertexText', () => {

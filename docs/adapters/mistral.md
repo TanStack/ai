@@ -73,6 +73,48 @@ const adapter = createMistralText(
 );
 ```
 
+## Mistral on Vertex
+
+Use `@tanstack/ai-mistral/vertex` when Mistral must run on Vertex AI. That
+path uses Google Cloud credentials and the publisher `rawPredict` endpoint.
+
+Mistral on Vertex is regional only. Use `us-central1` or `europe-west4`.
+
+```bash
+npm install @tanstack/ai-mistral google-auth-library
+```
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { mistralVertexText } from "@tanstack/ai-mistral/vertex";
+
+const stream = chat({
+  adapter: mistralVertexText("mistral-medium-3", {
+    project: "my-project",
+    location: "europe-west4",
+  }),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+`project` and `location` use the same names as `@tanstack/ai-vertex`.
+`location` is required.
+
+`mistralVertexText` accepts only the Mistral chat models that Vertex lists:
+
+- `mistral-medium-3`
+- `mistral-small-2503`
+- `codestral-2`
+
+Mistral API aliases such as `mistral-large-latest` and `mistral-medium-latest`
+are not Vertex model ids. Vertex also lists `mistral-ocr-2505`, but that
+model is OCR, not chat.
+
+Install `google-auth-library` for Application Default Credentials, or pass
+`authClient` or `getAccessToken`.
+
+Gemini on Vertex lives in [`@tanstack/ai-vertex`](./vertex).
+
 ## Example: Chat Completion
 
 ```typescript

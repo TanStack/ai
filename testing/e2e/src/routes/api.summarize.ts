@@ -4,10 +4,11 @@ import { createOpenaiSummarize } from '@tanstack/ai-openai'
 import { createAnthropicSummarize } from '@tanstack/ai-anthropic'
 import { createGeminiSummarize } from '@tanstack/ai-gemini'
 import { vertexSummarize } from '@tanstack/ai-vertex'
-import { vertexE2eConfig } from '@/lib/vertex-e2e'
+import { vertexE2eAuthClient, vertexE2eConfig } from '@/lib/vertex-e2e'
 import { createOllamaSummarize } from '@tanstack/ai-ollama'
 import { createGroqSummarize } from '@tanstack/ai-groq'
 import { createGrokSummarize } from '@tanstack/ai-grok'
+import { grokVertexSummarize } from '@tanstack/ai-grok/vertex'
 import { createLLMGatewaySummarize } from '@tanstack/ai-llmgateway'
 import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
 import { createVercelGatewaySummarize } from '@tanstack/ai-vercel-gateway'
@@ -85,6 +86,14 @@ function createSummarizeAdapter(
     grok: () =>
       createGrokSummarize('grok-build-0.1', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    'vertex-grok': () =>
+      grokVertexSummarize('grok-4.3', {
+        project: 'e2e-project',
+        location: 'global',
+        baseURL: openaiUrl(aimockPort),
+        authClient: vertexE2eAuthClient(),
         defaultHeaders: headers,
       }),
     llmgateway: () =>

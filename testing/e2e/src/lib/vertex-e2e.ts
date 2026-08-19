@@ -25,6 +25,10 @@ class E2eVertexAuthClient {
   }
 }
 
+export function vertexE2eAuthClient() {
+  return new E2eVertexAuthClient()
+}
+
 export function vertexE2eConfig(
   baseUrl: string,
   headers?: Record<string, string>,

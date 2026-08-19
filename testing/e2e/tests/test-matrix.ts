@@ -18,6 +18,8 @@ export const providers: Provider[] = [
   'anthropic',
   'gemini',
   'vertex',
+  'vertex-grok',
+  'vertex-mistral',
   'ollama',
   'groq',
   'grok',

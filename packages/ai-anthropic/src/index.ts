@@ -28,12 +28,14 @@ export {
 
 export type {
   AnthropicChatModel,
+  AnthropicVertexChatModel,
   AnthropicChatModelProviderOptionsByName,
   AnthropicChatModelToolCapabilitiesByName,
   AnthropicModelInputModalitiesByName,
 } from './model-meta'
 export {
   ANTHROPIC_MODELS,
+  ANTHROPIC_VERTEX_CHAT_MODELS,
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
 } from './model-meta'
 export type {

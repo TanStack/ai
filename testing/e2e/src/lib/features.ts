@@ -101,6 +101,7 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
       gemini: 'gemini-3-flash-preview',
       vertex: 'gemini-3-flash-preview',
       grok: 'grok-build-0.1',
+      'vertex-grok': 'grok-4.3',
       // Reports combined tools+schema support, so the engine takes the
       // native path here too.
       byteplus: BYTEPLUS_STRUCTURED_MODEL,

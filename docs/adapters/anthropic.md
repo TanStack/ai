@@ -86,6 +86,9 @@ const stream = chat({
 });
 ```
 
+`anthropicVertexText` accepts only the Claude models in the Vertex catalog.
+It does not accept Anthropic-only ids such as `claude-opus-5-fast`.
+
 `project` and `location` use the same names as `@tanstack/ai-vertex`, so one
 auth object works for Gemini and Claude.
 

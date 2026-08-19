@@ -8,6 +8,9 @@ keywords:
   - vertex
   - vertex ai
   - gemini
+  - grok
+  - xai
+  - mistral
   - google cloud
   - regional
   - adapter
@@ -250,3 +253,11 @@ Creates a Gemini video adapter on Vertex. Experimental. `config.allowUrlFetch` i
 ## Claude on Vertex
 
 Use [`anthropicVertexText`](./anthropic#claude-on-vertex) from `@tanstack/ai-anthropic/vertex`.
+
+## Grok on Vertex
+
+Use [`grokVertexText`](./grok#grok-on-vertex) from `@tanstack/ai-grok/vertex`. Vertex Grok uses the OpenAI-compatible Responses endpoint. Use `grokVertexSummarize` from the same entry for summarize. The factory accepts only the Grok chat models in the Vertex catalog (`grok-4.3`, `grok-4.20-reasoning`, `grok-4.20-non-reasoning`, `grok-4.1-fast-reasoning`, `grok-4.1-fast-non-reasoning`).
+
+## Mistral on Vertex
+
+Use [`mistralVertexText`](./mistral#mistral-on-vertex) from `@tanstack/ai-mistral/vertex`. Vertex Mistral uses the publisher `rawPredict` path. It is regional only (`us-central1` or `europe-west4`). The factory accepts only the Mistral chat models in the Vertex catalog (`mistral-medium-3`, `mistral-small-2503`, `codestral-2`).
