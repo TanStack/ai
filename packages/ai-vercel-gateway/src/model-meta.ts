@@ -264,6 +264,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'zai/glm-5.1',
   'zai/glm-5.2',
   'zai/glm-5.2-fast',
+  'zai/glm-5.3',
   'zai/glm-5v-turbo',
 ] as const
 
@@ -2455,6 +2456,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'zai/glm-5.3': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
   'zai/glm-5v-turbo': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2728,6 +2739,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'zai/glm-5.1': readonly ['text']
   'zai/glm-5.2': readonly ['text']
   'zai/glm-5.2-fast': readonly ['text']
+  'zai/glm-5.3': readonly ['text']
   'zai/glm-5v-turbo': readonly ['text', 'image', 'document']
 }
 
