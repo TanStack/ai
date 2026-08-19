@@ -174,12 +174,32 @@ and the structured object as two assistant messages. The last text message id
 keeps both on one message. A reload hydrates that transcript through
 `reconstructChat`. See [Chat Persistence](../persistence/chat-persistence).
 
-```typescript group=harness-output
+```typescript group=harness-persist
 import { chat, toServerSentEventsResponse } from "@tanstack/ai";
 import { claudeCodeText } from "@tanstack/ai-claude-code";
 import { withPersistence } from "@tanstack/ai-persistence";
-import { withSandbox } from "@tanstack/ai-sandbox";
+import {
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+  withSandbox,
+} from "@tanstack/ai-sandbox";
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker";
 import { persistence } from "./persistence";
+import { z } from "zod";
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+});
+
+const sandbox = defineSandbox({
+  id: "repo-report",
+  provider: dockerSandbox({ image: "node:22" }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: "TanStack/ai" }),
+  }),
+});
 
 export async function POST(request: Request) {
   const body: unknown = await request.json();
