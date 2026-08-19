@@ -26,6 +26,21 @@ describe('resolveMistralVertexLocation', () => {
       resolveMistralVertexLocation({ project: 'my-project' }),
     ).toThrow(MistralVertexAuthError)
   })
+
+  it('throws for global and other non-Mistral regions', () => {
+    expect(() =>
+      resolveMistralVertexLocation({
+        project: 'my-project',
+        location: 'global',
+      }),
+    ).toThrow(/us-central1 or europe-west4/)
+    expect(() =>
+      resolveMistralVertexLocation({
+        project: 'my-project',
+        location: 'us-east1',
+      }),
+    ).toThrow(MistralVertexAuthError)
+  })
 })
 
 describe('resolveMistralVertexModelUrl', () => {

@@ -8,7 +8,11 @@ import {
 import type { TextOptions } from '@tanstack/ai'
 import type { InferTextProviderOptions } from '@tanstack/ai/adapters'
 import type { ResponseCreateParams } from 'openai/resources/responses/responses'
-import type { GrokVertexChatModel, ResolveProviderOptions } from '../model-meta'
+import type {
+  GrokVertexChatModel,
+  ResolveInputModalities,
+  ResolveProviderOptions,
+} from '../model-meta'
 import type { GrokVertexConfig } from './auth'
 
 export {
@@ -26,13 +30,38 @@ export {
   type GrokVertexChatModel,
 } from '../model-meta'
 
+const VERTEX_UNSUPPORTED_GROK_SERVER_TOOLS = new Set([
+  'web_search',
+  'x_search',
+  'file_search',
+  'mcp',
+])
+
 class GrokVertexTextAdapter<
   TModel extends GrokVertexChatModel,
-> extends GrokTextAdapter<TModel> {
+> extends GrokTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
+  readonly []
+> {
   protected override mapOptionsToRequest(
     options: TextOptions<ResolveProviderOptions<TModel>>,
   ): Omit<ResponseCreateParams, 'stream'> {
     const request = super.mapOptionsToRequest(options)
+    const tools = request.tools
+    if (tools !== undefined) {
+      for (const tool of tools) {
+        if (tool === null || typeof tool !== 'object' || !('type' in tool)) {
+          continue
+        }
+        if (VERTEX_UNSUPPORTED_GROK_SERVER_TOOLS.has(String(tool.type))) {
+          throw new Error(
+            'Grok Vertex does not support xAI server tools (web_search, x_search, file_search, mcp). Use a function tool.',
+          )
+        }
+      }
+    }
     return {
       ...request,
       model: toVertexGrokModelId(this.model),
@@ -49,7 +78,12 @@ class GrokVertexTextAdapter<
 export function grokVertexText<TModel extends GrokVertexChatModel>(
   model: TModel,
   config: GrokVertexConfig = {},
-): GrokTextAdapter<TModel> {
+): GrokTextAdapter<
+  TModel,
+  ResolveProviderOptions<TModel>,
+  ResolveInputModalities<TModel>,
+  readonly []
+> {
   const baseURL = resolveGrokVertexBaseURL(config)
 
   return new GrokVertexTextAdapter(

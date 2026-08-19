@@ -1,8 +1,19 @@
 export class GrokVertexAuthError extends Error {
-  constructor(message: string) {
-    super(message)
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
     this.name = 'GrokVertexAuthError'
   }
+}
+
+function isMissingGoogleAuthLibrary(error: unknown): boolean {
+  if (!(error instanceof Error) || !('code' in error)) {
+    return false
+  }
+  const code = error.code
+  if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') {
+    return false
+  }
+  return error.message.includes('google-auth-library')
 }
 
 export type VertexAuthClient = {
@@ -117,8 +128,14 @@ export async function resolveGrokVertexAccessToken(
     if (error instanceof GrokVertexAuthError) {
       throw error
     }
+    if (isMissingGoogleAuthLibrary(error)) {
+      throw new GrokVertexAuthError(
+        'Grok Vertex needs google-auth-library, or pass authClient or getAccessToken. Install google-auth-library next to @tanstack/ai-grok.',
+      )
+    }
     throw new GrokVertexAuthError(
-      'Grok Vertex needs google-auth-library, or pass authClient or getAccessToken. Install google-auth-library next to @tanstack/ai-grok.',
+      'Grok Vertex could not load a Google access token from Application Default Credentials.',
+      { cause: error },
     )
   }
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import {
   GROK_VERTEX_CHAT_MODELS,
@@ -7,22 +7,6 @@ import {
 } from '../src/vertex'
 
 const testLogger = resolveDebugOption(false)
-
-function createAsyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
-  return {
-    [Symbol.asyncIterator]() {
-      let index = 0
-      return {
-        async next() {
-          if (index < chunks.length) {
-            return { value: chunks[index++]!, done: false }
-          }
-          return { value: undefined as T, done: true }
-        },
-      }
-    },
-  }
-}
 
 describe('GROK_VERTEX_CHAT_MODELS', () => {
   it('matches the Google Vertex Grok catalog', () => {
@@ -51,46 +35,46 @@ describe('grokVertexText', () => {
     expect(adapter.model).toBe('grok-4.3')
   })
 
-  it('sends the Vertex xai/ model id on the Responses request', async () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('sends a Bearer token and the Vertex xai/ model id', async () => {
+    const fetchSpy = vi.fn().mockResolvedValue(
+      new Response('data: [DONE]\n\n', {
+        headers: { 'Content-Type': 'text/event-stream' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchSpy)
+
     const adapter = grokVertexText('grok-4.3', {
-      project: 'my-project',
-      location: 'global',
-      getAccessToken: async () => 'e2e-dummy',
+      baseURL: 'http://vertex.test/v1',
+      getAccessToken: async () => 'vertex-token',
     })
 
-    const mockCreate = vi.fn().mockResolvedValue(
-      createAsyncIterable([
-        {
-          type: 'response.created',
-          response: { id: 'resp_123', model: 'xai/grok-4.3' },
-        },
-        {
-          type: 'response.completed',
-          response: {
-            id: 'resp_123',
-            model: 'xai/grok-4.3',
-            output: [],
-          },
-        },
-      ]),
+    try {
+      for await (const _chunk of adapter.chatStream({
+        model: 'grok-4.3',
+        messages: [{ role: 'user', content: 'Hello' }],
+        logger: testLogger,
+      })) {
+        // Exhaust the stream so the adapter sends the request.
+      }
+    } catch {
+      // The fixture is only a DONE event. The request still went out.
+    }
+
+    expect(fetchSpy).toHaveBeenCalled()
+    const [url, init] = fetchSpy.mock.calls[0] as [
+      string | URL | Request,
+      { headers?: HeadersInit; body?: string },
+    ]
+    expect(String(url)).toContain('http://vertex.test/v1/responses')
+    expect(new Headers(init.headers).get('Authorization')).toBe(
+      'Bearer vertex-token',
     )
-    ;(adapter as any).client = {
-      responses: {
-        create: mockCreate,
-      },
-    }
-
-    for await (const _chunk of adapter.chatStream({
-      model: 'grok-4.3',
-      messages: [{ role: 'user', content: 'Hello' }],
-      logger: testLogger,
-    })) {
-      // Exhaust the stream so the adapter sends the request.
-    }
-
-    expect(mockCreate.mock.calls[0]?.[0]).toMatchObject({
+    expect(JSON.parse(String(init.body))).toMatchObject({
       model: 'xai/grok-4.3',
-      stream: true,
     })
   })
 })

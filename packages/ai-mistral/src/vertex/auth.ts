@@ -1,8 +1,27 @@
 export class MistralVertexAuthError extends Error {
-  constructor(message: string) {
-    super(message)
+  constructor(message: string, options?: ErrorOptions) {
+    super(message, options)
     this.name = 'MistralVertexAuthError'
   }
+}
+
+const MISTRAL_VERTEX_LOCATIONS = ['us-central1', 'europe-west4'] as const
+
+function isMistralVertexLocation(
+  location: string,
+): location is (typeof MISTRAL_VERTEX_LOCATIONS)[number] {
+  return (MISTRAL_VERTEX_LOCATIONS as ReadonlyArray<string>).includes(location)
+}
+
+function isMissingGoogleAuthLibrary(error: unknown): boolean {
+  if (!(error instanceof Error) || !('code' in error)) {
+    return false
+  }
+  const code = error.code
+  if (code !== 'ERR_MODULE_NOT_FOUND' && code !== 'MODULE_NOT_FOUND') {
+    return false
+  }
+  return error.message.includes('google-auth-library')
 }
 
 export type VertexAuthClient = {
@@ -62,6 +81,11 @@ export function resolveMistralVertexLocation(
       'Mistral Vertex needs a location. Pass location on the factory, or set GOOGLE_CLOUD_LOCATION or GOOGLE_VERTEX_LOCATION. Use us-central1 or europe-west4.',
     )
   }
+  if (!isMistralVertexLocation(location)) {
+    throw new MistralVertexAuthError(
+      'Mistral Vertex location must be us-central1 or europe-west4. There is no global endpoint.',
+    )
+  }
   return location
 }
 
@@ -114,8 +138,14 @@ export async function resolveMistralVertexAccessToken(
     if (error instanceof MistralVertexAuthError) {
       throw error
     }
+    if (isMissingGoogleAuthLibrary(error)) {
+      throw new MistralVertexAuthError(
+        'Mistral Vertex needs google-auth-library, or pass authClient or getAccessToken. Install google-auth-library next to @tanstack/ai-mistral.',
+      )
+    }
     throw new MistralVertexAuthError(
-      'Mistral Vertex needs google-auth-library, or pass authClient or getAccessToken. Install google-auth-library next to @tanstack/ai-mistral.',
+      'Mistral Vertex could not load a Google access token from Application Default Credentials.',
+      { cause: error },
     )
   }
 }
