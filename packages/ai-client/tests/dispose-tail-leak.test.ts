@@ -250,7 +250,6 @@ describe('dispose stops a late hydration from opening a tail', () => {
     }
 
     const client = mountedChatClient({
-      id: 'chat-1',
       threadId: 't1',
       connection,
       persistence: store.adapter,

@@ -16,11 +16,21 @@
  */
 
 import { describe, it } from 'vitest'
+import { useGenerateAudio } from '../src/use-generate-audio'
 import { useGenerateImage } from '../src/use-generate-image'
+import { useGenerateSpeech } from '../src/use-generate-speech'
 import { useGenerateVideo } from '../src/use-generate-video'
 import { useGeneration } from '../src/use-generation'
 import { useSummarize } from '../src/use-summarize'
 import { useTranscription } from '../src/use-transcription'
+import type { GenerationPersistenceOptions } from '@tanstack/ai-client'
+import type { UseGenerateAudioOptions } from '../src/use-generate-audio'
+import type { UseGenerateImageOptions } from '../src/use-generate-image'
+import type { UseGenerateSpeechOptions } from '../src/use-generate-speech'
+import type { UseGenerateVideoOptions } from '../src/use-generate-video'
+import type { UseGenerationOptions } from '../src/use-generation'
+import type { UseSummarizeOptions } from '../src/use-summarize'
+import type { UseTranscriptionOptions } from '../src/use-transcription'
 
 const connection = {} as never
 
@@ -38,6 +48,10 @@ describe('generation persistence requires a threadId', () => {
       useSummarize({ connection, persistence: true })
       // @ts-expect-error threadId is required whenever persistence is set
       useTranscription({ connection, persistence: true })
+      // @ts-expect-error threadId is required whenever persistence is set
+      useGenerateAudio({ connection, persistence: true })
+      // @ts-expect-error threadId is required whenever persistence is set
+      useGenerateSpeech({ connection, persistence: true })
     }
     void _typeCheck
   })
@@ -46,7 +60,12 @@ describe('generation persistence requires a threadId', () => {
     // Type-level only: never invoked, so no renderer is needed.
     const _typeCheck = () => {
       useGenerateImage({ connection, persistence: true, threadId: 'hero' })
+      useGenerateVideo({ connection, persistence: true, threadId: 'hero' })
       useGeneration({ connection, persistence: true, threadId: 'hero' })
+      useSummarize({ connection, persistence: true, threadId: 'hero' })
+      useTranscription({ connection, persistence: true, threadId: 'hero' })
+      useGenerateAudio({ connection, persistence: true, threadId: 'hero' })
+      useGenerateSpeech({ connection, persistence: true, threadId: 'hero' })
     }
     void _typeCheck
   })
@@ -54,12 +73,19 @@ describe('generation persistence requires a threadId', () => {
   it('leaves threadId optional for ephemeral generations', () => {
     // Type-level only: never invoked, so no renderer is needed.
     const _typeCheck = () => {
-      // The published no-persistence signature must keep compiling untouched —
-      // adding a required option would break every existing call site.
+      // The published no-persistence signature must keep compiling untouched.
+      // Adding a required option would break every existing call site.
       useGenerateImage({ connection })
       useGenerateImage({ connection, persistence: false })
+      useGenerateImage({ connection, threadId: 'hero' })
+      useGenerateVideo({ connection })
+      useGenerateVideo({ connection, persistence: false })
       useGeneration({ connection })
       useGeneration({ connection, persistence: false })
+      useSummarize({ connection })
+      useTranscription({ connection })
+      useGenerateAudio({ connection })
+      useGenerateSpeech({ connection })
     }
     void _typeCheck
   })
@@ -82,21 +108,57 @@ describe('generation persistence requires a threadId', () => {
     void _typeCheck
   })
 
-  it('rejects deprecated `id` when `threadId` is supplied', () => {
-    // Type-level only: never invoked, so no renderer is needed.
-    const _typeCheck = () => {
-      // @ts-expect-error id is never when threadId is set — threadId is the single identity
-      useGenerateImage({ connection, threadId: 'hero', id: 'legacy' })
-      // @ts-expect-error id is never when persistence requires threadId
-      useGenerateImage({
-        connection,
-        persistence: true,
-        threadId: 'hero',
-        id: 'legacy',
-      })
-      // Ephemeral runs may still pass a deprecated id alone.
-      useGenerateImage({ connection, id: 'legacy-ephemeral' })
-    }
-    void _typeCheck
+  it('does not list `id` on hook parameters. `threadId` is present', () => {
+    type ImageOpts = Omit<
+      UseGenerateImageOptions,
+      'onResult' | 'persistence' | 'threadId'
+    > &
+      GenerationPersistenceOptions
+    type VideoOpts = Omit<
+      UseGenerateVideoOptions,
+      'onResult' | 'persistence' | 'threadId'
+    > &
+      GenerationPersistenceOptions
+    type GenOpts = Omit<
+      UseGenerationOptions<Record<string, unknown>, unknown>,
+      'onResult' | 'persistence' | 'threadId'
+    > &
+      GenerationPersistenceOptions
+    type SummarizeOpts = Omit<
+      UseSummarizeOptions,
+      'onResult' | 'persistence' | 'threadId'
+    > &
+      GenerationPersistenceOptions
+    type TranscribeOpts = Omit<
+      UseTranscriptionOptions,
+      'onResult' | 'persistence' | 'threadId'
+    > &
+      GenerationPersistenceOptions
+    type AudioOpts = Omit<
+      UseGenerateAudioOptions,
+      'onResult' | 'persistence' | 'threadId'
+    > &
+      GenerationPersistenceOptions
+    type SpeechOpts = Omit<
+      UseGenerateSpeechOptions,
+      'onResult' | 'persistence' | 'threadId'
+    > &
+      GenerationPersistenceOptions
+    // @ts-expect-error id is not a generation hook option
+    type _ImageId = ImageOpts['id']
+    // @ts-expect-error id is not a generation hook option
+    type _VideoId = VideoOpts['id']
+    // @ts-expect-error id is not a generation hook option
+    type _GenId = GenOpts['id']
+    // @ts-expect-error id is not a generation hook option
+    type _SummarizeId = SummarizeOpts['id']
+    // @ts-expect-error id is not a generation hook option
+    type _TranscribeId = TranscribeOpts['id']
+    // @ts-expect-error id is not a generation hook option
+    type _AudioId = AudioOpts['id']
+    // @ts-expect-error id is not a generation hook option
+    type _SpeechId = SpeechOpts['id']
+    const imageThreadId: ImageOpts['threadId'] = 'hero'
+    void imageThreadId
   })
 })

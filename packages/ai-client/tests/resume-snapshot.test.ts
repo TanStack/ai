@@ -220,7 +220,6 @@ describe('ChatClient auto-rejoin after reload', () => {
 
     let latest: Array<UIMessage> = []
     const client = mountedChatClient({
-      id: 'chat-1',
       threadId: 't1',
       connection,
       persistence: adapter,
@@ -585,7 +584,6 @@ describe('ChatClient auto-rejoin after reload', () => {
     }
     let status: string | undefined
     const client = mountedChatClient({
-      id: 'chat-quiet',
       threadId: 't1',
       connection,
       persistence: adapter,
@@ -632,7 +630,6 @@ describe('ChatClient auto-rejoin after reload', () => {
     }
     let status: string | undefined
     const client = mountedChatClient({
-      id: 'chat-dead',
       threadId: 't1',
       connection,
       persistence: adapter,
@@ -734,7 +731,6 @@ describe('ChatClient auto-rejoin after reload', () => {
     }
     const onError = vi.fn()
     const client = mountedChatClient({
-      id: 'chat-err',
       threadId: 't1',
       connection,
       persistence: adapter,

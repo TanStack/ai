@@ -58,7 +58,7 @@ import { fetchServerSentEvents, useGenerateImage } from '@tanstack/ai-react'
 
 export function ImageStudio() {
   const image = useGenerateImage({
-    id: 'generation-hooks:useGenerateImage',
+    threadId: 'generation-hooks:useGenerateImage',
     connection: fetchServerSentEvents('/api/image'),
     devtools: {
       name: 'Image Studio',

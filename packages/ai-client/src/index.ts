@@ -30,6 +30,7 @@ export type {
   ChatClientPersistence,
   ChatPersistedState,
   ChatPersistenceOption,
+  ChatPersistenceOptions,
   ChatStorageAdapter,
   ChatClientOptions,
   ChatPendingInterrupt,

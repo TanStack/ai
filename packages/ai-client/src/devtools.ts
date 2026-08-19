@@ -450,7 +450,6 @@ function getActiveBridgeRegistry(): Map<string, ActiveDevtoolsBridge> {
 
 export class ClientDevtoolsBridge<TSnapshot extends object> {
   protected readonly options: AIDevtoolsBridgeOptions<TSnapshot>
-  private readonly bridgeId: string
   private readonly unsubscribers: Array<Unsubscribe> = []
   private disposed = false
   private superseded = false
@@ -458,7 +457,6 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
 
   constructor(options: AIDevtoolsBridgeOptions<TSnapshot>) {
     this.options = options
-    this.bridgeId = createBridgeId(options.hookId)
   }
 
   emitRegistered(): void {
@@ -569,6 +567,12 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
 
     this.disposed = true
     if (!this.registered) {
+      this.deactivate()
+      return
+    }
+
+    const live = getActiveBridgeRegistry().get(this.options.hookId)
+    if (live !== this) {
       this.deactivate()
       return
     }
@@ -718,7 +722,6 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       visibility,
       clientId: this.options.clientId,
       hookId: this.options.hookId,
-      correlationId: this.bridgeId,
       ...(this.options.threadId ? { threadId: this.options.threadId } : {}),
       ...(context.runId ? { runId: context.runId } : {}),
       timestamp: Date.now(),
@@ -740,25 +743,6 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
         : {}),
     }
   }
-}
-
-let bridgeIdSequence = 0
-
-function createBridgeId(hookId: string): string {
-  const cryptoLike = (
-    globalThis as {
-      crypto?: {
-        randomUUID?: () => string
-      }
-    }
-  ).crypto
-
-  if (cryptoLike?.randomUUID) {
-    return `bridge:${hookId}:${cryptoLike.randomUUID()}`
-  }
-
-  bridgeIdSequence += 1
-  return `bridge:${hookId}:${bridgeIdSequence}`
 }
 
 // Owns the chat-client devtools surface so the chat client itself stays a
