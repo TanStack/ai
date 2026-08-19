@@ -3,5 +3,5 @@ node_modules
 .output
 dist
 *.log
-.db-skills
-.structured-output-skills
+.db-snippets
+.structured-output-snippets

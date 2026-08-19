@@ -78,7 +78,10 @@ export class OpenRouterRerankAdapter<
         completionTokens: 0,
         totalTokens: response.usage?.totalTokens ?? 0,
         ...(response.usage?.searchUnits !== undefined
-          ? { unitsBilled: response.usage.searchUnits }
+          ? {
+              billed: { quantity: response.usage.searchUnits, unit: 'units' },
+              unitsBilled: response.usage.searchUnits,
+            }
           : {}),
         ...(response.usage?.cost !== undefined
           ? { cost: response.usage.cost }

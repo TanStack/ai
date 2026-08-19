@@ -1,0 +1,19 @@
+# @tanstack/ai-perplexity
+
+## 0.2.1
+
+### Patch Changes
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+
+## 0.2.0
+
+### Minor Changes
+
+- [#516](https://github.com/TanStack/ai/pull/516) [`4d5ec57`](https://github.com/TanStack/ai/commit/4d5ec57ea1e6fc053a6a4b5695c8494bbc468b2e) - Add `@tanstack/ai-perplexity` with a Perplexity Search API client and `perplexitySearchTool`.
+
+### Patch Changes
+
+- Updated dependencies [[`99fb2b7`](https://github.com/TanStack/ai/commit/99fb2b7b113548b20afa894e014bd03773815a41)]:
+  - @tanstack/ai@0.44.1

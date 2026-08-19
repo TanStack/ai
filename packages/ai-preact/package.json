@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-preact",
-  "version": "0.12.1",
+  "version": "0.12.3",
   "description": "Preact hooks for TanStack AI streaming chat and typed messages.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -56,16 +56,16 @@
     "tool-calling"
   ],
   "dependencies": {
-    "@tanstack/ai-client": "workspace:*"
+    "@tanstack/ai-client": "workspace:^"
   },
   "devDependencies": {
     "@mcp-ui/client": "^7.1.1",
     "@tanstack/ai": "workspace:*",
     "@testing-library/preact": "^3.2.4",
-    "@vitest/coverage-v8": "4.0.14",
-    "jsdom": "^27.2.0",
+    "@vitest/coverage-v8": "4.1.10",
+    "jsdom": "^27.4.0",
     "preact": "^10.26.9",
-    "vite": "^8.1.4"
+    "vite": "^8.2.1"
   },
   "peerDependencies": {
     "@mcp-ui/client": "^7",

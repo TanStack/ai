@@ -9,6 +9,7 @@ export {
   getVideoJobStatus,
   generateSpeech,
   generateTranscription,
+  embed,
 } from './activities/index'
 
 // Create options functions - for pre-defining typed configurations
@@ -20,6 +21,7 @@ export { createAudioOptions } from './activities/generateAudio/index'
 export { createVideoOptions } from './activities/generateVideo/index'
 export { createSpeechOptions } from './activities/generateSpeech/index'
 export { createTranscriptionOptions } from './activities/generateTranscription/index'
+export { createEmbedOptions } from './activities/embed/index'
 
 // Re-export types
 export type {
@@ -38,6 +40,8 @@ export type {
   TranscriptionAdapter,
   AnyVideoAdapter,
   VideoAdapter,
+  AnyEmbeddingAdapter,
+  EmbeddingAdapter,
   AnyRerankAdapter,
   RerankAdapter,
 } from './activities/index'
@@ -134,6 +138,22 @@ export type {
   StreamDurability,
   UpsertableStreamDurability,
 } from './stream-durability'
+
+// WebSocket transport utilities
+export {
+  toWebSocketStream,
+  toWebSocketResponse,
+  resumeWebSocketStream,
+  resumeWebSocketResponse,
+  encodeWsFrame,
+  decodeWsFrame,
+} from './stream-to-websocket'
+export type {
+  WebSocketLike,
+  WsRunContext,
+  WebSocketStreamInit,
+  InboundFrame,
+} from './stream-to-websocket'
 
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
@@ -310,6 +330,14 @@ export { buildBaseUsage, type BaseUsageInput } from './utilities/usage'
 // Media-generation prompt resolution (used by image / video adapters)
 export { resolveMediaPrompt } from './utilities/media-prompt'
 export type { ResolvedMediaPrompt } from './utilities/media-prompt'
+
+// Embedding input resolution (used by embedding adapters)
+export {
+  resolveEmbeddingInput,
+  requireTextOnlyEmbeddingInput,
+  countEmbeddingInputModalities,
+} from './utilities/embedding-input'
+export type { ResolvedEmbeddingItem } from './utilities/embedding-input'
 
 // System prompts (type + normaliser used by adapters)
 export type { SystemPrompt, NormalizedSystemPrompt } from './system-prompts'

@@ -204,6 +204,69 @@ for await (const chunk of chat({
 }
 ```
 
+## Embeddings
+
+Generate embedding vectors with Titan or Cohere embedding models via `InvokeModel`:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { bedrockEmbedding } from "@tanstack/ai-bedrock";
+
+const result = await embed({
+  adapter: bedrockEmbedding("amazon.titan-embed-text-v2:0"),
+  input: ["a red guitar", "a blue drum kit"],
+  dimensions: 512, // 256 | 512 | 1024
+});
+
+console.log(result.embeddings[0]?.vector);
+```
+
+Titan Multimodal embeds text and images — alone or fused into a single vector. Fuse parts by nesting them in an array (the same `Array<ContentPart>` shape a chat message's `content` uses); the outer array is the item list, so this embeds one fused item:
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { bedrockEmbedding } from "@tanstack/ai-bedrock";
+
+const productPhoto = "iVBORw0KGgo..."; // base64 image data
+
+const result = await embed({
+  adapter: bedrockEmbedding("amazon.titan-embed-image-v1"),
+  input: [
+    [
+      { type: "text", content: "a red guitar" },
+      {
+        type: "image",
+        source: {
+          type: "data",
+          value: productPhoto,
+          mimeType: "image/png",
+        },
+      },
+    ],
+  ],
+  dimensions: 1024, // 256 | 384 | 1024
+});
+```
+
+Cohere Embed v3 on Bedrock is also supported (text-only, batched, requires `inputType`):
+
+```typescript
+import { embed } from "@tanstack/ai";
+import { bedrockEmbedding } from "@tanstack/ai-bedrock";
+
+const result = await embed({
+  adapter: bedrockEmbedding("cohere.embed-english-v3"),
+  input: ["a red guitar", "a blue drum kit"],
+  modelOptions: { inputType: "search_document" },
+});
+```
+
+> Titan models have no batch API — a batch of N items runs as N `InvokeModel`
+> calls under a small concurrency cap. Titan Multimodal does not fetch remote
+> image URLs; pass base64 data (or a `data:` URI).
+
+See the [Embeddings guide](../embeddings.md) for the full API.
+
 ## Model Availability
 
 The adapter ships with a hand-seeded snapshot catalog (`src/model-catalog.generated.ts`) of confirmed model IDs. This catalog can be refreshed by the maintainer script `scripts/fetch-bedrock-models.ts`, which calls `ListFoundationModels` with AWS credentials.

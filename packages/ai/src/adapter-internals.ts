@@ -29,3 +29,11 @@ export {
   assertUniqueToolNames,
   DuplicateToolNameError,
 } from './activities/chat/tools/unique-tool-names'
+export {
+  appendOutputSchemaInstruction,
+  parseJsonFromAssistantText,
+} from './utilities/structured-output-text'
+export {
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+} from './utilities/structured-output-events'

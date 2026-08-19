@@ -25,8 +25,10 @@ import type {
 import type {
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
   GenerationResumeSnapshot,
   GenerationResumeState,
+  GenerationTransport,
   VideoGenerateInput,
   VideoGenerateResult,
   VideoGenerationClientOptions,
@@ -111,10 +113,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private readonly fetcher:
     | GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
     | undefined
-  private readonly uniqueId: string
+  private uniqueId: string
   private readonly devtoolsMetadata: AIDevtoolsClientMetadata
   private readonly devtoolsBridge: VideoDevtoolsBridge<TOutput>
-  private readonly threadId: string
+  private threadId: string
   // Server-driven mode (`persistence: true`): no local snapshot store; on mount
   // the client hydrates the last generation for `threadId` from the server.
   private readonly serverDriven: boolean = false
@@ -137,22 +139,17 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private serverHydrationStarted = false
 
   constructor(
-    options: VideoGenerationClientOptions<TOutput> &
-      (
-        | { connection: ConnectConnectionAdapter; fetcher?: never }
-        | {
-            fetcher: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-            connection?: never
-          }
-      ),
+    options: Omit<
+      VideoGenerationClientOptions<TOutput>,
+      'persistence' | 'threadId'
+    > &
+      GenerationPersistenceOptions &
+      GenerationTransport<VideoGenerateInput, VideoGenerateResult>,
   ) {
-    // `threadId` is the single identity. Deprecated `id` is only a fallback
-    // when no threadId is given (ephemeral runs / legacy call sites).
-    this.uniqueId =
-      options.threadId ?? options.id ?? this.generateUniqueId('video')
-    // The wire/hydration thread key. Server-driven mode needs a stable key, so
-    // prefer an explicit `threadId`, then legacy `id`, then a generated id.
-    this.threadId = options.threadId ?? this.uniqueId
+    // `threadId` is the only identity. Do not mint a random id during
+    // construct: hooks build this client during render.
+    this.threadId = options.threadId ?? ''
+    this.uniqueId = this.threadId
     this.connection = options.connection
     this.fetcher = options.fetcher
     this.hydrateGenerationHandler = options.hydrateGeneration
@@ -192,10 +189,17 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   private buildDevtoolsBridgeOptions(): VideoDevtoolsBridgeOptions<TOutput> {
+    const client = this
     return {
-      hookId: this.uniqueId,
-      clientId: this.uniqueId,
-      threadId: this.threadId,
+      get hookId() {
+        return client.uniqueId
+      },
+      get clientId() {
+        return client.uniqueId
+      },
+      get threadId() {
+        return client.threadId
+      },
       metadata: this.devtoolsMetadata,
       getCoreState: () => ({
         input: this.input,
@@ -211,6 +215,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   }
 
   mountDevtools(): void {
+    this.ensureThreadId()
     // Mounting revives a disposed client. Framework hooks call this from
     // their mount effect, so a dispose → remount cycle (e.g. React
     // StrictMode's mount → cleanup → mount replay against the same memoized
@@ -675,6 +680,14 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       ...(metadata?.framework ? { framework: metadata.framework } : {}),
       ...(metadata?.name ? { name: metadata.name } : {}),
     }
+  }
+
+  private ensureThreadId(): string {
+    if (!this.threadId) {
+      this.threadId = this.generateUniqueId('video')
+    }
+    this.uniqueId = this.threadId
+    return this.threadId
   }
 
   private generateUniqueId(prefix: string): string {

@@ -25,7 +25,7 @@ export interface ExecutePromptOptions {
   maxTokens?: number
   timeout?: number
   memoryLimit?: number
-  getSkillBindings?: () => Promise<Record<string, ToolBinding>>
+  getSnippetBindings?: () => Promise<Record<string, ToolBinding>>
   onEvent?: (event: ExecutePromptEvent) => void
 }
 
@@ -45,7 +45,7 @@ export function executePrompt(
     maxTokens,
     timeout,
     memoryLimit,
-    getSkillBindings,
+    getSnippetBindings,
     onEvent,
   } = options
 
@@ -59,7 +59,7 @@ export function executePrompt(
       tools,
       timeout,
       memoryLimit,
-      getSkillBindings,
+      getSnippetBindings,
     }),
   })
   return Promise.resolve(tool.execute!({ prompt }))

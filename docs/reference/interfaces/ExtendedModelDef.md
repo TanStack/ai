@@ -50,7 +50,7 @@ Provider options type for this model
 ### features?
 
 ```ts
-optional features: TFeatures;
+optional features?: TFeatures;
 ```
 
 Defined in: [packages/ai/src/extend-adapter.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L35)
@@ -98,7 +98,7 @@ The model name identifier
 ### tools?
 
 ```ts
-optional tools: TTools;
+optional tools?: TTools;
 ```
 
 Defined in: [packages/ai/src/extend-adapter.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L37)

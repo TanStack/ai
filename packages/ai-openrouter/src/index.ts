@@ -55,6 +55,22 @@ export {
   type OpenRouterRerankProviderOptions,
 } from './rerank/rerank-provider-options'
 
+// Video adapter - for async video generation (POST /api/v1/videos)
+export {
+  OpenRouterVideoAdapter,
+  createOpenRouterVideo,
+  openRouterVideo,
+  type OpenRouterVideoConfig,
+} from './adapters/video'
+export type {
+  OpenRouterVideoModel,
+  OpenRouterVideoProviderOptions,
+  OpenRouterVideoModelProviderOptionsByName,
+  OpenRouterVideoModelSizeByName,
+  OpenRouterVideoModelInputModalitiesByName,
+  OpenRouterVideoModelDurationByName,
+} from './video/video-provider-options'
+
 // ============================================================================
 // Type Exports
 // ============================================================================
@@ -64,6 +80,7 @@ export type {
   OpenRouterModelInputModalitiesByName,
   OpenRouterChatModelToolCapabilitiesByName,
 } from './model-meta'
+export { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from './model-meta'
 export type {
   OpenRouterTextMetadata,
   OpenRouterImageMetadata,

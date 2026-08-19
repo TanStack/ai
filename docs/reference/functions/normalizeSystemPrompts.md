@@ -33,7 +33,8 @@ function through `as any` / external JS would otherwise stream a literal
 
 ### prompts
 
-readonly [`SystemPrompt`](../type-aliases/SystemPrompt.md)\<`unknown`\>[] | `undefined`
+  \| readonly [`SystemPrompt`](../type-aliases/SystemPrompt.md)\<`unknown`\>[]
+  \| `undefined`
 
 ## Returns
 

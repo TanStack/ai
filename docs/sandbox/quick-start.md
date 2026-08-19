@@ -27,7 +27,8 @@ npm i @tanstack/ai @tanstack/ai-grok-build @tanstack/ai-sandbox @tanstack/ai-san
 
 You'll also need Docker running locally, and the **`grok` CLI available in your
 sandbox image** (the Grok Build harness spawns it inside the sandbox). No Docker?
-See [the local-process alternative](#no-docker-run-on-your-host) below.
+See [the local-process alternative](#no-docker-run-on-your-host) below. For a
+microVM instead of a container, see [Docker Sandboxes](#docker-sandboxes-microvm-sbx).
 
 ## 2. Define the sandbox
 
@@ -134,33 +135,90 @@ npm i @tanstack/ai-sandbox-local-process
 ```
 
 ```ts
+import { chat } from '@tanstack/ai'
+import { grokBuildText } from '@tanstack/ai-grok-build'
+import {
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+  withSandbox,
+} from '@tanstack/ai-sandbox'
 import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
-import { defineSandbox, defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
+import { messages } from './chat-context'
 
 export const repoSandbox = defineSandbox({
   id: 'bug-fixer',
-  provider: localProcessSandbox(),
+  provider: localProcessSandbox({
+    scrubEnv: ['XAI_API_KEY', 'GROK_API_KEY'],
+  }),
   workspace: defineWorkspace({
     source: githubRepo({ repo: 'owner/buggy-app' }),
     setup: ['corepack enable', 'pnpm install'],
   }),
   lifecycle: { reuse: 'thread' },
 })
+
+const stream = chat({
+  adapter: grokBuildText('composer-2.5', { authMode: 'host' }),
+  messages,
+  middleware: [withSandbox(repoSandbox)],
+})
 ```
 
-Because local-process inherits your host environment, you can drop the
-`XAI_API_KEY` secret and let Grok Build fall back to your grok.com login. For that
-(and for Daytona, Vercel, Sprites, and Cloudflare runtimes), see [Providers](./providers).
+Set `authMode: 'host'` so the adapter uses `grok login`. `scrubEnv` removes
+keys the host process inherited. Those keys would override the login.
+
+A local-process run can also be a CI runner. That machine has no browser
+login. Set `authMode: 'api-key'`. Then inject `XAI_API_KEY` as a workspace
+secret. The sandbox type does not pick this. See [Harness Auth](./auth).
+
+## Docker Sandboxes microVM (sbx)
+
+If you want a hypervisor microVM, use `sbxSandbox()`. This is not a Docker container.
+
+1. Install Docker Sandboxes so `sbx` is on `PATH`.
+   - macOS: `brew trust docker/tap`, then `brew install docker/tap/sbx`
+   - Windows: enable HypervisorPlatform, then `winget install -h Docker.sbx`
+   - Debian or Ubuntu: `curl -fsSL https://get.docker.com | sudo REPO_ONLY=1 sh`, then `apt-get install docker-sbx`. Add your user to the `kvm` group.
+2. Run `sbx login`.
+3. Swap the provider. Pass `allowNetwork` so `pnpm install` can reach the npm registry. A known adapter such as `grok-build` also adds its model API host.
+
+```ts
+import {
+  createSecrets,
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+} from '@tanstack/ai-sandbox'
+import { sbxSandbox } from '@tanstack/ai-sandbox-docker'
+
+export const repoSandbox = defineSandbox({
+  id: 'bug-fixer',
+  provider: sbxSandbox({
+    allowNetwork: ['*.npmjs.org', 'registry.npmjs.org'],
+  }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: 'owner/buggy-app' }),
+    setup: ['pnpm install'],
+    secrets: createSecrets({
+      XAI_API_KEY: process.env.XAI_API_KEY ?? '',
+    }),
+  }),
+  lifecycle: { reuse: 'thread' },
+})
+```
+
+`sbxSandbox()` always clones a Git repo into the VM. It does not snapshot. Resume is by sandbox name.
 
 ## Run the working example
 
 A complete, runnable app ships at
-[`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web)
-a "build me an app" agent (Claude Code on a Docker sandbox) with durable,
-refresh-surviving runs; it scaffolds an app in the sandbox, runs the dev
-server, and streams back a live preview URL. For a coding agent running at the
-edge, with the harness (Claude Code, Codex, Grok Build) picked per run from
-the UI, see
+[`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web).
+That app is a "build me an app" agent (Claude Code on a Docker sandbox) with
+durable, refresh-surviving runs. It scaffolds an app in the sandbox, runs the
+dev server, and streams back a live preview URL. For a coding agent running at
+the edge, with the harness (Claude Code, Codex, Grok Build) picked per run
+from the UI, see
 [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare).
 
 From here:

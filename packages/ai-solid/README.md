@@ -87,8 +87,7 @@ interface UseChatOptions {
 
   // Configuration
   initialMessages?: UIMessage[] // Starting messages
-  id?: string // Unique chat ID
-  threadId?: string // AG-UI thread ID (auto-generated if omitted)
+  threadId?: string // The only chat identity. Required when persistence is on. Minted after mount if omitted.
   forwardedProps?: Record<string, any> // Forwarded to AG-UI RunAgentInput.forwardedProps
   /** @deprecated Use `forwardedProps` instead. */
   body?: Record<string, any>

@@ -1,8 +1,9 @@
 /**
  * Grok Image Generation Provider Options
  *
- * These are provider-specific options for Grok image generation.
- * Grok uses the grok-2-image-1212 model for image generation.
+ * Provider-specific options for Grok image generation: the aspect-ratio
+ * sized Imagine API models (grok-imagine-image, grok-imagine-image-2.0,
+ * grok-imagine-image-quality) and the legacy pixel-sized grok-2-image-1212.
  */
 
 /**
@@ -142,11 +143,24 @@ export interface GrokImagineImageProviderOptions extends GrokImageBaseProviderOp
 }
 
 /**
+ * Provider options for grok-imagine-image-2.0, which adds a generation
+ * `quality` knob on top of the shared Imagine options.
+ */
+export interface GrokImagineImage2ProviderOptions extends GrokImagineImageProviderOptions {
+  /**
+   * Generation quality. Only supported by grok-imagine-image-2.0.
+   * @default 'medium'
+   */
+  quality?: 'low' | 'medium'
+}
+
+/**
  * Type-only map from model name to its specific provider options.
  */
 export type GrokImageModelProviderOptionsByName = {
   'grok-2-image-1212': GrokImageProviderOptions
   'grok-imagine-image': GrokImagineImageProviderOptions
+  'grok-imagine-image-2.0': GrokImagineImage2ProviderOptions
   'grok-imagine-image-quality': GrokImagineImageProviderOptions
 }
 
@@ -156,6 +170,7 @@ export type GrokImageModelProviderOptionsByName = {
 export type GrokImageModelSizeByName = {
   'grok-2-image-1212': GrokImageSize
   'grok-imagine-image': GrokImagineImageSize
+  'grok-imagine-image-2.0': GrokImagineImageSize
   'grok-imagine-image-quality': GrokImagineImageSize
 }
 
@@ -167,6 +182,7 @@ export type GrokImageModelSizeByName = {
 export type GrokImageModelInputModalitiesByName = {
   'grok-2-image-1212': readonly []
   'grok-imagine-image': readonly ['image']
+  'grok-imagine-image-2.0': readonly ['image']
   'grok-imagine-image-quality': readonly ['image']
 }
 

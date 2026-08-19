@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-svelte",
-  "version": "0.16.1",
+  "version": "0.16.3",
   "description": "Svelte 5 bindings for TanStack AI streaming chat, structured outputs, and media generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -56,7 +56,7 @@
     "media-generation"
   ],
   "dependencies": {
-    "@tanstack/ai-client": "workspace:*"
+    "@tanstack/ai-client": "workspace:^"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
@@ -68,11 +68,11 @@
     "@sveltejs/vite-plugin-svelte": "^5.1.1",
     "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.0.14",
-    "jsdom": "^27.2.0",
+    "@vitest/coverage-v8": "4.1.10",
+    "jsdom": "^27.4.0",
     "svelte": "^5.20.0",
     "svelte-check": "^4.2.0",
     "typescript": "5.9.3",
-    "vite": "^8.1.4"
+    "vite": "^8.2.1"
   }
 }

@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { falImage, falVideo } from '@tanstack/ai-fal'
 import { geminiImage, geminiVideo } from '@tanstack/ai-gemini'
 import { grokImage, grokVideo } from '@tanstack/ai-grok'
+import { openRouterVideo } from '@tanstack/ai-openrouter'
 import {
   BYTEPLUS_VIDEO_MODELS,
   byteplusImage,
@@ -166,6 +167,17 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           size: '16:9',
         })
       }
+      case 'grok-imagine-image-2.0': {
+        // xAI's recommended Imagine model; `quality` is a 2.0-only option
+        // ('low' | 'medium', default 'medium').
+        return generateImage({
+          adapter: grokImage('grok-imagine-image-2.0'),
+          prompt: asImagePrompt(data.prompt),
+          numberOfImages: 1,
+          size: '16:9',
+          modelOptions: { quality: 'medium' },
+        })
+      }
       case 'grok-imagine-image-quality': {
         return generateImage({
           adapter: grokImage('grok-imagine-image-quality'),
@@ -195,17 +207,17 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           },
         })
       }
-      case 'gemini-3.1-flash-image-preview': {
+      case 'gemini-3.1-flash-image': {
         return generateImage({
-          adapter: geminiImage('gemini-3.1-flash-image-preview'),
+          adapter: geminiImage('gemini-3.1-flash-image'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
         })
       }
-      case 'gemini-3-pro-image-preview': {
+      case 'gemini-3-pro-image': {
         return generateImage({
-          adapter: geminiImage('gemini-3-pro-image-preview'),
+          adapter: geminiImage('gemini-3-pro-image'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
@@ -327,14 +339,26 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
     case 'grok-imagine-video': {
       // Direct xAI Imagine API (XAI_API_KEY) — no fal in between. The base
       // grok-imagine-video (v1.0) supports text-to-video; durations are
-      // 1-15 integer seconds. Completed jobs report usage.unitsBilled
-      // (billed seconds) and usage.cost (exact USD).
+      // 1-15 integer seconds. Completed jobs report usage.billed
+      // ({ quantity, unit: 'seconds' }) and usage.cost (exact USD).
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
         adapter: grokVideo('grok-imagine-video'),
         prompt: asTextPrompt(data.prompt),
         size: '16:9_720p',
+        duration: 5,
+      })
+    }
+    case 'grok-imagine-video-1.5': {
+      // Direct xAI Imagine API — grok-imagine-video-1.5 is xAI's recommended
+      // default and supports text-to-video with native 1080p.
+      return generateVideo({
+        stream: true,
+        pollingInterval: VIDEO_POLL_INTERVAL_MS,
+        adapter: grokVideo('grok-imagine-video-1.5'),
+        prompt: asTextPrompt(data.prompt),
+        size: '16:9_1080p',
         duration: 5,
       })
     }
@@ -459,6 +483,34 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
               },
             }
           : {}),
+      })
+    }
+    // OpenRouter's dedicated async video API (`POST /api/v1/videos`). Unlike
+    // fal (which takes duration in `modelOptions`), OpenRouter types the
+    // top-level `duration` per model from its published metadata, and the
+    // adapter exposes `snapDuration()` to coerce a raw UI seconds value to
+    // the model's nearest supported duration.
+    case 'bytedance/seedance-2.0': {
+      const adapter = openRouterVideo('bytedance/seedance-2.0')
+      return generateVideo({
+        stream: true,
+        pollingInterval: VIDEO_POLL_INTERVAL_MS,
+        adapter,
+        prompt: asTextPrompt(data.prompt),
+        size: '1280x720',
+        duration: adapter.snapDuration(7),
+        modelOptions: { aspectRatio: '16:9' },
+      })
+    }
+    case 'google/veo-3.1': {
+      const adapter = openRouterVideo('google/veo-3.1')
+      return generateVideo({
+        stream: true,
+        pollingInterval: VIDEO_POLL_INTERVAL_MS,
+        adapter,
+        prompt: asImageToVideoPrompt(data.prompt),
+        size: '1280x720',
+        duration: adapter.snapDuration(7),
       })
     }
     default:

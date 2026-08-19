@@ -628,6 +628,36 @@ export type ChatPersistenceOption<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > = boolean | ChatClientPersistence<TTools>
 
+/**
+ * The `persistence` / `threadId` pairing for `ChatClient` and the chat hooks.
+ *
+ * Persistence that is on (`true` or a storage adapter) requires a `threadId`.
+ * A minted id changes every reload, so nothing would restore. The compiler
+ * asks for the conversation id instead.
+ *
+ * Omit `persistence`, or set it to `false`, and `threadId` stays optional.
+ * The client then mints one after mount for the wire and DevTools.
+ *
+ * Intersect this onto `ChatClientOptions`. Do not apply a later plain `Omit`
+ * to that type: it collapses the union and the requirement disappears. Use
+ * {@link DistributedOmit}.
+ */
+export type ChatPersistenceOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> =
+  | {
+      persistence: true
+      threadId: string
+    }
+  | {
+      persistence: ChatClientPersistence<TTools>
+      threadId: string
+    }
+  | {
+      persistence?: false | undefined
+      threadId?: string
+    }
+
 type IsUnknown<T> = unknown extends T
   ? [T] extends [unknown]
     ? true
@@ -717,43 +747,6 @@ export interface ChatClientBaseOptions<
    * Initial messages to populate the chat
    */
   initialMessages?: Array<UIMessage<TTools>>
-
-  /**
-   * How this chat persists across reloads. See {@link ChatPersistenceOption}.
-   *
-   * - Omit or `false`: ephemeral, in-memory only.
-   * - `true`: server-authoritative. The client caches nothing and hydrates the
-   *   thread from the server by its `threadId` on mount (needs a connection with
-   *   a `hydrate` handler). Big transcripts never touch the browser, and the same
-   *   thread opens the same way on another device.
-   * - a {@link ChatClientPersistence} adapter: client-authoritative. The combined
-   *   {@link ChatPersistedState} record (transcript plus resume pointer) is cached
-   *   in the browser, restoring the transcript, pending interrupts, and an
-   *   in-flight run on reload.
-   *
-   * Use `initialResumeSnapshot` for a host-supplied in-memory rehydrate instead.
-   */
-  persistence?: ChatPersistenceOption<TTools>
-
-  /**
-   * Optional storage-key override for this chat instance, and the devtools
-   * instance id. Persistence keys on `threadId` by default; set `id` only when
-   * you need the persisted record keyed separately from the wire thread.
-   * Prefer a stable `threadId` for the common case.
-   *
-   * The framework hooks (`useChat` / `createChat`) do NOT expose `id`: a hook's
-   * identity is its `threadId`. This lower-level escape hatch exists only for
-   * direct `ChatClient` construction.
-   */
-  id?: string
-
-  /**
-   * The conversation id for this chat, stable across sends and reloads. It is
-   * the AG-UI thread key on the wire AND the key client persistence stores the
-   * conversation under, so set a stable `threadId` to have a reload restore the
-   * same conversation. If omitted, a unique thread id is generated per session.
-   */
-  threadId?: string
 
   /**
    * Initial resumable run state, useful when rehydrating a persisted client
@@ -932,14 +925,16 @@ export interface ChatClientBaseOptions<
 
 /**
  * Options for `ChatClient`. Exactly one of `connection` or `fetcher` must be
- * provided — the type-level XOR is enforced via `ChatTransport`.
+ * provided — the type-level XOR is enforced via `ChatTransport`. Persistence
+ * that is on requires a `threadId` via {@link ChatPersistenceOptions}.
  */
 export type ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = InferredClientContext<TTools>,
 > = DistributedOmit<ChatClientBaseOptions<TTools, TContext>, 'context'> &
   ClientContextOptionFromTools<TTools, TContext> &
-  ChatTransport
+  ChatTransport &
+  ChatPersistenceOptions<TTools>
 
 export interface ChatRequestBody {
   messages: Array<ModelMessage>

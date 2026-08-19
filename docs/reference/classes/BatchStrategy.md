@@ -19,14 +19,14 @@ Useful for reducing UI update frequency
 ### Constructor
 
 ```ts
-new BatchStrategy(batchSize): BatchStrategy;
+new BatchStrategy(batchSize?): BatchStrategy;
 ```
 
 Defined in: [packages/ai/src/activities/chat/stream/strategies.ts:37](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/stream/strategies.ts#L37)
 
 #### Parameters
 
-##### batchSize
+##### batchSize?
 
 `number` = `5`
 

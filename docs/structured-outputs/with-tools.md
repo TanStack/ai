@@ -17,6 +17,10 @@ You want the agent to use tools to gather information, then return a structured 
 
 This page covers the combined `outputSchema` + `tools` shape, including the pause/resume points (server-tool approval prompts, client-tool invocations) that can land mid-run before the structured object arrives.
 
+On adapters that support native combined mode (modern OpenAI, Claude 4.5+, Gemini 3.x, Grok 4.x, and [OpenRouter on those same upstream models](../adapters/openrouter.md#tools-and-structured-output-together)), `chat({ tools, outputSchema, stream: true })` is one streaming request. The extra finalization call does not run.
+
+The React chat example has a live OpenRouter page at `/generations/openrouter-combined`.
+
 > **Note:** If you're not yet familiar with how tools work in TanStack AI, read [Tool Architecture](../tools/tool-architecture) and [Server Tools](../tools/server-tools) first. The patterns here build on the regular agent-loop flow — `outputSchema` just adds a final terminal event.
 
 ## Non-streaming: tools first, then structured object
@@ -55,6 +59,8 @@ recommendation.reason;       // string
 ```
 
 The agent decides when to call `get_product_price`, executes the tool, integrates the result into its reasoning, and only then produces the final structured response. You see the validated object; the tool calls happen behind the scenes.
+
+> **Note:** Coding agents in a sandbox (Claude Code, Codex, OpenCode, Grok Build) run native tools and the schema on the same turn. They do not pause for TanStack tool approval or client tools. See [Harness Agents](./harnesses).
 
 ## Streaming: lifecycle events before the structured payload
 
@@ -128,7 +134,7 @@ The full server-tool approval pattern lives in [Tool Approval Flow](../tools/too
 
 ## Client tools mid-run
 
-Client tools — defined with `.client((input) => ...)` on the tool definition — execute automatically when the model calls them. The runtime sees the queued `tool-input-available` custom event, looks up the registered `.client()` implementation, runs it, and posts the result back. The agent loop continues to the structured-output stream once every client tool resolves. There's no `onToolCall` option to wire up on the hook side.
+Client tools — defined with `.client((input) => ...)` on the tool definition — execute automatically when the model calls them. The server ends the current run with an internal `client-tool-execution` interrupt that does not appear in the public `interrupts` array. The client runs the registered `.client()` implementation and submits its output in a resume batch. Once every client tool resolves, the agent loop continues into the structured-output stream. There's no `onToolCall` option to wire up on the hook side.
 
 ```tsx
 import { toolDefinition } from "@tanstack/ai";

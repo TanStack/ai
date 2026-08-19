@@ -23,6 +23,7 @@ import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 describe('useChat', () => {
   afterEach(() => {
     vi.doUnmock('react')
+    vi.unstubAllGlobals()
   })
 
   function createDeferred<T>() {
@@ -306,6 +307,48 @@ describe('useChat', () => {
       const messageId = result.current.messages[0]!.id
       expect(messageId).toBeTruthy()
       expect(messageId).not.toMatch(/^custom-id-/)
+    })
+
+    it('does not call crypto.randomUUID while rendering useChat', () => {
+      const randomUUID = vi.fn(() => {
+        throw new Error('crypto.randomUUID during render')
+      })
+      vi.stubGlobal('crypto', { randomUUID })
+
+      expect(() => {
+        renderUseChat({
+          connection: createMockConnectionAdapter(),
+        })
+      }).not.toThrow()
+
+      expect(randomUUID).not.toHaveBeenCalled()
+      vi.unstubAllGlobals()
+    })
+
+    it('sends a minted threadId that is not a React useId string', async () => {
+      const threadIds: Array<string> = []
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, abortSignal, runContext) {
+          if (runContext) {
+            threadIds.push(runContext.threadId)
+          }
+          for (const chunk of createTextChunks('Response')) {
+            if (abortSignal?.aborted) {
+              return
+            }
+            yield chunk
+          }
+        },
+      }
+
+      const { result } = renderUseChat({ connection: adapter })
+      await result.current.sendMessage('Test')
+
+      await waitFor(() => {
+        expect(threadIds).toHaveLength(1)
+      })
+      expect(threadIds[0]).toMatch(/^thread-/)
+      expect(threadIds[0]).not.toMatch(/^[:_]/)
     })
 
     it('should maintain client instance across re-renders', () => {

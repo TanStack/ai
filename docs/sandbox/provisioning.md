@@ -64,8 +64,10 @@ defineWorkspace({
 })
 ```
 
-`secrets` is [declared on the workspace](./workspace), and the values are
-injected into the sandbox env at create/resume time.
+`secrets` is [declared on the workspace](./workspace). At create, resume, and
+snapshot restore, the sandbox layer resolves them onto the live handle env.
+Providers never write those values into snapshots, the sandbox store, or the
+event log.
 
 ### Why the values never leak
 
@@ -77,7 +79,7 @@ non-enumerable:
 - `Object.keys(secrets)`, spreads, and `JSON.stringify(secrets)` never expose
   the values.
 - The values are **never written to snapshots, the sandbox store, or the event
-  log**. They are resolved only at the moment the sandbox env is built.
+  log**. They are resolved only when the live sandbox env is built.
 
 This is what makes the workspace definition safe to hash, persist, and replay
 for resume bookkeeping without ever persisting a credential.
@@ -175,7 +177,12 @@ defineWorkspace({
 
 `gitSkill` takes an optional `into` field, an **absolute path inside the
 sandbox**, controlling where the repo is cloned. It defaults to
-`.tanstack-skills/<repo-basename>`:
+`.tanstack-skills/<repo-basename>`. Bootstrap creates the parent directory
+before the clone.
+
+Paths that start with `/workspace` use the portable workspace root. The
+provider maps that root onto its real workdir. Keep `/workspace/...` in
+`into` unless you have a reason to pin a provider-specific path.
 
 ```ts
 import { createSecrets, defineWorkspace, gitSkill, githubRepo } from '@tanstack/ai-sandbox'
@@ -205,6 +212,11 @@ format:
 | Claude Code | `.mcp.json`              |
 | Codex       | `.codex/config.toml`     |
 | OpenCode    | `opencode.json`          |
+
+Each projector walks the cloned repo for folders that contain `SKILL.md`. A
+nested pack (`skills/foo/SKILL.md`) is linked under the skill name `foo`. A
+flat clone with `SKILL.md` at the root uses the clone name. You do not write
+`ln -s` by hand.
 
 A concept a given CLI lacks (for example, `plugins` on Codex) **emits a
 warning and is silently skipped** rather than throwing. The same applies to

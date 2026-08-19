@@ -35,6 +35,7 @@ import type {
   RunAgentResumeItem,
   StreamChunk,
   ToolApprovalResolution,
+  BilledUsage,
   TokenUsage,
 } from '@tanstack/ai'
 import type {
@@ -254,6 +255,8 @@ interface RunStateEntry {
     pending: Array<InterruptRecord>
     resumeByInterruptId: Map<string, RunAgentResumeItem>
   }
+  /** Usage accumulated across every model call in this chat invocation. */
+  usage?: TokenUsage
   /** Accumulated terminal-turn text, for throttled streaming snapshots (B). */
   streamingText?: string
   /** Epoch ms of the last streaming snapshot, to throttle writes (B). */
@@ -265,6 +268,7 @@ interface RunStateEntry {
    * bubble in place.
    */
   streamingMessageId?: string
+  streamingMessageCreatedAt?: Date
 }
 
 const runState = new WeakMap<object, RunStateEntry>()
@@ -396,6 +400,7 @@ function resumeToolStateFromPending(
 ): ChatResumeToolState | undefined {
   const approvals = new Map<string, ToolApprovalResolution>()
   const clientToolResults = new Map<string, unknown>()
+  const cancelledToolCallIds = new Set<string>()
 
   for (const interrupt of pending) {
     const entry = resumeByInterruptId.get(interrupt.interruptId)
@@ -404,6 +409,10 @@ function resumeToolStateFromPending(
     const kind = interruptKind(interrupt)
     const reason = stringField(interrupt.payload, 'reason')
     const toolCallId = stringField(interrupt.payload, 'toolCallId')
+
+    if (entry.status === 'cancelled' && toolCallId) {
+      cancelledToolCallIds.add(toolCallId)
+    }
 
     if (kind === 'approval' || reason === 'approval_required') {
       approvals.set(interrupt.interruptId, resolvedApprovalDecision(entry))
@@ -419,8 +428,14 @@ function resumeToolStateFromPending(
     }
   }
 
-  if (approvals.size === 0 && clientToolResults.size === 0) return undefined
-  return { approvals, clientToolResults }
+  if (
+    approvals.size === 0 &&
+    clientToolResults.size === 0 &&
+    cancelledToolCallIds.size === 0
+  ) {
+    return undefined
+  }
+  return { approvals, clientToolResults, cancelledToolCallIds }
 }
 
 /**
@@ -439,6 +454,7 @@ function finishedTranscript(
   messages: ReadonlyArray<ModelMessage>,
   info: FinishInfo,
   messageId: string | undefined,
+  createdAt: Date | undefined,
 ): Array<ModelMessage> {
   const transcript = [...messages]
   const last = transcript[transcript.length - 1]
@@ -453,6 +469,7 @@ function finishedTranscript(
       role: 'assistant',
       content: info.content,
       ...(messageId ? { id: messageId } : {}),
+      ...(createdAt ? { createdAt } : {}),
     })
   }
   return transcript
@@ -1273,12 +1290,98 @@ async function createOrResumeRun(
   runs: RunStore | undefined,
   runId: string,
   threadId: string,
-): Promise<void> {
-  await runs?.createOrResume({
+): Promise<TokenUsage | undefined> {
+  const run = await runs?.createOrResume({
     runId,
     threadId,
     startedAt: Date.now(),
   })
+  return run?.usage
+}
+
+function sumOptionalNumber(
+  current: number | undefined,
+  next: number | undefined,
+): number | undefined {
+  if (current === undefined) return next
+  if (next === undefined) return current
+  return current + next
+}
+
+function sumNumberFields<T extends object>(
+  current: T | undefined,
+  next: T | undefined,
+): T | undefined {
+  if (!current) return next
+  if (!next) return current
+
+  const result = { ...current }
+  for (const key of Object.keys(next) as Array<keyof T>) {
+    const currentValue = current[key]
+    const nextValue = next[key]
+    if (typeof nextValue === 'number') {
+      result[key] = ((typeof currentValue === 'number' ? currentValue : 0) +
+        nextValue) as T[keyof T]
+    }
+  }
+  return result
+}
+
+function accumulateTokenUsage(
+  current: TokenUsage | undefined,
+  next: TokenUsage,
+): TokenUsage {
+  if (!current) return { ...next }
+
+  const promptTokensDetails = sumNumberFields(
+    current.promptTokensDetails,
+    next.promptTokensDetails,
+  )
+  const completionTokensDetails = sumNumberFields(
+    current.completionTokensDetails,
+    next.completionTokensDetails,
+  )
+  const costDetails = sumNumberFields(current.costDetails, next.costDetails)
+  // Provider-specific details are opaque, so retain the latest reported bag.
+  const providerUsageDetails =
+    next.providerUsageDetails ?? current.providerUsageDetails
+  const durationSeconds = sumOptionalNumber(
+    current.durationSeconds,
+    next.durationSeconds,
+  )
+  const unitsBilled = sumOptionalNumber(current.unitsBilled, next.unitsBilled)
+  const billed = accumulateBilled(current.billed, next.billed)
+  const cost = sumOptionalNumber(current.cost, next.cost)
+
+  return {
+    ...current,
+    ...next,
+    promptTokens: current.promptTokens + next.promptTokens,
+    completionTokens: current.completionTokens + next.completionTokens,
+    totalTokens: current.totalTokens + next.totalTokens,
+    ...(promptTokensDetails ? { promptTokensDetails } : {}),
+    ...(completionTokensDetails ? { completionTokensDetails } : {}),
+    ...(durationSeconds !== undefined ? { durationSeconds } : {}),
+    ...(unitsBilled !== undefined ? { unitsBilled } : {}),
+    ...(billed !== undefined ? { billed } : {}),
+    ...(cost !== undefined ? { cost } : {}),
+    ...(costDetails ? { costDetails } : {}),
+    ...(providerUsageDetails ? { providerUsageDetails } : {}),
+  }
+}
+
+/**
+ * Sum billed quantities when both reports use the same unit. Different units
+ * cannot be added, so the later report wins.
+ */
+function accumulateBilled(
+  current: BilledUsage | undefined,
+  next: BilledUsage | undefined,
+): BilledUsage | undefined {
+  if (!current) return next
+  if (!next) return current
+  if (current.unit !== next.unit) return next
+  return { quantity: current.quantity + next.quantity, unit: current.unit }
 }
 
 async function completeRun(
@@ -1297,6 +1400,7 @@ async function failRun(
   runs: RunStore | undefined,
   runId: string,
   error: unknown,
+  usage?: TokenUsage,
 ): Promise<void> {
   // `RunRecord.error` is a structured `RunError`. Only `message` is filled in
   // here: the middleware sees an opaque thrown value, and inventing a `code`
@@ -1306,6 +1410,7 @@ async function failRun(
     status: 'failed',
     finishedAt: Date.now(),
     error: { message: error instanceof Error ? error.message : String(error) },
+    ...(usage ? { usage } : {}),
   })
 }
 
@@ -1320,9 +1425,11 @@ async function failRun(
 export async function interruptRun(
   runs: RunStore | undefined,
   runId: string,
+  usage?: TokenUsage,
 ): Promise<void> {
   await runs?.update(runId, {
     status: 'interrupted',
+    ...(usage ? { usage } : {}),
   })
 }
 
@@ -1334,10 +1441,12 @@ export async function interruptRun(
 export async function abortRun(
   runs: RunStore | undefined,
   runId: string,
+  usage?: TokenUsage,
 ): Promise<void> {
   await runs?.update(runId, {
     status: 'aborted',
     finishedAt: Date.now(),
+    ...(usage ? { usage } : {}),
   })
 }
 
@@ -1494,15 +1603,15 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
         }
       }
 
-      await createOrResumeRun(runs, ctx.runId, ctx.threadId)
+      const storedUsage = await createOrResumeRun(runs, ctx.runId, ctx.threadId)
 
-      {
-        const state = runState.get(ctx)
-        if (!state?.merged) {
-          if (state) state.merged = true
-          const stored = await messageStore.loadThread(ctx.threadId)
-          patch.messages = config.messages.length > 0 ? config.messages : stored
-        }
+      const state = runState.get(ctx)
+      // A continuation has a fresh middleware context but resumes the same run.
+      if (state && storedUsage) state.usage = storedUsage
+      if (!state?.merged) {
+        if (state) state.merged = true
+        const stored = await messageStore.loadThread(ctx.threadId)
+        patch.messages = config.messages.length > 0 ? config.messages : stored
       }
 
       return Object.keys(patch).length > 0 ? patch : undefined
@@ -1525,11 +1634,28 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // regardless of snapshotStreaming — it's persisted onto the assistant
       // message so its identity survives hydrate and a reload resumes the same
       // bubble in place.
-      if (chunk.type === 'TEXT_MESSAGE_START') {
+      if (ctx.phase === 'modelStream') {
         const s = runState.get(ctx)
-        if (s) {
-          s.streamingMessageId = chunk.messageId
+        if (s && chunk.type === 'TEXT_MESSAGE_START') {
+          // An empty/malformed messageId means "no identity" (matching the
+          // engine's convention), leaving room for the TOOL_CALL_START
+          // parentMessageId fallback below — but the per-turn accumulator
+          // still resets so snapshots never mix text across turns.
+          s.streamingMessageId =
+            typeof chunk.messageId === 'string' && chunk.messageId !== ''
+              ? chunk.messageId
+              : undefined
+          s.streamingMessageCreatedAt = new Date()
           s.streamingText = ''
+        } else if (
+          s &&
+          chunk.type === 'TOOL_CALL_START' &&
+          typeof chunk.parentMessageId === 'string' &&
+          chunk.parentMessageId !== '' &&
+          s.streamingMessageId === undefined
+        ) {
+          s.streamingMessageId = chunk.parentMessageId
+          s.streamingMessageCreatedAt ??= new Date()
         }
       }
 
@@ -1559,6 +1685,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
                   content: snapshotState.streamingText,
                   ...(snapshotState.streamingMessageId
                     ? { id: snapshotState.streamingMessageId }
+                    : {}),
+                  ...(snapshotState.streamingMessageCreatedAt
+                    ? { createdAt: snapshotState.streamingMessageCreatedAt }
                     : {}),
                 },
               ])
@@ -1595,9 +1724,22 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           })
         }
       }
-      await interruptRun(runs, ctx.runId)
+      // Adapter terminals arrive before `onUsage`; synthesized tool boundaries
+      // arrive after it with the same usage already in state.
+      const usage =
+        ctx.phase === 'modelStream' && chunk.usage
+          ? accumulateTokenUsage(state.usage, chunk.usage)
+          : (state.usage ?? chunk.usage)
+      state.usage = usage
+      await interruptRun(runs, ctx.runId, usage)
       await messageStore.saveThread(ctx.threadId, [...ctx.messages])
       state.interrupted = true
+    },
+
+    onUsage(ctx: ChatMiddlewareContext, usage: TokenUsage) {
+      const state = runState.get(ctx)
+      if (!state || state.interrupted) return
+      state.usage = accumulateTokenUsage(state.usage, usage)
     },
 
     async onFinish(ctx: ChatMiddlewareContext, info: FinishInfo) {
@@ -1609,14 +1751,19 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // "finished" run whose transcript is missing the terminal turn.
       await messageStore.saveThread(
         ctx.threadId,
-        finishedTranscript(ctx.messages, info, state?.streamingMessageId),
+        finishedTranscript(
+          ctx.messages,
+          info,
+          state?.streamingMessageId,
+          state?.streamingMessageCreatedAt,
+        ),
       )
-      await completeRun(runs, ctx.runId, info.usage)
+      await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
       await commitPendingResumes(state, persistence.stores.interrupts)
     },
 
     async onError(ctx: ChatMiddlewareContext, info: ErrorInfo) {
-      await failRun(runs, ctx.runId, info.error)
+      await failRun(runs, ctx.runId, info.error, runState.get(ctx)?.usage)
     },
 
     async onAbort(ctx: ChatMiddlewareContext, info: AbortInfo) {
@@ -1639,7 +1786,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // user gave up on the approval, so the cancel band stays authoritative.
       const state = runState.get(ctx)
       if (cancelled || (!detachableRun(ctx) && state?.interrupted !== true)) {
-        await abortRun(runs, ctx.runId)
+        await abortRun(runs, ctx.runId, state?.usage)
         return
       }
       // A plain disconnect on a detachable or interrupted run: write NOTHING.

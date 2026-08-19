@@ -27,10 +27,6 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -54,8 +50,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -159,7 +155,7 @@ export function useGeneration<
 >(
   options: Omit<
     UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -169,8 +165,8 @@ export function useGeneration<
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
   const hookId = useId()
-  // Single identity: prefer `threadId`; deprecated `id` only when no threadId.
-  const clientIdentity = options.threadId ?? options.id ?? hookId
+  // The hook identity is `threadId`. `hookId` is only a React recreation key.
+  const clientIdentity = options.threadId ?? hookId
 
   const [result, setResult] = useState<TOutput | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -189,13 +185,11 @@ export function useGeneration<
     // local source is `Record<string, any> | undefined`). Callbacks
     // wrap optional ones in non-returning bodies so `?.()`'s
     // implicit `undefined` doesn't pollute the function return type.
-    // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
-    const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+    const clientOptions: Omit<
+      GenerationClientOptions<TInput, TResult, TOutput>,
+      'persistence' | 'threadId'
+    > = {
       body: opts.body,
-      ...(opts.threadId !== undefined
-        ? { threadId: opts.threadId }
-        : { id: opts.id ?? hookId }),
-      ...(opts.persistence !== undefined && { persistence: opts.persistence }),
       ...(opts.hydrateGeneration !== undefined && {
         hydrateGeneration: opts.hydrateGeneration,
       }),
@@ -241,9 +235,20 @@ export function useGeneration<
       },
     }
 
+    const persistenceProps =
+      typeof opts.threadId === 'string' && opts.persistence
+        ? {
+            persistence: opts.persistence,
+            threadId: opts.threadId,
+          }
+        : {
+            ...(opts.threadId !== undefined && { threadId: opts.threadId }),
+          }
+
     if (opts.connection) {
       return new GenerationClient<TInput, TResult, TOutput>({
         ...clientOptions,
+        ...persistenceProps,
         connection: opts.connection,
       })
     }
@@ -251,6 +256,7 @@ export function useGeneration<
     if (opts.fetcher) {
       return new GenerationClient<TInput, TResult, TOutput>({
         ...clientOptions,
+        ...persistenceProps,
         fetcher: opts.fetcher,
       })
     }

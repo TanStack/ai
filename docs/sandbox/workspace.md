@@ -170,6 +170,11 @@ subshell (like the Grok CLI installer, `(curl … || curl …) | bash`) is not a
 valid argument to another command, and `sh` then fails at parse time with
 `syntax error: unexpected "("` (exit `2`) without running anything.
 
+Some providers run as a non-root user. Workspace-local installs such as
+`pnpm install` do not need sudo. System or global package installs on those
+providers need non-interactive `sudo -n` in `setup`. See
+[Providers](./providers) and [Policy](./policy).
+
 ## Scripts
 
 `scripts` is a map of named commands the agent and user can invoke by name,

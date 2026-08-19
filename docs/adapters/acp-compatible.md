@@ -16,6 +16,33 @@ Coding-agent CLIs that speak the [Agent Client Protocol](https://agentclientprot
 
 It is the harness equivalent of the [OpenAI-Compatible adapter](./openai-compatible). Use it when your agent speaks ACP but has no `@tanstack/ai-*` package. If a dedicated harness adapter exists ([Grok Build](./grok-build), and others), prefer it — those carry curated per-model metadata and vendor-specific behavior.
 
+## Authentication
+
+The default `authMode` is `'api-key'`. Set `'host'` when the agent should use
+a CLI login on the machine. The sandbox type does not pick this. See
+[Harness Auth](../sandbox/auth).
+
+```ts
+import { acpCompatibleText } from "@tanstack/ai-acp"
+
+acpCompatibleText("composer-2.5", {
+  name: "acp",
+  command: ({ model }) => `grok agent -m '${model}' --always-approve stdio`,
+  authMethodId: "xai.api_key",
+})
+
+acpCompatibleText("composer-2.5", {
+  name: "acp",
+  command: ({ model }) => `grok agent -m '${model}' --always-approve stdio`,
+  authMode: "host",
+})
+```
+
+- `'api-key'` (default): call `authenticate` with `authMethodId`.
+- `'host'`: skip ACP `authenticate`. Use the CLI login on the machine.
+
+Pass `outputSchema` on the same `chat()` call. `acpCompatible` adds the schema to the prompt and parses the last assistant text. Native harness tools still run on that turn. Read the typed object from `await chat()`, from `useChat().final`, or from the assistant `structured-output` part. See [Harness Agents](../structured-outputs/harnesses).
+
 ## Installation
 
 `acpCompatible` ships in `@tanstack/ai-acp`. You drive it inside a sandbox, so install the sandbox package and a provider too:
@@ -89,6 +116,77 @@ const stream = chat({
 })
 ```
 
+## Typed output
+
+Pass `outputSchema` on the same `chat()` call. The agent runs its native tools. Then the adapter parses the last assistant text as JSON.
+
+```ts
+import { chat, toServerSentEventsResponse } from '@tanstack/ai'
+import { acpCompatibleText } from '@tanstack/ai-acp'
+import { withSandbox } from '@tanstack/ai-sandbox'
+import { z } from 'zod'
+import { sandbox } from './sandbox'
+import { messages } from './chat-context'
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+})
+
+export async function POST() {
+  const stream = chat({
+    adapter: acpCompatibleText('pi-fast', {
+      name: 'pi',
+      command: ({ model }) => `pi --acp -m ${model}`,
+    }),
+    messages,
+    outputSchema: ReportSchema,
+    stream: true,
+    middleware: [withSandbox(sandbox)],
+  })
+  return toServerSentEventsResponse(stream)
+}
+```
+
+On the client, walk `messages[].parts` for tool calls and reasoning. Read the typed object from the `structured-output` part or from `useChat().final`.
+
+```tsx
+import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import { z } from 'zod'
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+})
+
+function Report() {
+  const { messages, final } = useChat({
+    connection: fetchServerSentEvents('/api/report'),
+    outputSchema: ReportSchema,
+  })
+
+  return (
+    <>
+      {messages.map((message) =>
+        message.parts.map((part, index) => {
+          if (part.type === 'tool-call') {
+            return <p key={part.id}>{part.name}</p>
+          }
+          if (part.type === 'structured-output') {
+            const report = part.data ?? part.partial
+            return report?.name ? <h2 key={index}>{report.name}</h2> : null
+          }
+          return null
+        }),
+      )}
+      {final ? <p>{final.oneLiner}</p> : null}
+    </>
+  )
+}
+```
+
+See [Harness Agents](../structured-outputs/harnesses) for the full part list and the repo-report example.
+
 ## Typed models & options
 
 Like `openaiCompatible`, you can declare the harness's **models** and its
@@ -130,7 +228,8 @@ const stream = chat({
 ```
 
 The base options are always available on `modelOptions` regardless of what you
-declare: `sessionId` (resume), `cwd`, `authMethodId`, and `permissionMode`.
+declare: `sessionId` (resume), `cwd`, `authMode`, `authMethodId`, and
+`permissionMode`.
 
 ## Configuration
 
@@ -144,7 +243,8 @@ declare: `sessionId` (resume), `cwd`, `authMethodId`, and `permissionMode`.
 | `openTransport` | Open any `AcpSessionTransport` yourself (e.g. boot a `serve` process and connect over WebSocket). Overrides `command`. |
 | `cwd` | Working directory inside the sandbox (default `/workspace`). |
 | `env` | Extra environment variables for the harness process. |
-| `authMethodId` | ACP auth method to select before the session starts. |
+| `authMode` | `'api-key'` (default) uses `authMethodId`. `'host'` skips ACP `authenticate`. See [Harness Auth](../sandbox/auth). |
+| `authMethodId` | ACP auth method to select before the session starts. Ignored when `authMode` is `'host'`. |
 | `permissionMode` | `'default'` \| `'acceptEdits'` \| `'bypassPermissions'` (default). |
 | `permissions` | `'headless'` (auto-resolve, default) or `'interactive'` (emit approval-requested events for `ask` prompts). |
 | `onPermissionRequest` | Custom permission handler; overrides `permissions`/`permissionMode`. |

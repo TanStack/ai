@@ -1,31 +1,17 @@
 /**
  * `chatStreamAcp` never journals (only `chatStreamNdjson` does — see
- * `attach.test.ts`'s header comment), but `protocol` defaults to `'acp'`. So an
- * app that wires `withSandbox({ runs, durability })` and leaves `protocol`
- * unset gets a run that looks durable — it streams normally and records a run
- * row — while being silently unrecoverable: there is no journal to replay on
- * reconnect.
+ * `attach.test.ts`'s header comment). A durable sandbox run must therefore
+ * pick the journaled path when the app does not set `protocol`.
  *
- * For a FRESH run this is a WARN, not a throw (see the comment above the check
- * in `chatStreamAcp`, matching the precedent in
- * `packages/ai-sandbox/src/middleware.ts`'s `InMemoryLockStore` warning): an
- * app can legitimately wire durability once at the middleware level and still
- * choose `protocol: 'acp'` for runs it deliberately never needs to recover.
+ * Acceptance for issue #1081 item 5: `grokBuildText(model)` with durability
+ * wired and no `protocol` / `extraArgs` journals. An explicit
+ * `protocol: 'acp'` can still be a warn (fresh) or a throw (ATTACH).
  *
- * An ATTACH is the opposite — a throw, and the asymmetry is the point. A fresh
- * durable ACP run is merely unrecoverable later; an attach has already spent a
- * first attempt, so proceeding re-runs the agent against the workspace that
- * attempt mutated and double-appends its output to the run log. `attach: true`
- * therefore gets `DurableAttachNotSupportedError` before the ACP connection is
- * ever opened, never the warn.
- *
- * These tests drive `chatStreamAcp` for real — a fake ACP agent (the actual
+ * The ACP cases drive `chatStreamAcp` for real — a fake ACP agent (the actual
  * `@agentclientprotocol/sdk` agent side) spawned over stdio inside a real
  * `localProcessSandbox`, exactly like `packages/ai-acp/tests/compatible.test.ts`
  * — because the warn check sits inline in `chatStreamAcp`'s setup, ahead of
- * spawning the connection, so exercising the full path is what proves the
- * check fires (or doesn't) on the actual code path the fix touches, not a
- * hand-extracted copy of its condition.
+ * spawning the connection.
  */
 import { afterAll, describe, expect, it, vi } from 'vitest'
 import * as fsp from 'node:fs/promises'
@@ -37,6 +23,7 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import {
   SandboxCapability,
   SandboxDurabilityCapability,
+  journalPaths,
 } from '@tanstack/ai-sandbox'
 import { InMemoryRunStore } from '@tanstack/ai'
 import { grokBuildText } from '../src/index'
@@ -103,9 +90,10 @@ new AgentSideConnection((conn) => ({
     return {
       protocolVersion: PROTOCOL_VERSION,
       agentCapabilities: { loadSession: true },
-      // 'grok.com' matches \`resolveGrokAcpAuthMethod\`'s fallback when no
-      // XAI_API_KEY/GROK_API_KEY env is set, so the real handshake picks it.
-      authMethods: [{ id: 'grok.com', name: 'grok.com', description: null }],
+      authMethods: [
+        { id: 'xai.api_key', name: 'xai.api_key', description: null },
+        { id: 'grok.com', name: 'grok.com', description: null },
+      ],
     }
   },
   async authenticate() {
@@ -218,11 +206,18 @@ function textOf(chunks: Array<StreamChunk>): string {
 }
 
 function adapter() {
-  // No `protocol` set: this is what exercises `chatStreamAcp`, since
-  // `protocol` defaults to `'acp'` — the exact silent-misconfiguration
-  // scenario, an app that wires durability without ever choosing a protocol.
+  // Explicit ACP: an app that chooses ACP on purpose, even with durability.
   return grokBuildText('grok-build', {
     grokExecutable: 'node fake-grok-acp-agent.mjs',
+    protocol: 'acp',
+    emitDiff: false,
+  })
+}
+
+function defaultProtocolAdapter(exe: string) {
+  // No `protocol` set: the public `grokBuildText(model)` default.
+  return grokBuildText('grok-build', {
+    grokExecutable: exe,
     emitDiff: false,
   })
 }
@@ -233,7 +228,36 @@ describe(
   'grok-build durability + ACP protocol misconfiguration warning',
   { timeout: SANDBOX_TEST_TIMEOUT },
   () => {
-    it('warns exactly once, naming the consequence and the fix, when durability is configured on the ACP (default) protocol', async () => {
+    it('journals a durable run when protocol is left unset', async () => {
+      const sbx = await provider.create({})
+      await sbx.fs.write('/workspace/fake-grok-ndjson.mjs', NDJSON_FAKE_GROK)
+      const logger = noopLogger()
+      const runId = 'r-default-protocol-journals'
+
+      const chunks = await collect(
+        defaultProtocolAdapter('node fake-grok-ndjson.mjs').chatStream({
+          model: 'grok-build',
+          runId,
+          messages: [{ role: 'user', content: 'say pong' }],
+          logger,
+          capabilities: contextWith(sbx, durability()),
+        }),
+      )
+
+      expect(textOf(chunks)).toBe('pong')
+      expect(chunks.some((c) => c.type === 'RUN_FINISHED')).toBe(true)
+      expect(logger.warn).not.toHaveBeenCalled()
+
+      // Journal file is deleted after the exit sentinel. The directory it
+      // created is the surviving proof that spawnNdjson journaled this run.
+      const paths = journalPaths(runId, JOURNAL_DIR)
+      const dirExists = await sbx.process.exec(`test -d '${paths.dir}'`)
+      expect(dirExists.exitCode).toBe(0)
+
+      await sbx.destroy()
+    })
+
+    it('warns exactly once, naming the consequence and the fix, when durability is configured on an explicit ACP protocol', async () => {
       const sbx = await provider.create({})
       await sbx.fs.write(
         '/workspace/fake-grok-acp-agent.mjs',

@@ -1,5 +1,71 @@
 # @tanstack/ai-mcp
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+
+## 0.3.0
+
+### Minor Changes
+
+- [#1070](https://github.com/TanStack/ai/pull/1070) [`347a3f6`](https://github.com/TanStack/ai/commit/347a3f6ec146e9818466db6f2da5db7e6d381179) - `createMCPClient` and `createMCPClientFromTransport` now accept `clientOptions`, forwarded verbatim to the MCP SDK's `Client`. The option that motivated this is `jsonSchemaValidator`: the SDK validates a tool's `structuredContent` against its declared `outputSchema`, and its default AJV validator compiles each schema by building JavaScript source and handing it to `new Function`. Edge runtimes forbid that, so on Cloudflare Workers a `tools/list` against any server whose tools declare an `outputSchema` failed with `Error compiling schema` (AJV's wrapper around `Code generation from strings disallowed for this context`) — and because validators are built during discovery rather than on call, that took down the whole run, not one tool. The SDK ships the fix (`CfWorkerJsonSchemaValidator`, backed by the optional peer `@cfworker/json-schema`) but it is only installable through `ClientOptions`, which this package did not expose.
+
+- [#1031](https://github.com/TanStack/ai/pull/1031) [`3ba9c8b`](https://github.com/TanStack/ai/commit/3ba9c8b45fa6eee03abe7ce67a2e4d30a12531f4) - Forward MCP tool annotations and titles onto discovered tools. Each tool's
+  `metadata.mcp` now carries the server's `annotations` object verbatim
+  (`readOnlyHint`, `destructiveHint`, `idempotentHint`, `openWorldHint`,
+  `annotations.title`) plus a resolved display `title` (`title` →
+  `annotations.title` → `name`), on both the auto-discovery and explicit
+  `tools([...defs])` paths. Hosts can now label MCP tools and gate approvals on
+  the server's hints instead of only seeing a name and description.
+
+  The metadata is typed, not just documented. Every `tools()` overload — the
+  single client, the explicit `tools([...defs])` path, and the `createMCPClients`
+  pool — now returns `McpServerTool`s: structurally still `ServerTool`s (they drop
+  straight into `chat({ tools })`), but with `metadata.mcp` statically known to be
+  present and shaped like `McpToolMetadata`. So the read infers on its own:
+
+  ```ts
+  const tools = await mcp.tools()
+  tools.map((tool) => tool.metadata.mcp.annotations?.readOnlyHint) // boolean | undefined
+  tools.map((tool) => tool.metadata.mcp.annotaions) // compile error
+  ```
+
+  Adds the exported `McpServerTool` and `McpToolMetadata` types, and re-exports
+  the SDK's `ToolAnnotations` type. `McpToolMetadata.serverToolName` and `.title`
+  are required (both are always stamped), so consumers no longer write a fallback
+  for a value that is never missing.
+
+### Patch Changes
+
+- [#1071](https://github.com/TanStack/ai/pull/1071) [`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e) - fix: publish internal dependency ranges as `^x.y.z` instead of exact pins
+
+  Internal dependencies on other TanStack AI packages used `workspace:*` in
+  `dependencies` and `peerDependencies`. pnpm rewrites that to an **exact** version
+  at publish time, so a released package asked for e.g. `@tanstack/ai-utils@0.4.0`
+  rather than `^0.4.0`.
+
+  Two consequences for consumers:
+  - **Duplicate copies.** An exact pin cannot dedupe. Installing a newer
+    `@tanstack/ai` alongside a package pinned to the previous patch produced two
+    copies in the tree, which breaks `instanceof` checks and module-level state,
+    and inflates bundles.
+  - **Unsatisfiable peers.** An exactly pinned `peerDependency` conflicts the
+    moment the internal package ships its next patch, forcing consumers into
+    overrides or `--legacy-peer-deps`.
+
+  These fields now use `workspace:^`, which publishes as `^x.y.z`. Every package
+  here is still `0.x`, so `^0.43.1` resolves to `0.43.x` only — patches dedupe
+  cleanly and no breaking minor is ever pulled in.
+
+  `devDependencies` deliberately keep `workspace:*`: they are never published, and
+  `*` correctly means "always build against the local copy".
+
+- Updated dependencies [[`59aa8b5`](https://github.com/TanStack/ai/commit/59aa8b5049549246227c8f2cf736ce50d05205a5), [`ee07854`](https://github.com/TanStack/ai/commit/ee07854fd3d2d4bb279e6e4748802f7f9a5a7167), [`b785cc4`](https://github.com/TanStack/ai/commit/b785cc4ae382fb0e2a337199d192bd9335ac9249), [`47e2464`](https://github.com/TanStack/ai/commit/47e246480d29e2ab5a83ca684e047670e75ba66c), [`dd7ddf1`](https://github.com/TanStack/ai/commit/dd7ddf19283358adfbf61d057321d7daee3ca50d), [`6903978`](https://github.com/TanStack/ai/commit/690397804254dca638961c79b7941555edc52c02), [`fdb791a`](https://github.com/TanStack/ai/commit/fdb791a1c9c8de906eecf76f59743f697621b027), [`7aa4ae9`](https://github.com/TanStack/ai/commit/7aa4ae9d07d21195dd3d62598ac503f1dfdc79e4), [`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e)]:
+  - @tanstack/ai@0.44.0
+
 ## 0.2.7
 
 ### Patch Changes

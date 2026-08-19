@@ -274,8 +274,8 @@ export class ChatClient<
 > {
   private readonly processor: StreamProcessor
   private connection: SubscribeConnectionAdapter
-  private readonly uniqueId: string
-  private readonly threadId: string
+  private uniqueId: string
+  private threadId: string
   // Durable chat persistence (optional): messages + resume snapshot as one
   // combined record, so a full page reload restores the transcript, rehydrates
   // pending interrupts, and rejoins an in-flight run. Clear-during-stream
@@ -410,12 +410,12 @@ export class ChatClient<
   }
 
   constructor(options: ChatClientOptions<TTools, TContext>) {
-    this.threadId = options.threadId || this.generateUniqueId('thread')
-    // The instance/devtools id defaults to the threadId (the chat's identity),
-    // falling back to a generated id only when neither is set. `id` overrides it
-    // only for direct ChatClient users who key storage separately from the wire
-    // thread; the framework hooks never pass it.
-    this.uniqueId = options.id || this.threadId
+    // Do not mint a random thread id during construct. Framework hooks build
+    // this client during render (SSR included). The wire/devtools identity is
+    // `threadId`; it is assigned here when the caller passed one, or later in
+    // `ensureThreadId()` from attach / mount / send.
+    this.threadId = options.threadId || ''
+    this.uniqueId = this.threadId
     // `persistence` is `false`/omitted (ephemeral, in-memory), `true`
     // (server-authoritative: cache nothing client-side, hydrate the thread from
     // the server by `threadId` on mount), or a storage adapter
@@ -424,17 +424,24 @@ export class ChatClient<
     // the mount hydration and keeps a client record from shadowing server history.
     let cachesMessages = true
     if (options.persistence === true) {
+      if (!options.threadId) {
+        throw new Error(
+          '[TanStack AI] persistence needs a stable `threadId` to key on. Pass a threadId from your app (for example support-42).',
+        )
+      }
       cachesMessages = false
     } else if (options.persistence) {
       // A storage adapter: keep the combined record (transcript + resume pointer)
       // in the browser. Persistence keys on `threadId` (the conversation
-      // identity) so a reload with the same `threadId` finds the same record;
-      // `id` overrides it only when set, for apps that key storage separately
-      // from the wire thread.
-      const persistenceKey = options.id ?? this.threadId
+      // identity) so a reload with the same `threadId` finds the same record.
+      if (!options.threadId) {
+        throw new Error(
+          '[TanStack AI] persistence needs a stable `threadId` to key on. Pass a threadId from your app (for example support-42).',
+        )
+      }
       this.persistor = new ChatPersistor(
         options.persistence,
-        persistenceKey,
+        options.threadId,
         (messages) => this.processor.setMessages(messages),
         (snapshot) => this.applyPersistedResume(snapshot),
       )
@@ -798,6 +805,7 @@ export class ChatClient<
    */
   attach(): void {
     if (this.disposed || this.tailing) return
+    this.ensureThreadId()
     this.tailing = true
 
     // Full page reload with an in-flight run persisted (synchronous store):
@@ -973,12 +981,21 @@ export class ChatClient<
   }
 
   mountDevtools(): void {
+    this.ensureThreadId()
     if (this.devtoolsMounted) {
       return
     }
 
     this.devtoolsMounted = true
     this.devtoolsBridge.mountWithTools(this.processor.getMessages().length)
+  }
+
+  private ensureThreadId(): string {
+    if (!this.threadId) {
+      this.threadId = this.generateUniqueId('thread')
+    }
+    this.uniqueId = this.threadId
+    return this.threadId
   }
 
   /**
@@ -1398,10 +1415,17 @@ export class ChatClient<
   private buildDevtoolsBridgeOptions(
     devtools: ChatClientOptions['devtools'],
   ): ChatDevtoolsBridgeOptions {
+    const client = this
     return {
-      hookId: this.uniqueId,
-      clientId: this.uniqueId,
-      threadId: this.threadId,
+      get hookId() {
+        return client.uniqueId
+      },
+      get clientId() {
+        return client.uniqueId
+      },
+      get threadId() {
+        return client.threadId
+      },
       metadata: {
         hookName: devtools?.hookName ?? 'useChat',
         outputKind: devtools?.outputKind ?? 'chat',
@@ -1852,28 +1876,17 @@ export class ChatClient<
     }
   }
 
-  /**
-   * True when the client still has user-actionable interrupts (or is mid
-   * resume submission). Staged/submitting items that are already being
-   * continued do not block a later turn once the resume stream has cleared
-   * resume state.
-   */
+  /** True while interrupt descriptors still own continuation. */
+  private hasPendingInterrupts(): boolean {
+    return this.interruptManager.getDescriptors().length > 0
+  }
+
+  /** True while an interrupt batch owns the next user turn. */
   private hasBlockingInterrupts(): boolean {
-    if (!this.lastResume && !this.activeInterruptSubmission) {
-      return false
-    }
-    if (this.activeInterruptSubmission) {
-      return true
-    }
-    return this.interruptManager
-      .getInterrupts()
-      .some(
-        (item) =>
-          item.status === 'pending' ||
-          item.status === 'validating' ||
-          item.status === 'error' ||
-          item.status === 'staged',
-      )
+    return (
+      this.activeInterruptSubmission !== undefined ||
+      this.hasPendingInterrupts()
+    )
   }
 
   /** True while a stream is active, a send is claiming the client, or the queue is draining. */
@@ -2583,6 +2596,8 @@ export class ChatClient<
    * Check if we should continue the flow and do so if needed
    */
   private async checkForContinuation(): Promise<void> {
+    if (this.hasPendingInterrupts()) return
+
     // Prevent duplicate continuation attempts
     if (this.continuationPending || this.isLoading) {
       this.continuationSkipped = true

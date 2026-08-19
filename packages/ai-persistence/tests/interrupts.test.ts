@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, chat } from '@tanstack/ai'
-import type { AnyTextAdapter, StreamChunk, Tool } from '@tanstack/ai'
+import { EventType, chat, defineChatMiddleware } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  StreamChunk,
+  Tool,
+  TokenUsage,
+} from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 
@@ -31,12 +36,13 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   return out
 }
 
-const interruptFinished = (runId = 'r1'): StreamChunk => ({
+const interruptFinished = (runId = 'r1', usage?: TokenUsage): StreamChunk => ({
   type: EventType.RUN_FINISHED,
   runId,
   threadId: 't1',
   finishReason: 'tool_calls',
   timestamp: 1,
+  ...(usage ? { usage } : {}),
   outcome: {
     type: 'interrupt',
     interrupts: [
@@ -57,12 +63,13 @@ const runStarted = (): StreamChunk => ({
   timestamp: 1,
 })
 
-const toolStart = (): StreamChunk => ({
+const toolStart = (parentMessageId?: string): StreamChunk => ({
   type: EventType.TOOL_CALL_START,
   toolCallId: 'tool-call-1',
   toolCallName: 'clientSearch',
   toolName: 'clientSearch',
   timestamp: 1,
+  ...(parentMessageId ? { parentMessageId } : {}),
 })
 
 const toolArgs = (): StreamChunk => ({
@@ -79,13 +86,49 @@ const text = (delta: string): StreamChunk => ({
   timestamp: 1,
 })
 
-const runFinished = (runId = 'r1'): StreamChunk => ({
+const runFinished = (runId = 'r1', usage?: TokenUsage): StreamChunk => ({
   type: EventType.RUN_FINISHED,
   runId,
   threadId: 't1',
   finishReason: 'stop',
   timestamp: 1,
+  ...(usage ? { usage } : {}),
 })
+
+const toolCallFinished = (runId = 'r1', usage?: TokenUsage): StreamChunk => ({
+  type: EventType.RUN_FINISHED,
+  runId,
+  threadId: 't1',
+  finishReason: 'tool_calls',
+  timestamp: 1,
+  ...(usage ? { usage } : {}),
+})
+
+const toolCallChunks = (usage?: TokenUsage) => [
+  runStarted(),
+  toolStart(),
+  toolArgs(),
+  toolCallFinished('r1', usage),
+]
+
+async function persistClientToolTurn(
+  persistence: ReturnType<typeof memoryPersistence>,
+  tools: Array<Tool>,
+  chunks: Array<StreamChunk> = toolCallChunks(),
+) {
+  const first = mockAdapter([chunks])
+  await collect(
+    chat({
+      adapter: first.adapter,
+      messages: [{ role: 'user', content: 'hi' }],
+      tools,
+      runId: 'r1',
+      threadId: 't1',
+      middleware: [withPersistence(persistence)],
+    }) as AsyncIterable<StreamChunk>,
+  )
+  return first
+}
 
 const clientTool = (name: string): Tool => ({
   name,
@@ -141,23 +184,39 @@ describe('interrupt persistence', () => {
     ])
   })
 
+  it('keeps the stream messageId on an interrupted tool-call turn', async () => {
+    const persistence = memoryPersistence()
+    await persistClientToolTurn(
+      persistence,
+      [approvalClientTool('clientSearch')],
+      [
+        runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'stream-assistant',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        toolStart('stream-assistant'),
+        toolArgs(),
+        toolCallFinished(),
+      ],
+    )
+
+    const thread = await persistence.stores.messages!.loadThread('t1')
+    const toolTurn = thread.find(
+      (message) =>
+        message.role === 'assistant' &&
+        message.toolCalls?.some((call) => call.id === 'tool-call-1'),
+    )
+    expect(toolTurn?.id).toBe('stream-assistant')
+    expect(toolTurn?.createdAt).toBeInstanceOf(Date)
+  })
+
   it('does not persist duplicate records before terminal interrupt outcome', async () => {
     const persistence = memoryPersistence()
     const create = vi.spyOn(persistence.stores.interrupts!, 'create')
-    const { adapter } = mockAdapter([
-      [
-        runStarted(),
-        toolStart(),
-        toolArgs(),
-        {
-          type: EventType.RUN_FINISHED,
-          runId: 'r1',
-          threadId: 't1',
-          finishReason: 'tool_calls',
-          timestamp: 1,
-        },
-      ],
-    ])
+    const { adapter } = mockAdapter([toolCallChunks()])
 
     await collect(
       chat({
@@ -174,6 +233,69 @@ describe('interrupt persistence', () => {
     expect(await persistence.stores.interrupts!.listPending('t1')).toHaveLength(
       1,
     )
+  })
+
+  it('persists client-tool interrupt usage once', async () => {
+    const persistence = memoryPersistence()
+    const usage = {
+      promptTokens: 8,
+      completionTokens: 3,
+      totalTokens: 11,
+    }
+
+    await persistClientToolTurn(
+      persistence,
+      [approvalClientTool('clientSearch')],
+      toolCallChunks(usage),
+    )
+
+    expect(await persistence.stores.runs!.get('r1')).toMatchObject({
+      status: 'interrupted',
+      usage,
+    })
+  })
+
+  it('includes current usage from a direct interrupt after an earlier iteration', async () => {
+    const persistence = memoryPersistence()
+    const firstUsage = {
+      promptTokens: 8,
+      completionTokens: 3,
+      totalTokens: 11,
+    }
+    const interruptUsage = {
+      promptTokens: 13,
+      completionTokens: 5,
+      totalTokens: 18,
+    }
+    const { adapter } = mockAdapter([
+      toolCallChunks(firstUsage),
+      [runStarted(), interruptFinished('r1', interruptUsage)],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'hi' }],
+        tools: [
+          {
+            ...clientTool('clientSearch'),
+            execute: () => ({ hits: [] }),
+          },
+        ],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(await persistence.stores.runs!.get('r1')).toMatchObject({
+      status: 'interrupted',
+      usage: {
+        promptTokens: 21,
+        completionTokens: 8,
+        totalTokens: 29,
+      },
+    })
   })
 
   it('blocks normal new input while a thread has pending interrupts', async () => {
@@ -204,7 +326,16 @@ describe('interrupt persistence', () => {
 
   it('treats resume entries as interrupt continuation on the same run', async () => {
     const persistence = memoryPersistence()
-    const first = mockAdapter([[runStarted(), interruptFinished()]])
+    const first = mockAdapter([
+      [
+        runStarted(),
+        interruptFinished('r1', {
+          promptTokens: 8,
+          completionTokens: 3,
+          totalTokens: 11,
+        }),
+      ],
+    ])
     await collect(
       chat({
         adapter: first.adapter,
@@ -219,7 +350,15 @@ describe('interrupt persistence', () => {
     )
 
     const continuation = mockAdapter([
-      [runStarted(), text('continued'), runFinished('r1')],
+      [
+        runStarted(),
+        text('continued'),
+        runFinished('r1', {
+          promptTokens: 16,
+          completionTokens: 6,
+          totalTokens: 22,
+        }),
+      ],
     ])
     const chunks = await collect(
       chat({
@@ -246,6 +385,11 @@ describe('interrupt persistence', () => {
     expect(
       (await persistence.stores.interrupts!.get('interrupt-1'))?.status,
     ).toBe('resolved')
+    expect((await persistence.stores.runs!.get('r1'))?.usage).toEqual({
+      promptTokens: 24,
+      completionTokens: 9,
+      totalTokens: 33,
+    })
   })
 
   // The full two-phase chain for an approval-required client tool, driven
@@ -260,29 +404,9 @@ describe('interrupt persistence', () => {
   // interrupt. Feeding the client output then drives exactly one model call.
   it('applies persisted approval and client-tool resume decisions with empty client messages', async () => {
     const persistence = memoryPersistence()
-    const toolCallChunks = () => [
-      runStarted(),
-      toolStart(),
-      toolArgs(),
-      {
-        type: EventType.RUN_FINISHED,
-        runId: 'r1',
-        threadId: 't1',
-        finishReason: 'tool_calls',
-        timestamp: 1,
-      } as StreamChunk,
-    ]
-    const first = mockAdapter([toolCallChunks()])
-    await collect(
-      chat({
-        adapter: first.adapter,
-        messages: [{ role: 'user', content: 'hi' }],
-        tools: [approvalClientTool('clientSearch')],
-        runId: 'r1',
-        threadId: 't1',
-        middleware: [withPersistence(persistence)],
-      }) as AsyncIterable<StreamChunk>,
-    )
+    await persistClientToolTurn(persistence, [
+      approvalClientTool('clientSearch'),
+    ])
 
     const approvalInterrupt = await persistence.stores.interrupts!.get(
       'approval_tool-call-1',
@@ -370,6 +494,65 @@ describe('interrupt persistence', () => {
     expect(finalChunks).toContainEqual(
       expect.objectContaining({ delta: 'done' }),
     )
+    expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
+  })
+
+  // Issue #1088: cancelling a hydrated client-tool interrupt under
+  // withPersistence must complete the turn. Persistence clears `config.resume`
+  // and must therefore put the cancelled toolCallId on `cancelledToolCallIds`.
+  // Otherwise the engine treats the stored tool call as unhandled and emits
+  // another `client_tool_*` interrupt instead of an output-error.
+  it('completes a cancelled client-tool resume from persisted state with empty client messages', async () => {
+    const persistence = memoryPersistence()
+    await persistClientToolTurn(persistence, [clientTool('clientSearch')])
+
+    const pending = await persistence.stores.interrupts!.get(
+      'client_tool_tool-call-1',
+    )
+    expect(pending?.status).toBe('pending')
+
+    const afterCancel = mockAdapter([
+      [runStarted(), text('cancelled-and-done'), runFinished('r1')],
+    ])
+    const chunks = await collect(
+      chat({
+        adapter: afterCancel.adapter,
+        messages: [],
+        tools: [clientTool('clientSearch')],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId: 'client_tool_tool-call-1',
+            status: 'cancelled',
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(afterCancel.calls).toHaveLength(1)
+    expect(chunks).toContainEqual(
+      expect.objectContaining({
+        type: EventType.TOOL_CALL_RESULT,
+        toolCallId: 'tool-call-1',
+        content: JSON.stringify({ error: 'Tool execution cancelled' }),
+      }),
+    )
+    expect(
+      chunks.find(
+        (chunk) =>
+          chunk.type === EventType.RUN_FINISHED &&
+          chunk.outcome?.type === 'interrupt',
+      ),
+    ).toBeUndefined()
+    expect(chunks).toContainEqual(
+      expect.objectContaining({ delta: 'cancelled-and-done' }),
+    )
+    expect(
+      (await persistence.stores.interrupts!.get('client_tool_tool-call-1'))
+        ?.status,
+    ).toBe('cancelled')
     expect(await persistence.stores.interrupts!.listPending('t1')).toEqual([])
   })
 
@@ -775,6 +958,13 @@ describe('interrupt persistence', () => {
     })
 
     const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
+    const resumeStates: Array<ReadonlySet<string> | undefined> = []
+    const observeResumeState = defineChatMiddleware({
+      name: 'observe-resume-state',
+      onConfig(_ctx, config) {
+        resumeStates.push(config.resumeToolState?.cancelledToolCallIds)
+      },
+    })
     await collect(
       chat({
         adapter: run.adapter,
@@ -782,7 +972,7 @@ describe('interrupt persistence', () => {
         runId: 'r1',
         threadId: 't1',
         resume: [{ interruptId: 'approval-1', status: 'cancelled' }],
-        middleware: [withPersistence(persistence)],
+        middleware: [withPersistence(persistence), observeResumeState],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -790,6 +980,7 @@ describe('interrupt persistence', () => {
       run.calls[0] as { approvals?: ReadonlyMap<string, boolean> }
     ).approvals
     expect(approvals?.get('approval-1')).toBe(false)
+    expect(resumeStates[0]?.has('tc1')).toBe(true)
     expect(
       (await persistence.stores.interrupts!.get('approval-1'))?.status,
     ).toBe('cancelled')
@@ -806,6 +997,13 @@ describe('interrupt persistence', () => {
     })
 
     const run = mockAdapter([[runStarted(), text('ok'), runFinished('r1')]])
+    const resumeStates: Array<ReadonlySet<string> | undefined> = []
+    const observeResumeState = defineChatMiddleware({
+      name: 'observe-resume-state',
+      onConfig(_ctx, config) {
+        resumeStates.push(config.resumeToolState?.cancelledToolCallIds)
+      },
+    })
     await collect(
       chat({
         adapter: run.adapter,
@@ -819,7 +1017,7 @@ describe('interrupt persistence', () => {
             payload: { answer: 99 },
           },
         ],
-        middleware: [withPersistence(persistence)],
+        middleware: [withPersistence(persistence), observeResumeState],
       }) as AsyncIterable<StreamChunk>,
     )
 
@@ -829,6 +1027,7 @@ describe('interrupt persistence', () => {
       run.calls[0] as { clientToolResults?: ReadonlyMap<string, unknown> }
     ).clientToolResults
     expect(clientToolResults?.get('tc1')).toBeUndefined()
+    expect(resumeStates[0]?.has('tc1')).toBe(true)
     expect((await persistence.stores.interrupts!.get('client-1'))?.status).toBe(
       'cancelled',
     )

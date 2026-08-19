@@ -6,6 +6,7 @@ import {
   getMetadata,
   getEventLog,
   getToolCalls,
+  getMessages,
 } from './helpers'
 
 /**
@@ -44,6 +45,46 @@ test.describe('Client Tool E2E Tests', () => {
     expect(startEvents.length).toBeGreaterThanOrEqual(1)
     expect(completeEvents.length).toBeGreaterThanOrEqual(1)
     expect(startEvents[0]?.toolName).toBe('show_notification')
+  })
+
+  test('client tool preserves reasoning through continuation', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(page, 'client-tool-reasoning', testId, aimockPort)
+    await runTest(page)
+    await waitForTestComplete(page)
+
+    const messages = await getMessages(page)
+    const toolCallMessage = messages.find(
+      (message) =>
+        message.role === 'assistant' &&
+        message.parts.some(
+          (part) =>
+            part.type === 'tool-call' && part.name === 'show_notification',
+        ),
+    )
+
+    expect(toolCallMessage?.parts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'thinking',
+          content:
+            'I should show a notification before confirming it was displayed.',
+        }),
+      ]),
+    )
+
+    const followUpText = messages
+      .flatMap((message) => message.parts)
+      .filter((part) => part.type === 'text')
+      .map((part) => part.content)
+      .join(' ')
+
+    expect(followUpText).toContain(
+      'The notification has been shown after reasoning.',
+    )
   })
 
   test('sequential client tools execute in order', async ({

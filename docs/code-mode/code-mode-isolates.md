@@ -93,6 +93,7 @@ const driver = createQuickJSIsolateDriver({
   memoryLimit: 128,     // MB
   timeout: 30_000,      // ms
   maxStackSize: 524288, // bytes (512 KiB)
+  wasmLocation: '/assets/quickjs/emscripten-module.wasm',
 })
 ```
 
@@ -104,11 +105,26 @@ const driver = createQuickJSIsolateDriver({
 | `memoryLimit`  | `number` | `128`    | Maximum heap memory for the QuickJS VM, in megabytes.                                                                                |
 | `timeout`      | `number` | `30000`  | Maximum wall-clock time per execution, in milliseconds.                                                                              |
 | `maxStackSize` | `number` | `524288` | Maximum call stack size in bytes (default: 512 KiB). Increase for deeply recursive code; decrease to catch runaway recursion sooner. |
+| `wasmLocation` | `string` | — | URL or path from which Emscripten loads the QuickJS WASM binary. When omitted, `quickjs-emscripten` resolves its bundled binary. |
+
+### Serving the WASM binary
+
+Set `wasmLocation` when the QuickJS WASM binary is hosted in a public directory or on a CDN:
+
+```typescript
+import { createQuickJSIsolateDriver } from '@tanstack/ai-isolate-quickjs'
+
+const driver = createQuickJSIsolateDriver({
+  wasmLocation: 'https://cdn.example.com/quickjs/emscripten-module.wasm',
+})
+```
+
+Serve the synchronous release binary exported by `@jitl/quickjs-wasmfile-release-sync/wasm`. For a cross-origin URL, configure the host to allow cross-origin requests.
 
 
 ### How it works
 
-QuickJS WASM uses an asyncified execution model — the WASM module can pause while awaiting host async functions (your tools). Executions are serialized through a global queue to prevent concurrent WASM calls, which the asyncify model does not support. Fatal errors (memory exhaustion, stack overflow) are detected, the VM is disposed, and a structured error is returned. Console output is captured and returned with the result.
+QuickJS runs the synchronous WASM build and bridges host async functions (your tools) through QuickJS promises, avoiding suspension of the WASM stack. Fatal errors (memory exhaustion, stack overflow) are detected, the VM is disposed, and a structured error is returned. Console output is captured and returned with the result.
 
 > **Performance note:** QuickJS interprets JavaScript rather than JIT-compiling it, so compute-heavy scripts run slower than with the Node driver. For typical LLM-generated scripts that are mostly waiting on `external_*` tool calls, this difference is not significant.
 
@@ -332,5 +348,5 @@ You can implement this interface to build a custom driver — for example, a Doc
 
 - [Code Mode](./code-mode) — Core setup, API reference, and getting started guide
 - [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
-- [Code Mode with Skills](./code-mode-with-skills) — Add persistent, reusable skill libraries
+- [Code Mode with Snippets](./code-mode-with-snippets) — Add persistent, reusable snippet libraries
 
