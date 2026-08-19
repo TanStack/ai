@@ -48,7 +48,7 @@ providerOptions: TProviderOptions;
 
 ***
 
-### generateAudio()
+### generateAudio
 
 ```ts
 generateAudio: (options) => Promise<AudioGenerationResult>;

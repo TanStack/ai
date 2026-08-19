@@ -28,7 +28,7 @@ Defined in: [packages/ai/src/realtime/types.ts:300](https://github.com/TanStack/
 ### details?
 
 ```ts
-optional details: unknown;
+optional details?: unknown;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:302](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L302)
@@ -38,7 +38,7 @@ Defined in: [packages/ai/src/realtime/types.ts:302](https://github.com/TanStack/
 ### provider?
 
 ```ts
-optional provider: string;
+optional provider?: string;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:301](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L301)

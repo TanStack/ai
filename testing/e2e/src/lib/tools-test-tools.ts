@@ -187,6 +187,11 @@ export const SCENARIO_LIST = [
   { id: 'text-only', label: 'Text Only (No Tools)', category: 'basic' },
   { id: 'server-tool-single', label: 'Single Server Tool', category: 'basic' },
   { id: 'client-tool-single', label: 'Single Client Tool', category: 'basic' },
+  {
+    id: 'client-tool-reasoning',
+    label: 'Client Tool with Reasoning',
+    category: 'basic',
+  },
   { id: 'approval-tool', label: 'Approval Required Tool', category: 'basic' },
   {
     id: 'sequence-server-client',
@@ -229,6 +234,11 @@ export const SCENARIO_LIST = [
   {
     id: 'malformed-tool-arguments',
     label: 'Malformed Tool Arguments (Regression #1131)',
+    category: 'basic',
+  },
+  {
+    id: 'provider-rejected-tool-call',
+    label: 'Provider-Rejected Tool Call',
     category: 'basic',
   },
   // Race condition / event flow scenarios
@@ -282,6 +292,7 @@ export function getToolsForScenario(scenario: string) {
       return [serverTools.get_weather]
 
     case 'client-tool-single':
+    case 'client-tool-reasoning':
       return [clientToolDefinitions.show_notification]
 
     case 'server-context':
@@ -350,6 +361,7 @@ export function getToolsForScenario(scenario: string) {
       return [serverTools.check_status]
 
     case 'malformed-tool-arguments':
+    case 'provider-rejected-tool-call':
       return [serverTools.check_status]
 
     default:

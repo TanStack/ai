@@ -143,6 +143,7 @@ export {
   xhrHttpStream,
   stream,
   rpcStream,
+  webSocket,
   StreamTruncatedError,
   DurableStreamIncompleteError,
   StreamReconnectLimitError,
@@ -155,6 +156,7 @@ export {
   type RunAgentInputContext,
   type StreamConnectionHandlers,
   type SubscribeConnectionAdapter,
+  type WebSocketConnectionOptions,
   type XhrConnectionOptions,
 } from './connection-adapters'
 

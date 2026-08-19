@@ -67,7 +67,8 @@ result.ranking[0].index //         number — position in the input array
 inside the server function, so nothing is exposed to the browser.
 
 **Usage is reported.** Rerank bills in search units rather than tokens, so the
-result panel reads `usage.unitsBilled`. OpenRouter also reports `usage.cost`.
+result panel reads `usage.billed` (`{ quantity, unit: 'units' }`). OpenRouter
+also reports `usage.cost`.
 
 ## Files worth reading
 

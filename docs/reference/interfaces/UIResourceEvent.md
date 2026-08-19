@@ -5,7 +5,7 @@ title: UIResourceEvent
 
 # Interface: UIResourceEvent
 
-Defined in: [packages/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1414)
+Defined in: [packages/ai/src/types.ts:1501](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1501)
 
 Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
  a UIResourcePart on the assistant UIMessage. Never enters model input.
@@ -14,21 +14,15 @@ Emitted when an MCP tool returns a ui:// resource (MCP Apps). Reconciled into
 
 - [`CustomEvent`](CustomEvent.md)
 
-## Indexable
-
-```ts
-[k: string]: unknown
-```
-
 ## Properties
 
 ### model?
 
 ```ts
-optional model: string;
+optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1339](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1339)
+Defined in: [packages/ai/src/types.ts:1410](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1410)
 
 Model identifier for multi-model support
 
@@ -44,7 +38,7 @@ Model identifier for multi-model support
 name: "ui-resource";
 ```
 
-Defined in: [packages/ai/src/types.ts:1415](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1415)
+Defined in: [packages/ai/src/types.ts:1502](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1502)
 
 #### Overrides
 
@@ -54,18 +48,65 @@ CustomEvent.name
 
 ***
 
+### runId?
+
+```ts
+optional runId?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:1418](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1418)
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`runId`](CustomEvent.md#runid)
+
+***
+
+### threadId?
+
+```ts
+optional threadId?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:1417](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1417)
+
+Routing metadata the TanStack engine attaches when emitting CUSTOM
+events that need to be correlated with a specific thread/run.
+Stripped by `strip-to-spec-middleware` before going on the wire so
+the AG-UI consumer never sees them (when that middleware is enabled).
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`threadId`](CustomEvent.md#threadid)
+
+***
+
+### type
+
+```ts
+type: "CUSTOM";
+```
+
+Defined in: [packages/ai/src/types.ts:1408](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1408)
+
+#### Inherited from
+
+[`CustomEvent`](CustomEvent.md).[`type`](CustomEvent.md#type)
+
+***
+
 ### value
 
 ```ts
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
+Defined in: [packages/ai/src/types.ts:1503](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1503)
 
 #### meta?
 
 ```ts
-optional meta: Record<string, unknown>;
+optional meta?: Record<string, unknown>;
 ```
 
 #### resource
@@ -77,7 +118,7 @@ resource: object;
 ##### resource.blob?
 
 ```ts
-optional blob: string;
+optional blob?: string;
 ```
 
 ##### resource.mimeType
@@ -89,7 +130,7 @@ mimeType: string;
 ##### resource.text?
 
 ```ts
-optional text: string;
+optional text?: string;
 ```
 
 ##### resource.uri
@@ -101,7 +142,7 @@ uri: string;
 #### serverId?
 
 ```ts
-optional serverId: string;
+optional serverId?: string;
 ```
 
 #### toolCallId

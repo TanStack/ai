@@ -8,6 +8,7 @@ import {
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
+import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
@@ -27,6 +28,7 @@ import type {
 } from '@tanstack/ai/adapters'
 import type {
   ContentPart,
+  JSONSchema,
   ModelMessage,
   StreamChunk,
   TextOptions,
@@ -1189,6 +1191,18 @@ export class OpenRouterTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
+    // Attach json_schema only when outputSchema is set and every routed model
+    // is in the combined-capable set.
+    const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
+    const combinedSchema =
+      combinedOutputSchema &&
+      this.supportsCombinedToolsAndSchema(options.modelOptions)
+        ? this.makeStructuredOutputCompatible(
+            combinedOutputSchema,
+            combinedOutputSchema.required,
+          )
+        : undefined
+
     // `modelOptions` is the sole wire surface: callers set provider-native
     // names (`temperature`, `topP`, `maxCompletionTokens`, `metadata`, etc.)
     // there and they flow through the spread below. Root `metadata` is
@@ -1200,8 +1214,29 @@ export class OpenRouterTextAdapter<
       model: options.model + variantSuffix,
       messages,
       ...(tools && tools.length > 0 && { tools }),
+      ...(combinedSchema && {
+        responseFormat: {
+          type: 'json_schema' as const,
+          jsonSchema: {
+            name: 'structured_output',
+            schema: combinedSchema,
+            strict: true,
+          },
+        },
+      }),
     }
     return request
+  }
+
+  /**
+   * Combined mode is safe only when this model and every `modelOptions.models`
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
+   * `:variant` suffixes are routing directives and do not change the gate.
+   */
+  supportsCombinedToolsAndSchema(
+    modelOptions?: ResolveProviderOptions<TModel>,
+  ): boolean {
+    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
   }
 
   /**

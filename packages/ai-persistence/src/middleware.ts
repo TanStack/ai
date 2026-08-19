@@ -34,6 +34,7 @@ import type {
   RunAgentResumeItem,
   StreamChunk,
   ToolApprovalResolution,
+  BilledUsage,
   TokenUsage,
 } from '@tanstack/ai'
 import type {
@@ -1311,6 +1312,7 @@ function accumulateTokenUsage(
     next.durationSeconds,
   )
   const unitsBilled = sumOptionalNumber(current.unitsBilled, next.unitsBilled)
+  const billed = accumulateBilled(current.billed, next.billed)
   const cost = sumOptionalNumber(current.cost, next.cost)
 
   return {
@@ -1323,10 +1325,25 @@ function accumulateTokenUsage(
     ...(completionTokensDetails ? { completionTokensDetails } : {}),
     ...(durationSeconds !== undefined ? { durationSeconds } : {}),
     ...(unitsBilled !== undefined ? { unitsBilled } : {}),
+    ...(billed !== undefined ? { billed } : {}),
     ...(cost !== undefined ? { cost } : {}),
     ...(costDetails ? { costDetails } : {}),
     ...(providerUsageDetails ? { providerUsageDetails } : {}),
   }
+}
+
+/**
+ * Sum billed quantities when both reports use the same unit. Different units
+ * cannot be added, so the later report wins.
+ */
+function accumulateBilled(
+  current: BilledUsage | undefined,
+  next: BilledUsage | undefined,
+): BilledUsage | undefined {
+  if (!current) return next
+  if (!next) return current
+  if (current.unit !== next.unit) return next
+  return { quantity: current.quantity + next.quantity, unit: current.unit }
 }
 
 async function completeRun(

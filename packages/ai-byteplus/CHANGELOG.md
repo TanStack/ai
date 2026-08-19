@@ -1,5 +1,25 @@
 # @tanstack/ai-byteplus
 
+## 0.1.3
+
+### Patch Changes
+
+- [#1149](https://github.com/TanStack/ai/pull/1149) [`870e5cc`](https://github.com/TanStack/ai/commit/870e5ccf811479651f00a360a6a4eae195da6afe) - Allow 1080p on Seedance 2.5 (`dreamina-seedance-2-5-260628`).
+
+  BytePlus ModelArk and the live fal Seedance 2.5 spec now accept native
+  `480p` / `720p` / `1080p` (default still `720p`). `4k` remains exclusive
+  to `dreamina-seedance-2-0-260128`.
+
+## 0.1.2
+
+### Patch Changes
+
+- [#1132](https://github.com/TanStack/ai/pull/1132) [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b) - Timestamp native and fallback structured-output events when they are emitted so their lifecycle remains chronologically ordered.
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+  - @tanstack/openai-base@0.9.13
+
 ## 0.1.1
 
 ### Patch Changes

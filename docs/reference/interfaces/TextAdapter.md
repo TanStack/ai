@@ -106,7 +106,7 @@ toolCapabilities: TToolCapabilities;
 
 ***
 
-### chatStream()
+### chatStream
 
 ```ts
 chatStream: (options) => AsyncIterable<AGUIEvent>;
@@ -125,6 +125,35 @@ Stream text completions from the model
 #### Returns
 
 `AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
+
+***
+
+### combinedStructuredOutputSource?
+
+```ts
+optional combinedStructuredOutputSource?: (modelOptions?) => "text" | "event";
+```
+
+Defined in: [packages/ai/src/activities/chat/adapter.ts:174](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L174)
+
+Where native-combined structured output is taken from.
+
+- `'text'` (default when omitted): the agent loop's accumulated
+  assistant text is schema JSON. The engine parses it after the loop.
+  HTTP adapters use this.
+- `'event'`: the adapter emits `structured-output.complete` during
+  `chatStream`. The engine must not parse accumulated prose. Harness
+  adapters use this.
+
+#### Parameters
+
+##### modelOptions?
+
+`TProviderOptions`
+
+#### Returns
+
+`"text"` \| `"event"`
 
 ***
 
@@ -167,7 +196,7 @@ Provider name identifier (e.g., 'openai', 'anthropic')
 ### requires?
 
 ```ts
-readonly optional requires: readonly CapabilityHandle[];
+readonly optional requires?: readonly CapabilityHandle[];
 ```
 
 Defined in: [packages/ai/src/activities/chat/adapter.ts:90](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L90)
@@ -180,7 +209,7 @@ this is the declaration/validation surface only.
 
 ***
 
-### structuredOutput()
+### structuredOutput
 
 ```ts
 structuredOutput: (options) => Promise<StructuredOutputResult<unknown>>;
@@ -208,13 +237,13 @@ Promise with the raw data (validation is done in the chat function)
 
 ***
 
-### structuredOutputStream()?
+### structuredOutputStream?
 
 ```ts
-optional structuredOutputStream: (options) => AsyncIterable<AGUIEvent>;
+optional structuredOutputStream?: (options) => AsyncIterable<AGUIEvent>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:136](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L136)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L137)
 
 Stream structured output using the provider's native streaming structured
 output API (stream + response_format json_schema in a single request).
@@ -241,13 +270,13 @@ their timestamps follow stream order.
 
 ***
 
-### supportsCombinedToolsAndSchema()?
+### supportsCombinedToolsAndSchema?
 
 ```ts
-optional supportsCombinedToolsAndSchema: (modelOptions?) => boolean;
+optional supportsCombinedToolsAndSchema?: (modelOptions?) => boolean;
 ```
 
-Defined in: [packages/ai/src/activities/chat/adapter.ts:159](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L159)
+Defined in: [packages/ai/src/activities/chat/adapter.ts:160](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L160)
 
 Declares whether the adapter supports combining `tools` and a
 schema-constrained final answer in a single streaming request.

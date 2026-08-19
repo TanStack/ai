@@ -501,6 +501,7 @@ describe('response mapping', () => {
       promptTokens: 0,
       completionTokens: 3888,
       totalTokens: 3888,
+      billed: { quantity: 1, unit: 'images' },
       unitsBilled: 1,
     })
   })
@@ -543,6 +544,7 @@ describe('response mapping', () => {
       { b64Json: 'QUJD' },
     ])
     expect(result.usage?.unitsBilled).toBe(2)
+    expect(result.usage?.billed).toEqual({ quantity: 2, unit: 'images' })
   })
 
   it('keeps the successes when part of a group fails, and reports the rest', async () => {

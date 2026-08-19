@@ -28,10 +28,10 @@ Defined in: [packages/ai/src/types.ts:365](https://github.com/TanStack/ai/blob/m
 ### createdAt?
 
 ```ts
-optional createdAt: Date;
+optional createdAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L389)
+Defined in: [packages/ai/src/types.ts:391](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L391)
 
 Optional message creation timestamp. When present, message converters
 preserve it across persist → hydrate round-trips.
@@ -41,10 +41,10 @@ preserve it across persist → hydrate round-trips.
 ### id?
 
 ```ts
-optional id: string;
+optional id?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:384](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L384)
+Defined in: [packages/ai/src/types.ts:386](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L386)
 
 Optional stable message id. Providers ignore it; it exists so a persisted
 transcript can retain the streaming `messageId` and survive the
@@ -58,7 +58,7 @@ resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
 ### name?
 
 ```ts
-optional name: string;
+optional name?: string;
 ```
 
 Defined in: [packages/ai/src/types.ts:366](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L366)
@@ -78,10 +78,10 @@ Defined in: [packages/ai/src/types.ts:364](https://github.com/TanStack/ai/blob/m
 ### structuredOutput?
 
 ```ts
-optional structuredOutput: StructuredOutputPart<unknown>;
+optional structuredOutput?: StructuredOutputPart<unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:375](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L375)
+Defined in: [packages/ai/src/types.ts:377](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L377)
 
 Completed structured output represented by this assistant message.
 `content` remains the provider-facing JSON text; this field preserves the
@@ -92,7 +92,7 @@ typed UI part across persistence and message conversion.
 ### thinking?
 
 ```ts
-optional thinking: object[];
+optional thinking?: object[];
 ```
 
 Defined in: [packages/ai/src/types.ts:369](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L369)
@@ -106,7 +106,7 @@ content: string;
 #### signature?
 
 ```ts
-optional signature: string;
+optional signature?: string;
 ```
 
 ***
@@ -114,7 +114,7 @@ optional signature: string;
 ### toolCallId?
 
 ```ts
-optional toolCallId: string;
+optional toolCallId?: string;
 ```
 
 Defined in: [packages/ai/src/types.ts:368](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L368)
@@ -124,7 +124,7 @@ Defined in: [packages/ai/src/types.ts:368](https://github.com/TanStack/ai/blob/m
 ### toolCalls?
 
 ```ts
-optional toolCalls: ToolCall<unknown>[];
+optional toolCalls?: ToolCall<unknown>[];
 ```
 
 Defined in: [packages/ai/src/types.ts:367](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L367)
