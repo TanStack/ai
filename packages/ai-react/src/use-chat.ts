@@ -131,6 +131,7 @@ export function useChat<
       ...(initialOptions.threadId !== undefined && {
         threadId: initialOptions.threadId,
       }),
+      ...(initialOptions.threadId === undefined && { threadId: hookId }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),

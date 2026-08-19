@@ -742,23 +742,11 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
   }
 }
 
-let bridgeIdSequence = 0
-
 function createBridgeId(hookId: string): string {
-  const cryptoLike = (
-    globalThis as {
-      crypto?: {
-        randomUUID?: () => string
-      }
-    }
-  ).crypto
-
-  if (cryptoLike?.randomUUID) {
-    return `bridge:${hookId}:${cryptoLike.randomUUID()}`
-  }
-
-  bridgeIdSequence += 1
-  return `bridge:${hookId}:${bridgeIdSequence}`
+  // hookId comes from React's useId and is stable across SSR and hydration.
+  // Do not generate randomness during render: crypto.randomUUID is unavailable
+  // or restricted in some server runtimes, and discarded renders must be pure.
+  return `bridge:${hookId}`
 }
 
 // Owns the chat-client devtools surface so the chat client itself stays a
