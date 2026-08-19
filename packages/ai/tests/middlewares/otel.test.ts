@@ -57,6 +57,30 @@ async function runToIterationStart(
   })
 }
 
+async function runUsageIterations(
+  mw: ChatMiddleware,
+  ctx: ChatMiddlewareContext,
+  usages: Array<TokenUsage | undefined>,
+) {
+  await mw.onStart?.(ctx)
+  for (const [iteration, usage] of usages.entries()) {
+    ctx.iteration = iteration
+    ctx.phase = 'beforeModel'
+    await mw.onConfig?.(ctx, {
+      messages: [],
+      systemPrompts: [],
+      tools: [],
+    })
+    await mw.onChunk?.(ctx, {
+      ...ev.runFinished(
+        iteration === usages.length - 1 ? 'stop' : 'tool_calls',
+      ),
+      ...(usage !== undefined ? { usage } : {}),
+    })
+    if (usage !== undefined) await mw.onUsage?.(ctx, usage)
+  }
+}
+
 class RateLimitError extends Error {
   override name = 'RateLimitError'
 }
@@ -385,6 +409,63 @@ describe('otelMiddleware — token histogram', () => {
       completionTokens: 50,
       totalTokens: 150,
     })
+  })
+})
+
+describe('otelMiddleware — root usage rollup', () => {
+  it('rolls up mixed multi-iteration usage without changing iteration data or metrics', async () => {
+    const usages: Array<TokenUsage | undefined> = [
+      {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+        promptTokensDetails: { cachedTokens: 0, cacheWriteTokens: 0 },
+        completionTokensDetails: { reasoningTokens: 0 },
+      },
+      undefined,
+      {
+        promptTokens: 100,
+        completionTokens: 10,
+        totalTokens: 110,
+        promptTokensDetails: { cachedTokens: 20, cacheWriteTokens: 5 },
+        completionTokensDetails: { reasoningTokens: 1 },
+      },
+      { promptTokens: 200, completionTokens: 20, totalTokens: 220 },
+    ]
+    const expected: TokenUsage = {
+      promptTokens: 300,
+      completionTokens: 30,
+      totalTokens: 330,
+      promptTokensDetails: { cachedTokens: 20, cacheWriteTokens: 5 },
+      completionTokensDetails: { reasoningTokens: 1 },
+    }
+    const { tracer, spans } = createFakeTracer()
+    const { meter, records } = createFakeMeter()
+    const mw = otelMiddleware({ tracer, meter })
+    const ctx = makeCtx()
+
+    await runUsageIterations(mw, ctx, usages)
+    await mw.onFinish?.(ctx, {
+      finishReason: 'stop',
+      duration: 10,
+      content: '',
+      usage: usages.at(-1)!,
+    })
+
+    const [root, ...iterations] = spans
+    expect(root!.attributes).toMatchObject(usageAttributes(expected))
+    expect(root!.attributes['tanstack.ai.iterations']).toBe(usages.length)
+    expect(iterations).toHaveLength(usages.length)
+    expect(
+      iterations.map((span) => span.attributes['gen_ai.usage.input_tokens']),
+    ).toEqual([0, undefined, 100, 200])
+
+    const tokenRecords = records.filter(
+      (record) => record.name === 'gen_ai.client.token.usage',
+    )
+    expect(tokenRecords.map((record) => record.value)).toEqual([
+      0, 0, 100, 10, 200, 20,
+    ])
   })
 })
 
@@ -935,9 +1016,15 @@ describe('otelMiddleware — error and abort paths', () => {
       toolCallId?: string | undefined
       ended: boolean
     }> = []
+    let rootInputAtEnd: unknown
     const mw = otelMiddleware({
       tracer,
       onSpanEnd: (info, span) => {
+        if (info.kind === 'chat') {
+          rootInputAtEnd = (span as FakeSpan).attributes[
+            'gen_ai.usage.input_tokens'
+          ]
+        }
         seen.push({
           kind: info.kind,
           toolName: info.kind === 'tool' ? info.toolName : undefined,
@@ -949,6 +1036,11 @@ describe('otelMiddleware — error and abort paths', () => {
     const ctx = makeCtx({ hasTools: true })
 
     await runToIterationStart(mw, ctx)
+    await mw.onUsage?.(ctx, {
+      promptTokens: 12,
+      completionTokens: 3,
+      totalTokens: 15,
+    })
     await mw.onBeforeToolCall?.(ctx, {
       toolCall: makeToolCall({ id: 'tc-err', function: { name: 'my_tool' } }),
       tool: undefined,
@@ -964,6 +1056,7 @@ describe('otelMiddleware — error and abort paths', () => {
     const toolCall = seen.find((s) => s.kind === 'tool')!
     expect(toolCall.toolName).toBe('my_tool')
     expect(toolCall.toolCallId).toBe('tc-err')
+    expect(rootInputAtEnd).toBe(12)
   })
 
   it('onAbort fires onSpanEnd for iteration, open tool spans, then root — in depth-first order', async () => {
@@ -974,9 +1067,15 @@ describe('otelMiddleware — error and abort paths', () => {
       toolCallId?: string | undefined
       ended: boolean
     }> = []
+    let rootInputAtEnd: unknown
     const mw = otelMiddleware({
       tracer,
       onSpanEnd: (info, span) => {
+        if (info.kind === 'chat') {
+          rootInputAtEnd = (span as FakeSpan).attributes[
+            'gen_ai.usage.input_tokens'
+          ]
+        }
         seen.push({
           kind: info.kind,
           toolName: info.kind === 'tool' ? info.toolName : undefined,
@@ -988,6 +1087,11 @@ describe('otelMiddleware — error and abort paths', () => {
     const ctx = makeCtx({ hasTools: true })
 
     await runToIterationStart(mw, ctx)
+    await mw.onUsage?.(ctx, {
+      promptTokens: 8,
+      completionTokens: 2,
+      totalTokens: 10,
+    })
     await mw.onBeforeToolCall?.(ctx, {
       toolCall: makeToolCall({
         id: 'tc-abort',
@@ -1003,6 +1107,7 @@ describe('otelMiddleware — error and abort paths', () => {
 
     expect(seen.map((s) => s.kind)).toEqual(['iteration', 'tool', 'chat'])
     expect(seen.every((s) => s.ended === false)).toBe(true)
+    expect(rootInputAtEnd).toBe(8)
   })
 
   it('onFinish sweeps dangling tool spans with outcome=unknown before closing the iteration span', async () => {
@@ -1436,5 +1541,38 @@ describe('usageAttributes', () => {
     expect(attrs['tanstack.ai.usage.units_billed']).toBe(3)
     // No cost reported → key absent.
     expect('gen_ai.usage.cost' in attrs).toBe(false)
+  })
+
+  it('emits the self-describing billed quantity with its unit', () => {
+    const usage: TokenUsage = {
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      billed: { quantity: 8, unit: 'seconds' },
+    }
+    const attrs = usageAttributes(usage)
+
+    expect(attrs['tanstack.ai.usage.billed_quantity']).toBe(8)
+    expect(attrs['tanstack.ai.usage.billed_unit']).toBe('seconds')
+  })
+
+  it('omits both billed attributes when billed is absent or non-numeric', () => {
+    const attrs = usageAttributes({
+      promptTokens: 1,
+      completionTokens: 2,
+      totalTokens: 3,
+    })
+    expect('tanstack.ai.usage.billed_quantity' in attrs).toBe(false)
+    expect('tanstack.ai.usage.billed_unit' in attrs).toBe(false)
+
+    // A NaN quantity (bad provider data) must not emit a dangling unit.
+    const bad = usageAttributes({
+      promptTokens: 1,
+      completionTokens: 2,
+      totalTokens: 3,
+      billed: { quantity: Number.NaN, unit: 'units' },
+    })
+    expect('tanstack.ai.usage.billed_quantity' in bad).toBe(false)
+    expect('tanstack.ai.usage.billed_unit' in bad).toBe(false)
   })
 })

@@ -4428,6 +4428,51 @@ describe('StreamProcessor', () => {
       expect((sop as any).raw).toBe('{"name":"Alice"}')
     })
 
+    it('attaches a late structured-output.complete to the open assistant when the event uses a new messageId', () => {
+      const processor = new StreamProcessor()
+      const report = {
+        name: 'TanStack AI',
+        oneLiner: 'Type-safe AI SDK',
+      }
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.toolStart('toolu_1', 'Read'))
+      processor.processChunk(ev.toolEnd('toolu_1', 'Read'))
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(
+        ev.textContent('I have enough to produce the report.', 'msg-1'),
+      )
+      processor.processChunk(ev.textEnd('msg-1'))
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.start',
+          value: { messageId: 'so-fresh-id' },
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.CUSTOM, {
+          name: 'structured-output.complete',
+          value: {
+            object: report,
+            raw: JSON.stringify(report),
+            messageId: 'so-fresh-id',
+          },
+        }),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+
+      const assistants = processor
+        .getMessages()
+        .filter((m) => m.role === 'assistant')
+      expect(assistants).toHaveLength(1)
+      const sop = assistants[0]!.parts.find(
+        (p) => p.type === 'structured-output',
+      )
+      expect(sop).toBeDefined()
+      expect((sop as { status: string }).status).toBe('complete')
+      expect((sop as { data: unknown }).data).toEqual(report)
+    })
+
     it('progressively populates partial as JSON deltas arrive', () => {
       const processor = new StreamProcessor()
 

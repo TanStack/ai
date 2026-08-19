@@ -68,15 +68,24 @@ That holds in two cases and breaks in a third.
 
 | Topology | Host the sandbox dials | Setup |
 | --- | --- | --- |
-| Local process / Docker | `localhost` / `host.docker.internal` | None. Works out of the box. |
-| Deployed orchestrator (production) | Your public host, derived from the request | None. Works out of the box. |
+| Local process | `localhost` | None. Works by default. |
+| Docker container (`dockerSandbox`) | `host.docker.internal` | None. Works by default. |
+| Docker Sandboxes (`sbxSandbox`) | `host.docker.internal` | The guest URL stays `host.docker.internal`. The `sbx` proxy rewrites that host to `localhost` before the policy match. A deny or ask allowlist must include `localhost`. `sbxSandbox()` adds `localhost` when it writes a real allowlist. |
+| Deployed orchestrator (production) | Your public host, derived from the request | None. Works by default. |
 | Remote cloud sandbox, driven from your laptop | Your laptop, which has no public URL | Tunnel the bridge with `withNgrokBridge`. |
 
-### Local process / Docker
+### Local process / Docker container
 
 The orchestrator is the same machine as the sandbox, reached on `localhost`
-(local-process) or `host.docker.internal` (Docker). Bridged tools work with no
-extra configuration.
+(local-process) or `host.docker.internal` (Docker container). Bridged tools
+work with no extra configuration.
+
+### Docker Sandboxes (`sbxSandbox`)
+
+The guest still dials `host.docker.internal`. The host HTTP proxy rewrites
+that host to `localhost` before it checks `sbx policy`. If you write a deny
+or ask allowlist, allow `localhost` (or let `sbxSandbox()` add it).
+`denyNetwork` alone does not write that allowlist.
 
 ### A deployed orchestrator (production)
 

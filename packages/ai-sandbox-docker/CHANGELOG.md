@@ -1,5 +1,16 @@
 # @tanstack/ai-sandbox-docker
 
+## 0.3.0
+
+### Minor Changes
+
+- [#1079](https://github.com/TanStack/ai/pull/1079) [`9424acd`](https://github.com/TanStack/ai/commit/9424acd9cc9b96ccf9f4a24ad49d3fc327f114fc) - Add `sbxSandbox()` for Docker Sandboxes microVMs, and optional `adapterName` on sandbox ensure/create so network policy can allow the model API host.
+
+### Patch Changes
+
+- Updated dependencies [[`d5bdc36`](https://github.com/TanStack/ai/commit/d5bdc367413d5bf9718729de46b4e1405ec0b8f5), [`9424acd`](https://github.com/TanStack/ai/commit/9424acd9cc9b96ccf9f4a24ad49d3fc327f114fc)]:
+  - @tanstack/ai-sandbox@0.3.2
+
 ## 0.2.1
 
 ### Patch Changes

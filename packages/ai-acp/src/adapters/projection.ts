@@ -17,7 +17,12 @@
  * `fileSkill` and `instructions` are already written by the provider-agnostic
  * bootstrap (into the workspace root + `AGENTS.md`), so they need no projection.
  */
-import { isSecretRef, resolveGitSkillDir } from '@tanstack/ai-sandbox'
+import {
+  discoverSkillDirs,
+  isSecretRef,
+  resolveGitSkillDir,
+  resolveHarnessCwd,
+} from '@tanstack/ai-sandbox'
 import type {
   BearerRef,
   SandboxHandle,
@@ -34,11 +39,6 @@ export interface AcpMcpServer {
 
 function shellQuote(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
-}
-
-function basenameOf(path: string): string {
-  const segments = path.split('/').filter((segment) => segment !== '')
-  return segments[segments.length - 1] ?? path
 }
 
 /**
@@ -128,17 +128,25 @@ export async function projectAcpWorkspace(
       // so the shell command resolves on every provider.
       await handle.fs.mkdir(`${projection.root}/${skillsDir}`)
       for (const skill of gitSkills) {
+        // Keep virtual `/workspace` paths for fs discovery. handle.fs remaps
+        // them. Remap only when building shell-relative paths so Daytona and
+        // local-process both resolve the same clone.
         const source = skill.into ?? resolveGitSkillDir(projection.root, skill)
-        const relSource = relativeToRoot(projection.root, source)
-        const relTarget = `${skillsDir}/${basenameOf(source)}`
-        const cp = await handle.process.exec(
-          `cp -r ${shellQuote(relSource)} ${shellQuote(relTarget)}`,
-          { cwd: projection.root },
-        )
-        if (cp.exitCode !== 0) {
-          console.warn(
-            `[${harnessName}] failed to copy gitSkill "${skill.repo}" into ${relTarget}: ${cp.stderr.trim()}`,
+        const discovered = await discoverSkillDirs(handle, source)
+        for (const { name, dir } of discovered) {
+          const realRoot = resolveHarnessCwd(handle, projection.root)
+          const realDir = resolveHarnessCwd(handle, dir)
+          const relSource = relativeToRoot(realRoot, realDir)
+          const relTarget = `${skillsDir}/${name}`
+          const cp = await handle.process.exec(
+            `cp -r ${shellQuote(relSource)} ${shellQuote(relTarget)}`,
+            { cwd: projection.root },
           )
+          if (cp.exitCode !== 0) {
+            console.warn(
+              `[${harnessName}] failed to copy gitSkill "${skill.repo}" into ${relTarget}: ${cp.stderr.trim()}`,
+            )
+          }
         }
       }
     }

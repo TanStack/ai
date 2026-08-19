@@ -12,7 +12,7 @@ import {
   ev,
   serverTool,
 } from './test-utils'
-import type { StreamChunk, Tool, UIMessage } from '../src/types'
+import type { ModelMessage, StreamChunk, Tool, UIMessage } from '../src/types'
 import type {
   ChatMiddleware,
   ChatResumeToolState,
@@ -675,6 +675,72 @@ describe('chat()', () => {
             },
           ],
         },
+      })
+    })
+
+    it('preserves existing message ids on the interrupt MESSAGES_SNAPSHOT', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart('stream-assistant'),
+            {
+              ...ev.toolStart('call_1', 'clientSearch'),
+              parentMessageId: 'stream-assistant',
+            },
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          runId: 'interrupt-run',
+          messages: [{ id: 'user-1', role: 'user', content: 'Search' }],
+          tools: [clientTool('clientSearch')],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const snapshot = chunks.find(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      expect(snapshot).toMatchObject({
+        messages: [
+          { id: 'user-1', role: 'user', content: 'Search' },
+          { id: 'stream-assistant', role: 'assistant' },
+        ],
+      })
+    })
+
+    it('generates a snapshot id on the interrupt MESSAGES_SNAPSHOT when a message has no id', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'clientSearch'),
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          runId: 'interrupt-run',
+          messages: [{ role: 'user', content: 'Search' }],
+          tools: [clientTool('clientSearch')],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const snapshot = chunks.find(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      expect(snapshot?.messages[0]).toMatchObject({
+        id: 'snapshot_interrupt-run_0',
+        role: 'user',
       })
     })
 
@@ -3086,6 +3152,102 @@ describe('chat()', () => {
       expect(assistantToolMessage?.thinking).toEqual([
         { content: 'Need inventory.', signature: 'sig-think-1' },
       ])
+      expect(assistantToolMessage?.id).toBeTruthy()
+      expect(assistantToolMessage?.createdAt).toBeInstanceOf(Date)
+    })
+
+    it('stamps the stream messageId on an assistant tool-call turn', async () => {
+      const toolSpy = vi.fn().mockReturnValue({ result: 'inventory' })
+
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart('stream-assistant'),
+            {
+              ...ev.toolStart('call_1', 'getInventory'),
+              parentMessageId: 'stream-assistant',
+            },
+            ev.toolArgs('call_1', '{}'),
+            ev.runFinished('tool_calls'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart('stream-final'),
+            ev.textContent('Inventory loaded.'),
+            ev.textEnd('stream-final'),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Check inventory' }],
+          tools: [serverTool('getInventory', toolSpy)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const assistantToolMessage = calls[1]!.messages.find(
+        (message: ModelMessage) =>
+          message.role === 'assistant' &&
+          message.toolCalls?.[0]?.id === 'call_1',
+      )
+
+      expect(assistantToolMessage?.id).toBe('stream-assistant')
+      expect(assistantToolMessage?.createdAt).toBeInstanceOf(Date)
+    })
+
+    it('stamps createdAt at TEXT_MESSAGE_START, not at iteration start', async () => {
+      vi.useFakeTimers()
+      vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+
+      try {
+        let call = 0
+        const { adapter, calls } = createMockAdapter({
+          chatStreamFn: async function* () {
+            call += 1
+            if (call === 1) {
+              yield ev.runStarted()
+              await vi.advanceTimersByTimeAsync(5_000)
+              yield ev.textStart('stream-assistant')
+              yield {
+                ...ev.toolStart('call_1', 'getInventory'),
+                parentMessageId: 'stream-assistant',
+              }
+              yield ev.toolArgs('call_1', '{}')
+              yield ev.runFinished('tool_calls')
+              return
+            }
+            yield ev.runStarted()
+            yield ev.textStart('stream-final')
+            yield ev.textContent('done')
+            yield ev.textEnd('stream-final')
+            yield ev.runFinished('stop')
+          },
+        })
+
+        await collectChunks(
+          chat({
+            adapter,
+            messages: [{ role: 'user', content: 'Check inventory' }],
+            tools: [serverTool('getInventory', () => ({ result: 'ok' }))],
+          }) as AsyncIterable<StreamChunk>,
+        )
+
+        const assistantToolMessage = calls[1]!.messages.find(
+          (message: ModelMessage) =>
+            message.role === 'assistant' &&
+            message.toolCalls?.[0]?.id === 'call_1',
+        )
+
+        expect(assistantToolMessage?.createdAt).toEqual(
+          new Date('2026-01-01T00:00:05.000Z'),
+        )
+      } finally {
+        vi.useRealTimers()
+      }
     })
 
     it('should execute tool calls that only provide the deprecated toolName field', async () => {

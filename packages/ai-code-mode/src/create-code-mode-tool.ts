@@ -94,7 +94,7 @@ export function createCodeModeTool(
     tools,
     timeout = 30000,
     memoryLimit = 128,
-    getSkillBindings,
+    getSnippetBindings,
     onSecretParameter,
     transpile = stripTypeScript,
   } = config
@@ -107,7 +107,7 @@ export function createCodeModeTool(
   // Transform tools to bindings with external_ prefix (static bindings)
   const staticBindings = toolsToBindings(tools, 'external_')
 
-  // Shared across static + dynamic (skill) binding scans so a given
+  // Shared across static + dynamic (snippet) binding scans so a given
   // (toolName, paramPath) pair surfaces at most once per code-mode instance.
   const secretDedupCache = new Set<string>()
 
@@ -220,22 +220,24 @@ export function createCodeModeTool(
           )
         }
 
-        // Step 2: Get dynamic skill bindings if available
-        const skillBindings = getSkillBindings ? await getSkillBindings() : {}
+        // Step 2: Get dynamic snippet bindings if available
+        const snippetBindings = getSnippetBindings
+          ? await getSnippetBindings()
+          : {}
 
         // Scan dynamic bindings too — their schemas are equally in-scope for
         // the same exfiltration threat. Dedup cache prevents repeat warnings
         // when the same binding reappears across executions.
-        const skillBindingValues = Object.values(skillBindings)
-        if (skillBindingValues.length > 0) {
-          warnIfBindingsExposeSecrets(skillBindingValues, {
+        const snippetBindingValues = Object.values(snippetBindings)
+        if (snippetBindingValues.length > 0) {
+          warnIfBindingsExposeSecrets(snippetBindingValues, {
             handler: onSecretParameter,
             dedupCache: secretDedupCache,
           })
         }
 
         // Step 3: Merge static and dynamic bindings, then wrap with event awareness
-        const allBindings = { ...staticBindings, ...skillBindings }
+        const allBindings = { ...staticBindings, ...snippetBindings }
         const eventAwareBindings = createEventAwareBindings(
           allBindings,
           emitCustomEvent,

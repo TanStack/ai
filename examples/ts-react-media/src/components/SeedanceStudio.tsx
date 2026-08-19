@@ -1238,10 +1238,10 @@ export default function SeedanceStudio({
                     value={formatElapsed(finishedAt - startedAt)}
                   />
                 )}
-                {billing && (
+                {billing?.totalTokens != null && (
                   <Meta
                     label="Billed tokens"
-                    value={`${billing.unitsBilled ?? billing.totalTokens}`}
+                    value={`${billing.totalTokens}`}
                   />
                 )}
               </dl>

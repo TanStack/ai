@@ -11,7 +11,7 @@ Pluggable logger interface consumed by every `@tanstack/ai` activity when `debug
 
 ## Properties
 
-### debug()
+### debug
 
 ```ts
 debug: (message, meta?) => void;
@@ -39,7 +39,7 @@ Structured data forwarded to the underlying logger. Loggers like pino will prese
 
 ***
 
-### error()
+### error
 
 ```ts
 error: (message, meta?) => void;
@@ -67,7 +67,7 @@ Structured data forwarded to the underlying logger. Loggers like pino will prese
 
 ***
 
-### info()
+### info
 
 ```ts
 info: (message, meta?) => void;
@@ -95,7 +95,7 @@ Structured data forwarded to the underlying logger. Loggers like pino will prese
 
 ***
 
-### warn()
+### warn
 
 ```ts
 warn: (message, meta?) => void;

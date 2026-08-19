@@ -1,4 +1,5 @@
 import type { ServerTool, ToolDefinition } from '@tanstack/ai'
+import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
 import type { ToolAnnotations } from '@modelcontextprotocol/sdk/types.js'
 import type { TransportInput } from './transport'
 
@@ -86,6 +87,31 @@ export interface MCPClientOptions {
   /** Client identity sent to the server. */
   name?: string
   version?: string
+  /**
+   * Options forwarded verbatim to the MCP SDK's `Client`.
+   *
+   * The one that matters in practice is `jsonSchemaValidator`. The SDK
+   * validates a tool's `structuredContent` against its declared `outputSchema`,
+   * and its default validator is AJV — which compiles each schema by building
+   * JavaScript source and passing it to `new Function`. Edge runtimes forbid
+   * that: on Cloudflare Workers every call to a tool with an `outputSchema`
+   * fails with `Code generation from strings disallowed for this context`,
+   * wrapped by AJV as `Error compiling schema`.
+   *
+   * The SDK ships the fix (`CfWorkerJsonSchemaValidator`, backed by the
+   * optional peer `@cfworker/json-schema`) but it can only be installed through
+   * `ClientOptions`, which this package did not expose.
+   *
+   * ```ts
+   * import { CfWorkerJsonSchemaValidator } from '@modelcontextprotocol/sdk/validation/cfworker'
+   *
+   * const mcp = await createMCPClient({
+   *   transport: { type: 'http', url: 'https://mcp.example.com/mcp' },
+   *   clientOptions: { jsonSchemaValidator: new CfWorkerJsonSchemaValidator() },
+   * })
+   * ```
+   */
+  clientOptions?: ClientOptions
 }
 
 export interface ToolsOptions {

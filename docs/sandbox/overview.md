@@ -49,6 +49,8 @@ chat({
 })
 ```
 
+`sbxSandbox()` from the same package runs the agent in a Docker Sandboxes microVM. See [Providers](./providers).
+
 ## The three moving parts
 
 A sandboxed run is the composition of three independent pieces. You can change
@@ -56,13 +58,17 @@ any one without touching the others.
 
 | Part | What it is | You pick it with |
 | --- | --- | --- |
-| **Provider** | *Where* the agent runs (your host, a container, a cloud VM). | A provider package (`dockerSandbox`, `localProcessSandbox`, …) |
+| **Provider** | *Where* the agent runs (your host, a container, a microVM, a cloud VM). | A provider package (`dockerSandbox`, `sbxSandbox`, `localProcessSandbox`, …) |
 | **Workspace** | *What the agent sees*: the source repo, package manager, setup commands, secrets. | `defineWorkspace({ … })` |
 | **Harness adapter** | *Which agent runs* and how its output is translated to chat chunks. | `grokBuildText`, `claudeCodeText`, `codexText`, `opencodeText`, or `acpCompatible` for [any ACP agent](./harnesses) |
 
 `defineSandbox()` binds a provider + workspace (+ optional policy, lifecycle, and
 hooks) into a reusable definition. `withSandbox(definition)` is the `chat()`
 middleware that turns it on for a run.
+
+The provider is where the agent runs, not how it signs in. The default
+`authMode` is `'api-key'`. Set `'host'` when the machine already has a CLI
+login. See [Harness Auth](./auth).
 
 ### How a run executes
 
@@ -106,10 +112,12 @@ shell.
 [Quick Start](./quick-start) gets an agent fixing a bug in a sandbox on your laptop.
 After that, pick the piece you need:
 
-- [Providers](./providers): local process, Docker, Daytona, Vercel, Sprites, and what
-  each one can do.
+- [Providers](./providers): local process, Docker container, Docker Sandboxes
+  (`sbxSandbox`), Daytona, Vercel, Sprites, and what each one can do.
 - [Harnesses](./harnesses): which agent runs. Grok Build, Claude Code, Codex,
   OpenCode, or any ACP agent.
+- [Harness Auth](./auth): host CLI login or an API key. The sandbox type does
+  not pick this.
 - [Workspace](./workspace): the source repo, clone depth, and setup commands.
 - [Tools](./tools): bridge your app's own tools into the in-sandbox agent.
 - [Policy](./policy): allow, ask or deny guardrails on what the agent may run.
@@ -125,7 +133,7 @@ build an adapter.
 
 ## Try it
 
-Two runnable demos:
+Three runnable demos:
 
 - [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web):
   a "build me an app" agent on Docker with durable runs wired. It scaffolds an app,
@@ -133,3 +141,7 @@ Two runnable demos:
   and a closed tab, and Stop is a real cancel.
 - [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare):
   the same idea at the edge, with the harness picked per run from the UI.
+- [`examples/ts-react-chat`](https://github.com/TanStack/ai/tree/main/examples/ts-react-chat)
+  at `/repo-report`: clone `TanStack/ai`, pick the harness, pick Auth
+  (`host` or `api-key`), and read a typed report from `useChat().final`. See
+  [Harness Agents](../structured-outputs/harnesses).

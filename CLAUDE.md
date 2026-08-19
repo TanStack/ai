@@ -12,9 +12,10 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 - **Build System**: Nx for task orchestration and caching
 - **TypeScript**: 7.0.2 (native Go compiler). Framework build/typecheck tools
   that still need the pre-7 JS Compiler API (svelte-package, svelte-check,
-  vue-tsc, kiira, knip) run against the `@typescript/typescript6` (6.0.2) shim
-  via `pnpm-workspace.yaml` packageExtensions; the framework packages
-  themselves stay pinned to 5.9.3. See that file's comments.
+  vue-tsc, knip, typedoc) run against the `@typescript/typescript6` (6.0.2)
+  shim via `pnpm-workspace.yaml` packageExtensions. Angular cannot run on TS7,
+  so it pins `typescript@5.9.3` instead. kiira 0.6.0 is TS7-native and does
+  not need a shim. See that file's comments.
 - **Testing**: Vitest for unit tests
 - **Linting**: oxlint (incl. type-aware rules via `oxlint-tsgolint`); a few
   ESLint-compat rules run through oxlint's JS-plugin layer
@@ -274,8 +275,24 @@ pnpm dev      # start dev server
 
 ### Workspace Dependencies
 
-- Use `workspace:*` protocol for internal package dependencies in `package.json`
-- Example: `"@tanstack/ai": "workspace:*"`
+Use the `workspace:` protocol for internal package dependencies in
+`package.json`. Which suffix to use depends on whether the field is published:
+
+- **`dependencies`, `peerDependencies`, `optionalDependencies` → `workspace:^`**
+  Example: `"@tanstack/ai": "workspace:^"`
+  These fields reach consumers. At publish time pnpm rewrites the specifier to
+  a real range, so `workspace:^` becomes `^0.43.1` while `workspace:*` becomes
+  the exact pin `0.43.1`. An exact pin stops consumers from deduping and makes
+  a peer dependency unsatisfiable the moment the internal package releases its
+  next patch. Because every package here is still `0.x`, `^0.43.1` resolves to
+  `0.43.x` only — it permits patches without allowing a breaking minor.
+- **`devDependencies` → `workspace:*`**
+  Example: `"@tanstack/ai": "workspace:*"`
+  Never published, so the specifier has no effect on consumers, and `*` is the
+  correct intent: always build against the local copy.
+
+Private packages (`examples/`, `testing/`) are never published, so `workspace:*`
+is fine there in any field.
 
 ### Tree-Shakeable Exports
 

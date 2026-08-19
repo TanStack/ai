@@ -285,6 +285,46 @@ test.describe('Middleware Lifecycle', () => {
     }
   })
 
+  test('otel middleware rolls up usage across a tool loop', async ({
+    request,
+    testId,
+  }) => {
+    const res = await request.post('/api/otel-usage', {
+      data: { provider: 'tool-loop', testId },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const iterationSpans = spans.filter(
+      (span: any) => span.kind === SpanKind.CLIENT,
+    )
+    expect(iterationSpans).toHaveLength(2)
+    expect(iterationSpans.every((span: any) => span.ended)).toBe(true)
+
+    const rootSpans = spans.filter(
+      (span: any) =>
+        span.kind === SpanKind.INTERNAL &&
+        span.attributes['tanstack.ai.iterations'] === 2,
+    )
+    expect(rootSpans).toHaveLength(1)
+    expect(rootSpans[0].ended).toBe(true)
+
+    for (const key of [
+      'gen_ai.usage.input_tokens',
+      'gen_ai.usage.output_tokens',
+      'gen_ai.usage.total_tokens',
+    ]) {
+      expect(rootSpans[0].attributes[key]).toBe(
+        iterationSpans.reduce(
+          (total: number, span: any) => total + span.attributes[key],
+          0,
+        ),
+      )
+    }
+  })
+
   test('otel middleware emits total/cache/reasoning usage details on spans', async ({
     request,
   }) => {
@@ -389,6 +429,43 @@ test.describe('Middleware Lifecycle', () => {
       'gen_ai.system': 'openai',
       'gen_ai.operation.name': 'image_generation',
       'gen_ai.request.model': 'gpt-image-1',
+    })
+  })
+
+  test('otel middleware emits the self-describing billed quantity for a duration-billed activity', async ({
+    request,
+    testId,
+    aimockPort,
+  }) => {
+    // `/api/otel-transcription` drives whisper-1 (duration-billed) against the
+    // transcription aimock fixture, whose response reports `duration: 2.4`.
+    // The adapter surfaces that as `usage.billed = { quantity, unit }`, and the
+    // middleware must emit it as the paired billed_quantity/billed_unit
+    // attributes — the machine-readable unit that #816 adds.
+    const res = await request.post('/api/otel-transcription', {
+      data: {
+        audio: 'data:audio/mpeg;base64,SGVsbG8=',
+        provider: 'openai',
+        testId,
+        aimockPort,
+      },
+    })
+    expect(res.ok()).toBe(true)
+    const { ok, error, spans } = await res.json()
+    expect(error ?? null).toBeNull()
+    expect(ok).toBe(true)
+
+    const mediaSpans = spans.filter(
+      (s: any) => s.attributes['gen_ai.operation.name'] === 'transcription',
+    )
+    expect(mediaSpans).toHaveLength(1)
+    expect(mediaSpans[0].ended).toBe(true)
+    expect(mediaSpans[0].attributes).toMatchObject({
+      'gen_ai.request.model': 'whisper-1',
+      'tanstack.ai.usage.billed_quantity': 2.4,
+      'tanstack.ai.usage.billed_unit': 'seconds',
+      // Deprecated bare count still emitted for backward compatibility.
+      'tanstack.ai.usage.duration_seconds': 2.4,
     })
   })
 

@@ -15,7 +15,7 @@ shape — the core `@tanstack/ai` package does NOT import `@tanstack/ai-mcp`
 
 ## Properties
 
-### close()
+### close
 
 ```ts
 close: () => Promise<void>;
@@ -29,10 +29,10 @@ Defined in: [packages/ai/src/activities/chat/mcp/types.ts:30](https://github.com
 
 ***
 
-### readResource()?
+### readResource?
 
 ```ts
-optional readResource: (uri) => Promise<McpResourceReadResult>;
+optional readResource?: (uri) => Promise<McpResourceReadResult>;
 ```
 
 Defined in: [packages/ai/src/activities/chat/mcp/types.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L38)
@@ -55,10 +55,10 @@ this method. `ai-mcp`'s `MCPClient` satisfies this structurally.
 
 ***
 
-### tools()
+### tools
 
 ```ts
-tools: (options?) => Promise<ServerTool<SchemaInput, SchemaInput, string, unknown>[]>;
+tools: (options?) => Promise<AnyServerTool[]>;
 ```
 
 Defined in: [packages/ai/src/activities/chat/mcp/types.ts:29](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/mcp/types.ts#L29)
@@ -73,4 +73,4 @@ Defined in: [packages/ai/src/activities/chat/mcp/types.ts:29](https://github.com
 
 #### Returns
 
-`Promise`\<[`ServerTool`](ServerTool.md)\<[`SchemaInput`](../type-aliases/SchemaInput.md), [`SchemaInput`](../type-aliases/SchemaInput.md), `string`, `unknown`\>[]\>
+`Promise`\<[`AnyServerTool`](../type-aliases/AnyServerTool.md)[]\>

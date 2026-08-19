@@ -50,8 +50,9 @@ describe('parseVerdict', () => {
 })
 
 describe('registries', () => {
-  it('has 4 harnesses and 4 providers with labels + required env arrays', () => {
+  it('has 5 harnesses and 4 providers with labels + required env arrays', () => {
     expect(Object.keys(HARNESSES).sort()).toEqual([
+      'acp',
       'claude-code',
       'codex',
       'grok',
@@ -74,6 +75,23 @@ describe('registries', () => {
     expect(isHarness('nope')).toBe(false)
     expect(isProvider('docker')).toBe(true)
     expect(isProvider(42)).toBe(false)
+  })
+
+  it('missingEnv skips harness keys when authMode is host', () => {
+    delete process.env.XAI_API_KEY
+    delete process.env.GROK_API_KEY
+    expect(missingEnv('grok', 'docker', 'host')).not.toContain('XAI_API_KEY')
+    expect(missingEnv('grok', 'local', 'api-key')).toContain(
+      'XAI_API_KEY (or GROK_API_KEY)',
+    )
+  })
+
+  it('missingEnv requires harness keys when authMode is omitted', () => {
+    delete process.env.XAI_API_KEY
+    delete process.env.GROK_API_KEY
+    expect(missingEnv('grok', 'local')).toContain(
+      'XAI_API_KEY (or GROK_API_KEY)',
+    )
   })
 
   it('missingEnv reports unset required vars', () => {

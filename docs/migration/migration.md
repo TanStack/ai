@@ -2,7 +2,7 @@
 title: Migration Guide
 id: migration
 order: 1
-description: "Migrate existing TanStack AI code to the latest version — adapter function splits, flattened options, renamed modelOptions, and removed embeddings."
+description: "Migrate existing TanStack AI code to the latest version — adapter function splits, flattened options, renamed modelOptions, and the old embedding() API's replacement by embed()."
 keywords:
   - tanstack ai
   - migration
@@ -25,7 +25,7 @@ The main breaking changes in this release are:
 2. **Common options flattened** - Options are now flattened in the config instead of nested
 3. **`providerOptions` renamed** - Now called `modelOptions` for clarity
 4. **`toResponseStream` renamed** - Now called `toServerSentEventsStream` for clarity
-5. **Embeddings removed** - Embeddings support has been removed (most vector DB services have built-in support)
+5. **Embeddings removed, then reintroduced** - The old `embedding()` API was removed; embeddings are back as the new `embed()` activity with multimodal support
 
 ## 1. Adapter Functions Split
 
@@ -330,9 +330,9 @@ return new Response(readableStream, {
 })
 ```
 
-## 5. Embeddings Removed
+## 5. Embeddings Removed, Then Reintroduced as `embed()`
 
-Embeddings support has been removed from TanStack AI. Most vector database services (like Pinecone, Weaviate, Qdrant, etc.) have built-in support for embeddings, and most applications pick an embedding model and stick with it.
+The original `embedding()` function was removed from TanStack AI. Embeddings have since returned as a new activity with a different API: a single `embed()` function with multimodal input support and per-model type safety. The old `embedding()` name and adapter factories (like `openaiEmbed()`) are not coming back.
 
 ### Before
 
@@ -349,26 +349,26 @@ const result = await embedding({
 
 ### After
 
-Use your vector database service's built-in embedding support, or call the provider's API directly:
-
 ```typescript
-// Example with OpenAI SDK directly
-import OpenAI from 'openai'
+import { embed } from '@tanstack/ai'
+import { openaiEmbedding } from '@tanstack/ai-openai'
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
-
-const result = await openai.embeddings.create({
-  model: 'text-embedding-3-small',
+const result = await embed({
+  adapter: openaiEmbedding('text-embedding-3-small'),
   input: 'Hello, world!',
 })
+
+console.log(result.embeddings[0]?.vector)
 ```
 
-### Why This Change?
+Key differences from the old API:
 
-- **Vector DB services handle it** - Most vector databases have native embedding support
-- **Simpler API** - Reduces API surface area and complexity
-- **Direct provider access** - You can use the provider SDK directly for embeddings
-- **Focused scope** - TanStack AI focuses on chat, tools, and agentic workflows
+- **Model moves into the adapter factory** - `openaiEmbedding('text-embedding-3-small')` instead of a separate `model` option, matching every other activity
+- **Single function for one or many inputs** - `input` accepts a single item or an array; the result always has an `embeddings` array with one vector per input item
+- **Multimodal inputs** - models like Cohere embed-v4.0 and Amazon Titan Multimodal accept image parts and fused text+image items
+- **Top-level `dimensions`** - request Matryoshka dimensions without provider-specific options
+
+See the [Embeddings guide](../embeddings.md) for full usage.
 
 ## 6. Provider Tools Moved to `/tools` Subpath
 

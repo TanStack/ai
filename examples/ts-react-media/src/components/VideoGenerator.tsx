@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Film, Loader2, Shuffle, Upload, Wand2, X } from 'lucide-react'
 import { useGenerateVideo } from '@tanstack/ai-react'
+import type { BilledUsage } from '@tanstack/ai'
 import type { VideoModel, VideoMode } from '@/lib/models'
 import type { AttachedMedia } from '@/lib/media'
 import type { MediaPrompt, MediaPromptPart } from '@tanstack/ai/client'
@@ -57,6 +58,22 @@ function buildVideoPrompt(
   return parts.length === 1 ? request.prompt : parts
 }
 
+/**
+ * Human label for a billed quantity, driven by the unit the adapter reported —
+ * no guessing from provider identity or cost presence.
+ */
+function describeBilled({ quantity, unit }: BilledUsage): string {
+  const plural = quantity === 1 ? '' : 's'
+  switch (unit) {
+    case 'seconds':
+      return `${quantity} second${plural} of video`
+    case 'units':
+      return `${quantity} fal unit${plural}`
+    default:
+      return `${quantity} ${unit}`
+  }
+}
+
 export default function VideoGenerator({
   initialImageUrl,
 }: VideoGeneratorProps) {
@@ -84,6 +101,9 @@ export default function VideoGenerator({
   const xaiModels = filteredModels.filter((m) => m.provider === 'xai')
   const geminiModels = filteredModels.filter((m) => m.provider === 'gemini')
   const byteplusModels = filteredModels.filter((m) => m.provider === 'byteplus')
+  const openrouterModels = filteredModels.filter(
+    (m) => m.provider === 'openrouter',
+  )
   const activeModels =
     selectedModel === 'all'
       ? filteredModels
@@ -241,6 +261,13 @@ export default function VideoGenerator({
             </optgroup>
             <optgroup label="BytePlus (direct)">
               {byteplusModels.map((model) => (
+                <option key={model.id} value={model.id}>
+                  {model.name}
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="OpenRouter">
+              {openrouterModels.map((model) => (
                 <option key={model.id} value={model.id}>
                   {model.name}
                 </option>
@@ -549,16 +576,15 @@ function VideoModelCard({
           {billing?.cost != null ? (
             <p className="text-xs text-gray-500">
               Billed ${billing.cost.toFixed(3)}
-              {billing.unitsBilled != null
-                ? ` for ${billing.unitsBilled} second${billing.unitsBilled === 1 ? '' : 's'} of video`
-                : ''}
+              {billing.billed ? ` for ${describeBilled(billing.billed)}` : ''}
             </p>
           ) : (
-            billing?.unitsBilled != null && (
+            billing?.billed && (
               <p className="text-xs text-gray-500">
-                Billed {billing.unitsBilled} fal unit
-                {billing.unitsBilled === 1 ? '' : 's'} — multiply by the
-                endpoint unit price for USD cost
+                Billed {describeBilled(billing.billed)}
+                {billing.billed.unit === 'units'
+                  ? ' — multiply by the endpoint unit price for USD cost'
+                  : ''}
               </p>
             )
           )}

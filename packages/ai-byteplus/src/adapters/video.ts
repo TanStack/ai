@@ -95,9 +95,11 @@ function toTokenCount(value: number | string | undefined): number | undefined {
 /**
  * Maps a finished task's usage onto `TokenUsage`.
  *
- * Seedance bills output only — the API documents input tokens as always 0 and
- * `total_tokens` as equal to `completion_tokens` — so `promptTokens` is 0 and
- * the completion count doubles as `unitsBilled`.
+ * Seedance bills output only. The API documents input tokens as always 0 and
+ * `total_tokens` as equal to `completion_tokens`, so `promptTokens` is 0 and
+ * the completion count is the billed quantity (`usage.billed` with
+ * `unit: 'tokens'`). The deprecated `unitsBilled` is still populated for
+ * backward compatibility.
  */
 function buildBytePlusVideoUsage(
   usage: BytePlusVideoTaskUsage | undefined,
@@ -115,6 +117,7 @@ function buildBytePlusVideoUsage(
     promptTokens: 0,
     completionTokens: completion,
     totalTokens: totalTokens ?? completion,
+    billed: { quantity: completion, unit: 'tokens' },
     unitsBilled: completion,
   }
 }

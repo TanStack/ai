@@ -218,6 +218,26 @@ const result = await summarize({
 console.log(result.summary);
 ```
 
+## Embeddings
+
+Generate embedding vectors locally with any Ollama embedding model:
+
+```typescript ignore
+import { embed } from "@tanstack/ai";
+import { ollamaEmbedding } from "@tanstack/ai-ollama";
+
+const result = await embed({
+  adapter: ollamaEmbedding("nomic-embed-text"),
+  input: ["a red guitar", "a blue drum kit"],
+});
+
+console.log(result.embeddings[0]?.vector);
+```
+
+Known models (`nomic-embed-text`, `mxbai-embed-large`, `all-minilm`, `snowflake-arctic-embed`, `bge-m3`, `embeddinggemma`) get autocomplete, and any other model name is accepted. Pull the model first with `ollama pull nomic-embed-text`. Output dimensions are fixed per model — the top-level `dimensions` option is not supported.
+
+See the [Embeddings guide](../embeddings.md) for the full API.
+
 ## Setting Up Ollama
 
 ### 1. Install Ollama

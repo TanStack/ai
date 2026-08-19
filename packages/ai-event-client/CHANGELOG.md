@@ -1,5 +1,27 @@
 # @tanstack/ai-event-client
 
+## 0.8.0
+
+### Minor Changes
+
+- [#926](https://github.com/TanStack/ai/pull/926) [`ee07854`](https://github.com/TanStack/ai/commit/ee07854fd3d2d4bb279e6e4748802f7f9a5a7167) - Add a multimodal `embed()` activity. A single primitive covers one input or a batch — `input` accepts a string, a text part, an image part, or a fused text+image item written as a nested `Array<ContentPart>` (`[textPart, imagePart]`, the same shape chat messages use), one vector per item, with the accepted item types narrowed per model at compile time. Top-level `dimensions` requests Matryoshka output sizes where supported. Results carry `embeddings: [{ vector, index }]` plus `usage` when the provider reports it, and `embed()` participates in generation middleware, debug logging, OTel (`gen_ai.operation.name: embeddings`), and devtools events like every other activity.
+
+  Provider adapters: `openaiEmbedding` (text-embedding-3-small/large), `geminiEmbedding` (gemini-embedding-001), `mistralEmbedding` (mistral-embed, codestral-embed), `ollamaEmbedding` (nomic-embed-text and any local model), `bedrockEmbedding` (Titan Text V2, Titan Multimodal G1 with fused text+image, Cohere Embed v3 on Bedrock), and `@tanstack/ai-cohere`'s `cohereEmbedding` (embed-v4.0, multimodal text+image with required `inputType`).
+
+- [#845](https://github.com/TanStack/ai/pull/845) [`6903978`](https://github.com/TanStack/ai/commit/690397804254dca638961c79b7941555edc52c02) - feat: add `rerank()` activity for reordering documents by relevance to a query
+
+  Adds a provider-agnostic `rerank()` activity (with `createRerankOptions`, the
+  `RerankAdapter` interface, and `BaseRerankAdapter`). Documents may be strings
+  or JSON-serializable objects — object documents are serialized for the
+  provider and the original element is returned in the result, fully typed.
+  Supports `topN`, per-request cancellation via `abortSignal`, and the standard
+  observe-only `GenerationMiddleware` (`onStart`/`onUsage`/`onFinish`/`onAbort`/
+  `onError`) plus `rerank:*` devtools events. Rerank bills in provider-defined
+  search units, surfaced on `usage.unitsBilled`.
+
+  The first adapter ships in the new `@tanstack/ai-cohere` package as
+  `cohereRerank` / `createCohereRerank`.
+
 ## 0.7.0
 
 ### Minor Changes

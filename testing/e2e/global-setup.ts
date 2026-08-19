@@ -62,6 +62,31 @@ export default async function globalSetup() {
   // aimock's native Gemini handlers.
   mock.mount('/v1beta/models', geminiVeoMount())
 
+  // Embedding endpoints aimock doesn't cover natively. OpenAI's
+  // /v1/embeddings IS covered natively (JSON fixture in fixtures/embedding/),
+  // but the other embedding providers need custom mounts:
+  //
+  // - Gemini: @google/genai posts to `{model}:batchEmbedContents` on the
+  //   MLDev (API-key) surface; aimock 1.34 only handles `:embedContent`.
+  //   Mounted on the same '/v1beta/models' prefix as the Veo mount above —
+  //   mounts are tried in order and each returns false for paths it doesn't
+  //   own, so both coexist and non-matching paths still fall through to
+  //   aimock's native Gemini handlers.
+  // - Ollama: the ollama SDK's `embed()` (POST /api/embed) expects the batch
+  //   `embeddings: number[][]` shape; aimock's native handler responds with
+  //   the legacy singular `embedding` field, which crashes the adapter.
+  // - Mistral: the Mistral SDK Zod-validates the /v1/embeddings response and
+  //   requires an `id` field aimock's OpenAI-format response builder omits.
+  //   The adapter under test points its serverURL at the '/mistral' prefix.
+  mock.mount('/v1beta/models', geminiBatchEmbedMount())
+  mock.mount('/api/embed', ollamaEmbedMount())
+  mock.mount('/mistral', mistralEmbeddingsMount())
+
+  // Gemini native image generation. aimock has no generateContent image
+  // branch. One mount covers the #1104 size wire (aspectRatio / imageSize)
+  // and the #1103 modelOptions wire (safetySettings / thinkingConfig).
+  mock.mount('/v1beta/models', geminiNativeImageMount())
+
   // Gemini Omni Flash video generation (Interactions API). aimock handles
   // synchronous text interactions natively, but not background video jobs
   // (POST /v1beta/interactions with background:true → poll
@@ -123,10 +148,14 @@ export default async function globalSetup() {
 }
 
 function registerMediaFixtures(mock: LLMock) {
-  // Transcription: onTranscription sets match.endpoint = "transcription"
+  // Transcription: onTranscription sets match.endpoint = "transcription".
+  // `duration` is only served on verbose_json responses (whisper-1's default
+  // mode) — the otel middleware spec asserts it surfaces as the
+  // self-describing `billed` usage on the transcription span.
   mock.onTranscription({
     transcription: {
       text: 'I would like to buy a Fender Stratocaster please',
+      duration: 2.4,
     },
   })
 
@@ -429,6 +458,331 @@ function geminiVeoMount(): Mountable {
 
       // Not a Veo path — fall through to aimock's native Gemini handlers.
       return false
+    },
+  }
+}
+
+/**
+ * Deterministic 8-dimension embedding vector shared by the embedding mounts
+ * below and mirrored by the OpenAI JSON fixture in
+ * `fixtures/embedding/basic.json`. The embedding spec asserts each rendered
+ * vector reports exactly this dimension count.
+ */
+const EMBED_VECTOR = [0.1, -0.2, 0.3, -0.4, 0.5, -0.6, 0.7, -0.8]
+
+/**
+ * Mounts Gemini's `{model}:batchEmbedContents` endpoint. The @google/genai
+ * SDK's `models.embedContent()` posts to `:batchEmbedContents` on the MLDev
+ * (API-key) surface — even for a single input — but aimock 1.34 only models
+ * `:embedContent`. Returns one deterministic vector per request entry, in
+ * the raw MLDev wire shape (`embeddings[].values`) the SDK maps to
+ * `EmbedContentResponse.embeddings`.
+ *
+ * Shares the '/v1beta/models' mount prefix with geminiVeoMount; non-embed
+ * paths return false and fall through to the Veo mount / native handlers.
+ */
+function geminiBatchEmbedMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/v1beta/models') and any query
+      // string, so pathname looks like '/{model}:batchEmbedContents'.
+      pathname: string,
+    ): Promise<boolean> {
+      const match = pathname.match(/^\/([^/:]+):batchEmbedContents$/)
+      if (!match || req.method !== 'POST') return false
+      const bodyText = await readBody(req)
+      let count = 1
+      try {
+        const body = JSON.parse(bodyText) as { requests?: Array<unknown> }
+        if (Array.isArray(body.requests)) count = body.requests.length
+      } catch {
+        // Malformed body — respond with a single vector anyway.
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          embeddings: Array.from({ length: count }, () => ({
+            values: [...EMBED_VECTOR],
+          })),
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * A tiny (1x1) real PNG, base64-encoded. Only needs to be a valid inline
+ * image byte string — the #1104 spec asserts on `images.length`, not pixel
+ * content. Mirrors `FAKE_MP3_BYTES`/`FAKE_PCM_BYTES` above.
+ */
+const TINY_PNG_BASE64 =
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='
+
+/**
+ * Rejects with a Gemini-shaped error envelope (`{ error: { code, message,
+ * status } }`) so a validation failure surfaces as the actual missing/extra
+ * field in the adapter's thrown error message, not a generic 500.
+ */
+function rejectGeminiImageRequest(
+  res: http.ServerResponse,
+  message: string,
+): true {
+  res.statusCode = 400
+  res.setHeader('Content-Type', 'application/json')
+  res.end(
+    JSON.stringify({
+      error: { code: 400, message, status: 'INVALID_ARGUMENT' },
+    }),
+  )
+  return true
+}
+
+/**
+ * Mounts Gemini native `generateContent` image calls for
+ * `gemini-3.1-flash-image` and `gemini-2.5-flash-image`.
+ *
+ * aimock has no `generateContent` image branch. This mount reads the raw
+ * body so two specs can assert on the wire:
+ * - `/api/gemini-image-ga-models` checks `imageConfig.aspectRatio` / `imageSize`
+ * - `/api/gemini-native-image-wire` checks top-level `safetySettings` and
+ *   `generationConfig.thinkingConfig` on `gemini-2.5-flash-image`
+ */
+function geminiNativeImageMount(): Mountable {
+  const NATIVE_IMAGE_MODELS = new Set([
+    'gemini-3.1-flash-image',
+    'gemini-2.5-flash-image',
+  ])
+
+  // Coupled to the `size` values in api.gemini-image-ga-models.ts.
+  const EXPECTED_ASPECT_RATIO = '16:9'
+  const EXPECTED_FLASH_IMAGE_SIZE = '2K'
+
+  // Imagen-only GenerateImagesConfig fields must never appear on generateContent.
+  const IMAGEN_ONLY_FIELDS = [
+    'personGeneration',
+    'safetyFilterLevel',
+    'addWatermark',
+    'language',
+    'negativePrompt',
+    'outputMimeType',
+    'outputCompressionQuality',
+    'guidanceScale',
+    'enhancePrompt',
+    'includeSafetyAttributes',
+    'includeRaiReason',
+    'outputGcsUri',
+    'aspectRatio',
+  ]
+
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/v1beta/models'), so pathname
+      // looks like '/{model}:generateContent'.
+      pathname: string,
+    ): Promise<boolean> {
+      const match = pathname.match(/^\/([^/:]+):generateContent$/)
+      const model = match?.[1]
+      if (!model || !NATIVE_IMAGE_MODELS.has(model) || req.method !== 'POST') {
+        return false
+      }
+
+      const body = await readJsonRequestBody(req)
+      if (!body) {
+        return rejectGeminiImageRequest(res, 'Malformed JSON body.')
+      }
+
+      const generationConfig = asRecord(body.generationConfig)
+      const imageConfig = asRecord(generationConfig?.imageConfig)
+      const aspectRatio = imageConfig?.aspectRatio
+      const imageSize = imageConfig?.imageSize
+      const leaked = IMAGEN_ONLY_FIELDS.find(
+        (name) =>
+          name in body || (generationConfig && name in generationConfig),
+      )
+      if (leaked) {
+        return rejectGeminiImageRequest(
+          res,
+          `Imagen-only field "${leaked}" reached generateContent — GenerateImagesConfig and GenerateContentConfig got crossed.`,
+        )
+      }
+
+      const hasModelOptions =
+        Array.isArray(body.safetySettings) ||
+        (generationConfig !== undefined &&
+          typeof generationConfig.thinkingConfig === 'object' &&
+          generationConfig.thinkingConfig !== null)
+
+      if (model === 'gemini-2.5-flash-image' && hasModelOptions) {
+        if (
+          !Array.isArray(body.safetySettings) ||
+          body.safetySettings.length === 0
+        ) {
+          return rejectGeminiImageRequest(
+            res,
+            'Missing top-level safetySettings (modelOptions.safetySettings did not reach the wire).',
+          )
+        }
+        if (
+          !generationConfig ||
+          typeof generationConfig.thinkingConfig !== 'object' ||
+          generationConfig.thinkingConfig === null
+        ) {
+          return rejectGeminiImageRequest(
+            res,
+            'Missing generationConfig.thinkingConfig (modelOptions.thinkingConfig did not reach the wire).',
+          )
+        }
+      } else {
+        if (aspectRatio !== EXPECTED_ASPECT_RATIO) {
+          return rejectGeminiImageRequest(
+            res,
+            `${model}: generationConfig.imageConfig.aspectRatio must be "${EXPECTED_ASPECT_RATIO}", got ${JSON.stringify(aspectRatio)}.`,
+          )
+        }
+
+        if (model === 'gemini-3.1-flash-image') {
+          if (imageSize !== EXPECTED_FLASH_IMAGE_SIZE) {
+            return rejectGeminiImageRequest(
+              res,
+              `${model}: generationConfig.imageConfig.imageSize must be "${EXPECTED_FLASH_IMAGE_SIZE}", got ${JSON.stringify(imageSize)}.`,
+            )
+          }
+        } else if (imageSize !== undefined) {
+          return rejectGeminiImageRequest(
+            res,
+            `${model}: generationConfig.imageConfig.imageSize must be absent.`,
+          )
+        }
+      }
+
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          candidates: [
+            {
+              content: {
+                role: 'model',
+                parts: [
+                  {
+                    inlineData: {
+                      mimeType: 'image/png',
+                      data: TINY_PNG_BASE64,
+                    },
+                  },
+                ],
+              },
+              finishReason: 'STOP',
+              index: 0,
+            },
+          ],
+          usageMetadata: {
+            promptTokenCount: 8,
+            candidatesTokenCount: 1290,
+            totalTokenCount: 1298,
+          },
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts Ollama's batch embed endpoint (POST /api/embed). aimock's native
+ * handler answers with the legacy /api/embeddings shape (singular
+ * `embedding: number[]`), but the ollama SDK's `embed()` — which the
+ * @tanstack/ai-ollama embedding adapter uses — expects
+ * `embeddings: number[][]` with one vector per input.
+ */
+function ollamaEmbedMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix — pathname will be "/" for an exact match.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/' || req.method !== 'POST') return false
+      const bodyText = await readBody(req)
+      let model = 'nomic-embed-text'
+      let inputs: Array<string> = ['']
+      try {
+        const body = JSON.parse(bodyText) as {
+          model?: string
+          input?: string | Array<string>
+        }
+        if (body.model) model = body.model
+        inputs = Array.isArray(body.input) ? body.input : [body.input ?? '']
+      } catch {
+        // Malformed body — respond with a single vector anyway.
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          model,
+          embeddings: inputs.map(() => [...EMBED_VECTOR]),
+          prompt_eval_count: inputs.length * 3,
+        }),
+      )
+      return true
+    },
+  }
+}
+
+/**
+ * Mounts a Mistral-shaped embeddings endpoint under the '/mistral' prefix
+ * (the adapter under test sets serverURL to `<aimock>/mistral`, so the SDK
+ * posts to '/mistral/v1/embeddings'). aimock's native /v1/embeddings handler
+ * builds an OpenAI-format response without an `id`, which fails the Mistral
+ * SDK's Zod response validation (`EmbeddingResponse` requires `id`).
+ */
+function mistralEmbeddingsMount(): Mountable {
+  return {
+    async handleRequest(
+      req: http.IncomingMessage,
+      res: http.ServerResponse,
+      // aimock strips the mount prefix ('/mistral'), so pathname is
+      // '/v1/embeddings'.
+      pathname: string,
+    ): Promise<boolean> {
+      if (pathname !== '/v1/embeddings' || req.method !== 'POST') return false
+      const bodyText = await readBody(req)
+      let model = 'mistral-embed'
+      let inputs: Array<string> = ['']
+      try {
+        const body = JSON.parse(bodyText) as {
+          model?: string
+          input?: string | Array<string>
+        }
+        if (body.model) model = body.model
+        inputs = Array.isArray(body.input) ? body.input : [body.input ?? '']
+      } catch {
+        // Malformed body — respond with a single vector anyway.
+      }
+      res.statusCode = 200
+      res.setHeader('Content-Type', 'application/json')
+      res.end(
+        JSON.stringify({
+          id: 'embd-e2e',
+          object: 'list',
+          model,
+          usage: { prompt_tokens: 6, completion_tokens: 0, total_tokens: 6 },
+          data: inputs.map((_, index) => ({
+            object: 'embedding',
+            embedding: [...EMBED_VECTOR],
+            index,
+          })),
+        }),
+      )
+      return true
     },
   }
 }

@@ -5,7 +5,7 @@ title: ChatSandboxHooks
 
 # Interface: ChatSandboxHooks\<TContext\>
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:41](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L41)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L44)
 
 Sandbox file-event hooks a chat middleware can declare. Fire server-side for
 every file create/change/delete observed in the sandbox during the run.
@@ -18,13 +18,13 @@ every file create/change/delete observed in the sandbox during the run.
 
 ## Properties
 
-### onFile()?
+### onFile?
 
 ```ts
-optional onFile: (ctx, e) => void | Promise<void>;
+optional onFile?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:42](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L42)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L45)
 
 #### Parameters
 
@@ -42,13 +42,13 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:42](https://git
 
 ***
 
-### onFileChange()?
+### onFileChange?
 
 ```ts
-optional onFileChange: (ctx, e) => void | Promise<void>;
+optional onFileChange?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L50)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L53)
 
 #### Parameters
 
@@ -66,13 +66,13 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:50](https://git
 
 ***
 
-### onFileCreate()?
+### onFileCreate?
 
 ```ts
-optional onFileCreate: (ctx, e) => void | Promise<void>;
+optional onFileCreate?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L46)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L49)
 
 #### Parameters
 
@@ -90,13 +90,13 @@ Defined in: [packages/ai/src/activities/chat/middleware/types.ts:46](https://git
 
 ***
 
-### onFileDelete()?
+### onFileDelete?
 
 ```ts
-optional onFileDelete: (ctx, e) => void | Promise<void>;
+optional onFileDelete?: (ctx, e) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L54)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L57)
 
 #### Parameters
 

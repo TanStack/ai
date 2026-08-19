@@ -262,9 +262,30 @@ export class OpenRouterResponsesTextAdapter<
       // OpenRouter override: pass nulls through unchanged.
       const transformed = this.transformStructuredOutput(parsed)
 
+      // Responses API reports usage as inputTokens/outputTokens (not the
+      // chat-completions promptTokens/completionTokens shape). Map to
+      // TokenUsage and attach OpenRouter cost when present — same contract
+      // as structuredOutputStream / processStreamChunks. Cost-only usage
+      // (finite cost, no token fields) still forwards with zeroed tokens.
+      const usage = response.usage
+      const cost = extractUsageCost(usage)
+      const hasUsage =
+        usage != null &&
+        (usage.inputTokens != null ||
+          usage.outputTokens != null ||
+          usage.totalTokens != null ||
+          cost.cost !== undefined)
       return {
         data: transformed,
         rawText,
+        ...(hasUsage && {
+          usage: {
+            promptTokens: usage.inputTokens ?? 0,
+            completionTokens: usage.outputTokens ?? 0,
+            totalTokens: usage.totalTokens ?? 0,
+            ...cost,
+          },
+        }),
       }
     } catch (error: unknown) {
       chatOptions.logger.errors(`${this.name}.structuredOutput fatal`, {
@@ -300,12 +321,10 @@ export class OpenRouterResponsesTextAdapter<
       outputSchema.required,
     )
 
-    const timestamp = Date.now()
     const aguiState = {
       runId: generateId(this.name),
       threadId: chatOptions.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
-      timestamp,
       hasEmittedRunStarted: false,
     }
 
@@ -333,13 +352,13 @@ export class OpenRouterResponsesTextAdapter<
           type: EventType.REASONING_MESSAGE_END,
           messageId: reasoningMessageId,
           model,
-          timestamp,
+          timestamp: Date.now(),
         }
         yield {
           type: EventType.REASONING_END,
           messageId: reasoningMessageId,
           model,
-          timestamp,
+          timestamp: Date.now(),
         }
         if (stepId) {
           yield {
@@ -347,7 +366,7 @@ export class OpenRouterResponsesTextAdapter<
             stepName: stepId,
             stepId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             content: accumulatedReasoning,
           }
         }
@@ -364,21 +383,21 @@ export class OpenRouterResponsesTextAdapter<
         type: EventType.REASONING_START,
         messageId: reasoningMessageId,
         model,
-        timestamp,
+        timestamp: Date.now(),
       }
       yield {
         type: EventType.REASONING_MESSAGE_START,
         messageId: reasoningMessageId,
         role: 'reasoning' as const,
         model,
-        timestamp,
+        timestamp: Date.now(),
       }
       yield {
         type: EventType.STEP_STARTED,
         stepName: stepId,
         stepId,
         model,
-        timestamp,
+        timestamp: Date.now(),
         stepType: 'thinking',
       }
     }.bind(this)
@@ -425,7 +444,7 @@ export class OpenRouterResponsesTextAdapter<
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             parentRunId: chatOptions.parentRunId,
           }
         }
@@ -444,7 +463,7 @@ export class OpenRouterResponsesTextAdapter<
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             message: `Model refused: ${delta}`,
             code: 'refusal',
             error: { message: `Model refused: ${delta}`, code: 'refusal' },
@@ -472,7 +491,7 @@ export class OpenRouterResponsesTextAdapter<
             messageId: reasoningMessageId,
             delta: reasoningDelta,
             model,
-            timestamp,
+            timestamp: Date.now(),
           }
           continue
         }
@@ -493,7 +512,7 @@ export class OpenRouterResponsesTextAdapter<
               type: EventType.TEXT_MESSAGE_START,
               messageId: aguiState.messageId,
               model,
-              timestamp,
+              timestamp: Date.now(),
               role: 'assistant',
             }
           }
@@ -502,7 +521,7 @@ export class OpenRouterResponsesTextAdapter<
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: aguiState.messageId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             delta: textDelta,
             content: accumulatedContent,
           }
@@ -533,7 +552,7 @@ export class OpenRouterResponsesTextAdapter<
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             message,
             ...(code !== undefined && { code }),
             // Forward the provider's structured error body when the failure
@@ -554,7 +573,7 @@ export class OpenRouterResponsesTextAdapter<
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             message,
             ...(code !== undefined && { code }),
             error: {
@@ -573,7 +592,7 @@ export class OpenRouterResponsesTextAdapter<
           type: EventType.TEXT_MESSAGE_END,
           messageId: aguiState.messageId,
           model,
-          timestamp,
+          timestamp: Date.now(),
         }
       }
 
@@ -582,7 +601,7 @@ export class OpenRouterResponsesTextAdapter<
           type: EventType.RUN_ERROR,
           runId: aguiState.runId,
           model,
-          timestamp,
+          timestamp: Date.now(),
           message: `${this.name}.structuredOutputStream: response contained no content`,
           code: 'empty-response',
           error: {
@@ -601,7 +620,7 @@ export class OpenRouterResponsesTextAdapter<
           type: EventType.RUN_ERROR,
           runId: aguiState.runId,
           model,
-          timestamp,
+          timestamp: Date.now(),
           message: `Failed to parse structured output as JSON. Content: ${accumulatedContent.slice(0, 200)}${accumulatedContent.length > 200 ? '...' : ''}`,
           code: 'parse-error',
           error: {
@@ -623,7 +642,7 @@ export class OpenRouterResponsesTextAdapter<
           ...(accumulatedReasoning ? { reasoning: accumulatedReasoning } : {}),
         },
         model,
-        timestamp,
+        timestamp: Date.now(),
       }
 
       yield {
@@ -631,7 +650,7 @@ export class OpenRouterResponsesTextAdapter<
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model,
-        timestamp,
+        timestamp: Date.now(),
         finishReason: 'stop',
         ...(usage && {
           usage: {
@@ -650,7 +669,7 @@ export class OpenRouterResponsesTextAdapter<
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model,
-          timestamp,
+          timestamp: Date.now(),
           parentRunId: chatOptions.parentRunId,
         }
       }
@@ -676,7 +695,7 @@ export class OpenRouterResponsesTextAdapter<
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
         model,
-        timestamp,
+        timestamp: Date.now(),
         message: errorPayload.message,
         ...(resolvedCode !== undefined && { code: resolvedCode }),
         ...(rawEvent !== undefined && { rawEvent }),

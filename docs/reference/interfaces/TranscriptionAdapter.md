@@ -84,7 +84,7 @@ Adapter name identifier
 
 ***
 
-### transcribe()
+### transcribe
 
 ```ts
 transcribe: (options) => Promise<TranscriptionResult>;

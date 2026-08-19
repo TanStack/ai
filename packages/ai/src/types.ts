@@ -11,6 +11,8 @@ import type { ProviderTool } from './tools/provider-tool'
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
 import type {
+  BilledUsage,
+  BillingUnit,
   CompletionTokensDetails,
   PromptTokensDetails,
   ProviderUsageDetails,
@@ -376,6 +378,11 @@ export interface ModelMessage<
    * resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
    */
   id?: string
+  /**
+   * Optional message creation timestamp. When present, message converters
+   * preserve it across persist → hydrate round-trips.
+   */
+  createdAt?: Date
 }
 
 /**
@@ -953,10 +960,13 @@ export interface TextOptions<
    *    `supportsCombinedToolsAndSchema(modelOptions) === true`. The adapter
    *    should then wire the schema into the upstream request (e.g.
    *    `response_format: { type: 'json_schema', ... }`, `text.format`,
-   *    `output_format`) alongside any `tools`. The model's natural final
-   *    turn carries the schema-constrained JSON text and the engine
-   *    harvests it from the agent loop without a separate finalization
-   *    round-trip.
+   *    `output_format`, `--json-schema`) alongside any `tools`.
+   *
+   *    How the engine then takes the object depends on
+   *    `combinedStructuredOutputSource()`:
+   *    - `'text'` (default): the final-turn assistant text is the JSON.
+   *    - `'event'`: the adapter emits `structured-output.complete` during
+   *      `chatStream`. Accumulated prose is not parsed.
    *
    *    Adapters that did NOT declare the capability never see this field
    *    populated — the engine instead invokes `structuredOutput` /
@@ -1098,6 +1108,8 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
 // Re-export the canonical usage types (defined in `@tanstack/ai-event-client`)
 // so `@tanstack/ai` consumers keep importing them from here unchanged.
 export type {
+  BilledUsage,
+  BillingUnit,
   CompletionTokensDetails,
   PromptTokensDetails,
   ProviderUsageDetails,
@@ -1550,20 +1562,25 @@ export interface CodeModeExternalErrorEvent extends CustomEvent {
   name: 'code_mode:external_error'
   value: { function: string; error: string; duration: number }
 }
-export interface CodeModeSkillCallEvent extends CustomEvent {
-  name: 'code_mode:skill_call'
-  value: { skill: string; input: unknown; timestamp: number }
+export interface CodeModeSnippetCallEvent extends CustomEvent {
+  name: 'code_mode:snippet_call'
+  value: { snippet: string; input: unknown; timestamp: number }
 }
-export interface CodeModeSkillResultEvent extends CustomEvent {
-  name: 'code_mode:skill_result'
-  value: { skill: string; result: unknown; duration: number; timestamp: number }
+export interface CodeModeSnippetResultEvent extends CustomEvent {
+  name: 'code_mode:snippet_result'
+  value: {
+    snippet: string
+    result: unknown
+    duration: number
+    timestamp: number
+  }
 }
-export interface CodeModeSkillErrorEvent extends CustomEvent {
-  name: 'code_mode:skill_error'
-  value: { skill: string; error: string; duration: number; timestamp: number }
+export interface CodeModeSnippetErrorEvent extends CustomEvent {
+  name: 'code_mode:snippet_error'
+  value: { snippet: string; error: string; duration: number; timestamp: number }
 }
-export interface SkillRegisteredEvent extends CustomEvent {
-  name: 'skill:registered'
+export interface SnippetRegisteredEvent extends CustomEvent {
+  name: 'snippet:registered'
   value: { id: string; name: string; description: string; timestamp: number }
 }
 
@@ -1582,10 +1599,10 @@ export type KnownCustomEvent =
   | CodeModeExternalCallEvent
   | CodeModeExternalResultEvent
   | CodeModeExternalErrorEvent
-  | CodeModeSkillCallEvent
-  | CodeModeSkillResultEvent
-  | CodeModeSkillErrorEvent
-  | SkillRegisteredEvent
+  | CodeModeSnippetCallEvent
+  | CodeModeSnippetResultEvent
+  | CodeModeSnippetErrorEvent
+  | SnippetRegisteredEvent
   | StructuredOutputStartEvent
   | StructuredOutputCompleteEvent
   | ApprovalRequestedEvent
@@ -2008,6 +2025,72 @@ export interface SummarizationResult {
 }
 
 // ============================================================================
+// Rerank Types
+// ============================================================================
+
+/**
+ * Options passed to a {@link RerankAdapter}. Documents reach the adapter
+ * already serialized to strings — the `rerank()` activity stringifies object
+ * documents and maps results back to the original elements, so adapters never
+ * deal with the caller's document type.
+ */
+export interface RerankOptions<
+  TProviderOptions extends object = Record<string, unknown>,
+> {
+  model: string
+  /** The search query documents are scored against. */
+  query: string
+  /** Documents to rerank, pre-serialized to strings by the activity. */
+  documents: Array<string>
+  /** Return only the top N results. Passed through to the provider. */
+  topN?: number
+  /** Provider-specific options forwarded by the rerank() activity. */
+  modelOptions?: TProviderOptions
+  /** Forwarded to the provider request for cancellation. */
+  abortSignal?: AbortSignal
+  /**
+   * Internal logger threaded from the rerank() entry point. Adapters must call
+   * logger.request() before the provider call and logger.errors() in catch
+   * blocks.
+   */
+  logger: InternalLogger
+}
+
+/**
+ * Provider-level rerank result. Adapters return scored indices into the
+ * (serialized) `documents` array plus usage — never the documents themselves.
+ * The activity attaches the original documents.
+ */
+export interface RerankAdapterResult {
+  id: string
+  /** Scored results, highest relevance first, as indices into `documents`. */
+  ranking: Array<{ index: number; score: number }>
+  usage: TokenUsage
+}
+
+/**
+ * Public result of the `rerank()` activity, generic over the caller's document
+ * element type so `document` / `rerankedDocuments` carry the original values
+ * (strings or objects), not their serialized form.
+ */
+export interface RerankResult<TDocument = string> {
+  id: string
+  model: string
+  /** Scored results, highest relevance first. */
+  ranking: Array<{ index: number; score: number; document: TDocument }>
+  /** The documents reordered by relevance — `ranking.map(r => r.document)`. */
+  rerankedDocuments: Array<TDocument>
+  /**
+   * Usage for the request. Rerank typically bills in provider-defined "search
+   * units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens.
+   * Some providers (e.g. OpenRouter) may also report `totalTokens` and `cost`.
+   * Cohere reports only search units and leaves the token counts at 0.
+   * The deprecated `unitsBilled` field is still populated for compatibility.
+   */
+  usage: TokenUsage
+}
+
+// ============================================================================
 // Image Generation Types
 // ============================================================================
 
@@ -2385,8 +2468,8 @@ export interface VideoUrlResult {
   expiresAt?: Date
   /**
    * Usage information for the completed generation, when the adapter can report
-   * it. For usage-based providers (e.g. fal) this carries `unitsBilled` — the
-   * real billed quantity — so consumers can compute exact cost.
+   * it. For usage-based providers (e.g. fal) this carries `billed` — the real
+   * billed quantity paired with its unit — so consumers can compute exact cost.
    */
   usage?: TokenUsage
   /** Persisted artifact references for generated assets, when available */
@@ -2546,6 +2629,119 @@ export interface TranscriptionResult {
   usage?: TokenUsage
   /** Persisted artifact references for generated assets, when available */
   artifacts?: Array<PersistedArtifactRef>
+}
+
+// ============================================================================
+// Embedding Types
+// ============================================================================
+
+/**
+ * Input modalities an embedding model can accept. Unlike
+ * {@link MediaPromptModality}, `'text'` is listed explicitly because
+ * text-only embedding models are the common case and the modality list
+ * drives compile-time narrowing of {@link EmbeddingInputItem}.
+ */
+export type EmbeddingModality = 'text' | 'image'
+
+/**
+ * Per-model map from model name to the input modalities it accepts, used as
+ * an adapter type parameter (`TModelInputModalitiesByName`). Models absent
+ * from the map fall back to the unconstrained {@link EmbeddingInputItem}.
+ */
+export type EmbeddingModelInputModalitiesByName = Record<
+  string,
+  ReadonlyArray<EmbeddingModality>
+>
+
+/**
+ * A fused multi-part embedding item: all parts are embedded together into a
+ * single vector (e.g. a product photo plus its caption). Written as a nested
+ * array of content parts — the same `Array<ContentPart>` convention chat
+ * messages use — so a fused item is visually distinct from the top-level
+ * `input` list, where each element produces its own vector. Supported by
+ * multimodal embedding models such as Cohere embed-v4 and Amazon Titan
+ * Multimodal.
+ */
+export type EmbeddingContentParts = Array<TextPart | ImagePart>
+
+/**
+ * One embeddable item, producing exactly one vector. A bare string is
+ * shorthand for a text part; a nested {@link EmbeddingContentParts} array
+ * fuses its parts into a single vector. Note that a bare array at the top
+ * level of `input` is the *list of items* (one vector each) — fuse by
+ * nesting, e.g. `input: [[textPart, imagePart]]`.
+ */
+export type EmbeddingInputItem =
+  | string
+  | TextPart
+  | ImagePart
+  | EmbeddingContentParts
+
+/** Maps an embedding modality to the item types it admits. @internal */
+interface EmbeddingItemByModality {
+  text: TextPart
+  image: ImagePart | EmbeddingContentParts
+}
+
+/**
+ * Embedding item type narrowed to the modalities a specific model supports.
+ * `EmbeddingInputItemFor<'text'>` (a text-only model) is `string | TextPart`;
+ * `'text' | 'image'` additionally admits image parts and fused
+ * {@link EmbeddingContentParts} arrays. Used by the activity option types
+ * together with the adapter's per-model modality map so unsupported inputs
+ * fail at compile time.
+ */
+export type EmbeddingInputItemFor<
+  TModalities extends EmbeddingModality = EmbeddingModality,
+> = string | TextPart | EmbeddingItemByModality[TModalities]
+
+/**
+ * Options for embedding generation, as received by adapters. The `embed()`
+ * entry point normalizes a single input item to an array before calling the
+ * adapter, so `input` is always an array here.
+ */
+export interface EmbeddingOptions<TProviderOptions extends object = object> {
+  /** The model to use for embedding generation */
+  model: string
+  /** The items to embed — one vector per item */
+  input: Array<EmbeddingInputItem>
+  /**
+   * Requested output dimensionality. Adapters for models with fixed
+   * dimensions throw a clear runtime error when this is set.
+   */
+  dimensions?: number
+  /** Model-specific options for embedding generation */
+  modelOptions?: TProviderOptions
+  /**
+   * Internal logger threaded from the embed() entry point. Adapters must
+   * call logger.request() before the SDK call and logger.errors() in catch
+   * blocks.
+   */
+  logger: InternalLogger
+}
+
+/**
+ * A single embedding vector.
+ */
+export interface Embedding {
+  /** The embedding vector */
+  vector: Array<number>
+  /** Position of the source item in the (normalized) input array */
+  index: number
+}
+
+/**
+ * Result of embedding generation.
+ */
+export interface EmbeddingResult {
+  /** Unique identifier for the generation */
+  id: string
+  /** Model used for generation */
+  model: string
+  /** One embedding per input item, in input order */
+  embeddings: Array<Embedding>
+  /** Token usage information (if provided by the adapter) */
+  usage?: TokenUsage
 }
 
 /**

@@ -33,7 +33,7 @@ Defined in: [packages/ai/src/system-prompts.ts:53](https://github.com/TanStack/a
 ### metadata?
 
 ```ts
-optional metadata: TMetadata;
+optional metadata?: TMetadata;
 ```
 
 Defined in: [packages/ai/src/system-prompts.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/system-prompts.ts#L54)

@@ -9,7 +9,7 @@
  */
 
 // Pure string-literal types — re-exported by sandbox-triage.ts (single source of truth here).
-export type HarnessName = 'claude-code' | 'codex' | 'opencode' | 'grok'
+export type HarnessName = 'claude-code' | 'codex' | 'opencode' | 'grok' | 'acp'
 export type ProviderName = 'docker' | 'local' | 'vercel' | 'daytona'
 export type GrokBuildModel = 'grok-build-0.1' | 'composer-2.5'
 export type GrokBuildProtocol = 'acp' | 'streaming-json'
@@ -37,6 +37,7 @@ export interface PickerSpec {
 
 export const HARNESSES: Record<string, PickerSpec> = {
   grok: { label: 'Grok Build' },
+  acp: { label: 'ACP compatible (Grok)' },
   'claude-code': { label: 'Claude Code' },
   codex: { label: 'Codex' },
   opencode: { label: 'OpenCode' },

@@ -8,10 +8,15 @@ import {
 } from '../src/errors'
 import {
   makeServerWithAnnotatedTool,
+  makeServerWithStructuredTool,
   makeServerWithTaskRequiredTool,
   makeServerWithWeatherTool,
 } from './helpers/in-memory-server'
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js'
+import type {
+  JsonSchemaValidatorResult,
+  jsonSchemaValidator,
+} from '@modelcontextprotocol/sdk/validation'
 
 describe('createMCPClient', () => {
   it('connects and returns discovered tools', async () => {
@@ -248,5 +253,108 @@ describe('createMCPClient', () => {
     }
     // after scope exit the client is closed; calling tools() rejects
     await expect(client.tools()).rejects.toThrow()
+  })
+})
+
+describe('clientOptions', () => {
+  /**
+   * Records every schema it is asked about, and accepts everything.
+   *
+   * Standing in for `CfWorkerJsonSchemaValidator`, which exists precisely
+   * because the SDK's default validator compiles schemas with `new Function` —
+   * forbidden on Cloudflare Workers, where it fails every call to a tool that
+   * declares an `outputSchema`.
+   */
+  function recordingValidator(): {
+    schemas: Array<unknown>
+    provider: jsonSchemaValidator
+  } {
+    const schemas: Array<unknown> = []
+    return {
+      schemas,
+      provider: {
+        getValidator<T>(schema: unknown) {
+          schemas.push(schema)
+          // Annotated rather than inferred: the result type is a union, and
+          // without it TS widens `data` to `T | undefined` and neither branch
+          // matches.
+          return (input: unknown): JsonSchemaValidatorResult<T> => ({
+            valid: true,
+            data: input as T,
+            errorMessage: undefined,
+          })
+        },
+      },
+    }
+  }
+
+  it('forwards a custom jsonSchemaValidator to the SDK client', async () => {
+    const { clientTransport } = await makeServerWithStructuredTool()
+    const { schemas, provider } = recordingValidator()
+    await using client = await createMCPClientFromTransport(
+      clientTransport,
+      undefined,
+      { jsonSchemaValidator: provider },
+    )
+
+    // The SDK builds every output validator during `tools/list`, not on call —
+    // see `cacheToolMetadata`. This is also why the default AJV provider fails
+    // an entire discovery on an edge runtime rather than a single tool call.
+    await client.tools()
+
+    expect(schemas).toEqual([expect.objectContaining({ type: 'object' })])
+  })
+
+  it('accepts clientOptions through createMCPClient', async () => {
+    const { clientTransport } = await makeServerWithStructuredTool()
+    const { schemas, provider } = recordingValidator()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      clientOptions: { jsonSchemaValidator: provider },
+    })
+
+    await client.tools()
+
+    expect(schemas).toHaveLength(1)
+  })
+
+  it('falls back to the SDK default when no clientOptions are given', async () => {
+    const { clientTransport } = await makeServerWithStructuredTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+    await client.tools()
+
+    const result = await client.callTool('lookup_user', { id: 'u-1' })
+
+    expect(result.structuredContent).toEqual({ id: 'u-1', name: 'Ada' })
+  })
+
+  it('reports clientOptions on getInfo so a rebuilt client keeps them', async () => {
+    // `createMcpAppCallHandler` reconnects per call from `getInfo()`. A
+    // descriptor that dropped `clientOptions` would hand the rebuilt client
+    // back to the SDK's AJV default — the exact failure this option exists to
+    // avoid, reintroduced for every MCP Apps widget call.
+    const { clientTransport } = await makeServerWithStructuredTool()
+    const { provider } = recordingValidator()
+    await using client = await createMCPClient({
+      transport: clientTransport,
+      prefix: 'weather',
+      clientOptions: { jsonSchemaValidator: provider },
+    })
+
+    expect(client.getInfo().clientOptions).toEqual({
+      jsonSchemaValidator: provider,
+    })
+  })
+
+  it('omits clientOptions from getInfo when none were given', async () => {
+    const { clientTransport } = await makeServerWithStructuredTool()
+    await using client = await createMCPClientFromTransport(clientTransport)
+
+    // `toStrictEqual` rather than reading `.clientOptions`: the contract is that
+    // the key is OMITTED, and `toBeUndefined()` passes either way.
+    expect(client.getInfo()).toStrictEqual({
+      transport: undefined,
+      prefix: undefined,
+    })
   })
 })

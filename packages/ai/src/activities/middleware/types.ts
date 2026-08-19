@@ -41,6 +41,8 @@ export type GenerationActivity =
   | 'audio'
   | 'tts'
   | 'transcription'
+  | 'embedding'
+  | 'rerank'
   | 'summarize'
 
 /**

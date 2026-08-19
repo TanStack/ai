@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-memory",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "Pluggable memory adapters for TanStack AI memoryMiddleware",
   "author": "",
   "license": "MIT",
@@ -63,7 +63,7 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "@tanstack/ai-event-client": "workspace:*"
+    "@tanstack/ai-event-client": "workspace:^"
   },
   "peerDependencies": {
     "@honcho-ai/sdk": ">=2.0.0",
@@ -90,7 +90,7 @@
     "@honcho-ai/sdk": "^2.1.1",
     "@tanstack/ai": "workspace:*",
     "@vectorize-io/hindsight-client": "^0.6.1",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.10",
     "ioredis-mock": "^8.9.0",
     "redis": "^4.7.0"
   }

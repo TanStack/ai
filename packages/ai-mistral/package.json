@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-mistral",
-  "version": "0.2.4",
+  "version": "0.3.2",
   "type": "module",
   "description": "Mistral adapter for TanStack AI",
   "author": "",
@@ -20,6 +20,10 @@
     "./adapters/text": {
       "types": "./dist/esm/adapters/text.d.ts",
       "import": "./dist/esm/adapters/text.js"
+    },
+    "./adapters/embedding": {
+      "types": "./dist/esm/adapters/embedding.d.ts",
+      "import": "./dist/esm/adapters/embedding.js"
     }
   },
   "files": [
@@ -44,8 +48,8 @@
   ],
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^8.1.4"
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "^8.2.1"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
