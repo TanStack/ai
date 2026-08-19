@@ -290,7 +290,9 @@ describe('useChat', () => {
       expect(typeof messageId).toBe('string')
     })
 
-    it('uses the hook ID instead of generating a random ID for an empty threadId', () => {
+    it.each(['', undefined])(
+      'uses the hook ID instead of generating a random ID for threadId=%s',
+      (threadId) => {
       const chatClientPrototype = ChatClient.prototype as unknown as {
         generateUniqueId: () => string
       }
@@ -298,10 +300,11 @@ describe('useChat', () => {
 
       renderUseChat({
         connection: createMockConnectionAdapter(),
-        threadId: '',
+        ...(threadId === undefined ? {} : { threadId }),
       })
 
-      expect(generateUniqueId).not.toHaveBeenCalled()
+        expect(generateUniqueId).not.toHaveBeenCalled()
+      },
     })
 
     it('should generate id if not provided', async () => {
