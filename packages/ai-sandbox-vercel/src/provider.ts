@@ -1,6 +1,5 @@
 import { APIError, Sandbox } from '@vercel/sandbox'
 import { VERCEL_CAPS, VercelHandle } from './handle'
-import { withSandboxUserAgent } from './user-agent'
 import type {
   SandboxCapabilities,
   SandboxCreateInput,
@@ -41,6 +40,21 @@ export interface VercelSandboxConfig {
 
 const DEFAULT_WORKDIR = '/vercel/sandbox'
 const DEFAULT_RUNTIME = 'node24'
+const USER_AGENT_TOKEN = '@tanstack/ai'
+
+export function withSandboxUserAgent(
+  inner: typeof globalThis.fetch = globalThis.fetch,
+): typeof globalThis.fetch {
+  return (input, init) => {
+    const headers = new Headers(init?.headers)
+    const existing = headers.get('user-agent')
+    headers.set(
+      'user-agent',
+      existing ? `${existing} ${USER_AGENT_TOKEN}` : USER_AGENT_TOKEN,
+    )
+    return inner(input, { ...init, headers })
+  }
+}
 
 /**
  * True when `error` is the Vercel SDK's "directory already exists" failure — an
