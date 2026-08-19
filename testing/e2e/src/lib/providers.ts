@@ -4,6 +4,8 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createAnthropicChatWithClient } from '@tanstack/ai-anthropic'
 import { createGeminiChat } from '@tanstack/ai-gemini'
 import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
+import { vertexText } from '@tanstack/ai-vertex'
+import { vertexE2eConfig } from '@/lib/vertex-e2e'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
@@ -29,6 +31,7 @@ const defaultModels: Record<Provider, string> = {
   openai: 'gpt-4o',
   anthropic: 'claude-sonnet-4-5',
   gemini: 'gemini-2.5-flash',
+  vertex: 'gemini-2.5-flash',
   ollama: 'mistral',
   groq: 'llama-3.3-70b-versatile',
   grok: 'grok-build-0.1',
@@ -118,6 +121,16 @@ export function createTextAdapter(
             headers: testHeaders,
           },
         }),
+      }),
+    // Gemini on Vertex. Dummy ADC + project/location so the SDK posts
+    // `/v1/projects/{p}/locations/{l}/publishers/google/models/{m}:…`,
+    // which aimock already serves. See vertex-e2e.ts.
+    vertex: () =>
+      createChatOptions({
+        adapter: vertexText(
+          model as 'gemini-2.5-flash',
+          vertexE2eConfig(base, testHeaders),
+        ),
       }),
     ollama: () =>
       createChatOptions({

@@ -2906,6 +2906,9 @@ importers:
       '@tanstack/ai-vercel-gateway':
         specifier: workspace:*
         version: link:../../packages/ai-vercel-gateway
+      '@tanstack/ai-vertex':
+        specifier: workspace:*
+        version: link:../../packages/ai-vertex
       '@tanstack/devtools-event-bus':
         specifier: ^0.4.1
         version: 0.4.1

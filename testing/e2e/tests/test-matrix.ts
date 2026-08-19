@@ -17,6 +17,7 @@ export const providers: Provider[] = [
   'openai',
   'anthropic',
   'gemini',
+  'vertex',
   'ollama',
   'groq',
   'grok',

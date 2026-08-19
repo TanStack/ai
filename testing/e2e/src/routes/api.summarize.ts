@@ -3,6 +3,8 @@ import { summarize, toServerSentEventsResponse } from '@tanstack/ai'
 import { createOpenaiSummarize } from '@tanstack/ai-openai'
 import { createAnthropicSummarize } from '@tanstack/ai-anthropic'
 import { createGeminiSummarize } from '@tanstack/ai-gemini'
+import { vertexSummarize } from '@tanstack/ai-vertex'
+import { vertexE2eConfig } from '@/lib/vertex-e2e'
 import { createOllamaSummarize } from '@tanstack/ai-ollama'
 import { createGroqSummarize } from '@tanstack/ai-groq'
 import { createGrokSummarize } from '@tanstack/ai-grok'
@@ -69,6 +71,11 @@ function createSummarizeAdapter(
       createGeminiSummarize(DUMMY_KEY, 'gemini-2.5-flash', {
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
+    vertex: () =>
+      vertexSummarize(
+        'gemini-2.5-flash',
+        vertexE2eConfig(llmockBase(aimockPort), headers),
+      ),
     ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),
     groq: () =>
       createGroqSummarize('llama-3.3-70b-versatile', DUMMY_KEY, {

@@ -4,6 +4,7 @@ export type Provider =
   | 'openai'
   | 'anthropic'
   | 'gemini'
+  | 'vertex'
   | 'ollama'
   | 'grok'
   | 'groq'
@@ -55,6 +56,7 @@ export const ALL_PROVIDERS: Provider[] = [
   'openai',
   'anthropic',
   'gemini',
+  'vertex',
   'ollama',
   'grok',
   'groq',

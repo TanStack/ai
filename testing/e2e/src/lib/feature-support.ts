@@ -12,6 +12,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'ollama',
     'groq',
     'grok',
@@ -28,6 +29,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'ollama',
     'groq',
     'grok',
@@ -49,6 +51,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'mistral',
     'byteplus',
     'llmgateway',
@@ -57,6 +60,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'ollama',
     'groq',
     'grok',
@@ -73,6 +77,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'ollama',
     'groq',
     'grok',
@@ -91,6 +96,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'groq',
     'grok',
     'bedrock',
@@ -103,6 +109,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'llmgateway',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
+  // Vertex uses the same Gemini stream, so it is excluded for the same reason.
   'tool-approval': new Set([
     'openai',
     'anthropic',
@@ -123,6 +130,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'groq',
     'grok',
     'bedrock',
@@ -138,6 +146,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'ollama',
     'groq',
     'grok',
@@ -187,6 +196,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'multi-turn-structured': new Set([
     'openai',
     'gemini',
+    'vertex',
     'ollama',
     'groq',
     'grok',
@@ -202,6 +212,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'ollama',
     'groq',
     'grok',
@@ -224,6 +235,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'grok',
     'openrouter',
     'openrouter-responses',
@@ -237,6 +249,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'grok',
     'openrouter',
     'byteplus',
@@ -250,6 +263,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'grok',
     'openrouter',
     'byteplus',
@@ -263,6 +277,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'ollama',
     'groq',
     'grok',
@@ -277,6 +292,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'ollama',
     'groq',
     'grok',
@@ -296,6 +312,10 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // `embedding` field, not the `embeddings: number[][]` shape the ollama SDK
   // `embed()` expects; Mistral because its SDK Zod-validates the response and
   // requires an `id` field aimock's OpenAI-format builder omits.
+  // Vertex excluded: aimock's Vertex handler only covers
+  // generateContent / streamGenerateContent. Vertex embed uses a
+  // different path (`:predict` / `:batchEmbedContents` under
+  // /v1/projects/…), so it cannot reuse the Gemini /v1beta mount.
   embedding: new Set([
     'openai',
     'gemini',
@@ -322,6 +342,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'image-to-image': new Set(['openai']),
   // byteplus excluded: BytePlus has no music/audio generation product —
   // Seed Speech is TTS + ASR only.
+  // Vertex excluded for the same media-path reason as embedding: the
+  // Gemini TTS / Veo / Lyria / Interactions mounts live under /v1beta.
+  // Vertex posts those activities to /v1/projects/… instead.
   'audio-gen': new Set(['gemini', 'elevenlabs']),
   // byteplus excluded: no sound-effects endpoint (see audio-gen above).
   'sound-effects': new Set(['elevenlabs']),
