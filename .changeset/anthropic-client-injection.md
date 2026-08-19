@@ -2,5 +2,6 @@
 '@tanstack/ai-anthropic': minor
 ---
 
-Add a client-injection factory for Anthropic-compatible clients with custom
-authentication and transport.
+Add `createAnthropicChatWithClient` and `anthropicVertexText` (from
+`@tanstack/ai-anthropic/vertex`) so Claude can run on Vertex AI and other
+Anthropic-compatible transports.

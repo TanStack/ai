@@ -7,7 +7,6 @@ const config = defineConfig({
     name: packageJson.name,
     dir: './',
     watch: false,
-
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
@@ -30,7 +29,7 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts', './src/tools/index.ts', './src/vertex/index.ts'],
+    entry: ['./src/index.ts'],
     srcDir: './src',
     cjs: false,
   }),

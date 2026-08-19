@@ -888,13 +888,18 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-23"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-18"
+        },
+        {
+          "label": "Google Vertex AI",
+          "to": "adapters/vertex",
+          "addedAt": "2026-08-19"
         },
         {
           "label": "Ollama",
