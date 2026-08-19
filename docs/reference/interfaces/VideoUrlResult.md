@@ -82,5 +82,5 @@ Defined in: [packages/ai/src/types.ts:2469](https://github.com/TanStack/ai/blob/
 **`Experimental`**
 
 Usage information for the completed generation, when the adapter can report
-it. For usage-based providers (e.g. fal) this carries `unitsBilled` — the
-real billed quantity — so consumers can compute exact cost.
+it. For usage-based providers (for example fal) this carries `billed`, the
+real billed quantity paired with its unit, so consumers can compute exact cost.

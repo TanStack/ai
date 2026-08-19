@@ -178,6 +178,8 @@ describe('withPersistence (state-only)', () => {
             completionTokens: 2,
             totalTokens: 12,
             promptTokensDetails: { cachedTokens: 3 },
+            billed: { quantity: 2, unit: 'units' },
+            unitsBilled: 2,
             cost: 1,
           },
         },
@@ -197,6 +199,8 @@ describe('withPersistence (state-only)', () => {
           totalTokens: 24,
           completionTokensDetails: { reasoningTokens: 2 },
           providerUsageDetails: { requestId: 'final' },
+          billed: { quantity: 1, unit: 'units' },
+          unitsBilled: 1,
           cost: 2,
         }),
       ],
@@ -220,6 +224,8 @@ describe('withPersistence (state-only)', () => {
       promptTokensDetails: { cachedTokens: 3 },
       completionTokensDetails: { reasoningTokens: 2 },
       providerUsageDetails: { requestId: 'final' },
+      billed: { quantity: 3, unit: 'units' },
+      unitsBilled: 3,
       cost: 3,
     })
   })

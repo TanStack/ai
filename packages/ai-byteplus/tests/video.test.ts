@@ -964,6 +964,7 @@ describe('getVideoUrl', () => {
       promptTokens: 0,
       completionTokens: 35800,
       totalTokens: 35800,
+      billed: { quantity: 35800, unit: 'tokens' },
       unitsBilled: 35800,
     })
   })
@@ -999,6 +1000,7 @@ describe('getVideoUrl', () => {
     expect((await adapter.getVideoUrl(JOB_ID)).usage).toMatchObject({
       completionTokens: 35800,
       totalTokens: 35800,
+      billed: { quantity: 35800, unit: 'tokens' },
       unitsBilled: 35800,
     })
   })

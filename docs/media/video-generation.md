@@ -811,7 +811,7 @@ const { jobId } = await generateVideo({
 
 Options are **model-specific and validated server-side**: Ark rejects an inapplicable field with a `400` instead of ignoring it. `service_tier` and `camera_fixed` are Seedance 1.x only, `frames` works on the 1.0-pro models, `draft` on 1.5-pro, `priority` on Seedance 2.5 and the 2.0 family, and `duration: -1` (let the model choose) on 2.5, 2.0 and 1.5-pro. Durations are 4–30s on Seedance 2.5, 4–15s on the 2.0 family, 4–12s on 1.5-pro and 2–12s on the 1.0-pro models.
 
-**Seedance video URLs expire 24 hours after the task completes** (the task record is kept for seven days), so persist the bytes rather than the link. See the [BytePlus adapter](../adapters/byteplus#video-generation-seedance) for the full option table.
+**Seedance video URLs expire 24 hours after the task completes** (the task record is kept for seven days), so persist the bytes rather than the link. See the [BytePlus adapter](../adapters/byteplus#video-generation-seedance) for the full option table. Completed jobs report `usage.billed` as `{ quantity, unit: 'tokens' }` (Seedance bills output tokens only).
 
 ##### Porting a Seedance call between providers
 

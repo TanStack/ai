@@ -90,6 +90,7 @@ usage: TokenUsage;
 Defined in: [packages/ai/src/types.ts:2085](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2085)
 
 Usage for the request. Rerank typically bills in provider-defined "search
-units" (`usage.unitsBilled`) rather than tokens. Some providers (e.g.
-OpenRouter) may also report `totalTokens` and `cost`; Cohere reports only
-search units and leaves the token counts at 0.
+units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens. Some
+providers (for example OpenRouter) may also report `totalTokens` and `cost`.
+Cohere reports only search units and leaves the token counts at 0. The
+deprecated `unitsBilled` field is still populated for compatibility.

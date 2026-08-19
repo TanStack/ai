@@ -69,7 +69,7 @@ describe('CohereRerankAdapter', () => {
     })
   })
 
-  it('maps results to ranking and search_units to usage.unitsBilled', async () => {
+  it('maps results to ranking and search_units to usage.billed', async () => {
     fetchMock.mockResolvedValue(cohereResponse(defaultBody()))
 
     const result = await rerank({
@@ -83,6 +83,7 @@ describe('CohereRerankAdapter', () => {
       { index: 1, score: 0.98, document: documents[1] },
       { index: 0, score: 0.12, document: documents[0] },
     ])
+    expect(result.usage.billed).toEqual({ quantity: 1, unit: 'units' })
     expect(result.usage.unitsBilled).toBe(1)
     expect(result.usage.totalTokens).toBe(0)
   })
