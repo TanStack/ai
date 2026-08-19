@@ -227,13 +227,12 @@
           "label": "Advanced",
           "to": "resumable-streams/advanced",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "WebSockets",
           "to": "resumable-streams/websockets",
-          "addedAt": "2026-07-20",
-          "updatedAt": "2026-08-18"
+          "addedAt": "2026-08-19"
         },
         {
           "label": "Custom Durability Adapter",

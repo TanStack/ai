@@ -213,7 +213,8 @@ process shutdown, not when one turn's `RUN_FINISHED` arrives.
 **Heartbeat and idle timeout replace the transport-level keepalive SSE gets
 for free.** `toWebSocketStream` pings every `heartbeatMs` (default 30s) and
 closes the socket after `idleTimeoutMs` (default 5 minutes) with no inbound
-frame.
+frame — but never while a turn is still streaming, so a long single
+generation is safe.
 
 **An abort frame targets one turn, not the socket.** `{ type: 'abort', runId }`
 aborts only that turn's `onRun` iteration; the socket stays open for the next

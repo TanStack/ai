@@ -1942,7 +1942,7 @@ export function xhrHttpStream(
 
 export interface WebSocketConnectionOptions {
   protocols?: string | Array<string>
-  body?: Record<string, any>
+  body?: Record<string, unknown>
   reconnect?: ReconnectOptions
   /** Override the WebSocket implementation (tests / non-browser runtimes). */
   WebSocketImpl?: typeof WebSocket
@@ -1952,17 +1952,97 @@ function runIdQuery(url: string, runId: string | undefined): string {
   return runId ? withSearchParams(url, { runId }) : url
 }
 
-/** A subscribe()/joinRun() consumer's registration: receives chunks or a fatal error. */
+function isPingFrame(parsed: unknown): boolean {
+  return (
+    typeof parsed === 'object' &&
+    parsed !== null &&
+    (parsed as { type?: unknown }).type === 'ping'
+  )
+}
+
+/** A subscribe() consumer's registration: receives chunks or a fatal error. */
 interface WebSocketChunkSink {
   push: (chunk: StreamChunk) => void
   fail: (error: unknown) => void
 }
 
 /**
+ * A push→pull bridge from socket callbacks to an async iterable: chunks queue
+ * until the consumer pulls, a recorded failure rejects the iterator, and
+ * `end()` (or the abort signal) finishes it cleanly. Shared by `webSocket()`'s
+ * `subscribe()` and `joinRun()`.
+ */
+function createChunkPipe(
+  abortSignal: AbortSignal | undefined,
+  onFinally: () => void,
+): {
+  push: (chunk: StreamChunk) => void
+  fail: (error: unknown) => void
+  end: () => void
+  iterable: AsyncIterable<StreamChunk>
+} {
+  const queue: Array<StreamChunk> = []
+  const waiters: Array<(c: StreamChunk | null) => void> = []
+  let failure: unknown
+  let ended = false
+  const wake = () => waiters.shift()?.(null)
+  const push = (chunk: StreamChunk) => {
+    const w = waiters.shift()
+    if (w) w(chunk)
+    else queue.push(chunk)
+  }
+  const fail = (error: unknown) => {
+    failure = error
+    wake()
+  }
+  const end = () => {
+    ended = true
+    wake()
+  }
+  const onAbort = () => wake()
+  abortSignal?.addEventListener('abort', onAbort)
+  const iterable = (async function* () {
+    try {
+      while (!abortSignal?.aborted) {
+        // Drain buffered chunks before ever awaiting a new promise — a
+        // fatal drop that lands while chunks are still queued (fail()
+        // finds no pending waiter, since the consumer hasn't caught up
+        // to its buffer yet) must not be lost.
+        const buffered = queue.shift()
+        if (buffered !== undefined) {
+          yield buffered
+          continue
+        }
+        // Buffer exhausted: surface a failure recorded while we were
+        // draining, rather than awaiting a promise that will never
+        // resolve (the connection is dead — no future push/fail).
+        if (failure !== undefined) throw failure
+        if (ended) return
+        const chunk = await new Promise<StreamChunk | null>((r) =>
+          waiters.push(r),
+        )
+        // The wait resolved because fail() woke us — surface the error
+        // instead of treating the null sentinel as a clean end. TS narrows
+        // `failure` to `undefined` from the check above and doesn't know
+        // the `fail()` closure can reassign it while we were awaiting —
+        // this check is very much still reachable.
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
+        if (failure !== undefined) throw failure
+        if (chunk === null) return
+        yield chunk
+      }
+    } finally {
+      abortSignal?.removeEventListener('abort', onAbort)
+      onFinally()
+    }
+  })()
+  return { push, fail, end, iterable }
+}
+
+/**
  * The send()-driven run currently owning auto-reconnect for a `webSocket()`
- * connection. `undefined` when no `send()` has established a run yet (e.g. a
- * `joinRun()`-only connection), so a drop there is never auto-resumed — Task
- * 11 scopes reconnect to the run `subscribe()`/`send()` are driving.
+ * connection: reconnect is scoped to the run `send()` is driving, so a drop
+ * with no established run is surfaced to subscribers rather than auto-resumed.
  */
 interface WebSocketRunSession {
   runId: string | undefined
@@ -1997,6 +2077,10 @@ export function webSocket(
 } {
   const Impl = options.WebSocketImpl ?? WebSocket
   let socket: WebSocket | undefined
+  // Whether the current socket is the conversation socket ('run') or a
+  // read-only replay connection opened by a reconnect ('resume'). Only the
+  // conversation socket accepts run frames server-side.
+  let socketMode: 'run' | 'resume' | undefined
   // Memoized per-socket open promise. `openOnce` sets `onopen`/`onerror`
   // exactly ONCE, at socket-creation time, and stores the resulting promise
   // here. Without this, `waitOpen` assigning `onopen`/`onerror` on every call
@@ -2012,20 +2096,38 @@ export function webSocket(
     for (const l of listeners) l.fail(error)
   }
 
-  function openOnce(target: string): WebSocket {
-    if (socket && socket.readyState <= 1) return socket
+  function openOnce(target: string, mode: 'run' | 'resume'): WebSocket {
+    // Only the conversation socket is reused — it multiplexes many turns. A
+    // 'resume' handshake carries ?offset and must reach the server as its own
+    // connection (reusing any open socket would discard that query, so no
+    // replay would ever be requested), and a run frame must never be written
+    // to a read-only resume socket (the server registers no message listener
+    // there, so the frame would be silently ignored).
+    if (
+      socket &&
+      socket.readyState <= 1 &&
+      mode === 'run' &&
+      socketMode === 'run'
+    ) {
+      return socket
+    }
+    const prior = socket
     const ws = options.protocols
       ? new Impl(target, options.protocols)
       : new Impl(target)
     socket = ws
+    socketMode = mode
     openPromise = new Promise<void>((resolve, reject) => {
       ws.onopen = () => resolve()
       ws.onerror = (e) => reject(new StreamReadError(e))
     })
-    // Attach a no-op handler so a socket nobody awaits (e.g. joinRun) can't raise
-    // an unhandled rejection if it errors. Awaiters of openPromise still see the rejection.
+    // Attach a no-op handler so a socket nobody awaits can't raise an
+    // unhandled rejection if it errors. Awaiters of openPromise still see the rejection.
     openPromise.catch(() => {})
     ws.onmessage = (event: MessageEvent) => {
+      // A retired socket (a newer connection took over below) must not keep
+      // feeding the shared listeners.
+      if (ws !== socket) return
       let parsed: unknown
       try {
         parsed = JSON.parse(String(event.data))
@@ -2033,13 +2135,7 @@ export function webSocket(
         failAll(new StreamReadError(error))
         return
       }
-      if (
-        typeof parsed === 'object' &&
-        parsed !== null &&
-        (parsed as { type?: unknown }).type === 'ping'
-      ) {
-        return
-      }
+      if (isPingFrame(parsed)) return
       const envelopeId = isNdjsonEnvelope(parsed) ? parsed.id : undefined
       const chunk = isNdjsonEnvelope(parsed)
         ? parsed.chunk
@@ -2047,8 +2143,8 @@ export function webSocket(
 
       // Thread durable chunks through the active run session's tracker (if
       // any) so a later reconnect knows the last offset and can skip a
-      // replayed boundary. A socket with no active session (e.g. joinRun()
-      // only) dispatches chunks as-is, exactly as before Task 11.
+      // replayed boundary. A socket with no active session dispatches chunks
+      // as-is.
       const session = currentSession
       if (session) {
         if (session.tracker.note(envelopeId) === 'duplicate') return
@@ -2063,10 +2159,12 @@ export function webSocket(
       for (const l of listeners) l.push(chunk)
     }
     ws.onclose = () => {
+      // Retired deliberately in favor of a newer connection — not a drop.
+      if (ws !== socket) return
       const session = currentSession
       if (!session) {
-        // joinRun() never creates a session. Surface the drop so those
-        // iterators do not stay parked on a dead socket.
+        // No run session (never established, or cleared by a prior failure).
+        // Surface the drop so subscribers do not stay parked on a dead socket.
         failAll(new StreamReadError(new Error('WebSocket connection closed')))
         return
       }
@@ -2082,6 +2180,11 @@ export function webSocket(
       }
       void reconnect(session, lastEventId)
     }
+    // Retire a superseded socket (e.g. a lingering resume socket when send()
+    // opens the next conversation socket) so two sockets never feed the
+    // shared listeners at once. Its handlers see it is no longer current and
+    // ignore the close.
+    if (prior && prior.readyState <= 1) prior.close()
     return ws
   }
 
@@ -2097,18 +2200,25 @@ export function webSocket(
         session.signal,
       )
     } catch (error) {
-      currentSession = undefined
+      if (currentSession === session) currentSession = undefined
       failAll(error)
       return
     }
     if (session.signal?.aborted) return
+    // A send() issued during the backoff supersedes this resume: a newer run
+    // (or a resubmit of this one) already owns a fresh conversation socket,
+    // and its turn re-delivers from the durability log — the tracker de-dupes
+    // any overlap. Opening the resume socket anyway would retire that live
+    // conversation socket.
+    if (currentSession !== session) return
+    if (socket && socket.readyState <= 1) return
     session.progressed = false
     const base = typeof url === 'function' ? url() : url
     const target = withSearchParams(base, {
       ...(session.runId !== undefined ? { runId: session.runId } : {}),
       offset,
     })
-    openOnce(target)
+    openOnce(target, 'resume')
   }
 
   function waitOpen(ws: WebSocket): Promise<void> {
@@ -2121,64 +2231,14 @@ export function webSocket(
 
   return {
     subscribe(abortSignal?: AbortSignal): AsyncIterable<StreamChunk> {
-      const queue: Array<StreamChunk> = []
-      const waiters: Array<(c: StreamChunk | null) => void> = []
-      let failure: unknown
-      const push = (c: StreamChunk) => {
-        const w = waiters.shift()
-        if (w) w(c)
-        else queue.push(c)
-      }
-      const fail = (e: unknown) => {
-        failure = e
-        const w = waiters.shift()
-        if (w) w(null)
-      }
-      const sink: WebSocketChunkSink = { push, fail }
+      const pipe = createChunkPipe(abortSignal, () => listeners.delete(sink))
+      const sink: WebSocketChunkSink = { push: pipe.push, fail: pipe.fail }
       listeners.add(sink)
-      const onAbort = () => {
-        const w = waiters.shift()
-        if (w) w(null)
-      }
-      abortSignal?.addEventListener('abort', onAbort)
-      return (async function* () {
-        try {
-          while (!abortSignal?.aborted) {
-            // Drain buffered chunks before ever awaiting a new promise — a
-            // fatal drop that lands while chunks are still queued (fail()
-            // finds no pending waiter, since the consumer hasn't caught up
-            // to its buffer yet) must not be lost.
-            const buffered = queue.shift()
-            if (buffered !== undefined) {
-              yield buffered
-              continue
-            }
-            // Buffer exhausted: surface a failure recorded while we were
-            // draining, rather than awaiting a promise that will never
-            // resolve (the connection is dead — no future push/fail).
-            if (failure !== undefined) throw failure
-            const chunk = await new Promise<StreamChunk | null>((r) =>
-              waiters.push(r),
-            )
-            // The wait resolved because fail() woke us — surface the error
-            // instead of treating the null sentinel as a clean end. TS narrows
-            // `failure` to `undefined` from the check above and doesn't know
-            // the `fail()` closure can reassign it while we were awaiting —
-            // this check is very much still reachable.
-            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-            if (failure !== undefined) throw failure
-            if (chunk === null) return
-            yield chunk
-          }
-        } finally {
-          listeners.delete(sink)
-          abortSignal?.removeEventListener('abort', onAbort)
-        }
-      })()
+      return pipe.iterable
     },
     async send(messages, data, abortSignal, runContext) {
       const target = typeof url === 'function' ? url() : url
-      const ws = openOnce(runIdQuery(target, runContext?.runId))
+      const ws = openOnce(runIdQuery(target, runContext?.runId), 'run')
       await waitOpen(ws)
       // Establish (or continue) the run session this socket is driving, so
       // an unterminated drop can auto-resume it. A distinct runId starts a
@@ -2194,8 +2254,40 @@ export function webSocket(
           signal: abortSignal,
         }
       } else {
+        // Same-runId resubmit (e.g. a client-tool continuation): keep the
+        // tracker, but this is a NEW turn — with the previous turn's
+        // `sawTerminal` left set, a drop during the resubmitted turn would
+        // neither reconnect nor surface an error.
         currentSession.signal = abortSignal
+        currentSession.sawTerminal = false
+        currentSession.progressed = false
       }
+      const session = currentSession
+      // stop() must reach the server: the conversation socket outlives the
+      // turn, so without an abort frame the model keeps generating (and
+      // billing) server-side. The frame aborts only this run's turn.
+      abortSignal?.addEventListener(
+        'abort',
+        () => {
+          const abortRunId = session.runId
+          const live = socket
+          if (
+            abortRunId === undefined ||
+            session.sawTerminal ||
+            socketMode !== 'run' ||
+            live === undefined ||
+            live.readyState !== 1
+          ) {
+            return
+          }
+          try {
+            live.send(JSON.stringify({ type: 'abort', runId: abortRunId }))
+          } catch {
+            // Socket is CLOSING/CLOSED — the server aborts the turn on close.
+          }
+        },
+        { once: true },
+      )
       const body = buildRunAgentInputBody(messages, data, runContext, {
         body: options.body,
       })
@@ -2206,58 +2298,48 @@ export function webSocket(
         offset: '-1',
         runId,
       })
-      openOnce(target)
-      const chunks: Array<StreamChunk> = []
-      const waiters: Array<(c: StreamChunk | null) => void> = []
-      let failure: unknown
-      const push = (c: StreamChunk) => {
-        const w = waiters.shift()
-        if (w) w(c)
-        else chunks.push(c)
-      }
-      const fail = (e: unknown) => {
-        failure = e
-        const w = waiters.shift()
-        if (w) w(null)
-      }
-      const sink: WebSocketChunkSink = { push, fail }
-      listeners.add(sink)
-      const onAbort = () => waiters.shift()?.(null)
-      abortSignal?.addEventListener('abort', onAbort)
-      return (async function* () {
+      // A replay handshake must reach the server as its own connection:
+      // reusing the conversation socket would discard the ?offset query (no
+      // replay ever requested), and the conversation socket must not be
+      // replaced by a read-only replay socket. So joinRun owns a dedicated
+      // socket and never touches the shared socket or run session.
+      const ws = options.protocols
+        ? new Impl(target, options.protocols)
+        : new Impl(target)
+      const pipe = createChunkPipe(abortSignal, () => {
+        if (ws.readyState <= 1) ws.close()
+      })
+      ws.onmessage = (event: MessageEvent) => {
+        let parsed: unknown
         try {
-          while (!abortSignal?.aborted) {
-            // Drain buffered chunks before ever awaiting a new promise — a
-            // fatal drop that lands while chunks are still queued (fail()
-            // finds no pending waiter, since the consumer hasn't caught up
-            // to its buffer yet) must not be lost.
-            const buffered = chunks.shift()
-            if (buffered !== undefined) {
-              yield buffered
-              continue
-            }
-            // Buffer exhausted: surface a failure recorded while we were
-            // draining, rather than awaiting a promise that will never
-            // resolve (the connection is dead — no future push/fail).
-            if (failure !== undefined) throw failure
-            const c = await new Promise<StreamChunk | null>((r) =>
-              waiters.push(r),
-            )
-            // The wait resolved because fail() woke us — surface the error
-            // instead of treating the null sentinel as a clean end. TS narrows
-            // `failure` to `undefined` from the check above and doesn't know
-            // the `fail()` closure can reassign it while we were awaiting —
-            // this check is very much still reachable.
-            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-            if (failure !== undefined) throw failure
-            if (c === null) return
-            yield c
-          }
-        } finally {
-          listeners.delete(sink)
-          abortSignal?.removeEventListener('abort', onAbort)
+          parsed = JSON.parse(String(event.data))
+        } catch (error) {
+          pipe.fail(new StreamReadError(error))
+          return
         }
-      })()
+        if (isPingFrame(parsed)) return
+        pipe.push(
+          isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
+        )
+      }
+      ws.onclose = (event?: CloseEvent) => {
+        // 1000 = the server finished replaying the log and closed cleanly.
+        // Anything else is a drop or a policy refusal (e.g. 1008 "no resume
+        // offset") and must surface — a joinRun socket never auto-reconnects.
+        if (event?.code === 1000) {
+          pipe.end()
+          return
+        }
+        const detail = event
+          ? `${event.code}${event.reason ? `: ${event.reason}` : ''}`
+          : 'unknown'
+        pipe.fail(
+          new StreamReadError(
+            new Error(`WebSocket connection closed (${detail})`),
+          ),
+        )
+      }
+      return pipe.iterable
     },
   }
 }

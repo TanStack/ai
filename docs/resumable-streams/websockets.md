@@ -90,7 +90,6 @@ export function handleChatSocket(socket: WebSocketLike, request: Request) {
 | `messages` | The turn's `UIMessage[]` / `ModelMessage[]`, decoded from the frame. |
 | `threadId` / `runId` | The AG-UI identifiers for this turn. |
 | `forwardedProps` | Any extra data the client sent with the frame. |
-| `resumeOffset` | Always `null` for a fresh turn on this socket (a resume goes through `resumeWebSocketStream` instead, see below). |
 | `request` | A synthetic per-turn `Request` carrying `?runId=` in its URL, for keying a durability adapter. |
 | `signal` | Aborts when the socket closes, or when this turn receives an `abort` frame (see below). It does not abort other turns on the same socket. |
 
@@ -118,9 +117,17 @@ export function Chat() {
 ```
 
 Nothing else changes: `messages`, `sendMessage`, `stop()`, tool calls, and
-persistence all work the same as with any other connection adapter. See
-[Connection Adapters](../chat/connection-adapters) for the full option set
-(`protocols`, `body`, `reconnect`, `WebSocketImpl`).
+persistence all work the same as with any other connection adapter. Options:
+
+| Option | What it does |
+| --- | --- |
+| `protocols` | WebSocket subprotocol(s), passed straight to the `WebSocket` constructor. |
+| `body` | Static extra fields merged into every outgoing `RunAgentInput` frame (same as the HTTP adapters' `body`). |
+| `reconnect` | Reconnect bounds (`maxAttempts`, `delayMs`), shared semantics with `fetchServerSentEvents` — see [Advanced](./advanced). |
+| `WebSocketImpl` | Override the `WebSocket` implementation (tests, non-browser runtimes). |
+
+See [Connection Adapters](../chat/connection-adapters) for where `webSocket()`
+fits among the other adapters.
 
 ## Wire protocol
 
@@ -178,13 +185,11 @@ is a factory, not a value: it receives the per-turn `ctx` and reads
 ## Abort a turn
 
 An `{ type: 'abort', runId }` frame aborts only that turn's `onRun` iteration
-(`ctx.signal` fires); the socket itself stays open for the next turn. This is
-a protocol-level primitive: the built-in `webSocket()` client adapter does not
-send this frame on `stop()` today, so `stop()` only stops the client from
-processing further chunks for that run locally, without telling the server to
-cancel the model call. If you need the server to actually stop generating,
-send the frame yourself over a reference to the socket, or drive the protocol
-directly the way the e2e suite's raw-`WebSocket` tests do.
+(`ctx.signal` fires); the socket itself stays open for the next turn. The
+built-in `webSocket()` client adapter sends this frame when the run's abort
+signal fires (`stop()` in `useChat`), so the server actually stops generating
+instead of running the model call to completion against a client that stopped
+listening. A hand-rolled client should send the same frame to cancel a turn.
 
 Closing the whole socket aborts every turn still in flight on it.
 
@@ -194,7 +199,9 @@ Closing the whole socket aborts every turn still in flight on it.
 (default 30 seconds) to keep the connection alive through proxies that drop
 idle sockets. It closes the socket if no inbound frame arrives for
 `idleTimeoutMs` (default 5 minutes); a heartbeat itself doesn't count as
-activity, only a client-sent frame does:
+activity, only a client-sent frame does. The idle timeout never fires while a
+turn is still streaming, so a long single generation (an agentic loop, a
+turn longer than the timeout) is never cut off:
 
 ```ts
 import { chat, toWebSocketStream } from '@tanstack/ai'
@@ -219,26 +226,15 @@ result to `toWebSocketStream`. The pattern: hook the HTTP server's `upgrade`
 event, accept the socket with [`ws`](https://github.com/websockets/ws)'s
 `WebSocketServer({ noServer: true })`, and pass the resulting socket straight
 through. `ws`'s socket already implements the `send`/`close`/
-`addEventListener`/`bufferedAmount` surface `WebSocketLike` needs:
+`addEventListener` surface `WebSocketLike` needs:
 
 ```ts ignore
 import { WebSocketServer } from 'ws'
-import { memoryStream, resumeWebSocketStream, toWebSocketStream } from '@tanstack/ai'
+import { memoryStream, resumeWebSocketStream } from '@tanstack/ai'
 import type { Plugin } from 'vite'
-import type { WebSocketLike } from '@tanstack/ai'
 import { handleChatSocket } from './handle-chat-socket'
 
 const WS_PATH = '/api/chat-ws'
-
-function isWebSocketLike(value: unknown): value is WebSocketLike {
-  if (typeof value !== 'object' || value === null) return false
-  if (!('send' in value) || typeof value.send !== 'function') return false
-  if (!('close' in value) || typeof value.close !== 'function') return false
-  if (!('addEventListener' in value) || typeof value.addEventListener !== 'function') {
-    return false
-  }
-  return true
-}
 
 export function webSocketChatPlugin(): Plugin {
   return {
@@ -252,9 +248,9 @@ export function webSocketChatPlugin(): Plugin {
         if (url.pathname !== WS_PATH) return
 
         wss.handleUpgrade(req, socket, head, (ws) => {
+          // `ws`'s socket satisfies WebSocketLike structurally — pass it
+          // straight through, no adapter needed.
           const request = new Request(url)
-          if (!isWebSocketLike(ws)) return
-
           if (url.searchParams.get('offset') !== null) {
             resumeWebSocketStream(ws, { adapter: memoryStream(request) })
           } else {
@@ -271,9 +267,11 @@ This is the same pattern used by the working
 [`examples/ts-react-chat`](https://github.com/TanStack/ai/blob/main/examples/ts-react-chat/src/lib/websocket-chat-plugin.ts)
 WebSocket example and by the e2e suite's
 [`durable-delivery-ws-plugin.ts`](https://github.com/TanStack/ai/blob/main/testing/e2e/src/lib/durable-delivery-ws-plugin.ts).
-Bun's `ServerWebSocket` and Deno's `Deno.upgradeWebSocket` need the same shape
-of adapter: accept the platform's socket, then call `toWebSocketStream` /
-`resumeWebSocketStream` with it.
+The same wiring pattern applies elsewhere: accept the platform's socket, then
+call `toWebSocketStream` / `resumeWebSocketStream` with it. A socket from
+Deno's `Deno.upgradeWebSocket` is WHATWG-shaped and satisfies `WebSocketLike`
+directly; Bun's `ServerWebSocket` (handler-object API) needs a small adapter
+first.
 
 ## Hosting on Cloudflare
 

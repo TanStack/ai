@@ -21,9 +21,11 @@ you at `toWebSocketStream`). Because one socket outlives many `chat()` turns
 (client-tool resubmits, follow-up user messages), you pass an `onRun(ctx) =>
 AsyncIterable<StreamChunk>` factory instead of a prebuilt stream — the helper
 calls it per inbound `RunAgentInput` frame. The socket is conversation-scoped:
-it stays open across turns and closes on client close, an `{ type: 'abort',
-runId }` control frame (which aborts only that turn), or the idle timeout, with a
-periodic `{ type: 'ping' }` heartbeat. Durability is keyed per turn and reuses
+it stays open across turns and closes on client close or the idle timeout
+(which never fires while a turn is still streaming), with a periodic
+`{ type: 'ping' }` heartbeat. An `{ type: 'abort', runId }` control frame
+aborts only that turn, leaving the socket open. A turn that fails is surfaced
+to the client as a live `RUN_ERROR` frame, mirroring the HTTP transports. Durability is keyed per turn and reuses
 the existing `durableStreamSource`, so server→client frames carry the same
 `{ id, chunk }` envelope as NDJSON. `resumeWebSocketStream(socket, { adapter })`
 and `resumeWebSocketResponse({ adapter })` replay a run read-only from the
@@ -39,4 +41,7 @@ handshake header, so the offset rides in the URL). The reconnect bookkeeping
 (offset de-dupe, no-progress ceiling → `StreamReconnectLimitError`) is shared
 with the HTTP adapters via the new `createReconnectTracker`, and a fatal drop
 surfaces to the consumer (`StreamReadError` / `StreamReconnectLimitError`)
-instead of hanging.
+instead of hanging. Aborting a run (`stop()` in `useChat`) sends the
+`{ type: 'abort', runId }` frame so the server cancels the turn instead of
+generating to completion, and `joinRun()` opens its own replay socket so a
+rejoin never collides with the live conversation socket.

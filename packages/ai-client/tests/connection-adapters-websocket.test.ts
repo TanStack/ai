@@ -9,7 +9,7 @@ class FakeWebSocket {
   static instances: Array<FakeWebSocket> = []
   onopen: (() => void) | null = null
   onmessage: ((ev: { data: string }) => void) | null = null
-  onclose: (() => void) | null = null
+  onclose: ((ev?: { code?: number; reason?: string }) => void) | null = null
   onerror: ((ev: unknown) => void) | null = null
   sent: Array<string> = []
   readyState = 0
@@ -28,6 +28,11 @@ class FakeWebSocket {
   close(): void {
     this.readyState = 3
     this.onclose?.()
+  }
+  /** Simulate the server closing the socket with an explicit close code. */
+  serverClose(code: number, reason = ''): void {
+    this.readyState = 3
+    this.onclose?.({ code, reason })
   }
   emit(chunk: unknown, id?: string): void {
     this.onmessage?.({
@@ -303,6 +308,171 @@ describe('webSocket() reconnect', () => {
       'RUN_FINISHED',
     ])
   })
+
+  it('a second send() with a new runId resets the run session (fresh offsets, reconnect re-armed)', async () => {
+    FakeWebSocket.instances = []
+    const conn = webSocket('wss://x/api/chat', {
+      WebSocketImpl: FakeWebSocket as unknown as typeof WebSocket,
+      reconnect: { delayMs: 0, maxAttempts: 5 },
+    })
+    const ac = new AbortController()
+    const received: Array<any> = []
+    const sub = drain(conn.subscribe(ac.signal), received, ac.signal)
+
+    // Run 1: streams to terminal — sawTerminal is now set for the session.
+    await conn.send(
+      [{ role: 'user', content: 'hi' } as any],
+      undefined,
+      undefined,
+      { threadId: 't', runId: 'run-1' },
+    )
+    const ws1 = FakeWebSocket.instances[0]
+    if (!ws1) throw new Error('expected a first FakeWebSocket instance')
+    await tick()
+    ws1.emit(
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'a', timestamp: 0 },
+      'r1-off-1',
+    )
+    ws1.emit(
+      {
+        type: 'RUN_FINISHED',
+        runId: 'run-1',
+        threadId: 't',
+        model: 'm',
+        finishReason: 'stop',
+        timestamp: 0,
+      },
+      'r1-off-2',
+    )
+    await tick()
+
+    // Run 2 on the same conversation socket. If the session were reused,
+    // run-1's sawTerminal would suppress this reconnect entirely, and run-1's
+    // lastEventId would be sent as run-2's resume offset.
+    await conn.send(
+      [{ role: 'user', content: 'again' } as any],
+      undefined,
+      undefined,
+      { threadId: 't', runId: 'run-2' },
+    )
+    await tick()
+    expect(FakeWebSocket.instances.length).toBe(1) // conversation socket reused
+    ws1.emit(
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'b', timestamp: 0 },
+      'r2-off-1',
+    )
+    await tick()
+    ws1.close() // drop mid-run-2
+
+    await new Promise((r) => setTimeout(r, 5))
+    const ws2 = FakeWebSocket.instances[1]
+    if (!ws2) throw new Error('expected a reconnect FakeWebSocket instance')
+    const url2 = new URL(ws2.url)
+    expect(url2.searchParams.get('runId')).toBe('run-2')
+    expect(url2.searchParams.get('offset')).toBe('r2-off-1')
+
+    ws2.emit(
+      {
+        type: 'RUN_FINISHED',
+        runId: 'run-2',
+        threadId: 't',
+        model: 'm',
+        finishReason: 'stop',
+        timestamp: 0,
+      },
+      'r2-off-2',
+    )
+    await tick()
+    ac.abort()
+    await sub
+    expect(received.map((c) => c.delta ?? c.type)).toEqual([
+      'a',
+      'RUN_FINISHED',
+      'b',
+      'RUN_FINISHED',
+    ])
+  })
+
+  it('a same-runId resubmit clears sawTerminal so a drop during the new turn still reconnects', async () => {
+    FakeWebSocket.instances = []
+    const conn = webSocket('wss://x/api/chat', {
+      WebSocketImpl: FakeWebSocket as unknown as typeof WebSocket,
+      reconnect: { delayMs: 0, maxAttempts: 5 },
+    })
+    const ac = new AbortController()
+    const received: Array<any> = []
+    const sub = drain(conn.subscribe(ac.signal), received, ac.signal)
+
+    await conn.send(
+      [{ role: 'user', content: 'hi' } as any],
+      undefined,
+      undefined,
+      { threadId: 't', runId: 'run-x' },
+    )
+    const ws1 = FakeWebSocket.instances[0]
+    if (!ws1) throw new Error('expected a first FakeWebSocket instance')
+    await tick()
+    ws1.emit(
+      {
+        type: 'RUN_FINISHED',
+        runId: 'run-x',
+        threadId: 't',
+        model: 'm',
+        finishReason: 'tool_calls',
+        timestamp: 0,
+      },
+      'off-1',
+    )
+    await tick()
+
+    // Client-tool continuation: resubmit the SAME runId, then drop mid-turn.
+    await conn.send(
+      [{ role: 'user', content: 'tool result' } as any],
+      undefined,
+      undefined,
+      { threadId: 't', runId: 'run-x' },
+    )
+    await tick()
+    ws1.emit(
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'more', timestamp: 0 },
+      'off-2',
+    )
+    await tick()
+    ws1.close()
+
+    await new Promise((r) => setTimeout(r, 5))
+    // The stale terminal from the first turn must not suppress this reconnect.
+    const ws2 = FakeWebSocket.instances[1]
+    if (!ws2) throw new Error('expected a reconnect FakeWebSocket instance')
+    expect(new URL(ws2.url).searchParams.get('offset')).toBe('off-2')
+    ac.abort()
+    await sub
+  })
+
+  it('aborting a send() emits an { type: "abort", runId } frame on the conversation socket', async () => {
+    FakeWebSocket.instances = []
+    const conn = webSocket('wss://x/api/chat', {
+      WebSocketImpl: FakeWebSocket as unknown as typeof WebSocket,
+    })
+    const ac = new AbortController()
+    await conn.send(
+      [{ role: 'user', content: 'hi' } as any],
+      undefined,
+      ac.signal,
+      { threadId: 't', runId: 'run-stop' },
+    )
+    const ws = FakeWebSocket.instances[0]
+    if (!ws) throw new Error('expected a FakeWebSocket instance')
+    await tick()
+    expect(ws.sent.length).toBe(1)
+
+    ac.abort()
+    expect(ws.sent.length).toBe(2)
+    expect(JSON.parse(ws.sent[1]!)).toEqual({
+      type: 'abort',
+      runId: 'run-stop',
+    })
+  })
 })
 
 describe('webSocket() fatal drop surfacing', () => {
@@ -482,5 +652,94 @@ describe('webSocket() fatal drop surfacing', () => {
     expect(result.error).toBeDefined()
     expect((result.error as Error).name).toBe('StreamReadError')
     expect(FakeWebSocket.instances.length).toBe(1)
+  })
+
+  it('a joinRun socket the server closes cleanly (1000, replay complete) ends the iterator without error', async () => {
+    FakeWebSocket.instances = []
+    const conn = webSocket('wss://x/api/chat', {
+      WebSocketImpl: FakeWebSocket as unknown as typeof WebSocket,
+    })
+    const iter = conn.joinRun('run-j')[Symbol.asyncIterator]()
+    await tick()
+
+    const ws = FakeWebSocket.instances[0]
+    if (!ws) throw new Error('expected a FakeWebSocket instance')
+    ws.emit(
+      { type: 'TEXT_MESSAGE_CONTENT', delta: 'replayed', timestamp: 0 },
+      'off-1',
+    )
+    ws.serverClose(1000)
+
+    const received = await withTimeout(
+      drainToEnd(iter),
+      'joinRun() hung instead of ending after the server closed the replay',
+    )
+    expect(received.map((c) => c.delta)).toEqual(['replayed'])
+  })
+})
+
+describe('webSocket() run/resume socket isolation', () => {
+  it('joinRun during an open conversation socket opens its own replay socket, leaving the conversation socket intact', async () => {
+    FakeWebSocket.instances = []
+    const conn = webSocket('wss://x/api/chat', {
+      WebSocketImpl: FakeWebSocket as unknown as typeof WebSocket,
+    })
+    const ac = new AbortController()
+    await conn.send(
+      [{ role: 'user', content: 'hi' } as any],
+      undefined,
+      ac.signal,
+      { threadId: 't', runId: 'run-live' },
+    )
+    const conversation = FakeWebSocket.instances[0]
+    if (!conversation) throw new Error('expected a conversation socket')
+    await tick()
+
+    const joinAc = new AbortController()
+    void conn.joinRun('run-old', joinAc.signal)
+    await tick()
+
+    // The replay handshake reached the server as its OWN connection carrying
+    // the ?offset query — reusing the conversation socket would have silently
+    // discarded it and no replay would ever be requested.
+    expect(FakeWebSocket.instances.length).toBe(2)
+    const join = FakeWebSocket.instances[1]
+    if (!join) throw new Error('expected a joinRun socket')
+    expect(new URL(join.url).searchParams.get('offset')).toBe('-1')
+    expect(new URL(join.url).searchParams.get('runId')).toBe('run-old')
+    expect(conversation.readyState).toBe(1)
+    joinAc.abort()
+    ac.abort()
+  })
+
+  it('send() after joinRun opens a conversation socket instead of writing the run frame onto the replay socket', async () => {
+    FakeWebSocket.instances = []
+    const conn = webSocket('wss://x/api/chat', {
+      WebSocketImpl: FakeWebSocket as unknown as typeof WebSocket,
+    })
+    const joinAc = new AbortController()
+    void conn.joinRun('run-old', joinAc.signal)
+    await tick()
+    const join = FakeWebSocket.instances[0]
+    if (!join) throw new Error('expected a joinRun socket')
+
+    // Page-reload rejoin flow: catch up on the old run, then send the next
+    // message. The server registers no message listener on a replay socket,
+    // so a run frame written there would be silently dropped.
+    await conn.send(
+      [{ role: 'user', content: 'next' } as any],
+      undefined,
+      undefined,
+      { threadId: 't', runId: 'run-new' },
+    )
+    await tick()
+    expect(FakeWebSocket.instances.length).toBe(2)
+    const conversation = FakeWebSocket.instances[1]
+    if (!conversation) throw new Error('expected a conversation socket')
+    expect(join.sent.length).toBe(0)
+    expect(conversation.sent.length).toBe(1)
+    expect(JSON.parse(conversation.sent[0]!).runId).toBe('run-new')
+    expect(new URL(conversation.url).searchParams.get('offset')).toBeNull()
+    joinAc.abort()
   })
 })

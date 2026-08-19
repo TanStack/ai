@@ -78,7 +78,7 @@ function combineFailures(
   )
 }
 
-function runErrorChunk(
+export function runErrorChunk(
   error: unknown,
 ): Extract<StreamChunk, { type: 'RUN_ERROR' }> {
   const payload = toRunErrorPayload(error)

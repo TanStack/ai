@@ -7,13 +7,12 @@ import {
 } from '@tanstack/ai'
 import { openaiText } from '@tanstack/ai-openai'
 import type { Plugin } from 'vite'
-import type { WebSocketLike } from '@tanstack/ai'
 
 /**
  * A Vite dev-server plugin exposing a full-duplex WebSocket chat endpoint.
  * This app is served by Vite/Nitro on plain Node, which has no
  * `WebSocketPair`, so `toWebSocketResponse`/`resumeWebSocketResponse` (the
- * CF/Deno wrapper) can't be used here. Instead this hooks the underlying
+ * Cloudflare wrapper) can't be used here. Instead this hooks the underlying
  * Node http server's `upgrade` event directly — obtains a server socket via
  * `ws`'s `WebSocketServer({ noServer: true })`, and hands it to
  * `toWebSocketStream`/`resumeWebSocketStream`. Mirrors
@@ -29,19 +28,6 @@ import type { WebSocketLike } from '@tanstack/ai'
  *   input frame is sent, the durability log replays strictly after `offset`.
  */
 const WS_PATH = '/api/chat-ws'
-
-function isWebSocketLike(value: unknown): value is WebSocketLike {
-  if (typeof value !== 'object' || value === null) return false
-  if (!('send' in value) || typeof value.send !== 'function') return false
-  if (!('close' in value) || typeof value.close !== 'function') return false
-  if (
-    !('addEventListener' in value) ||
-    typeof value.addEventListener !== 'function'
-  ) {
-    return false
-  }
-  return true
-}
 
 /**
  * `chat()` cancels via an `AbortController` it can read `.signal` off of, but
@@ -76,9 +62,9 @@ export function webSocketChatPlugin(): Plugin {
         if (url.pathname !== WS_PATH) return
 
         wss.handleUpgrade(req, socket, head, (ws) => {
+          // `ws`'s socket satisfies WebSocketLike structurally — no adapter
+          // (and no runtime guard) needed.
           const request = new Request(url)
-          if (!isWebSocketLike(ws)) return
-
           if (url.searchParams.get('offset') !== null) {
             resumeWebSocketStream(ws, {
               adapter: memoryStream(request),

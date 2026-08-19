@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
@@ -77,6 +78,11 @@ import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcr
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 
+const WebsocketAdapterRoute = WebsocketAdapterRouteImport.update({
+  id: '/websocket-adapter',
+  path: '/websocket-adapter',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
   path: '/tools-test',
@@ -441,6 +447,7 @@ export interface FileRoutesByFullPath {
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/tools-test': typeof ToolsTestRoute
+  '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
@@ -510,6 +517,7 @@ export interface FileRoutesByTo {
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/tools-test': typeof ToolsTestRoute
+  '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
@@ -580,6 +588,7 @@ export interface FileRoutesById {
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/tools-test': typeof ToolsTestRoute
+  '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
@@ -651,6 +660,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/persistence-durability'
     | '/tools-test'
+    | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
@@ -720,6 +730,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/persistence-durability'
     | '/tools-test'
+    | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
@@ -789,6 +800,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/persistence-durability'
     | '/tools-test'
+    | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
@@ -859,6 +871,7 @@ export interface RootRouteChildren {
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
   ToolsTestRoute: typeof ToolsTestRoute
+  WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
@@ -908,6 +921,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/websocket-adapter': {
+      id: '/websocket-adapter'
+      path: '/websocket-adapter'
+      fullPath: '/websocket-adapter'
+      preLoaderRoute: typeof WebsocketAdapterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools-test': {
       id: '/tools-test'
       path: '/tools-test'
@@ -1456,6 +1476,7 @@ const rootRouteChildren: RootRouteChildren = {
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
   ToolsTestRoute: ToolsTestRoute,
+  WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,

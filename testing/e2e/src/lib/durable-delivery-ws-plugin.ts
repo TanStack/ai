@@ -14,7 +14,7 @@ import type { WebSocketLike } from '@tanstack/ai'
  * NDJSON arms — same `fixedRun` sequence, same `memoryStream` durability
  * sink). The e2e app is served by Vite/Nitro on plain Node, which has no
  * `WebSocketPair`, so `toWebSocketResponse`/`resumeWebSocketResponse` (the
- * CF/Deno wrapper) can't be used here. Instead this hooks the underlying
+ * Cloudflare wrapper) can't be used here. Instead this hooks the underlying
  * Node http server's `upgrade` event directly — the same pattern
  * `examples/ts-group-chat/chat-server/vite-plugin.ts` uses for its Cap'n Web
  * socket — obtains a server socket via `ws`'s `WebSocketServer({ noServer:
@@ -30,20 +30,42 @@ import type { WebSocketLike } from '@tanstack/ai'
  *   `{ type: 'ping' }` heartbeats to ignore.
  * - Connect to `/api/durable-delivery-ws?runId=<id>&offset=<lastId>` to
  *   resume: no input frame is sent, the log replays strictly after `offset`.
+ * - `?dropAfter=<n>` (fresh runs only) simulates a mid-run connection drop for
+ *   the client-adapter reconnect e2e: the server closes the socket after
+ *   forwarding n frames while the run keeps producing into the durability
+ *   log, so the client's auto-reconnect can replay the remainder.
  */
 const WS_PATH = '/api/durable-delivery-ws'
 
-function isWebSocketLike(value: unknown): value is WebSocketLike {
-  if (typeof value !== 'object' || value === null) return false
-  if (!('send' in value) || typeof value.send !== 'function') return false
-  if (!('close' in value) || typeof value.close !== 'function') return false
-  if (
-    !('addEventListener' in value) ||
-    typeof value.addEventListener !== 'function'
-  ) {
-    return false
+/**
+ * Wrap a socket so the client sees the connection drop after `dropAfter`
+ * outbound frames. Later frames are swallowed BY DESIGN (they're the "frames
+ * lost to a dead connection" half of the simulation) while the producer keeps
+ * appending them to the durability log; once the terminal frame has been
+ * produced (the log is complete) the socket closes, so the client's
+ * auto-reconnect deterministically replays the full remainder from the log.
+ */
+function dropAfterSocket(ws: WebSocketLike, dropAfter: number): WebSocketLike {
+  let sent = 0
+  const addEventListener: WebSocketLike['addEventListener'] = (
+    type: 'message' | 'close' | 'error',
+    handler: (ev: { data: unknown }) => void,
+  ) => {
+    if (type === 'message') ws.addEventListener(type, handler)
+    else ws.addEventListener(type, () => handler({ data: undefined }))
   }
-  return true
+  return {
+    send: (data) => {
+      sent += 1
+      if (sent <= dropAfter) {
+        ws.send(data)
+        return
+      }
+      if (data.includes('RUN_FINISHED')) ws.close()
+    },
+    close: (code, reason) => ws.close(code, reason),
+    addEventListener,
+  }
 }
 
 export function durableDeliveryWebSocketPlugin(): Plugin {
@@ -62,18 +84,23 @@ export function durableDeliveryWebSocketPlugin(): Plugin {
         if (url.pathname !== WS_PATH) return
 
         wss.handleUpgrade(req, socket, head, (ws) => {
+          // `ws`'s socket satisfies WebSocketLike structurally — no adapter
+          // (and no runtime guard) needed.
           const request = new Request(url)
-          if (!isWebSocketLike(ws)) return
-
           if (url.searchParams.get('offset') !== null) {
             resumeWebSocketStream(ws, {
               adapter: memoryStream(request),
             })
           } else {
-            toWebSocketStream(ws, request, {
-              durability: (ctx) => memoryStream(ctx.request),
-              onRun: ({ runId, threadId }) => fixedRun(threadId, runId),
-            })
+            const dropAfter = Number(url.searchParams.get('dropAfter'))
+            toWebSocketStream(
+              dropAfter > 0 ? dropAfterSocket(ws, dropAfter) : ws,
+              request,
+              {
+                durability: (ctx) => memoryStream(ctx.request),
+                onRun: ({ runId, threadId }) => fixedRun(threadId, runId),
+              },
+            )
           }
         })
       })

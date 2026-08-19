@@ -174,4 +174,28 @@ test.describe('delivery durability (websocket)', () => {
     expect(resumedIds).not.toContain(result.lastId)
     expect(new Set(resumedIds).size).toBe(resumedIds.length)
   })
+
+  test('the webSocket() client adapter auto-resumes a server-side drop exactly once, in order', async ({
+    page,
+  }) => {
+    // Unlike the raw-WebSocket tests above, this drives the REAL client
+    // adapter (see /websocket-adapter): the server drops the socket after two
+    // frames (?dropAfter=2), and the adapter's own reconnect machinery must
+    // reopen at ?runId=&offset= and resume the remainder from the log.
+    await page.goto('/websocket-adapter')
+    await page.getByTestId('ws-adapter-run-drop').click()
+
+    const resultText = page.getByTestId('ws-adapter-result')
+    await expect(resultText).toContainText('RUN_FINISHED', { timeout: 15_000 })
+    const { received } = JSON.parse(
+      (await resultText.textContent()) ?? '{}',
+    ) as { received: Array<{ type: string; delta?: string }> }
+
+    // The full fixed sequence arrived despite the mid-run drop — no gap where
+    // the connection died, no duplicate around the resume boundary.
+    expect(received.map((c) => c.type)).toEqual(FIXED_TYPES)
+    expect(
+      received.filter((c) => c.delta !== undefined).map((c) => c.delta),
+    ).toEqual(['1', '2', '3', '4', '5'])
+  })
 })

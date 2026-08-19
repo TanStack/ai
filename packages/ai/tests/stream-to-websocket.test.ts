@@ -48,61 +48,55 @@ class FakeSocket implements WebSocketLike {
   sent: Array<string> = []
   closed = false
   closeCode: number | undefined
-  bufferedAmount = 0
-  private handlers: Record<string, Array<(ev: any) => void>> = {}
+  private handlers: Record<string, Array<(ev: { data: unknown }) => void>> = {}
   send(data: string): void {
+    if (this.closed) throw new Error('socket is closed')
     this.sent.push(data)
   }
   close(code?: number): void {
     this.closed = true
     this.closeCode = code
-    this.emit('close', { code })
+    this.emit('close', { data: undefined })
   }
-  addEventListener(type: string, handler: (ev: any) => void): void {
+  addEventListener(
+    type: 'message' | 'close' | 'error',
+    handler: (ev: { data: unknown }) => void,
+  ): void {
     ;(this.handlers[type] ??= []).push(handler)
   }
   emitMessage(data: string): void {
     this.emit('message', { data })
   }
   emitClose(): void {
-    this.emit('close', {})
+    this.closed = true
+    this.emit('close', { data: undefined })
   }
-  private emit(type: string, ev: any): void {
+  emitError(): void {
+    this.emit('error', { data: undefined })
+  }
+  private emit(type: string, ev: { data: unknown }): void {
     for (const h of this.handlers[type] ?? []) h(ev)
   }
 }
-
-describe('FakeSocket double', () => {
-  it('records sent frames and delivers messages to listeners', () => {
-    const socket = new FakeSocket()
-    const received: Array<string> = []
-    socket.addEventListener('message', (e) => received.push(e.data))
-    socket.send('a')
-    socket.emitMessage('b')
-    expect(socket.sent).toEqual(['a'])
-    expect(received).toEqual(['b'])
-  })
-})
 
 describe('buildTurnRequest', () => {
   it('keys the synthetic request by runId and preserves headers', () => {
     const handshake = new Request('https://x/api/chat', {
       headers: { authorization: 'Bearer t' },
     })
-    const req = buildTurnRequest(handshake, 'run-9', null)
+    const req = buildTurnRequest(handshake, 'run-9')
     const url = new URL(req.url)
     expect(url.searchParams.get('runId')).toBe('run-9')
     expect(url.searchParams.get('offset')).toBeNull()
     expect(req.headers.get('authorization')).toBe('Bearer t')
   })
 
-  it('adds ?offset on a reconnect', () => {
+  it('scrubs a handshake ?offset so a mis-routed resume cannot hit the replay branch', () => {
     const req = buildTurnRequest(
-      new Request('https://x/api/chat'),
+      new Request('https://x/api/chat?offset=off-3'),
       'run-9',
-      'off-3',
     )
-    expect(new URL(req.url).searchParams.get('offset')).toBe('off-3')
+    expect(new URL(req.url).searchParams.get('offset')).toBeNull()
   })
 })
 
@@ -273,6 +267,8 @@ describe('toWebSocketStream lifecycle', () => {
 
     expect(() => socket.emitMessage('{')).not.toThrow()
     await flush()
+    // Valid JSON with an invalid RunAgentInput shape surfaces as RUN_ERROR
+    // (see the dedicated test below) rather than crashing the socket.
     expect(() =>
       socket.emitMessage(JSON.stringify({ foo: 'bar' })),
     ).not.toThrow()
@@ -282,7 +278,157 @@ describe('toWebSocketStream lifecycle', () => {
     socket.emitMessage(inputFrame('run-5'))
     await flush()
     const types = socket.sent.map((s) => JSON.parse(s).type)
-    expect(types).toEqual(['RUN_STARTED'])
+    expect(types).toEqual(['RUN_ERROR', 'RUN_STARTED'])
+  })
+
+  it('surfaces a turn failure as a live RUN_ERROR frame and keeps the socket open', async () => {
+    const socket = new FakeSocket()
+    toWebSocketStream(socket, new Request('https://x/api/chat'), {
+      onRun: ({ runId, threadId }): AsyncIterable<StreamChunk> =>
+        (async function* () {
+          yield ev.runStarted(runId, threadId)
+          throw new Error('provider exploded')
+        })(),
+      debug: false,
+    })
+    socket.emitMessage(inputFrame('run-err'))
+    await flush()
+
+    // The conversation socket stays open, so the failure MUST reach the
+    // client as a terminal frame — otherwise the consumer hangs forever.
+    const frames = socket.sent.map((s) => JSON.parse(s))
+    expect(frames.map((f) => f.type)).toEqual(['RUN_STARTED', 'RUN_ERROR'])
+    expect(frames[1].message).toContain('provider exploded')
+    expect(socket.closed).toBe(false)
+  })
+
+  it('surfaces an invalid RunAgentInput body as a RUN_ERROR frame', async () => {
+    const socket = new FakeSocket()
+    toWebSocketStream(socket, new Request('https://x/api/chat'), {
+      onRun: () => (async function* () {})(),
+      debug: false,
+    })
+    // Valid JSON, but not a RunAgentInput (missing threadId/runId/messages).
+    socket.emitMessage(JSON.stringify({ messages: 'nope' }))
+    await flush()
+    const types = socket.sent.map((s) => JSON.parse(s).type)
+    expect(types).toEqual(['RUN_ERROR'])
+    expect(socket.closed).toBe(false)
+  })
+
+  it('multiplexes two sequential turns over one socket with separate per-turn durability logs', async () => {
+    const socket = new FakeSocket()
+    const durabilityRunIds: Array<string | null> = []
+    toWebSocketStream(socket, new Request('https://x/api/chat'), {
+      durability: (ctx) => {
+        durabilityRunIds.push(
+          new URL(ctx.request.url).searchParams.get('runId'),
+        )
+        return memoryStream(ctx.request)
+      },
+      onRun: ({ runId, threadId }): AsyncIterable<StreamChunk> =>
+        (async function* () {
+          yield ev.textContent(runId)
+          yield {
+            type: 'RUN_FINISHED',
+            runId,
+            threadId,
+            model: 'm',
+            finishReason: 'stop',
+            timestamp: Date.now(),
+          } as StreamChunk
+        })(),
+    })
+
+    socket.emitMessage(inputFrame('run-a'))
+    await flush()
+    socket.emitMessage(inputFrame('run-b'))
+    await flush()
+
+    // Both turns streamed to completion over the same open socket, and each
+    // got its own durability log keyed by its own runId.
+    const frames = socket.sent.map((s) => JSON.parse(s))
+    expect(frames.every((f) => typeof f.id === 'string' && 'chunk' in f)).toBe(
+      true,
+    )
+    expect(frames.map((f) => f.chunk.type)).toEqual([
+      'CUSTOM',
+      'TEXT_MESSAGE_CONTENT',
+      'RUN_FINISHED',
+      'CUSTOM',
+      'TEXT_MESSAGE_CONTENT',
+      'RUN_FINISHED',
+    ])
+    expect(durabilityRunIds).toEqual(['run-a', 'run-b'])
+    // Each turn's replay log is independent: joining run-a replays only run-a.
+    const joinA = memoryStream(
+      new Request('https://x/api/chat?runId=run-a&offset=-1'),
+    )
+    const replayed: Array<string> = []
+    for await (const entry of joinA.read('-1')) {
+      replayed.push(entry.chunk.type)
+    }
+    expect(replayed).toEqual(['CUSTOM', 'TEXT_MESSAGE_CONTENT', 'RUN_FINISHED'])
+    expect(socket.closed).toBe(false)
+  })
+
+  it('idle-closes a quiet socket (1000) but never one with a turn still in flight', async () => {
+    // Quiet socket: no inbound frame within idleTimeoutMs → reaped.
+    const quiet = new FakeSocket()
+    toWebSocketStream(quiet, new Request('https://x/api/chat'), {
+      onRun: () => (async function* () {})(),
+      idleTimeoutMs: 5,
+      heartbeatMs: 60_000,
+    })
+    await new Promise((r) => setTimeout(r, 30))
+    expect(quiet.closed).toBe(true)
+    expect(quiet.closeCode).toBe(1000)
+
+    // Socket with a parked in-flight turn: a long generation sends no inbound
+    // frames, but the idle reaper must not kill live work.
+    const busy = new FakeSocket()
+    let release: (() => void) | undefined
+    toWebSocketStream(busy, new Request('https://x/api/chat'), {
+      onRun: ({ runId, threadId }): AsyncIterable<StreamChunk> =>
+        (async function* () {
+          yield ev.runStarted(runId, threadId)
+          await new Promise<void>((r) => {
+            release = r
+          })
+        })(),
+      idleTimeoutMs: 5,
+      heartbeatMs: 60_000,
+    })
+    busy.emitMessage(inputFrame('run-busy'))
+    await new Promise((r) => setTimeout(r, 30))
+    expect(busy.closed).toBe(false)
+    release?.()
+    busy.emitClose()
+  })
+
+  it('tears down and aborts turns when the socket errors', async () => {
+    const socket = new FakeSocket()
+    let aborted = false
+    toWebSocketStream(socket, new Request('https://x/api/chat'), {
+      onRun: ({ signal }): AsyncIterable<StreamChunk> =>
+        // eslint-disable-next-line require-yield
+        (async function* () {
+          await new Promise<void>((resolve) => {
+            signal.addEventListener('abort', () => {
+              aborted = true
+              resolve()
+            })
+          })
+        })(),
+      debug: false,
+    })
+    socket.emitMessage(inputFrame('run-oops'))
+    await flush()
+    socket.emitError()
+    await flush()
+    expect(aborted).toBe(true)
+    expect(socket.closed).toBe(true)
+    expect(socket.closeCode).toBe(1011)
   })
 })
 
