@@ -252,7 +252,7 @@ describe('claude-code in-sandbox adapter', () => {
       )
 
       expect(await sbx.fs.read('/workspace/argv.txt')).toMatch(
-        /--setting-sources user/,
+        /--setting-sources user(?:\s|$)/,
       )
     } finally {
       await sbx.destroy()
