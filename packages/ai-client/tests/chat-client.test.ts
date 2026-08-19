@@ -5,6 +5,7 @@ import {
   createApprovalToolCallChunks,
   createCustomEventChunks,
   createMockConnectionAdapter,
+  createPushableSubscribeConnection,
   createTextChunks,
   createThinkingChunks,
   createToolCallChunks,
@@ -1969,41 +1970,31 @@ describe('ChatClient', () => {
       })
 
       it('should stay true during concurrent runs until all finish', async () => {
-        const wake = { fn: null as (() => void) | null }
-        const chunks: Array<StreamChunk> = []
-        const connection = {
-          subscribe: async function* (signal?: AbortSignal) {
-            while (!signal?.aborted) {
-              if (chunks.length > 0) {
-                const batch = chunks.splice(0)
-                for (const chunk of batch) {
-                  yield chunk
-                }
-              }
-              await new Promise<void>((resolve) => {
-                wake.fn = resolve
-                const onAbort = () => resolve()
-                signal?.addEventListener('abort', onAbort, { once: true })
-              })
-            }
-          },
-          send: async () => {
-            wake.fn?.()
-          },
-        }
+        const { connection, push } = createPushableSubscribeConnection()
         const generatingChanges: Array<boolean> = []
+        const finishedRunIds: Array<string> = []
         const client = new ChatClient({
           connection,
+          onChunk: (chunk) => {
+            if (
+              chunk.type === EventType.RUN_FINISHED &&
+              'runId' in chunk &&
+              typeof chunk.runId === 'string'
+            ) {
+              finishedRunIds.push(chunk.runId)
+            }
+          },
           onSessionGeneratingChange: (isGenerating) => {
             generatingChanges.push(isGenerating)
           },
         })
 
         client.subscribe()
-        await new Promise((resolve) => setTimeout(resolve, 10))
+        await vi.waitFor(() => {
+          expect(client.getIsSubscribed()).toBe(true)
+        })
 
-        // Simulate two concurrent runs starting
-        chunks.push(
+        push(
           {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
@@ -2019,13 +2010,12 @@ describe('ChatClient', () => {
             timestamp: Date.now(),
           },
         )
-        wake.fn?.()
-        await new Promise((resolve) => setTimeout(resolve, 20))
 
-        expect(client.getSessionGenerating()).toBe(true)
+        await vi.waitFor(() => {
+          expect(client.getSessionGenerating()).toBe(true)
+        })
 
-        // First run finishes — should still be generating because run-2 is active
-        chunks.push({
+        push({
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
@@ -2033,13 +2023,13 @@ describe('ChatClient', () => {
           timestamp: Date.now(),
           finishReason: 'stop',
         })
-        wake.fn?.()
-        await new Promise((resolve) => setTimeout(resolve, 20))
 
+        await vi.waitFor(() => {
+          expect(finishedRunIds).toContain('run-1')
+        })
         expect(client.getSessionGenerating()).toBe(true)
 
-        // Second run finishes — now should be false
-        chunks.push({
+        push({
           type: EventType.RUN_FINISHED,
           runId: 'run-2',
           threadId: 'thread-1',
@@ -2047,39 +2037,17 @@ describe('ChatClient', () => {
           timestamp: Date.now(),
           finishReason: 'stop',
         })
-        wake.fn?.()
-        await new Promise((resolve) => setTimeout(resolve, 20))
 
-        expect(client.getSessionGenerating()).toBe(false)
-        // Only two transitions: false→true at start, true→false when all done
+        await vi.waitFor(() => {
+          expect(client.getSessionGenerating()).toBe(false)
+        })
         expect(generatingChanges).toEqual([true, false])
 
         client.unsubscribe()
       })
 
       it('should process future live subscription chunks after persistence clear', async () => {
-        const wake = { fn: null as (() => void) | null }
-        const chunks: Array<StreamChunk> = []
-        const connection = {
-          subscribe: async function* (signal?: AbortSignal) {
-            while (!signal?.aborted) {
-              if (chunks.length > 0) {
-                const batch = chunks.splice(0)
-                for (const chunk of batch) {
-                  yield chunk
-                }
-              }
-              await new Promise<void>((resolve) => {
-                wake.fn = resolve
-                const onAbort = () => resolve()
-                signal?.addEventListener('abort', onAbort, { once: true })
-              })
-            }
-          },
-          send: async () => {
-            wake.fn?.()
-          },
-        }
+        const { connection, push } = createPushableSubscribeConnection()
         const persistence = createPersistence()
         const client = new ChatClient({
           connection,
@@ -2093,8 +2061,7 @@ describe('ChatClient', () => {
         })
 
         client.clear()
-        chunks.push(...createTextChunks('future live', 'future-live'))
-        wake.fn?.()
+        push(...createTextChunks('future live', 'future-live'))
 
         await vi.waitFor(() => {
           expect(
@@ -2112,28 +2079,7 @@ describe('ChatClient', () => {
       })
 
       it('should clear all runs on RUN_ERROR without runId', async () => {
-        const wake = { fn: null as (() => void) | null }
-        const chunks: Array<StreamChunk> = []
-        const connection = {
-          subscribe: async function* (signal?: AbortSignal) {
-            while (!signal?.aborted) {
-              if (chunks.length > 0) {
-                const batch = chunks.splice(0)
-                for (const chunk of batch) {
-                  yield chunk
-                }
-              }
-              await new Promise<void>((resolve) => {
-                wake.fn = resolve
-                const onAbort = () => resolve()
-                signal?.addEventListener('abort', onAbort, { once: true })
-              })
-            }
-          },
-          send: async () => {
-            wake.fn?.()
-          },
-        }
+        const { connection, push } = createPushableSubscribeConnection()
         const generatingChanges: Array<boolean> = []
         const client = new ChatClient({
           connection,
@@ -2143,10 +2089,11 @@ describe('ChatClient', () => {
         })
 
         client.subscribe()
-        await new Promise((resolve) => setTimeout(resolve, 10))
+        await vi.waitFor(() => {
+          expect(client.getIsSubscribed()).toBe(true)
+        })
 
-        // Two runs active
-        chunks.push(
+        push(
           {
             type: EventType.RUN_STARTED,
             runId: 'run-1',
@@ -2162,23 +2109,22 @@ describe('ChatClient', () => {
             timestamp: Date.now(),
           },
         )
-        wake.fn?.()
-        await new Promise((resolve) => setTimeout(resolve, 20))
 
-        expect(client.getSessionGenerating()).toBe(true)
+        await vi.waitFor(() => {
+          expect(client.getSessionGenerating()).toBe(true)
+        })
 
-        // Session-level error without runId clears everything
-        chunks.push({
+        push({
           type: EventType.RUN_ERROR,
           message: 'session crashed',
           model: 'test',
           timestamp: Date.now(),
           error: { message: 'session crashed' },
         })
-        wake.fn?.()
-        await new Promise((resolve) => setTimeout(resolve, 20))
 
-        expect(client.getSessionGenerating()).toBe(false)
+        await vi.waitFor(() => {
+          expect(client.getSessionGenerating()).toBe(false)
+        })
         expect(generatingChanges).toEqual([true, false])
 
         client.unsubscribe()
@@ -3919,46 +3865,27 @@ describe('ChatClient', () => {
 
   describe('concurrent runs and reconnect correctness', () => {
     it('concurrent runs should not produce duplicate messages or corrupt content', async () => {
-      const wake = { fn: null as (() => void) | null }
-      const chunks: Array<StreamChunk> = []
-      const connection = {
-        subscribe: async function* (signal?: AbortSignal) {
-          while (!signal?.aborted) {
-            if (chunks.length > 0) {
-              const batch = chunks.splice(0)
-              for (const chunk of batch) {
-                yield chunk
-              }
-              // Re-check: new chunks may have been pushed while yielding
-              // (the consumer's setTimeout(0) between chunks allows the test
-              // to push more before we reach the await below)
-              if (chunks.length > 0) continue
-            }
-            await new Promise<void>((resolve) => {
-              wake.fn = resolve
-              const onAbort = () => resolve()
-              signal?.addEventListener('abort', onAbort, { once: true })
-            })
-          }
-        },
-        send: async () => {
-          wake.fn?.()
-        },
-      }
-
-      const messagesSnapshots: Array<Array<UIMessage>> = []
+      const { connection, push } = createPushableSubscribeConnection()
+      const finishedRunIds: Array<string> = []
       const client = new ChatClient({
         connection,
-        onMessagesChange: (msgs) => {
-          messagesSnapshots.push(msgs.map((m) => ({ ...m })))
+        onChunk: (chunk) => {
+          if (
+            chunk.type === EventType.RUN_FINISHED &&
+            'runId' in chunk &&
+            typeof chunk.runId === 'string'
+          ) {
+            finishedRunIds.push(chunk.runId)
+          }
         },
       })
 
       client.subscribe()
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await vi.waitFor(() => {
+        expect(client.getIsSubscribed()).toBe(true)
+      })
 
-      // Run A starts with text message
-      chunks.push(
+      push(
         {
           type: EventType.RUN_STARTED,
           runId: 'run-a',
@@ -3972,20 +3899,23 @@ describe('ChatClient', () => {
           role: 'assistant',
           model: 'test',
           timestamp: Date.now(),
-        } as StreamChunk,
+        },
         {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-a',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Story: ',
-        } as StreamChunk,
+        },
       )
-      wake.fn?.()
-      await new Promise((resolve) => setTimeout(resolve, 20))
 
-      // Run B starts concurrently
-      chunks.push(
+      await vi.waitFor(() => {
+        expect(
+          client.getMessages().some((message) => message.id === 'msg-a'),
+        ).toBe(true)
+      })
+
+      push(
         {
           type: EventType.RUN_STARTED,
           runId: 'run-b',
@@ -3999,20 +3929,23 @@ describe('ChatClient', () => {
           role: 'assistant',
           model: 'test',
           timestamp: Date.now(),
-        } as StreamChunk,
+        },
         {
           type: EventType.TEXT_MESSAGE_CONTENT,
           messageId: 'msg-b',
           model: 'test',
           timestamp: Date.now(),
           delta: 'Hi!',
-        } as StreamChunk,
+        },
       )
-      wake.fn?.()
-      await new Promise((resolve) => setTimeout(resolve, 20))
 
-      // Run B finishes — Run A should still be active
-      chunks.push({
+      await vi.waitFor(() => {
+        expect(
+          client.getMessages().some((message) => message.id === 'msg-b'),
+        ).toBe(true)
+      })
+
+      push({
         type: EventType.RUN_FINISHED,
         runId: 'run-b',
         threadId: 'thread-1',
@@ -4020,39 +3953,40 @@ describe('ChatClient', () => {
         timestamp: Date.now(),
         finishReason: 'stop',
       })
-      wake.fn?.()
-      await new Promise((resolve) => setTimeout(resolve, 20))
 
-      // Run A continues streaming
-      chunks.push({
+      await vi.waitFor(() => {
+        expect(finishedRunIds).toContain('run-b')
+      })
+
+      push({
         type: EventType.TEXT_MESSAGE_CONTENT,
         messageId: 'msg-a',
         model: 'test',
         timestamp: Date.now(),
         delta: 'once upon a time',
-      } as StreamChunk)
-      wake.fn?.()
-      await new Promise((resolve) => setTimeout(resolve, 50))
-
-      // Verify msg-a still has correct content after run-b finished
-      const messages = client.getMessages()
-      const msgA = messages.find((m) => m.id === 'msg-a')
-      const msgB = messages.find((m) => m.id === 'msg-b')
-
-      expect(msgA).toBeDefined()
-      expect(msgB).toBeDefined()
-      expect(msgA!.parts[0]).toEqual({
-        type: 'text',
-        content: 'Story: once upon a time',
       })
-      expect(msgB!.parts[0]).toEqual({ type: 'text', content: 'Hi!' })
 
-      // No duplicate messages
-      expect(messages.filter((m) => m.id === 'msg-a')).toHaveLength(1)
-      expect(messages.filter((m) => m.id === 'msg-b')).toHaveLength(1)
+      await vi.waitFor(() => {
+        const msgA = client
+          .getMessages()
+          .find((message) => message.id === 'msg-a')
+        expect(msgA?.parts[0]).toEqual({
+          type: 'text',
+          content: 'Story: once upon a time',
+        })
+      })
 
-      // Finish run A
-      chunks.push({
+      const messages = client.getMessages()
+      const msgB = messages.find((message) => message.id === 'msg-b')
+      expect(msgB?.parts[0]).toEqual({ type: 'text', content: 'Hi!' })
+      expect(messages.filter((message) => message.id === 'msg-a')).toHaveLength(
+        1,
+      )
+      expect(messages.filter((message) => message.id === 'msg-b')).toHaveLength(
+        1,
+      )
+
+      push({
         type: EventType.RUN_FINISHED,
         runId: 'run-a',
         threadId: 'thread-1',
@@ -4060,39 +3994,16 @@ describe('ChatClient', () => {
         timestamp: Date.now(),
         finishReason: 'stop',
       })
-      wake.fn?.()
-      await new Promise((resolve) => setTimeout(resolve, 20))
 
-      expect(client.getSessionGenerating()).toBe(false)
+      await vi.waitFor(() => {
+        expect(client.getSessionGenerating()).toBe(false)
+      })
       client.unsubscribe()
     })
 
     it('reconnect with initialMessages should not duplicate assistant message on content arrival', async () => {
-      const wake = { fn: null as (() => void) | null }
-      const chunks: Array<StreamChunk> = []
-      const connection = {
-        subscribe: async function* (signal?: AbortSignal) {
-          while (!signal?.aborted) {
-            if (chunks.length > 0) {
-              const batch = chunks.splice(0)
-              for (const chunk of batch) {
-                yield chunk
-              }
-              if (chunks.length > 0) continue
-            }
-            await new Promise<void>((resolve) => {
-              wake.fn = resolve
-              const onAbort = () => resolve()
-              signal?.addEventListener('abort', onAbort, { once: true })
-            })
-          }
-        },
-        send: async () => {
-          wake.fn?.()
-        },
-      }
+      const { connection, push } = createPushableSubscribeConnection()
 
-      // Simulate reconnect: client created with initialMessages (from SSR/snapshot)
       const initialMessages: Array<UIMessage> = [
         {
           id: 'user-1',
@@ -4114,10 +4025,11 @@ describe('ChatClient', () => {
       })
 
       client.subscribe()
-      await new Promise((resolve) => setTimeout(resolve, 10))
+      await vi.waitFor(() => {
+        expect(client.getIsSubscribed()).toBe(true)
+      })
 
-      // Resumed content for in-progress message (no TEXT_MESSAGE_START)
-      chunks.push(
+      push(
         {
           type: EventType.RUN_STARTED,
           runId: 'run-1',
@@ -4131,7 +4043,7 @@ describe('ChatClient', () => {
           model: 'test',
           timestamp: Date.now(),
           delta: 'time...',
-        } as StreamChunk,
+        },
         {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
@@ -4141,21 +4053,18 @@ describe('ChatClient', () => {
           finishReason: 'stop',
         },
       )
-      wake.fn?.()
-      await new Promise((resolve) => setTimeout(resolve, 20))
 
-      const messages = client.getMessages()
-
-      // Should still have exactly 2 messages, not 3
-      expect(messages).toHaveLength(2)
-
-      // Content should be correctly appended
-      const asstMsg = messages.find((m) => m.id === 'asst-1')
-      expect(asstMsg).toBeDefined()
-      expect(asstMsg!.parts[0]).toEqual({
-        type: 'text',
-        content: 'Once upon a time...',
+      await vi.waitFor(() => {
+        const asstMsg = client
+          .getMessages()
+          .find((message) => message.id === 'asst-1')
+        expect(asstMsg?.parts[0]).toEqual({
+          type: 'text',
+          content: 'Once upon a time...',
+        })
       })
+
+      expect(client.getMessages()).toHaveLength(2)
 
       client.unsubscribe()
     })
