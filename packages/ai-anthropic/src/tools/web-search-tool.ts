@@ -3,7 +3,6 @@ import {
   getAnthropicProviderToolMetadata,
 } from './anthropic-provider-tool'
 import type { WebSearchTool20250305 } from '@anthropic-ai/sdk/resources/messages'
-import type { CacheControl } from '../text/text-provider-options'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
 export type WebSearchToolConfig = WebSearchTool20250305
@@ -57,36 +56,27 @@ const validateUserLocation = (tool: WebSearchToolConfig) => {
 export function convertWebSearchToolToAdapterFormat(
   tool: Tool,
 ): WebSearchToolConfig {
-  const metadata = getAnthropicProviderToolMetadata(tool) as {
-    allowedDomains?: Array<string> | null
-    blockedDomains?: Array<string> | null
-    maxUses?: number | null
-    userLocation?: {
-      type: 'approximate'
-      city?: string | null
-      country?: string | null
-      region?: string | null
-      timezone?: string | null
-    } | null
-    cacheControl?: CacheControl | null
-  }
-  // Vendor `WebSearchTool20250305` declares these fields as `T | null`
-  // (no `| undefined`) under exactOptionalPropertyTypes, so spread them
-  // conditionally rather than passing explicit `undefined`.
+  // The factory stores the SDK config (`allowed_domains`, `max_uses`, …)
+  // on `metadata`. Vendor `WebSearchTool20250305` declares those fields as
+  // `T | null` (no `| undefined`) under exactOptionalPropertyTypes, so
+  // spread them only when present rather than passing explicit `undefined`.
+  const metadata = getAnthropicProviderToolMetadata(tool)
   return {
     name: 'web_search',
     type: 'web_search_20250305',
-    ...(metadata.allowedDomains !== undefined && {
-      allowed_domains: metadata.allowedDomains,
+    ...(metadata?.allowed_domains !== undefined && {
+      allowed_domains: metadata.allowed_domains,
     }),
-    ...(metadata.blockedDomains !== undefined && {
-      blocked_domains: metadata.blockedDomains,
+    ...(metadata?.blocked_domains !== undefined && {
+      blocked_domains: metadata.blocked_domains,
     }),
-    ...(metadata.maxUses !== undefined && { max_uses: metadata.maxUses }),
-    ...(metadata.userLocation !== undefined && {
-      user_location: metadata.userLocation,
+    ...(metadata?.max_uses !== undefined && { max_uses: metadata.max_uses }),
+    ...(metadata?.user_location !== undefined && {
+      user_location: metadata.user_location,
     }),
-    cache_control: metadata.cacheControl || null,
+    ...(metadata?.cache_control !== undefined && {
+      cache_control: metadata.cache_control,
+    }),
   }
 }
 

@@ -12,6 +12,7 @@ import { convertShellToolToAdapterFormat } from './shell-tool'
 import { convertWebSearchPreviewToolToAdapterFormat } from './web-search-preview-tool'
 import { convertWebSearchToolToAdapterFormat } from './web-search-tool'
 import type { OpenAITool } from './index'
+import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import type { Tool } from '@tanstack/ai'
 
 /**
@@ -20,6 +21,7 @@ import type { Tool } from '@tanstack/ai'
 export function convertToolsToProviderFormat(
   tools: Array<Tool>,
 ): Array<OpenAITool> {
+  assertUniqueToolNames(tools)
   return tools.map((tool) => {
     switch (getOpenAIProviderToolKind(tool)) {
       case 'apply_patch':

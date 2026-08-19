@@ -1,3 +1,4 @@
+import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import { convertCodeExecutionToolToAdapterFormat } from './code-execution-tool'
 import { convertComputerUseToolToAdapterFormat } from './computer-use-tool'
 import { convertFileSearchToolToAdapterFormat } from './file-search-tool'
@@ -34,6 +35,7 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
   if (!tools || tools.length === 0) {
     return []
   }
+  assertUniqueToolNames(tools)
   const result: Array<ToolUnion> = []
   const functionDeclarations: Array<{
     name: string

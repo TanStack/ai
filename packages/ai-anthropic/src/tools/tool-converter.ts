@@ -1,3 +1,4 @@
+import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import { getAnthropicProviderToolKind } from './anthropic-provider-tool'
 import { convertBashToolToAdapterFormat } from './bash-tool'
 import { convertCodeExecutionToolToAdapterFormat } from './code-execution-tool'
@@ -37,6 +38,7 @@ import type { Tool } from '@tanstack/ai'
 export function convertToolsToProviderFormat<TTool extends Tool>(
   tools: Array<TTool>,
 ): Array<AnthropicTool> {
+  assertUniqueToolNames(tools)
   return tools.map((tool) => {
     switch (getAnthropicProviderToolKind(tool)) {
       case 'bash':

@@ -25,6 +25,7 @@ import {
 import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
+import { assertUniqueToolNames } from './tools/unique-tool-names'
 import {
   MiddlewareAbortError,
   ToolCallManager,
@@ -834,6 +835,7 @@ class TextEngine<
     this.messages = convertMessagesToModelMessages(config.params.messages)
 
     // Initialize lazy tool manager after messages are converted (needs message history for scanning)
+    assertUniqueToolNames(config.params.tools || [])
     this.lazyToolManager = new LazyToolManager(
       config.params.tools || [],
       this.messages,
@@ -3451,6 +3453,7 @@ class TextEngine<
     this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
     this.systemPrompts = config.systemPrompts
+    assertUniqueToolNames(config.tools)
     this.tools = config.tools
     this.params = {
       ...this.params,
@@ -3643,6 +3646,9 @@ export function chat<
   >,
 ): TextActivityResult<TSchema, TStream, TTools> {
   validateCapabilities(options.middleware ?? [], options.adapter)
+  if (options.tools) {
+    assertUniqueToolNames(options.tools)
+  }
 
   const { outputSchema, stream } = options
 

@@ -1066,6 +1066,9 @@ describe('GeminiTextInteractionsAdapter', () => {
       chat({
         adapter,
         messages: [{ role: 'user', content: 'Search' }],
+        // Retrieval is rejected at the capability union; the test still
+        // asserts the runtime error from convertToolsToInteractionsFormat.
+        // @ts-expect-error google_search_retrieval is not an Interactions tool
         tools: [googleSearchRetrievalTool()],
       }),
     )

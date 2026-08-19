@@ -10,6 +10,7 @@ import {
   getGeminiProviderToolKind,
   getGeminiProviderToolMetadata,
 } from '../../tools/gemini-provider-tool'
+import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   GeminiChatModelToolCapabilitiesByName,
@@ -788,6 +789,7 @@ function convertToolsToInteractionsFormat<TTool extends Tool>(
   tools: Array<TTool> | undefined,
 ): Array<InteractionsTool> | undefined {
   if (!tools || tools.length === 0) return undefined
+  assertUniqueToolNames(tools)
 
   const result: Array<InteractionsTool> = []
 

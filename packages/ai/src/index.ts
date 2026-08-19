@@ -99,6 +99,7 @@ export type {
 
 // MCP error classes (value exports — usable with instanceof)
 export { MCPDuplicateToolNameError } from './activities/chat/mcp/manager'
+export { DuplicateToolNameError } from './activities/chat/tools/unique-tool-names'
 
 // Schema conversion (Standard JSON Schema compliant)
 export {
