@@ -13,5 +13,9 @@ export type {
 } from './byok/define-provider'
 export { isByokMissingBody, byokMissing } from './byok/missing'
 export type { ByokMissingBody } from './byok/missing'
-export { ByokMissingError, ByokBlockedError } from './byok/errors'
+export {
+  ByokMissingError,
+  ByokBlockedError,
+  ByokUnresolvedProviderError,
+} from './byok/errors'
 export { maskKey, scrubSecrets } from './byok/scrub'

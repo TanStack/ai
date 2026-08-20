@@ -25,6 +25,12 @@ describe('defineByok memory', () => {
     )
   })
 
+  it('rejects empty or whitespace keys', async () => {
+    const byok = defineByok()
+    await expect(byok.update('openai', '   ')).rejects.toThrow(/non-empty/i)
+    expect(byok.getSnapshot().status.openai).toBeUndefined()
+  })
+
   it('update(key) writes the prompted provider', async () => {
     const byok = defineByok()
     byok.request('anthropic', 'missing')
@@ -244,5 +250,124 @@ describe('defineByok unlockable update/clear', () => {
       }),
     )
     expect(save.mock.calls.at(-1)?.[0]).not.toHaveProperty('openai')
+  })
+})
+
+describe('defineByok persist-then-emit', () => {
+  it('does not mark a key saved when storage.save throws', async () => {
+    const storage: KeyringStorage = {
+      id: 'failing',
+      label: 'Failing',
+      persistent: true,
+      load: () => ({}),
+      save: async () => {
+        throw new Error('quota')
+      },
+      clear: () => {},
+    }
+    const byok = defineByok({ storage })
+    await expect(byok.update('openai', 'sk-abcdefghij')).rejects.toThrow(
+      /quota/,
+    )
+    expect(byok.headers('openai')).toEqual({})
+    expect(byok.getSnapshot().status.openai).toEqual({
+      state: 'error',
+      masked: 'ghij',
+      message: 'quota',
+    })
+    expect(JSON.stringify(byok.getSnapshot())).not.toContain('sk-abcdefghij')
+  })
+
+  it('does not clear keys when storage.clear throws', async () => {
+    const storage: KeyringStorage = {
+      id: 'failing-clear',
+      label: 'Failing clear',
+      persistent: true,
+      load: () => ({}),
+      save: () => {},
+      clear: async () => {
+        throw new Error('idb blocked')
+      },
+    }
+    const byok = defineByok({ storage })
+    await byok.update('openai', 'sk-abcdefghij')
+    await expect(byok.clear()).rejects.toThrow(/idb blocked/)
+    expect(byok.headers('openai')).toEqual({
+      'x-byok-openai': 'sk-abcdefghij',
+    })
+  })
+})
+
+describe('defineByok locked snapshot', () => {
+  it('peeks last-4 as locked and omits headers until unlock', async () => {
+    const storage: KeyringStorage = {
+      id: 'mock-passkey',
+      label: 'Mock passkey',
+      persistent: true,
+      unlockable: true,
+      peek: () => ({ openai: 'ghij' }),
+      load: () => ({ openai: 'sk-abcdefghij' }),
+      save: () => {},
+      clear: () => {},
+    }
+    const byok = defineByok({ storage })
+    await byok.ready()
+
+    expect(byok.getSnapshot().locked).toBe(true)
+    expect(byok.getSnapshot().status.openai).toEqual({
+      state: 'locked',
+      masked: 'ghij',
+    })
+    expect(byok.headers('openai')).toEqual({})
+    expect(JSON.stringify(byok.getSnapshot())).not.toContain('sk-abcdefghij')
+
+    await byok.unlock()
+    expect(byok.getSnapshot().locked).toBe(false)
+    expect(byok.headers('openai')).toEqual({
+      'x-byok-openai': 'sk-abcdefghij',
+    })
+  })
+
+  it('maps a cancelled unlock to ByokBlockedError locked', async () => {
+    const storage: KeyringStorage = {
+      id: 'mock-passkey',
+      label: 'Mock passkey',
+      persistent: true,
+      unlockable: true,
+      peek: () => ({ openai: 'ghij' }),
+      load: async () => {
+        throw new Error('Passkey unlock was cancelled')
+      },
+      save: () => {},
+      clear: () => {},
+    }
+    const byok = defineByok({ storage })
+    await byok.ready()
+    await expect(byok.unlock()).rejects.toBeInstanceOf(ByokBlockedError)
+    expect(byok.getSnapshot().prompt).toEqual({
+      provider: 'openai',
+      reason: 'locked',
+    })
+    expect(byok.getSnapshot().locked).toBe(true)
+    expect(byok.headers('openai')).toEqual({})
+  })
+
+  it('records peek failures on the snapshot', async () => {
+    const storage: KeyringStorage = {
+      id: 'mock-passkey',
+      label: 'Mock passkey',
+      persistent: true,
+      unlockable: true,
+      peek: async () => {
+        throw new Error('IndexedDB blocked')
+      },
+      load: () => ({}),
+      save: () => {},
+      clear: () => {},
+    }
+    const byok = defineByok({ storage })
+    await byok.ready()
+    expect(byok.getSnapshot().storageError).toBe('IndexedDB blocked')
+    expect(byok.getSnapshot().locked).toBe(true)
   })
 })

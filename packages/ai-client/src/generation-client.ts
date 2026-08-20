@@ -1,5 +1,8 @@
-import { ByokMissingError } from '@tanstack/ai/byok'
-import { resolveByokProviderId } from './byok/resolve'
+import { ByokBlockedError, ByokMissingError } from '@tanstack/ai/byok'
+import {
+  prepareResolvedByokHeaders,
+  resolveByokProviderId,
+} from './byok/resolve'
 import {
   GENERATION_EVENTS,
   GENERATION_STREAM_TRUNCATED_MESSAGE,
@@ -273,8 +276,7 @@ export class GenerationClient<
           this.byokProvider,
           this.body.provider,
         )
-        await this.byok.prepare(provider)
-        headers = this.byok.headers(provider)
+        headers = await prepareResolvedByokHeaders(this.byok, provider)
       }
 
       if (this.fetcher) {
@@ -329,6 +331,9 @@ export class GenerationClient<
       const error = err instanceof Error ? err : new Error(String(err))
       if (error instanceof ByokMissingError) {
         this.byok?.request(error.provider, 'missing')
+      }
+      if (error instanceof ByokBlockedError && error.reason === 'locked') {
+        this.byok?.request(error.provider, 'locked')
       }
       this.setError(error)
       this.setStatus('error')

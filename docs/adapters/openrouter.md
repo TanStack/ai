@@ -504,7 +504,7 @@ export async function POST(request: Request) {
   if (!apiKey) return byokMissing(openrouterByok);
 
   const stream = chat({
-    adapter: createOpenRouterText("openai/gpt-5", apiKey),
+    adapter: createOpenRouterText("openai/gpt-5.5", apiKey),
     messages: params.messages,
     threadId: params.threadId,
     runId: params.runId,

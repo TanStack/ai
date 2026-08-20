@@ -381,6 +381,7 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
   /**
    * Optional provider id for this generation. If it returns a provider slug,
    * only that key is prepared and sent. Otherwise `body.provider` is used.
+   * If no slug resolves, generate throws instead of attaching every stored key.
    */
   byokProvider?: () => string | undefined
 

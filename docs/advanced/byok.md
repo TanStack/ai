@@ -19,7 +19,7 @@ Provider ids are open slugs (`openai`, `bedrock`, `my-llm`), not a fixed catalog
 
 ## Store keys on the client
 
-Create one `ByokClient` for the app. `defaultByokStorage()` uses a passkey when the browser supports it. If it does not, it keeps keys in session memory.
+Create one `ByokClient` for the app. `defaultByokStorage()` uses a passkey when WebAuthn is available in a secure context. If it is not, keys stay in memory on that `ByokClient` instance (gone on reload). WebAuthn support is not the same as PRF — first save throws if the authenticator does not support the PRF extension.
 
 ```typescript
 import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
@@ -73,7 +73,9 @@ export function Chat() {
 }
 ```
 
-`forwardedProps.provider` selects which key to send. You can also pass `byokProvider`.
+`forwardedProps.provider` selects which key to send. You can also pass `byokProvider`. If no slug resolves, the send throws instead of attaching every stored key. Always set `byokProvider` or `forwardedProps.provider`.
+
+Send is blocked until a key exists or you call `setServerCoverage`. Catch `ByokBlockedError` / `ByokMissingError` / `ByokUnresolvedProviderError` if you fire `sendMessage` without awaiting a save.
 
 ## Save a key
 
@@ -87,8 +89,9 @@ import { byok } from "./byok";
 export function KeyForm() {
   const snapshot = useByok(byok);
   const [value, setValue] = useState("");
+  const [error, setError] = useState("");
   const status = snapshot.status.openai;
-  const last4 = status?.masked ?? "";
+  const last4 = status && "masked" in status ? status.masked : "";
 
   return (
     <form
@@ -96,9 +99,17 @@ export function KeyForm() {
         event.preventDefault();
         const next = value.trim();
         if (!next) return;
-        void byok.update("openai", next).then(() => {
-          setValue("");
-        });
+        void byok
+          .update("openai", next)
+          .then(() => {
+            setValue("");
+            setError("");
+          })
+          .catch((caught) => {
+            setError(
+              caught instanceof Error ? caught.message : "Could not save key",
+            );
+          });
       }}
     >
       <input
@@ -111,14 +122,15 @@ export function KeyForm() {
       <button type="submit" disabled={!value.trim()}>
         Save
       </button>
+      {error ? <p>{error}</p> : null}
     </form>
   );
 }
 ```
 
-`useByok(byok)` is the live snapshot. Use it to show the last four characters, a lock state, or `snapshot.prompt` when a send needs a key.
+`useByok(byok)` is the live snapshot. Use it to show the last four characters, a lock state, or `snapshot.prompt` when a send needs a key. Render `byok.storage.warning` and `snapshot.storageError` if they are set.
 
-If `snapshot.locked` is true, call `byok.unlock()` first.
+`update`, `prepare`, and `clear(provider)` already call `unlock()` when the ring is locked. A separate `byok.unlock()` is optional UX so you can show last-4 before a send.
 
 ## Sign in with OpenRouter
 

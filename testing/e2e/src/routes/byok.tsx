@@ -16,17 +16,26 @@ export const Route = createFileRoute('/byok')({
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
       aimockPort: port != null && !Number.isNaN(port) ? port : undefined,
+      serverCoverage:
+        search.serverCoverage === true ||
+        search.serverCoverage === '1' ||
+        search.serverCoverage === 'true',
     }
   },
 })
 
 function ByokPage() {
-  const { testId, aimockPort } = Route.useSearch()
-  const [byok] = useState(() => defineByok({ storage: memoryStorage() }))
+  const { testId, aimockPort, serverCoverage } = Route.useSearch()
+  const [byok] = useState(() => {
+    const client = defineByok({ storage: memoryStorage() })
+    if (serverCoverage) client.setServerCoverage(true)
+    return client
+  })
   const snapshot = useByok(byok)
   const [hydrated, setHydrated] = useState(false)
   const openaiStatus = snapshot.status.openai
-  const last4 = openaiStatus?.masked ?? ''
+  const last4 =
+    openaiStatus && 'masked' in openaiStatus ? openaiStatus.masked : ''
 
   useEffect(() => {
     setHydrated(true)

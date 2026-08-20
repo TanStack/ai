@@ -1,10 +1,19 @@
 import { test, expect } from './fixtures'
-import { sendMessage } from './helpers'
+import { sendMessage, waitForResponse } from './helpers'
 
 const RAW_KEY = 'sk-e2e-byok-test-1234'
 
-function byokUrl(testId: string, aimockPort: number): string {
-  return `/byok?testId=${encodeURIComponent(testId)}&aimockPort=${aimockPort}`
+function byokUrl(
+  testId: string,
+  aimockPort: number,
+  options?: { serverCoverage?: boolean },
+): string {
+  const params = new URLSearchParams({
+    testId,
+    aimockPort: String(aimockPort),
+  })
+  if (options?.serverCoverage) params.set('serverCoverage', '1')
+  return `/byok?${params.toString()}`
 }
 
 test.describe('byok', () => {
@@ -29,6 +38,10 @@ test.describe('byok', () => {
 
     expect(request.headers()['x-byok-openai']).toBe(RAW_KEY)
     expect(request.postData() ?? '').not.toContain(RAW_KEY)
+
+    await waitForResponse(page)
+    await expect(page.getByTestId('assistant-message').first()).toBeVisible()
+    await expect(page.getByTestId('byok-prompt')).toHaveText('')
   })
 
   test('prompts for openai when sending without a key', async ({
@@ -37,6 +50,17 @@ test.describe('byok', () => {
     aimockPort,
   }) => {
     await page.goto(byokUrl(testId, aimockPort))
+
+    await sendMessage(page, 'hello')
+    await expect(page.getByTestId('byok-prompt')).toHaveText('openai')
+  })
+
+  test('sets the missing prompt from a byokMissing 401', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await page.goto(byokUrl(testId, aimockPort, { serverCoverage: true }))
 
     await sendMessage(page, 'hello')
     await expect(page.getByTestId('byok-prompt')).toHaveText('openai')

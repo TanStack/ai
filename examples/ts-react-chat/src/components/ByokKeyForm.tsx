@@ -6,6 +6,7 @@ import type { Provider } from '@/lib/model-selection'
 export function ByokKeyForm({ provider }: { provider: Provider }) {
   const snapshot = useByok(byok)
   const [keyInput, setKeyInput] = useState('')
+  const [error, setError] = useState('')
   const byokProvider = toByokProvider(provider)
 
   if (!byokProvider) {
@@ -22,8 +23,25 @@ export function ByokKeyForm({ provider }: { provider: Provider }) {
   const handleSave = async () => {
     const next = keyInput.trim()
     if (!next) return
-    await byok.update(byokProvider, next)
-    setKeyInput('')
+    try {
+      await byok.update(byokProvider, next)
+      setKeyInput('')
+      setError('')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Could not save key')
+    }
+  }
+
+  const handleAction = async (
+    action: () => Promise<void>,
+    fallback: string,
+  ) => {
+    try {
+      await action()
+      setError('')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : fallback)
+    }
   }
 
   return (
@@ -50,7 +68,12 @@ export function ByokKeyForm({ provider }: { provider: Provider }) {
         </button>
         <button
           type="button"
-          onClick={() => void byok.clear(byokProvider)}
+          onClick={() => {
+            void handleAction(
+              () => byok.clear(byokProvider),
+              'Could not clear key',
+            )
+          }}
           disabled={!status}
           className="px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 disabled:opacity-50 text-sm font-medium"
         >
@@ -59,7 +82,9 @@ export function ByokKeyForm({ provider }: { provider: Provider }) {
         {snapshot.locked && (
           <button
             type="button"
-            onClick={() => void byok.unlock()}
+            onClick={() =>
+              void handleAction(() => byok.unlock(), 'Could not unlock keys')
+            }
             className="px-3 py-2 rounded-lg bg-gray-800 border border-gray-700 text-gray-300 hover:bg-gray-700 text-sm font-medium"
           >
             Unlock
@@ -69,6 +94,13 @@ export function ByokKeyForm({ provider }: { provider: Provider }) {
           <span className="text-xs text-gray-400">last 4: {last4}</span>
         )}
       </div>
+      {byok.storage.warning && (
+        <p className="text-xs text-gray-500">{byok.storage.warning}</p>
+      )}
+      {snapshot.storageError && (
+        <p className="text-xs text-red-400">{snapshot.storageError}</p>
+      )}
+      {error && <p className="text-xs text-red-400">{error}</p>}
       {snapshot.prompt && (
         <p className="text-xs text-amber-400">
           Need a {snapshot.prompt.provider} key ({snapshot.prompt.reason})

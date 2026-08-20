@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai/client'
-import { ByokMissingError, byokMissing } from '@tanstack/ai/byok'
+import {
+  ByokBlockedError,
+  ByokMissingError,
+  ByokUnresolvedProviderError,
+  byokMissing,
+} from '@tanstack/ai/byok'
 import { defineByok, memoryStorage } from '../src/byok'
 import { VideoGenerationClient } from '../src/video-generation-client'
 import type { ConnectConnectionAdapter } from '../src/connection-adapters'
@@ -102,5 +107,40 @@ describe('VideoGenerationClient byok', () => {
       provider: 'elevenlabs',
       reason: 'missing',
     })
+  })
+
+  it('does not call the fetcher when the provider key is missing', async () => {
+    const byok = defineByok()
+    const fetcher = vi.fn()
+    const client = new VideoGenerationClient({
+      fetcher,
+      byok,
+      byokProvider: () => 'elevenlabs',
+    })
+
+    await client.generate({ prompt: 'hello' })
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(client.getError()).toBeInstanceOf(ByokBlockedError)
+    expect(byok.getSnapshot().prompt).toEqual({
+      provider: 'elevenlabs',
+      reason: 'missing',
+    })
+  })
+
+  it('does not send every stored key when no provider resolves', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('openai', 'sk-live-secret')
+    await byok.update('elevenlabs', ELEVENLABS_KEY)
+    const fetcher = vi.fn()
+    const client = new VideoGenerationClient({
+      fetcher,
+      byok,
+    })
+
+    await client.generate({ prompt: 'hello' })
+
+    expect(fetcher).not.toHaveBeenCalled()
+    expect(client.getError()).toBeInstanceOf(ByokUnresolvedProviderError)
   })
 })

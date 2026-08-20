@@ -378,10 +378,22 @@ export function passkeyStorage(
 }
 
 /**
- * Passkey-encrypted storage when supported, otherwise session memory.
+ * Passkey-encrypted storage when WebAuthn is available in a secure context.
+ * Otherwise session memory, with a warning — this is not an automatic PRF
+ * fallback. First save still throws if the authenticator lacks PRF.
  */
 export function defaultByokStorage(
   options?: PasskeyStorageOptions,
 ): KeyringStorage {
-  return isPasskeyStorageSupported() ? passkeyStorage(options) : memoryStorage()
+  const secure =
+    typeof globalThis.isSecureContext !== 'boolean' ||
+    globalThis.isSecureContext
+  if (!isPasskeyStorageSupported() || !secure) {
+    return {
+      ...memoryStorage(),
+      warning:
+        'Passkeys are unavailable in this context. Keys stay in memory for this tab only.',
+    }
+  }
+  return passkeyStorage(options)
 }

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, expectTypeOf, it } from 'vitest'
 import {
   BYOK_HEADER_PREFIX,
   ByokMissingError,
+  ByokUnresolvedProviderError,
   byokHeaderName,
   byokMissing,
   byokValidateMap,
@@ -242,5 +243,14 @@ describe('ByokMissingError', () => {
     expect(error).toBeInstanceOf(ByokMissingError)
     expect(error.provider).toBe('gemini')
     expect(error.name).toBe('ByokMissingError')
+  })
+})
+
+describe('ByokUnresolvedProviderError', () => {
+  it('is instanceof-checkable', () => {
+    const error = new ByokUnresolvedProviderError()
+    expect(error).toBeInstanceOf(Error)
+    expect(error).toBeInstanceOf(ByokUnresolvedProviderError)
+    expect(error.name).toBe('ByokUnresolvedProviderError')
   })
 })

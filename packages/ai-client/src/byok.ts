@@ -1,4 +1,4 @@
-export { defineByok, ByokClient } from './byok/client'
+export { defineByok, ByokClient, EMPTY_BYOK_SNAPSHOT } from './byok/client'
 export type {
   ByokPrompt,
   ByokSnapshot,

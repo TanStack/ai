@@ -25,3 +25,12 @@ export class ByokBlockedError extends Error {
     this.reason = reason
   }
 }
+
+export class ByokUnresolvedProviderError extends Error {
+  constructor() {
+    super(
+      'BYOK is enabled but no provider slug was resolved. Pass byokProvider or forwardedProps.provider.',
+    )
+    this.name = 'ByokUnresolvedProviderError'
+  }
+}

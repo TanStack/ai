@@ -20,6 +20,8 @@ export function memoryStorage(): KeyringStorage {
     id: 'memory',
     label: 'Session only (not saved)',
     persistent: false,
+    warning:
+      'Keys stay in memory for this tab only. They are not saved across reloads.',
     load: () => ({}),
     save: () => {},
     clear: () => {},

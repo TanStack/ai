@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
 import { EventType } from '@tanstack/ai/client'
-import { ByokBlockedError, ByokMissingError } from '@tanstack/ai/byok'
+import {
+  ByokBlockedError,
+  ByokMissingError,
+  ByokUnresolvedProviderError,
+} from '@tanstack/ai/byok'
 import { defineByok, memoryStorage } from '../src/byok'
 import { ChatClient } from '../src/chat-client'
 import type {
@@ -61,6 +65,64 @@ describe('ChatClient byok', () => {
     expect(record.headers).toEqual({ 'x-byok-openai': OPENAI_KEY })
     expect(record.data).toEqual({ provider: 'openai', model: 'gpt-5.5' })
     expect(JSON.stringify(record.data)).not.toContain(OPENAI_KEY)
+  })
+
+  it('stamps only the resolved provider when the ring has multiple keys', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('openai', OPENAI_KEY)
+    await byok.update('anthropic', 'sk-anthropic-secret')
+    const record: {
+      headers?: Record<string, string>
+      data?: Record<string, unknown>
+    } = {}
+    const client = new ChatClient({
+      connection: recordingConnection(record),
+      byok,
+      forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
+    })
+
+    await client.sendMessage('Hello')
+
+    expect(record.headers).toEqual({ 'x-byok-openai': OPENAI_KEY })
+    expect(record.headers).not.toHaveProperty('x-byok-anthropic')
+  })
+
+  it('throws and does not connect when no provider slug resolves', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('openai', OPENAI_KEY)
+    await byok.update('anthropic', 'sk-anthropic-secret')
+    const record: {
+      headers?: Record<string, string>
+      connect?: ReturnType<typeof vi.fn>
+    } = {}
+    const client = new ChatClient({
+      connection: recordingConnection(record),
+      byok,
+    })
+
+    await expect(client.sendMessage('Hello')).rejects.toBeInstanceOf(
+      ByokUnresolvedProviderError,
+    )
+    expect(record.connect).not.toHaveBeenCalled()
+    expect(record.headers).toBeUndefined()
+  })
+
+  it('throws when forwardedProps.provider is not a slug', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('openai', OPENAI_KEY)
+    const connect = vi.fn(async function* () {
+      yield runFinished()
+    })
+    const client = new ChatClient({
+      connection: { connect },
+      byok,
+      forwardedProps: { provider: 'OpenAI' },
+    })
+
+    await expect(client.sendMessage('Hello')).rejects.toBeInstanceOf(
+      ByokUnresolvedProviderError,
+    )
+    expect(connect).not.toHaveBeenCalled()
   })
 
   it('stamps headers for slugs outside the old first-party list', async () => {

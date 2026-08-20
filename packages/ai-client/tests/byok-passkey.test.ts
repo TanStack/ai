@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   decryptKeyring,
   defaultByokStorage,
@@ -26,9 +26,15 @@ describe('isPasskeyStorageSupported', () => {
 })
 
 describe('defaultByokStorage', () => {
-  it('returns passkey or memory storage', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it('returns memory storage with a warning when passkeys are unavailable', () => {
+    vi.stubGlobal('PublicKeyCredential', undefined)
     const store = defaultByokStorage()
-    expect(['passkey', 'memory']).toContain(store.id)
+    expect(store.id).toBe('memory')
+    expect(store.warning).toMatch(/memory for this tab only/i)
   })
 })
 

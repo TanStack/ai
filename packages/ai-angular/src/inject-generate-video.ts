@@ -36,7 +36,7 @@ export interface InjectGenerateVideoOptions<TOutput = VideoGenerateResult> {
   body?: ReactiveOption<Record<string, any>>
   /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
   byok?: ByokClient
-  /** Optional provider id. If it returns a provider slug, only that key is prepared. */
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
   byokProvider?: () => ProviderId | undefined
   devtools?: AIDevtoolsDisplayOptions
   /**

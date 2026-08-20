@@ -31,6 +31,7 @@ export type ByokSnapshot = {
   status: Partial<Record<string, KeyStatus>>
   locked: boolean
   prompt: ByokPrompt | null
+  storageError: string | null
 }
 
 export type ValidationStatus = 'valid' | 'invalid' | 'unsupported'
@@ -51,11 +52,40 @@ export interface DefineByokOptions {
 
 const EMPTY: KeyStatus = { state: 'empty' }
 
+export const EMPTY_BYOK_SNAPSHOT: ByokSnapshot = {
+  status: {},
+  locked: false,
+  prompt: null,
+  storageError: null,
+}
+
 function requireProviderId(value: string): ProviderId {
   if (!isProviderId(value)) {
     throw new Error(`Invalid BYOK provider id: ${value}`)
   }
   return value
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return error instanceof Error && error.message.length > 0
+    ? error.message
+    : fallback
+}
+
+function isByokCeremonyCancel(error: unknown): boolean {
+  if (
+    typeof DOMException !== 'undefined' &&
+    error instanceof DOMException &&
+    error.name === 'NotAllowedError'
+  ) {
+    return true
+  }
+  if (error instanceof Error) {
+    if (error.name === 'NotAllowedError') return true
+    const message = error.message.toLowerCase()
+    return message.includes('cancelled') || message.includes('not allowed')
+  }
+  return false
 }
 
 function sanitizeKeyring(value: unknown): Keyring {
@@ -80,6 +110,8 @@ export class ByokClient {
   readonly #validate: Readonly<Record<string, ProviderValidateConfig>>
   readonly #listeners = new Set<() => void>()
   #snapshot: ByokSnapshot
+  #storageError: string | null = null
+  readonly #ready: Promise<void>
 
   constructor(options: DefineByokOptions = {}) {
     this.storage = options.storage ?? memoryStorage()
@@ -89,8 +121,11 @@ export class ByokClient {
     }
     this.#locked = Boolean(this.storage.unlockable)
     this.#snapshot = this.#buildSnapshot()
-    void this.#hydrate()
+    this.#ready = this.#hydrate()
   }
+
+  /** Resolves when constructor hydration (peek/load) finishes. */
+  ready = (): Promise<void> => this.#ready
 
   subscribe = (listener: () => void): (() => void) => {
     this.#listeners.add(listener)
@@ -106,6 +141,7 @@ export class ByokClient {
       status: { ...this.#statuses },
       locked: this.#locked,
       prompt: this.#prompt,
+      storageError: this.#storageError,
     }
   }
 
@@ -152,6 +188,7 @@ export class ByokClient {
   }
 
   async prepare(provider?: ProviderId): Promise<void> {
+    await this.#ready
     if (this.storage.unlockable && this.#locked) {
       await this.unlock()
     }
@@ -167,6 +204,7 @@ export class ByokClient {
     providerOrKey: ProviderId | string,
     key?: string,
   ): Promise<void> {
+    await this.#ready
     let provider: ProviderId
     let nextKey: string
     if (key === undefined) {
@@ -179,53 +217,127 @@ export class ByokClient {
       provider = requireProviderId(providerOrKey)
       nextKey = key
     }
+    nextKey = nextKey.trim()
+    if (nextKey.length === 0) {
+      throw new Error('BYOK key must be non-empty')
+    }
     if (this.storage.unlockable && this.#locked) {
       await this.unlock()
     }
+    const previousKeys = this.#keys
+    const previousStatuses = { ...this.#statuses }
+    const previousLocked = this.#locked
+    const previousPrompt = this.#prompt
+    const previousStorageError = this.#storageError
     const next = { ...this.#keys, [provider]: nextKey }
+    try {
+      await this.storage.save(next)
+    } catch (error) {
+      this.#keys = previousKeys
+      this.#statuses = previousStatuses
+      this.#locked = previousLocked
+      this.#prompt = previousPrompt
+      this.#storageError = previousStorageError
+      this.#statuses[provider] = {
+        state: 'error',
+        masked: maskKey(nextKey),
+        message: errorMessage(error, `Failed to persist ${provider} key`),
+      }
+      this.#emit()
+      throw error
+    }
     this.#keys = next
     this.#statuses[provider] = { state: 'set', masked: maskKey(nextKey) }
     this.#locked = false
     this.#prompt = null
+    this.#storageError = null
     this.#emit()
-    await this.storage.save(next)
   }
 
   async clear(provider?: ProviderId): Promise<void> {
+    await this.#ready
     if (provider) {
       requireProviderId(provider)
       if (this.storage.unlockable && this.#locked) {
         await this.unlock()
       }
+      const previousKeys = this.#keys
+      const previousStatuses = { ...this.#statuses }
       const next = { ...this.#keys }
       delete next[provider]
+      try {
+        await this.storage.save(next)
+      } catch (error) {
+        this.#keys = previousKeys
+        this.#statuses = previousStatuses
+        this.#emit()
+        throw error
+      }
       this.#keys = next
       delete this.#statuses[provider]
       this.#emit()
-      await this.storage.save(next)
       return
+    }
+    const previousKeys = this.#keys
+    const previousStatuses = this.#statuses
+    const previousLocked = this.#locked
+    const previousPrompt = this.#prompt
+    try {
+      await this.storage.clear()
+    } catch (error) {
+      this.#keys = previousKeys
+      this.#statuses = previousStatuses
+      this.#locked = previousLocked
+      this.#prompt = previousPrompt
+      this.#emit()
+      throw error
     }
     this.#keys = {}
     this.#statuses = {}
     this.#locked = false
     this.#prompt = null
+    this.#storageError = null
     this.#emit()
-    await this.storage.clear()
   }
 
   async unlock(): Promise<void> {
+    await this.#ready
     if (!this.storage.unlockable) return
-    const loaded = sanitizeKeyring(await this.storage.load())
-    this.#keys = { ...loaded, ...this.#keys }
-    for (const [id, value] of Object.entries(loaded)) {
-      if (!isProviderId(id) || !value) continue
-      const existing = this.#statuses[id]
-      if (!existing || existing.state === 'locked') {
-        this.#statuses[id] = { state: 'set', masked: maskKey(value) }
+    try {
+      const loaded = sanitizeKeyring(await this.storage.load())
+      this.#keys = { ...loaded, ...this.#keys }
+      for (const [id, value] of Object.entries(loaded)) {
+        if (!isProviderId(id) || !value) continue
+        const existing = this.#statuses[id]
+        if (!existing || existing.state === 'locked') {
+          this.#statuses[id] = { state: 'set', masked: maskKey(value) }
+        }
       }
+      this.#locked = false
+      this.#storageError = null
+      this.#emit()
+    } catch (error) {
+      if (isByokCeremonyCancel(error)) {
+        const provider = this.#lockedProvider()
+        if (provider) {
+          this.request(provider, 'locked')
+          throw new ByokBlockedError(provider, 'locked')
+        }
+      }
+      this.#storageError = errorMessage(error, 'Failed to unlock keyring')
+      this.#emit()
+      throw error instanceof Error ? error : new Error(String(error))
     }
-    this.#locked = false
-    this.#emit()
+  }
+
+  #lockedProvider(): ProviderId | undefined {
+    if (this.#prompt && isProviderId(this.#prompt.provider)) {
+      return this.#prompt.provider
+    }
+    for (const [id, status] of Object.entries(this.#statuses)) {
+      if (status?.state === 'locked' && isProviderId(id)) return id
+    }
+    return undefined
   }
 
   async validate(provider: ProviderId, key?: string): Promise<KeyStatus> {
@@ -291,10 +403,12 @@ export class ByokClient {
             masked: last4 ? last4 : '••',
           }
         }
-        if (Object.keys(preview).length === 0) this.#locked = false
+        this.#locked = Object.keys(preview).length > 0
+        this.#storageError = null
         this.#emit()
-      } catch {
-        // peek is best-effort
+      } catch (error) {
+        this.#storageError = errorMessage(error, 'Failed to read keyring')
+        this.#emit()
       }
       return
     }
@@ -305,9 +419,11 @@ export class ByokClient {
         if (!isProviderId(id) || !value) continue
         this.#statuses[id] = { state: 'set', masked: maskKey(value) }
       }
+      this.#storageError = null
       this.#emit()
-    } catch {
-      // load is best-effort on construct
+    } catch (error) {
+      this.#storageError = errorMessage(error, 'Failed to read keyring')
+      this.#emit()
     }
   }
 

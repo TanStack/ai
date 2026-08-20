@@ -6,8 +6,15 @@ import {
   normalizeToUIMessage,
   parseWithStandardSchema,
 } from '@tanstack/ai/client'
-import { ByokBlockedError, ByokMissingError } from '@tanstack/ai/byok'
-import { resolveByokProviderId } from './byok/resolve'
+import {
+  ByokBlockedError,
+  ByokMissingError,
+  ByokUnresolvedProviderError,
+} from '@tanstack/ai/byok'
+import {
+  prepareResolvedByokHeaders,
+  resolveByokProviderId,
+} from './byok/resolve'
 import { createNoOpChatDevtoolsBridge } from './devtools-noop'
 import {
   fetcherToConnectionAdapter,
@@ -2142,8 +2149,7 @@ export class ChatClient<
           this.forwardedPropsOption.provider,
           this.bodyOption.provider,
         )
-        await this.byok.prepare(provider)
-        byokHeaders = this.byok.headers(provider)
+        byokHeaders = await prepareResolvedByokHeaders(this.byok, provider)
       }
 
       const runContext = {
@@ -2217,40 +2223,44 @@ export class ChatClient<
       // Finalize (idempotent — may already be done by RUN_FINISHED handler)
       this.processor.finalizeStream()
       streamCompletedSuccessfully = true
-    } catch (err) {
-      if (err instanceof Error) {
-        if (err.name === 'AbortError') {
-          if (activeDevtoolsRunId) {
-            this.devtoolsBridge.emitRunLifecycle(
-              'run:cancelled',
-              activeDevtoolsRunId,
-              'cancelled',
-            )
-            runTerminalEventEmitted = true
-          }
-          return false
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      if (error.name === 'AbortError') {
+        if (activeDevtoolsRunId) {
+          this.devtoolsBridge.emitRunLifecycle(
+            'run:cancelled',
+            activeDevtoolsRunId,
+            'cancelled',
+          )
+          runTerminalEventEmitted = true
         }
-        if (err instanceof ByokMissingError) {
-          this.byok?.request(err.provider, 'missing')
+        return false
+      }
+      if (error instanceof ByokMissingError) {
+        this.byok?.request(error.provider, 'missing')
+      }
+      if (error instanceof ByokBlockedError && error.reason === 'locked') {
+        this.byok?.request(error.provider, 'locked')
+      }
+      if (generation === this.streamGeneration) {
+        this.reportStreamError(error)
+        if (activeDevtoolsRunId) {
+          this.devtoolsBridge.emitRunLifecycle(
+            'run:errored',
+            activeDevtoolsRunId,
+            'errored',
+            { error: error.message },
+          )
+          runTerminalEventEmitted = true
         }
-        if (generation === this.streamGeneration) {
-          this.reportStreamError(err)
-          if (activeDevtoolsRunId) {
-            this.devtoolsBridge.emitRunLifecycle(
-              'run:errored',
-              activeDevtoolsRunId,
-              'errored',
-              { error: err.message },
-            )
-            runTerminalEventEmitted = true
-          }
-        }
-        if (
-          generation === this.streamGeneration &&
-          (err instanceof ByokMissingError || err instanceof ByokBlockedError)
-        ) {
-          throw err
-        }
+      }
+      if (
+        generation === this.streamGeneration &&
+        (error instanceof ByokMissingError ||
+          error instanceof ByokBlockedError ||
+          error instanceof ByokUnresolvedProviderError)
+      ) {
+        throw error
       }
     } finally {
       // Only clean up if this is still the active stream.
