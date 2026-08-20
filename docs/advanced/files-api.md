@@ -175,6 +175,6 @@ Gemini and fal handles are URLs, so they also round-trip through a plain `{ type
 
 ### Providers and endpoints that can't consume references
 
-Adapters that can consume file references declare a `supportsFileSources` capability; for everyone else — Grok, Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, and any adapter written before this feature existed — `chat()` / `generateImage()` / `generateVideo()` reject `{ type: 'file' }` sources **before any request is built**, so a reference can never be silently mis-mapped onto a URL or data field.
+Adapters that can consume file references declare a `supportsFileSources` capability; for everyone else — Grok, Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, Cohere, and any adapter written before this feature existed — `chat()` / `generateImage()` / `generateVideo()` / `embed()` reject `{ type: 'file' }` sources **before any request is built**, so a reference can never be silently mis-mapped onto a URL or data field.
 
 Some endpoints on supporting providers also have no "reference an uploaded handle" option — OpenAI's `images/edits` and Sora `input_reference`, and Gemini's Veo, need the actual bytes (or, for Veo, a `gs://` URI). The OpenAI **Chat Completions** image path also references images only by URL/data URI, not `file_id` — use the Responses adapter (`openaiText`) for `file_id` images. These throw a clear endpoint-specific error.

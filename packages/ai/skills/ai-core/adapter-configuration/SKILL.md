@@ -459,10 +459,10 @@ Rules agents must respect:
   `fileSourceFromHandle(openaiHandle, geminiHandle)` — to build one source
   that routes to any of them.
 - **Adapters declare `supportsFileSources`.** For adapters that don't (Grok,
-  Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, and anything written
-  before this feature), `chat()` / `generateImage()` / `generateVideo()`
-  reject file sources in preflight, before any request is built — pass
-  `data`/`url` sources there instead.
+  Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, Cohere, and anything
+  written before this feature), `chat()` / `generateImage()` /
+  `generateVideo()` / `embed()` reject file sources in preflight, before any
+  request is built — pass `data`/`url` sources there instead.
 - **Lifecycle:** `getFile()` / `deleteFile()` work for OpenAI, Anthropic, and
   Gemini, and accept the handle itself (provider-literal typed — a foreign
   handle is a compile error). fal storage is upload-only — those calls throw

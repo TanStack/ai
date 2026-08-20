@@ -1,7 +1,11 @@
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
-import { resolveEmbeddingInput } from '@tanstack/ai'
+import {
+  isFileSource,
+  resolveEmbeddingInput,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { getCohereApiKeyFromEnv } from '../utils/client'
 import type {
   EmbeddingOptions,
@@ -264,6 +268,7 @@ export class CohereEmbeddingAdapter<
    */
   protected async resolveImageUrl(image: ImagePart): Promise<string> {
     const source = image.source
+    if (isFileSource(source)) throw unsupportedFileSourceError(this.name)
 
     if (source.type === 'data') {
       return `data:${source.mimeType};base64,${source.value}`

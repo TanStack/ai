@@ -10,8 +10,8 @@ const CONTENT_PART_TYPES = new Set([
 
 /**
  * Structural check for a single `ContentPart`. A text part must carry a string
- * `content`; every other modality must carry a `source` with `type` of
- * `'url' | 'data' | 'file'` and a string `value`.
+ * `content`. url/data sources carry a string `value`. A file source carries a
+ * non-array provider→reference record of non-empty strings, not a `value`.
  */
 export function isContentPart(value: unknown): value is ContentPart {
   if (typeof value !== 'object' || value === null) return false
@@ -29,9 +29,18 @@ export function isContentPart(value: unknown): value is ContentPart {
   // `value` string.
   if (src.type === 'file') {
     const reference = src.reference
-    if (typeof reference !== 'object' || reference === null) return false
+    if (
+      typeof reference !== 'object' ||
+      reference === null ||
+      Array.isArray(reference)
+    ) {
+      return false
+    }
     const entries = Object.values(reference)
-    return entries.length > 0 && entries.every((v) => typeof v === 'string')
+    return (
+      entries.length > 0 &&
+      entries.every((v) => typeof v === 'string' && v.length > 0)
+    )
   }
   if (typeof src.value !== 'string') return false
   // `data` sources require a mimeType (matches ContentPartDataSource); `url`
