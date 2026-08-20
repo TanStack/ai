@@ -1662,6 +1662,12 @@ export class ChatClient<
           }
           await this.processIncomingChunk(chunk, { defer: false })
         }
+        // Same contract as `streamResponse`: client tools may finish (and
+        // queue a resume) while `isLoading` is still true. Wait for them
+        // before teardown so `drainPostStreamActions` below sees the queue.
+        if (this.pendingToolExecutions.size > 0) {
+          await Promise.all(this.pendingToolExecutions.values())
+        }
       } catch (error) {
         // Pre-attach failures (unknown/evicted run, connect deadline abort)
         // stay soft: keep the restored transcript. Post-attach transport/parser
@@ -1703,6 +1709,7 @@ export class ChatClient<
           this.abortController = null
           this.setIsLoading(false)
           if (this.status === 'streaming') this.setStatus('ready')
+          await this.drainPostStreamActions()
         }
       }
     })()

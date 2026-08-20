@@ -17,8 +17,9 @@ import type { Page } from '@playwright/test'
  * The mid-stream "rejoin an in-flight run via joinRun after reload" path is NOT
  * covered here: the harness stream completes in a single tick, so there is no
  * deterministic window to reload while a run is still producing. That resume
- * cursor is covered at the transport layer by `delivery-durability.spec.ts` and
- * in `@tanstack/ai-client` unit tests.
+ * cursor is covered at the transport layer by `delivery-durability.spec.ts`.
+ * A client-tool replay that must drain after `joinRun` (issue #1058) is in
+ * `join-run-client-tool.spec.ts`.
  */
 
 async function interruptCount(page: Page): Promise<number> {
