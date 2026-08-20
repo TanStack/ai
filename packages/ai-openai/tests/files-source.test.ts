@@ -9,13 +9,13 @@ function mockResponsesStream(): AsyncIterable<Record<string, unknown>> {
     async *[Symbol.asyncIterator]() {
       yield {
         type: 'response.created',
-        response: { id: 'r1', model: 'gpt-4o-mini', status: 'in_progress' },
+        response: { id: 'r1', model: 'gpt-5.5', status: 'in_progress' },
       }
       yield {
         type: 'response.completed',
         response: {
           id: 'r1',
-          model: 'gpt-4o-mini',
+          model: 'gpt-5.5',
           status: 'completed',
           output: [],
           usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
@@ -26,7 +26,7 @@ function mockResponsesStream(): AsyncIterable<Record<string, unknown>> {
 }
 
 function withMockClient(create: ReturnType<typeof vi.fn>) {
-  const adapter = new OpenAITextAdapter({ apiKey: 'k' }, 'gpt-4o-mini')
+  const adapter = new OpenAITextAdapter({ apiKey: 'k' }, 'gpt-5.5')
   ;(adapter as unknown as { client: unknown }).client = {
     responses: { create },
   }
@@ -76,7 +76,7 @@ describe('openai file content source', () => {
     expect(imageContent.image_url).toBeUndefined()
   })
 
-  it('maps a document file handle to input_file.file_id — the only supported document form', async () => {
+  it('maps a document file handle to input_file.file_id', async () => {
     const create = vi.fn().mockResolvedValueOnce(mockResponsesStream())
     const adapter = withMockClient(create)
 
@@ -111,7 +111,7 @@ describe('openai file content source', () => {
     expect(fileContent.file_id).toBe('file-openai-pdf')
   })
 
-  it('still rejects inline (data) document parts — only handles map on this path', async () => {
+  it('rejects inline document data that is not a PDF', async () => {
     const create = vi.fn().mockResolvedValueOnce(mockResponsesStream())
     const adapter = withMockClient(create)
 
@@ -140,7 +140,7 @@ describe('openai file content source', () => {
     const runError = chunks.find((c) => c.type === 'RUN_ERROR')
     expect(runError).toBeDefined()
     if (runError?.type === 'RUN_ERROR') {
-      expect(runError.message).toMatch(/Unsupported content part type/)
+      expect(runError.message).toMatch(/application\/pdf/)
     }
     expect(create).not.toHaveBeenCalled()
   })

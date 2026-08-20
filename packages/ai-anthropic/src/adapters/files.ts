@@ -72,7 +72,7 @@ export function createAnthropicFiles(
   apiKey: string,
   config?: Omit<AnthropicFilesConfig, 'apiKey'>,
 ): AnthropicFilesAdapter {
-  return new AnthropicFilesAdapter({ apiKey, ...config })
+  return new AnthropicFilesAdapter({ ...config, apiKey })
 }
 
 /**
