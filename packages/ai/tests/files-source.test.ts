@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
   assertMessagesFileSourceSupport,
   assertPromptFileSourceSupport,
+  chat,
   deleteFile,
+  embed,
   fileReferenceFor,
   fileSourceFromHandle,
+  generateImage,
   getFile,
   isContentPart,
   isFileSource,
@@ -12,8 +16,11 @@ import {
   uploadFile,
 } from '../src/index'
 import { normalizeFileUploadInput } from '../src/activities/files/adapter'
+import { collectChunks, createMockAdapter } from './test-utils'
 import type { ContentPartSource } from '../src/types'
+import type { EmbeddingAdapter } from '../src/activities/embed/adapter'
 import type { FileHandle, FilesAdapter } from '../src/activities/files/adapter'
+import type { ImageAdapter } from '../src/activities/generateImage/adapter'
 
 const fileSource: ContentPartSource = {
   type: 'file',
@@ -95,6 +102,18 @@ describe('file content source helpers', () => {
         source: { type: 'file' },
       }),
     ).toBe(false)
+    expect(
+      isContentPart({
+        type: 'image',
+        source: { type: 'file', reference: ['file-abc'] },
+      }),
+    ).toBe(false)
+    expect(
+      isContentPart({
+        type: 'image',
+        source: { type: 'file', reference: { openai: '' } },
+      }),
+    ).toBe(false)
   })
 })
 
@@ -132,6 +151,123 @@ describe('file source preflight', () => {
     expect(() =>
       assertPromptFileSourceSupport({ name: 'legacy' }, 'a text prompt'),
     ).not.toThrow()
+    expect(() =>
+      assertPromptFileSourceSupport(
+        { name: 'legacy' },
+        { type: 'image', source: fileSource },
+      ),
+    ).toThrow(/legacy does not support provider file-handle sources/)
+    expect(() =>
+      assertPromptFileSourceSupport({ name: 'legacy' }, [
+        [
+          { type: 'text', content: 'product photo' },
+          { type: 'image', source: fileSource },
+        ],
+      ]),
+    ).toThrow(/legacy does not support provider file-handle sources/)
+  })
+})
+
+const fileImagePart = {
+  type: 'image' as const,
+  source: fileSource,
+}
+
+describe('file source activity preflight', () => {
+  it('rejects schema-only structured output before the structured adapter call', async () => {
+    let structuredCalled = false
+    const { adapter } = createMockAdapter({
+      structuredOutput: async () => {
+        structuredCalled = true
+        return { data: {}, rawText: '{}' }
+      },
+    })
+
+    await expect(
+      collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: [fileImagePart] }],
+          outputSchema: z.object({ name: z.string() }),
+          stream: true,
+        }),
+      ),
+    ).rejects.toThrow(/mock does not support provider file-handle/)
+    expect(structuredCalled).toBe(false)
+  })
+
+  it('rejects generateImage before middleware onStart', async () => {
+    let started = false
+    let adapterRan = false
+    const adapter: ImageAdapter = {
+      kind: 'image',
+      name: 'legacy-image',
+      model: 'test-model',
+      '~types': {
+        providerOptions: {},
+        modelProviderOptionsByName: {},
+        modelSizeByName: {},
+        modelInputModalitiesByName: {},
+      },
+      generateImages: async () => {
+        adapterRan = true
+        return {
+          id: 'img-1',
+          model: 'test-model',
+          images: [{ url: 'https://example.com/x.png' }],
+        }
+      },
+    }
+
+    expect(() =>
+      generateImage({
+        adapter,
+        prompt: [fileImagePart],
+        middleware: [
+          {
+            name: 'probe',
+            onStart: () => {
+              started = true
+            },
+          },
+        ],
+      }),
+    ).toThrow(/legacy-image does not support provider file-handle/)
+    expect(started).toBe(false)
+    expect(adapterRan).toBe(false)
+  })
+
+  it('rejects embed for a single image part and a fused nested item', async () => {
+    let adapterRan = false
+    const adapter: EmbeddingAdapter = {
+      kind: 'embedding',
+      name: 'legacy-embed',
+      model: 'test-model',
+      '~types': {
+        providerOptions: {},
+        modelProviderOptionsByName: {},
+        modelInputModalitiesByName: {},
+      },
+      createEmbeddings: async () => {
+        adapterRan = true
+        return {
+          id: 'e-1',
+          model: 'test-model',
+          embeddings: [{ vector: [0], index: 0 }],
+        }
+      },
+    }
+
+    await expect(embed({ adapter, input: fileImagePart })).rejects.toThrow(
+      /legacy-embed does not support provider file-handle/,
+    )
+    await expect(
+      embed({
+        adapter,
+        input: [[{ type: 'text', content: 'photo' }, fileImagePart]],
+      }),
+    ).rejects.toThrow(/legacy-embed does not support provider file-handle/)
+    expect(adapterRan).toBe(false)
   })
 })
 

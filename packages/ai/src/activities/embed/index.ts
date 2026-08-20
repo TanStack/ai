@@ -15,6 +15,7 @@ import {
   runGenerationUsage,
 } from '../middleware/run'
 import { countEmbeddingInputModalities } from '../../utilities/embedding-input'
+import { assertPromptFileSourceSupport } from '../../utilities/content-source'
 import type { InternalLogger } from '../../logger/internal-logger'
 import type { DebugOption } from '../../logger/types'
 import type { GenerationMiddleware } from '../middleware/types'
@@ -190,6 +191,10 @@ export async function embed<
   TAdapter extends EmbeddingAdapter<string, any, any, any>,
 >(options: EmbedOptions<TAdapter>): Promise<EmbeddingResult> {
   const { adapter, middleware } = options
+  // Fail closed on `{ type: 'file' }` sources before middleware start. No
+  // embedding adapter consumes file handles today; this matches chat /
+  // generateImage / generateVideo.
+  assertPromptFileSourceSupport(adapter, options.input)
   const model = adapter.model
   const requestId = createId('embedding')
   const startTime = Date.now()

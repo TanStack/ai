@@ -92,22 +92,30 @@ function partHasFileSource(part: unknown): boolean {
 }
 
 /**
- * Fail-closed preflight for media prompts (`generateImage` / `generateVideo` /
- * `generateAudio`): throws when the prompt carries a `{ type: 'file' }` source
- * and the adapter hasn't declared `supportsFileSources`. Runs in the activity
- * dispatcher — the same layer that validates modality — so an adapter that
- * predates the file arm can never receive one.
+ * True when `value` is a content part with a file source, or an array
+ * (possibly nested — fused embedding items) that contains one.
+ */
+function inputHasFileSource(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(inputHasFileSource)
+  return partHasFileSource(value)
+}
+
+/**
+ * Fail-closed preflight for media prompts and embedding inputs
+ * (`generateImage` / `generateVideo` / `embed`): throws when the input
+ * carries a `{ type: 'file' }` source and the adapter hasn't declared
+ * `supportsFileSources`. Runs in the activity dispatcher — the same layer
+ * that validates modality — so an adapter that predates the file arm can
+ * never receive one. Walks a single part, an array of parts, and nested
+ * arrays (fused embedding items).
  */
 export function assertPromptFileSourceSupport(
   adapter: FileSourceCapable,
   prompt: unknown,
 ): void {
   if (adapter.supportsFileSources === true) return
-  if (!Array.isArray(prompt)) return
-  for (const part of prompt) {
-    if (partHasFileSource(part)) {
-      throw unsupportedFileSourceError(adapter.name)
-    }
+  if (inputHasFileSource(prompt)) {
+    throw unsupportedFileSourceError(adapter.name)
   }
 }
 

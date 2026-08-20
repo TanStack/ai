@@ -249,6 +249,9 @@ export function generateImage<
 >(
   options: ImageActivityOptions<TAdapter, TStream>,
 ): ImageActivityResult<TStream> {
+  // Fail closed before middleware start and before `stream: true` emits
+  // RUN_STARTED, so an unsupported file source never opens a run.
+  assertPromptFileSourceSupport(options.adapter, options.prompt)
   if (options.stream) {
     return streamGenerationResult(
       // Only `runId` is taken from the resolved wire identity. `threadId` stays
@@ -306,10 +309,6 @@ async function runGenerateImage<
   })
 
   await runGenerationStart(middleware, mwCtx)
-
-  // Fail closed on `{ type: 'file' }` sources for adapters that haven't
-  // declared support (see assertPromptFileSourceSupport).
-  assertPromptFileSourceSupport(adapter, rest.prompt)
 
   // Devtools events carry the flattened prompt text plus media-part counts —
   // the wire payload stays `prompt: string` regardless of the prompt shape.
