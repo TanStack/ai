@@ -11,6 +11,12 @@ const config = defineConfig({
     globals: true,
     environment: 'node',
     include: ['tests/**/*.test.ts'],
+    alias: {
+      'cloudflare:workers': new URL(
+        './tests/cloudflare-workers.ts',
+        import.meta.url,
+      ).pathname,
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
