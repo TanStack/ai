@@ -70,7 +70,7 @@ export function createGeminiFiles(
   apiKey: string,
   config?: Omit<GeminiFilesConfig, 'apiKey'>,
 ): GeminiFilesAdapter {
-  return new GeminiFilesAdapter({ apiKey, ...config })
+  return new GeminiFilesAdapter({ ...config, apiKey })
 }
 
 /**
