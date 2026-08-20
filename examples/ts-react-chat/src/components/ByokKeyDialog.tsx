@@ -223,13 +223,15 @@ function ProviderRow({
               className="rounded-md border border-gray-600 bg-gray-800 px-2.5 py-1 text-sm text-gray-200 disabled:opacity-50"
               onClick={() => {
                 setRowError('')
-                void byok.validate(id).catch((error: unknown) =>
-                  setRowError(
-                    error instanceof Error
-                      ? error.message
-                      : 'Could not validate key',
-                  ),
-                )
+                void byok
+                  .validate(id)
+                  .catch((error: unknown) =>
+                    setRowError(
+                      error instanceof Error
+                        ? error.message
+                        : 'Could not validate key',
+                    ),
+                  )
               }}
             >
               Validate
@@ -240,13 +242,15 @@ function ProviderRow({
               className="rounded-md border border-gray-600 bg-gray-800 px-2.5 py-1 text-sm text-gray-200 disabled:opacity-50"
               onClick={() => {
                 setRowError('')
-                void byok.clear(id).catch((error: unknown) =>
-                  setRowError(
-                    error instanceof Error
-                      ? error.message
-                      : 'Could not clear key',
-                  ),
-                )
+                void byok
+                  .clear(id)
+                  .catch((error: unknown) =>
+                    setRowError(
+                      error instanceof Error
+                        ? error.message
+                        : 'Could not clear key',
+                    ),
+                  )
               }}
             >
               Clear
@@ -335,7 +339,9 @@ function PresenceBadge({
     return <span className="text-xs font-semibold text-amber-400">Locked</span>
   }
   if (hasEnvKey) {
-    return <span className="text-xs font-semibold text-gray-400">Server key</span>
+    return (
+      <span className="text-xs font-semibold text-gray-400">Server key</span>
+    )
   }
   const { label, className } = STATUS_LABEL[state]
   return <span className={`text-xs font-semibold ${className}`}>{label}</span>

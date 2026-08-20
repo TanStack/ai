@@ -432,9 +432,7 @@ function ChatPage() {
   const selectedProviderRef = useRef(selectedModel.provider)
   selectedProviderRef.current = selectedModel.provider
   const snapshot = useByok(byok)
-  const [envKeyStatus, setEnvKeyStatus] = useState<Record<string, boolean>>(
-    {},
-  )
+  const [envKeyStatus, setEnvKeyStatus] = useState<Record<string, boolean>>({})
   const [keyDialog, setKeyDialog] = useState<{
     open: boolean
     provider: ProviderId | null
@@ -451,9 +449,7 @@ function ChatPage() {
     void completeOpenRouterPkceIntoByok(byok)
       .catch((error: unknown) =>
         setOpenRouterError(
-          error instanceof Error
-            ? error.message
-            : 'OpenRouter sign-in failed',
+          error instanceof Error ? error.message : 'OpenRouter sign-in failed',
         ),
       )
       .finally(() => setOpenRouterCompleting(false))
