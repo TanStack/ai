@@ -49,11 +49,11 @@ Use pragmatic `simple-english`. Then shape the text with `i-have-adhd`: next act
 
 Pick one kind from the diff:
 
-| Kind | Signal |
-|---|---|
-| **fix** | Restores broken behavior. A user-visible bug, a failing test, a regression. |
-| **feat** | Adds behavior that did not exist. New export, new command, new user-facing flow. |
-| **chore / docs** | Agent files, CI, docs-only, refactors with no user-visible behavior change. |
+| Kind             | Signal                                                                           |
+| ---------------- | -------------------------------------------------------------------------------- |
+| **fix**          | Restores broken behavior. A user-visible bug, a failing test, a regression.      |
+| **feat**         | Adds behavior that did not exist. New export, new command, new user-facing flow. |
+| **chore / docs** | Agent files, CI, docs-only, refactors with no user-visible behavior change.      |
 
 If both a feat and a fix are in the diff, the larger user-visible story wins. Say so in the lead.
 
@@ -213,23 +213,23 @@ If step 4 wrote PNG files, those commits must be on the remote before the body l
 
 ## Red flags
 
-| You catch yourself | Do instead |
-|---|---|
-| Writing the body from the branch name | Read the diff. |
-| Ticking a template checkbox you did not do | Leave it unchecked and say so in Testing. |
-| Posting a feat with no test, command, or example | Stop. The feat gate failed. |
-| A 1-4 sentence lead that lists files | Rewrite as what a user can do, or what bug is gone. |
-| Public API section that shows the internal diff | Show caller usage before and after. |
-| Public API section on an AGENTS.md-only PR | Omit the heading. |
-| "I'll update the description later" after a push | Rewrite now with `gh pr edit`. |
-| Waiting for the user to approve the text | Post. This skill does not wait. |
-| Skipping screenshots on a UI PR because "the text is enough" | Try capture. |
-| Skipping because GitHub has no upload API | Commit PNGs on the branch. Use `blob/...png?raw=true` URLs. |
-| Relative image paths in the PR body | Use full `https://github.com/OWNER/REPO/blob/BRANCH/...png?raw=true` URLs. |
-| Inventing a UI image with an image model | Real browser only. |
-| Waiting for the user to paste images | Capture first. Post even if capture fails. |
-| Refusing to post because screenshots failed | Post. Say why in Screenshots. |
-| Using a screenshot as the feat-gate artifact | The feat gate still needs a test, a command, or an example. |
-| Mixing unrelated files into the screenshot commit | Add only the PNG files. |
-| Leaving a preview server running after capture | Stop the server. |
-| Writing without loading simple-english and i-have-adhd | Load both. If missing, stop. |
+| You catch yourself                                           | Do instead                                                                 |
+| ------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Writing the body from the branch name                        | Read the diff.                                                             |
+| Ticking a template checkbox you did not do                   | Leave it unchecked and say so in Testing.                                  |
+| Posting a feat with no test, command, or example             | Stop. The feat gate failed.                                                |
+| A 1-4 sentence lead that lists files                         | Rewrite as what a user can do, or what bug is gone.                        |
+| Public API section that shows the internal diff              | Show caller usage before and after.                                        |
+| Public API section on an AGENTS.md-only PR                   | Omit the heading.                                                          |
+| "I'll update the description later" after a push             | Rewrite now with `gh pr edit`.                                             |
+| Waiting for the user to approve the text                     | Post. This skill does not wait.                                            |
+| Skipping screenshots on a UI PR because "the text is enough" | Try capture.                                                               |
+| Skipping because GitHub has no upload API                    | Commit PNGs on the branch. Use `blob/...png?raw=true` URLs.                |
+| Relative image paths in the PR body                          | Use full `https://github.com/OWNER/REPO/blob/BRANCH/...png?raw=true` URLs. |
+| Inventing a UI image with an image model                     | Real browser only.                                                         |
+| Waiting for the user to paste images                         | Capture first. Post even if capture fails.                                 |
+| Refusing to post because screenshots failed                  | Post. Say why in Screenshots.                                              |
+| Using a screenshot as the feat-gate artifact                 | The feat gate still needs a test, a command, or an example.                |
+| Mixing unrelated files into the screenshot commit            | Add only the PNG files.                                                    |
+| Leaving a preview server running after capture               | Stop the server.                                                           |
+| Writing without loading simple-english and i-have-adhd       | Load both. If missing, stop.                                               |
