@@ -82,27 +82,37 @@ export async function deleteFile<TName extends string>(options: {
 }
 
 /**
- * Build a `{ type: 'file' }` content source from an uploaded {@link FileHandle},
- * for use in a chat message (image/audio/document part `source`).
+ * Build a `{ type: 'file' }` content source from one or more uploaded
+ * {@link FileHandle}s, for use in a chat message (image/audio/document part
+ * `source`).
  *
- * Picks the right `value`: the handle URL when the provider exposes one
- * (Gemini/fal), otherwise the opaque id (OpenAI/Anthropic).
+ * Each handle contributes a `reference` entry under its provider name, using
+ * the right wire form: the handle URL when the provider exposes one
+ * (Gemini/fal), otherwise the opaque id (OpenAI/Anthropic). Pass handles from
+ * several providers (the same bytes uploaded to each) to build a source that
+ * routes correctly to any of them.
  *
  * @example
  * ```ts
- * const handle = await uploadFile({ adapter: openaiFiles(), input })
+ * const openaiHandle = await uploadFile({ adapter: openaiFiles(), input })
+ * const geminiHandle = await uploadFile({ adapter: geminiFiles(), input })
  * messages.push({ role: 'user', content: [
- *   { type: 'image', source: fileSourceFromHandle(handle) },
+ *   { type: 'image', source: fileSourceFromHandle(openaiHandle, geminiHandle) },
  * ] })
  * ```
  */
 export function fileSourceFromHandle<TProvider extends string>(
-  handle: FileHandle<TProvider>,
+  ...handles: [FileHandle<TProvider>, ...Array<FileHandle<TProvider>>]
 ): ContentPartFileSource<TProvider> {
+  const reference = {} as Record<TProvider, string>
+  let mimeType: string | undefined
+  for (const handle of handles) {
+    reference[handle.provider] = handle.uri ?? handle.id
+    mimeType ??= handle.mimeType
+  }
   return {
     type: 'file',
-    value: handle.uri ?? handle.id,
-    provider: handle.provider,
-    ...(handle.mimeType ? { mimeType: handle.mimeType } : {}),
+    reference,
+    ...(mimeType ? { mimeType } : {}),
   }
 }

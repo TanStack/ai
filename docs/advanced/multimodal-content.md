@@ -281,7 +281,7 @@ const imagePart = {
 
 ### File Handle (Files API)
 
-Use `type: 'file'` to reference media you uploaded once via a provider's [Files API](./files-api.md) — the provider stores the bytes and you pass a lightweight handle instead of re-sending base64 or a public URL every request. A handle only works with the provider that issued it, so the `provider` field is required and validated at request time.
+Use `type: 'file'` to reference media you uploaded once via a provider's [Files API](./files-api.md) — the provider stores the bytes and you pass a lightweight reference instead of re-sending base64 or a public URL every request. The source carries a record of per-provider references (`{ reference: { openai: 'file-…' } }`); each adapter reads its own entry and throws when none is present, and adapters without Files API support reject the source before any request is built.
 
 ```typescript
 import { openaiFiles, openaiText } from '@tanstack/ai-openai'
@@ -311,7 +311,7 @@ for await (const chunk of chat({
 }
 ```
 
-`fileSourceFromHandle(handle)` builds the `{ type: 'file', value, provider }` source for you (picking the handle URL for Gemini/fal or the opaque id for OpenAI/Anthropic). Each adapter maps it to the provider's native reference (`file_id`, `fileData.fileUri`, or storage URL). Passing a handle to a different provider — or to an endpoint that requires raw bytes (image edits, Veo) — throws a clear error. See [Files API](./files-api.md) for uploading, retrieving, and deleting handles.
+`fileSourceFromHandle(...handles)` builds the `{ type: 'file', reference }` source for you (picking the handle URL for Gemini/fal or the opaque id for OpenAI/Anthropic), and merges handles from several providers into one source that routes to any of them. Each adapter maps its own reference entry to the provider's native field (`file_id`, `fileData.fileUri`, or storage URL). Sending the source to a provider with no entry — or to an endpoint that requires raw bytes (image edits, Veo) — throws a clear error. See [Files API](./files-api.md) for uploading, retrieving, and deleting handles.
 
 ## Backward Compatibility
 

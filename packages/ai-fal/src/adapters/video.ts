@@ -140,6 +140,8 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
 > {
   override readonly kind = 'video' as const
   readonly name = 'fal' as const
+  // Consumes fal storage URLs uploaded via falFiles().
+  override readonly supportsFileSources = true
 
   constructor(model: TModel, config?: FalClientConfig) {
     super({}, model)

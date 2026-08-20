@@ -1,4 +1,4 @@
-import { assertOwnFileSource, isFileSource } from '@tanstack/ai'
+import { fileReferenceFor, isFileSource } from '@tanstack/ai'
 import { FAL_IMAGE_FIELD_OVERRIDES } from './generated/image-field-overrides'
 import type {
   FalImageFieldName,
@@ -19,8 +19,9 @@ import type { FalModel, FalModelInput } from '../model-meta'
  */
 export function contentSourceToFalUrl(source: ContentPartSource): string {
   if (isFileSource(source)) {
-    assertOwnFileSource(source, 'fal')
-    return source.value
+    // The 'fal' entry of the reference record is a storage URL; throws when
+    // the file was never uploaded to fal storage.
+    return fileReferenceFor(source, 'fal')
   }
   if (source.type === 'url') return source.value
   return `data:${source.mimeType};base64,${source.value}`

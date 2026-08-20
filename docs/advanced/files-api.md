@@ -81,7 +81,7 @@ await deleteFile({ adapter: files, id: handle })
 
 ## Referencing a handle in a message
 
-Use `fileSourceFromHandle(handle)` to turn a `FileHandle` into a `{ type: 'file' }` content source. Each adapter maps it to the provider's native reference (OpenAI/Anthropic `file_id`, Gemini `fileData.fileUri`, fal storage URL). A handle only works with the provider that issued it — passing it elsewhere throws.
+Use `fileSourceFromHandle(handle)` to turn a `FileHandle` into a `{ type: 'file' }` content source. The source carries a **record of per-provider references** — `{ reference: { openai: 'file-abc' } }` — and each adapter reads only its own entry, mapping it to its native wire field (OpenAI/Anthropic `file_id`, Gemini `fileData.fileUri`, fal storage URL). Sending the source to a provider with no entry in the record throws a clear error, and adapters that can't consume file references at all are rejected before any mapping starts.
 
 ### Server: upload + reference
 
@@ -109,6 +109,37 @@ export async function askAboutPdf(pdfBase64: string, request: string) {
     ],
   })
 }
+```
+
+### One source, several providers
+
+Because `reference` is a record, the same bytes uploaded to two providers merge into **one** source that routes correctly to either — useful when a conversation may be replayed against different models:
+
+```typescript
+import { chat, fileSourceFromHandle, uploadFile } from '@tanstack/ai'
+import { openaiFiles, openaiText } from '@tanstack/ai-openai'
+import { geminiFiles } from '@tanstack/ai-gemini'
+import { pdfBase64 } from './pdf-data'
+
+const input = { data: pdfBase64, mimeType: 'application/pdf' }
+const openaiHandle = await uploadFile({ adapter: openaiFiles(), input })
+const geminiHandle = await uploadFile({ adapter: geminiFiles(), input })
+
+// reference: { openai: 'file-…', gemini: 'https://…/files/…' }
+const source = fileSourceFromHandle(openaiHandle, geminiHandle)
+
+chat({
+  adapter: openaiText('gpt-5.5'), // or a gemini adapter — same message works
+  messages: [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', content: 'Summarize this document' },
+        { type: 'document', source },
+      ],
+    },
+  ],
+})
 ```
 
 ### Client: reuse a handle across requests
@@ -142,6 +173,8 @@ function imageMessage(handle: FileHandle, prompt: string) {
 
 Gemini and fal handles are URLs, so they also round-trip through a plain `{ type: 'url' }` source; OpenAI and Anthropic handles are opaque ids that require the `{ type: 'file' }` source.
 
-### Endpoints that require raw bytes
+### Providers and endpoints that can't consume references
 
-Some endpoints have no "reference an uploaded handle" option — OpenAI's `images/edits` and Sora `input_reference`, and Gemini's Veo, need the actual bytes (or, for Veo, a `gs://` URI). The OpenAI **Chat Completions** image path also references images only by URL/data URI, not `file_id` — use the Responses adapter (`openaiText`) for `file_id` images. Passing a `{ type: 'file' }` source to any of these throws a clear error rather than silently mis-mapping.
+Adapters that can consume file references declare a `supportsFileSources` capability; for everyone else — Grok, Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, and any adapter written before this feature existed — `chat()` / `generateImage()` / `generateVideo()` reject `{ type: 'file' }` sources **before any request is built**, so a reference can never be silently mis-mapped onto a URL or data field.
+
+Some endpoints on supporting providers also have no "reference an uploaded handle" option — OpenAI's `images/edits` and Sora `input_reference`, and Gemini's Veo, need the actual bytes (or, for Veo, a `gs://` URI). The OpenAI **Chat Completions** image path also references images only by URL/data URI, not `file_id` — use the Responses adapter (`openaiText`) for `file_id` images. These throw a clear endpoint-specific error.

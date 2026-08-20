@@ -1,5 +1,5 @@
 import {
-  assertOwnFileSource,
+  fileReferenceFor,
   isFileSource,
   resolveMediaPrompt,
 } from '@tanstack/ai'
@@ -79,6 +79,8 @@ export class GeminiImageAdapter<
 > {
   override readonly kind = 'image' as const
   readonly name = 'gemini' as const
+  // Consumes Gemini Files API references (geminiFiles()) as fileData.fileUri.
+  override readonly supportsFileSources = true
 
   // Type-only property - never assigned at runtime
   declare '~types': {
@@ -270,19 +272,18 @@ export class GeminiImageAdapter<
         },
       }
     }
-    // A Gemini Files API handle from another provider is a bug — reject it
-    // before it's passed through as a fileData URI.
-    if (isFileSource(part.source)) {
-      assertOwnFileSource(part.source, this.name)
-    }
     // URL sources (public HTTPS, Files API URIs, gs://) pass through as
     // `fileData` and Gemini fetches them server-side — same as the chat
     // adapter. Fetching locally and inlining as base64 double-buffers the
     // image and OOMs on memory-constrained runtimes (e.g. Cloudflare
-    // Workers).
+    // Workers). A file source resolves to this adapter's own reference entry
+    // (throws when the file was never uploaded to Gemini).
+    const fileUri = isFileSource(part.source)
+      ? fileReferenceFor(part.source, this.name)
+      : part.source.value
     return {
       fileData: {
-        fileUri: part.source.value,
+        fileUri,
         mimeType: part.source.mimeType ?? 'image/jpeg',
       },
     }

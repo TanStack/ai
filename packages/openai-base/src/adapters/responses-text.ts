@@ -1,6 +1,6 @@
 import {
   EventType,
-  assertOwnFileSource,
+  fileReferenceFor,
   isFileSource,
   normalizeSystemPrompts,
   unsupportedFileSourceError,
@@ -150,15 +150,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   override readonly kind = 'text' as const
   readonly name: string
   protected client: OpenAI
-
-  /**
-   * Whether this provider's Responses endpoint accepts `file_id` references
-   * from its own Files API. Only OpenAI itself does — OpenAI-compatible
-   * subclasses (Grok, Bedrock, custom providers) have no Files API surface,
-   * so a `{ type: 'file' }` source is rejected instead of being sent as a
-   * `file_id` the provider can't resolve.
-   */
-  protected readonly supportsFileIdInput: boolean = false
 
   constructor(model: TModel, name: string, client: OpenAI) {
     super({}, model)
@@ -2062,13 +2053,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           | { detail?: 'auto' | 'low' | 'high' }
           | undefined
         if (isFileSource(part.source)) {
-          if (!this.supportsFileIdInput) {
+          if (this.supportsFileSources !== true) {
             throw unsupportedFileSourceError(this.name)
           }
-          assertOwnFileSource(part.source, this.name)
           return {
             type: 'input_image',
-            file_id: part.source.value,
+            file_id: fileReferenceFor(part.source, this.name),
             detail: imageMetadata?.detail || 'auto',
           }
         }
@@ -2096,13 +2086,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
       case 'audio': {
         if (isFileSource(part.source)) {
-          if (!this.supportsFileIdInput) {
+          if (this.supportsFileSources !== true) {
             throw unsupportedFileSourceError(this.name)
           }
-          assertOwnFileSource(part.source, this.name)
           return {
             type: 'input_file',
-            file_id: part.source.value,
+            file_id: fileReferenceFor(part.source, this.name),
           }
         }
         if (part.source.type === 'url') {
@@ -2139,13 +2128,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             ? { detail: documentMetadata.detail as 'low' | 'high' }
             : {}
         if (isFileSource(part.source)) {
-          if (!this.supportsFileIdInput) {
+          if (this.supportsFileSources !== true) {
             throw unsupportedFileSourceError(this.name)
           }
-          assertOwnFileSource(part.source, this.name)
           return {
             type: 'input_file',
-            file_id: part.source.value,
+            file_id: fileReferenceFor(part.source, this.name),
             ...documentDetail,
           }
         }

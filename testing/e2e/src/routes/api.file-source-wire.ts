@@ -52,8 +52,7 @@ export const Route = createFileRoute('/api/file-source-wire')({
                 type: 'image',
                 source: {
                   type: 'file',
-                  value: handleValue,
-                  provider: handleProvider,
+                  reference: { [handleProvider]: handleValue },
                 },
               },
             ],

@@ -1851,23 +1851,34 @@ export class OpenRouterResponsesTextAdapter<
   protected convertContentPartToInput(
     part: ContentPart,
   ): ResponsesInputContent {
-    if ('source' in part && isFileSource(part.source)) {
+    if (part.type === 'text') {
+      return {
+        type: 'input_text',
+        text: part.content,
+      }
+    }
+    // Narrow once so the branches below can only see url/data sources — a
+    // `{ type: 'file' }` reference has no `value` to mis-map. A part without
+    // a source (unknown/malformed type) is rejected the same way as the
+    // default branch below.
+    const source = (part as { source?: typeof part.source }).source
+    if (source === undefined) {
+      throw new Error(
+        `Unsupported content part type for ${this.name}: ${(part as { type: string }).type}`,
+      )
+    }
+    if (isFileSource(source)) {
       throw unsupportedFileSourceError(this.name)
     }
     switch (part.type) {
-      case 'text':
-        return {
-          type: 'input_text',
-          text: part.content,
-        }
       case 'image': {
         const meta = part.metadata as
           | { detail?: 'auto' | 'low' | 'high' }
           | undefined
-        const value = part.source.value
+        const value = source.value
         const imageUrl =
-          part.source.type === 'data' && !value.startsWith('data:')
-            ? `data:${part.source.mimeType || 'application/octet-stream'};base64,${value}`
+          source.type === 'data' && !value.startsWith('data:')
+            ? `data:${source.mimeType || 'application/octet-stream'};base64,${value}`
             : value
         return {
           type: 'input_image',
@@ -1876,36 +1887,36 @@ export class OpenRouterResponsesTextAdapter<
         }
       }
       case 'audio': {
-        if (part.source.type === 'url') {
+        if (source.type === 'url') {
           // OpenRouter's `input_audio` carries `{ data, format }` not a URL —
           // fall back to `input_file` for URLs so we don't silently drop the
           // audio reference.
           return {
             type: 'input_file',
-            fileUrl: part.source.value,
+            fileUrl: source.value,
           }
         }
         return {
           type: 'input_audio',
-          inputAudio: { data: part.source.value, format: 'mp3' },
+          inputAudio: { data: source.value, format: 'mp3' },
         }
       }
       case 'video':
         return {
           type: 'input_video',
-          videoUrl: part.source.value,
+          videoUrl: source.value,
         }
       case 'document': {
-        if (part.source.type === 'url') {
+        if (source.type === 'url') {
           return {
             type: 'input_file',
-            fileUrl: part.source.value,
+            fileUrl: source.value,
           }
         }
-        const mime = part.source.mimeType || 'application/octet-stream'
-        const data = part.source.value.startsWith('data:')
-          ? part.source.value
-          : `data:${mime};base64,${part.source.value}`
+        const mime = source.mimeType || 'application/octet-stream'
+        const data = source.value.startsWith('data:')
+          ? source.value
+          : `data:${mime};base64,${source.value}`
         return {
           type: 'input_file',
           fileData: data,

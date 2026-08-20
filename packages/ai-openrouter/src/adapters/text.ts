@@ -1395,22 +1395,29 @@ export class OpenRouterTextAdapter<
 
   /** OpenRouter content-part converter (camelCase imageUrl/inputAudio/videoUrl). */
   protected convertContentPart(part: ContentPart): ChatContentItems | null {
-    if ('source' in part && isFileSource(part.source)) {
+    if (part.type === 'text') {
+      return { type: 'text', text: part.content }
+    }
+    // Narrow once so the branches below can only see url/data sources — a
+    // `{ type: 'file' }` reference has no `value` to mis-map. A part without
+    // a source (unknown/malformed type) falls through to the base's
+    // unsupported-content-part guard, matching the old default branch.
+    const source = (part as { source?: typeof part.source }).source
+    if (source === undefined) return null
+    if (isFileSource(source)) {
       throw unsupportedFileSourceError(this.name)
     }
     switch (part.type) {
-      case 'text':
-        return { type: 'text', text: part.content }
       case 'image': {
         const meta = part.metadata as OpenRouterImageMetadata | undefined
-        const value = part.source.value
+        const value = source.value
         // Default to `application/octet-stream` when the source didn't
         // provide a MIME type — interpolating `undefined` into the URI
         // ("data:undefined;base64,...") produces an invalid data URI the
         // API rejects.
-        const imageMime = part.source.mimeType || 'application/octet-stream'
+        const imageMime = source.mimeType || 'application/octet-stream'
         const url =
-          part.source.type === 'data' && !value.startsWith('data:')
+          source.type === 'data' && !value.startsWith('data:')
             ? `data:${imageMime};base64,${value}`
             : value
         return {
@@ -1426,32 +1433,32 @@ export class OpenRouterTextAdapter<
         // base64 slot. The Responses adapter does have an `input_file`
         // URL variant and routes URLs there directly — see
         // `responses-text.ts`.
-        if (part.source.type === 'url') {
+        if (source.type === 'url') {
           return {
             type: 'text',
-            text: `[Audio: ${part.source.value}]`,
+            text: `[Audio: ${source.value}]`,
           }
         }
         return {
           type: 'input_audio',
-          inputAudio: { data: part.source.value, format: 'mp3' },
+          inputAudio: { data: source.value, format: 'mp3' },
         }
       case 'video':
         return {
           type: 'video_url',
-          videoUrl: { url: part.source.value },
+          videoUrl: { url: source.value },
         }
       case 'document':
         // The chat-completions SDK has no document_url type. For URL
         // sources, surface a text reference so the model at least sees
-        // the link. For data sources, `part.source.value` is the raw
+        // the link. For data sources, `source.value` is the raw
         // base64 payload — inlining it into the prompt would blow the
         // context window with megabytes of binary and leak the document
         // content verbatim. Throw instead so the caller can either
         // switch to the Responses adapter (which has proper input_file
         // support for data documents) or strip the document before
         // sending.
-        if (part.source.type === 'data') {
+        if (source.type === 'data') {
           throw new Error(
             `${this.name} chat-completions does not support inline (data) document content parts. ` +
               `Use the Responses adapter (openRouterResponsesText) for document data, ` +
@@ -1460,7 +1467,7 @@ export class OpenRouterTextAdapter<
         }
         return {
           type: 'text',
-          text: `[Document: ${part.source.value}]`,
+          text: `[Document: ${source.value}]`,
         }
       default:
         return null

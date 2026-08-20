@@ -35,8 +35,8 @@ export interface ContentPartUrlSource {
 
 export interface ContentPartFileSource {
   type: 'file'
-  value: string
-  provider: string
+  /** Provider name → that provider's file reference (id or URI). */
+  reference: Record<string, string>
   mimeType?: string
 }
 

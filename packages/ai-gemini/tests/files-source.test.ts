@@ -71,9 +71,10 @@ describe('gemini file content source', () => {
                 type: 'image',
                 source: {
                   type: 'file',
-                  value:
-                    'https://generativelanguage.googleapis.com/v1beta/files/abc-123',
-                  provider: 'gemini',
+                  reference: {
+                    gemini:
+                      'https://generativelanguage.googleapis.com/v1beta/files/abc-123',
+                  },
                   mimeType: 'image/png',
                 },
               },
@@ -109,8 +110,7 @@ describe('gemini file content source', () => {
                   type: 'image',
                   source: {
                     type: 'file',
-                    value: 'file-openai-1',
-                    provider: 'openai',
+                    reference: { openai: 'file-openai-1' },
                   },
                 },
               ],

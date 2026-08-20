@@ -56,8 +56,7 @@ describe('openai file content source', () => {
                 type: 'image',
                 source: {
                   type: 'file',
-                  value: 'file-openai-abc',
-                  provider: 'openai',
+                  reference: { openai: 'file-openai-abc' },
                 },
               },
             ],
@@ -93,8 +92,7 @@ describe('openai file content source', () => {
                 type: 'document',
                 source: {
                   type: 'file',
-                  value: 'file-openai-pdf',
-                  provider: 'openai',
+                  reference: { openai: 'file-openai-pdf' },
                 },
               },
             ],
@@ -162,8 +160,7 @@ describe('openai file content source', () => {
               type: 'image',
               source: {
                 type: 'file',
-                value: 'files/gemini-xyz',
-                provider: 'gemini',
+                reference: { gemini: 'files/gemini-xyz' },
               },
             },
           ],

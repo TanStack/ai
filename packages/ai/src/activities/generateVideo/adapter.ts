@@ -74,6 +74,13 @@ export interface VideoAdapter<
   readonly kind: 'video'
   /** Adapter name identifier */
   readonly name: string
+  /**
+   * Declares that this adapter can consume `{ type: 'file' }` content
+   * sources (provider Files API references). The activity dispatcher rejects
+   * file sources in preflight for adapters that don't declare this, so
+   * adapters written before the file arm existed fail closed.
+   */
+  readonly supportsFileSources?: boolean
   /** The model this adapter is configured for */
   readonly model: TModel
 
@@ -161,6 +168,7 @@ export abstract class BaseVideoAdapter<
 > {
   readonly kind = 'video' as const
   abstract readonly name: string
+  readonly supportsFileSources?: boolean = undefined
   readonly model: TModel
 
   // Type-only property - never assigned at runtime
