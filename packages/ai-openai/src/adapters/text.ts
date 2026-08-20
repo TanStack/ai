@@ -92,6 +92,10 @@ export class OpenAITextAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'openai' as const
+  // OpenAI's Responses endpoint consumes `file_id` references issued by its
+  // Files API (`openaiFiles()`); the openai-base default is false because
+  // compatible subclasses (Grok, Bedrock, custom) have no such surface.
+  protected override readonly supportsFileIdInput = true
 
   constructor(config: OpenAITextConfig, model: TModel) {
     super(model, 'openai', new OpenAI(config))

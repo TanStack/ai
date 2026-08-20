@@ -128,4 +128,30 @@ describe('files activity dispatch', () => {
       deleteFile({ adapter: full, id: 'file-1' }),
     ).resolves.toBeUndefined()
   })
+
+  it('getFile / deleteFile accept the handle itself and use its lifecycle id', async () => {
+    // A Gemini-style handle: `uri` is the wire value, `id` the lifecycle name.
+    const handle: FileHandle = {
+      id: 'file-1',
+      provider: 'openai',
+      uri: 'https://provider/file-1',
+    }
+    const seen: Array<string> = []
+    const adapter: FilesAdapter = {
+      kind: 'files',
+      name: 'openai',
+      upload: async () => handle,
+      get: async (id) => {
+        seen.push(id)
+        return handle
+      },
+      delete: async (id) => {
+        seen.push(id)
+      },
+    }
+
+    await getFile({ adapter, id: handle })
+    await deleteFile({ adapter, id: handle })
+    expect(seen).toEqual(['file-1', 'file-1'])
+  })
 })

@@ -3,6 +3,7 @@ import {
   assertOwnFileSource,
   isFileSource,
   normalizeSystemPrompts,
+  unsupportedFileSourceError,
 } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
@@ -85,6 +86,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   override readonly kind = 'text' as const
   readonly name: string
   protected client: OpenAI
+
+  /**
+   * Whether this provider's Responses endpoint accepts `file_id` references
+   * from its own Files API. Only OpenAI itself does — OpenAI-compatible
+   * subclasses (Grok, Bedrock, custom providers) have no Files API surface,
+   * so a `{ type: 'file' }` source is rejected instead of being sent as a
+   * `file_id` the provider can't resolve.
+   */
+  protected readonly supportsFileIdInput: boolean = false
 
   constructor(model: TModel, name: string, client: OpenAI) {
     super({}, model)
@@ -1835,6 +1845,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           | { detail?: 'auto' | 'low' | 'high' }
           | undefined
         if (isFileSource(part.source)) {
+          if (!this.supportsFileIdInput) {
+            throw unsupportedFileSourceError(this.name)
+          }
           assertOwnFileSource(part.source, this.name)
           return {
             type: 'input_image',
@@ -1866,6 +1879,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       }
       case 'audio': {
         if (isFileSource(part.source)) {
+          if (!this.supportsFileIdInput) {
+            throw unsupportedFileSourceError(this.name)
+          }
           assertOwnFileSource(part.source, this.name)
           return {
             type: 'input_file',
@@ -1906,6 +1922,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             ? { detail: documentMetadata.detail as 'low' | 'high' }
             : {}
         if (isFileSource(part.source)) {
+          if (!this.supportsFileIdInput) {
+            throw unsupportedFileSourceError(this.name)
+          }
           assertOwnFileSource(part.source, this.name)
           return {
             type: 'input_file',

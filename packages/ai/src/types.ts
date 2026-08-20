@@ -256,10 +256,10 @@ export interface ContentPartUrlSource {
  * A handle only routes to the provider that issued it — the `provider` field is
  * validated at map time, and adapters throw if it doesn't match. The `value` is
  * the provider's opaque id (OpenAI/Anthropic `file_id`) or handle URL (Gemini
- * file URI, fal storage URL); use {@link fileSourceFromHandle} to build one from
- * a {@link FileHandle} without worrying about the id-vs-uri distinction.
+ * file URI, fal storage URL); use `fileSourceFromHandle` to build one from a
+ * `FileHandle` without worrying about the id-vs-uri distinction.
  */
-export interface ContentPartFileSource {
+export interface ContentPartFileSource<TProvider extends string = string> {
   /**
    * Indicates this references a provider-issued file handle.
    */
@@ -273,7 +273,7 @@ export interface ContentPartFileSource {
    * The provider that issued the handle. A handle is only valid for its issuer;
    * passing (e.g.) an OpenAI `file-...` id to a Gemini adapter is an error.
    */
-  provider: string
+  provider: TProvider
   /**
    * Optional MIME type hint for cases where the provider can't infer it.
    */

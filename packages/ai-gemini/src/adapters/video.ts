@@ -3,6 +3,7 @@ import {
   VideoGenerationReferenceType,
 } from '@google/genai'
 import {
+  assertOwnFileSource,
   isFileSource,
   resolveMediaPrompt,
   unsupportedFileSourceError,
@@ -155,6 +156,11 @@ async function imagePartToVeoImage(
 function mediaPartToInteractionsContent(
   part: ImagePart<MediaInputMetadata> | VideoPart<MediaInputMetadata>,
 ): InteractionContent {
+  // A file handle from another provider is a bug; a Gemini handle maps to the
+  // `uri` field, same as a public URL (mirrors the Interactions text adapter).
+  if (isFileSource(part.source)) {
+    assertOwnFileSource(part.source, 'gemini')
+  }
   const mimeType = part.source.mimeType
   if (part.type === 'image') {
     return part.source.type === 'data'

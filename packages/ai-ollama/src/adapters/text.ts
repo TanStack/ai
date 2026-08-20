@@ -475,7 +475,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
             textContent += part.content
           } else if (part.type === 'image') {
             if (isFileSource(part.source)) {
-              throw unsupportedFileSourceError('ollama')
+              throw unsupportedFileSourceError(this.name)
             }
             images.push(part.source.value)
           }

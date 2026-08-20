@@ -299,6 +299,13 @@ export type {
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
 export type { WireMessage } from './utilities/ag-ui-wire'
 
+// A browser client that received an uploaded handle from its server can build
+// the `{ type: 'file' }` content source itself — `fileSourceFromHandle` is a
+// pure object builder, so exporting it here keeps the documented client flow
+// from pulling in the server entry.
+export { fileSourceFromHandle } from './activities/files/index'
+export type { FileHandle } from './activities/files/adapter'
+
 export type {
   AudioPart,
   ContentPart,

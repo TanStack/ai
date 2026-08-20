@@ -77,6 +77,76 @@ describe('openai file content source', () => {
     expect(imageContent.image_url).toBeUndefined()
   })
 
+  it('maps a document file handle to input_file.file_id — the only supported document form', async () => {
+    const create = vi.fn().mockResolvedValueOnce(mockResponsesStream())
+    const adapter = withMockClient(create)
+
+    await drain(
+      chat({
+        adapter,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', content: 'summarize' },
+              {
+                type: 'document',
+                source: {
+                  type: 'file',
+                  value: 'file-openai-pdf',
+                  provider: 'openai',
+                },
+              },
+            ],
+          },
+        ],
+      }),
+    )
+
+    const [payload] = create.mock.calls[0]!
+    const userItem = payload.input.find(
+      (item: any) => item.type === 'message' && item.role === 'user',
+    )
+    const fileContent = userItem.content.find(
+      (c: any) => c.type === 'input_file',
+    )
+    expect(fileContent.file_id).toBe('file-openai-pdf')
+  })
+
+  it('still rejects inline (data) document parts — only handles map on this path', async () => {
+    const create = vi.fn().mockResolvedValueOnce(mockResponsesStream())
+    const adapter = withMockClient(create)
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'data',
+                value: 'AAAA',
+                mimeType: 'application/pdf',
+              },
+            },
+          ],
+        },
+      ],
+    })) {
+      chunks.push(chunk)
+    }
+
+    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
+    expect(runError).toBeDefined()
+    if (runError?.type === 'RUN_ERROR') {
+      expect(runError.message).toMatch(/Unsupported content part type/)
+    }
+    expect(create).not.toHaveBeenCalled()
+  })
+
   it('errors when a foreign provider file handle reaches the openai adapter', async () => {
     const create = vi.fn().mockResolvedValueOnce(mockResponsesStream())
     const adapter = withMockClient(create)

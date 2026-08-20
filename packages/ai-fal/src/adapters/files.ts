@@ -23,7 +23,7 @@ export interface FalFilesConfig extends FalClientConfig {
  * as a normal URL (fal endpoints accept it directly). Upload-only: fal storage
  * has no retrieval/deletion API, so `get`/`delete` are unavailable.
  */
-export class FalFilesAdapter extends BaseFilesAdapter {
+export class FalFilesAdapter extends BaseFilesAdapter<'fal'> {
   readonly name = 'fal' as const
   private readonly expiresIn?: StorageSettings['expiresIn']
 
@@ -33,11 +33,13 @@ export class FalFilesAdapter extends BaseFilesAdapter {
     this.expiresIn = config?.expiresIn
   }
 
-  async upload(input: FileUploadInput): Promise<FileHandle> {
+  async upload(input: FileUploadInput): Promise<FileHandle<'fal'>> {
     const { blob, mimeType } = normalizeFileUploadInput(input)
     const url = await fal.storage.upload(
       blob,
-      this.expiresIn ? { lifecycle: { expiresIn: this.expiresIn } } : undefined,
+      this.expiresIn !== undefined
+        ? { lifecycle: { expiresIn: this.expiresIn } }
+        : undefined,
     )
     return {
       id: url,
