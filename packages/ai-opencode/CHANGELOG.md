@@ -1,5 +1,13 @@
 # @tanstack/ai-opencode
 
+## 0.3.3
+
+### Patch Changes
+
+- Updated dependencies [[`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9), [`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/ai-sandbox@0.4.0
+  - @tanstack/ai@0.47.1
+
 ## 0.3.2
 
 ### Patch Changes

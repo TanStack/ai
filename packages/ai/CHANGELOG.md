@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.47.1
+
+### Patch Changes
+
+- [#1126](https://github.com/TanStack/ai/pull/1126) [`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d) - Persist completed structured outputs as structured-output message parts and restore them during chat hydration.
+
 ## 0.47.0
 
 ### Minor Changes

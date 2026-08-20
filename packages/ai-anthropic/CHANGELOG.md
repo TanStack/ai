@@ -1,5 +1,16 @@
 # @tanstack/ai-anthropic
 
+## 0.16.9
+
+### Patch Changes
+
+- [#1080](https://github.com/TanStack/ai/pull/1080) [`3bb55f3`](https://github.com/TanStack/ai/commit/3bb55f33524ccb52ee8262a06a3f90154a7db23a) - Fix `modelOptions.context_management` by attaching the required
+  `context-management-2025-06-27` beta. The option was typed and forwarded on the
+  request body, but Anthropic rejects context editing without the beta header —
+  so the feature typechecked and could not work (issue [#1074](https://github.com/TanStack/ai/issues/1074)).
+- Updated dependencies [[`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/ai@0.47.1
+
 ## 0.16.8
 
 ### Patch Changes

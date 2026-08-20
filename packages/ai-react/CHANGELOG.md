@@ -1,5 +1,15 @@
 # @tanstack/ai-react
 
+## 0.21.1
+
+### Patch Changes
+
+- [#1121](https://github.com/TanStack/ai/pull/1121) [`bd221d9`](https://github.com/TanStack/ai/commit/bd221d986433fdf460d9dfc2a9e96ff9fa0f3342) - `onInterruptStateChange` now identifies snapshot restoration (`hydrate`) separately from streamed or client-initiated interrupt updates (`live`). The source follows each state publication, so cancelling a restored batch from the callback produces subsequent `live` updates without re-entering hydration. Client-tool interrupts remain hidden from the public list in both cases; `hydrate` lets an app cancel a restored batch without cancelling one that is still running.
+
+- Updated dependencies [[`bd221d9`](https://github.com/TanStack/ai/commit/bd221d986433fdf460d9dfc2a9e96ff9fa0f3342), [`8bd6f70`](https://github.com/TanStack/ai/commit/8bd6f7054248ddf9bda2929bb105a8aa5054b9d2), [`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/ai-client@0.25.1
+  - @tanstack/ai@0.47.1
+
 ## 0.21.0
 
 ### Minor Changes

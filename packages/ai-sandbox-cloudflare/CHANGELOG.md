@@ -1,5 +1,18 @@
 # @tanstack/ai-sandbox-cloudflare
 
+## 0.3.5
+
+### Patch Changes
+
+- [#1108](https://github.com/TanStack/ai/pull/1108) [`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9) - Support filesystem metadata needed by portable sandbox snapshots.
+
+- [#1108](https://github.com/TanStack/ai/pull/1108) [`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9) - Write files in 32KB base64 chunks so snapshot restore no longer hits Linux `MAX_ARG_STRLEN`.
+
+- Updated dependencies [[`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9), [`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9), [`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/ai-sandbox-local-process@0.2.3
+  - @tanstack/ai-sandbox@0.4.0
+  - @tanstack/ai@0.47.1
+
 ## 0.3.4
 
 ### Patch Changes

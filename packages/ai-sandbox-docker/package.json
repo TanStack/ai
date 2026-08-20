@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-docker",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Docker sandbox providers for TanStack AI — dockerSandbox() runs a container; sbxSandbox() runs a Docker Sandboxes microVM.",
   "author": "",
   "license": "MIT",
