@@ -142,12 +142,10 @@ Subscribe to a `ByokClient` snapshot in Svelte 5. Call it during component init.
 import { createByok } from "@tanstack/ai-svelte";
 import { byok } from "./byok";
 
-const { snapshot } = createByok(byok);
-const openai = snapshot.status.openai;
-const last4 = openai && "masked" in openai ? openai.masked : "No key";
+const byokState = createByok(byok);
 ```
 
-`snapshot` is a reactive getter with `status`, `locked`, and `prompt`. Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
+Keep the object. `byokState.snapshot` is a reactive getter (`status`, `locked`, `prompt`). Destructuring `snapshot` freezes the first value. Read it in markup or `$derived`. Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
 
 ## Connection Adapters
 

@@ -467,8 +467,12 @@ Factory for a headless BYOK keyring. Import it from `@tanstack/ai-client/byok`. 
 
 ```typescript
 import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
+import { openaiByok } from "@tanstack/ai-openai/byok";
 
-export const byok = defineByok({ storage: defaultByokStorage() });
+export const byok = defineByok({
+  storage: defaultByokStorage(),
+  providers: [openaiByok],
+});
 ```
 
 ### Factory options
@@ -484,10 +488,10 @@ export const byok = defineByok({ storage: defaultByokStorage() });
 - `clear(provider?)` - Persist the removal, then drop one key, or all keys when you omit `provider`
 - `unlock()` - Decrypt unlockable storage (passkey). No-op for memory storage
 - `validate(provider, key?)` - Check a key if you passed `validate` into `defineByok`. Uses the stored key when `key` is omitted. Without a config for that slug, the status stays `set`
-- `headers(provider?)` - Return `x-byok-*` headers. With a provider, only that key is included. With no provider, every stored key is included. Chat and generation clients never use the no-provider overload — they throw if no slug resolves
+- `headers(provider)` - Return `x-byok-*` headers for that slug. Chat and generation clients throw if no slug resolves — they do not send every stored key
 - `prepare(provider?)` - Wait for hydration, then unlock if needed. If `provider` is set, the key is empty, and the server has no coverage, throw `ByokBlockedError` and set `prompt`
 - `ready()` - Resolve when constructor hydration (peek/load) finishes
-- `setServerCoverage(flags)` - `true` means the server can fill any slug from env. `false` clears coverage. A record merges per-slug flags. Then `prepare` does not block covered slugs
+- `setServerCoverage(flags)` - `true` means do not block a send when the browser has no key (the relay can fill from env). `false` restores the default: block. A record merges per-slug flags
 - `request(provider, reason)` - Set `prompt` to `{ provider, reason }` (`missing` | `locked` | `invalid`)
 - `getSnapshot()` - Return the current [`ByokSnapshot`](#snapshot)
 - `subscribe(listener)` - Call `listener` on each change. Returns an unsubscribe function

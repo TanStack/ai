@@ -2,7 +2,7 @@
 title: Bring Your Own Key (BYOK)
 id: byok
 order: 9
-description: "Let users supply provider API keys in the browser. defineByok stores them. useChat sends them as x-byok headers. Your relay reads them for one call."
+description: "Users paste provider API keys in the browser. defineByok stores them. useChat sends x-byok headers. Your relay reads a key for one call."
 keywords:
   - tanstack ai
   - byok
@@ -11,15 +11,25 @@ keywords:
   - defineByok
 ---
 
-Your users have their own provider API keys. You want those keys to stay in the browser. Your relay must read a key for one call, then forget it.
+Users bring their own provider API keys. Those keys stay in the browser. Your relay reads a key for one call, then forgets it.
 
-`defineByok` stores the keys. Pass that store into `useChat`. The client sends keys as `x-byok-*` headers. The key never goes in the JSON body. Your relay reads the header (or an env key) and builds the adapter for that call.
+1. **Define** one `ByokClient` for the app. Import provider descriptors from each adapter's `/byok` subpath — never from the adapter's main entry.
+2. **Save** a key from your own UI with `byok.update(provider, value)`. The library does not ship a dialog; the `ts-react-chat` example has a key-icon popup you can copy.
+3. **Send** by passing the same `byok` instance into `useChat` (or a generation hook). The client stamps `x-byok-<slug>` on the POST. The key is never in the JSON body.
+4. **Relay** with `getByokKey(request, openaiByok)` from `@tanstack/ai/byok/server`. The header wins; otherwise it reads the env names on that descriptor. If both are empty, return `byokMissing`.
 
-Provider ids are open slugs (`openai`, `bedrock`, `my-llm`), not a fixed catalog. A slug is `[a-z][a-z0-9-]{0,63}`. The header is `x-byok-<slug>`.
+| Where | Import |
+| --- | --- |
+| Client store | `@tanstack/ai-client/byok` |
+| Provider descriptor | `@tanstack/ai-openai/byok` (and the same `/byok` on every adapter) |
+| Relay (`process.env`) | `@tanstack/ai/byok/server` |
+| Authoring an adapter | `@tanstack/ai/byok` (`defineByokProvider`) |
 
-## Store keys on the client
+`@tanstack/ai/byok/server` is a separate entry because `getByokKey` reads `process.env`. Adapter `/byok` files import `@tanstack/ai/byok` on the client; that barrel must not pull env access into the browser.
 
-Create one `ByokClient` for the app. `defaultByokStorage()` uses a passkey when WebAuthn is available in a secure context. If it is not, keys stay in memory on that `ByokClient` instance (gone on reload). WebAuthn support is not the same as PRF — first save throws if the authenticator does not support the PRF extension.
+The slug is an open id (`openai`, `bedrock`, `my-llm`): `[a-z][a-z0-9-]{0,63}`. The header is `x-byok-<slug>`.
+
+## 1. Define the store
 
 ```typescript
 import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
@@ -32,54 +42,23 @@ export const byok = defineByok({
 });
 ```
 
-Each adapter exports a `{ id, label, env?, validate? }` object from its `/byok` subpath (`@tanstack/ai-openai/byok`, `@tanstack/ai-anthropic/byok`, …). Import that subpath on the client — the adapter's main entry pulls in the provider SDK. `id` is the slug and is required. `env` is the env var **name** (or a list of names) — not a `process.env` read. Pass those objects into `providers` so `byok.validate()` can hit the adapter's check URL.
+Each `/byok` export is `{ id, label, env?, validate? }`. `id` is required. `env` is env var **names**, not `process.env` values. `validate` is the optional URL `byok.validate()` hits from the browser.
 
-If the server can fall back to an env key, tell the client. Then a send is not blocked when the browser has no key yet:
+`defaultByokStorage()` uses a passkey when WebAuthn exists in a secure context. Otherwise keys live in memory on this `ByokClient` (gone on reload). WebAuthn is not the same as PRF — first save throws if the authenticator has no PRF. After a refresh, passkey keys are `locked` until `unlock()` (or until `update` / send, which already call `unlock()`).
+
+### Env fallback on the relay
+
+By default, `prepare` **blocks the send** if the browser has no key (`ByokBlockedError`, `snapshot.prompt`). If your relay has env keys, say so:
 
 ```typescript
-import { byok } from "./byok";
-
 byok.setServerCoverage(true);
 ```
 
-See [`defineByok`](../api/ai-client#definebyok) for methods, the snapshot, and other storage.
+Then a send with an empty keyring still POSTs. The relay uses env, or returns `byokMissing` (401), and the client sets `snapshot.prompt`.
 
-## Send keys with `useChat`
+## 2. Save a key
 
-Pass the same `byok` instance into `useChat`. The client stamps `x-byok-*` on each POST.
-
-```tsx
-import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
-import { byok } from "./byok";
-
-export function Chat() {
-  const { sendMessage, isLoading } = useChat({
-    connection: fetchServerSentEvents("/api/chat"),
-    byok,
-    forwardedProps: { provider: "openai", model: "gpt-5.5" },
-  });
-
-  return (
-    <button
-      type="button"
-      disabled={isLoading}
-      onClick={() => {
-        void sendMessage("Hello");
-      }}
-    >
-      Send
-    </button>
-  );
-}
-```
-
-`forwardedProps.provider` selects which key to send. You can also pass `byokProvider`. If no slug resolves, the send throws instead of attaching every stored key. Always set `byokProvider` or `forwardedProps.provider`.
-
-Send is blocked until a key exists or you call `setServerCoverage`. Catch `ByokBlockedError` / `ByokMissingError` / `ByokUnresolvedProviderError` if you fire `sendMessage` without awaiting a save.
-
-## Save a key
-
-This library does not ship a dialog. Call `byok.update(provider, value)` from your own UI.
+Call `byok.update(provider, value)` from your UI. `useByok(byok)` is the live snapshot (`status`, `locked`, `prompt`, `storageError`). Show `masked` (last four characters) with `"masked" in status`. Render `byok.storage.warning` and `snapshot.storageError` when they are set.
 
 ```tsx
 import { useState } from "react";
@@ -128,13 +107,75 @@ export function KeyForm() {
 }
 ```
 
-`useByok(byok)` is the live snapshot. Use it to show the last four characters, a lock state, or `snapshot.prompt` when a send needs a key. Render `byok.storage.warning` and `snapshot.storageError` if they are set.
+## 3. Send with `useChat`
 
-`update`, `prepare`, and `clear(provider)` already call `unlock()` when the ring is locked. A separate `byok.unlock()` is optional UX so you can show last-4 before a send.
+Pass the same instance. Set `forwardedProps.provider` (or `byokProvider`) to the slug. If no slug resolves, the send **throws** — it does not attach every stored key.
 
-## Sign in with OpenRouter
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { byok } from "./byok";
 
-OpenRouter can mint a key via PKCE instead of a paste field. Import from `@tanstack/ai-openrouter/pkce`. The helper writes the key with `openrouterByok.id` — the slug is required and is always `openrouter`.
+export function Chat() {
+  const { sendMessage, isLoading } = useChat({
+    connection: fetchServerSentEvents("/api/chat"),
+    byok,
+    forwardedProps: { provider: "openai", model: "gpt-5.6" },
+  });
+
+  return (
+    <button
+      type="button"
+      disabled={isLoading}
+      onClick={() => {
+        void sendMessage("Hello");
+      }}
+    >
+      Send
+    </button>
+  );
+}
+```
+
+Built-in fetch and XHR adapters copy `runContext.headers` onto POST. A custom `connect` / `stream()` / `rpcStream()` must do that itself, or the key never leaves the browser. See [Connection Adapters](../chat/connection-adapters).
+
+Catch `ByokBlockedError` (no browser key, no coverage), `ByokMissingError` (relay 401), and `ByokUnresolvedProviderError` (no slug) if you fire `sendMessage` without awaiting a save.
+
+## 4. Read the key on the relay
+
+Use this in any API route. It is not a TanStack Start server function.
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const apiKey = getByokKey(request, openaiByok);
+  if (!apiKey) return byokMissing(openaiByok);
+
+  const stream = chat({
+    adapter: createOpenaiChat("gpt-5.6", apiKey),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+Do not log the raw key. Use [`maskKey`](../api/ai#maskkey) or [`scrubSecrets`](../api/ai#scrubsecrets) on error strings.
+
+The same `byok` instance works on generation hooks. For a `fetcher`, spread `options.headers` onto the POST. See [Generation Hooks](../media/generation-hooks#usegenerateaudio).
+
+## OpenRouter PKCE
+
+OpenRouter can mint a key instead of a paste field. Import from `@tanstack/ai-openrouter/pkce`. The helper writes `openrouterByok.id` (`openrouter`).
 
 ```tsx
 import { useEffect } from "react";
@@ -164,38 +205,3 @@ export function OpenRouterSignIn() {
 ```
 
 Pass `openrouterByok` in `defineByok({ providers })`. The relay reads `x-byok-openrouter` with `getByokKey(request, openrouterByok)`.
-
-## Read the key on the relay
-
-Import `getByokKey` from `@tanstack/ai/byok/server` in your API route (or any server handler). It is not a TanStack Start server function, so it works without Start.
-
-The header wins. If it is empty, `getByokKey` reads `provider.env` in order. If both are empty, return `byokMissing`. The client then sets `snapshot.prompt`.
-
-```typescript
-import {
-  chat,
-  chatParamsFromRequest,
-  toServerSentEventsResponse,
-} from "@tanstack/ai";
-import { createOpenaiChat } from "@tanstack/ai-openai";
-import { openaiByok } from "@tanstack/ai-openai/byok";
-import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
-
-export async function POST(request: Request) {
-  const params = await chatParamsFromRequest(request);
-  const apiKey = getByokKey(request, openaiByok);
-  if (!apiKey) return byokMissing(openaiByok);
-
-  const stream = chat({
-    adapter: createOpenaiChat("gpt-5.5", apiKey),
-    messages: params.messages,
-    threadId: params.threadId,
-    runId: params.runId,
-  });
-  return toServerSentEventsResponse(stream);
-}
-```
-
-Do not log the raw key. Use [`maskKey`](../api/ai#maskkey) or [`scrubSecrets`](../api/ai#scrubsecrets) if you write an error string.
-
-The same `byok` instance works on generation hooks. For a `fetcher`, spread `options.headers` onto the POST. See [Generation Hooks](../media/generation-hooks#usegenerateaudio).

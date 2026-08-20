@@ -201,7 +201,7 @@ Once your adapter is complete:
 
 ### 9. Export a BYOK provider
 
-If users can paste an API key for your adapter, export a `defineByokProvider` object. `id` is the `x-byok-<id>` slug and is required. Set `env` to the env var **name** your adapter already reads. Names only — this object is imported on the client. Relays call `getByokKey(request, acmeByok)` from `@tanstack/ai/byok/server`.
+If users can paste an API key for your adapter, export a `defineByokProvider` object from a **`/byok` subpath** (`@scope/ai-acme/byok`). Do not re-export it from the package main entry — that pulls your provider SDK into the browser. `id` is the `x-byok-<id>` slug and is required. Set `env` to the env var **name** your adapter already reads. Names only — this object is imported on the client. Relays call `getByokKey(request, acmeByok)` from `@tanstack/ai/byok/server`.
 
 ```typescript
 import { defineByokProvider } from "@tanstack/ai/byok";
@@ -213,7 +213,7 @@ export const acmeByok = defineByokProvider({
 });
 ```
 
-Re-export it from your package entry. Apps pass it to `defineByok({ providers: [acmeByok] })`.
+Apps import `{ acmeByok } from "@scope/ai-acme/byok"` and pass it to `defineByok({ providers: [acmeByok] })`.
 
 ### 10. Sync documentation configuration
 

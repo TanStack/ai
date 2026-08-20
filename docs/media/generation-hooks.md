@@ -204,7 +204,7 @@ The `generate` function accepts an `AudioGenerateInput`:
 | `duration` | `number` | Desired duration in seconds |
 | `modelOptions` | `Record<string, any>` | Model-specific options |
 
-See [Bring Your Own Key](../advanced/byok) for `defineByok` and the Save form.
+See [Bring Your Own Key](../advanced/byok) for `defineByok` and a save UI.
 
 ## useGenerateSpeech
 
