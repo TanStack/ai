@@ -893,16 +893,17 @@ Two OpenRouter-specific behaviors to know about:
 #### fal.ai Model Options
 
 `duration` is typed per endpoint from `@fal-ai/client`. Popular models also
-implement `availableDurations()` / `snapDuration()` (Kling/Pika `'5' | '10'`,
-Luma `'5s' | '9s'`, Veo3 `'4s' | '6s' | '8s'`, WAN `'2'`…`'15'`). Models with
-no duration field (Minimax, Hunyuan) reject the option. See the
+implement `availableDurations()` / `snapDuration()` (Kling 2.6/Pika `'5' | '10'`,
+Kling 3 `'3'`…`'15'`, Luma `'5s' | '9s'`, Veo 3.1 `'4s' | '6s' | '8s'`, WAN
+`'2'`…`'15'`). Models with no duration field (Minimax, Hunyuan) type `duration`
+as `undefined`, so passing one is a compile error. See the
 [fal adapter](../adapters/fal) for the full table.
 
 ```typescript ignore
 import { generateVideo } from '@tanstack/ai'
 import { falVideo } from '@tanstack/ai-fal'
 
-const adapter = falVideo('fal-ai/veo3')
+const adapter = falVideo('fal-ai/veo3.1')
 adapter.availableDurations() // { kind: 'discrete', values: ['4s', '6s', '8s'] }
 
 await generateVideo({

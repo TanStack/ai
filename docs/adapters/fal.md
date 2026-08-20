@@ -217,10 +217,12 @@ const job = await generateVideo({
 
 | Model | `duration` type | `availableDurations()` |
 | --- | --- | --- |
-| `fal-ai/kling-video/v1.6/{standard,pro}/text-to-video` | `'5' \| '10'` | discrete |
+| `fal-ai/kling-video/v1.6/{standard,pro}/text-to-video`, `fal-ai/kling-video/v2.6/pro/{text,image}-to-video` | `'5' \| '10'` | discrete |
+| `fal-ai/kling-video/v3/pro/{text,image}-to-video` | `'3'` … `'15'` | discrete |
 | `fal-ai/pika/v2.2/text-to-video` | `'5' \| '10'` | discrete |
+| `fal-ai/ltx-2.3/{text,image}-to-video` (+ `/fast`) | `'6' \| '8' \| '10'` | discrete |
 | `fal-ai/luma-dream-machine/ray-2` | `'5s' \| '9s'` | discrete |
-| `fal-ai/veo3` / `fal-ai/veo3/image-to-video` | `'4s' \| '6s' \| '8s'` | discrete |
+| `fal-ai/veo3.1`, `fal-ai/veo3.1/fast` (+ `/image-to-video`), `fal-ai/veo3` (+ `/image-to-video`) | `'4s' \| '6s' \| '8s'` | discrete |
 | `fal-ai/wan-25-preview/text-to-video` | `'2'` … `'15'` | discrete |
 | `fal-ai/minimax/video-01` | not accepted | `{ kind: 'none' }` |
 | `fal-ai/hunyuan-video-v1.5/text-to-video` | not accepted (`num_frames`) | `{ kind: 'none' }` |
@@ -229,7 +231,7 @@ const job = await generateVideo({
 import { generateVideo } from "@tanstack/ai";
 import { falVideo } from "@tanstack/ai-fal";
 
-const adapter = falVideo("fal-ai/veo3");
+const adapter = falVideo("fal-ai/veo3.1");
 adapter.availableDurations(); // { kind: 'discrete', values: ['4s', '6s', '8s'] }
 adapter.snapDuration(7); // '6s'
 

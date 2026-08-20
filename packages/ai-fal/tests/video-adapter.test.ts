@@ -4,7 +4,10 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
 import { falVideo } from '../src/adapters/video'
 import { recordBillableUnitsFromResponse } from '../src/utils/billing'
-import type { FalVideoProviderOptions } from '../src/model-meta'
+import type {
+  FalModelVideoDuration,
+  FalVideoProviderOptions,
+} from '../src/model-meta'
 
 function seedBillableUnits(requestId: string, units: string) {
   recordBillableUnitsFromResponse(
@@ -130,6 +133,19 @@ describe('Fal Video Adapter', () => {
       expect(options.input).toMatchObject({
         duration: '8s',
       })
+    })
+
+    it('passes a numeric duration through for models not in the SDK', async () => {
+      mockQueueSubmit.mockResolvedValueOnce({ request_id: 'job-unk' })
+
+      await generateVideo({
+        adapter: falVideo('fal-ai/not-in-the-sdk', { apiKey: 'test' }),
+        prompt: 'A fox running through snow',
+        duration: 10,
+      })
+
+      const [, options] = mockQueueSubmit.mock.calls[0]!
+      expect(options.input).toMatchObject({ duration: 10 })
     })
 
     it('omits duration for kind: none models (Minimax)', async () => {
@@ -318,6 +334,57 @@ describe('Fal Video Adapter', () => {
       expectTypeOf(veo3.snapDuration).returns.toEqualTypeOf<
         '4s' | '6s' | '8s' | undefined
       >()
+      expectTypeOf<
+        FalModelVideoDuration<'fal-ai/minimax/video-01'>
+      >().toEqualTypeOf<undefined>()
+      expectTypeOf<
+        FalModelVideoDuration<'fal-ai/not-in-the-sdk'>
+      >().toEqualTypeOf<string | number | undefined>()
+    })
+
+    it('rejects out-of-union durations at the generateVideo call site', () => {
+      // Type-only: never invoked, so nothing hits the mocked queue.
+      const typeOnly = () => {
+        const veo = falVideo('fal-ai/veo3.1', { apiKey: 'test' })
+        // @ts-expect-error 7 is not '4s' | '6s' | '8s'
+        void generateVideo({ adapter: veo, prompt: 'x', duration: 7 })
+        // @ts-expect-error '5' is not '4s' | '6s' | '8s'
+        void generateVideo({ adapter: veo, prompt: 'x', duration: '5' })
+
+        const mini = falVideo('fal-ai/minimax/video-01', { apiKey: 'test' })
+        // @ts-expect-error minimax has no duration field
+        void generateVideo({ adapter: mini, prompt: 'x', duration: 5 })
+
+        const kling = falVideo('fal-ai/kling-video/v3/pro/text-to-video', {
+          apiKey: 'test',
+        })
+        void generateVideo({
+          adapter: kling,
+          prompt: 'x',
+          // @ts-expect-error duration moved out of modelOptions
+          modelOptions: { duration: '5' },
+        })
+      }
+      expect(typeOnly).toBeTypeOf('function')
+    })
+
+    it('curates the models used by the docs and example app', () => {
+      expect(
+        falVideo('fal-ai/veo3.1', { apiKey: 'test' }).snapDuration(7),
+      ).toBe('6s')
+      expect(
+        falVideo('fal-ai/kling-video/v3/pro/text-to-video', {
+          apiKey: 'test',
+        }).availableDurations(),
+      ).toMatchObject({
+        kind: 'discrete',
+        values: expect.arrayContaining(['3', '15']),
+      })
+      expect(
+        falVideo('fal-ai/kling-video/v2.6/pro/image-to-video', {
+          apiKey: 'test',
+        }).snapDuration(8),
+      ).toBe('10')
     })
   })
 

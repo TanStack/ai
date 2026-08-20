@@ -146,14 +146,15 @@ export type FalModelVideoSizeInput<TModel extends string> =
 
 /**
  * Extract the `duration` field type from a fal video model's input.
- * Falls back to `string | number | undefined` for unknown models.
+ * Falls back to `string | number | undefined` for models not in the SDK's
+ * `EndpointTypeMap`.
  *
  * Shapes seen in the wild:
  *  - `'5' | '10'` (Kling, Pika): discrete numeric strings
  *  - `'5s' | '9s'` (Luma): keyword strings with unit
  *  - `'4s' | '6s' | '8s'` (Veo3 via FAL): keyword strings
  *  - `'2' | … | '15'` (WAN-25): discrete-range numeric strings
- *  - never (Minimax, Hunyuan): no duration field
+ *  - undefined (Minimax, Hunyuan): no duration field; passing one is a type error
  */
 export type FalModelVideoDuration<TModel extends string> =
   TModel extends keyof EndpointTypeMap
@@ -219,7 +220,9 @@ export type FalVideoPromptModalitiesFor<TModel extends string> =
  */
 export type FalVideoProviderOptions<TModel extends string> =
   TModel extends keyof EndpointTypeMap
-    ? WithOptionalMediaInputFields<Omit<FalModelInput<TModel>, 'prompt'>>
+    ? WithOptionalMediaInputFields<
+        Omit<FalModelInput<TModel>, 'prompt' | 'duration'>
+      >
     : Record<string, unknown>
 
 /**

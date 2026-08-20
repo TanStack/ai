@@ -478,7 +478,7 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Generation Hooks",
@@ -878,7 +878,8 @@
         {
           "label": "fal.ai",
           "to": "adapters/fal",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "OpenRouter Adapter",
