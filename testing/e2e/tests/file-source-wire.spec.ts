@@ -44,7 +44,7 @@ test.describe('file content source — wire format', () => {
     expect(entries.length).toBeGreaterThan(0)
   })
 
-  test('openai: a foreign (gemini) handle is rejected, not forwarded', async ({
+  test('openai: a gemini-only reference is rejected — no openai entry in the record', async ({
     request,
     testId,
   }) => {
@@ -54,7 +54,7 @@ test.describe('file content source — wire format', () => {
     const { ok, error } = (await res.json()) as { ok: boolean; error?: string }
     expect(ok).toBe(false)
     expect(error).toMatch(/openai/)
-    expect(error).toMatch(/gemini/)
+    expect(error).toMatch(/found: gemini/)
   })
 
   test('anthropic: an own-provider handle completes the round-trip (file_id block covered by unit test)', async ({
@@ -83,7 +83,7 @@ test.describe('file content source — wire format', () => {
     expect(ok).toBe(true)
   })
 
-  test('gemini: a foreign (openai) handle is rejected before any request', async ({
+  test('gemini: an openai-only reference is rejected before any request', async ({
     request,
     testId,
   }) => {
@@ -93,5 +93,6 @@ test.describe('file content source — wire format', () => {
     const { ok, error } = (await res.json()) as { ok: boolean; error?: string }
     expect(ok).toBe(false)
     expect(error).toMatch(/gemini/)
+    expect(error).toMatch(/found: openai/)
   })
 })

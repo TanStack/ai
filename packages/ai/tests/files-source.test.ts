@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
-  assertOwnFileSource,
+  assertMessagesFileSourceSupport,
+  assertPromptFileSourceSupport,
   deleteFile,
+  fileReferenceFor,
   fileSourceFromHandle,
   getFile,
   isContentPart,
@@ -15,8 +17,7 @@ import type { FileHandle, FilesAdapter } from '../src/activities/files/adapter'
 
 const fileSource: ContentPartSource = {
   type: 'file',
-  value: 'file-abc',
-  provider: 'openai',
+  reference: { openai: 'file-abc' },
 }
 
 describe('file content source helpers', () => {
@@ -28,9 +29,17 @@ describe('file content source helpers', () => {
     ).toBe(false)
   })
 
-  it('assertOwnFileSource passes on match and throws on mismatch', () => {
-    expect(() => assertOwnFileSource(fileSource, 'openai')).not.toThrow()
-    expect(() => assertOwnFileSource(fileSource, 'gemini')).toThrow(/openai/)
+  it('fileReferenceFor resolves the own-provider entry and throws on a miss', () => {
+    const merged: ContentPartSource = {
+      type: 'file',
+      reference: { openai: 'file-abc', gemini: 'https://g/files/xyz' },
+    }
+    if (!isFileSource(merged)) throw new Error('expected file source')
+    expect(fileReferenceFor(merged, 'openai')).toBe('file-abc')
+    expect(fileReferenceFor(merged, 'gemini')).toBe('https://g/files/xyz')
+    expect(() => fileReferenceFor(merged, 'anthropic')).toThrow(
+      /anthropic.*found: openai, gemini/s,
+    )
   })
 
   it('unsupportedFileSourceError includes provider and detail', () => {
@@ -39,12 +48,11 @@ describe('file content source helpers', () => {
     expect(err.message).toContain('on this endpoint')
   })
 
-  it('fileSourceFromHandle prefers uri (Gemini/fal), else id (OpenAI/Anthropic)', () => {
+  it('fileSourceFromHandle uses uri (Gemini/fal) else id (OpenAI/Anthropic) and merges handles', () => {
     const opaque: FileHandle = { id: 'file-abc', provider: 'openai' }
     expect(fileSourceFromHandle(opaque)).toEqual({
       type: 'file',
-      value: 'file-abc',
-      provider: 'openai',
+      reference: { openai: 'file-abc' },
     })
 
     const withUri: FileHandle = {
@@ -55,20 +63,75 @@ describe('file content source helpers', () => {
     }
     expect(fileSourceFromHandle(withUri)).toEqual({
       type: 'file',
-      value: 'https://generativelanguage.googleapis.com/v1/files/xyz',
-      provider: 'gemini',
+      reference: {
+        gemini: 'https://generativelanguage.googleapis.com/v1/files/xyz',
+      },
+      mimeType: 'image/png',
+    })
+
+    // Multiple handles (same bytes uploaded to two providers) merge into one
+    // source that routes to either provider.
+    expect(fileSourceFromHandle(opaque, withUri)).toEqual({
+      type: 'file',
+      reference: {
+        openai: 'file-abc',
+        gemini: 'https://generativelanguage.googleapis.com/v1/files/xyz',
+      },
       mimeType: 'image/png',
     })
   })
 
-  it('isContentPart accepts a valid file source and rejects one missing provider', () => {
+  it('isContentPart accepts a valid file source and rejects an empty reference record', () => {
     expect(isContentPart({ type: 'image', source: fileSource })).toBe(true)
     expect(
       isContentPart({
         type: 'image',
-        source: { type: 'file', value: 'file-abc' },
+        source: { type: 'file', reference: {} },
       }),
     ).toBe(false)
+    expect(
+      isContentPart({
+        type: 'image',
+        source: { type: 'file' },
+      }),
+    ).toBe(false)
+  })
+})
+
+describe('file source preflight', () => {
+  const fileMessage = {
+    role: 'user',
+    content: [{ type: 'image', source: fileSource }],
+  }
+  const plainMessage = { role: 'user', content: 'hello' }
+
+  it('rejects file sources for adapters that do not declare support', () => {
+    expect(() =>
+      assertMessagesFileSourceSupport({ name: 'legacy' }, [
+        plainMessage,
+        fileMessage,
+      ]),
+    ).toThrow(/legacy does not support provider file-handle sources/)
+    expect(() =>
+      assertPromptFileSourceSupport({ name: 'legacy' }, [
+        { type: 'image', source: fileSource },
+      ]),
+    ).toThrow(/legacy does not support provider file-handle sources/)
+  })
+
+  it('passes when the adapter declares support or no file source is present', () => {
+    expect(() =>
+      assertMessagesFileSourceSupport(
+        { name: 'openai', supportsFileSources: true },
+        [fileMessage],
+      ),
+    ).not.toThrow()
+    expect(() =>
+      assertMessagesFileSourceSupport({ name: 'legacy' }, [plainMessage]),
+    ).not.toThrow()
+    expect(() =>
+      assertPromptFileSourceSupport({ name: 'legacy' }, 'a text prompt'),
+    ).not.toThrow()
   })
 })
 

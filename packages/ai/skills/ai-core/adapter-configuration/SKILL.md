@@ -452,17 +452,24 @@ chat({
 
 Rules agents must respect:
 
-- **A handle only works with the provider that issued it.** Adapters validate
-  `source.provider` at request time and throw on a mismatch; the `FileHandle`
-  provider-literal types also reject cross-provider `getFile()`/`deleteFile()`
-  calls at compile time.
+- **The source is a per-provider reference record.** `fileSourceFromHandle`
+  builds `{ type: 'file', reference: { openai: 'file-…' } }`; each adapter
+  reads only its own entry and throws when none is present. Upload the same
+  bytes to several providers and pass all the handles —
+  `fileSourceFromHandle(openaiHandle, geminiHandle)` — to build one source
+  that routes to any of them.
+- **Adapters declare `supportsFileSources`.** For adapters that don't (Grok,
+  Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, and anything written
+  before this feature), `chat()` / `generateImage()` / `generateVideo()`
+  reject file sources in preflight, before any request is built — pass
+  `data`/`url` sources there instead.
 - **Lifecycle:** `getFile()` / `deleteFile()` work for OpenAI, Anthropic, and
-  Gemini. fal storage is upload-only — those calls throw for `falFiles()`.
-- **Not every endpoint consumes handles.** Chat Completions image inputs,
-  OpenAI `images/edits` + Sora `input_reference`, Gemini Veo, and providers
-  without a Files API (Grok, Groq, Bedrock, Mistral, OpenRouter, Ollama,
-  BytePlus) throw a clear "unsupported file source" error — pass `data`/`url`
-  sources there instead.
+  Gemini, and accept the handle itself (provider-literal typed — a foreign
+  handle is a compile error). fal storage is upload-only — those calls throw
+  for `falFiles()`.
+- **Some endpoints need raw bytes even on supporting providers:** OpenAI
+  `images/edits` + Sora `input_reference`, Gemini Veo, and Chat Completions
+  image inputs throw endpoint-specific errors for file sources.
 - `fileSourceFromHandle` and the `FileHandle` type are also exported from the
   browser-safe `@tanstack/ai/client` entry for clients that persist handles.
 

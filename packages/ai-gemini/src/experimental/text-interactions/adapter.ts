@@ -1,4 +1,4 @@
-import { EventType, assertOwnFileSource, isFileSource } from '@tanstack/ai'
+import { EventType, fileReferenceFor, isFileSource } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { parse as parsePartialJSON } from 'partial-json'
 import {
@@ -183,6 +183,8 @@ export class GeminiTextInteractionsAdapter<
 > {
   override readonly kind = 'text' as const
   override readonly name = 'gemini-text-interactions' as const
+  // Consumes Gemini Files API references (geminiFiles()) as content `uri`s.
+  override readonly supportsFileSources = true
 
   private readonly client: GoogleGenAI
   // Tracks the most recent server-assigned interaction id per threadId
@@ -736,11 +738,13 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
   if (part.type === 'text') {
     return { type: 'text', text: part.content }
   }
-  // A file handle from another provider is a bug; a Gemini handle maps to the
-  // `uri` field (isData stays false), same as a public URL.
-  if (isFileSource(part.source)) {
-    assertOwnFileSource(part.source, 'gemini')
-  }
+  // A Gemini Files API reference maps to the `uri` field (isData stays
+  // false), same as a public URL. `fileReferenceFor` throws when the file was
+  // never uploaded to Gemini (the reference key is the files-issuer name,
+  // shared with the standard gemini adapters).
+  const sourceValue = isFileSource(part.source)
+    ? fileReferenceFor(part.source, 'gemini')
+    : part.source.value
   const isData = part.source.type === 'data'
   switch (part.type) {
     case 'image': {
@@ -750,8 +754,8 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
         'image',
       )
       return isData
-        ? { type: 'image', data: part.source.value, mime_type }
-        : { type: 'image', uri: part.source.value, mime_type }
+        ? { type: 'image', data: sourceValue, mime_type }
+        : { type: 'image', uri: sourceValue, mime_type }
     }
     case 'audio': {
       const mime_type = validateMime(
@@ -760,8 +764,8 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
         'audio',
       )
       return isData
-        ? { type: 'audio', data: part.source.value, mime_type }
-        : { type: 'audio', uri: part.source.value, mime_type }
+        ? { type: 'audio', data: sourceValue, mime_type }
+        : { type: 'audio', uri: sourceValue, mime_type }
     }
     case 'video': {
       const mime_type = validateMime(
@@ -770,8 +774,8 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
         'video',
       )
       return isData
-        ? { type: 'video', data: part.source.value, mime_type }
-        : { type: 'video', uri: part.source.value, mime_type }
+        ? { type: 'video', data: sourceValue, mime_type }
+        : { type: 'video', uri: sourceValue, mime_type }
     }
     case 'document': {
       const mime_type = validateMime(
@@ -780,8 +784,8 @@ function contentPartToBlock(part: ContentPart): ContentBlock {
         'document',
       )
       return isData
-        ? { type: 'document', data: part.source.value, mime_type }
-        : { type: 'document', uri: part.source.value, mime_type }
+        ? { type: 'document', data: sourceValue, mime_type }
+        : { type: 'document', uri: sourceValue, mime_type }
     }
   }
 }

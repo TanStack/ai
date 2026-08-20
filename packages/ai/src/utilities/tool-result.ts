@@ -25,13 +25,19 @@ export function isContentPart(value: unknown): value is ContentPart {
   const source = part.source
   if (typeof source !== 'object' || source === null) return false
   const src = source as Record<string, unknown>
+  // `file` sources carry a non-empty provider→reference record instead of a
+  // `value` string.
+  if (src.type === 'file') {
+    const reference = src.reference
+    if (typeof reference !== 'object' || reference === null) return false
+    const entries = Object.values(reference)
+    return entries.length > 0 && entries.every((v) => typeof v === 'string')
+  }
   if (typeof src.value !== 'string') return false
   // `data` sources require a mimeType (matches ContentPartDataSource); `url`
   // sources don't. Requiring it here keeps the runtime guard consistent with
   // the type and avoids emitting `data:undefined;base64,...` downstream.
   if (src.type === 'data') return typeof src.mimeType === 'string'
-  // `file` sources reference a provider-issued handle and must name their issuer.
-  if (src.type === 'file') return typeof src.provider === 'string'
   return src.type === 'url'
 }
 

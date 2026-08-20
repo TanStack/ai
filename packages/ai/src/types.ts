@@ -250,33 +250,31 @@ export interface ContentPartUrlSource {
 }
 
 /**
- * Source specification for a provider-issued file handle (Files API).
+ * Source specification for provider-issued file references (Files API).
  *
  * The media is uploaded once via a `files` adapter (`openaiFiles()`,
  * `anthropicFiles()`, `geminiFiles()`, `falFiles()`) and referenced here by the
  * returned handle instead of re-sending base64 or a public URL each request.
  *
- * A handle only routes to the provider that issued it — the `provider` field is
- * validated at map time, and adapters throw if it doesn't match. The `value` is
- * the provider's opaque id (OpenAI/Anthropic `file_id`) or handle URL (Gemini
- * file URI, fal storage URL); use `fileSourceFromHandle` to build one from a
- * `FileHandle` without worrying about the id-vs-uri distinction.
+ * `reference` maps provider names to that provider's wire reference — an
+ * OpenAI/Anthropic `file_id`, a Gemini file URI, a fal storage URL. Upload the
+ * same bytes to several providers and merge their handles
+ * (`fileSourceFromHandle(openaiHandle, geminiHandle)`) to make one source that
+ * works across all of them; each adapter reads only its own entry and throws
+ * when none is present. Adapters that can't consume file references at all are
+ * rejected by the activity-layer preflight before mapping starts.
  */
 export interface ContentPartFileSource<TProvider extends string = string> {
   /**
-   * Indicates this references a provider-issued file handle.
+   * Indicates this references provider-issued file handles.
    */
   type: 'file'
   /**
-   * The provider handle: an OpenAI/Anthropic `file_id`, a Gemini file URI, or a
-   * fal storage URL.
+   * Provider name → wire reference issued by that provider's Files API. Use
+   * `fileSourceFromHandle(...handles)` to build (and merge) entries without
+   * worrying about the id-vs-uri distinction.
    */
-  value: string
-  /**
-   * The provider that issued the handle. A handle is only valid for its issuer;
-   * passing (e.g.) an OpenAI `file-...` id to a Gemini adapter is an error.
-   */
-  provider: TProvider
+  reference: Record<TProvider, string>
   /**
    * Optional MIME type hint for cases where the provider can't infer it.
    */
