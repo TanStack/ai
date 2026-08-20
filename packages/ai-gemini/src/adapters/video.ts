@@ -2,7 +2,11 @@ import {
   GenerateVideosOperation,
   VideoGenerationReferenceType,
 } from '@google/genai'
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  isFileSource,
+  resolveMediaPrompt,
+  unsupportedFileSourceError,
+} from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
 import { createGeminiClient, getGeminiApiKeyFromEnv } from '../utils'
@@ -92,6 +96,14 @@ async function imagePartToVeoImage(
       imageBytes: part.source.value,
       mimeType: part.source.mimeType || 'image/png',
     }
+  }
+  if (isFileSource(part.source)) {
+    // Veo's predict API accepts only inline bytes or a gs:// reference — there's
+    // no way to reference a Files API handle here.
+    throw unsupportedFileSourceError(
+      'gemini',
+      'for Veo video generation, which needs inline image bytes or a gs:// reference — pass a data: URI or gs:// URL',
+    )
   }
   const url = part.source.value
   if (url.startsWith('gs://')) {

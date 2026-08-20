@@ -1,5 +1,10 @@
 import { FinishReason } from '@google/genai'
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  assertOwnFileSource,
+  isFileSource,
+  normalizeSystemPrompts,
+} from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
@@ -920,6 +925,12 @@ export class GeminiTextAdapter<
       case 'audio':
       case 'video':
       case 'document': {
+        // File handles (Gemini Files API) and public URLs both pass through as
+        // `fileData`; Gemini fetches the URI server-side. Reject a handle from
+        // another provider before it's sent.
+        if (isFileSource(part.source)) {
+          assertOwnFileSource(part.source, this.name)
+        }
         const geminiPart: Part =
           part.source.type === 'data'
             ? {
@@ -1045,6 +1056,9 @@ export class GeminiTextAdapter<
                 },
               })
             } else {
+              if (isFileSource(part.source)) {
+                assertOwnFileSource(part.source, this.name)
+              }
               const defaultMimeType = {
                 image: 'image/jpeg',
                 audio: 'audio/mp3',
