@@ -49,11 +49,11 @@ Use pragmatic `simple-english`. Then shape the text with `i-have-adhd`: next act
 
 Pick one kind from the diff:
 
-| Kind | Signal |
-|---|---|
-| **fix** | Restores broken behavior. A user-visible bug, a failing test, a regression. |
-| **feat** | Adds behavior that did not exist. New export, new command, new user-facing flow. |
-| **chore / docs** | Agent files, CI, docs-only, refactors with no user-visible behavior change. |
+| Kind             | Signal                                                                           |
+| ---------------- | -------------------------------------------------------------------------------- |
+| **fix**          | Restores broken behavior. A user-visible bug, a failing test, a regression.      |
+| **feat**         | Adds behavior that did not exist. New export, new command, new user-facing flow. |
+| **chore / docs** | Agent files, CI, docs-only, refactors with no user-visible behavior change.      |
 
 If both a feat and a fix are in the diff, the larger user-visible story wins. Say so in the lead.
 
@@ -150,15 +150,15 @@ Do not attach screenshots to the PR. Do not commit screenshot files for this ski
 
 ## Red flags
 
-| You catch yourself | Do instead |
-|---|---|
-| Writing the body from the branch name | Read the diff. |
-| Ticking a template checkbox you did not do | Leave it unchecked and say so in Testing. |
-| Posting a feat with no test, command, or example | Stop. The feat gate failed. |
-| A 1-4 sentence lead that lists files | Rewrite as what a user can do, or what bug is gone. |
-| Public API section that shows the internal diff | Show caller usage before and after. |
-| Public API section on an AGENTS.md-only PR | Omit the heading. |
-| "I'll update the description later" after a push | Rewrite now with `gh pr edit`. |
-| Waiting for the user to approve the text | Post. This skill does not wait. |
-| Uploading or committing screenshots for the PR body | Skip. Do not put images on the PR. |
-| Writing without loading simple-english and i-have-adhd | Load both. If missing, stop. |
+| You catch yourself                                     | Do instead                                          |
+| ------------------------------------------------------ | --------------------------------------------------- |
+| Writing the body from the branch name                  | Read the diff.                                      |
+| Ticking a template checkbox you did not do             | Leave it unchecked and say so in Testing.           |
+| Posting a feat with no test, command, or example       | Stop. The feat gate failed.                         |
+| A 1-4 sentence lead that lists files                   | Rewrite as what a user can do, or what bug is gone. |
+| Public API section that shows the internal diff        | Show caller usage before and after.                 |
+| Public API section on an AGENTS.md-only PR             | Omit the heading.                                   |
+| "I'll update the description later" after a push       | Rewrite now with `gh pr edit`.                      |
+| Waiting for the user to approve the text               | Post. This skill does not wait.                     |
+| Uploading or committing screenshots for the PR body    | Skip. Do not put images on the PR.                  |
+| Writing without loading simple-english and i-have-adhd | Load both. If missing, stop.                        |
