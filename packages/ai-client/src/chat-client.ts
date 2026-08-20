@@ -1373,10 +1373,7 @@ export class ChatClient<
       resumeState,
       interruptState.interrupts,
     )
-    this.callbacksRef.current.onInterruptStateChange(
-      interruptState,
-      { source },
-    )
+    this.callbacksRef.current.onInterruptStateChange(interruptState, { source })
   }
 
   /**
