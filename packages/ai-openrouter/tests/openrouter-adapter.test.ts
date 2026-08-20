@@ -1341,6 +1341,45 @@ describe('OpenRouter structured output', () => {
     expect(result.usage).toBeUndefined()
   })
 
+  it('honors json_object for non-streaming structured output', async () => {
+    setupMockSdkClient([], {
+      choices: [
+        {
+          message: {
+            content: '{"name":"Alice","age":30}',
+          },
+        },
+      ],
+    })
+    const adapter = createAdapter()
+
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Give me a person as json' }],
+        logger: testLogger,
+        modelOptions: {
+          responseFormat: { type: 'json_object' },
+        },
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+        },
+        required: ['name', 'age'],
+      },
+    })
+
+    expect(result.data).toEqual({ name: 'Alice', age: 30 })
+    const [rawParams] = mockSend.mock.calls[0]!
+    expect(rawParams.chatRequest.responseFormat).toEqual({
+      type: 'json_object',
+    })
+    expect(rawParams.chatRequest.stream).toBe(false)
+  })
+
   it('makes schema OpenAI-strict compatible before sending', async () => {
     // Regression: upstream providers (OpenAI) reject json_schema requests with
     // strict: true unless every object sets additionalProperties: false and
@@ -1503,6 +1542,45 @@ describe('OpenRouter structured output', () => {
     expect(sentSchema.additionalProperties).toBe(false)
     expect(sentSchema.required).toEqual(['name', 'age', 'nickname'])
     expect(sentSchema.properties.nickname.type).toEqual(['string', 'null'])
+  })
+
+  it('honors json_object through core chat() structured streaming', async () => {
+    setupMockSdkClient([
+      {
+        id: 'c-json-object',
+        model: 'openai/gpt-4o-mini',
+        choices: [
+          {
+            delta: { content: '{"name":"Alice","age":30}' },
+            finishReason: 'stop',
+          },
+        ],
+      },
+    ])
+    const adapter = createAdapter()
+
+    const result = await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Give me a person as json' }],
+      modelOptions: {
+        responseFormat: { type: 'json_object' },
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+        },
+        required: ['name', 'age'],
+      },
+    })
+
+    expect(result).toEqual({ name: 'Alice', age: 30 })
+    const [rawParams] = mockSend.mock.calls[0]!
+    expect(rawParams.chatRequest.responseFormat).toEqual({
+      type: 'json_object',
+    })
+    expect(rawParams.chatRequest.stream).toBe(true)
   })
 
   it('parses JSON response content correctly', async () => {
