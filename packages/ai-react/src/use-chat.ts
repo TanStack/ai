@@ -285,16 +285,20 @@ export function useChat<
 
   useEffect(() => {
     activeClientRef.current = client
-    // Keep initialization closed while draining so callbacks published by a
-    // queued callback are appended and delivered in the same commit.
-    while (initialization.callbacks.length > 0) {
-      if (activeClientRef.current !== client) {
-        initialization.callbacks.length = 0
-        break
+    try {
+      // Keep initialization closed while draining so callbacks published by a
+      // queued callback are appended and delivered in the same commit.
+      while (initialization.callbacks.length > 0) {
+        if (activeClientRef.current !== client) {
+          initialization.callbacks.length = 0
+          break
+        }
+        initialization.callbacks.shift()?.()
       }
-      initialization.callbacks.shift()?.()
+    } finally {
+      // A throw from a queued user callback must not leave the queue closed.
+      initialization.ready = true
     }
-    initialization.ready = true
   }, [client, initialization])
 
   useEffect(() => {
