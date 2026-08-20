@@ -30,6 +30,13 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 
+type ChatStreamState = {
+  runId: string
+  threadId: string
+  messageId: string
+  hasEmittedRunStarted: boolean
+}
+
 /**
  * Shared implementation of the OpenAI Chat Completions API. Holds the
  * stream-accumulator + AG-UI lifecycle logic and calls the OpenAI SDK
@@ -94,98 +101,99 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
       yield* this.processStreamChunks(stream, options, aguiState)
     } catch (error: unknown) {
-      // Narrow before logging: raw SDK errors can carry request metadata
-      // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
-        error,
-        `${this.name}.chatStream failed`,
-      )
-      const rawEvent = toRunErrorRawEvent(error)
+      yield* this.handleChatStreamError(error, options, aguiState, 'chatStream')
+    }
+  }
 
-      // Emit RUN_STARTED if not yet emitted
-      if (!aguiState.hasEmittedRunStarted) {
-        aguiState.hasEmittedRunStarted = true
-        yield {
-          type: EventType.RUN_STARTED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
-          model: options.model,
-          timestamp: Date.now(),
-          parentRunId: options.parentRunId,
-        }
-      }
+  private async *handleChatStreamError(
+    error: unknown,
+    options: TextOptions,
+    aguiState: ChatStreamState,
+    source: 'chatStream' | 'processStreamChunks',
+  ): AsyncIterable<StreamChunk> {
+    // Narrow before logging: raw SDK errors can carry request metadata
+    // (including auth headers) which we must never surface to user loggers.
+    const errorPayload = toRunErrorPayload(
+      error,
+      `${this.name}.${source} failed`,
+    )
+    const rawEvent = toRunErrorRawEvent(error)
 
-      const rejectedToolCall = this.extractRejectedToolCall(
-        rawEvent,
-        errorPayload.message,
-      )
-      if (rejectedToolCall) {
-        const toolCallId = generateId(this.name)
-        yield {
-          type: EventType.TOOL_CALL_START,
-          toolCallId,
-          toolCallName: rejectedToolCall.toolName,
-          toolName: rejectedToolCall.toolName,
-          parentMessageId: aguiState.messageId,
-          model: options.model,
-          timestamp: Date.now(),
-        }
-        yield {
-          type: EventType.TOOL_CALL_ARGS,
-          toolCallId,
-          delta: rejectedToolCall.arguments,
-          args: rejectedToolCall.arguments,
-          model: options.model,
-          timestamp: Date.now(),
-        }
-        yield {
-          type: EventType.TOOL_CALL_END,
-          toolCallId,
-          toolCallName: rejectedToolCall.toolName,
-          toolName: rejectedToolCall.toolName,
-          ...(rejectedToolCall.input !== undefined && {
-            input: rejectedToolCall.input,
-          }),
-          result: JSON.stringify({ error: rejectedToolCall.error }),
-          state: 'output-error',
-          model: options.model,
-          timestamp: Date.now(),
-        }
-        yield {
-          type: EventType.RUN_FINISHED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
-          model: options.model,
-          timestamp: Date.now(),
-          finishReason: 'tool_calls',
-        }
-        return
-      }
-
-      // Emit AG-UI RUN_ERROR. Conditional `code` spread keeps the wire
-      // shape spec-compliant under `exactOptionalPropertyTypes`: AG-UI's
-      // `RunErrorEvent.code` is `string?` (absent vs explicit `undefined`
-      // matter), so we omit the key when there's no code.
+    if (!aguiState.hasEmittedRunStarted) {
+      aguiState.hasEmittedRunStarted = true
       yield {
-        type: EventType.RUN_ERROR,
+        type: EventType.RUN_STARTED,
+        runId: aguiState.runId,
+        threadId: aguiState.threadId,
         model: options.model,
         timestamp: Date.now(),
-        message: errorPayload.message,
-        code: errorPayload.code,
-        // Forward the provider's structured error body so consumers can recover
-        // the upstream detail the `{ message, code }` payload drops. Omitted
-        // when the error carried no provider body (see toRunErrorRawEvent).
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: errorPayload.message,
-          code: errorPayload.code,
-        },
+        parentRunId: options.parentRunId,
       }
+    }
 
-      options.logger.errors(`${this.name}.chatStream fatal`, {
-        error: errorPayload,
-        source: `${this.name}.chatStream`,
-      })
+    const rejectedToolCall = this.extractRejectedToolCall(
+      rawEvent,
+      errorPayload.message,
+    )
+    if (rejectedToolCall) {
+      const toolCallId = generateId(this.name)
+      yield {
+        type: EventType.TOOL_CALL_START,
+        toolCallId,
+        toolCallName: rejectedToolCall.toolName,
+        toolName: rejectedToolCall.toolName,
+        parentMessageId: aguiState.messageId,
+        model: options.model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: rejectedToolCall.arguments,
+        args: rejectedToolCall.arguments,
+        model: options.model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        toolCallName: rejectedToolCall.toolName,
+        toolName: rejectedToolCall.toolName,
+        ...(rejectedToolCall.input !== undefined && {
+          input: rejectedToolCall.input,
+        }),
+        result: JSON.stringify({ error: rejectedToolCall.error }),
+        state: 'output-error',
+        model: options.model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId: aguiState.runId,
+        threadId: aguiState.threadId,
+        model: options.model,
+        timestamp: Date.now(),
+        finishReason: 'tool_calls',
+      }
+      return
+    }
+
+    options.logger.errors(`${this.name}.${source} fatal`, {
+      error: errorPayload,
+      source: `${this.name}.${source}`,
+    })
+
+    yield {
+      type: EventType.RUN_ERROR,
+      model: options.model,
+      timestamp: Date.now(),
+      message: errorPayload.message,
+      ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+      ...(rawEvent !== undefined && { rawEvent }),
+      error: {
+        message: errorPayload.message,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+      },
     }
   }
 
@@ -680,12 +688,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   protected async *processStreamChunks(
     stream: AsyncIterable<ChatCompletionChunk>,
     options: TextOptions,
-    aguiState: {
-      runId: string
-      threadId: string
-      messageId: string
-      hasEmittedRunStarted: boolean
-    },
+    aguiState: ChatStreamState,
   ): AsyncIterable<StreamChunk> {
     let accumulatedContent = ''
     let hasEmittedTextMessageStart = false
@@ -1136,33 +1139,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         }
       }
     } catch (error: unknown) {
-      // Narrow before logging: raw SDK errors can carry request metadata
-      // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      yield* this.handleChatStreamError(
         error,
-        `${this.name}.processStreamChunks failed`,
+        options,
+        aguiState,
+        'processStreamChunks',
       )
-      const rawEvent = toRunErrorRawEvent(error)
-      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
-        error: errorPayload,
-        source: `${this.name}.processStreamChunks`,
-      })
-
-      // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream's
-      // catch block for the rationale). `rawEvent` carries the provider's
-      // structured error body when present.
-      yield {
-        type: EventType.RUN_ERROR,
-        model: options.model,
-        timestamp: Date.now(),
-        message: errorPayload.message,
-        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: errorPayload.message,
-          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
-        },
-      }
     }
   }
 
