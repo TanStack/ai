@@ -1,5 +1,19 @@
 # @tanstack/ai-openrouter
 
+## 0.18.1
+
+### Patch Changes
+
+- [#1164](https://github.com/TanStack/ai/pull/1164) [`366b2ee`](https://github.com/TanStack/ai/commit/366b2ee956f056db4eb7cea91dec6f901567e1ae) - Restore `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`, which the model-metadata sync dropped from the generated `model-meta.ts`. The set is now generated from OpenRouter's catalog (chat models whose `supported_parameters` include `structured_outputs`, `tools` and `tool_choice`) instead of being hand-maintained, so combined tools + `outputSchema` mode now covers every model OpenRouter flags as supporting it.
+
+- [#1014](https://github.com/TanStack/ai/pull/1014) [`c092231`](https://github.com/TanStack/ai/commit/c092231d974bc1f5869d4abc56b5bc54c84245d1) - Honor `modelOptions.responseFormat: { type: 'json_object' }` during structured
+  output generation while preserving strict `json_schema` as the default.
+
+- [#1158](https://github.com/TanStack/ai/pull/1158) [`583ad22`](https://github.com/TanStack/ai/commit/583ad2235ab4a4c7a9d5cdcc3d94e0463366b42f) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+
 ## 0.18.0
 
 ### Minor Changes
