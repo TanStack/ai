@@ -7,19 +7,19 @@ import {
   mergeAgentTools,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { createOpenaiChat } from '@tanstack/ai-openai'
+import { createOpenaiChat, openaiByok } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
-import { createAnthropicChat } from '@tanstack/ai-anthropic'
-import { createGeminiChat } from '@tanstack/ai-gemini'
+import { createAnthropicChat, anthropicByok } from '@tanstack/ai-anthropic'
+import { createGeminiChat, geminiByok } from '@tanstack/ai-gemini'
 import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
-import { createOpenRouterText } from '@tanstack/ai-openrouter'
-import { createGrokText } from '@tanstack/ai-grok'
-import { createGroqText } from '@tanstack/ai-groq'
+import { createOpenRouterText, openrouterByok } from '@tanstack/ai-openrouter'
+import { createGrokText, grokByok } from '@tanstack/ai-grok'
+import { createGroqText, groqByok } from '@tanstack/ai-groq'
 import { bedrockText } from '@tanstack/ai-bedrock'
 import { byteplusText } from '@tanstack/ai-byteplus'
-import { byokMissing, getByokOrEnvKey } from '@tanstack/ai/byok'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
-import type { ProviderId } from '@tanstack/ai/byok'
+import type { ByokProvider } from '@tanstack/ai/byok'
 import {
   addToCartToolDef,
   addToWishListToolDef,
@@ -47,25 +47,18 @@ type Provider =
   | 'bedrock'
   | 'byteplus'
 
-const BYOK_ENV_NAMES = {
-  openai: ['OPENAI_API_KEY'],
-  anthropic: ['ANTHROPIC_API_KEY'],
-  gemini: ['GOOGLE_API_KEY', 'GEMINI_API_KEY'],
-  openrouter: ['OPENROUTER_API_KEY'],
-  groq: ['GROQ_API_KEY'],
-  grok: ['XAI_API_KEY'],
-} as const satisfies Partial<Record<ProviderId, ReadonlyArray<string>>>
-
-type KeyedByokProvider = keyof typeof BYOK_ENV_NAMES
-
-function isKeyedByokProvider(value: string): value is KeyedByokProvider {
-  return Object.hasOwn(BYOK_ENV_NAMES, value)
+const BYOK_PROVIDERS: Partial<Record<Provider, ByokProvider>> = {
+  openai: openaiByok,
+  anthropic: anthropicByok,
+  gemini: geminiByok,
+  openrouter: openrouterByok,
+  groq: groqByok,
+  grok: grokByok,
 }
 
-function chatByokProvider(provider: Provider): KeyedByokProvider | undefined {
-  if (provider === 'gemini-interactions') return 'gemini'
-  if (isKeyedByokProvider(provider)) return provider
-  return undefined
+function chatByokProvider(provider: Provider): ByokProvider | undefined {
+  if (provider === 'gemini-interactions') return geminiByok
+  return BYOK_PROVIDERS[provider]
 }
 
 function resolveByokApiKey(
@@ -73,14 +66,10 @@ function resolveByokApiKey(
   provider: Provider,
 ):
   | { missing: false; apiKey: string | null }
-  | { missing: true; provider: KeyedByokProvider } {
+  | { missing: true; provider: ByokProvider } {
   const byokProvider = chatByokProvider(provider)
   if (!byokProvider) return { missing: false, apiKey: null }
-  const apiKey = getByokOrEnvKey(
-    request,
-    byokProvider,
-    BYOK_ENV_NAMES[byokProvider],
-  )
+  const apiKey = getByokKey(request, byokProvider)
   if (!apiKey) return { missing: true, provider: byokProvider }
   return { missing: false, apiKey }
 }

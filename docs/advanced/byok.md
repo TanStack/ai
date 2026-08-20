@@ -32,7 +32,7 @@ export const byok = defineByok({
 });
 ```
 
-Each adapter exports a `{ id, label, validate? }` object. `id` is the slug and is required. Pass those objects into `providers` so `byok.validate()` can hit the adapter's check URL.
+Each adapter exports a `{ id, label, env?, validate? }` object. `id` is the slug and is required. `env` is the env var **name** (or a list of names) — not a `process.env` read. This object is safe to import on the client. Pass those objects into `providers` so `byok.validate()` can hit the adapter's check URL.
 
 If the server can fall back to an env key, tell the client. Then a send is not blocked when the browser has no key yet:
 
@@ -151,11 +151,13 @@ export function OpenRouterSignIn() {
 }
 ```
 
-Pass `openrouterByok` in `defineByok({ providers })`. The relay reads `x-byok-openrouter` with `getByokKey(request, openrouterByok.id)`.
+Pass `openrouterByok` in `defineByok({ providers })`. The relay reads `x-byok-openrouter` with `getByokKey(request, openrouterByok)`.
 
 ## Read the key on the relay
 
-The header wins. If it is empty, `getByokOrEnvKey` reads env names in order. If both are empty, return `byokMissing`. The client then sets `snapshot.prompt`.
+Import `getByokKey` from `@tanstack/ai/byok/server` in your API route (or any server handler). It is not a TanStack Start server function, so it works without Start.
+
+The header wins. If it is empty, `getByokKey` reads `provider.env` in order. If both are empty, return `byokMissing`. The client then sets `snapshot.prompt`.
 
 ```typescript
 import {
@@ -163,13 +165,13 @@ import {
   chatParamsFromRequest,
   toServerSentEventsResponse,
 } from "@tanstack/ai";
-import { createOpenaiChat } from "@tanstack/ai-openai";
-import { byokMissing, getByokOrEnvKey } from "@tanstack/ai/byok";
+import { createOpenaiChat, openaiByok } from "@tanstack/ai-openai";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
 
 export async function POST(request: Request) {
   const params = await chatParamsFromRequest(request);
-  const apiKey = getByokOrEnvKey(request, "openai", ["OPENAI_API_KEY"]);
-  if (!apiKey) return byokMissing("openai");
+  const apiKey = getByokKey(request, openaiByok);
+  if (!apiKey) return byokMissing(openaiByok);
 
   const stream = chat({
     adapter: createOpenaiChat("gpt-5.5", apiKey),

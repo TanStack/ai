@@ -495,15 +495,13 @@ import {
   chatParamsFromRequest,
   toServerSentEventsResponse,
 } from "@tanstack/ai";
-import { byokMissing, getByokOrEnvKey } from "@tanstack/ai/byok";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
 import { createOpenRouterText, openrouterByok } from "@tanstack/ai-openrouter";
 
 export async function POST(request: Request) {
   const params = await chatParamsFromRequest(request);
-  const apiKey = getByokOrEnvKey(request, openrouterByok.id, [
-    "OPENROUTER_API_KEY",
-  ]);
-  if (!apiKey) return byokMissing(openrouterByok.id);
+  const apiKey = getByokKey(request, openrouterByok);
+  if (!apiKey) return byokMissing(openrouterByok);
 
   const stream = chat({
     adapter: createOpenRouterText("openai/gpt-5", apiKey),

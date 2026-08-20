@@ -6,13 +6,12 @@ import {
   byokMissing,
   byokValidateMap,
   defineByokProvider,
-  getByokKey,
-  getByokOrEnvKey,
   isByokMissingBody,
   isProviderId,
   maskKey,
   scrubSecrets,
 } from '../src/byok'
+import { getByokKey } from '../src/byok/server'
 import type { ByokProviderInit } from '../src/byok'
 
 describe('byok slugs', () => {
@@ -55,6 +54,24 @@ describe('defineByokProvider', () => {
     expect(provider.label).toBe('OpenAI')
     expect(provider.validate?.url).toBe('https://api.openai.com/v1/models')
     expectTypeOf(provider.id).toEqualTypeOf<'openai'>()
+  })
+
+  it('normalizes env to an array', () => {
+    const provider = defineByokProvider({
+      id: 'fal',
+      label: 'fal.ai',
+      env: 'FAL_KEY',
+    })
+    expect(provider.env).toEqual(['FAL_KEY'])
+  })
+
+  it('keeps an env list in order', () => {
+    const provider = defineByokProvider({
+      id: 'gemini',
+      label: 'Google Gemini',
+      env: ['GOOGLE_API_KEY', 'GEMINI_API_KEY'],
+    })
+    expect(provider.env).toEqual(['GOOGLE_API_KEY', 'GEMINI_API_KEY'])
   })
 
   it('makes an optional slug unassignable to ByokProviderInit', () => {
@@ -120,6 +137,11 @@ describe('isByokMissingBody', () => {
 })
 
 describe('getByokKey', () => {
+  const envName = 'TANSTACK_AI_BYOK_TEST_KEY'
+  afterEach(() => {
+    delete process.env[envName]
+  })
+
   it('reads the header and ignores the body', async () => {
     const request = new Request('https://example.test/chat', {
       method: 'POST',
@@ -132,26 +154,35 @@ describe('getByokKey', () => {
     expect(getByokKey(request, 'openai')).toBe('sk-live')
     expect(getByokKey(request, 'anthropic')).toBe(null)
   })
-})
 
-describe('getByokOrEnvKey', () => {
-  const envName = 'TANSTACK_AI_BYOK_TEST_KEY'
-  afterEach(() => {
-    delete process.env[envName]
-  })
-
-  it('prefers the header over env', () => {
-    process.env[envName] = 'sk-env'
-    const request = new Request('https://example.test/chat', {
-      headers: { 'x-byok-openai': 'sk-header' },
-    })
-    expect(getByokOrEnvKey(request, 'openai', [envName])).toBe('sk-header')
-  })
-
-  it('falls back to env when the header is absent', () => {
+  it('does not read env for a slug', () => {
     process.env[envName] = 'sk-env'
     const request = new Request('https://example.test/chat')
-    expect(getByokOrEnvKey(request, 'openai', [envName])).toBe('sk-env')
+    expect(getByokKey(request, 'openai')).toBe(null)
+  })
+
+  it('reads env names from the provider', () => {
+    process.env[envName] = 'sk-env'
+    const fal = defineByokProvider({
+      id: 'fal',
+      label: 'fal.ai',
+      env: envName,
+    })
+    const request = new Request('https://example.test/chat')
+    expect(getByokKey(request, fal)).toBe('sk-env')
+  })
+
+  it('prefers the header when given a provider object', () => {
+    process.env[envName] = 'sk-env'
+    const fal = defineByokProvider({
+      id: 'fal',
+      label: 'fal.ai',
+      env: envName,
+    })
+    const request = new Request('https://example.test/chat', {
+      headers: { 'x-byok-fal': 'sk-header' },
+    })
+    expect(getByokKey(request, fal)).toBe('sk-header')
   })
 })
 
@@ -174,6 +205,20 @@ describe('byokMissing', () => {
 
   it('throws on an invalid provider id', () => {
     expect(() => byokMissing('OpenAI')).toThrow(/Invalid BYOK provider id/)
+  })
+
+  it('accepts a provider object', async () => {
+    const fal = defineByokProvider({
+      id: 'fal',
+      label: 'fal.ai',
+      env: 'FAL_KEY',
+    })
+    const response = byokMissing(fal)
+    const body: unknown = await response.json()
+    expect(isByokMissingBody(body)).toBe(true)
+    if (isByokMissingBody(body)) {
+      expect(body.error.provider).toBe('fal')
+    }
   })
 })
 

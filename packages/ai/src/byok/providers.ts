@@ -13,6 +13,12 @@ export function isProviderId(value: unknown): value is ProviderId {
   return typeof value === 'string' && BYOK_PROVIDER_ID_PATTERN.test(value)
 }
 
+export function resolveProviderId(
+  provider: string | { readonly id: string },
+): string {
+  return typeof provider === 'string' ? provider : provider.id
+}
+
 export function byokHeaderName(provider: string): string {
   if (!isProviderId(provider)) {
     throw new Error(`Invalid BYOK provider id: ${provider}`)

@@ -13,6 +13,11 @@ export interface ProviderValidateConfig {
 export interface ByokProvider<TId extends string = string> {
   readonly id: TId
   readonly label: string
+  /**
+   * Env var names the relay may read. Names only — never put `process.env`
+   * values here. This object is imported on the client.
+   */
+  readonly env?: ReadonlyArray<string>
   readonly validate?: ProviderValidateConfig
 }
 
@@ -23,7 +28,15 @@ export interface ByokProvider<TId extends string = string> {
 export type ByokProviderInit<TId extends string> = {
   readonly id: undefined extends TId ? never : TId
   readonly label: string
+  readonly env?: string | ReadonlyArray<string>
   readonly validate?: ProviderValidateConfig
+}
+
+function normalizeEnv(
+  env: string | ReadonlyArray<string> | undefined,
+): ReadonlyArray<string> | undefined {
+  if (env === undefined) return undefined
+  return typeof env === 'string' ? [env] : env
 }
 
 export function defineByokProvider<const TId extends string>(
@@ -32,10 +45,13 @@ export function defineByokProvider<const TId extends string>(
   if (!isProviderId(provider.id)) {
     throw new Error(`Invalid BYOK provider id: ${String(provider.id)}`)
   }
-  const id = provider.id
-  return provider.validate
-    ? { id, label: provider.label, validate: provider.validate }
-    : { id, label: provider.label }
+  const env = normalizeEnv(provider.env)
+  return {
+    id: provider.id,
+    label: provider.label,
+    ...(env ? { env } : {}),
+    ...(provider.validate ? { validate: provider.validate } : {}),
+  }
 }
 
 export function byokValidateMap(

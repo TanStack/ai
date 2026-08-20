@@ -1,4 +1,5 @@
-import { isProviderId } from './providers'
+import { isProviderId, resolveProviderId } from './providers'
+import type { ByokProvider } from './define-provider'
 import type { ProviderId } from './providers'
 
 export interface ByokMissingBody {
@@ -23,15 +24,16 @@ export function isByokMissingBody(value: unknown): value is ByokMissingBody {
   return true
 }
 
-export function byokMissing(provider: ProviderId): Response {
-  if (!isProviderId(provider)) {
-    throw new Error(`Invalid BYOK provider id: ${provider}`)
+export function byokMissing(provider: ProviderId | ByokProvider): Response {
+  const id = resolveProviderId(provider)
+  if (!isProviderId(id)) {
+    throw new Error(`Invalid BYOK provider id: ${id}`)
   }
   const body: ByokMissingBody = {
     error: {
       type: 'byok_missing',
-      provider,
-      message: `Missing ${provider} API key`,
+      provider: id,
+      message: `Missing ${id} API key`,
     },
   }
   return new Response(JSON.stringify(body), {

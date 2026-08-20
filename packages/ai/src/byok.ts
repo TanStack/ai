@@ -14,5 +14,4 @@ export type {
 export { isByokMissingBody, byokMissing } from './byok/missing'
 export type { ByokMissingBody } from './byok/missing'
 export { ByokMissingError, ByokBlockedError } from './byok/errors'
-export { getByokKey, getByokOrEnvKey } from './byok/get-key'
 export { maskKey, scrubSecrets } from './byok/scrub'

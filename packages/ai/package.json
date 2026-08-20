@@ -52,6 +52,10 @@
     "./byok": {
       "types": "./dist/esm/byok.d.ts",
       "import": "./dist/esm/byok.js"
+    },
+    "./byok/server": {
+      "types": "./dist/esm/byok/server.d.ts",
+      "import": "./dist/esm/byok/server.js"
     }
   },
   "sideEffects": false,

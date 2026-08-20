@@ -170,12 +170,12 @@ Server: read the header (or env), then run `generateAudio`.
 
 ```typescript
 import { generateAudio, toServerSentEventsResponse } from '@tanstack/ai'
-import { falAudio } from '@tanstack/ai-fal'
-import { byokMissing, getByokOrEnvKey } from '@tanstack/ai/byok'
+import { falAudio, falByok } from '@tanstack/ai-fal'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 
 export async function POST(request: Request) {
-  const apiKey = getByokOrEnvKey(request, 'fal', ['FAL_KEY'])
-  if (!apiKey) return byokMissing('fal')
+  const apiKey = getByokKey(request, falByok)
+  if (!apiKey) return byokMissing(falByok)
 
   const body: unknown = await request.json()
   if (typeof body !== 'object' || body === null || !('prompt' in body)) {

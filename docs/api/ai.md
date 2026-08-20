@@ -336,7 +336,7 @@ const stream = chat({
 
 An `AgentLoopStrategy` function.
 
-## `defineByokProvider({ id, label, validate? })`
+## `defineByokProvider({ id, label, env?, validate? })`
 
 Declare a BYOK provider from an adapter package. `id` is the `x-byok-<id>` slug and is **required** — an optional or missing `id` does not type-check.
 
@@ -346,6 +346,7 @@ import { defineByokProvider } from "@tanstack/ai/byok";
 export const openaiByok = defineByokProvider({
   id: "openai",
   label: "OpenAI",
+  env: "OPENAI_API_KEY",
   validate: {
     url: "https://api.openai.com/v1/models",
     headers: (key) => ({ Authorization: `Bearer ${key}` }),
@@ -353,49 +354,31 @@ export const openaiByok = defineByokProvider({
 });
 ```
 
-Import the object from the adapter (`openaiByok` from `@tanstack/ai-openai`) and pass it to `defineByok({ providers })`.
+Import the object from the adapter (`openaiByok` from `@tanstack/ai-openai`) and pass it to `defineByok({ providers })`. On the relay, pass the same object to `getByokKey` from `@tanstack/ai/byok/server`.
 
 ### Parameters
 
 - `id` - Required slug (`[a-z][a-z0-9-]{0,63}`)
 - `label` - Display name
+- `env?` - Env var **name**, or a list of names tried in order. A string is stored as a one-element array. Names only — this object is imported on the client, so do not put `process.env` values here
 - `validate?` - Optional `{ url, headers(key) }` used by `byok.validate()`
 
 ### Returns
 
-A `{ id, label, validate? }` object. `id` is the literal slug type.
+A `{ id, label, env?, validate? }` object. `id` is the literal slug type.
 
 ## `getByokKey(request, provider)`
 
-Read one `x-byok-<provider>` header from a `Request`. Import from `@tanstack/ai/byok`. Returns the trimmed header, or `null` when it is missing or blank. The JSON body is ignored.
+Read a key on the relay. Import from `@tanstack/ai/byok/server` so `process.env` is not in the client graph. Works in any API route — it is not a TanStack Start server function.
+
+The header wins. A `ByokProvider` then tries `provider.env` in order. A slug is header-only. Returns `null` when both are empty. The JSON body is ignored.
 
 ```typescript
-import { getByokKey } from "@tanstack/ai/byok";
+import { getByokKey } from "@tanstack/ai/byok/server";
+import { openaiByok } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
-  const key = getByokKey(request, "openai");
-  return new Response(key ? "ok" : "missing");
-}
-```
-
-### Parameters
-
-- `request` - Incoming `Request`
-- `provider` - Provider slug (`[a-z][a-z0-9-]{0,63}`). Becomes the `x-byok-<slug>` header. Not a fixed catalog.
-
-### Returns
-
-`string | null`
-
-## `getByokOrEnvKey(request, provider, envNames)`
-
-Prefer the BYOK header. If it is empty, read `process.env` for each name in `envNames`. Returns the first non-empty value, or `null`.
-
-```typescript
-import { getByokOrEnvKey } from "@tanstack/ai/byok";
-
-export async function POST(request: Request) {
-  const apiKey = getByokOrEnvKey(request, "openai", ["OPENAI_API_KEY"]);
+  const apiKey = getByokKey(request, openaiByok);
   return new Response(apiKey ? "ok" : "missing");
 }
 ```
@@ -403,8 +386,7 @@ export async function POST(request: Request) {
 ### Parameters
 
 - `request` - Incoming `Request`
-- `provider` - Provider slug
-- `envNames` - Env names to try, in order
+- `provider` - A `ByokProvider` or a provider slug (`[a-z][a-z0-9-]{0,63}`). Becomes the `x-byok-<slug>` header. Not a fixed catalog.
 
 ### Returns
 
@@ -412,21 +394,22 @@ export async function POST(request: Request) {
 
 ## `byokMissing(provider)`
 
-Return a `401` JSON `Response` with `{ error: { type: "byok_missing", provider, message } }`. The chat and generation clients read this body and set `snapshot.prompt`.
+Return a `401` JSON `Response` with `{ error: { type: "byok_missing", provider, message } }`. The chat and generation clients read this body and set `snapshot.prompt`. Import from `@tanstack/ai/byok` or `@tanstack/ai/byok/server`.
 
 ```typescript
-import { byokMissing, getByokOrEnvKey } from "@tanstack/ai/byok";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+import { openaiByok } from "@tanstack/ai-openai";
 
 export async function POST(request: Request) {
-  const apiKey = getByokOrEnvKey(request, "openai", ["OPENAI_API_KEY"]);
-  if (!apiKey) return byokMissing("openai");
+  const apiKey = getByokKey(request, openaiByok);
+  if (!apiKey) return byokMissing(openaiByok);
   return new Response("ok");
 }
 ```
 
 ### Parameters
 
-- `provider` - Provider slug to put on the error body
+- `provider` - A `ByokProvider` or a provider slug to put on the error body
 
 ### Returns
 

@@ -201,7 +201,7 @@ Once your adapter is complete:
 
 ### 9. Export a BYOK provider
 
-If users can paste an API key for your adapter, export a `defineByokProvider` object. `id` is the `x-byok-<id>` slug and is required.
+If users can paste an API key for your adapter, export a `defineByokProvider` object. `id` is the `x-byok-<id>` slug and is required. Set `env` to the env var **name** your adapter already reads. Names only — this object is imported on the client. Relays call `getByokKey(request, acmeByok)` from `@tanstack/ai/byok/server`.
 
 ```typescript
 import { defineByokProvider } from "@tanstack/ai/byok";
@@ -209,6 +209,7 @@ import { defineByokProvider } from "@tanstack/ai/byok";
 export const acmeByok = defineByokProvider({
   id: "acme",
   label: "Acme",
+  env: "ACME_API_KEY",
 });
 ```
 

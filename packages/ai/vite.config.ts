@@ -38,6 +38,7 @@ export default mergeConfig(
       './src/middlewares/otel.ts',
       './src/adapter-internals.ts',
       './src/byok.ts',
+      './src/byok/server.ts',
     ],
     srcDir: './src',
     cjs: false,

@@ -17,7 +17,7 @@ export function ByokKeyForm({ provider }: { provider: Provider }) {
   }
 
   const status = snapshot.status[byokProvider]
-  const last4 = status?.masked
+  const last4 = status && 'masked' in status ? status.masked : undefined
 
   const handleSave = async () => {
     const next = keyInput.trim()

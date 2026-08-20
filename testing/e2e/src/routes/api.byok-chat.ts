@@ -4,7 +4,7 @@ import {
   chatParamsFromRequestBody,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { byokMissing, getByokKey } from '@tanstack/ai/byok'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 import { createTextAdapter } from '@/lib/providers'
 
 export const Route = createFileRoute('/api/byok-chat')({
