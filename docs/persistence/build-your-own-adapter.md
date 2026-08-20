@@ -67,23 +67,29 @@ object inline so you never annotate it by hand.
 Each store switches on one capability. Find your column and implement the rows marked
 with a tick:
 
-| Store | Save the transcript | Rejoin a run after reload | Durable approvals | App key/value | Persist generation runs | Keep generated files |
-| --- | :-: | :-: | :-: | :-: | :-: | :-: |
-| `messages` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| `runs` | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ |
-| `interrupts` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
-| `metadata` | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ |
-| `generationRuns` | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
-| `artifacts` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
-| `blobs` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ |
+| Store | Save the transcript | Rejoin a run after reload | Durable approvals | App key/value | Persist generation runs | Keep generated files | Rebuild sandbox files |
+| --- | :-: | :-: | :-: | :-: | :-: | :-: | :-: |
+| `messages` | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ | ✅ |
+| `runs` | ❌ | ✅ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `interrupts` | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ |
+| `metadata` | ❌ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| `generationRuns` | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| `artifacts` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| `blobs` | ❌ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
 
-- **Columns stack.** Durable approvals and generated files means the union of both.
-- **Two pairs cannot be split.** `interrupts` needs `runs`, and `artifacts` needs
-  `blobs`.
-- **The generation stores feed `withGenerationPersistence`** instead, and need none of
-  the chat stores. See [Generation persistence](./generation-persistence).
+- **Columns stack.** Chat plus sandbox files means `messages` + `artifacts` +
+  `blobs`. Durable approvals plus generated files means the union of both
+  columns.
+- **Two pairs cannot be split.** `interrupts` needs `runs`, and `artifacts`
+  needs `blobs`.
+- **Generation runs need none of the chat stores.** See
+  [Generation persistence](./generation-persistence).
+- **Sandbox files need a checkpoint store too.** That store lives on
+  `@tanstack/ai-sandbox`, not in this table. See
+  [Keep Files After Reload](../sandbox/portable-snapshots-configure).
 
-The common production shape is `messages` + `runs` + `interrupts`.
+The common production shape is `messages` + `runs` + `interrupts`. When you
+keep generated files or rebuild sandbox files, add `artifacts` and `blobs`.
 
 You can also own only part of it. Put `messages` and `runs` in your database and fill
 the rest from somewhere else with `composePersistence`:
@@ -158,6 +164,8 @@ for `withPersistence`, and with the generation stores for
   artifacts and blobs.
 - [Build a sandbox adapter](./build-a-sandbox-adapter): the sandbox instance store, and
   what a durable sandboxed run adds to `runs`. Only if you run sandboxes.
+- [Keep Files After Reload](../sandbox/portable-snapshots-configure): reuse this
+  adapter for portable snapshots. You need `messages`, `artifacts`, and `blobs`.
 - [Store reference](./store-reference): every signature and invariant, and how the
   records relate.
 - [Controls](./controls): compose stores from different systems.

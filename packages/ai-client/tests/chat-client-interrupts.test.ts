@@ -1323,9 +1323,82 @@ describe('ChatClient native interrupts', () => {
 
     expect(onInterruptStateChange).toHaveBeenLastCalledWith(
       client.getInterruptState(),
+      { source: 'hydrate' },
     )
     const state = onInterruptStateChange.mock.lastCall?.[0]
     expect(state?.interrupts).toBe(state?.pendingInterrupts)
+  })
+
+  it('reports source hydrate when a client-tool interrupt is restored', () => {
+    const onInterruptStateChange = vi.fn()
+    const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
+    const client = new ChatClient({
+      connection: { async *connect() {} },
+      tools,
+      onInterruptStateChange,
+      initialResumeSnapshot: {
+        resumeState: { threadId: 'thread-1', runId: 'run-1' },
+        pendingInterrupts: [
+          descriptor({
+            v: INTERRUPT_BINDING_VERSION,
+            kind: 'client-tool-execution',
+            interruptId: 'client-1',
+            interruptedRunId: 'run-1',
+            generation: 1,
+            toolName: 'lookup',
+            toolCallId: 'call-2',
+            outputSchemaHash,
+            responseSchemaHash: outputSchemaHash,
+          }),
+        ],
+      },
+    })
+
+    // Restored client-tool items stay internal, but their hydration still
+    // publishes the state-change callback that lets an app recover the batch.
+    expect(client.getInterrupts()).toEqual([])
+    expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+      client.getInterruptState(),
+      { source: 'hydrate' },
+    )
+  })
+
+  it('reports source hydrate when a first-party generic interrupt is restored', () => {
+    const onInterruptStateChange = vi.fn()
+    const approval = defineInterrupt({
+      id: 'approval',
+      responseSchema: z.object({ answer: z.number() }),
+    })
+    const binding: InterruptBinding = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'generic',
+      interruptId: 'generic_review_one',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      definitionId: 'approval',
+      key: 'one',
+      batchIndex: 0,
+      responseSchemaHash: digestInterruptJson(
+        canonicalInterruptJson(
+          convertSchemaToJsonSchema(approval.responseSchema),
+        ),
+      ),
+    }
+    const client = new ChatClient({
+      connection: { async *connect() {} },
+      interrupts: [approval],
+      onInterruptStateChange,
+      initialResumeSnapshot: {
+        resumeState: { threadId: 'thread-1', runId: 'run-1' },
+        pendingInterrupts: [descriptor(binding)],
+      },
+    })
+
+    expect(client.getInterrupts()[0]?.kind).toBe('generic')
+    expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+      client.getInterruptState(),
+      { source: 'hydrate' },
+    )
   })
 
   it('owns one immutable interrupt state and resumes with a fresh child run', async () => {
@@ -1376,9 +1449,18 @@ describe('ChatClient native interrupts', () => {
         }
       },
     }
-    const client = new ChatClient({ connection, threadId: 'thread-1' })
+    const onInterruptStateChange = vi.fn()
+    const client = new ChatClient({
+      connection,
+      threadId: 'thread-1',
+      onInterruptStateChange,
+    })
 
     await client.sendMessage('start')
+    expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+      client.getInterruptState(),
+      { source: 'live' },
+    )
     const state = client.getInterruptState()
     expect(Object.isFrozen(state)).toBe(true)
     expect(state.interrupts).toBe(state.pendingInterrupts)

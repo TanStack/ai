@@ -29,6 +29,7 @@ import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenericInterruptsRouteImport } from './routes/generic-interrupts'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
 import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
+import { Route as AppStudioRouteImport } from './routes/app-studio'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
 import { Route as GenerationsTranscriptionRouteImport } from './routes/generations.transcription'
@@ -66,6 +67,8 @@ import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ApiGenericInterruptsRouteImport } from './routes/api.generic-interrupts'
 import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
 import { Route as ApiArtifactsRouteImport } from './routes/api.artifacts'
+import { Route as ApiAppStudioForkRouteImport } from './routes/api.app-studio-fork'
+import { Route as ApiAppStudioRouteImport } from './routes/api.app-studio'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
 import { Route as ExampleGuitarsGuitarIdRouteImport } from './routes/example.guitars/$guitarId'
 import { Route as ApiGenerateVideoRouteImport } from './routes/api.generate.video'
@@ -172,6 +175,11 @@ const GenerationHooksRoute = GenerationHooksRouteImport.update({
 const CapabilityDemoRoute = CapabilityDemoRouteImport.update({
   id: '/capability-demo',
   path: '/capability-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AppStudioRoute = AppStudioRouteImport.update({
+  id: '/app-studio',
+  path: '/app-studio',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -364,6 +372,16 @@ const ApiArtifactsRoute = ApiArtifactsRouteImport.update({
   path: '/api/artifacts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiAppStudioForkRoute = ApiAppStudioForkRouteImport.update({
+  id: '/api/app-studio-fork',
+  path: '/api/app-studio-fork',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAppStudioRoute = ApiAppStudioRouteImport.update({
+  id: '/api/app-studio',
+  path: '/api/app-studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ExampleGuitarsIndexRoute = ExampleGuitarsIndexRouteImport.update({
   id: '/example/guitars/',
   path: '/example/guitars/',
@@ -403,6 +421,7 @@ const ApiGenerateImageArtifactRoute =
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/app-studio': typeof AppStudioRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/generic-interrupts': typeof GenericInterruptsRoute
@@ -423,6 +442,8 @@ export interface FileRoutesByFullPath {
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/websocket-chat': typeof WebsocketChatRoute
+  '/api/app-studio': typeof ApiAppStudioRoute
+  '/api/app-studio-fork': typeof ApiAppStudioForkRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
@@ -469,6 +490,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/app-studio': typeof AppStudioRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/generic-interrupts': typeof GenericInterruptsRoute
@@ -489,6 +511,8 @@ export interface FileRoutesByTo {
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/websocket-chat': typeof WebsocketChatRoute
+  '/api/app-studio': typeof ApiAppStudioRoute
+  '/api/app-studio-fork': typeof ApiAppStudioForkRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
@@ -536,6 +560,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/app-studio': typeof AppStudioRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/generic-interrupts': typeof GenericInterruptsRoute
@@ -556,6 +581,8 @@ export interface FileRoutesById {
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
   '/websocket-chat': typeof WebsocketChatRoute
+  '/api/app-studio': typeof ApiAppStudioRoute
+  '/api/app-studio-fork': typeof ApiAppStudioForkRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
@@ -604,6 +631,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/app-studio'
     | '/capability-demo'
     | '/generation-hooks'
     | '/generic-interrupts'
@@ -624,6 +652,8 @@ export interface FileRouteTypes {
     | '/threads'
     | '/typesafe-tools'
     | '/websocket-chat'
+    | '/api/app-studio'
+    | '/api/app-studio-fork'
     | '/api/artifacts'
     | '/api/capability-demo'
     | '/api/generic-interrupts'
@@ -670,6 +700,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/app-studio'
     | '/capability-demo'
     | '/generation-hooks'
     | '/generic-interrupts'
@@ -690,6 +721,8 @@ export interface FileRouteTypes {
     | '/threads'
     | '/typesafe-tools'
     | '/websocket-chat'
+    | '/api/app-studio'
+    | '/api/app-studio-fork'
     | '/api/artifacts'
     | '/api/capability-demo'
     | '/api/generic-interrupts'
@@ -736,6 +769,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/app-studio'
     | '/capability-demo'
     | '/generation-hooks'
     | '/generic-interrupts'
@@ -756,6 +790,8 @@ export interface FileRouteTypes {
     | '/threads'
     | '/typesafe-tools'
     | '/websocket-chat'
+    | '/api/app-studio'
+    | '/api/app-studio-fork'
     | '/api/artifacts'
     | '/api/capability-demo'
     | '/api/generic-interrupts'
@@ -803,6 +839,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AppStudioRoute: typeof AppStudioRoute
   CapabilityDemoRoute: typeof CapabilityDemoRoute
   GenerationHooksRoute: typeof GenerationHooksRoute
   GenericInterruptsRoute: typeof GenericInterruptsRoute
@@ -823,6 +860,8 @@ export interface RootRouteChildren {
   ThreadsRoute: typeof ThreadsRoute
   TypesafeToolsRoute: typeof TypesafeToolsRoute
   WebsocketChatRoute: typeof WebsocketChatRoute
+  ApiAppStudioRoute: typeof ApiAppStudioRoute
+  ApiAppStudioForkRoute: typeof ApiAppStudioForkRoute
   ApiArtifactsRoute: typeof ApiArtifactsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
   ApiGenericInterruptsRoute: typeof ApiGenericInterruptsRoute
@@ -1007,6 +1046,13 @@ declare module '@tanstack/react-router' {
       path: '/capability-demo'
       fullPath: '/capability-demo'
       preLoaderRoute: typeof CapabilityDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/app-studio': {
+      id: '/app-studio'
+      path: '/app-studio'
+      fullPath: '/app-studio'
+      preLoaderRoute: typeof AppStudioRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -1268,6 +1314,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiArtifactsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/app-studio-fork': {
+      id: '/api/app-studio-fork'
+      path: '/api/app-studio-fork'
+      fullPath: '/api/app-studio-fork'
+      preLoaderRoute: typeof ApiAppStudioForkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/app-studio': {
+      id: '/api/app-studio'
+      path: '/api/app-studio'
+      fullPath: '/api/app-studio'
+      preLoaderRoute: typeof ApiAppStudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/example/guitars/': {
       id: '/example/guitars/'
       path: '/example/guitars'
@@ -1333,6 +1393,7 @@ const ApiGenerateImageRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AppStudioRoute: AppStudioRoute,
   CapabilityDemoRoute: CapabilityDemoRoute,
   GenerationHooksRoute: GenerationHooksRoute,
   GenericInterruptsRoute: GenericInterruptsRoute,
@@ -1353,6 +1414,8 @@ const rootRouteChildren: RootRouteChildren = {
   ThreadsRoute: ThreadsRoute,
   TypesafeToolsRoute: TypesafeToolsRoute,
   WebsocketChatRoute: WebsocketChatRoute,
+  ApiAppStudioRoute: ApiAppStudioRoute,
+  ApiAppStudioForkRoute: ApiAppStudioForkRoute,
   ApiArtifactsRoute: ApiArtifactsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
   ApiGenericInterruptsRoute: ApiGenericInterruptsRoute,

@@ -12,7 +12,7 @@ import type { OpenAIEmbeddingProviderOptions } from './embedding/embedding-provi
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   supports: {
-    input: Array<'text' | 'image' | 'audio' | 'video'>
+    input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     output: Array<'text' | 'image' | 'audio' | 'video'>
     endpoints: Array<
       | 'chat'
@@ -75,7 +75,7 @@ const GPT5_2 = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2025-08-31',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -120,7 +120,7 @@ const GPT5_2_PRO = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2025-08-31',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling'],
@@ -159,7 +159,7 @@ const GPT5_2_CHAT = {
   max_output_tokens: 16_384,
   knowledge_cutoff: '2025-08-31',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
@@ -195,7 +195,7 @@ const GPT5_1 = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2024-09-30',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text', 'image'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -241,7 +241,7 @@ const GPT5_1_CODEX = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2024-09-30',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text', 'image'],
     endpoints: ['chat'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
@@ -278,7 +278,7 @@ const GPT5 = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2024-09-30',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions', 'batch'],
     features: [
@@ -324,7 +324,7 @@ const GPT5_MINI = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2024-05-31',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions', 'batch'],
     features: ['streaming', 'structured_outputs', 'function_calling'],
@@ -374,7 +374,7 @@ const GPT5_NANO = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions', 'batch'],
     features: ['streaming', 'structured_outputs', 'function_calling'],
@@ -414,7 +414,7 @@ const GPT5_PRO = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['streaming', 'structured_outputs', 'function_calling'],
@@ -455,7 +455,7 @@ const GPT5_CODEX = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text', 'image'],
     endpoints: ['chat'],
     features: ['streaming', 'structured_outputs', 'function_calling'],
@@ -687,7 +687,7 @@ const O3_PRO = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['function_calling', 'structured_outputs'],
@@ -840,7 +840,7 @@ const O3 = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch', 'chat-completions'],
     features: ['function_calling', 'structured_outputs', 'streaming'],
@@ -881,7 +881,7 @@ const O4_MINI = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch', 'chat-completions', 'fine-tuning'],
     features: [
@@ -926,7 +926,7 @@ const GPT4_1 = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: [
       'chat',
@@ -979,7 +979,7 @@ const GPT4_1_MINI = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: [
       'chat',
@@ -1030,7 +1030,7 @@ const GPT4_1_NANO = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: [
       'chat',
@@ -1081,7 +1081,7 @@ const O1_PRO = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['function_calling', 'structured_outputs'],
@@ -1284,7 +1284,7 @@ const O1 = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch', 'chat-completions', 'assistants'],
     features: ['function_calling', 'structured_outputs', 'streaming'],
@@ -1334,7 +1334,7 @@ const GPT_4O = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: [
       'chat',
@@ -1411,7 +1411,7 @@ const GPT_4O_MINI = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: [
       'chat',
@@ -2233,7 +2233,7 @@ const GPT_5_5 = {
   context_window: 1_050_000,
   max_output_tokens: 128_000,
   supports: {
-    input: ['image', 'text'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2278,7 +2278,7 @@ const GPT_5_5_PRO = {
   context_window: 1_050_000,
   max_output_tokens: 128_000,
   supports: {
-    input: ['image', 'text'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [

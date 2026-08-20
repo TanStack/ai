@@ -108,6 +108,10 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
     tools: [],
     modelOptions: {},
   },
+  'multimodal-document': {
+    tools: [],
+    modelOptions: {},
+  },
   'multimodal-structured': {
     tools: [],
     modelOptions: {},

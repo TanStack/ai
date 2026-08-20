@@ -1,5 +1,25 @@
 # @tanstack/ai-fal
 
+## 0.12.0
+
+### Minor Changes
+
+- [#641](https://github.com/TanStack/ai/pull/641) [`90d22ad`](https://github.com/TanStack/ai/commit/90d22ad0543e71e14867d55b0fc9e7c869f01955) - Add per-model typed durations for fal video generation.
+
+  `generateVideo({ duration })` is now typed from `@fal-ai/client`'s
+  `EndpointTypeMap` for the selected model (e.g. `'5' | '10'` on Kling,
+  `'4s' | '6s' | '8s'` on Veo 3.1). Popular models also implement
+  `availableDurations()` / `snapDuration()`.
+
+  **Breaking:** callers passing `duration: <number>` to fal video models must
+  either pass the model's duration union directly or call
+  `adapter.snapDuration(seconds)`.
+
+### Patch Changes
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+
 ## 0.11.0
 
 ### Minor Changes

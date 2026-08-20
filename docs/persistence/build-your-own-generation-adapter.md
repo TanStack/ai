@@ -54,6 +54,10 @@ CREATE TABLE IF NOT EXISTS artifacts (
   source_url text,
   created_at integer NOT NULL
 );
+CREATE INDEX IF NOT EXISTS artifacts_run_order
+  ON artifacts (run_id, created_at, artifact_id);
+CREATE INDEX IF NOT EXISTS artifacts_thread_order
+  ON artifacts (thread_id, created_at, artifact_id);
 CREATE TABLE IF NOT EXISTS blobs (
   key text PRIMARY KEY NOT NULL,
   bytes blob NOT NULL,
@@ -218,6 +222,9 @@ function createGenerationRunStore(db: DatabaseSync) {
 
 - `save` is an upsert.
 - `list(runId)` returns every artifact for a run, `[]` when there are none.
+- `listForThread(threadId)` returns every artifact for the thread in exact
+  `(createdAt, artifactId)` ascending order. It must return the complete thread
+  history, not a page or only the latest run. Snapshot capture uses this cut.
 - `delete` / `deleteForRun` are required. Retention and erasure are the point of
   storing media durably, and they mirror `BlobStore.delete`.
 
@@ -261,7 +268,10 @@ function createArtifactStore(db: DatabaseSync) {
   )
   const selectOne = db.prepare('SELECT * FROM artifacts WHERE artifact_id = ?')
   const byRun = db.prepare(
-    'SELECT * FROM artifacts WHERE run_id = ? ORDER BY created_at ASC',
+    'SELECT * FROM artifacts WHERE run_id = ? ORDER BY created_at ASC, artifact_id ASC',
+  )
+  const byThread = db.prepare(
+    'SELECT * FROM artifacts WHERE thread_id = ? ORDER BY created_at ASC, artifact_id ASC',
   )
   return defineArtifactStore({
     async save(record) {
@@ -283,6 +293,9 @@ function createArtifactStore(db: DatabaseSync) {
     },
     async list(runId) {
       return byRun.all(runId).map(mapArtifact)
+    },
+    async listForThread(threadId) {
+      return byThread.all(threadId).map(mapArtifact)
     },
     async delete(artifactId) {
       db.prepare('DELETE FROM artifacts WHERE artifact_id = ?').run(artifactId)

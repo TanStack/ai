@@ -31,7 +31,7 @@ Defined in: [packages/ai/src/types.ts:367](https://github.com/TanStack/ai/blob/m
 optional createdAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:385](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L385)
+Defined in: [packages/ai/src/types.ts:391](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L391)
 
 Optional message creation timestamp. When present, message converters
 preserve it across persist → hydrate round-trips.
@@ -44,7 +44,7 @@ preserve it across persist → hydrate round-trips.
 optional id?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:380](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L380)
+Defined in: [packages/ai/src/types.ts:386](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L386)
 
 Optional stable message id. Providers ignore it; it exists so a persisted
 transcript can retain the streaming `messageId` and survive the
@@ -72,6 +72,20 @@ role: "user" | "assistant" | "tool";
 ```
 
 Defined in: [packages/ai/src/types.ts:366](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L366)
+
+***
+
+### structuredOutput?
+
+```ts
+optional structuredOutput?: StructuredOutputPart<unknown>;
+```
+
+Defined in: [packages/ai/src/types.ts:377](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L377)
+
+Completed structured output represented by this assistant message.
+`content` remains the provider-facing JSON text; this field preserves the
+typed UI part across persistence and message conversion.
 
 ***
 

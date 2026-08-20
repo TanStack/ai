@@ -67,6 +67,50 @@ pointer. On the next load `useChat` reads it and:
   a durability-backed connection (a route that records the stream and exposes a
   replay handler); see [Resumable streams](../resumable-streams/overview).
 
+### Handle restored client tools
+
+A live client tool runs automatically when its call arrives from the stream.
+Hydration restores its pending execution but does not run the browser code
+again, because that work may not be safe to repeat. The execution remains an
+internal interrupt and does not appear in `interrupts`.
+
+Use `onInterruptStateChange` to distinguish restored interrupt state from live
+updates. Leaving a restored batch pending is the default. This example cancels
+every restored batch instead:
+
+```tsx
+import { useEffect, useState } from 'react'
+import {
+  fetchServerSentEvents,
+  localStoragePersistence,
+  useChat,
+} from '@tanstack/ai-react'
+
+function Chat() {
+  const [restoredBatch, setRestoredBatch] = useState(false)
+  const { cancelInterrupts } = useChat({
+    threadId: 'support-chat',
+    connection: fetchServerSentEvents('/api/chat'),
+    persistence: localStoragePersistence(),
+    onInterruptStateChange(_state, { source }) {
+      setRestoredBatch(source === 'hydrate')
+    },
+  })
+
+  useEffect(() => {
+    if (restoredBatch) cancelInterrupts()
+  }, [cancelInterrupts, restoredBatch])
+
+  return null
+}
+```
+
+`source` is `hydrate` for state restored from an initial resume snapshot, a
+client storage adapter, or server hydration. It is `live` for streamed and
+client-initiated changes. `cancelInterrupts()` cancels the complete internal
+batch, including visible approvals and hidden client-tool executions; it does
+not selectively cancel one kind of interrupt.
+
 ## Choose a mode
 
 `persistence` takes a storage adapter or a boolean:

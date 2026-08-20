@@ -195,9 +195,9 @@ export function useChat<
           pendingInterrupts: nextPendingInterrupts,
         }))
       },
-      onInterruptStateChange: (nextInterruptState) => {
+      onInterruptStateChange: (nextInterruptState, context) => {
         setInterruptState(nextInterruptState)
-        options.onInterruptStateChange?.(nextInterruptState)
+        options.onInterruptStateChange?.(nextInterruptState, context)
       },
     })
     // Only recreate when clientId changes

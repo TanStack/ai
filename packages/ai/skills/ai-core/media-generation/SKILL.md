@@ -565,7 +565,10 @@ integer durations 1-15s, reports `usage.billed` seconds ({ quantity, unit: 'seco
 aspect-ratio size template like `'16:9_720p'`, durations 4-15s on the 2.0 family,
 4-12s on 1.5-pro, 2-12s on the 1.0-pro models; reads `ARK_API_KEY`),
 `openRouterVideo(...)` (OpenRouter's dedicated `POST /api/v1/videos` gateway),
-and `falVideo(...)` (hosted models, see cost tracking below).
+and `falVideo(...)` (hosted models; `duration` typed from `@fal-ai/client`'s
+`EndpointTypeMap` — `'5' | '10'` on Kling 2.6, `'3'`…`'15'` on Kling 3,
+`'4s' | '6s' | '8s'` on Veo 3.1, `'5s' | '9s'` on Luma; `availableDurations()` /
+`snapDuration()` on the curated set; see cost tracking below).
 
 > **Seedance option applicability is per model and enforced server-side** —
 > Ark returns a 400 for an inapplicable field rather than ignoring it.

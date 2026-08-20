@@ -1,7 +1,7 @@
 import { EventType } from '@tanstack/ai'
 import { ChatClient } from '@tanstack/ai-client'
-import { act, renderHook, waitFor } from '@testing-library/react'
-import { StrictMode, useState } from 'react'
+import { act, render, renderHook, waitFor } from '@testing-library/react'
+import { StrictMode, Suspense, createElement, useState } from 'react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useChat } from '../src/use-chat'
 import {
@@ -37,12 +37,21 @@ describe('useChat', () => {
   describe('interrupt state', () => {
     it('projects one immutable snapshot with the deprecated pending alias', async () => {
       const onInterruptStateChange = vi.fn()
-      const { result } = renderUseChat({
-        connection: createMockConnectionAdapter(),
-        initialResumeSnapshot: createInterruptResumeSnapshot(),
-        onInterruptStateChange,
-      })
+      const { result } = renderHook(
+        () =>
+          useChat({
+            connection: createMockConnectionAdapter(),
+            initialResumeSnapshot: createInterruptResumeSnapshot(),
+            onInterruptStateChange,
+          }),
+        { wrapper: StrictMode },
+      )
 
+      expect(onInterruptStateChange).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ interrupts: result.current.interrupts }),
+        { source: 'hydrate' },
+      )
       expect(Object.isFrozen(result.current.interrupts)).toBe(true)
       expect(result.current.pendingInterrupts).toBe(result.current.interrupts)
       expect(result.current.interrupts[0]).toMatchObject({
@@ -74,7 +83,45 @@ describe('useChat', () => {
           interrupts: result.current.interrupts,
           interruptErrors: result.current.interruptErrors,
         }),
+        { source: 'live' },
       )
+    })
+
+    it('awaits onResponse when hydration resumes during activation', async () => {
+      const response = createDeferred<void>()
+      const onResponse = vi.fn(() => response.promise)
+      const onConnect = vi.fn()
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('resumed'),
+          onConnect,
+        }),
+        initialResumeSnapshot: createInterruptResumeSnapshot(),
+        live: true,
+        onResponse,
+        onInterruptStateChange: (state, context) => {
+          if (context.source !== 'hydrate') return
+          for (const interrupt of state.interrupts) {
+            if (interrupt.kind === 'unbound') continue
+            interrupt.cancel()
+          }
+        },
+      })
+
+      await waitFor(() => {
+        expect(onResponse).toHaveBeenCalledOnce()
+      })
+      expect(onConnect).not.toHaveBeenCalled()
+
+      await act(async () => {
+        response.resolve()
+        await response.promise
+      })
+
+      await waitFor(() => {
+        expect(onConnect).toHaveBeenCalledOnce()
+        expect(result.current.resuming).toBe(false)
+      })
     })
 
     it('delegates every root interrupt control to ChatClient', async () => {
@@ -183,6 +230,79 @@ describe('useChat', () => {
         expect(result.current.messages).toEqual(persistedMessages)
       })
       expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
+    })
+
+    it('should forward synchronous persisted interrupt hydration', () => {
+      const onInterruptStateChange = vi.fn()
+      const persistence = {
+        getItem: vi.fn(() => ({
+          messages: [],
+          resume: createInterruptResumeSnapshot(),
+        })),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const { result } = renderHook(
+        () =>
+          useChat({
+            connection: createMockConnectionAdapter(),
+            threadId: 'persisted-interrupt-chat',
+            persistence,
+            onInterruptStateChange,
+          }),
+        { wrapper: StrictMode },
+      )
+
+      expect(result.current.interrupts).toHaveLength(2)
+      expect(onInterruptStateChange).toHaveBeenCalledOnce()
+      expect(onInterruptStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({ interrupts: result.current.interrupts }),
+        { source: 'hydrate' },
+      )
+    })
+
+    it('does not publish async hydration from an abandoned render', async () => {
+      const hydration = createDeferred<{
+        messages: Array<UIMessage>
+        resume: ReturnType<typeof createInterruptResumeSnapshot>
+      }>()
+      const onInterruptStateChange = vi.fn()
+      const persistence = {
+        getItem: vi.fn(() => hydration.promise),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+      const suspended = new Promise<never>(() => {})
+
+      function AbandonedChat(): never {
+        useChat({
+          connection: createMockConnectionAdapter(),
+          threadId: 'abandoned-chat',
+          persistence,
+          onInterruptStateChange,
+        })
+        throw suspended
+      }
+
+      const view = render(
+        createElement(
+          Suspense,
+          { fallback: null },
+          createElement(AbandonedChat),
+        ),
+      )
+      view.unmount()
+
+      await act(async () => {
+        hydration.resolve({
+          messages: [],
+          resume: createInterruptResumeSnapshot(),
+        })
+        await hydration.promise
+      })
+
+      expect(onInterruptStateChange).not.toHaveBeenCalled()
     })
 
     it('should preserve persisted empty messages over provided initial messages', async () => {

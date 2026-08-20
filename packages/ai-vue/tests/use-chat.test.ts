@@ -55,6 +55,7 @@ describe('useChat', () => {
           interrupts: result.current.interrupts,
           interruptErrors: result.current.interruptErrors,
         }),
+        { source: 'live' },
       )
     })
 

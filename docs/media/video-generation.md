@@ -600,6 +600,8 @@ await generateVideo({
 Adapters that haven't declared a per-model duration map keep the plain
 `duration?: number` typing, return `{ kind: 'none' }` from
 `availableDurations()`, and return `undefined` from `snapDuration()`.
+fal is the exception: `duration` is typed from `@fal-ai/client`'s
+`EndpointTypeMap` even when the runtime map has no entry.
 
 > **Note:** The video URL returned for Veo jobs is served by the Gemini
 > Files API and requires your API key to download (send it as an
@@ -887,6 +889,29 @@ Two OpenRouter-specific behaviors to know about:
   around.
 - **Cost is reported on completion.** The gateway reports the real billed
   cost for the job; it's surfaced as `usage.cost` on the completed result.
+
+#### fal.ai Model Options
+
+`duration` is typed per endpoint from `@fal-ai/client`. Popular models also
+implement `availableDurations()` / `snapDuration()` (Kling 2.6/Pika `'5' | '10'`,
+Kling 3 `'3'`…`'15'`, Luma `'5s' | '9s'`, Veo 3.1 `'4s' | '6s' | '8s'`, WAN
+`'2'`…`'15'`). Models with no duration field (Minimax, Hunyuan) type `duration`
+as `undefined`, so passing one is a compile error. See the
+[fal adapter](../adapters/fal) for the full table.
+
+```typescript ignore
+import { generateVideo } from '@tanstack/ai'
+import { falVideo } from '@tanstack/ai-fal'
+
+const adapter = falVideo('fal-ai/veo3.1')
+adapter.availableDurations() // { kind: 'discrete', values: ['4s', '6s', '8s'] }
+
+await generateVideo({
+  adapter,
+  prompt: 'A timelapse of a city skyline at dusk',
+  duration: adapter.snapDuration(7), // '6s'
+})
+```
 
 ### Response Types
 

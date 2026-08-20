@@ -1,5 +1,24 @@
 # @tanstack/ai-persistence
 
+## 0.3.0
+
+### Minor Changes
+
+- [#1102](https://github.com/TanStack/ai/pull/1102) [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29) - Add first-party generic interrupts.
+
+  Use `defineInterrupt()` to describe a pause, register it on `chat()` and the client hooks, and return requests from `onInterruptBoundary`. The client gets typed payloads and `resolveInterrupt`. Resume validates the answer and runs `onInterruptResolution`.
+
+  `GenericInterrupt<typeof reviewPlan>` types one bound card. `INTERRUPT_BOUNDARY_PHASES` and `INTERRUPT_TOOL_RESUMES` are the shared phase and resume lists.
+
+### Patch Changes
+
+- [#1161](https://github.com/TanStack/ai/pull/1161) [`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4) - Harden first-party generic interrupt resume.
+
+  Ephemeral continuation now rehydrates an already-parsed display payload instead of running `payloadSchema` again, so transforming schemas keep working. Invalid `expiresAt` values fail closed, binding parse uses one reader, and sequential interrupt-store writes preflight before changing records.
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+
 ## 0.2.0
 
 ### Minor Changes

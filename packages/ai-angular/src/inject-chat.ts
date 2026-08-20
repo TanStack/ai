@@ -138,9 +138,9 @@ export function injectChat<
     // signal (via `onRunIdChange`) and pending interrupts arrive through
     // `onInterruptStateChange`, so there is nothing left for it to do — and it
     // is not a public option here, matching the other framework packages.
-    onInterruptStateChange: (nextInterruptState) => {
+    onInterruptStateChange: (nextInterruptState, context) => {
       interruptState.set(nextInterruptState)
-      options.onInterruptStateChange?.(nextInterruptState)
+      options.onInterruptStateChange?.(nextInterruptState, context)
     },
     tools: options.tools,
     ...(options.interrupts !== undefined && {

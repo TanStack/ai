@@ -192,9 +192,9 @@ export function createChat<
     onRunIdChange: (nextRunId) => {
       runId = nextRunId
     },
-    onInterruptStateChange: (nextInterruptState) => {
+    onInterruptStateChange: (nextInterruptState, context) => {
       interruptState = nextInterruptState
-      options.onInterruptStateChange?.(nextInterruptState)
+      options.onInterruptStateChange?.(nextInterruptState, context)
     },
   })
 

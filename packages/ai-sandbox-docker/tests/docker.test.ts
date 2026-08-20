@@ -49,6 +49,13 @@ describe.skipIf(!dockerAvailable)(
           0, 1, 2, 250,
         ])
 
+        // Larger than one `sh -c` argv (Linux MAX_ARG_STRLEN is 128 KiB).
+        const large = Buffer.alloc(180_000, 0x62)
+        await sbx.fs.write('/workspace/large.bin', large)
+        expect(await sbx.fs.readBytes('/workspace/large.bin')).toEqual(
+          new Uint8Array(large),
+        )
+
         const snap = await sbx.snapshot?.('test')
         expect(snap?.id).toMatch(/tanstack-ai-sandbox-snapshot/)
         snapshotTag = snap?.id

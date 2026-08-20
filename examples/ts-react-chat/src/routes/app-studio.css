@@ -1,0 +1,261 @@
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('/brand/fonts/BricolageGrotesque-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('/brand/fonts/Inter-latin.woff2') format('woff2');
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+.app-studio {
+  --studio-bg: #111111;
+  --studio-surface: #1f1f1f;
+  --studio-elevated: #2b2b2b;
+  --studio-subtle: #1b1b1b;
+  --studio-ink: #ffffff;
+  --studio-secondary: #aea691;
+  --studio-muted: #756c5b;
+  --studio-border: #2d2d2d;
+  --studio-border-strong: #aea691;
+  --studio-accent: #e06e49;
+  --studio-accent-soft: #edaa8d;
+  --studio-error: #e06e49;
+  --studio-error-bg: #5f1a0633;
+  --studio-focus: #e06e49;
+  --studio-hover: #ffffff14;
+  --studio-display: 'Bricolage Grotesque', ui-sans-serif, system-ui, sans-serif;
+  --studio-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  background: var(--studio-bg);
+  color: var(--studio-ink);
+  font-family: var(--studio-sans);
+  font-weight: 300;
+}
+
+.app-studio button,
+.app-studio textarea,
+.app-studio input,
+.app-studio label {
+  font-family: inherit;
+}
+
+.app-studio-title {
+  font-family: var(--studio-display);
+  font-weight: 700;
+  font-size: 2.5rem;
+  line-height: 2.875rem;
+  letter-spacing: -0.03em;
+  color: var(--studio-accent);
+}
+
+.app-studio-brand {
+  font-family: var(--studio-display);
+  font-weight: 700;
+  font-size: 1.125rem;
+  line-height: 1.375rem;
+  letter-spacing: -0.02em;
+  color: var(--studio-accent);
+}
+
+.app-studio-kicker {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--studio-secondary);
+  font-weight: 500;
+}
+
+.app-studio-lede {
+  font-size: 1rem;
+  line-height: 1.5rem;
+  font-weight: 300;
+  color: var(--studio-secondary);
+}
+
+.app-studio-lede code {
+  color: var(--studio-accent-soft);
+}
+
+.app-studio-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  background: var(--studio-accent);
+  color: #111111;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.05rem;
+  transition-property: background-color, transform;
+  transition-duration: 120ms;
+  transition-timing-function: ease-out;
+}
+
+.app-studio-btn-primary:hover:not(:disabled) {
+  background: var(--studio-accent-soft);
+}
+
+.app-studio-btn-primary:active:not(:disabled),
+.app-studio-btn-secondary:active:not(:disabled) {
+  transform: scale(0.96);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-studio-btn-primary,
+  .app-studio-btn-secondary {
+    transition: none;
+  }
+
+  .app-studio-btn-primary:active:not(:disabled),
+  .app-studio-btn-secondary:active:not(:disabled) {
+    transform: none;
+  }
+}
+
+.app-studio-btn-primary:focus-visible,
+.app-studio-btn-secondary:focus-visible,
+.app-studio-thread:focus-visible,
+.app-studio textarea:focus-visible,
+.app-studio input[type='checkbox']:focus-visible {
+  outline: 2px solid var(--studio-focus);
+  outline-offset: 2px;
+}
+
+.app-studio-btn-primary:disabled,
+.app-studio-btn-secondary:disabled {
+  opacity: 0.5;
+}
+
+.app-studio-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--studio-border-strong);
+  background: transparent;
+  color: var(--studio-ink);
+  padding: 0.375rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  transition-property: background-color, transform;
+  transition-duration: 120ms;
+  transition-timing-function: ease-out;
+}
+
+.app-studio-btn-secondary:hover:not(:disabled) {
+  background: var(--studio-hover);
+}
+
+.app-studio-thread {
+  width: 100%;
+  min-height: 2.5rem;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--studio-secondary);
+}
+
+.app-studio-thread-horizontal {
+  width: auto;
+}
+
+.app-studio-thread:hover {
+  background: var(--studio-hover);
+  color: var(--studio-ink);
+}
+
+.app-studio-thread-active {
+  background: #5f1a06;
+  color: var(--studio-ink);
+}
+
+.app-studio-input {
+  width: 100%;
+  border-radius: 0.375rem;
+  border: 1px solid var(--studio-border);
+  background: var(--studio-surface);
+  color: var(--studio-ink);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+
+.app-studio input[type='checkbox'] {
+  width: 1.125rem;
+  height: 1.125rem;
+  accent-color: var(--studio-accent);
+}
+
+.app-studio-alert {
+  border-radius: 0.5rem;
+  border: 1px solid var(--studio-error);
+  background: var(--studio-error-bg);
+  color: var(--studio-accent-soft);
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+.app-studio-tool {
+  border-radius: 0.375rem;
+  background: var(--studio-surface);
+  padding: 0.25rem 0.5rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.75rem;
+  color: var(--studio-secondary);
+}
+
+.app-studio-role {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--studio-muted);
+}
+
+.app-studio-status {
+  color: var(--studio-accent-soft);
+}
+
+.app-studio-preview-empty {
+  border-top: 1px solid var(--studio-border);
+  background: var(--studio-subtle);
+  padding: 1rem;
+  font-size: 0.875rem;
+  color: var(--studio-muted);
+}
+
+.app-studio-preview {
+  height: 100%;
+  min-height: 12rem;
+  width: 100%;
+  border-top: 1px solid var(--studio-border);
+  background: #ffffff;
+}
+
+.app-studio-rule {
+  border-color: var(--studio-border);
+}
+
+.app-studio .prose {
+  color: var(--studio-ink);
+}
+
+.app-studio .prose a {
+  color: var(--studio-accent-soft);
+}
+
+.app-studio-hint {
+  font-size: 0.75rem;
+  line-height: 1rem;
+  color: var(--studio-muted);
+}

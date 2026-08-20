@@ -106,7 +106,7 @@
           "label": "Client Tools",
           "to": "tools/client-tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Tool Approval Flow",
@@ -190,7 +190,7 @@
           "label": "Overview",
           "to": "interrupts/overview",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Tool Approval",
@@ -202,7 +202,7 @@
           "label": "Multiple Interrupts",
           "to": "interrupts/multiple",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Generic Interrupts",
@@ -264,18 +264,20 @@
         {
           "label": "Overview",
           "to": "persistence/overview",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-13"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Client Persistence",
           "to": "persistence/client-persistence",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Generation Persistence",
@@ -285,12 +287,14 @@
         {
           "label": "Controls",
           "to": "persistence/controls",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Migrations",
@@ -324,12 +328,14 @@
         {
           "label": "Build a Generation Adapter",
           "to": "persistence/build-your-own-generation-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Build a Sandbox Adapter",
           "to": "persistence/build-a-sandbox-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Store Reference",
@@ -340,7 +346,8 @@
         {
           "label": "How Persistence Works",
           "to": "persistence/internals",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -380,7 +387,8 @@
         {
           "label": "Multi-Turn Chat",
           "to": "structured-outputs/multi-turn",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "With Tools",
@@ -392,7 +400,7 @@
           "label": "Harness Agents",
           "to": "structured-outputs/harnesses",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -478,7 +486,7 @@
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Generation Hooks",
@@ -593,12 +601,59 @@
           "label": "Lifecycle & Snapshots",
           "to": "sandbox/lifecycle",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Portable Snapshots",
+          "to": "sandbox/portable-snapshots",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-18"
+        },
+        {
+          "label": "Keep Files After Reload",
+          "to": "sandbox/portable-snapshots-configure",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-18"
+        },
+        {
+          "label": "Save a Named Version",
+          "to": "sandbox/portable-snapshots-save",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Branch From a Version",
+          "to": "sandbox/portable-snapshots-fork",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Send a Frozen File",
+          "to": "sandbox/portable-snapshots-artifacts",
+          "addedAt": "2026-08-14"
+        },
+        {
+          "label": "Let the Agent Save and Fork",
+          "to": "sandbox/portable-snapshots-tools",
+          "addedAt": "2026-08-14"
+        },
+        {
+          "label": "Pick Which Files to Keep",
+          "to": "sandbox/portable-snapshots-files",
+          "addedAt": "2026-08-18",
+          "updatedAt": "2026-08-18"
+        },
+        {
+          "label": "What a Snapshot Stores",
+          "to": "sandbox/portable-snapshots-safety",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Instance Durability",
           "to": "sandbox/durability",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Durable Runs",
@@ -708,7 +763,8 @@
         {
           "label": "Multimodal Content",
           "to": "advanced/multimodal-content",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-07-21"
         },
         {
           "label": "Per-Model Type Safety",
@@ -884,7 +940,8 @@
         {
           "label": "fal.ai",
           "to": "adapters/fal",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "OpenRouter Adapter",

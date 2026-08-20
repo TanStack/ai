@@ -95,8 +95,60 @@ export interface SandboxDefinition {
   key: (ctx: SandboxEnsureContext) => string
   /** Resume-or-create the sandbox for this thread/run. */
   ensure: (ctx: SandboxEnsureContext) => Promise<SandboxHandle>
+  /** Resume an existing sandbox only. Never creates or restores a sandbox. */
+  ensureExisting: (ctx: SandboxEnsureContext) => Promise<SandboxHandle | null>
   /** Tear down the sandbox recorded for this key. */
   destroy: (ctx: SandboxEnsureContext) => Promise<void>
+}
+
+export type SandboxEnsureOutcome = {
+  handle: SandboxHandle
+  outcome: 'resumed' | 'native-restored' | 'created'
+}
+
+const outcomeEnsure = new WeakMap<
+  object,
+  (ctx: SandboxEnsureContext) => Promise<SandboxEnsureOutcome>
+>()
+
+interface SandboxEnsureExistingStage {
+  key: string
+  workspace: WorkspaceDefinition | undefined
+  resolvedSecrets: Readonly<Record<string, string>> | undefined
+  snapshotMaxAge: string | undefined
+  resume: SandboxProvider['resume']
+}
+
+const existingEnsure = new WeakMap<
+  object,
+  (
+    ctx: SandboxEnsureContext,
+    stage?: SandboxEnsureExistingStage,
+  ) => Promise<SandboxHandle | null>
+>()
+
+export function stageEnsureExistingSandbox(
+  definition: SandboxDefinition,
+): (
+  ctx: SandboxEnsureContext,
+  stage: SandboxEnsureExistingStage,
+) => Promise<SandboxHandle | null> {
+  const fn = existingEnsure.get(definition)
+  if (fn) return (ctx, stage) => fn(ctx, stage)
+  const ensureExisting = definition.ensureExisting.bind(definition)
+  return (ctx) => ensureExisting(ctx)
+}
+
+export function ensureSandboxWithOutcome(
+  definition: SandboxDefinition,
+  ctx: SandboxEnsureContext,
+) {
+  const fn = outcomeEnsure.get(definition)
+  if (!fn)
+    throw new Error(
+      'Sandbox snapshot mode requires a definition created by defineSandbox()',
+    )
+  return fn(ctx)
 }
 
 /**
@@ -136,9 +188,10 @@ const fallbackLocks = new InMemoryLockStore()
 async function applyWorkspaceSecrets(
   handle: SandboxHandle,
   workspace: WorkspaceDefinition | undefined,
+  stagedSecrets?: Readonly<Record<string, string>>,
 ): Promise<void> {
   if (workspace?.secrets === undefined) return
-  const resolved = resolveAllSecrets(workspace.secrets)
+  const resolved = stagedSecrets ?? resolveAllSecrets(workspace.secrets)
   if (Object.keys(resolved).length === 0) return
   await handle.env.set(resolved)
 }
@@ -155,7 +208,9 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     tenant: ctx.tenant,
   })
 
-  const ensure = async (ctx: SandboxEnsureContext): Promise<SandboxHandle> => {
+  const ensureWithOutcome = async (
+    ctx: SandboxEnsureContext,
+  ): Promise<SandboxEnsureOutcome> => {
     const store = ctx.store ?? fallbackStore
     const locks = ctx.locks ?? fallbackLocks
     const key = computeSandboxKey(keyInputFor(ctx))
@@ -186,7 +241,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
               latestRunId: ctx.runId,
               updatedAt: Date.now(),
             })
-            return resumed
+            return { handle: resumed, outcome: 'resumed' }
           }
           // 2) Else restore from the latest snapshot, if supported.
           if (
@@ -211,7 +266,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
               latestRunId: ctx.runId,
               updatedAt: Date.now(),
             })
-            return restored
+            return { handle: restored, outcome: 'native-restored' }
           }
         }
         // 3) Else fall through and re-create under the same identity
@@ -265,9 +320,51 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
         latestRunId: ctx.runId,
         updatedAt: Date.now(),
       })
-      return created
+      return { handle: created, outcome: 'created' }
     })
   }
+
+  const ensure = async (ctx: SandboxEnsureContext): Promise<SandboxHandle> =>
+    (await ensureWithOutcome(ctx)).handle
+
+  const ensureExistingWithStage = async (
+    ctx: SandboxEnsureContext,
+    stage?: SandboxEnsureExistingStage,
+  ): Promise<SandboxHandle | null> => {
+    const store = ctx.store ?? fallbackStore
+    const locks = ctx.locks ?? fallbackLocks
+    const key = stage?.key ?? computeSandboxKey(keyInputFor(ctx))
+    const workspace = stage?.workspace ?? config.workspace
+    const snapshotMaxAge = stage
+      ? stage.snapshotMaxAge
+      : config.lifecycle?.snapshotMaxAge
+    const resume = stage?.resume ?? config.provider.resume.bind(config.provider)
+    return locks.withLock(`sandbox:${key}`, async () => {
+      const existing = await store.get(key)
+      const maxAgeMs = parseMaxAgeMs(snapshotMaxAge)
+      if (
+        !existing ||
+        (maxAgeMs !== undefined && Date.now() - existing.updatedAt > maxAgeMs)
+      )
+        return null
+      const resumed = await resume({
+        id: existing.providerSandboxId,
+        signal: ctx.signal,
+      })
+      if (!resumed) return null
+      await applyWorkspaceSecrets(resumed, workspace, stage?.resolvedSecrets)
+      await store.upsert({
+        ...existing,
+        latestRunId: ctx.runId,
+        updatedAt: Date.now(),
+      })
+      return resumed
+    })
+  }
+
+  const ensureExisting = (
+    ctx: SandboxEnsureContext,
+  ): Promise<SandboxHandle | null> => ensureExistingWithStage(ctx)
 
   const destroy = async (ctx: SandboxEnsureContext): Promise<void> => {
     const store = ctx.store ?? fallbackStore
@@ -302,7 +399,7 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     await store.delete(key)
   }
 
-  return {
+  const definition: SandboxDefinition = {
     id: config.id,
     provider: config.provider,
     workspace: config.workspace,
@@ -312,6 +409,10 @@ export function defineSandbox(config: SandboxConfig): SandboxDefinition {
     fileEvents: config.fileEvents,
     key: (ctx) => computeSandboxKey(keyInputFor(ctx)),
     ensure,
+    ensureExisting,
     destroy,
   }
+  outcomeEnsure.set(definition, ensureWithOutcome)
+  existingEnsure.set(definition, ensureExistingWithStage)
+  return definition
 }

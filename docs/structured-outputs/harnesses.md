@@ -166,6 +166,79 @@ Each part type:
 
 `partial` stays empty on harness adapters. The object is not streamed field by field. Render tool calls from `messages` while you wait. See [Streaming UIs](./streaming) for the `partial` / `final` shape.
 
+## Persist the typed object
+
+Add `withPersistence` next to `withSandbox`. The engine stores the completed
+structured-output part on the transcript. A new message id keeps harness prose
+and the structured object as two assistant messages. The last text message id
+keeps both on one message. A reload hydrates that transcript through
+`reconstructChat`. See [Chat Persistence](../persistence/chat-persistence).
+
+```typescript group=harness-persist
+import { chat, toServerSentEventsResponse } from "@tanstack/ai";
+import { claudeCodeText } from "@tanstack/ai-claude-code";
+import { withPersistence } from "@tanstack/ai-persistence";
+import {
+  defineSandbox,
+  defineWorkspace,
+  githubRepo,
+  withSandbox,
+} from "@tanstack/ai-sandbox";
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker";
+import { persistence } from "./persistence";
+import { z } from "zod";
+
+const ReportSchema = z.object({
+  name: z.string(),
+  oneLiner: z.string(),
+});
+
+const sandbox = defineSandbox({
+  id: "repo-report",
+  provider: dockerSandbox({ image: "node:22" }),
+  workspace: defineWorkspace({
+    source: githubRepo({ repo: "TanStack/ai" }),
+  }),
+});
+
+export async function POST(request: Request) {
+  const body: unknown = await request.json();
+  const messages =
+    typeof body === "object" &&
+    body !== null &&
+    "messages" in body &&
+    Array.isArray(body.messages)
+      ? body.messages
+      : [];
+  const threadId =
+    typeof body === "object" &&
+    body !== null &&
+    "threadId" in body &&
+    typeof body.threadId === "string"
+      ? body.threadId
+      : undefined;
+  const runId =
+    typeof body === "object" &&
+    body !== null &&
+    "runId" in body &&
+    typeof body.runId === "string"
+      ? body.runId
+      : undefined;
+
+  const stream = chat({
+    adapter: claudeCodeText("claude-opus-4-8"),
+    messages,
+    outputSchema: ReportSchema,
+    stream: true,
+    threadId,
+    runId,
+    middleware: [withSandbox(sandbox), withPersistence(persistence)],
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
 ## How each harness applies the schema
 
 | Adapter | How the schema is applied |

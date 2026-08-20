@@ -178,9 +178,9 @@ export function useChat<
     onRunIdChange: (nextRunId) => {
       runId.value = nextRunId
     },
-    onInterruptStateChange: (nextInterruptState) => {
+    onInterruptStateChange: (nextInterruptState, context) => {
       interruptState.value = nextInterruptState
-      options.onInterruptStateChange?.(nextInterruptState)
+      options.onInterruptStateChange?.(nextInterruptState, context)
     },
   })
 

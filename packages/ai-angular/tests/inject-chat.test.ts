@@ -59,6 +59,7 @@ describe('injectChat', () => {
           interrupts: result.interrupts(),
           interruptErrors: result.interruptErrors(),
         }),
+        { source: 'live' },
       )
     })
 
@@ -254,6 +255,7 @@ describe('injectChat — resume', () => {
           expect.objectContaining({ id: 'interrupt-1' }),
         ]),
       }),
+      { source: 'live' },
     )
   })
 })

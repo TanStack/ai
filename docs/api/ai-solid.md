@@ -84,6 +84,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client`:
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
 - `onError?` - Callback when error occurs
+- `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
 - `streamProcessor?` - Stream processing configuration
 
 **Note:** Client tools are now automatically executed - no `onToolCall` callback needed!

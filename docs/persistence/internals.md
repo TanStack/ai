@@ -181,11 +181,18 @@ server event state, not the client's rendered messages.
    the original terminal's `onUsage`, so the handler reuses that aggregate. It
    then commits accepted resumes, stores the new interrupts, marks the run
    interrupted, and saves messages.
-5. `onFinish` and `onError` terminalize the run record and retain known usage.
-   So does terminal `onAbort`, with one exception: on a run another middleware
-   has declared detachable, a plain disconnect (no cancel recorded in either
-   band) writes nothing and leaves the record `'running'` for a later takeover.
-   See [Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
+5. Before `onFinish`, the chat engine appends the completed terminal assistant
+   messages to `ctx.messages`. Native-combined output keeps the structured
+   result on its terminal assistant message. Separate finalization and
+   event-sourced harness output append a second structured-output message only
+   when that event uses a different message id.
+6. `onFinish` saves that canonical transcript before marking the run completed.
+   `onError` terminalizes the run record without replacing the transcript. Both
+   retain known usage. So does terminal `onAbort`, with one exception: on a run
+   another middleware has declared detachable, a plain disconnect (no cancel
+   recorded in either band) writes nothing and leaves the record `'running'`
+   for a later takeover. See
+   [Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
 
 Accepted resumes are committed (interrupts marked resolved/cancelled) only once
 the run reaches a successful boundary, so a provider failure or abort between

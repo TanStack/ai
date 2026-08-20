@@ -38,6 +38,11 @@ describe('useChat', () => {
         onInterruptStateChange,
       })
 
+      expect(onInterruptStateChange).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ interrupts: result.current.interrupts }),
+        { source: 'hydrate' },
+      )
       expect(Object.isFrozen(result.current.interrupts)).toBe(true)
       expect(result.current.pendingInterrupts).toBe(result.current.interrupts)
       expect(result.current.interrupts[0]).toMatchObject({
@@ -69,7 +74,45 @@ describe('useChat', () => {
           interrupts: result.current.interrupts,
           interruptErrors: result.current.interruptErrors,
         }),
+        { source: 'live' },
       )
+    })
+
+    it('awaits onResponse when hydration resumes during activation', async () => {
+      const response = createDeferred<void>()
+      const onResponse = vi.fn(() => response.promise)
+      const onConnect = vi.fn()
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('resumed'),
+          onConnect,
+        }),
+        initialResumeSnapshot: createInterruptResumeSnapshot(),
+        live: true,
+        onResponse,
+        onInterruptStateChange: (state, context) => {
+          if (context.source !== 'hydrate') return
+          for (const interrupt of state.interrupts) {
+            if (interrupt.kind === 'unbound') continue
+            interrupt.cancel()
+          }
+        },
+      })
+
+      await waitFor(() => {
+        expect(onResponse).toHaveBeenCalledOnce()
+      })
+      expect(onConnect).not.toHaveBeenCalled()
+
+      await act(async () => {
+        response.resolve()
+        await response.promise
+      })
+
+      await waitFor(() => {
+        expect(onConnect).toHaveBeenCalledOnce()
+        expect(result.current.resuming).toBe(false)
+      })
     })
 
     it('delegates every root interrupt control to ChatClient', async () => {
@@ -178,6 +221,32 @@ describe('useChat', () => {
         expect(result.current.messages).toEqual(persistedMessages)
       })
       expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
+    })
+
+    it('should forward synchronous persisted interrupt hydration', () => {
+      const onInterruptStateChange = vi.fn()
+      const persistence = {
+        getItem: vi.fn(() => ({
+          messages: [],
+          resume: createInterruptResumeSnapshot(),
+        })),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+        threadId: 'persisted-interrupt-chat',
+        persistence,
+        onInterruptStateChange,
+      })
+
+      expect(result.current.interrupts).toHaveLength(2)
+      expect(onInterruptStateChange).toHaveBeenCalledOnce()
+      expect(onInterruptStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({ interrupts: result.current.interrupts }),
+        { source: 'hydrate' },
+      )
     })
 
     it('should preserve persisted empty messages over provided initial messages', async () => {
@@ -1067,25 +1136,34 @@ describe('useChat', () => {
       expect(onError.mock.calls[0]?.[0].message).toBe('Test error')
     })
 
-    it('should call onResponse callback when response is received', async () => {
+    it('should await onResponse before connecting', async () => {
       const chunks = createTextChunks('Response')
-      const adapter = createMockConnectionAdapter({ chunks })
-      const onResponse = vi.fn()
+      const onConnect = vi.fn()
+      const adapter = createMockConnectionAdapter({ chunks, onConnect })
+      const response = createDeferred<void>()
+      const onResponse = vi.fn(() => response.promise)
 
       const { result } = renderUseChat({
         connection: adapter,
         onResponse,
       })
 
-      await act(async () => {
-        await result.current.sendMessage('Test')
+      let sendPromise: Promise<void>
+      act(() => {
+        sendPromise = result.current.sendMessage('Test')
       })
 
-      // onResponse may or may not be called depending on adapter implementation
-      // This test verifies the callback is passed through
       await waitFor(() => {
-        expect(result.current.messages.length).toBeGreaterThan(0)
+        expect(onResponse).toHaveBeenCalledOnce()
       })
+      expect(onConnect).not.toHaveBeenCalled()
+
+      await act(async () => {
+        response.resolve()
+        await sendPromise!
+      })
+
+      expect(onConnect).toHaveBeenCalledOnce()
     })
   })
 

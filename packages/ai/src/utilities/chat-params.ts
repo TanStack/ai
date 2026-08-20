@@ -21,6 +21,7 @@ const KNOWN_PART_TYPES = new Set([
   'tool-call',
   'tool-result',
   'thinking',
+  'structured-output',
 ])
 
 function isValidParts(value: unknown): value is Array<{ type: string }> {
@@ -29,6 +30,10 @@ function isValidParts(value: unknown): value is Array<{ type: string }> {
     if (!p || typeof p !== 'object') return false
     const type = (p as { type?: unknown }).type
     if (typeof type !== 'string' || !KNOWN_PART_TYPES.has(type)) return false
+    if (type === 'structured-output') {
+      const raw = (p as { raw?: unknown }).raw
+      if (raw !== undefined && typeof raw !== 'string') return false
+    }
   }
   return true
 }

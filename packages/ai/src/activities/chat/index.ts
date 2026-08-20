@@ -58,6 +58,7 @@ import {
   convertMessagesToModelMessages,
   generateMessageId,
   modelMessageToUIMessage,
+  safeJsonStringify,
 } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { getRunDetached } from './middleware/run-store'
@@ -100,6 +101,7 @@ import type {
   SchemaInput,
   StreamChunk,
   StructuredOutputCompleteEvent,
+  StructuredOutputPart,
   StructuredOutputStream,
   TextMessageContentEvent,
   TextOptions,
@@ -861,8 +863,13 @@ class TextEngine<
   private readonly logger: InternalLogger
 
   // Structured-output finalization state (populated by runStructuredFinalization)
-  private structuredOutputResult: { data: unknown; rawText: string } | null =
-    null
+  private structuredOutputResult: {
+    data: unknown
+    rawText: string
+    reasoning?: string
+  } | null = null
+  private structuredOutputMessageId: string | null = null
+  private structuredOutputMessageCreatedAt: Date | null = null
   // Native combined mode: tracks whether we've already emitted the synthetic
   // `structured-output.start` event before the schema-constrained final-turn
   // text begins streaming. The event must precede the first
@@ -1290,7 +1297,7 @@ class TextEngine<
             duration: Date.now() - this.streamStartTime,
           })
         } else {
-          this.addTerminalReasoningMessage()
+          this.addTerminalAssistantMessages()
           this.terminalHookCalled = true
           await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
             finishReason: this.lastFinishReason,
@@ -1534,6 +1541,7 @@ class TextEngine<
           typeof startValue.messageId === 'string'
         ) {
           this.combinedStructuredMessageId = startValue.messageId
+          this.captureStructuredOutputMessageIdentity(startValue.messageId)
         }
       }
 
@@ -1551,6 +1559,11 @@ class TextEngine<
           this.structuredOutputResult = { data: object, rawText: parsed.raw }
           this.combinedCompleteEmitted = true
           const value = chunk.value
+          const completeMessageId = readCustomEventMessageId(value)
+          if (completeMessageId) {
+            this.combinedStructuredMessageId = completeMessageId
+            this.captureStructuredOutputMessageIdentity(completeMessageId)
+          }
           if (object !== parsed.object && value && typeof value === 'object') {
             outboundChunk = { ...chunk, value: { ...value, object } }
           }
@@ -1722,6 +1735,11 @@ class TextEngine<
       this.currentMessageCreatedAt = new Date()
       this.streamIdentityCaptured = true
     }
+  }
+
+  private captureStructuredOutputMessageIdentity(messageId: string): void {
+    this.structuredOutputMessageId = messageId
+    this.structuredOutputMessageCreatedAt ??= new Date()
   }
 
   private handleToolCallStartEvent(chunk: ToolCallStartEvent): void {
@@ -2316,27 +2334,104 @@ class TextEngine<
     this.middlewareCtx.messages = this.messages
   }
 
-  private addTerminalReasoningMessage(): void {
+  private addTerminalAssistantMessages(): void {
     this.finalizeCurrentThinkingStep()
-    if (this.accumulatedThinking.length === 0) return
 
-    const messages = this.middlewareCtx.messages
-    const alreadyPresent = messages.some(
+    const structuredResult = this.structuredOutputResult
+    const raw = structuredResult
+      ? structuredResult.rawText || safeJsonStringify(structuredResult.data)
+      : ''
+    const structuredOutput: StructuredOutputPart | undefined = structuredResult
+      ? {
+          type: 'structured-output',
+          status: 'complete',
+          data: structuredResult.data,
+          partial: structuredResult.data,
+          raw,
+          ...(structuredResult.reasoning !== undefined
+            ? { reasoning: structuredResult.reasoning }
+            : {}),
+        }
+      : undefined
+    const nativeCombined = this.finalStructuredOutput?.nativeCombined === true
+    const eventSourced = this.finalStructuredOutput?.source === 'event'
+    const structuredId =
+      this.structuredOutputMessageId ??
+      this.combinedStructuredMessageId ??
+      this.currentMessageId ??
+      this.createId('msg')
+    // Codex, OpenCode, ACP, and grok-build reuse the last text messageId
+    // on structured-output.complete. Split only when the event uses a
+    // different id (Claude Code). Same-id output stays on one message.
+    const splitStructuredMessage =
+      Boolean(structuredOutput) &&
+      (!nativeCombined || eventSourced) &&
+      this.currentMessageId != null &&
+      structuredId !== this.currentMessageId
+    const messages = [...this.middlewareCtx.messages]
+    const existingStructuredIndex = messages.findIndex(
+      (message) => message.role === 'assistant' && message.id === structuredId,
+    )
+    const currentTurnAlreadyRecorded = messages.some(
       (message) =>
         message.role === 'assistant' && message.id === this.currentMessageId,
     )
-    if (alreadyPresent) return
+    const thinking =
+      this.accumulatedThinking.length > 0 ? this.accumulatedThinking : undefined
+    const startedLength = messages.length
 
-    this.messages = [
-      ...messages,
-      {
-        role: 'assistant',
-        content: this.accumulatedContent || null,
-        id: this.currentMessageId ?? undefined,
-        createdAt: this.currentMessageCreatedAt ?? undefined,
-        thinking: this.accumulatedThinking,
-      },
-    ]
+    if (structuredOutput && existingStructuredIndex >= 0) {
+      const existing = messages[existingStructuredIndex]
+      if (existing) {
+        messages[existingStructuredIndex] = {
+          ...existing,
+          content: raw || existing.content,
+          structuredOutput,
+        }
+      }
+    } else if (structuredOutput && !splitStructuredMessage) {
+      if (!currentTurnAlreadyRecorded) {
+        messages.push({
+          role: 'assistant',
+          content: this.accumulatedContent || raw || null,
+          id: structuredId,
+          createdAt:
+            this.currentMessageCreatedAt ??
+            this.structuredOutputMessageCreatedAt ??
+            new Date(),
+          structuredOutput,
+          ...(thinking ? { thinking } : {}),
+        })
+      }
+    } else {
+      if (
+        !currentTurnAlreadyRecorded &&
+        (this.accumulatedContent !== '' || thinking)
+      ) {
+        messages.push({
+          role: 'assistant',
+          content: this.accumulatedContent || null,
+          id: this.currentMessageId ?? this.createId('msg'),
+          createdAt: this.currentMessageCreatedAt ?? new Date(),
+          ...(thinking ? { thinking } : {}),
+        })
+      }
+      if (structuredOutput) {
+        messages.push({
+          role: 'assistant',
+          content: raw || null,
+          id: structuredId,
+          createdAt: this.structuredOutputMessageCreatedAt ?? new Date(),
+          structuredOutput,
+        })
+      }
+    }
+
+    if (messages.length === startedLength && existingStructuredIndex < 0) {
+      return
+    }
+
+    this.messages = messages
     this.middlewareCtx.messages = this.messages
   }
 
@@ -2608,7 +2703,8 @@ class TextEngine<
           message.id ||
           `snapshot_${this.runIdOverride ?? this.requestId}_${index}`
         const parts =
-          message.role === 'assistant' && message.thinking?.length
+          message.role === 'assistant' &&
+          (message.thinking?.length || message.structuredOutput)
             ? modelMessageToUIMessage(message, id).parts
             : undefined
         return {
@@ -3406,6 +3502,7 @@ class TextEngine<
     const buildSynthesizedStart = (timestamp = Date.now()): StreamChunk => {
       const idForStart = structuredMessageId ?? generateMessageId()
       structuredMessageId = idForStart
+      this.captureStructuredOutputMessageIdentity(idForStart)
       return {
         type: EventType.CUSTOM,
         name: 'structured-output.start',
@@ -3446,7 +3543,10 @@ class TextEngine<
       // synthesized start (when needed) uses the SAME id the deltas carry
       if (!structuredMessageId) {
         const extracted = extractMessageId(chunk)
-        if (extracted) structuredMessageId = extracted
+        if (extracted) {
+          structuredMessageId = extracted
+          this.captureStructuredOutputMessageIdentity(extracted)
+        }
       }
 
       // Synthesis only matters for the streaming client path — the agentic
@@ -3513,7 +3613,13 @@ class TextEngine<
           const object = this.finalStructuredOutput.normalize
             ? this.finalStructuredOutput.normalize(parsed.object)
             : parsed.object
-          this.structuredOutputResult = { data: object, rawText: parsed.raw }
+          this.structuredOutputResult = {
+            data: object,
+            rawText: parsed.raw,
+            ...(parsed.reasoning !== undefined
+              ? { reasoning: parsed.reasoning }
+              : {}),
+          }
           // Rewrite the outbound event so the yielded chunk carries the
           // normalized object (the original `chunk.value` still holds the
           // widened one). Preserve every other field — `raw`, `reasoning` —
@@ -4838,6 +4944,15 @@ async function runAgenticStructuredOutput<TSchema extends SchemaInput>(
  * Uses an `unknown`-input runtime check rather than `as` casts so the engine
  * stays cast-free in its hot path.
  */
+function readCustomEventMessageId(value: unknown): string | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  if (!('messageId' in value)) return undefined
+  const messageId = value.messageId
+  return typeof messageId === 'string' && messageId !== ''
+    ? messageId
+    : undefined
+}
+
 function readStructuredOutputCompleteValue(
   value: unknown,
 ): { object: unknown; raw: string; reasoning?: string } | null {

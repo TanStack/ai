@@ -31,6 +31,8 @@ export async function sendMessage(page: Page, text: string) {
     })
 }
 
+/** Types a prompt and attaches an image; attaching auto-sends. Retries until
+ *  the user bubble renders — the inline comment below explains why. */
 export async function sendMessageWithImage(
   page: Page,
   text: string,
@@ -60,6 +62,30 @@ export async function sendMessageWithImage(
     // Reset the selection so re-attaching the same path re-fires onChange.
     await fileInput.setInputFiles([])
     await fileInput.setInputFiles(imagePath)
+    await expect(userMessages.first()).toBeVisible({ timeout: 2_000 })
+  }).toPass({ timeout: 15_000, intervals: [250, 500, 1000] })
+}
+
+/** Types a prompt and attaches a PDF; attaching auto-sends. Retries until the
+ *  user bubble renders (same fragile-controlled-input problem as
+ *  sendMessageWithImage — see the comment there). */
+export async function sendMessageWithDocument(
+  page: Page,
+  text: string,
+  documentPath: string,
+) {
+  const input = page.getByTestId('chat-input')
+  const fileInput = page.getByTestId('document-attachment-input')
+  const userMessages = page.getByTestId('user-message')
+
+  // Same retry-to-observable-outcome pattern as sendMessageWithImage above.
+  await expect(async () => {
+    await input.click()
+    await input.fill('')
+    await input.pressSequentially(text, { delay: 15 })
+    expect(await input.inputValue()).toBe(text)
+    await fileInput.setInputFiles([])
+    await fileInput.setInputFiles(documentPath)
     await expect(userMessages.first()).toBeVisible({ timeout: 2_000 })
   }).toPass({ timeout: 15_000, intervals: [250, 500, 1000] })
 }

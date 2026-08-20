@@ -58,6 +58,17 @@ export function makeFakeHandle(
         return Promise.resolve()
       },
       list: () => Promise.resolve([]),
+      lstat: (p) => {
+        const content = files.get(p)
+        if (content !== undefined) {
+          return Promise.resolve({
+            type: 'file' as const,
+            mode: 0o644,
+            size: new TextEncoder().encode(content).byteLength,
+          })
+        }
+        return Promise.resolve({ type: 'dir' as const, mode: 0o755 })
+      },
       mkdir: () => Promise.resolve(),
       remove: (p) => {
         files.delete(p)
@@ -215,17 +226,28 @@ export function captureLogger(): {
  * asserting on a provided capability is not exercising a stub that always
  * answers the same way.
  *
- * The one exception is the `capabilities` field itself: production types it
- * as the `CapabilityRegistry` class (`packages/ai/src/activities/chat/
- * middleware/capabilities.ts`), which is not exported from any public
- * `@tanstack/ai` subpath (not `.`, not `/adapter-internals`), so it cannot be
- * `new`'d — or even named — from this package. Every consumer of a provided
- * capability only ever calls `markProvided`/`has` on that field (see
- * `capabilities.ts`'s `provide`), never its private bookkeeping, so the
- * minimal stand-in below is functionally equivalent for anything this fake is
- * used for; only the cast on that one field is needed, not on the ctx as a
- * whole.
+ * The capabilities field uses this test-local registry. It has the same
+ * behavior that capability accessors need, without making internal middleware
+ * bookkeeping a public API.
  */
+class TestCapabilityRegistry {
+  private readonly provided = new Set<object>()
+  private onDuplicate?: (name: string) => void
+
+  setOnDuplicate(callback: (name: string) => void): void {
+    this.onDuplicate = callback
+  }
+
+  markProvided(handle: { capabilityName: string }): void {
+    if (this.provided.has(handle)) this.onDuplicate?.(handle.capabilityName)
+    this.provided.add(handle)
+  }
+
+  has(handle: object): boolean {
+    return this.provided.has(handle)
+  }
+}
+
 export function makeMiddlewareCtx(input: {
   threadId: string
   runId: string
@@ -260,11 +282,9 @@ export function makeMiddlewareCtx(input: {
     messages: [],
     createId: (prefix: string) =>
       `${prefix}-${Math.random().toString(36).slice(2)}`,
-    capabilities: {
-      markProvided: () => {},
-      has: () => false,
-      setOnDuplicate: () => {},
-    } as unknown as ChatMiddlewareContext['capabilities'],
+    capabilities:
+      // @ts-expect-error This test-only registry has the required methods, but the production class has private state and is nominally typed.
+      new TestCapabilityRegistry() as ChatMiddlewareContext['capabilities'],
     get: (capability) => capability[0](ctx),
     getOptional: (capability) => capability[0](ctx, { optional: true }),
     provide: (capability, value) => capability[1](ctx, value),

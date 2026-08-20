@@ -54,6 +54,7 @@ describe('createChat', () => {
           interrupts: chat.interrupts,
           interruptErrors: chat.interruptErrors,
         }),
+        { source: 'live' },
       )
     })
 

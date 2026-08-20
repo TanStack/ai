@@ -749,6 +749,54 @@ describe('chat()', () => {
       })
     })
 
+    it('preserves structured-output parts on the interrupt MESSAGES_SNAPSHOT', async () => {
+      const structuredOutput = {
+        type: 'structured-output' as const,
+        status: 'complete' as const,
+        raw: '{"name":"Ada"}',
+        data: { name: 'Ada' },
+        partial: { name: 'Ada' },
+      }
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('call_1', 'clientSearch'),
+            ev.toolArgs('call_1', '{"query":"test"}'),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [
+            {
+              id: 'structured-1',
+              role: 'assistant',
+              content: structuredOutput.raw,
+              structuredOutput,
+            },
+            { id: 'user-1', role: 'user', content: 'Search' },
+          ],
+          tools: [clientTool('clientSearch')],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const snapshot = chunks.find(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      expect(snapshot).toMatchObject({
+        messages: expect.arrayContaining([
+          expect.objectContaining({
+            role: 'assistant',
+            parts: [structuredOutput],
+          }),
+        ]),
+      })
+    })
+
     it('preserves thinking parts on the interrupt MESSAGES_SNAPSHOT', async () => {
       const { adapter } = createMockAdapter({
         iterations: [

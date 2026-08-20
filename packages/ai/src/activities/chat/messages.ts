@@ -4,6 +4,7 @@ import type {
   ContentPart,
   MessagePart,
   ModelMessage,
+  StructuredOutputPart,
   TextPart,
   ToolCallPart,
   UIMessage,
@@ -26,9 +27,9 @@ function isContentPart(part: MessagePart): part is ContentPart {
   )
 }
 
-function safeJsonStringify(value: unknown): string {
+export function safeJsonStringify(value: unknown): string {
   try {
-    return JSON.stringify(value)
+    return JSON.stringify(value) ?? ''
   } catch {
     return ''
   }
@@ -196,6 +197,7 @@ function buildUserOrToolMessage(uiMessage: UIMessage): ModelMessage {
 // Accumulator for building an assistant segment (content + tool calls)
 interface AssistantSegment {
   contentParts: Array<ContentPart>
+  structuredOutput?: StructuredOutputPart
   toolCalls: Array<{
     id: string
     type: 'function'
@@ -255,6 +257,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
         content,
         ...(hasToolCalls && { toolCalls: current.toolCalls }),
         ...(pendingThinking.length > 0 && { thinking: pendingThinking }),
+        ...(current.structuredOutput && {
+          structuredOutput: current.structuredOutput,
+        }),
         ...(uiMessage.createdAt !== undefined && {
           createdAt: uiMessage.createdAt,
         }),
@@ -333,6 +338,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
                 : ''
           if (serialized !== '') {
             current.contentParts.push({ type: 'text', content: serialized })
+            current.structuredOutput = part
           }
         }
         break
@@ -445,7 +451,9 @@ export function modelMessageToUIMessage(
 
   // Handle tool results (when role is "tool") - only produce tool-result part,
   // not a text part (the content IS the tool result, not display text)
-  if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
+  if (modelMessage.role === 'assistant' && modelMessage.structuredOutput) {
+    parts.push(modelMessage.structuredOutput)
+  } else if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
     parts.push({
       type: 'tool-result',
       toolCallId: modelMessage.toolCallId,

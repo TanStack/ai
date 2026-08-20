@@ -20,8 +20,10 @@ import { base64ToUint8Array } from '@tanstack/ai-utils'
 import {
   InterruptsCapability,
   PersistenceCapability,
+  PersistenceCompletionCapability,
   provideInterrupts,
   providePersistence,
+  providePersistenceCompletion,
 } from './capabilities'
 import {
   validateChatPersistenceStores,
@@ -41,7 +43,6 @@ import type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
   Interrupt,
-  ModelMessage,
   PendingInterruptResumeRecord,
   PersistedArtifactActivity,
   PersistedArtifactRef,
@@ -285,6 +286,11 @@ interface RunStateEntry {
    */
   streamingMessageId?: string
   streamingMessageCreatedAt?: Date
+  completion?: {
+    promise: Promise<void>
+    resolve: () => void
+    reject: (error: unknown) => void
+  }
 }
 
 const runState = new WeakMap<object, RunStateEntry>()
@@ -873,43 +879,6 @@ function resumeToolStateFromPending(
     return undefined
   }
   return { approvals, clientToolResults, cancelledToolCallIds }
-}
-
-/**
- * Build the transcript to persist when a run finishes successfully.
- *
- * The chat engine appends an assistant message to the middleware message list
- * only when that turn carries tool calls (to feed the agent loop); a run's
- * terminal *text* reply is never appended. So `ctx.messages` at `onFinish` is
- * missing the assistant's final answer. Reattach it from the finish info —
- * `info.content` is the last turn's accumulated text (reset each cycle) — so
- * the stored thread is the complete conversation a server-authoritative client
- * hydrates on load. A guard avoids duplicating a terminal assistant turn should
- * the engine ever start appending it itself.
- */
-function finishedTranscript(
-  messages: ReadonlyArray<ModelMessage>,
-  info: FinishInfo,
-  messageId: string | undefined,
-  createdAt: Date | undefined,
-): Array<ModelMessage> {
-  const transcript = [...messages]
-  const last = transcript[transcript.length - 1]
-  const alreadyPresent =
-    last?.role === 'assistant' &&
-    last.toolCalls === undefined &&
-    last.content === info.content
-  if (info.content && !alreadyPresent) {
-    // Stamp the terminal turn with its stream messageId so a hydrated bubble
-    // keeps the same identity as the live stream (in-place resume on reload).
-    transcript.push({
-      role: 'assistant',
-      content: info.content,
-      ...(messageId ? { id: messageId } : {}),
-      ...(createdAt ? { createdAt } : {}),
-    })
-  }
-  return transcript
 }
 
 function interruptPayload(interrupt: unknown): Record<string, unknown> {
@@ -1964,6 +1933,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
 
   const provides = [
     PersistenceCapability,
+    PersistenceCompletionCapability,
     ...(wantsInterrupts ? [InterruptsCapability] : []),
   ]
 
@@ -1973,9 +1943,27 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     setup(ctx: ChatMiddlewareContext) {
       providePersistence(ctx, persistence)
 
+      let resolveCompletion: () => void = () => undefined
+      let rejectCompletion: (error: unknown) => void = () => undefined
+      const completion = new Promise<void>((resolve, reject) => {
+        resolveCompletion = resolve
+        rejectCompletion = reject
+      })
+      // Consumers may not need this capability. Mark the rejection handled while
+      // preserving the original promise for callers that do await it.
+      void completion.catch(() => undefined)
+
       runState.set(ctx, {
         merged: false,
         interrupted: false,
+        completion: {
+          promise: completion,
+          resolve: resolveCompletion,
+          reject: rejectCompletion,
+        },
+      })
+      providePersistenceCompletion(ctx, {
+        waitForRunCompletion: () => completion,
       })
 
       if (wantsInterrupts && persistence.stores.interrupts) {
@@ -2082,11 +2070,9 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
     },
 
     async onChunk(ctx: ChatMiddlewareContext, chunk: StreamChunk) {
-      // Always capture the current assistant turn's stream messageId (cheap),
-      // regardless of snapshotStreaming — it's persisted onto the assistant
-      // message so its identity survives hydrate and a reload resumes the same
-      // bubble in place.
-      if (ctx.phase === 'modelStream') {
+      // Capture the current assistant turn's identity for optional in-progress
+      // snapshots. Completed messages already live in `ctx.messages`.
+      if (snapshotStreaming && ctx.phase === 'modelStream') {
         const s = runState.get(ctx)
         if (s && chunk.type === 'TEXT_MESSAGE_START') {
           // An empty/malformed messageId means "no identity" (matching the
@@ -2113,9 +2099,8 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
 
       // (B) Optional throttled snapshot of the in-progress assistant reply, so
       // partial output survives a crash/reload before onFinish. Off unless
-      // `snapshotStreaming` is set. We accumulate the terminal turn's text here
-      // (the engine only appends assistant turns with tool calls to
-      // `ctx.messages`, never a streaming text reply), then persist
+      // `snapshotStreaming` is set. The completed turn enters `ctx.messages`
+      // only after streaming ends, so accumulate its text here and persist
       // `ctx.messages` + that partial assistant message (tagged with its id).
       if (
         snapshotStreaming &&
@@ -2202,28 +2187,29 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // or consuming approvals before the durable history lands leaves a
       // "finished" run whose transcript is missing the terminal turn.
       try {
-        await messageStore.saveThread(
-          ctx.threadId,
-          finishedTranscript(
-            ctx.messages,
-            info,
-            state?.streamingMessageId,
-            state?.streamingMessageCreatedAt,
-          ),
-        )
+        await messageStore.saveThread(ctx.threadId, [...ctx.messages])
         await commitPendingResumes(state, persistence.stores.interrupts)
         await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
+        state?.completion?.resolve()
       } catch (error) {
         // Core has already selected its terminal hook. Persist the failed run
         // here, so a failed transcript save or batch write does not leave an
         // interrupted or completed run whose pending records need retrying.
-        await failRun(runs, ctx.runId, error, state?.usage)
+        try {
+          await failRun(runs, ctx.runId, error, state?.usage)
+        } finally {
+          state?.completion?.reject(error)
+        }
         throw error
       }
     },
 
     async onError(ctx: ChatMiddlewareContext, info: ErrorInfo) {
-      await failRun(runs, ctx.runId, info.error, runState.get(ctx)?.usage)
+      try {
+        await failRun(runs, ctx.runId, info.error, runState.get(ctx)?.usage)
+      } finally {
+        runState.get(ctx)?.completion?.reject(info.error)
+      }
     },
 
     async onAbort(ctx: ChatMiddlewareContext, info: AbortInfo) {
@@ -2233,10 +2219,6 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // (`info.cancelRequested`, set when the cancel aborted this host's signal)
       // and durable (`RunRecord.cancelRequested`, the only channel that reaches
       // a run being driven elsewhere).
-      const cancelled =
-        info.cancelRequested === true ||
-        (runs !== undefined && (await wasCancelRequested(runs, ctx.runId)))
-
       // A run paused at an interrupt boundary is waiting for a HUMAN, not for
       // this socket. `chat()` skips its terminal hook at an actionable-wait
       // boundary, so its `finally` routes the disconnect here — and
@@ -2245,9 +2227,21 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // still threw on the next request. An explicit cancel is different: the
       // user gave up on the approval, so the cancel band stays authoritative.
       const state = runState.get(ctx)
-      if (cancelled || (!detachableRun(ctx) && state?.interrupted !== true)) {
-        await abortRun(runs, ctx.runId, state?.usage)
-        return
+      let terminal = false
+      try {
+        // The durable cancel read is best-effort. It must not bypass the
+        // terminal persistence path or prevent the completion promise from
+        // settling when the run store is unavailable.
+        const cancelled =
+          info.cancelRequested === true ||
+          (runs !== undefined && (await wasCancelRequested(runs, ctx.runId)))
+        terminal =
+          cancelled || (!detachableRun(ctx) && state?.interrupted !== true)
+        if (terminal) {
+          await abortRun(runs, ctx.runId, state?.usage)
+        }
+      } finally {
+        if (terminal) state?.completion?.reject(info.reason)
       }
       // A plain disconnect on a detachable or interrupted run: write NOTHING.
       // Either the agent is still running and a later attach can take it over
