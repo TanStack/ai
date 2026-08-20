@@ -6,6 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered applications. The repository is a **pnpm monorepo** managed with **Nx** that includes TypeScript packages, plus multiple framework examples.
 
+**Docs skill (mandatory).** Before planning, writing, editing, or reorganizing anything under `docs/`, load `.claude/skills/docs/SKILL.md` and follow it. Do not write docs without it. See **Documentation** below for TanStack-specific rules that also apply.
+
 ## Package Manager & Tooling
 
 - **Package Manager**: pnpm@10.17.0 (required)
@@ -341,6 +343,17 @@ OPENAI_API_KEY=sk-... pnpm --filter @tanstack/ai-e2e record
 **Guide:** See `testing/e2e/README.md` for full instructions on adding tests, recording fixtures, and troubleshooting.
 
 ### Documentation
+
+**MANDATORY: load the `docs` skill before touching docs.** Before you
+plan, write, edit, or reorganize any file under `docs/`, load the `docs`
+skill at `.claude/skills/docs/SKILL.md` (Skill tool, or Read the file).
+Do not write docs from memory of this section. If you cannot load the
+skill, stop. Tiny copy edits still load the skill; the skill decides
+which gates to skip. This also applies when planning a feature (include
+a doc-impact list) and when finishing a behavior change (docs must
+update before the work is done).
+
+Then also obey these TanStack-specific rules:
 
 - Docs are in `docs/` directory (Markdown)
 - Auto-generated docs via `pnpm generate-docs` (TypeDoc)
