@@ -1,13 +1,6 @@
 import { VideoGenerationClient } from '@tanstack/ai-client'
 import { createVideoDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import {
-  onMounted,
-  onScopeDispose,
-  readonly,
-  shallowRef,
-  useId,
-  watch,
-} from 'vue'
+import { onMounted, onScopeDispose, readonly, shallowRef, watch } from 'vue'
 import type { StreamChunk } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
@@ -32,10 +25,6 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for creating a video job */
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -59,8 +48,8 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -167,7 +156,7 @@ export interface UseGenerateVideoReturn<TOutput = VideoGenerateResult> {
 export function useGenerateVideo<TTransformed = void>(
   options: Omit<
     UseGenerateVideoOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: VideoGenerateResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -178,8 +167,6 @@ export function useGenerateVideo<TTransformed = void>(
     VideoGenerateResult,
     TTransformed
   >
-  const hookId = useId()
-
   const result = shallowRef<TOutput | null>(null)
   const jobId = shallowRef<string | null>(null)
   const videoStatus = shallowRef<VideoStatusInfo | null>(null)
@@ -192,15 +179,18 @@ export function useGenerateVideo<TTransformed = void>(
   // Conditional spread on `body`: `VideoGenerationClientOptions.body` is a
   // strict optional and under EOPT we must omit the key when absent rather
   // than assign `undefined`.
-  // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
   const baseOptions = {
     body: options.body,
-    ...(options.threadId !== undefined
-      ? { threadId: options.threadId }
-      : { id: options.id ?? hookId }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
+    ...(typeof options.threadId === 'string' && options.persistence
+      ? {
+          persistence: options.persistence,
+          threadId: options.threadId,
+        }
+      : {
+          ...(options.threadId !== undefined && {
+            threadId: options.threadId,
+          }),
+        }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
     }),

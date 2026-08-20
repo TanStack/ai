@@ -296,32 +296,31 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
   // Image-to-video models receive the start frame as a prompt part
   // (role: 'start_frame') — the fal adapter routes it to the endpoint's
   // start-image field. Text-to-video models take the text prompt only.
+  // `duration` is typed per endpoint ('5' | '10' on Kling 2.6, '3'…'15' on
+  // Kling 3, '4s' | '6s' | '8s' on Veo 3.1); `snapDuration(seconds)` picks the
+  // nearest supported value so a UI slider never has to know the literal.
   switch (data.model) {
     // Text-to-video models
     case 'fal-ai/kling-video/v3/pro/text-to-video': {
+      const adapter = falVideo('fal-ai/kling-video/v3/pro/text-to-video')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo('fal-ai/kling-video/v3/pro/text-to-video'),
+        adapter,
         prompt: asTextPrompt(data.prompt),
         size: '16:9',
-        modelOptions: {
-          duration: '5',
-        },
+        duration: adapter.snapDuration(5),
       })
     }
     case 'fal-ai/veo3.1': {
-      // NOTE pass aspect ratio, resolution, and duration in model options
-      // This makes use of existing types and avoids type errors
+      const adapter = falVideo('fal-ai/veo3.1')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo('fal-ai/veo3.1'),
+        adapter,
         prompt: asTextPrompt(data.prompt),
         size: '16:9_1080p',
-        modelOptions: {
-          duration: '4s',
-        },
+        duration: adapter.snapDuration(4),
       })
     }
     case 'xai/grok-imagine-video/text-to-video': {
@@ -331,16 +330,14 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
         adapter: falVideo('xai/grok-imagine-video/text-to-video'),
         prompt: asTextPrompt(data.prompt),
         size: '16:9_720p',
-        modelOptions: {
-          duration: 5,
-        },
+        duration: 5,
       })
     }
     case 'grok-imagine-video': {
       // Direct xAI Imagine API (XAI_API_KEY) — no fal in between. The base
       // grok-imagine-video (v1.0) supports text-to-video; durations are
-      // 1-15 integer seconds. Completed jobs report usage.unitsBilled
-      // (billed seconds) and usage.cost (exact USD).
+      // 1-15 integer seconds. Completed jobs report usage.billed
+      // ({ quantity, unit: 'seconds' }) and usage.cost (exact USD).
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
@@ -378,37 +375,39 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       })
     }
     case 'fal-ai/ltx-2.3/text-to-video/fast': {
+      const adapter = falVideo('fal-ai/ltx-2.3/text-to-video/fast')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo('fal-ai/ltx-2.3/text-to-video/fast'),
+        adapter,
         prompt: asTextPrompt(data.prompt),
         size: '16:9_2160p',
+        duration: adapter.snapDuration(6),
       })
     }
     // Image-to-video models
     case 'fal-ai/kling-video/v3/pro/image-to-video': {
+      const adapter = falVideo('fal-ai/kling-video/v3/pro/image-to-video')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo('fal-ai/kling-video/v3/pro/image-to-video'),
+        adapter,
         prompt: asImageToVideoPrompt(data.prompt),
+        duration: adapter.snapDuration(5),
         modelOptions: {
           generate_audio: true,
-          duration: '5',
         },
       })
     }
     case 'fal-ai/veo3.1/image-to-video': {
+      const adapter = falVideo('fal-ai/veo3.1/image-to-video')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo('fal-ai/veo3.1/image-to-video'),
+        adapter,
         prompt: asImageToVideoPrompt(data.prompt),
         size: '16:9_1080p',
-        modelOptions: {
-          duration: '4s',
-        },
+        duration: adapter.snapDuration(4),
       })
     }
     case 'xai/grok-imagine-video/image-to-video': {
@@ -418,9 +417,7 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
         adapter: falVideo('xai/grok-imagine-video/image-to-video'),
         prompt: asImageToVideoPrompt(data.prompt),
         size: '16:9_720p',
-        modelOptions: {
-          duration: 5,
-        },
+        duration: 5,
       })
     }
     case 'grok-imagine-video-1.5/image-to-video': {
@@ -437,12 +434,14 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
       })
     }
     case 'fal-ai/ltx-2.3/image-to-video/fast': {
+      const adapter = falVideo('fal-ai/ltx-2.3/image-to-video/fast')
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,
-        adapter: falVideo('fal-ai/ltx-2.3/image-to-video/fast'),
+        adapter,
         prompt: asImageToVideoPrompt(data.prompt),
         size: '16:9_2160p',
+        duration: adapter.snapDuration(6),
       })
     }
     // Gemini Omni Flash (Interactions API, GEMINI_API_KEY). One model
@@ -485,11 +484,10 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
           : {}),
       })
     }
-    // OpenRouter's dedicated async video API (`POST /api/v1/videos`). Unlike
-    // fal (which takes duration in `modelOptions`), OpenRouter types the
-    // top-level `duration` per model from its published metadata, and the
-    // adapter exposes `snapDuration()` to coerce a raw UI seconds value to
-    // the model's nearest supported duration.
+    // OpenRouter's dedicated async video API (`POST /api/v1/videos`). Like
+    // fal, it types the top-level `duration` per model and exposes
+    // `snapDuration()` to coerce a raw UI seconds value to the model's
+    // nearest supported duration.
     case 'bytedance/seedance-2.0': {
       const adapter = openRouterVideo('bytedance/seedance-2.0')
       return generateVideo({

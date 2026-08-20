@@ -1,6 +1,17 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { useChat, fetchServerSentEvents } from '@tanstack/ai-react'
+import {
+  useChat,
+  fetchServerSentEvents,
+  localStoragePersistence,
+} from '@tanstack/ai-react'
+import { clientTools } from '@tanstack/ai-client'
+import { parseAimockPort } from '@/lib/devtools-test'
+import {
+  deleteReviewTool,
+  renderReviewTool,
+  reviewPlan,
+} from '@/lib/generic-middleware-interrupts'
 
 const MIDDLEWARE_MODES = [
   { id: 'none', label: 'No Middleware' },
@@ -10,7 +21,10 @@ const MIDDLEWARE_MODES = [
   { id: 'phase-recorder', label: 'Phase Recorder (capture phase + chunks)' },
   { id: 'otel', label: 'OpenTelemetry (capture spans/metrics)' },
   { id: 'memory', label: 'Memory (recall/save)' },
+  { id: 'generic-lifecycle', label: 'Generic Interrupt Lifecycle' },
 ] as const
+
+const genericPersistence = localStoragePersistence()
 
 interface PhaseCaptureSnapshot {
   phases: Array<string>
@@ -60,13 +74,9 @@ function toPhaseCapture(raw: unknown): PhaseCaptureSnapshot {
 export const Route = createFileRoute('/middleware-test')({
   component: MiddlewareTestPage,
   validateSearch: (search: Record<string, unknown>) => {
-    const port =
-      typeof search.aimockPort === 'string'
-        ? parseInt(search.aimockPort, 10)
-        : undefined
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
-      aimockPort: port != null && !isNaN(port) ? port : undefined,
+      aimockPort: parseAimockPort(search.aimockPort),
       // `provider` / `model` are forwarded to the server route so the
       // structured-output × middleware spec can exercise both the
       // native-combined-mode path (modern openai / claude 4.5+) and the
@@ -74,14 +84,25 @@ export const Route = createFileRoute('/middleware-test')({
       provider:
         typeof search.provider === 'string' ? search.provider : undefined,
       model: typeof search.model === 'string' ? search.model : undefined,
+      scenario:
+        typeof search.scenario === 'string' ? search.scenario : undefined,
+      middlewareMode:
+        typeof search.middlewareMode === 'string'
+          ? search.middlewareMode
+          : undefined,
     }
   },
 })
 
 function MiddlewareTestPage() {
-  const { testId, aimockPort, provider, model } = Route.useSearch()
-  const [scenario, setScenario] = useState('basic-text')
-  const [middlewareMode, setMiddlewareMode] = useState('none')
+  const { testId, aimockPort, provider, model, ...searchSelection } =
+    Route.useSearch()
+  const [scenario, setScenario] = useState(
+    searchSelection.scenario ?? 'basic-text',
+  )
+  const [middlewareMode, setMiddlewareMode] = useState(
+    searchSelection.middlewareMode ?? 'none',
+  )
   const [testComplete, setTestComplete] = useState(false)
   const [phaseCapture, setPhaseCapture] =
     useState<PhaseCaptureSnapshot>(EMPTY_PHASE_CAPTURE)
@@ -89,11 +110,33 @@ function MiddlewareTestPage() {
     configs: Array<{ systemPrompts: Array<string>; toolNames: Array<string> }>
     saveCount: number
   }>({ configs: [], saveCount: 0 })
+  const [clientToolExecutions, setClientToolExecutions] = useState(0)
 
-  const { messages, sendMessage, isLoading } = useChat({
-    threadId: `mw-test-${scenario}-${middlewareMode}-${provider ?? 'openai'}-${model ?? 'default'}`,
+  const clientToolList = useMemo(
+    () =>
+      clientTools(
+        deleteReviewTool.client(),
+        renderReviewTool.client(async ({ reviewId }) => {
+          setClientToolExecutions((count) => count + 1)
+          return { rendered: true, reviewId }
+        }),
+      ),
+    [],
+  )
+
+  const { messages, sendMessage, isLoading, interrupts } = useChat<
+    typeof clientToolList,
+    undefined,
+    unknown,
+    readonly [typeof reviewPlan]
+  >({
+    threadId: `mw-test-${testId ?? 'manual'}-${scenario}-${middlewareMode}-${provider ?? 'openai'}-${model ?? 'default'}`,
     connection: fetchServerSentEvents('/api/middleware-test'),
     body: { scenario, middlewareMode, testId, aimockPort, provider, model },
+    tools: clientToolList,
+    interrupts: [reviewPlan],
+    persistence:
+      middlewareMode === 'generic-lifecycle' ? genericPersistence : undefined,
     onFinish: () => {
       // For phase-recorder mode the spec reads `#mw-phases-json` /
       // `#mw-onfinish-count` / `#mw-yielded-chunks-json` AFTER
@@ -137,8 +180,25 @@ function MiddlewareTestPage() {
   const handleRun = () => {
     setTestComplete(false)
     setPhaseCapture(EMPTY_PHASE_CAPTURE)
+    setClientToolExecutions(0)
     sendMessage(`[${scenario}] run test`)
   }
+
+  type ActiveInterrupt = (typeof interrupts)[number]
+  const reviewInterrupts = interrupts.filter(
+    (
+      interrupt,
+    ): interrupt is Extract<ActiveInterrupt, { definitionId: 'review-plan' }> =>
+      interrupt.kind === 'generic' &&
+      'definitionId' in interrupt &&
+      interrupt.definitionId === reviewPlan.id,
+  )
+  const approvalInterrupts = interrupts.filter(
+    (
+      interrupt,
+    ): interrupt is Extract<ActiveInterrupt, { kind: 'tool-approval' }> =>
+      interrupt.kind === 'tool-approval',
+  )
 
   return (
     <div
@@ -171,6 +231,18 @@ function MiddlewareTestPage() {
           <option value="structured-output-stream">
             Structured Output (Stream)
           </option>
+          <option value="generic-before-model">Generic Before Model</option>
+          <option value="generic-after-model">Generic After Model</option>
+          <option value="generic-before-tools-continue">
+            Generic Before Tools Continue
+          </option>
+          <option value="generic-before-tools-cancel">
+            Generic Before Tools Cancel
+          </option>
+          <option value="generic-before-tools-stop">
+            Generic Before Tools Stop
+          </option>
+          <option value="generic-after-tools">Generic After Tools</option>
         </select>
       </div>
 
@@ -214,6 +286,51 @@ function MiddlewareTestPage() {
         Run Test
       </button>
 
+      {reviewInterrupts.map((interrupt) => (
+        <div
+          key={interrupt.id}
+          data-testid="generic-review-plan"
+          data-definition-id={interrupt.definitionId}
+          data-payload={JSON.stringify(interrupt.payload)}
+        >
+          <span>{interrupt.message}</span>
+          <button
+            data-testid="resolve-review-plan"
+            onClick={() =>
+              interrupt.resolveInterrupt({
+                approved: true,
+                note: 'approved in middleware e2e',
+              })
+            }
+          >
+            Resolve review
+          </button>
+          <button
+            data-testid="cancel-review-plan"
+            onClick={() => interrupt.cancel()}
+          >
+            Cancel review
+          </button>
+        </div>
+      ))}
+
+      {approvalInterrupts.map((interrupt) => (
+        <div key={interrupt.id} data-testid="delete-review-approval">
+          <button
+            data-testid="approve-delete-review"
+            onClick={() => interrupt.resolveInterrupt(true)}
+          >
+            Approve tool
+          </button>
+          <button
+            data-testid="reject-delete-review"
+            onClick={() => interrupt.resolveInterrupt(false)}
+          >
+            Reject tool
+          </button>
+        </div>
+      ))}
+
       <pre
         id="mw-messages-json"
         style={{
@@ -254,6 +371,8 @@ function MiddlewareTestPage() {
         data-is-loading={isLoading.toString()}
         data-test-complete={testComplete.toString()}
         data-message-count={messages.length}
+        data-interrupt-count={interrupts.length}
+        data-client-tool-executions={clientToolExecutions}
       />
     </div>
   )

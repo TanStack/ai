@@ -34,6 +34,37 @@ describe('reconstructChat', () => {
     expect(parsed.activeRun).toBeNull()
   })
 
+  it('restores persisted structured output as a message part', async () => {
+    const persistence = memoryPersistence()
+    const structuredOutput = {
+      type: 'structured-output' as const,
+      status: 'complete' as const,
+      raw: '{"name":"Ada"}',
+      data: { name: 'Ada' },
+      partial: { name: 'Ada' },
+    }
+    await persistence.stores.messages!.saveThread('t1', [
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        content: structuredOutput.raw,
+        structuredOutput,
+      },
+    ])
+
+    const parsed = await body(
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      ),
+    )
+    expect(parsed.messages[0]).toMatchObject({
+      id: 'assistant-1',
+      role: 'assistant',
+      parts: [structuredOutput],
+    })
+  })
+
   it('reports the active run for a thread that is still generating', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.messages!.saveThread('t1', [

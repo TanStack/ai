@@ -29,7 +29,7 @@
           "label": "Devtools",
           "to": "getting-started/devtools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Quick Start: Vue",
@@ -83,7 +83,7 @@
           "label": "Provider Tools",
           "to": "tools/provider-tools",
           "addedAt": "2026-04-21",
-          "updatedAt": "2026-07-02"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Provider Skills",
@@ -173,7 +173,7 @@
           "label": "Connection Adapters",
           "to": "chat/connection-adapters",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Thinking & Reasoning",
@@ -189,27 +189,43 @@
         {
           "label": "Overview",
           "to": "interrupts/overview",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Tool Approval",
           "to": "interrupts/tool-approval",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Multiple Interrupts",
           "to": "interrupts/multiple",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Generic Interrupts",
           "to": "interrupts/generic",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Lifecycle Boundaries",
+          "to": "interrupts/boundaries",
+          "addedAt": "2026-08-13"
+        },
+        {
+          "label": "Apply Answers",
+          "to": "interrupts/apply-answers",
+          "addedAt": "2026-08-13",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Migration",
           "to": "interrupts/migration",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         }
       ]
     },
@@ -220,12 +236,19 @@
         {
           "label": "Overview",
           "to": "resumable-streams/overview",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Advanced",
           "to": "resumable-streams/advanced",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "WebSockets",
+          "to": "resumable-streams/websockets",
+          "addedAt": "2026-08-19"
         },
         {
           "label": "Custom Durability Adapter",
@@ -241,12 +264,14 @@
         {
           "label": "Overview",
           "to": "persistence/overview",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Client Persistence",
@@ -261,12 +286,14 @@
         {
           "label": "Controls",
           "to": "persistence/controls",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Build Your Own Adapter",
           "to": "persistence/build-your-own-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Migrations",
@@ -284,7 +311,8 @@
         {
           "label": "Id Map",
           "to": "persistence/id-map",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Keep Generated Files",
@@ -299,22 +327,26 @@
         {
           "label": "Build a Generation Adapter",
           "to": "persistence/build-your-own-generation-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Build a Sandbox Adapter",
           "to": "persistence/build-a-sandbox-adapter",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Store Reference",
           "to": "persistence/store-reference",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "How Persistence Works",
           "to": "persistence/internals",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -337,7 +369,7 @@
           "label": "Overview",
           "to": "structured-outputs/overview",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "One-Shot Extraction",
@@ -354,19 +386,20 @@
         {
           "label": "Multi-Turn Chat",
           "to": "structured-outputs/multi-turn",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "With Tools",
           "to": "structured-outputs/with-tools",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Harness Agents",
           "to": "structured-outputs/harnesses",
           "addedAt": "2026-08-14",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -410,7 +443,7 @@
           "label": "Generations",
           "to": "media/generations",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Realtime Voice Chat",
@@ -440,25 +473,25 @@
           "label": "Audio Generation",
           "to": "media/audio-generation",
           "addedAt": "2026-04-23",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-08"
         },
         {
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -479,7 +512,8 @@
         {
           "label": "Reranking",
           "to": "rerank/rerank",
-          "addedAt": "2026-06-25"
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -490,7 +524,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Built-in Middleware",
@@ -507,7 +541,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-08-06"
+          "updatedAt": "2026-08-08"
         }
       ]
     },
@@ -566,12 +600,59 @@
           "label": "Lifecycle & Snapshots",
           "to": "sandbox/lifecycle",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Portable Snapshots",
+          "to": "sandbox/portable-snapshots",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-18"
+        },
+        {
+          "label": "Keep Files After Reload",
+          "to": "sandbox/portable-snapshots-configure",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-18"
+        },
+        {
+          "label": "Save a Named Version",
+          "to": "sandbox/portable-snapshots-save",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Branch From a Version",
+          "to": "sandbox/portable-snapshots-fork",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Send a Frozen File",
+          "to": "sandbox/portable-snapshots-artifacts",
+          "addedAt": "2026-08-14"
+        },
+        {
+          "label": "Let the Agent Save and Fork",
+          "to": "sandbox/portable-snapshots-tools",
+          "addedAt": "2026-08-14"
+        },
+        {
+          "label": "Pick Which Files to Keep",
+          "to": "sandbox/portable-snapshots-files",
+          "addedAt": "2026-08-18",
+          "updatedAt": "2026-08-18"
+        },
+        {
+          "label": "What a Snapshot Stores",
+          "to": "sandbox/portable-snapshots-safety",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Instance Durability",
           "to": "sandbox/durability",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Durable Runs",
@@ -752,43 +833,43 @@
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -823,7 +904,7 @@
           "label": "Grok (xAI)",
           "to": "adapters/grok",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Groq",
@@ -851,13 +932,14 @@
         {
           "label": "fal.ai",
           "to": "adapters/fal",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-13"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Perplexity Search",
@@ -916,7 +998,7 @@
           "label": "BytePlus",
           "to": "adapters/byteplus",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-07"
+          "updatedAt": "2026-08-19"
         }
       ]
     },

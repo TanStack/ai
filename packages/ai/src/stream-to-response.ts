@@ -78,7 +78,7 @@ function combineFailures(
   )
 }
 
-function runErrorChunk(
+export function runErrorChunk(
   error: unknown,
 ): Extract<StreamChunk, { type: 'RUN_ERROR' }> {
   const payload = toRunErrorPayload(error)
@@ -366,7 +366,7 @@ export const RUN_ACCEPTED_EVENT = 'run.accepted'
  * The returned `getId` maps each forwarded chunk to the exact opaque offset
  * returned by the durability adapter for the SSE `id:` line.
  */
-function durableStreamSource<TOffset extends string>(
+export function durableStreamSource<TOffset extends string>(
   stream: AsyncIterable<StreamChunk>,
   durability: StreamDurability<TOffset>,
   options: {

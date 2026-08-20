@@ -742,7 +742,7 @@ Vercel AI SDK's UI layer has three hooks: `useChat`, `useCompletion`, and `useOb
 
 ### Multi-Turn Structured Output
 
-Structured output in TanStack AI is part of the conversation, not a separate call. Pass `outputSchema` to `useChat` and every assistant turn carries its own typed `StructuredOutputPart` - streamed as a `partial`, validated as a `final`, preserved in message history, with the schema generic threading all the way down to `messages[i].parts[j].data`.
+TanStack AI preserves structured output in conversation history instead of leaving it only on a call result. Providers may produce it in the agent loop or through separate finalization; both paths create a typed `StructuredOutputPart`, streamed as a `partial` and completed as a `final`, with the schema generic threading all the way down to `messages[i].parts[j].data`.
 
 Vercel AI SDK's structured output (`generateObject` / `streamObject` / `Output`) is per-call: the typed object lives on the call result, the message-part union has no structured-output type, and combining `useChat` with typed structured output means manually parsing model text into custom data parts.
 

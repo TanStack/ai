@@ -74,6 +74,20 @@ The lazy tools are: `compareGuitars`, `calculateFinancing`, and `searchGuitars`.
 - In multi-turn conversations, previously discovered tools are usable immediately without re-discovery
 - If the LLM skips discovery, it gets an error and self-corrects
 
+## Generic interrupt playground
+
+Open `/generic-interrupts` to try first-party generic interrupts at each
+lifecycle phase:
+
+- `beforeModel`
+- `afterModel`
+- `beforeTools`
+- `afterTools`
+
+Pick a resume policy (`continue`, `cancel`, or `stop`). Each pause shows two
+typed cards (`reviewPlan` and `chooseAudience`). Resolve both, then watch the
+selected policy.
+
 ## ✨ Features
 
 ### AI Capabilities
@@ -454,3 +468,30 @@ cloud runs skip the tools and do a plain triage. In production you wouldn't need
 ngrok — your orchestrator already has a public URL to advertise.
 
 Set keys in `.env.local`, then `pnpm dev` and open `/sandboxes`.
+
+## App Studio
+
+A small product page at `/app-studio` on top of portable snapshots. You describe an app. The
+agent scaffolds a TanStack Start app in a Docker sandbox, starts the preview
+server, and shows the live URL. After the first build:
+
+- **Fork chat** copies the checkpoint and conversation into a new thread.
+  Continue from that copy. The source thread stays unchanged.
+- **Compare two directions** creates two forks. Each fork gets a different
+  visual prompt. Pick **Keep variant A** or **Keep variant B** to continue
+  on that branch.
+
+Needs:
+
+- Docker running on the host
+- `XAI_API_KEY` in `.env.local` (Grok Build runs inside the sandbox)
+
+Stay on the page during the first build. The first run installs the CLI,
+scaffolds the app, and starts the preview. If you leave, the request aborts.
+
+The snapshot store is `src/lib/sqlite-persistence.ts` at
+`.data/app-studio.db` (gitignored). The server route is `/api/app-studio`.
+The fork route is `/api/app-studio-fork`.
+
+See [Branch From a Version](../../docs/sandbox/portable-snapshots-fork.md)
+for the `snapshots.fork` contract this page uses.

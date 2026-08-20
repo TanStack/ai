@@ -9,10 +9,12 @@ import {
   Github,
   Image,
   ImagePlus,
+  Layers,
   Mic,
   Music,
   PauseCircle,
   Send,
+  Sparkles,
   Square,
   Video,
   X,
@@ -203,6 +205,13 @@ function Messages({
               <span className="text-sm text-gray-300">Structured Chat</span>
             </Link>
             <Link
+              to="/generations/openrouter-combined"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Layers size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">OpenRouter Combined</span>
+            </Link>
+            <Link
               to="/typesafe-tools"
               className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
             >
@@ -217,6 +226,13 @@ function Messages({
               <span className="text-sm text-gray-300">Interrupts Lab</span>
             </Link>
             <Link
+              to="/generic-interrupts"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Sparkles size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">Generic Interrupts</span>
+            </Link>
+            <Link
               to="/sandboxes"
               className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
             >
@@ -229,6 +245,13 @@ function Messages({
             >
               <FileText size={24} className="text-orange-400" />
               <span className="text-sm text-gray-300">Repo report</span>
+            </Link>
+            <Link
+              to="/app-studio"
+              className="flex flex-col items-center gap-2 p-4 bg-gray-800/50 border border-gray-700 rounded-lg hover:border-orange-500/40 hover:bg-gray-800 transition-colors"
+            >
+              <Layers size={24} className="text-orange-400" />
+              <span className="text-sm text-gray-300">App Studio</span>
             </Link>
           </div>
         </div>
@@ -640,6 +663,13 @@ function ChatPage() {
             >
               <PauseCircle className="w-4 h-4" />
               Interrupts Lab
+            </Link>
+            <Link
+              to="/generic-interrupts"
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
+            >
+              <Sparkles className="w-4 h-4" />
+              Generic Interrupts
             </Link>
             <Link
               to="/generations/image"

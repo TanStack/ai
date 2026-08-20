@@ -341,10 +341,27 @@ An `AgentLoopStrategy` function.
 ### `ModelMessage`
 
 ```typescript
-interface ModelMessage {
-  role: "user" | "assistant" | "system" | "tool";
-  content: string;
+import type {
+  ContentPart,
+  StructuredOutputPart,
+  ToolCall,
+} from "@tanstack/ai";
+
+interface ModelMessage<
+  TContent extends string | null | ContentPart[] =
+    | string
+    | null
+    | ContentPart[],
+> {
+  role: "user" | "assistant" | "tool";
+  content: TContent;
+  name?: string;
+  toolCalls?: ToolCall[];
   toolCallId?: string;
+  thinking?: Array<{ content: string; signature?: string }>;
+  structuredOutput?: StructuredOutputPart;
+  id?: string;
+  createdAt?: Date;
 }
 ```
 

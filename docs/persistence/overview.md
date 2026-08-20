@@ -23,6 +23,10 @@ streaming. That is [Resumable Streams](../resumable-streams/overview), a differe
 layer you can add on its own. Step 3 below combines them, which is what most apps
 end up wanting.
 
+When the provider sandbox is gone, the workspace files can also disappear. Use
+the same persistence object with
+[Keep Files After Reload](../sandbox/portable-snapshots-configure).
+
 ## Install
 
 ```bash
@@ -164,6 +168,7 @@ To make the `POST` resumable too, hand the same adapter to the response:
 | A reload mid-answer to pick the answer back up | Steps 1, 2 and 3 |
 | A dropped socket to resume with the page still open | [Resumable Streams](../resumable-streams/overview) alone |
 | To pause for a human approval and resume it days later | Step 1 with an `interrupts` store |
+| Sandbox files to come back after the provider sandbox is gone | [Keep Files After Reload](../sandbox/portable-snapshots-configure) |
 
 ## Where to go next
 

@@ -24,6 +24,7 @@ import {
   Server,
   Sparkles,
   Video,
+  Wifi,
   X,
 } from 'lucide-react'
 
@@ -205,6 +206,19 @@ export default function Header() {
           </Link>
 
           <Link
+            to="/generations/openrouter-combined"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-1',
+            }}
+          >
+            <Layers size={20} />
+            <span className="font-medium">OpenRouter Combined</span>
+          </Link>
+
+          <Link
             to="/repo-report"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-1"
@@ -341,6 +355,19 @@ export default function Header() {
           </Link>
 
           <Link
+            to="/websocket-chat"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Wifi size={20} />
+            <span className="font-medium">WebSocket Chat</span>
+          </Link>
+
+          <Link
             to="/persistent-chat"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
@@ -354,6 +381,19 @@ export default function Header() {
           </Link>
 
           <Link
+            to="/app-studio"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Layers size={20} />
+            <span className="font-medium">App Studio</span>
+          </Link>
+
+          <Link
             to="/interrupts"
             onClick={() => setIsOpen(false)}
             className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
@@ -364,6 +404,19 @@ export default function Header() {
           >
             <PauseCircle size={20} />
             <span className="font-medium">Interrupts Lab</span>
+          </Link>
+
+          <Link
+            to="/generic-interrupts"
+            onClick={() => setIsOpen(false)}
+            className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-800 transition-colors mb-2"
+            activeProps={{
+              className:
+                'flex items-center gap-3 p-3 rounded-lg bg-cyan-600 hover:bg-cyan-700 transition-colors mb-2',
+            }}
+          >
+            <Sparkles size={20} />
+            <span className="font-medium">Generic Interrupts</span>
           </Link>
 
           <Link

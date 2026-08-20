@@ -23,7 +23,6 @@
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",
-    "vite-tsconfig-paths": "^5.1.4",
     "ws": "^8.18.3"
   },
   "devDependencies": {
@@ -37,7 +36,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "jsdom": "^27.4.0",
     "typescript": "5.9.3",
-    "vite": "^7.3.6",
+    "vite": "^8.2.1",
     "vitest": "^4.1.10",
     "web-vitals": "^5.1.0"
   }

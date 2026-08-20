@@ -29,6 +29,13 @@ export type { ReaperConformanceConfig } from './reaper-conformance'
 export { runDurableRunFieldsConformance } from './durable-run-fields-conformance'
 export type { MakeRunStore } from './durable-run-fields-conformance'
 export { makeFakeShellSpawn } from './shell-spawn'
+export { runSandboxCheckpointStoreConformance } from './checkpoint-conformance'
+export type { SandboxCheckpointStoreOptions } from '../checkpoint-store'
+export { runSandboxCheckpointForkConformance } from './checkpoint-fork-conformance'
+export type {
+  SandboxCheckpointForkConformanceInput,
+  SandboxCheckpointForkConformanceFactory,
+} from './checkpoint-fork-conformance'
 
 function makeRecord(
   overrides?: Partial<SandboxInstanceRecord>,

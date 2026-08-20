@@ -60,7 +60,7 @@ Defined in: [packages/ai/src/realtime/types.ts:271](https://github.com/TanStack/
 #### timeLeft?
 
 ```ts
-optional timeLeft: string;
+optional timeLeft?: string;
 ```
 
 ***
@@ -76,7 +76,7 @@ Defined in: [packages/ai/src/realtime/types.ts:269](https://github.com/TanStack/
 #### messageId?
 
 ```ts
-optional messageId: string;
+optional messageId?: string;
 ```
 
 ***

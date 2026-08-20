@@ -3,7 +3,7 @@ import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import { onMount } from 'svelte'
 import type {
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
@@ -14,6 +14,7 @@ import type {
 } from '@tanstack/ai-client'
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
@@ -65,9 +66,12 @@ export function createChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
-  options: CreateChatOptions<TTools, TSchema, TContext>,
-): CreateChatReturn<TTools, TSchema, TContext> {
+  options: CreateChatOptions<TTools, TSchema, TContext, TInterrupts>,
+): CreateChatReturn<TTools, TSchema, TContext, TInterrupts> {
   // Create reactive state using Svelte 5 runes
   let messages = $state<Array<UIMessage<TTools>>>(options.initialMessages || [])
   let isLoading = $state(false)
@@ -78,7 +82,7 @@ export function createChat<
   let sessionGenerating = $state(false)
   let queue = $state<Array<QueuedMessage>>([])
   let runId = $state<string | null>(null)
-  let interruptState = $state.raw<ChatInterruptState<TTools>>({
+  let interruptState = $state.raw<ChatInterruptState<TTools, TInterrupts>>({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
     interruptErrors: EMPTY_INTERRUPT_ERRORS,
@@ -106,23 +110,27 @@ export function createChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  // The hook's identity is its `threadId`, which ChatClient also uses as the
-  // persistence key — no separate `id`. When no `threadId` is given the client
-  // generates one, so an ephemeral chat still works but is not restored on reload.
-  const client = new ChatClient<TTools, TContext>({
+  // The hook's identity is its `threadId`. When no `threadId` is given the
+  // client mints one after mount, so an ephemeral chat still works but is not
+  // restored on reload.
+  const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
+    ...(typeof options.threadId === 'string' && options.persistence
+      ? {
+          persistence: options.persistence,
+          threadId: options.threadId,
+        }
+      : {
+          ...(options.threadId !== undefined && { threadId: options.threadId }),
+        }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(options.body !== undefined && { body: options.body }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
@@ -144,6 +152,9 @@ export function createChat<
       options.onError?.(err)
     },
     tools: options.tools,
+    ...(options.interrupts !== undefined && {
+      interrupts: options.interrupts,
+    }),
     ...(options.onCustomEvent !== undefined && {
       onCustomEvent: options.onCustomEvent,
     }),
@@ -304,7 +315,11 @@ export function createChat<
   }
 
   const resolveInterrupts = (
-    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
   ) => {
     if (typeof resolution === 'boolean') {
       client.resolveInterrupts(resolution)
@@ -447,5 +462,5 @@ export function createChat<
     updateBody,
     updateForwardedProps,
     updateContext,
-  } as unknown as CreateChatReturn<TTools, TSchema, TContext>
+  } as unknown as CreateChatReturn<TTools, TSchema, TContext, TInterrupts>
 }

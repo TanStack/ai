@@ -229,6 +229,47 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
     expect('parts' in result.messages[0]!).toBe(false)
   })
 
+  it('preserves structured-output parts', async () => {
+    const structuredOutput = {
+      type: 'structured-output',
+      status: 'complete',
+      raw: '{"name":"Ada"}',
+      data: { name: 'Ada' },
+    }
+    const result = await chatParamsFromRequestBody(
+      withMessages([
+        {
+          id: 'm1',
+          role: 'assistant',
+          content: structuredOutput.raw,
+          parts: [structuredOutput],
+        },
+      ]),
+    )
+    expect(result.messages[0]).toMatchObject({ parts: [structuredOutput] })
+  })
+
+  it('drops structured-output parts when raw is not a string', async () => {
+    const result = await chatParamsFromRequestBody(
+      withMessages([
+        {
+          id: 'm1',
+          role: 'assistant',
+          content: '{"name":"Ada"}',
+          parts: [
+            {
+              type: 'structured-output',
+              status: 'complete',
+              raw: { name: 'Ada' },
+              data: { name: 'Ada' },
+            },
+          ],
+        },
+      ]),
+    )
+    expect('parts' in result.messages[0]!).toBe(false)
+  })
+
   it('rejects a malformed tool declaration', async () => {
     await expect(
       chatParamsFromRequestBody({
@@ -267,6 +308,49 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
     })
     expect(result.resume).toEqual([{ interruptId: 'i1', status: 'cancelled' }])
     expect('payload' in result.resume![0]!).toBe(false)
+  })
+
+  it('keeps resume metadata for generic continuation', async () => {
+    const metadata = {
+      'tanstack:interruptContinuation': {
+        v: 1,
+        definitionId: 'review',
+        key: 'one',
+        batchIndex: 0,
+        reason: 'review',
+        message: 'Review',
+      },
+    }
+    const result = await chatParamsFromRequestBody({
+      ...base,
+      messages: [],
+      resume: [
+        {
+          interruptId: 'i1',
+          status: 'resolved',
+          payload: { approved: true },
+          metadata,
+        },
+      ],
+    })
+    expect(result.resume).toEqual([
+      {
+        interruptId: 'i1',
+        status: 'resolved',
+        payload: { approved: true },
+        metadata,
+      },
+    ])
+  })
+
+  it('rejects non-object resume metadata', async () => {
+    await expect(
+      chatParamsFromRequestBody({
+        ...base,
+        messages: [],
+        resume: [{ interruptId: 'i1', status: 'cancelled', metadata: 'nope' }],
+      }),
+    ).rejects.toThrow(/resume\[0\]\.metadata/)
   })
 
   it('defaults forwardedProps to {} and rejects a non-object one', async () => {

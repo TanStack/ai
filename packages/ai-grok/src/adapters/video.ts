@@ -87,7 +87,10 @@ function buildGrokVideoUsage(
     promptTokens: 0,
     completionTokens: 0,
     totalTokens: 0,
-    ...(seconds !== undefined && { unitsBilled: seconds }),
+    ...(seconds !== undefined && {
+      billed: { quantity: seconds, unit: 'seconds' },
+      unitsBilled: seconds,
+    }),
     ...(ticks !== undefined && { cost: ticks / USD_TICKS_PER_DOLLAR }),
   }
 }
@@ -123,7 +126,7 @@ function buildGrokVideoUsage(
  *   `video` prompt part and `modelOptions.mode: 'edit' | 'extend'`
  *   (`/v1/videos/edits` / `/v1/videos/extensions`; in extend mode
  *   `duration` is the added tail)
- * - Usage reporting: billed seconds (`unitsBilled`) and exact cost
+ * - Usage reporting: billed seconds (`usage.billed`) and exact cost
  */
 export class GrokVideoAdapter<
   TModel extends GrokVideoModel,

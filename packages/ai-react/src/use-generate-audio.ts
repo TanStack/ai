@@ -21,10 +21,6 @@ export interface UseGenerateAudioOptions<TOutput = AudioGenerationResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for audio generation */
   fetcher?: GenerationFetcher<AudioGenerateInput, AudioGenerationResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -48,8 +44,8 @@ export interface UseGenerateAudioOptions<TOutput = AudioGenerationResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -144,7 +140,7 @@ export interface UseGenerateAudioReturn<TOutput = AudioGenerationResult> {
 export function useGenerateAudio<TTransformed = void>(
   options: Omit<
     UseGenerateAudioOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: AudioGenerationResult) => TTransformed
   } & GenerationPersistenceOptions,

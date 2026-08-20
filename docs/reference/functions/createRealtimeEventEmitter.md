@@ -65,10 +65,4 @@ on<TEvent>(event, handler): () => void;
 
 #### Returns
 
-```ts
-(): void;
-```
-
-##### Returns
-
-`void`
+() => `void`

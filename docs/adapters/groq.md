@@ -110,6 +110,8 @@ const stream = chat({
 });
 ```
 
+If Groq rejects a generated tool call with `tool_use_failed` and includes a reconstructable tool call in `failed_generation`, the adapter returns the provider error as that tool's result without executing the call. The agent loop can then repair the call on its next iteration. Other provider errors remain terminal run errors.
+
 ## Transcription
 
 Groq exposes Whisper-based speech-to-text via `groqTranscription()` and the `generateTranscription()` activity. The `audio` input accepts a `File`, `Blob`, `ArrayBuffer`, base64 string, data URL, or an `https://` URL (forwarded directly to Groq without re-uploading).

@@ -92,7 +92,10 @@ describe('useChat', () => {
         onResponse,
         onInterruptStateChange: (state, context) => {
           if (context.source !== 'hydrate') return
-          for (const interrupt of state.interrupts) interrupt.cancel()
+          for (const interrupt of state.interrupts) {
+            if (interrupt.kind === 'unbound') continue
+            interrupt.cancel()
+          }
         },
       })
 

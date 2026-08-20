@@ -1,4 +1,4 @@
-import type { StreamChunk } from '@tanstack/ai'
+import type { BilledUsage, StreamChunk } from '@tanstack/ai'
 
 /**
  * Billing figures a finished video job reports. `VideoGenerateResult` — what
@@ -7,8 +7,8 @@ import type { StreamChunk } from '@tanstack/ai'
  * through the hook's `onChunk` instead.
  */
 export interface VideoBilling {
-  /** Priced units billed — fal units, or seconds of video on xAI Imagine. */
-  unitsBilled?: number
+  /** Billed quantity paired with the unit it is denominated in. */
+  billed?: BilledUsage
   /** Provider-reported cost in USD, for providers that report one. */
   cost?: number
   /** Token total, for providers that bill media generation as tokens. */
@@ -18,6 +18,18 @@ export interface VideoBilling {
 function numberField(source: object, key: string): number | undefined {
   const value: unknown = Reflect.get(source, key)
   return typeof value === 'number' ? value : undefined
+}
+
+/** Reads `usage.billed` when it carries the `{ quantity, unit }` pair. */
+function billedField(source: object): BilledUsage | undefined {
+  const value: unknown = Reflect.get(source, 'billed')
+  if (typeof value !== 'object' || value === null) return undefined
+  const quantity: unknown = Reflect.get(value, 'quantity')
+  const unit: unknown = Reflect.get(value, 'unit')
+  if (typeof quantity !== 'number' || typeof unit !== 'string') {
+    return undefined
+  }
+  return { quantity, unit }
 }
 
 /**
@@ -33,18 +45,14 @@ export function readVideoBilling(chunk: StreamChunk): VideoBilling | undefined {
   const usage: unknown = Reflect.get(value, 'usage')
   if (typeof usage !== 'object' || usage === null) return undefined
 
-  const unitsBilled = numberField(usage, 'unitsBilled')
+  const billed = billedField(usage)
   const cost = numberField(usage, 'cost')
   const totalTokens = numberField(usage, 'totalTokens')
-  if (
-    unitsBilled === undefined &&
-    cost === undefined &&
-    totalTokens === undefined
-  ) {
+  if (billed === undefined && cost === undefined && totalTokens === undefined) {
     return undefined
   }
   return {
-    ...(unitsBilled !== undefined && { unitsBilled }),
+    ...(billed !== undefined && { billed }),
     ...(cost !== undefined && { cost }),
     ...(totalTokens !== undefined && { totalTokens }),
   }

@@ -8,6 +8,7 @@ import {
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
+import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenRouterApiKeyFromEnv } from '../utils'
 import { buildOpenRouterUsage } from '../usage'
@@ -27,6 +28,7 @@ import type {
 } from '@tanstack/ai/adapters'
 import type {
   ContentPart,
+  JSONSchema,
   ModelMessage,
   StreamChunk,
   TextOptions,
@@ -202,28 +204,32 @@ export class OpenRouterTextAdapter<
   }
 
   /**
-   * Generate structured output via OpenRouter's `responseFormat: { type:
-   * 'json_schema', jsonSchema: ... }` (camelCase). Uses stream: false to get
-   * the complete response in one call.
-   *
-   * The outputSchema is already JSON Schema (converted in the ai layer).
-   * We apply OpenAI-strict transformations for cross-provider compatibility.
+   * Generate structured output via OpenRouter's `responseFormat`. Uses
+   * `stream: false`. Default is strict `json_schema` from `outputSchema`.
+   * Callers can opt into JSON mode with
+   * `modelOptions.responseFormat: { type: 'json_object' }`.
    */
   async structuredOutput(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
   ): Promise<StructuredOutputResult<unknown>> {
     const { chatOptions, outputSchema } = options
     const chatRequest = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
+    const responseFormat = this.resolveStructuredResponseFormat(
+      chatRequest.responseFormat,
       outputSchema,
-      outputSchema.required,
     )
 
     try {
-      // Strip streamOptions which is only valid for streaming calls
-      const { streamOptions: _streamOptions, ...cleanParams } = chatRequest
+      // Strip streamOptions which is only valid for streaming calls. Also
+      // remove the caller's responseFormat before adding the resolved
+      // structured-output format below.
+      const {
+        streamOptions: _streamOptions,
+        responseFormat: _responseFormat,
+        ...cleanParams
+      } = chatRequest
       void _streamOptions
+      void _responseFormat
       chatOptions.logger.request(
         `activity=structuredOutput provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
         { provider: this.name, model: this.model },
@@ -234,14 +240,7 @@ export class OpenRouterTextAdapter<
           chatRequest: {
             ...cleanParams,
             stream: false,
-            responseFormat: {
-              type: 'json_schema',
-              jsonSchema: {
-                name: 'structured_output',
-                schema: jsonSchema,
-                strict: true,
-              },
-            },
+            responseFormat,
           },
         },
         {
@@ -302,8 +301,8 @@ export class OpenRouterTextAdapter<
 
   /**
    * Streamed structured output: a single OpenRouter chat call with
-   * `responseFormat: { type: 'json_schema', jsonSchema: {...} }` and
-   * `stream: true`. Emits AG-UI lifecycle events plus a terminal
+   * `stream: true` and the format from {@link resolveStructuredResponseFormat}.
+   * Emits AG-UI lifecycle events plus a terminal
    * `CUSTOM { name: 'structured-output.complete' }` carrying the parsed
    * object and raw JSON text.
    *
@@ -320,10 +319,9 @@ export class OpenRouterTextAdapter<
   ): AsyncIterable<StreamChunk> {
     const { chatOptions, outputSchema } = options
     const chatRequest = this.mapOptionsToRequest(chatOptions)
-
-    const jsonSchema = this.makeStructuredOutputCompatible(
+    const responseFormat = this.resolveStructuredResponseFormat(
+      chatRequest.responseFormat,
       outputSchema,
-      outputSchema.required,
     )
 
     const aguiState = {
@@ -373,14 +371,20 @@ export class OpenRouterTextAdapter<
     }.bind(this)
 
     try {
-      // Strip streamOptions/tools from the base request. Structured output
-      // sends `responseFormat: json_schema` and doesn't carry tools — keeping
-      // them can confuse strict-mode validation upstream. (`stream` is
-      // already absent — `mapOptionsToRequest` returns `Omit<ChatRequest,
-      // 'stream'>`; we set it explicitly below.)
-      const { streamOptions: _so, tools: _t, ...cleanParams } = chatRequest
+      // Strip streamOptions/tools/responseFormat from the base request before
+      // adding the resolved structured-output format. Structured output
+      // doesn't carry tools — keeping them can confuse strict-mode validation
+      // upstream. (`stream` is already absent — `mapOptionsToRequest` returns
+      // `Omit<ChatRequest, 'stream'>`; we set it explicitly below.)
+      const {
+        streamOptions: _so,
+        tools: _t,
+        responseFormat: _responseFormat,
+        ...cleanParams
+      } = chatRequest
       void _so
       void _t
+      void _responseFormat
 
       chatOptions.logger.request(
         `activity=structuredOutputStream provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
@@ -394,14 +398,7 @@ export class OpenRouterTextAdapter<
             ...cleanParams,
             stream: true,
             streamOptions: { includeUsage: true },
-            responseFormat: {
-              type: 'json_schema',
-              jsonSchema: {
-                name: 'structured_output',
-                schema: jsonSchema,
-                strict: true,
-              },
-            },
+            responseFormat,
           },
         },
         {
@@ -621,6 +618,36 @@ export class OpenRouterTextAdapter<
         error: errorPayload,
         source: `${this.name}.structuredOutputStream`,
       })
+    }
+  }
+
+  /**
+   * Resolve the provider request format for a schema-bearing call.
+   *
+   * Explicit `modelOptions.responseFormat: { type: 'json_object' }` is
+   * forwarded. Every other value is replaced with strict `json_schema`
+   * generated from `outputSchema`.
+   */
+  protected resolveStructuredResponseFormat(
+    requested: ChatRequest['responseFormat'],
+    outputSchema: JSONSchema,
+  ): NonNullable<ChatRequest['responseFormat']> {
+    if (requested?.type === 'json_object') {
+      return { type: 'json_object' }
+    }
+
+    const jsonSchema = this.makeStructuredOutputCompatible(
+      outputSchema,
+      outputSchema.required,
+    )
+
+    return {
+      type: 'json_schema',
+      jsonSchema: {
+        name: 'structured_output',
+        schema: jsonSchema,
+        strict: true,
+      },
     }
   }
 
@@ -1189,6 +1216,23 @@ export class OpenRouterTextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
+    // Attach json_schema only when outputSchema is set, every routed model
+    // is in the combined set, and the caller did not opt into JSON mode.
+    const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
+    const requestedResponseFormat =
+      options.modelOptions != null && 'responseFormat' in options.modelOptions
+        ? options.modelOptions.responseFormat
+        : undefined
+    const combinedSchema =
+      combinedOutputSchema &&
+      requestedResponseFormat?.type !== 'json_object' &&
+      this.supportsCombinedToolsAndSchema(options.modelOptions)
+        ? this.makeStructuredOutputCompatible(
+            combinedOutputSchema,
+            combinedOutputSchema.required,
+          )
+        : undefined
+
     // `modelOptions` is the sole wire surface: callers set provider-native
     // names (`temperature`, `topP`, `maxCompletionTokens`, `metadata`, etc.)
     // there and they flow through the spread below. Root `metadata` is
@@ -1200,8 +1244,29 @@ export class OpenRouterTextAdapter<
       model: options.model + variantSuffix,
       messages,
       ...(tools && tools.length > 0 && { tools }),
+      ...(combinedSchema && {
+        responseFormat: {
+          type: 'json_schema' as const,
+          jsonSchema: {
+            name: 'structured_output',
+            schema: combinedSchema,
+            strict: true,
+          },
+        },
+      }),
     }
     return request
+  }
+
+  /**
+   * Combined mode is safe only when this model and every `modelOptions.models`
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
+   * `:variant` suffixes are routing directives and do not change the gate.
+   */
+  supportsCombinedToolsAndSchema(
+    modelOptions?: ResolveProviderOptions<TModel>,
+  ): boolean {
+    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
   }
 
   /**

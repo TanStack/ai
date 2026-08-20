@@ -34,7 +34,7 @@ Defined in: [packages/ai/src/realtime/types.ts:122](https://github.com/TanStack/
 ### input?
 
 ```ts
-optional input: unknown;
+optional input?: unknown;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:125](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L125)
@@ -54,7 +54,7 @@ Defined in: [packages/ai/src/realtime/types.ts:123](https://github.com/TanStack/
 ### output?
 
 ```ts
-optional output: unknown;
+optional output?: unknown;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:126](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L126)

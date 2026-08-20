@@ -1,5 +1,108 @@
 # @tanstack/ai
 
+## 0.46.0
+
+### Minor Changes
+
+- [#896](https://github.com/TanStack/ai/pull/896) [`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b) - Add a self-describing `billed` field to `TokenUsage` so billed quantities carry the unit they are counted in ([#816](https://github.com/TanStack/ai/issues/816)). `usage.billed` is `{ quantity, unit }` with a `BillingUnit` union (`'seconds'`, `'units'`, `'images'`, `'tokens'`, ... open-ended). The deprecated `unitsBilled` / `durationSeconds` counts are still populated for backward compatibility. The fal adapters report `{ quantity, unit: 'units' }`, Grok video `{ quantity, unit: 'seconds' }`, the OpenAI/Grok/BytePlus duration-billed transcription paths `{ quantity, unit: 'seconds' }`, BytePlus Seedream images `{ quantity, unit: 'images' }`, BytePlus Seedance video `{ quantity, unit: 'tokens' }`, and Cohere/OpenRouter rerank `{ quantity, unit: 'units' }` (search units). Persistence sums `billed` when both reports use the same unit. `otelMiddleware` emits the pair as `tanstack.ai.usage.billed_quantity` / `tanstack.ai.usage.billed_unit` span attributes.
+
+- [#969](https://github.com/TanStack/ai/pull/969) [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd) - WebSocket transport: a full-duplex, resumable third transport alongside SSE and
+  NDJSON, reusing the same delivery-durability seam.
+
+  On the server, `@tanstack/ai` adds `toWebSocketStream(socket, request, { onRun,
+durability, batch, heartbeatMs, idleTimeoutMs, debug })` — a portable core that
+  pumps a conversation over an already-accepted WHATWG `WebSocketLike` server
+  socket (Node via `ws`, Bun, etc.), and `toWebSocketResponse(request, { onRun,
+… })`, a thin wrapper that upgrades via `WebSocketPair` and returns a 101
+  `Response` on Cloudflare Workers/Durable Objects (it throws elsewhere, pointing
+  you at `toWebSocketStream`). Because one socket outlives many `chat()` turns
+  (client-tool resubmits, follow-up user messages), you pass an `onRun(ctx) =>
+AsyncIterable<StreamChunk>` factory instead of a prebuilt stream — the helper
+  calls it per inbound `RunAgentInput` frame. The socket is conversation-scoped:
+  it stays open across turns and closes on client close or the idle timeout
+  (which never fires while a turn is still streaming), with a periodic
+  `{ type: 'ping' }` heartbeat. An `{ type: 'abort', runId }` control frame
+  aborts only that turn, leaving the socket open. A turn that fails is surfaced
+  to the client as a live `RUN_ERROR` frame, mirroring the HTTP transports. Durability is keyed per turn and reuses
+  the existing `durableStreamSource`, so server→client frames carry the same
+  `{ id, chunk }` envelope as NDJSON. `resumeWebSocketStream(socket, { adapter })`
+  and `resumeWebSocketResponse({ adapter })` replay a run read-only from the
+  durability log (no model call).
+
+  On the client, `webSocket(url, options)` (in `@tanstack/ai-client`, re-exported
+  from `@tanstack/ai-react`, `-solid`, `-vue`, `-svelte`, and `-angular`) is a
+  full-duplex `subscribe` + `send` connection adapter for `useChat`. `send()`
+  writes a `RunAgentInput` frame; `subscribe()` yields inbound chunks, ignores
+  heartbeats, unwraps durable envelopes, and auto-reconnects a dropped durable run
+  by reopening with `?runId=&offset=` (browsers can't set a `Last-Event-ID`
+  handshake header, so the offset rides in the URL). The reconnect bookkeeping
+  (offset de-dupe, no-progress ceiling → `StreamReconnectLimitError`) is shared
+  with the HTTP adapters via the new `createReconnectTracker`, and a fatal drop
+  surfaces to the consumer (`StreamReadError` / `StreamReconnectLimitError`)
+  instead of hanging. Aborting a run (`stop()` in `useChat`) sends the
+  `{ type: 'abort', runId }` frame so the server cancels the turn instead of
+  generating to completion, and `joinRun()` opens its own replay socket so a
+  rejoin never collides with the live conversation socket.
+
+### Patch Changes
+
+- [#1147](https://github.com/TanStack/ai/pull/1147) [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a) - Preserve reasoning in server chat message history and interrupt snapshots.
+
+- [#932](https://github.com/TanStack/ai/pull/932) [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b) - Classify Anthropic, Gemini, and OpenAI native tools with stable runtime discriminators so ordinary functions can use the same public names without selecting provider-native behavior. Native tools must come from the adapter factory (`webSearchTool()`, `googleSearchTool()`, and the rest). A reserved `name` alone does not select a native converter. `chat()` throws `DuplicateToolNameError` when a factory tool and a custom function share the same public name.
+
+  Previously the converters picked provider-native behavior by `tool.name`. Tool names are public application identifiers, so a plain function called `web_search`, `google_search`, or `code_execution` was routed into a native converter: it lost its `inputSchema` and was sent as a provider-only payload (and on Anthropic could also flip on `code_execution` / skills beta headers). Native tools are now identified by adapter-owned metadata, which converters strip before building the wire payload, so provider API versions stay confined to the wire converters.
+
+  Also preserves Anthropic `webSearchTool` options (`max_uses`, `allowed_domains`, `blocked_domains`, `user_location`, `cache_control`) on the wire payload.
+
+  Also fixes `googleSearchTool({ searchTypes: … })` being silently dropped on the experimental `geminiTextInteractions()` adapter. The Interactions converter read a snake_case `search_types` array, but the public factory takes the Generate Content shape (`GoogleSearch.searchTypes: { webSearch?, imageSearch? }`), so the field never matched and every request fell back to the provider default of web-search-only. The camelCase config is now translated to the Interactions wire list.
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b)]:
+  - @tanstack/ai-event-client@0.9.0
+
+## 0.45.1
+
+### Patch Changes
+
+- [#1139](https://github.com/TanStack/ai/pull/1139) [`b97a11b`](https://github.com/TanStack/ai/commit/b97a11beaea57bd675b5646074d15c0041f4763a) - Return recoverable Groq `tool_use_failed` responses to the model as non-executable tool errors so the agent loop can repair them.
+
+## 0.45.0
+
+### Minor Changes
+
+- [#1110](https://github.com/TanStack/ai/pull/1110) [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad) - Harness adapters honor `chat({ outputSchema })` on the same turn.
+
+  Claude Code and Codex pass a native schema flag. OpenCode, Grok Build, and `acpCompatible` parse JSON from the final assistant text. The engine reads a `structured-output.complete` event so harness prose is not parsed as JSON.
+
+- [#1114](https://github.com/TanStack/ai/pull/1114) [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d) - Rename Code Mode "skills" to "snippets" to disambiguate them from agent skills (the `SKILL.md` packaging system).
+
+  **Breaking — package rename.** `@tanstack/ai-code-mode-skills` is now published as **`@tanstack/ai-code-mode-snippets`**. Update your dependency and imports. The `/storage` subpath is unchanged.
+
+  **Breaking — API rename.** Every `Skill`/`skill` identifier in the package public API becomes `Snippet`/`snippet`, for example:
+  - `codeModeWithSkills()` → `codeModeWithSnippets()`
+  - `skillsToTools()` / `skillToTool()` → `snippetsToTools()` / `snippetToTool()`
+  - `skillsToBindings()` / `skillsToSimpleBindings()` → `snippetsToBindings()` / `snippetsToSimpleBindings()`
+  - `selectRelevantSkills()` → `selectRelevantSnippets()`
+  - `createSkillManagementTools()` → `createSnippetManagementTools()`
+  - `createSkillsSystemPrompt()` → `createSnippetsSystemPrompt()`
+  - `generateSkillTypes()` → `generateSnippetTypes()`
+  - `createFileSkillStorage()` / `createMemorySkillStorage()` → `createFileSnippetStorage()` / `createMemorySnippetStorage()`
+  - Types: `Skill`, `SkillStorage`, `SkillIndexEntry`, `SkillStats`, `SkillBinding`, `SkillsConfig`, `CodeModeWithSkillsOptions`/`Result` → the `Snippet…` equivalents
+  - Options: `skills` → `snippets`, `skillsAsTools` → `snippetsAsTools`, `maxSkillsInContext` → `maxSnippetsInContext`
+  - Runtime tools: `search_skills` / `get_skill` / `register_skill` → `search_snippets` / `get_snippet` / `register_snippet`
+  - Sandbox bindings are now exposed with the `snippet_` prefix (was `skill_`)
+
+  **Breaking — sandbox hook (`@tanstack/ai-code-mode`).** The `createCodeModeTool` config option `getSkillBindings` is renamed to **`getSnippetBindings`** (same signature — an optional `() => Promise<Record<string, ToolBinding>>` returning dynamic bindings merged at execution time).
+
+  **Breaking — wire contract (`@tanstack/ai`).** The Code Mode custom events are renamed: `code_mode:skill_call` / `_result` / `_error` → `code_mode:snippet_*` (payload field `skill` → `snippet`), and `skill:registered` → `snippet:registered`. The exported event types `CodeModeSkillCallEvent` / `CodeModeSkillResultEvent` / `CodeModeSkillErrorEvent` / `SkillRegisteredEvent` are renamed to their `Snippet` equivalents.
+
+### Patch Changes
+
+- [#1116](https://github.com/TanStack/ai/pull/1116) [`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37) - Preserve existing message IDs on interrupt `MESSAGES_SNAPSHOT` events.
+
+- [#1132](https://github.com/TanStack/ai/pull/1132) [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b) - Timestamp native and fallback structured-output events when they are emitted so their lifecycle remains chronologically ordered.
+
+- [#1134](https://github.com/TanStack/ai/pull/1134) [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8) - Return malformed tool arguments to the model as an error result so the agent loop can repair them.
+
 ## 0.44.1
 
 ### Patch Changes

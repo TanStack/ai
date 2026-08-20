@@ -27,6 +27,61 @@ export type {
   SandboxInstanceRecord,
 } from './instance-store'
 
+// Portable immutable sandbox checkpoint metadata.
+export {
+  SandboxCheckpointError,
+  SandboxCheckpointConflictError,
+  SandboxCheckpointDuplicateIdError,
+  SandboxCheckpointInvalidIdError,
+  SandboxCheckpointInvalidEntryError,
+  SandboxCheckpointParentMismatchError,
+  SandboxCheckpointNotHeadError,
+  SandboxCheckpointWriterConflictError,
+  SandboxCheckpointWriterLostError,
+  isForkCapableSandboxCheckpointStore,
+  InMemorySandboxCheckpointStore,
+  defineSandboxCheckpointStore,
+} from './checkpoint-store'
+
+export type {
+  SandboxCheckpoint,
+  SandboxCheckpointStore,
+  SandboxSnapshotEntry,
+  SandboxSnapshotFileEntry,
+  SandboxSnapshotDirectoryEntry,
+  SandboxSnapshotArtifact,
+  SandboxCheckpointErrorCode,
+  SandboxCheckpointWriter,
+  SandboxCheckpointWriterLease,
+  SandboxCheckpointStoreOptions,
+  SandboxCheckpointForkInput,
+  SandboxCheckpointForkCapability,
+  ForkCapableSandboxCheckpointStore,
+} from './checkpoint-store'
+
+// File snapshot policy used by provider snapshot create/restore inputs.
+export { SandboxSnapshotError, defaultSandboxSnapshotPolicy } from './snapshots'
+export type {
+  SandboxSnapshotErrorCode,
+  SandboxSnapshotPolicy,
+} from './snapshots'
+export { memorySandboxSnapshots } from './memory-snapshots'
+export type {
+  MemorySandboxSnapshots,
+  MemorySandboxSnapshotsOptions,
+} from './memory-snapshots'
+export { createSandboxSnapshots } from './snapshot-operations'
+export type {
+  CreateSandboxSnapshotsInput,
+  ForkSandboxSnapshotInput,
+  ReadSandboxSnapshotArtifactInput,
+  SandboxSnapshots,
+  SaveSandboxSnapshotInput,
+  SnapshotPersistence,
+} from './snapshot-operations'
+export { createSnapshotTools } from './snapshot-tools'
+export type { CreateSnapshotToolsOptions } from './snapshot-tools'
+
 // Workspace projection capability (provided by withSandbox, consumed by harness adapters)
 export {
   ProjectionCapability,
@@ -102,6 +157,7 @@ export type {
   SandboxHandle,
   SandboxCapabilities,
   SandboxFs,
+  SandboxFsStat,
   SandboxGit,
   SandboxProcess,
   SandboxPorts,

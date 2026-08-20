@@ -1,4 +1,5 @@
 import { brandProviderTool } from '@tanstack/ai'
+import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import { convertFunctionToolToResponsesFormat } from '@tanstack/openai-base'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 import type { ResponsesFunctionTool } from '@tanstack/openai-base'
@@ -202,6 +203,7 @@ function convertGrokProviderToolToAdapterFormat(
 export function convertToolsToProviderFormat(
   tools: Array<Tool>,
 ): Array<GrokResponsesTool> {
+  assertUniqueToolNames(tools)
   return tools.map((tool) => {
     const grokProviderToolKind = getGrokProviderToolKind(tool)
     if (grokProviderToolKind) {

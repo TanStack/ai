@@ -94,7 +94,9 @@ function describeFailures(
  *
  * BytePlus bills per generated image and does not count input tokens, so
  * `promptTokens` is always 0 and `generated_images` is surfaced as
- * `unitsBilled` — the count the price is applied to.
+ * `usage.billed` (`{ quantity, unit: 'images' }`) — the count the price is
+ * applied to. The deprecated `unitsBilled` is still populated for
+ * backward compatibility.
  */
 function buildBytePlusImageUsage(
   usage: BytePlusImageUsage | undefined,
@@ -107,6 +109,7 @@ function buildBytePlusImageUsage(
     completionTokens,
     totalTokens: usage.total_tokens ?? completionTokens,
     ...(usage.generated_images !== undefined && {
+      billed: { quantity: usage.generated_images, unit: 'images' },
       unitsBilled: usage.generated_images,
     }),
   }

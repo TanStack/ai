@@ -600,6 +600,8 @@ await generateVideo({
 Adapters that haven't declared a per-model duration map keep the plain
 `duration?: number` typing, return `{ kind: 'none' }` from
 `availableDurations()`, and return `undefined` from `snapDuration()`.
+fal is the exception: `duration` is typed from `@fal-ai/client`'s
+`EndpointTypeMap` even when the runtime map has no entry.
 
 > **Note:** The video URL returned for Veo jobs is served by the Gemini
 > Files API and requires your API key to download (send it as an
@@ -786,11 +788,11 @@ adapter.snapDuration(2.5); // 3 — clamped/rounded into range
 adapter.snapDuration(99); // 15
 ```
 
-Generated clips include an audio track. When the job completes, the adapter reports `usage.unitsBilled` (billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
+Generated clips include an audio track. When the job completes, the adapter reports `usage.billed` (`{ quantity, unit: 'seconds' }` — billed seconds of video) and `usage.cost` (exact USD cost as returned by the API) on the result.
 
 #### BytePlus (Seedance) Model Options
 
-Seedance is aspect-ratio sized like Grok Imagine — `size` takes a `ratio` or `ratio_resolution` template. Ratios are `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, `21:9` and `adaptive`; resolutions are `480p`, `720p`, `1080p` and (on `dreamina-seedance-2-0-260128` only) `4k`. Seedance 2.5 (`dreamina-seedance-2-5-260628`) is 480p/720p only and runs up to 30 seconds. There is no 2K tier on any Seedance model:
+Seedance is aspect-ratio sized like Grok Imagine — `size` takes a `ratio` or `ratio_resolution` template. Ratios are `16:9`, `9:16`, `4:3`, `3:4`, `1:1`, `21:9` and `adaptive`; resolutions are `480p`, `720p`, `1080p` and (on `dreamina-seedance-2-0-260128` only) `4k`. Seedance 2.5 (`dreamina-seedance-2-5-260628`) accepts 480p/720p/1080p and runs up to 30 seconds. There is no 2K tier on any Seedance model:
 
 ```typescript
 import { generateVideo } from "@tanstack/ai";
@@ -811,7 +813,7 @@ const { jobId } = await generateVideo({
 
 Options are **model-specific and validated server-side**: Ark rejects an inapplicable field with a `400` instead of ignoring it. `service_tier` and `camera_fixed` are Seedance 1.x only, `frames` works on the 1.0-pro models, `draft` on 1.5-pro, `priority` on Seedance 2.5 and the 2.0 family, and `duration: -1` (let the model choose) on 2.5, 2.0 and 1.5-pro. Durations are 4–30s on Seedance 2.5, 4–15s on the 2.0 family, 4–12s on 1.5-pro and 2–12s on the 1.0-pro models.
 
-**Seedance video URLs expire 24 hours after the task completes** (the task record is kept for seven days), so persist the bytes rather than the link. See the [BytePlus adapter](../adapters/byteplus#video-generation-seedance) for the full option table.
+**Seedance video URLs expire 24 hours after the task completes** (the task record is kept for seven days), so persist the bytes rather than the link. See the [BytePlus adapter](../adapters/byteplus#video-generation-seedance) for the full option table. Completed jobs report `usage.billed` as `{ quantity, unit: 'tokens' }` (Seedance bills output tokens only).
 
 ##### Porting a Seedance call between providers
 
@@ -888,6 +890,29 @@ Two OpenRouter-specific behaviors to know about:
 - **Cost is reported on completion.** The gateway reports the real billed
   cost for the job; it's surfaced as `usage.cost` on the completed result.
 
+#### fal.ai Model Options
+
+`duration` is typed per endpoint from `@fal-ai/client`. Popular models also
+implement `availableDurations()` / `snapDuration()` (Kling 2.6/Pika `'5' | '10'`,
+Kling 3 `'3'`…`'15'`, Luma `'5s' | '9s'`, Veo 3.1 `'4s' | '6s' | '8s'`, WAN
+`'2'`…`'15'`). Models with no duration field (Minimax, Hunyuan) type `duration`
+as `undefined`, so passing one is a compile error. See the
+[fal adapter](../adapters/fal) for the full table.
+
+```typescript ignore
+import { generateVideo } from '@tanstack/ai'
+import { falVideo } from '@tanstack/ai-fal'
+
+const adapter = falVideo('fal-ai/veo3.1')
+adapter.availableDurations() // { kind: 'discrete', values: ['4s', '6s', '8s'] }
+
+await generateVideo({
+  adapter,
+  prompt: 'A timelapse of a city skyline at dusk',
+  duration: adapter.snapDuration(7), // '6s'
+})
+```
+
 ### Response Types
 
 > **Note:** The interfaces below are the underlying adapter-level types. The `getVideoJobStatus()` helper returns a single merged object, `{ status, progress?, url?, error?, usage? }` — it does not return `jobId` or `expiresAt`.
@@ -921,19 +946,24 @@ interface VideoUrlResult {
   jobId: string;
   url: string; // URL to download/stream the video
   expiresAt?: Date; // When the URL expires
-  // Usage for the completed generation, when the adapter reports it. fal
-  // populates `usage.unitsBilled` from its `x-fal-billable-units` header.
+  // Usage for the completed generation, when the adapter reports it. The
+  // billed quantity is self-describing: fal reports
+  // `usage.billed = { quantity, unit: 'units' }` (from its
+  // `x-fal-billable-units` header), Grok Imagine reports
+  // `{ quantity, unit: 'seconds' }`.
   usage?: TokenUsage;
 }
 ```
 
 > **Cost tracking (fal):** fal bills media generation by usage-based units
 > rather than tokens. The fal adapters surface the real billed quantity as
-> `usage.unitsBilled` (denominated in the endpoint's priced unit). Combine it
-> with the endpoint's unit price from
-> `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` to compute the exact
-> cost (`unitsBilled * unitPrice`). The same `usage.unitsBilled` is surfaced
-> on image, audio, speech, and transcription results.
+> `usage.billed` — `{ quantity, unit: 'units' }`, where `'units'` marks fal's
+> endpoint-defined priced unit. Combine the quantity with the endpoint's unit
+> price from `GET https://api.fal.ai/v1/models/pricing?endpoint_id=…` to
+> compute the exact cost (`billed.quantity * unitPrice`). The same
+> `usage.billed` is surfaced on image, audio, speech, and transcription
+> results. (The deprecated bare count `usage.unitsBilled` is still populated
+> for backward compatibility.)
 
 ### Model Variants
 

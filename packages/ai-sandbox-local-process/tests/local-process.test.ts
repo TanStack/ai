@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, it } from 'vitest'
+import { afterAll, afterEach, describe, expect, it, vi } from 'vitest'
 import * as fsp from 'node:fs/promises'
 import * as os from 'node:os'
 import * as path from 'node:path'
@@ -12,6 +12,31 @@ import {
 import { localProcessSandbox } from '../src/index'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
+const lstatControl = vi.hoisted(() => {
+  let failure: Error | undefined
+  return {
+    getFailure: () => failure,
+    setFailure: (error: Error) => {
+      failure = error
+    },
+    reset: () => {
+      failure = undefined
+    },
+  }
+})
+
+vi.mock('node:fs/promises', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs/promises')>()
+  return {
+    ...actual,
+    lstat: async (path: Parameters<typeof actual.lstat>[0]) => {
+      const failure = lstatControl.getFailure()
+      if (failure) throw failure
+      return actual.lstat(path)
+    },
+  }
+})
+
 const baseDir = path.join(os.tmpdir(), `tanstack-ai-lp-test-${Date.now()}`)
 const provider = localProcessSandbox({ baseDir, removeOnDestroy: true })
 
@@ -19,11 +44,29 @@ afterAll(async () => {
   await fsp.rm(baseDir, { recursive: true, force: true })
 })
 
+afterEach(() => {
+  lstatControl.reset()
+})
+
 async function fresh(): Promise<SandboxHandle> {
   return provider.create({})
 }
 
 describe('local-process fs', () => {
+  it('returns undefined for a missing path', async () => {
+    const sbx = await fresh()
+    await expect(sbx.fs.lstat!('/workspace/missing')).resolves.toBeUndefined()
+    await sbx.destroy()
+  })
+
+  it('rejects a non-missing lstat error', async () => {
+    const sbx = await fresh()
+    const error = new Error('permission denied')
+    lstatControl.setFailure(error)
+    await expect(sbx.fs.lstat!('/workspace/file')).rejects.toBe(error)
+    await sbx.destroy()
+  })
+
   it('writes, reads, lists, renames, removes', async () => {
     const sbx = await fresh()
     await sbx.fs.write('/workspace/a.txt', 'hello')
@@ -86,6 +129,30 @@ describe('local-process process', () => {
     const code = await proc.wait()
     expect(out.trim()).toContain('streamed')
     expect(code).toBe(0)
+    await sbx.destroy()
+  })
+
+  it('resolves wait() when the child closes before stdout is fully consumed', async () => {
+    const sbx = await fresh()
+    // Write digits as strings. `console.log(number)` colorizes under FORCE_COLOR
+    // (CI sets that), so the assertion would see `\u001b[33m0\u001b[39m`.
+    await sbx.fs.write(
+      '/workspace/count.mjs',
+      `for (let i = 0; i < 20; i++) process.stdout.write(String(i) + '\\n')`,
+    )
+    const proc = await sbx.process.spawn('node count.mjs', {
+      cwd: '/workspace',
+    })
+    let out = ''
+    for await (const chunk of proc.stdout) {
+      out += chunk
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    await expect(proc.wait()).resolves.toBe(0)
+    const lines = out.trimEnd().split(/\r?\n/)
+    expect(lines).toEqual(
+      Array.from({ length: 20 }, (_, index) => String(index)),
+    )
     await sbx.destroy()
   })
 

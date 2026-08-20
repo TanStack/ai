@@ -8,7 +8,13 @@ description: >
   fileSkill), plugins, instructions → canonical AGENTS.md + symlinks projected
   per harness; shallow-clone default with depth opt-out; serial/parallel setup
   callback over a persistent shell; snapshot-after-setup default with
-  snapshotMaxAge TTL; defineWorkspace (git/setup/scripts/skills/secrets/
+  snapshotMaxAge TTL. It also covers portable snapshots after a successful
+  terminal run with withPersistence before withSandbox and
+  memorySandboxSnapshots for local examples. It covers named saves with
+  snapshots.save, selected-checkpoint forks with snapshots.fork, and
+  authorized artifact reads with snapshots.readArtifact. See
+  docs/sandbox/portable-snapshots.md. It covers defineWorkspace
+  (git/setup/scripts/skills/secrets/
   instructions/plugins), defineSandboxPolicy (allow/ask/deny), lifecycle/resume,
   the SandboxHandle (fs/git/process/ports), capability tokens, defineSandbox
   hooks (onFile/onFileCreate/onFileChange/onFileDelete/onReady/onError/
@@ -184,6 +190,87 @@ lifecycle: {
 ```
 
 Providers without snapshot support skip the step silently.
+
+### Portable sandbox snapshots
+
+Portable snapshots keep completed workspace files in application persistence.
+They are separate from provider-native bootstrap snapshots. Configure the
+middleware in this order, with the same persistence value in both places:
+
+```typescript
+import { withPersistence } from '@tanstack/ai-persistence'
+import { memorySandboxSnapshots, withSandbox } from '@tanstack/ai-sandbox'
+
+const snapshots = await memorySandboxSnapshots({ sandbox, instances })
+
+const middleware = [
+  withPersistence(snapshots.persistence),
+  withSandbox(sandbox, { instances, snapshots }),
+]
+```
+
+Each successful terminal run saves regular files, empty directories, durable
+conversation data, and persisted thread artifacts. A later run restores the
+latest checkpoint only into a new private sandbox. A live resumed sandbox is
+never overwritten. The default policy excludes `.git`, `node_modules`, and
+`.env*` path segments at every depth. It excludes the exact projection marker
+only at the workspace root. It also excludes root `CLAUDE.md` and `GEMINI.md`,
+plus direct `.claude/skills/<name>`, `.codex/skills/<name>`, and
+`.grok/skills/<name>` paths. These exclusions use paths even for regular files
+or copies. If you pass only `include` or only `redact`, the default
+exclusions stay in place. If you pass `exclude`, that function replaces
+the default exclusions, except for exact projection-marker protection.
+Copy `defaultSandboxSnapshotPolicy()` first when you write `exclude`.
+Pass `include` and `exclude` functions on `policy` to store only some files,
+including one file. There is no `save({ files })` list. See
+`docs/sandbox/portable-snapshots-files.md`. Resolved secrets are redacted before the data is stored. Symlinks,
+executables, and special filesystem entries fail the capture or restore. Each
+thread has one writer lease. Pause and detach release the lease without a
+partial checkpoint. Blob retention is manual because there is no automatic
+garbage collection yet.
+
+Read these pages for the server-only setup:
+
+- `docs/sandbox/portable-snapshots.md`
+- `docs/sandbox/portable-snapshots-configure.md`
+- `docs/sandbox/portable-snapshots-save.md`
+- `docs/sandbox/portable-snapshots-fork.md`
+- `docs/sandbox/portable-snapshots-artifacts.md`
+- `docs/sandbox/portable-snapshots-tools.md`
+- `docs/sandbox/portable-snapshots-files.md`
+- `docs/sandbox/portable-snapshots-safety.md`
+
+For a user-marked workspace state, call `snapshots.save` on the server. Bind
+`sandbox` and `instances` at create time, or pass them on `save`. The call
+needs `threadId`, `runId`, and a label. It requires a live reusable sandbox.
+`reuse: 'none'` cannot save a named checkpoint.
+
+To branch from a selected checkpoint, call `snapshots.fork` with the thread id,
+checkpoint id, and destination thread id. The store must implement atomic
+`forkFromCheckpoint`. The destination thread must be empty. A fork copies the
+selected snapshot, not the latest snapshot.
+
+To send a checkpoint artifact, call `snapshots.readArtifact` on the server.
+First authorize the caller for the supplied thread. The method makes sure that
+the checkpoint belongs to that thread, then returns its metadata and bytes. It
+does not authorize a caller or create an HTTP response.
+
+For a SQLite checkpoint store, use one transaction for a checkpoint write, its
+head update, and every blob reference update. Use one transaction for a fork,
+including its copied conversation. A partial transaction breaks snapshot
+consistency.
+
+Snapshot capture supports regular files and empty directories only. It excludes
+`.git`, `node_modules`, and `.env*` path segments at every depth. It excludes
+the exact projection marker only at the workspace root. It also excludes root
+`CLAUDE.md` and `GEMINI.md`, plus direct `.claude/skills/<name>`,
+`.codex/skills/<name>`, and `.grok/skills/<name>` paths. These exclusions use
+paths even for regular files or copies. If you pass only `include` or only
+`redact`, the default exclusions stay in place. If you pass `exclude`, that
+function replaces the default exclusions, except for exact projection-marker
+protection. It rejects symlinks, executable files, and special filesystem
+entries. Restore verifies the manifest and blobs before
+it changes a new private sandbox. It never writes into a live resumed sandbox.
 
 ## Providers
 
@@ -983,14 +1070,15 @@ including the client `joinRun` side, is in `docs/sandbox/takeover.md`.
 
 - **Harness adapters require a sandbox.** Always include `withSandbox(...)` in
   `middleware` — without it `chat()` throws a missing-capability error.
-- **Secrets** (`workspace.secrets`) are injected into the sandbox env and never
-  persisted (no snapshots, no sandbox store, no event log). Always create them
-  with `createSecrets(...)` so the values stay hidden behind `SecretRef` tokens.
-  The agent binary (`claude`) must exist in the sandbox image (install it in
-  `setup` or bake it into the image).
+- **Secrets** (`workspace.secrets`) are injected into the sandbox env. Their
+  raw values are never persisted in snapshots, the sandbox store, or the event
+  log. Always create them with `createSecrets(...)` so the values stay hidden
+  behind `SecretRef` tokens. The agent binary (`claude`) must exist in the
+  sandbox image (install it in `setup` or bake it into the image).
 - **Secret-bearing projected files** (e.g. MCP config with resolved header
-  values) are re-written on every projection call so rotated secrets re-apply;
-  they are never included in a snapshot.
+  values) can be included by default capture. Capture replaces resolved secret
+  bytes with zero bytes before it hashes or writes snapshot blobs. Restore runs
+  before projection, so projection writes current secret values after restore.
 - **chat()-provided `tools` are bridged** into the in-sandbox agent over a
   host-side MCP tool-proxy: the agent calls them as `mcp__tanstack__<tool>` and
   each call is proxied back to the host where the tool's `execute()` runs (with

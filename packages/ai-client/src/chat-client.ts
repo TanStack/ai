@@ -18,6 +18,7 @@ import { InterruptManager } from './interrupt-manager'
 import type {
   AnyClientTool,
   ContentPart,
+  InterruptDefinition,
   InterruptSubmissionError,
   ModelMessage,
   RunAgentResumeItem,
@@ -42,8 +43,8 @@ import type {
   ChatClientOptions,
   ChatClientState,
   ChatFetcher,
-  ChatInterrupt,
   ChatInterruptState,
+  ResolvableChatInterrupt,
   ChatPendingInterrupt,
   ChatResumeSnapshot,
   ChatResumeState,
@@ -69,8 +70,24 @@ interface InternalQueuedMessage extends QueuedMessage {
   body?: Record<string, any>
 }
 
+function assertUniqueInterruptDefinitions(
+  interrupts:
+    | ReadonlyArray<InterruptDefinition<any, any, any, any>>
+    | undefined,
+): void {
+  const ids = new Set<string>()
+  for (const interrupt of interrupts ?? []) {
+    if (ids.has(interrupt.id)) {
+      throw new Error(`Duplicate interrupt definition id: ${interrupt.id}`)
+    }
+    ids.add(interrupt.id)
+  }
+}
+
 type ChatClientUpdateOptionsWithoutContext<
   TTools extends ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = {
   connection?: ConnectionAdapter
   fetcher?: ChatFetcher
@@ -78,6 +95,7 @@ type ChatClientUpdateOptionsWithoutContext<
   body?: Record<string, any>
   forwardedProps?: Record<string, any>
   tools?: TTools
+  interrupts?: TInterrupts
   queue?: QueueOption
   onResponse?: (response?: Response) => void | Promise<void>
   onChunk?: (chunk: StreamChunk) => void
@@ -89,7 +107,7 @@ type ChatClientUpdateOptionsWithoutContext<
   onQueueChange?: (queue: Array<QueuedMessage>) => void
   onResumeStateChange?: (
     resumeState: ChatResumeState | null,
-    pendingInterrupts: BoundInterrupts<TTools>,
+    pendingInterrupts: BoundInterrupts<TTools, TInterrupts>,
   ) => void
   /**
    * Fires whenever the id of the run in flight changes: the new id when a run
@@ -97,7 +115,7 @@ type ChatClientUpdateOptionsWithoutContext<
    */
   onRunIdChange?: (runId: string | null) => void
   onInterruptStateChange?: (
-    state: ChatInterruptState<TTools>,
+    state: ChatInterruptState<TTools, TInterrupts>,
     context: { source: 'hydrate' | 'live' },
   ) => void
   onCustomEvent?: (
@@ -277,11 +295,13 @@ const REJOIN_REBUILD_TRIGGERS = new Set<string>([
 export class ChatClient<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    any,
 > {
   private readonly processor: StreamProcessor
   private connection: SubscribeConnectionAdapter
-  private readonly uniqueId: string
-  private readonly threadId: string
+  private uniqueId: string
+  private threadId: string
   // Durable chat persistence (optional): messages + resume snapshot as one
   // combined record, so a full page reload restores the transcript, rehydrates
   // pending interrupts, and rejoins an in-flight run. Clear-during-stream
@@ -298,7 +318,7 @@ export class ChatClient<
   // run is rejoined at most once even when both the sync read and the async
   // hydrate surface the same resume pointer.
   private rejoinedRunId: string | null = null
-  private readonly interruptManager: InterruptManager<TTools>
+  private readonly interruptManager: InterruptManager<TTools, TInterrupts>
   private activeInterruptSubmission: InterruptManagerSubmission | undefined
   private interruptSubmissionFailure:
     | { errors: ReadonlyArray<InterruptSubmissionError> }
@@ -403,11 +423,11 @@ export class ChatClient<
       onQueueChange: (queue: Array<QueuedMessage>) => void
       onResumeStateChange: (
         resumeState: ChatResumeState | null,
-        pendingInterrupts: BoundInterrupts<TTools>,
+        pendingInterrupts: BoundInterrupts<TTools, TInterrupts>,
       ) => void
       onRunIdChange: (runId: string | null) => void
       onInterruptStateChange: (
-        state: ChatInterruptState<TTools>,
+        state: ChatInterruptState<TTools, TInterrupts>,
         context: { source: 'hydrate' | 'live' },
       ) => void
       onCustomEvent: (
@@ -418,13 +438,14 @@ export class ChatClient<
     }
   }
 
-  constructor(options: ChatClientOptions<TTools, TContext>) {
-    this.threadId = options.threadId || this.generateUniqueId('thread')
-    // The instance/devtools id defaults to the threadId (the chat's identity),
-    // falling back to a generated id only when neither is set. `id` overrides it
-    // only for direct ChatClient users who key storage separately from the wire
-    // thread; the framework hooks never pass it.
-    this.uniqueId = options.id || this.threadId
+  constructor(options: ChatClientOptions<TTools, TContext, TInterrupts>) {
+    assertUniqueInterruptDefinitions(options.interrupts)
+    // Do not mint a random thread id during construct. Framework hooks build
+    // this client during render (SSR included). The wire/devtools identity is
+    // `threadId`; it is assigned here when the caller passed one, or later in
+    // `ensureThreadId()` from attach / mount / send.
+    this.threadId = options.threadId || ''
+    this.uniqueId = this.threadId
     // `persistence` is `false`/omitted (ephemeral, in-memory), `true`
     // (server-authoritative: cache nothing client-side, hydrate the thread from
     // the server by `threadId` on mount), or a storage adapter
@@ -433,17 +454,24 @@ export class ChatClient<
     // the mount hydration and keeps a client record from shadowing server history.
     let cachesMessages = true
     if (options.persistence === true) {
+      if (!options.threadId) {
+        throw new Error(
+          '[TanStack AI] persistence needs a stable `threadId` to key on. Pass a threadId from your app (for example support-42).',
+        )
+      }
       cachesMessages = false
     } else if (options.persistence) {
       // A storage adapter: keep the combined record (transcript + resume pointer)
       // in the browser. Persistence keys on `threadId` (the conversation
-      // identity) so a reload with the same `threadId` finds the same record;
-      // `id` overrides it only when set, for apps that key storage separately
-      // from the wire thread.
-      const persistenceKey = options.id ?? this.threadId
+      // identity) so a reload with the same `threadId` finds the same record.
+      if (!options.threadId) {
+        throw new Error(
+          '[TanStack AI] persistence needs a stable `threadId` to key on. Pass a threadId from your app (for example support-42).',
+        )
+      }
       this.persistor = new ChatPersistor(
         options.persistence,
-        persistenceKey,
+        options.threadId,
         (messages) => this.processor.setMessages(messages),
         (snapshot) => this.applyPersistedResume(snapshot),
       )
@@ -495,8 +523,11 @@ export class ChatClient<
       },
     }
 
-    this.interruptManager = new InterruptManager({
+    this.interruptManager = new InterruptManager<TTools, TInterrupts>({
       ...(options.tools !== undefined ? { tools: options.tools } : {}),
+      ...(options.interrupts !== undefined
+        ? { interrupts: options.interrupts }
+        : {}),
       submit: (submission) => this.submitInterruptBatch(submission),
       onChange: (source) => this.notifyResumeStateChange(source),
     })
@@ -807,6 +838,7 @@ export class ChatClient<
    */
   attach(): void {
     if (this.disposed || this.tailing) return
+    this.ensureThreadId()
     this.tailing = true
 
     // Full page reload with an in-flight run persisted (synchronous store):
@@ -985,12 +1017,21 @@ export class ChatClient<
   }
 
   mountDevtools(): void {
+    this.ensureThreadId()
     if (this.devtoolsMounted) {
       return
     }
 
     this.devtoolsMounted = true
     this.devtoolsBridge.mountWithTools(this.processor.getMessages().length)
+  }
+
+  private ensureThreadId(): string {
+    if (!this.threadId) {
+      this.threadId = this.generateUniqueId('thread')
+    }
+    this.uniqueId = this.threadId
+    return this.threadId
   }
 
   /**
@@ -1181,25 +1222,37 @@ export class ChatClient<
     this.callbacksRef.current.onRunIdChange(runId)
   }
 
-  getInterruptState(): ChatInterruptState<TTools> {
+  getInterruptState(): ChatInterruptState<TTools, TInterrupts> {
     return this.interruptManager.getState()
   }
 
-  getInterrupts(): BoundInterrupts<TTools> {
-    return this.interruptManager.getInterrupts()
+  getInterrupts(): BoundInterrupts<TTools, TInterrupts> {
+    return this.interruptManager.getInterrupts() as BoundInterrupts<
+      TTools,
+      TInterrupts
+    >
   }
 
   /** @deprecated Use getInterrupts(). */
-  getPendingInterrupts(): BoundInterrupts<TTools> {
-    return this.interruptManager.getInterrupts()
+  getPendingInterrupts(): BoundInterrupts<TTools, TInterrupts> {
+    return this.interruptManager.getInterrupts() as BoundInterrupts<
+      TTools,
+      TInterrupts
+    >
   }
 
   resolveInterrupts(approved: boolean): void
   resolveInterrupts(
-    resolver: (interrupt: ChatInterrupt<TTools>) => undefined,
+    resolver: (
+      interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+    ) => undefined,
   ): void
   resolveInterrupts(
-    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
   ): void {
     // Branch so TypeScript can select the InterruptManager.resolve overloads.
     if (typeof resolution === 'boolean') {
@@ -1414,10 +1467,17 @@ export class ChatClient<
   private buildDevtoolsBridgeOptions(
     devtools: ChatClientOptions['devtools'],
   ): ChatDevtoolsBridgeOptions {
+    const client = this
     return {
-      hookId: this.uniqueId,
-      clientId: this.uniqueId,
-      threadId: this.threadId,
+      get hookId() {
+        return client.uniqueId
+      },
+      get clientId() {
+        return client.uniqueId
+      },
+      get threadId() {
+        return client.threadId
+      },
       metadata: {
         hookName: devtools?.hookName ?? 'useChat',
         outputKind: devtools?.outputKind ?? 'chat',
@@ -2623,6 +2683,18 @@ export class ChatClient<
    * a text-only response has nothing to auto-send.
    */
   private shouldAutoSend(): boolean {
+    // A pending interrupt owns the next send. Auto-continuing after a
+    // completed server tool would start a sibling run and hide the card.
+    if (this.lastResume) return false
+    // Ownership follows the descriptors, not the submission handle. Generic
+    // interrupts settle the resume stream through a post-stream action that
+    // runs before `submitInterruptBatch`'s `finally` clears the handle, so
+    // gating on the handle alone would strand a legacy client tool that the
+    // native resume itself emitted (#1106).
+    if (this.activeInterruptSubmission && this.hasPendingInterrupts()) {
+      return false
+    }
+    if (this.interruptManager.getInterrupts().length > 0) return false
     const messages = this.processor.getMessages()
     const lastAssistant = messages.findLast(
       (m: UIMessage) => m.role === 'assistant',

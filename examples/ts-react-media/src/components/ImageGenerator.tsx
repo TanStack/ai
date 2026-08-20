@@ -354,12 +354,13 @@ function ImageModelCard({
               className="w-full h-auto"
             />
           </div>
-          {result?.usage?.unitsBilled != null && (
+          {result?.usage?.billed && (
             <p className="text-xs text-gray-500">
-              Billed {result.usage.unitsBilled}{' '}
-              {model.provider === 'fal' ? 'fal ' : ''}unit
-              {result.usage.unitsBilled === 1 ? '' : 's'} — multiply by the
-              endpoint unit price for USD cost
+              Billed {result.usage.billed.quantity}{' '}
+              {result.usage.billed.unit === 'units'
+                ? `fal unit${result.usage.billed.quantity === 1 ? '' : 's'}`
+                : result.usage.billed.unit}{' '}
+              — multiply by the endpoint unit price for USD cost
             </p>
           )}
         </>

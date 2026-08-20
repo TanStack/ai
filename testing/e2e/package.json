@@ -53,6 +53,7 @@
     "remark-cjk-friendly": "^2.0.1",
     "remark-gfm": "^4.0.1",
     "tailwindcss": "^4.1.18",
+    "ws": "^8.18.3",
     "zod": "^4.2.0"
   },
   "devDependencies": {
@@ -60,6 +61,7 @@
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
+    "@types/ws": "^8.18.1",
     "@vitejs/plugin-react": "^5.2.0",
     "miniflare": "^4.20260609.0",
     "typescript": "5.9.3",

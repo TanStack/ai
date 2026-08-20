@@ -13,9 +13,11 @@ type AIAdapter =
   | AnyAudioAdapter
   | AnyVideoAdapter
   | AnyTTSAdapter
-  | AnyTranscriptionAdapter;
+  | AnyTranscriptionAdapter
+  | AnyEmbeddingAdapter
+  | AnyRerankAdapter;
 ```
 
-Defined in: [packages/ai/src/activities/index.ts:178](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/index.ts#L178)
+Defined in: [packages/ai/src/activities/index.ts:218](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/index.ts#L218)
 
 Union of all adapter types that can be passed to chat()

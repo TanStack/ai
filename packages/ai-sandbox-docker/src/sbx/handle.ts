@@ -1,8 +1,9 @@
 /**
  * SandboxHandle backed by a Docker Sandboxes microVM (`sbx exec`).
  *
- * fs is the same base64-over-exec design as the container handle. Kill uses
- * the same in-VM pid file. Do not only kill the host `sbx exec` process.
+ * fs is the same chunked base64-over-exec design as the container handle.
+ * Kill uses the same in-VM pid file. Do not only kill the host `sbx exec`
+ * process.
  *
  * `writableStdin` and `killableProcesses` stay false until a live
  * measurement after `sbx login`.
@@ -15,6 +16,7 @@ import {
   runSbxStreaming,
   sbxExecArgs,
 } from './cli'
+import { fsWriteCommands } from '../fs-write'
 import { removeOwnedClone, sandboxNameFromId } from './materialize'
 import type {
   ExecResult,
@@ -246,16 +248,11 @@ export class SbxHandle implements SandboxHandle {
         return new Uint8Array(Buffer.from(r.stdout, 'base64'))
       },
       write: async (p, data) => {
-        const abs = this.abs(p)
-        const b64 = Buffer.from(
-          typeof data === 'string' ? Buffer.from(data, 'utf8') : data,
-        ).toString('base64')
-        const dir = abs.replace(/\/[^/]*$/, '') || '/'
-        const r = await this.exec(
-          `mkdir -p ${q(dir)} && printf %s ${q(b64)} | base64 -d > ${q(abs)}`,
-        )
-        if (r.exitCode !== 0)
-          throw new Error(`write failed: ${r.stderr.trim()}`)
+        for (const command of fsWriteCommands(this.abs(p), data)) {
+          const r = await this.exec(command)
+          if (r.exitCode !== 0)
+            throw new Error(`write failed: ${r.stderr.trim()}`)
+        }
       },
       list: async (p) => {
         const r = await this.exec(`ls -1Ap ${q(this.abs(p))}`)

@@ -61,4 +61,37 @@ test.describe('Tool Error Handling', () => {
       .join(' ')
     expect(responseText).toContain('Recovered from malformed tool arguments.')
   })
+
+  test('provider-rejected tool call produces an error result and chat continues', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    await selectScenario(
+      page,
+      'provider-rejected-tool-call',
+      testId,
+      aimockPort,
+    )
+    await runTest(page)
+    await waitForTestComplete(page, 15000, 1)
+
+    const metadata = await getMetadata(page)
+    expect(metadata.hasError).toBe('false')
+
+    const toolCalls = await getToolCalls(page)
+    expect(toolCalls).toContainEqual(
+      expect.objectContaining({ name: 'check_status', state: 'error' }),
+    )
+
+    const messages = await getMessages(page)
+    const responseText = messages
+      .flatMap((message) => message.parts)
+      .filter((part) => part.type === 'text')
+      .map((part) => part.content)
+      .join(' ')
+    expect(responseText).toContain(
+      'Recovered from provider-rejected tool call.',
+    )
+  })
 })

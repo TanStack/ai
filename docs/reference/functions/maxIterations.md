@@ -9,14 +9,15 @@ title: maxIterations
 function maxIterations(max): AgentLoopStrategy;
 ```
 
-Defined in: [packages/ai/src/activities/chat/agent-loop-strategies.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agent-loop-strategies.ts#L25)
+Defined in: [packages/ai/src/activities/chat/agent-loop-strategies.ts:26](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/agent-loop-strategies.ts#L26)
 
 Creates a strategy that continues for a maximum number of **model turns**
 (iterations), not tool calls.
 
-One iteration can still emit many parallel tool calls. Prefer middleware
-with `onBeforeToolCall` / `onShouldContinue` when you need a tool-call
-budget (see the Agentic Cycle docs recipe).
+One iteration can still emit many parallel tool calls. For a tool-call
+budget, use middleware with `onBeforeToolCall` (per-turn cap) and
+`onShouldContinue` (cumulative run budget) — see the docs recipe under
+Agentic Cycle.
 
 ## Parameters
 

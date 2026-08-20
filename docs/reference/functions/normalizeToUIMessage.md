@@ -9,7 +9,7 @@ title: normalizeToUIMessage
 function normalizeToUIMessage(message, generateId): UIMessage;
 ```
 
-Defined in: [packages/ai/src/activities/chat/messages.ts:645](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/messages.ts#L645)
+Defined in: [packages/ai/src/activities/chat/messages.ts:676](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/messages.ts#L676)
 
 Normalize a message (UIMessage or ModelMessage) to a UIMessage
 Ensures the message has an ID and createdAt timestamp
@@ -18,12 +18,13 @@ Ensures the message has an ID and createdAt timestamp
 
 ### message
 
-Either a UIMessage or ModelMessage
+  \| [`ModelMessage`](../interfaces/ModelMessage.md)\<
+  \| `string`
+  \| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
+  \| `null`\>
+  \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>
 
-[`ModelMessage`](../interfaces/ModelMessage.md)\<
-\| `string`
-\| [`ContentPart`](../type-aliases/ContentPart.md)\<`unknown`, `unknown`, `unknown`, `unknown`, `unknown`\>[]
-\| `null`\> | [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>
+Either a UIMessage or ModelMessage
 
 ### generateId
 

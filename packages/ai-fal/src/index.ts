@@ -46,6 +46,7 @@ export {
   type FalModelOutput,
   type FalModelImageSize,
   type FalModelVideoSize,
+  type FalModelVideoDuration,
 } from './model-meta'
 // ============================================================================
 // Utils

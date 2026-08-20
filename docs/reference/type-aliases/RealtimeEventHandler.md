@@ -3,7 +3,7 @@ id: RealtimeEventHandler
 title: RealtimeEventHandler
 ---
 
-# Type Alias: RealtimeEventHandler()\<TEvent\>
+# Type Alias: RealtimeEventHandler\<TEvent\>
 
 ```ts
 type RealtimeEventHandler<TEvent> = (payload) => void;

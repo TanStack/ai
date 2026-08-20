@@ -23,6 +23,7 @@ import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 describe('useChat', () => {
   afterEach(() => {
     vi.doUnmock('react')
+    vi.unstubAllGlobals()
   })
 
   function createDeferred<T>() {
@@ -84,6 +85,43 @@ describe('useChat', () => {
         }),
         { source: 'live' },
       )
+    })
+
+    it('awaits onResponse when hydration resumes during activation', async () => {
+      const response = createDeferred<void>()
+      const onResponse = vi.fn(() => response.promise)
+      const onConnect = vi.fn()
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('resumed'),
+          onConnect,
+        }),
+        initialResumeSnapshot: createInterruptResumeSnapshot(),
+        live: true,
+        onResponse,
+        onInterruptStateChange: (state, context) => {
+          if (context.source !== 'hydrate') return
+          for (const interrupt of state.interrupts) {
+            if (interrupt.kind === 'unbound') continue
+            interrupt.cancel()
+          }
+        },
+      })
+
+      await waitFor(() => {
+        expect(onResponse).toHaveBeenCalledOnce()
+      })
+      expect(onConnect).not.toHaveBeenCalled()
+
+      await act(async () => {
+        response.resolve()
+        await response.promise
+      })
+
+      await waitFor(() => {
+        expect(onConnect).toHaveBeenCalledOnce()
+        expect(result.current.resuming).toBe(false)
+      })
     })
 
     it('delegates every root interrupt control to ChatClient', async () => {
@@ -389,6 +427,48 @@ describe('useChat', () => {
       const messageId = result.current.messages[0]!.id
       expect(messageId).toBeTruthy()
       expect(messageId).not.toMatch(/^custom-id-/)
+    })
+
+    it('does not call crypto.randomUUID while rendering useChat', () => {
+      const randomUUID = vi.fn(() => {
+        throw new Error('crypto.randomUUID during render')
+      })
+      vi.stubGlobal('crypto', { randomUUID })
+
+      expect(() => {
+        renderUseChat({
+          connection: createMockConnectionAdapter(),
+        })
+      }).not.toThrow()
+
+      expect(randomUUID).not.toHaveBeenCalled()
+      vi.unstubAllGlobals()
+    })
+
+    it('sends a minted threadId that is not a React useId string', async () => {
+      const threadIds: Array<string> = []
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, abortSignal, runContext) {
+          if (runContext) {
+            threadIds.push(runContext.threadId)
+          }
+          for (const chunk of createTextChunks('Response')) {
+            if (abortSignal?.aborted) {
+              return
+            }
+            yield chunk
+          }
+        },
+      }
+
+      const { result } = renderUseChat({ connection: adapter })
+      await result.current.sendMessage('Test')
+
+      await waitFor(() => {
+        expect(threadIds).toHaveLength(1)
+      })
+      expect(threadIds[0]).toMatch(/^thread-/)
+      expect(threadIds[0]).not.toMatch(/^[:_]/)
     })
 
     it('should maintain client instance across re-renders', () => {

@@ -929,24 +929,24 @@ export function runPersistenceConformance(
 
         await store.save(
           artifact({
-            artifactId: 'art-a',
+            artifactId: '\u{10000}',
             blobKey: 'artifacts/run-art/art-a',
             createdAt: 100,
           }),
         )
         await store.save(
           artifact({
-            artifactId: 'art-b',
+            artifactId: '\u{e000}',
             sourceUrl: 'https://provider.example/expiring.png',
-            createdAt: 200,
+            createdAt: 100,
           }),
         )
         await store.save(
           artifact({ artifactId: 'art-c', runId: 'run-art-other' }),
         )
 
-        expect(await store.get('art-a')).toMatchObject({
-          artifactId: 'art-a',
+        expect(await store.get('\u{10000}')).toMatchObject({
+          artifactId: '\u{10000}',
           runId: 'run-art',
           threadId: 'thread-art',
           blobKey: 'artifacts/run-art/art-a',
@@ -955,26 +955,91 @@ export function runPersistenceConformance(
           size: 3,
           createdAt: 100,
         })
-        expect(await store.get('art-b')).toMatchObject({
+        expect(await store.get('\u{e000}')).toMatchObject({
           sourceUrl: 'https://provider.example/expiring.png',
         })
 
         expect((await store.list('run-art')).map((r) => r.artifactId)).toEqual([
-          'art-a',
-          'art-b',
+          '\u{e000}',
+          '\u{10000}',
         ])
 
         // save() is insert-OR-OVERWRITE: re-saving an id corrects the record.
         await store.save(
-          artifact({ artifactId: 'art-a', name: 'renamed.png', size: 9 }),
+          artifact({ artifactId: '\u{10000}', name: 'renamed.png', size: 9 }),
         )
-        const updated = await store.get('art-a')
+        const updated = await store.get('\u{10000}')
         expect(updated).toMatchObject({ name: 'renamed.png', size: 9 })
         expect(updated?.blobKey).toBeUndefined()
         expect((await store.list('run-art')).map((r) => r.artifactId)).toEqual([
-          'art-a',
-          'art-b',
+          '\u{e000}',
+          '\u{10000}',
         ])
+      })
+
+      it('lists a thread in deterministic createdAt and artifactId order', async () => {
+        const store = resolveStore('artifacts')
+        if (!store) return
+
+        await store.save(
+          artifact({
+            artifactId: 'thread-b',
+            threadId: 'thread-order',
+            createdAt: 2,
+          }),
+        )
+        await store.save(
+          artifact({
+            artifactId: 'thread-a',
+            threadId: 'thread-order',
+            createdAt: 2,
+          }),
+        )
+        await store.save(
+          artifact({
+            artifactId: 'thread-early',
+            threadId: 'thread-order',
+            createdAt: 1,
+          }),
+        )
+        await store.save(
+          artifact({
+            artifactId: 'other',
+            threadId: 'thread-other',
+            createdAt: 0,
+          }),
+        )
+
+        expect(
+          (await store.listForThread('thread-order')).map((r) => r.artifactId),
+        ).toEqual(['thread-early', 'thread-a', 'thread-b'])
+      })
+
+      it('orders artifact IDs by UTF-8 bytes after createdAt', async () => {
+        const store = resolveStore('artifacts')
+        if (!store) return
+
+        await store.save(
+          artifact({
+            artifactId: '\u{10000}',
+            threadId: 'thread-utf8',
+            createdAt: 1,
+          }),
+        )
+        await store.save(
+          artifact({
+            artifactId: '\u{e000}',
+            threadId: 'thread-utf8',
+            createdAt: 1,
+          }),
+        )
+        await store.save(
+          artifact({ artifactId: 'a', threadId: 'thread-utf8', createdAt: 1 }),
+        )
+
+        expect(
+          (await store.listForThread('thread-utf8')).map((r) => r.artifactId),
+        ).toEqual(['a', '\u{e000}', '\u{10000}'])
       })
 
       it('deletes one artifact and every artifact for a run', async () => {

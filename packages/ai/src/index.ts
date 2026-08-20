@@ -103,6 +103,7 @@ export type {
 
 // MCP error classes (value exports — usable with instanceof)
 export { MCPDuplicateToolNameError } from './activities/chat/mcp/manager'
+export { DuplicateToolNameError } from './activities/chat/tools/unique-tool-names'
 
 // Schema conversion (Standard JSON Schema compliant)
 export {
@@ -137,6 +138,22 @@ export type {
   StreamDurability,
   UpsertableStreamDurability,
 } from './stream-durability'
+
+// WebSocket transport utilities
+export {
+  toWebSocketStream,
+  toWebSocketResponse,
+  resumeWebSocketStream,
+  resumeWebSocketResponse,
+  encodeWsFrame,
+  decodeWsFrame,
+} from './stream-to-websocket'
+export type {
+  WebSocketLike,
+  WsRunContext,
+  WebSocketStreamInit,
+  InboundFrame,
+} from './stream-to-websocket'
 
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'
@@ -184,6 +201,17 @@ export type {
   SandboxFileEvent,
   SandboxFileHookEvent,
   ChatSandboxHooks,
+  InterruptBoundaryPhase,
+  InterruptToolResume,
+  InterruptResolutionCollection,
+  GenericInterruptResolution,
+  InterruptBoundaryResult,
+  InterruptResolutionResult,
+} from './activities/chat/middleware/index'
+
+export {
+  INTERRUPT_BOUNDARY_PHASES,
+  INTERRUPT_TOOL_RESUMES,
 } from './activities/chat/middleware/index'
 
 // Interrupt protocol surface. Deliberately enumerated rather than
@@ -192,6 +220,29 @@ export type {
 // a commitment. Only the ephemeral contract this release actually implements
 // is exported — no durable-recovery or persisted-state types, which would
 // pre-decide a question the orchestration RFC still owns.
+export {
+  defineInterrupt,
+  createInterruptBinding,
+  INTERRUPT_PAYLOAD_METADATA_KEY,
+} from './interrupt-definition'
+export {
+  INTERRUPT_CONTINUATION_METADATA_KEY,
+  INTERRUPT_CONTINUATION_VERSION,
+  genericInterruptContinuationFromDescriptor,
+  readGenericInterruptContinuation,
+  wrapGenericInterruptContinuation,
+} from './generic-interrupt-continuation'
+export type {
+  GenericInterruptContinuation,
+  GenericInterruptContinuationReadResult,
+} from './generic-interrupt-continuation'
+export type {
+  InterruptDefinition,
+  GenericInterruptRequest,
+  InterruptDefinitionOptions,
+  InterruptBindingDescriptor,
+} from './interrupt-definition'
+
 export {
   INTERRUPT_BINDING_VERSION,
   canonicalizeInterruptResolutions,

@@ -2,7 +2,6 @@ import { AGUIError } from '@ag-ui/core'
 import type {
   Context as AGUIContext,
   Message as AGUIMessage,
-  ResumeEntry as AGUIResumeEntry,
   Role as AGUIRole,
 } from '@ag-ui/core'
 import type {
@@ -22,6 +21,7 @@ const KNOWN_PART_TYPES = new Set([
   'tool-call',
   'tool-result',
   'thinking',
+  'structured-output',
 ])
 
 function isValidParts(value: unknown): value is Array<{ type: string }> {
@@ -30,6 +30,10 @@ function isValidParts(value: unknown): value is Array<{ type: string }> {
     if (!p || typeof p !== 'object') return false
     const type = (p as { type?: unknown }).type
     if (typeof type !== 'string' || !KNOWN_PART_TYPES.has(type)) return false
+    if (type === 'structured-output') {
+      const raw = (p as { raw?: unknown }).raw
+      if (raw !== undefined && typeof raw !== 'string') return false
+    }
   }
   return true
 }
@@ -173,20 +177,29 @@ function validateContext(value: unknown, index: number): AGUIContext {
   }
 }
 
-function validateResumeEntry(value: unknown, index: number): AGUIResumeEntry {
+function validateResumeEntry(
+  value: unknown,
+  index: number,
+): RunAgentResumeItem {
   const at = `resume[${index}]`
   if (!isRecord(value)) invalidBody(`${at} must be an object`)
   const status = value.status
   if (status !== 'resolved' && status !== 'cancelled') {
     invalidBody(`${at}.status must be "resolved" or "cancelled"`)
   }
-  const entry: AGUIResumeEntry = {
+  const entry: RunAgentResumeItem = {
     interruptId: requireString(value.interruptId, `${at}.interruptId`),
     status,
   }
   // Omit the key entirely when absent, matching the optional-field shape the
   // schema produced.
   if (value.payload !== undefined) entry.payload = value.payload
+  if (value.metadata !== undefined) {
+    if (!isRecord(value.metadata)) {
+      invalidBody(`${at}.metadata must be an object`)
+    }
+    entry.metadata = value.metadata
+  }
   return entry
 }
 
