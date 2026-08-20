@@ -1,8 +1,10 @@
 import {
   defineChatMiddleware,
+  fromSpecTokenUsage,
   getDetachableRun,
   InterruptResumeValidationError,
   readInterruptBinding,
+  tanstackMetadata,
   validateInterruptResumeBatch,
   wasCancelRequested,
 } from '@tanstack/ai'
@@ -1734,6 +1736,16 @@ function sumNumberFields<T extends object>(
   return result
 }
 
+function tokenUsageFromChunk(chunk: StreamChunk): TokenUsage | undefined {
+  if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+    return undefined
+  }
+  return fromSpecTokenUsage(
+    Array.isArray(chunk.usage) ? chunk.usage : undefined,
+    tanstackMetadata(chunk)?.usage,
+  )
+}
+
 function accumulateTokenUsage(
   current: TokenUsage | undefined,
   next: TokenUsage,
@@ -2164,10 +2176,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       }
       // Adapter terminals arrive before `onUsage`; synthesized tool boundaries
       // arrive after it with the same usage already in state.
+      const chunkUsage = tokenUsageFromChunk(chunk)
       const usage =
-        ctx.phase === 'modelStream' && chunk.usage
-          ? accumulateTokenUsage(state.usage, chunk.usage)
-          : (state.usage ?? chunk.usage)
+        ctx.phase === 'modelStream' && chunkUsage
+          ? accumulateTokenUsage(state.usage, chunkUsage)
+          : (state.usage ?? chunkUsage)
       state.usage = usage
       await interruptRun(runs, ctx.runId, usage)
       await messageStore.saveThread(ctx.threadId, [...ctx.messages])

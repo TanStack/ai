@@ -1,5 +1,5 @@
 import { EventType, buildBaseUsage } from '@tanstack/ai'
-import type { StreamChunk, TokenUsage } from '@tanstack/ai'
+import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type {
   AcpSessionUpdate,
   AcpStopReason,
@@ -108,7 +108,7 @@ function buildUsage(usage: AcpUsage | undefined): TokenUsage | undefined {
 export async function* translateAcpStream(
   events: AsyncIterable<AcpStreamEvent>,
   ctx: TranslateContext,
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   const { model, runId, threadId, genId, labels } = ctx
   const now = () => Date.now()
 
@@ -120,7 +120,7 @@ export async function* translateAcpStream(
   let textContent = ''
   let reasoningId: string | null = null
 
-  function* startRun(): Generator<StreamChunk> {
+  function* startRun(): Generator<AdapterYieldChunk> {
     if (runStarted) return
     runStarted = true
     yield {
@@ -133,7 +133,7 @@ export async function* translateAcpStream(
     }
   }
 
-  function* closeText(): Generator<StreamChunk> {
+  function* closeText(): Generator<AdapterYieldChunk> {
     if (textMessageId !== null) {
       yield {
         type: EventType.TEXT_MESSAGE_END,
@@ -146,7 +146,7 @@ export async function* translateAcpStream(
     textContent = ''
   }
 
-  function* closeReasoning(): Generator<StreamChunk> {
+  function* closeReasoning(): Generator<AdapterYieldChunk> {
     if (reasoningId !== null) {
       yield {
         type: EventType.REASONING_MESSAGE_END,
@@ -164,7 +164,7 @@ export async function* translateAcpStream(
     reasoningId = null
   }
 
-  function* synthesizeUnresolvedResults(): Generator<StreamChunk> {
+  function* synthesizeUnresolvedResults(): Generator<AdapterYieldChunk> {
     for (const toolCallId of unresolvedToolCalls) {
       yield {
         type: EventType.TOOL_CALL_RESULT,
@@ -178,7 +178,7 @@ export async function* translateAcpStream(
     unresolvedToolCalls.clear()
   }
 
-  function* openToolCall(update: AcpToolCallUpdate): Generator<StreamChunk> {
+  function* openToolCall(update: AcpToolCallUpdate): Generator<AdapterYieldChunk> {
     if (knownToolCalls.has(update.toolCallId)) return
     knownToolCalls.add(update.toolCallId)
     const toolCallName = resolveToolName(update, ctx.bridgedToolNames)
@@ -219,7 +219,7 @@ export async function* translateAcpStream(
     unresolvedToolCalls.add(update.toolCallId)
   }
 
-  function* resolveToolCall(update: AcpToolCallUpdate): Generator<StreamChunk> {
+  function* resolveToolCall(update: AcpToolCallUpdate): Generator<AdapterYieldChunk> {
     yield* openToolCall(update)
     unresolvedToolCalls.delete(update.toolCallId)
     yield {
@@ -233,7 +233,7 @@ export async function* translateAcpStream(
     }
   }
 
-  function* handleUpdate(update: AcpSessionUpdate): Generator<StreamChunk> {
+  function* handleUpdate(update: AcpSessionUpdate): Generator<AdapterYieldChunk> {
     if (update.sessionUpdate === 'agent_message_chunk') {
       yield* closeReasoning()
       // Non-text content (image / audio / resource / resource_link): surface it

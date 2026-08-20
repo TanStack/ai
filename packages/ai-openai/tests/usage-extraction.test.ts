@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { OpenAITextAdapter } from '../src/adapters/text'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 const createAdapter = () =>
   new OpenAITextAdapter({ apiKey: 'test-key' }, 'gpt-4o-mini')
@@ -57,7 +57,7 @@ describe('OpenAI usage extraction', () => {
       responses: { create: responsesCreate },
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Hello' }],
@@ -114,7 +114,7 @@ describe('OpenAI usage extraction', () => {
       responses: { create: responsesCreate },
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Hello' }],
@@ -169,7 +169,7 @@ describe('OpenAI usage extraction', () => {
       responses: { create: responsesCreate },
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Hello' }],
@@ -217,7 +217,7 @@ describe('OpenAI usage extraction', () => {
       responses: { create: responsesCreate },
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Hello' }],
@@ -271,7 +271,7 @@ describe('OpenAI usage extraction', () => {
       responses: { create: responsesCreate },
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Hello' }],

@@ -292,7 +292,7 @@ describe('InterruptManager hydration', () => {
   })
 
   it('hydrates a real core client-tool terminal with distinct schema identity hashes', async () => {
-    const coreChunks: Array<StreamChunk> = [
+    const coreChunks = [
       {
         type: EventType.RUN_STARTED,
         runId: 'core-run',
@@ -303,7 +303,6 @@ describe('InterruptManager hydration', () => {
         type: EventType.TOOL_CALL_START,
         toolCallId: 'core-call',
         toolCallName: lookupDefinition.name,
-        toolName: lookupDefinition.name,
         timestamp: 1,
       },
       {
@@ -319,7 +318,7 @@ describe('InterruptManager hydration', () => {
         finishReason: 'tool_calls',
         timestamp: 1,
       },
-    ]
+    ] as Array<StreamChunk>
     const adapter: AnyTextAdapter = {
       kind: 'text',
       name: 'core-interrupt-test',
@@ -1617,7 +1616,6 @@ describe('ChatClient native interrupts', () => {
             type: EventType.TOOL_CALL_START,
             toolCallId: 'call-inspect',
             toolCallName: 'inspectPlan',
-            toolName: 'inspectPlan',
             timestamp: Date.now(),
           }
           yield {
@@ -1715,7 +1713,6 @@ describe('ChatClient native interrupts', () => {
             type: EventType.TOOL_CALL_START,
             toolCallId: 'call-inspect',
             toolCallName: 'inspectPlan',
-            toolName: 'inspectPlan',
             timestamp: Date.now(),
           }
           yield {
@@ -1772,7 +1769,7 @@ describe('ChatClient native interrupts', () => {
           runId,
           threadId,
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
           outcome: { type: 'success' },
         }
       },

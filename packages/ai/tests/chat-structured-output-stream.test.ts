@@ -18,6 +18,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
+import { tanstackMetadata } from '../src/utilities/merge-metadata'
 import { collectChunks } from './test-utils'
 import type { StreamChunk, TokenUsage } from '../src/types'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
@@ -445,7 +446,17 @@ describe('chat({ outputSchema, stream: true })', () => {
 
       const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
       expect(finished).toBeDefined()
-      expect(finished!.usage).toEqual(usage)
+      expect(finished).not.toHaveProperty('finishReason')
+      expect(tanstackMetadata(finished)?.finishReason).toBe('stop')
+      expect(finished!.usage).toEqual([
+        {
+          model: 'test-model',
+          inputTokens: 125,
+          outputTokens: 1346,
+          totalTokens: 1471,
+          cachedInputTokens: 5760,
+        },
+      ])
     })
 
     it('omits usage on RUN_FINISHED when the adapter does not report it', async () => {

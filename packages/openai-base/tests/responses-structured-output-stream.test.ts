@@ -10,7 +10,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import OpenAI from 'openai'
-import type { JSONSchema, StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk, JSONSchema } from '@tanstack/ai'
 import { resolveDebugOption, type Logger } from '@tanstack/ai/adapter-internals'
 
 /**
@@ -96,9 +96,9 @@ const personSchema: JSONSchema = {
 const testLogger = resolveDebugOption(false)
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const c of stream) out.push(c)
   return out
 }
@@ -159,7 +159,7 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
           eventCompleted(),
         ])
         const adapter = new TestAdapter()
-        const chunks: Array<StreamChunk> = []
+        const chunks: Array<AdapterYieldChunk> = []
 
         for await (const chunk of adapter.structuredOutputStream!({
           chatOptions: {

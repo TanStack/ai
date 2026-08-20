@@ -1,4 +1,5 @@
 import { normalizeToolResult } from '../../../utilities/tool-result'
+import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type { ToolApprovalResolution } from '../../../interrupts'
 import type {
@@ -231,10 +232,8 @@ export class ToolCallManager<
    * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
    */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
-    const index = event.index ?? this.toolCallsMap.size
-    const runtimeEvent = event as Partial<ToolCallStartEvent> &
-      Pick<ToolCallStartEvent, 'toolName'>
-    const name = runtimeEvent.toolCallName ?? runtimeEvent.toolName
+    const index = this.toolCallsMap.size
+    const name = event.toolCallName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',
@@ -263,19 +262,7 @@ export class ToolCallManager<
    * Complete a tool call with its final input
    * Called when TOOL_CALL_END is received
    */
-  completeToolCall(event: ToolCallEndEvent): void {
-    for (const [, toolCall] of this.toolCallsMap.entries()) {
-      if (toolCall.id === event.toolCallId) {
-        if (event.input !== undefined) {
-          // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
-          const normalized =
-            event.input && typeof event.input === 'object' ? event.input : {}
-          toolCall.function.arguments = JSON.stringify(normalized)
-        }
-        break
-      }
-    }
-  }
+  completeToolCall(_event: ToolCallEndEvent): void {}
 
   /**
    * Check if there are any complete tool calls to execute
@@ -301,7 +288,7 @@ export class ToolCallManager<
   async *executeTools(
     finishEvent: RunFinishedEvent,
     ...contextArgs: ExecuteToolsContextArgs<TContext>
-  ): AsyncGenerator<ToolCallEndEvent, Array<ModelMessage>, void> {
+  ): AsyncGenerator<AdapterYieldChunk, Array<ModelMessage>, void> {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
     const hasRuntimeContext = contextArgs.length > 0
@@ -313,9 +300,6 @@ export class ToolCallManager<
       let toolResultContent: string | Array<ContentPart>
       let toolResultState: ToolOutputState | undefined
       // Holds the parsed/validated execution output before serialization.
-      // Surfaced on the emitted `TOOL_CALL_END` event as `output` so
-      // consumers can read it typed (via `TypedStreamChunk` distribution
-      // over the tools array) without re-parsing `result`.
       // Stays `undefined` when the tool has no `execute` (client-only
       // tools) or when execution throws.
       let toolOutput: unknown
@@ -397,7 +381,8 @@ export class ToolCallManager<
         toolCallId: toolCall.id,
         toolCallName: toolCall.function.name,
         toolName: toolCall.function.name,
-        model: finishEvent.model,
+        model:
+          typeof finishEvent.model === 'string' ? finishEvent.model : undefined,
         timestamp: Date.now(),
         // Typed parsed output (undefined for failed exec / client-only tools).
         ...(toolOutput !== undefined ? { output: toolOutput } : {}),
@@ -433,7 +418,7 @@ export interface ToolResult {
   duration?: number
   /**
    * Parsed tool input (after JSON parse + optional Standard Schema validation).
-   * Surfaced on engine-emitted `TOOL_CALL_END` events for TypedStreamChunk consumers.
+   * Parsed tool input after JSON parse + optional Standard Schema validation.
    */
   input?: unknown
   /**

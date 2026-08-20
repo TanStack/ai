@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '@tanstack/ai'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 import { GeminiTextInteractionsAdapter } from '../src/experimental/text-interactions/adapter'
 import {
   codeExecutionTool,
@@ -53,8 +53,8 @@ const mkStream = (events: Array<Record<string, unknown>>) => {
   })()
 }
 
-const collectChunks = async (stream: AsyncIterable<StreamChunk>) => {
-  const chunks: Array<StreamChunk> = []
+const collectChunks = async (stream: AsyncIterable<AdapterYieldChunk>) => {
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) {
     chunks.push(chunk)
   }
@@ -140,7 +140,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const interactionCustom = chunks.find(
       (c) => c.type === 'CUSTOM' && (c as any).name === 'gemini.interactionId',
     ) as
-      | (Extract<StreamChunk, { type: 'CUSTOM' }> &
+      | (Extract<AdapterYieldChunk, { type: 'CUSTOM' }> &
           Extract<
             GeminiInteractionsCustomEvent,
             { name: 'gemini.interactionId' }

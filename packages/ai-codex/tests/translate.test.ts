@@ -6,7 +6,7 @@ import {
 } from '../src/stream/translate'
 import type { TranslateContext } from '../src/stream/translate'
 import type { CodexThreadEvent } from '../src/stream/sdk-types'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 function makeCtx(overrides: Partial<TranslateContext> = {}): TranslateContext {
   let id = 0
@@ -28,21 +28,21 @@ async function* fromArray(
 async function collect(
   events: Array<CodexThreadEvent>,
   ctx: TranslateContext = makeCtx(),
-): Promise<Array<StreamChunk>> {
-  const chunks: Array<StreamChunk> = []
+): Promise<Array<AdapterYieldChunk>> {
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of translateThreadEvents(fromArray(events), ctx)) {
     chunks.push(chunk)
   }
   return chunks
 }
 
-function structuredComplete(chunks: Array<StreamChunk>) {
+function structuredComplete(chunks: Array<AdapterYieldChunk>) {
   return chunks.find(
     (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
   )
 }
 
-function textDeltas(chunks: Array<StreamChunk>): string {
+function textDeltas(chunks: Array<AdapterYieldChunk>): string {
   return chunks
     .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
     .map((c) => ('delta' in c ? c.delta : ''))
@@ -50,7 +50,7 @@ function textDeltas(chunks: Array<StreamChunk>): string {
 }
 
 function expectStructuredObject(
-  chunks: Array<StreamChunk>,
+  chunks: Array<AdapterYieldChunk>,
   object: Record<string, unknown>,
 ) {
   const complete = structuredComplete(chunks)
@@ -447,7 +447,7 @@ describe('translateThreadEvents', () => {
       throw new Error('aborted')
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     await expect(async () => {
       for await (const chunk of translateThreadEvents(failing(), makeCtx())) {
         chunks.push(chunk)

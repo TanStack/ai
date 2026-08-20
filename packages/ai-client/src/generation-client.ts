@@ -392,9 +392,7 @@ export class GenerationClient<
           )
           // Prefer spec `message`; fall back to deprecated `error.message`
           const msg =
-            (chunk.message as string | undefined) ||
-            chunk.error?.message ||
-            'An error occurred'
+            (chunk.message as string | undefined) || 'An error occurred'
           throw new Error(msg)
         }
         default:

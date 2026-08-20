@@ -13,7 +13,7 @@ import { grokBuildText } from '../src/index'
 import { translateThreadEvents } from '../src/stream/translate'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type { GrokBuildStreamEvent } from '../src/stream/sdk-types'
-import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk, CapabilityContext } from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 /**
@@ -54,11 +54,11 @@ const FIXTURE: Array<GrokBuildStreamEvent> = [
   },
 ]
 
-async function translate(genId: () => string): Promise<Array<StreamChunk>> {
+async function translate(genId: () => string): Promise<Array<AdapterYieldChunk>> {
   async function* source() {
     for (const event of FIXTURE) yield event
   }
-  const out: Array<StreamChunk> = []
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of translateThreadEvents(source(), {
     model: 'grok-build',
     runId: 'run-determinism',
@@ -145,9 +145,9 @@ function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }

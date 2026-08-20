@@ -1,4 +1,13 @@
-import type { ContentPart, MessagePart, UIMessage } from '../types'
+import type {
+  ContentPart,
+  MessagePart,
+  StructuredOutputPart,
+  TanStackMessageMetadata,
+  UIMessage,
+  UIResourcePart,
+} from '../types'
+import type { MetadataRecord } from './merge-metadata'
+import { tanstackMetadata } from './merge-metadata'
 
 type AGUITextInputContent = { type: 'text'; text: string }
 type AGUIInputContent =
@@ -25,9 +34,14 @@ type AGUIReasoningMessage = {
   content: string
 }
 
-type WireAnchorMessage = UIMessage & {
+/** Spec AG-UI message. No `parts`, no `createdAt` Date. */
+type WireAnchorMessage = {
+  id: string
+  role: UIMessage['role']
+  name?: string
   content?: string | Array<AGUIInputContent>
   toolCalls?: Array<AGUIToolCallMirror>
+  metadata?: MetadataRecord
 }
 
 export type WireMessage =
@@ -37,12 +51,10 @@ export type WireMessage =
 
 /**
  * Serialize TanStack `UIMessage`s into the AG-UI `RunAgentInput.messages`
- * wire shape. Each anchor (system/user/assistant) carries the canonical
- * `parts` array verbatim plus AG-UI mirror fields (`content`, `toolCalls`)
- * so AG-UI Zod parsing succeeds. Tool results and thinking parts on
- * assistant messages are additionally emitted as fan-out
- * `{role:'tool',...}` and `{role:'reasoning',...}` entries for strict
- * AG-UI server consumers.
+ * wire shape. Anchors are spec-only (`id`, `role`, `name`, `content`,
+ * `toolCalls`, `metadata`). Tool results and thinking parts on assistant
+ * messages are additionally emitted as fan-out `{role:'tool',...}` and
+ * `{role:'reasoning',...}` entries for strict AG-UI server consumers.
  */
 export function uiMessagesToWire(
   messages: Array<UIMessage>,
@@ -50,31 +62,40 @@ export function uiMessagesToWire(
   const wire: Array<WireMessage> = []
 
   for (const msg of messages) {
-    // Defensive: if parts is missing (ModelMessage-shaped input), pass through as-is.
-    // UIMessage always has parts; ModelMessage uses content directly.
+    // Defensive: ModelMessage-shaped input has no `parts`; fall back to `content`.
     const parts: ReadonlyArray<MessagePart> =
       // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- runtime input may be ModelMessage-shaped (no `parts`); cast forces the optional-chain fallback below to remain in scope
       (msg.parts as ReadonlyArray<MessagePart> | undefined) ?? []
 
     if (msg.role === 'system') {
-      wire.push({
-        ...msg,
-        content:
-          parts.length > 0
-            ? collectText(parts)
-            : ((msg as { content?: string }).content ?? ''),
-      })
+      wire.push(
+        toAnchor(
+          msg,
+          {
+            content:
+              parts.length > 0
+                ? collectText(parts)
+                : ((msg as { content?: string }).content ?? ''),
+          },
+          parts,
+        ),
+      )
       continue
     }
 
     if (msg.role === 'user') {
-      wire.push({
-        ...msg,
-        content:
-          parts.length > 0
-            ? collectUserContent(parts)
-            : ((msg as { content?: string }).content ?? ''),
-      })
+      wire.push(
+        toAnchor(
+          msg,
+          {
+            content:
+              parts.length > 0
+                ? collectUserContent(parts)
+                : ((msg as { content?: string }).content ?? ''),
+          },
+          parts,
+        ),
+      )
       continue
     }
 
@@ -91,11 +112,16 @@ export function uiMessagesToWire(
 
     const text = collectText(parts)
     const toolCalls = collectToolCalls(parts)
-    wire.push({
-      ...msg,
-      ...(text !== '' && { content: text }),
-      ...(toolCalls && { toolCalls }),
-    })
+    wire.push(
+      toAnchor(
+        msg,
+        {
+          ...(text !== '' && { content: text }),
+          ...(toolCalls && { toolCalls }),
+        },
+        parts,
+      ),
+    )
 
     for (const part of parts) {
       if (part.type === 'tool-result') {
@@ -114,6 +140,66 @@ export function uiMessagesToWire(
   }
 
   return wire
+}
+
+function toAnchor(
+  msg: UIMessage,
+  extras: {
+    content?: string | Array<AGUIInputContent>
+    toolCalls?: Array<AGUIToolCallMirror>
+  },
+  parts: ReadonlyArray<MessagePart>,
+): WireAnchorMessage {
+  const metadata = messageMetadata(msg, parts)
+  const name = (msg as { name?: string }).name
+  return {
+    id: msg.id,
+    role: msg.role,
+    ...(name !== undefined && { name }),
+    ...extras,
+    ...(metadata !== undefined && { metadata }),
+  }
+}
+
+function messageMetadata(
+  msg: UIMessage,
+  parts: ReadonlyArray<MessagePart>,
+): MetadataRecord | undefined {
+  const base: MetadataRecord = { ...(msg.metadata ?? {}) }
+  const tanstack: MetadataRecord = { ...(tanstackMetadata(msg) ?? {}) }
+  if (msg.createdAt) tanstack.createdAt = msg.createdAt.toISOString()
+
+  const leftover = unfinishedStructuredOutput(parts)
+  if (leftover) tanstack.structuredOutput = leftover
+
+  const uiResources = parts.filter(
+    (p): p is UIResourcePart => p.type === 'ui-resource',
+  )
+  if (uiResources.length > 0) tanstack.uiResources = uiResources
+
+  if (Object.keys(tanstack).length > 0) base.tanstack = tanstack
+  return Object.keys(base).length > 0 ? base : undefined
+}
+
+function unfinishedStructuredOutput(
+  parts: ReadonlyArray<MessagePart>,
+): TanStackMessageMetadata['structuredOutput'] | undefined {
+  for (const p of parts) {
+    if (p.type === 'structured-output' && p.status !== 'complete') {
+      return structuredOutputLeftover(p)
+    }
+  }
+  return undefined
+}
+
+function structuredOutputLeftover(
+  part: StructuredOutputPart,
+): NonNullable<TanStackMessageMetadata['structuredOutput']> {
+  return {
+    status: part.status,
+    raw: part.raw,
+    ...(part.errorMessage !== undefined && { errorMessage: part.errorMessage }),
+  }
 }
 
 function collectText(parts: ReadonlyArray<MessagePart>): string {

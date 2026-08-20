@@ -1,4 +1,5 @@
 import { normalizeToolResult } from '../../utilities/tool-result'
+import { tanstackMetadata } from '../../utilities/merge-metadata'
 import type { Message as AGUIMessage } from '@ag-ui/core'
 import type {
   ContentPart,
@@ -529,58 +530,87 @@ export function aguiSnapshotMessageToUIMessage(
   message: AGUIMessage | UIMessage,
 ): UIMessage {
   if ('parts' in message) {
-    return { ...message, id: message.id || generateMessageId() }
+    return applySnapshotMetadata(message, {
+      ...message,
+      id: message.id || generateMessageId(),
+    })
   }
 
   const id = message.id || generateMessageId()
 
   switch (message.role) {
     case 'user':
-      return {
+      return applySnapshotMetadata(message, {
         id,
         role: 'user',
         parts: aguiUserContentToParts(message.content),
-      }
+      })
     case 'assistant':
-      return modelMessageToUIMessage(
-        {
-          role: 'assistant',
-          content: message.content ?? null,
-          ...(message.toolCalls && { toolCalls: message.toolCalls }),
-        },
-        id,
+      return applySnapshotMetadata(
+        message,
+        modelMessageToUIMessage(
+          {
+            role: 'assistant',
+            content: message.content ?? null,
+            ...(message.toolCalls && { toolCalls: message.toolCalls }),
+          },
+          id,
+        ),
       )
     case 'tool':
-      return modelMessageToUIMessage(
-        {
-          role: 'tool',
-          content: message.content,
-          toolCallId: message.toolCallId,
-        },
-        id,
+      return applySnapshotMetadata(
+        message,
+        modelMessageToUIMessage(
+          {
+            role: 'tool',
+            content: message.content,
+            toolCallId: message.toolCallId,
+          },
+          id,
+        ),
       )
     case 'system':
     case 'developer':
       // `ModelMessage` has no system/developer role; build the part directly.
-      return {
+      return applySnapshotMetadata(message, {
         id,
         role: 'system',
         parts: message.content
           ? [{ type: 'text', content: message.content }]
           : [],
-      }
+      })
     case 'reasoning':
-      return {
+      return applySnapshotMetadata(message, {
         id,
         role: 'assistant',
         parts: message.content
           ? [{ type: 'thinking', content: message.content }]
           : [],
-      }
+      })
     case 'activity':
     default:
       // `activity` (and any future role) has no text/parts equivalent today.
-      return { id, role: 'assistant', parts: [] }
+      return applySnapshotMetadata(message, {
+        id,
+        role: 'assistant',
+        parts: [],
+      })
+  }
+}
+
+/** Copy snapshot metadata when it is a record. Rebuild createdAt from tanstack.createdAt. */
+function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
+  if (!('metadata' in source)) return ui
+  const raw = source.metadata
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return ui
+  const metadata = raw as NonNullable<UIMessage['metadata']>
+  const createdAtRaw = tanstackMetadata(metadata)?.createdAt
+  return {
+    ...ui,
+    metadata,
+    ...(typeof createdAtRaw === 'string'
+      ? { createdAt: new Date(createdAtRaw) }
+      : {}),
   }
 }
 

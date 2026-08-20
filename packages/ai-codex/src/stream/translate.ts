@@ -4,7 +4,7 @@ import {
   structuredOutputCompleteChunk,
   structuredOutputStartChunk,
 } from '@tanstack/ai/adapter-internals'
-import type { StreamChunk, TokenUsage } from '@tanstack/ai'
+import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type { CodexThreadEvent, CodexThreadItem, CodexUsage } from './sdk-types'
 
 /** Name of the CUSTOM event carrying the Codex thread (session) id. */
@@ -175,7 +175,7 @@ function buildUsage(usage: CodexUsage | undefined): TokenUsage | undefined {
 export async function* translateThreadEvents(
   events: AsyncIterable<CodexThreadEvent>,
   ctx: TranslateContext,
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   const { model, runId, threadId, genId } = ctx
   const now = () => Date.now()
 
@@ -185,7 +185,7 @@ export async function* translateThreadEvents(
   /** Item ids that already emitted TOOL_CALL_START/ARGS/END. */
   const openedToolItems = new Set<string>()
 
-  function* startRun(): Generator<StreamChunk> {
+  function* startRun(): Generator<AdapterYieldChunk> {
     if (runStarted) return
     runStarted = true
     yield {
@@ -198,7 +198,7 @@ export async function* translateThreadEvents(
     }
   }
 
-  function* synthesizeUnresolvedResults(): Generator<StreamChunk> {
+  function* synthesizeUnresolvedResults(): Generator<AdapterYieldChunk> {
     for (const toolCallId of unresolvedToolCalls) {
       yield {
         type: EventType.TOOL_CALL_RESULT,
@@ -212,7 +212,7 @@ export async function* translateThreadEvents(
     unresolvedToolCalls.clear()
   }
 
-  function* openToolCall(item: CodexToolItem): Generator<StreamChunk> {
+  function* openToolCall(item: CodexToolItem): Generator<AdapterYieldChunk> {
     if (openedToolItems.has(item.id)) return
     openedToolItems.add(item.id)
     const toolCallName = toolNameForItem(item)
@@ -249,7 +249,7 @@ export async function* translateThreadEvents(
   const openText = new Map<string, { emitted: number; ended: boolean }>()
   let lastAgentMessage: { id: string; text: string } | undefined
 
-  function* startText(messageId: string): Generator<StreamChunk> {
+  function* startText(messageId: string): Generator<AdapterYieldChunk> {
     if (openText.has(messageId)) return
     openText.set(messageId, { emitted: 0, ended: false })
     yield {
@@ -264,7 +264,7 @@ export async function* translateThreadEvents(
   function* emitTextDelta(
     messageId: string,
     text: string,
-  ): Generator<StreamChunk> {
+  ): Generator<AdapterYieldChunk> {
     yield* startText(messageId)
     const state = openText.get(messageId)
     if (state === undefined || state.ended) return
@@ -281,7 +281,7 @@ export async function* translateThreadEvents(
     }
   }
 
-  function* endText(messageId: string): Generator<StreamChunk> {
+  function* endText(messageId: string): Generator<AdapterYieldChunk> {
     const state = openText.get(messageId)
     if (state === undefined || state.ended) return
     state.ended = true
@@ -296,13 +296,13 @@ export async function* translateThreadEvents(
   function* handleAgentMessage(
     item: { id: string; text: string },
     done: boolean,
-  ): Generator<StreamChunk> {
+  ): Generator<AdapterYieldChunk> {
     yield* emitTextDelta(item.id, item.text)
     lastAgentMessage = { id: item.id, text: item.text }
     if (done) yield* endText(item.id)
   }
 
-  function* emitStructuredFromLast(): Generator<StreamChunk> {
+  function* emitStructuredFromLast(): Generator<AdapterYieldChunk> {
     if (ctx.expectStructuredOutput !== true) return
     if (lastAgentMessage === undefined) return
     const item = lastAgentMessage
@@ -342,7 +342,7 @@ export async function* translateThreadEvents(
     }
   }
 
-  function* handleItemCompleted(item: CodexThreadItem): Generator<StreamChunk> {
+  function* handleItemCompleted(item: CodexThreadItem): Generator<AdapterYieldChunk> {
     if (item.type === 'agent_message') {
       yield* handleAgentMessage(item, true)
     } else if (item.type === 'reasoning') {

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, chat } from '@tanstack/ai'
+import { EventType, chat, tanstackMetadata } from '@tanstack/ai'
 import type {
+  AdapterYieldChunk,
   AnyTextAdapter,
   ModelMessage,
   StreamChunk,
@@ -13,7 +14,7 @@ import { defineAIPersistence } from '../src/types'
 
 // --- minimal mock text adapter ---------------------------------------------
 
-function mockAdapter(iterations: Array<Array<StreamChunk>>) {
+function mockAdapter(iterations: Array<Array<AdapterYieldChunk>>) {
   const calls: Array<unknown> = []
   let i = 0
   const adapter = {
@@ -35,13 +36,13 @@ function mockAdapter(iterations: Array<Array<StreamChunk>>) {
 }
 
 const ev = {
-  runStarted: (runId = 'r1', threadId = 't1'): StreamChunk => ({
+  runStarted: (runId = 'r1', threadId = 't1'): AdapterYieldChunk => ({
     type: EventType.RUN_STARTED,
     runId,
     threadId,
     timestamp: 1,
   }),
-  text: (delta: string): StreamChunk => ({
+  text: (delta: string): AdapterYieldChunk => ({
     type: EventType.TEXT_MESSAGE_CONTENT,
     messageId: 'm1',
     delta,
@@ -51,7 +52,7 @@ const ev = {
     runId = 'r1',
     threadId = 't1',
     usage?: TokenUsage,
-  ): StreamChunk => ({
+  ): AdapterYieldChunk => ({
     type: EventType.RUN_FINISHED,
     runId,
     threadId,
@@ -59,7 +60,7 @@ const ev = {
     timestamp: 1,
     ...(usage ? { usage } : {}),
   }),
-  interrupted: (interruptId = 'interrupt-1'): StreamChunk => ({
+  interrupted: (interruptId = 'interrupt-1'): AdapterYieldChunk => ({
     type: EventType.RUN_FINISHED,
     runId: 'r1',
     threadId: 't1',
@@ -83,6 +84,10 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   const out: Array<StreamChunk> = []
   for await (const c of stream) out.push(c)
   return out
+}
+
+function interruptErrorsOf(chunk: StreamChunk | undefined) {
+  return tanstackMetadata(chunk)?.interruptErrors
 }
 
 function serverSearchTool(): Tool {
@@ -648,7 +653,7 @@ describe('withPersistence (state-only)', () => {
                 messageId: 'stream-assistant',
                 role: 'assistant',
                 timestamp: 1,
-              } satisfies StreamChunk
+              } satisfies AdapterYieldChunk
               yield {
                 type: EventType.TOOL_CALL_START,
                 toolCallId: 'call_1',
@@ -656,20 +661,20 @@ describe('withPersistence (state-only)', () => {
                 toolName: 'search',
                 parentMessageId: 'stream-assistant',
                 timestamp: 1,
-              } satisfies StreamChunk
+              } satisfies AdapterYieldChunk
               yield {
                 type: EventType.TOOL_CALL_ARGS,
                 toolCallId: 'call_1',
                 delta: '{}',
                 timestamp: 1,
-              } satisfies StreamChunk
+              } satisfies AdapterYieldChunk
               yield {
                 type: EventType.RUN_FINISHED,
                 runId: 'r1',
                 threadId: 't1',
                 finishReason: 'tool_calls',
                 timestamp: 1,
-              } satisfies StreamChunk
+              } satisfies AdapterYieldChunk
               return
             }
             yield ev.runStarted()
@@ -958,7 +963,6 @@ describe('withPersistence (state-only)', () => {
         {
           type: EventType.STEP_STARTED,
           stepName: 'think-1',
-          stepId: 'think-1',
           timestamp: 1,
         },
         {
@@ -970,9 +974,6 @@ describe('withPersistence (state-only)', () => {
         {
           type: EventType.STEP_FINISHED,
           stepName: 'think-1',
-          stepId: 'think-1',
-          content: 'Need a name.',
-          signature: 'sig-think-1',
           timestamp: 1,
         },
         ev.text('Ada'),
@@ -997,7 +998,7 @@ describe('withPersistence (state-only)', () => {
         id: 'think-msg',
         role: 'assistant',
         content: 'Ada',
-        thinking: [{ content: 'Need a name.', signature: 'sig-think-1' }],
+        thinking: [{ content: 'Need a name.' }],
       }),
     ])
   })
@@ -1206,7 +1207,7 @@ describe('withPersistence (state-only)', () => {
     const blockedError = blockedChunks.find(
       (chunk) => chunk.type === EventType.RUN_ERROR,
     )
-    expect(blockedError?.['tanstack:interruptErrors']).toEqual(
+    expect(interruptErrorsOf(blockedError)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           scope: 'item',
@@ -1250,7 +1251,7 @@ describe('withPersistence (state-only)', () => {
     const mismatchError = mismatchChunks.find(
       (chunk) => chunk.type === EventType.RUN_ERROR,
     )
-    expect(mismatchError?.['tanstack:interruptErrors']).toEqual(
+    expect(interruptErrorsOf(mismatchError)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           scope: 'item',

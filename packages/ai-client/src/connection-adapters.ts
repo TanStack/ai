@@ -1,4 +1,9 @@
-import { EventType, uiMessagesToWire } from '@tanstack/ai/client'
+import {
+  EventType,
+  tanstackMetadata,
+  uiMessagesToWire,
+  withTanstackMetadata,
+} from '@tanstack/ai/client'
 import {
   createResponseStreamTextDecoder,
   getResponseStreamReader,
@@ -8,7 +13,6 @@ import type {
   ModelMessage,
   RunAgentResumeItem,
   RunErrorEvent,
-  RunFinishedEvent,
   StreamChunk,
   UIMessage,
 } from '@tanstack/ai/client'
@@ -385,6 +389,17 @@ function isNdjsonEnvelope(
   )
 }
 
+function sseChunkModel(chunk: StreamChunk): string | undefined {
+  const tanstackModel = tanstackMetadata(chunk)?.model
+  if (typeof tanstackModel === 'string') return tanstackModel
+  const usage = 'usage' in chunk ? chunk.usage : undefined
+  if (Array.isArray(usage)) {
+    const model = (usage[0] as { model?: unknown } | undefined)?.model
+    if (typeof model === 'string') return model
+  }
+  return undefined
+}
+
 /**
  * Parse SSE-format lines into stream events, pairing each chunk with the `id:`
  * offset of the event it arrived on. Shared by the fetch- and XHR-backed SSE
@@ -431,15 +446,20 @@ async function* linesToSSEEvents(
     }
     const data = parseSseDataLine(line)
     if (data === '[DONE]') {
-      const synthetic: RunFinishedEvent = {
-        type: EventType.RUN_FINISHED,
-        threadId: lastThreadId ?? fallbackIds?.threadId ?? '',
-        runId: lastRunId ?? fallbackIds?.runId ?? '',
-        model: lastModel ?? '',
-        timestamp: Date.now(),
-        finishReason: 'stop',
+      yield {
+        chunk: withTanstackMetadata(
+          {
+            type: EventType.RUN_FINISHED,
+            threadId: lastThreadId ?? fallbackIds?.threadId ?? '',
+            runId: lastRunId ?? fallbackIds?.runId ?? '',
+            timestamp: Date.now(),
+          },
+          {
+            finishReason: 'stop',
+            ...(lastModel !== undefined ? { model: lastModel } : {}),
+          },
+        ) as StreamChunk,
       }
-      yield { chunk: synthetic }
       return
     }
     const chunk = JSON.parse(data) as StreamChunk
@@ -449,9 +469,8 @@ async function* linesToSSEEvents(
     if ('runId' in chunk && typeof chunk.runId === 'string') {
       lastRunId = chunk.runId
     }
-    if ('model' in chunk && typeof chunk.model === 'string') {
-      lastModel = chunk.model
-    }
+    const model = sseChunkModel(chunk)
+    if (model !== undefined) lastModel = model
     const id = pendingId
     pendingId = undefined
     yield { chunk, ...(id !== undefined ? { id } : {}) }
@@ -1064,21 +1083,24 @@ export function normalizeConnectionAdapter(
         // observed, but stamp the caller's request runId so getChunkRunId()
         // correlates to activeRunIds / currentRunId (same as real stream chunks).
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          const synthetic: RunFinishedEvent = {
-            type: EventType.RUN_FINISHED,
-            threadId: requireSyntheticId(
-              upstreamThreadId ?? runContext?.threadId,
-              'threadId',
-            ),
-            runId: requireSyntheticId(
-              upstreamRunId ?? runContext?.runId,
-              'runId',
-            ),
-            model: 'connect-wrapper',
-            timestamp: Date.now(),
-            finishReason: 'stop',
-          }
-          push(synthetic, runContext?.runId)
+          push(
+            withTanstackMetadata(
+              {
+                type: EventType.RUN_FINISHED,
+                threadId: requireSyntheticId(
+                  upstreamThreadId ?? runContext?.threadId,
+                  'threadId',
+                ),
+                runId: requireSyntheticId(
+                  upstreamRunId ?? runContext?.runId,
+                  'runId',
+                ),
+                timestamp: Date.now(),
+              },
+              { finishReason: 'stop', model: 'connect-wrapper' },
+            ) as StreamChunk,
+            runContext?.runId,
+          )
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {

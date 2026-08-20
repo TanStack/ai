@@ -156,7 +156,7 @@ The `structured-output` part fields:
 
 ## What the stream contains
 
-`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>` — the standard `StreamChunk` lifecycle plus a terminal `CUSTOM` event named `structured-output.complete`:
+`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>`. The stream is the standard `StreamChunk` lifecycle plus a terminal `CUSTOM` event named `structured-output.complete`. Completion still arrives as `CUSTOM` `structured-output.complete`. It is not folded into `RUN_FINISHED`.
 
 ```typescript ignore
 {

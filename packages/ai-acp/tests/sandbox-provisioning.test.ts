@@ -31,7 +31,7 @@ import {
   workspaceMcpServers,
 } from '../src/adapters/projection'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk, CapabilityContext } from '@tanstack/ai'
 import type {
   SandboxHandle,
   SecretRef,
@@ -146,14 +146,14 @@ function ctxWith(
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }
 
-function textOf(chunks: Array<StreamChunk>): string {
+function textOf(chunks: Array<AdapterYieldChunk>): string {
   return chunks
     .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
     .map((c) => (c as { delta?: string }).delta ?? '')
@@ -212,7 +212,7 @@ describe('permission modes (the acpCompatible guardrail surface)', () => {
   async function runPermission(opts: {
     permissionMode?: 'default' | 'acceptEdits' | 'bypassPermissions'
     permissions?: 'headless' | 'interactive'
-  }): Promise<Array<StreamChunk>> {
+  }): Promise<Array<AdapterYieldChunk>> {
     const sbx = await provider.create({})
     await sbx.fs.write('/workspace/perm-agent.mjs', PERMISSION_AGENT)
     const adapter = acpCompatibleText('probe', {

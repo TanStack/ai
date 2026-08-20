@@ -167,7 +167,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Connection Adapters",
@@ -178,7 +178,8 @@
         {
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-20"
         }
       ]
     },
@@ -358,7 +359,7 @@
           "label": "Custom Events Reference",
           "to": "protocol/custom-events",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-20"
         }
       ]
     },
@@ -382,7 +383,7 @@
           "label": "Streaming UIs",
           "to": "structured-outputs/streaming",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Multi-Turn Chat",
@@ -525,7 +526,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Built-in Middleware",
@@ -813,7 +814,7 @@
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
           "addedAt": "2026-05-16",
-          "updatedAt": "2026-07-31"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Sampling â†’ modelOptions",

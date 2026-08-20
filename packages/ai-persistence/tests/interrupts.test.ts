@@ -4,8 +4,10 @@ import {
   chat,
   defineChatMiddleware,
   defineInterrupt,
+  tanstackMetadata,
 } from '@tanstack/ai'
 import type {
+  AdapterYieldChunk,
   AnyTextAdapter,
   ChatResumeToolState,
   StreamChunk,
@@ -16,7 +18,7 @@ import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import type { InterruptStore } from '../src/types'
 
-function mockAdapter(iterations: Array<Array<StreamChunk>>) {
+function mockAdapter(iterations: Array<Array<AdapterYieldChunk>>) {
   const calls: Array<unknown> = []
   let i = 0
   const adapter = {
@@ -91,12 +93,16 @@ const transformedDisplaySchema = {
   },
 } as const
 
+function interruptErrorsOf(chunk: StreamChunk | undefined) {
+  return tanstackMetadata(chunk)?.interruptErrors
+}
+
 function expectResumeError(
   chunks: ReadonlyArray<StreamChunk>,
   interruptId: string,
 ) {
   const error = chunks.find((chunk) => chunk.type === EventType.RUN_ERROR)
-  expect(error?.['tanstack:interruptErrors']).toEqual(
+  expect(interruptErrorsOf(error)).toEqual(
     expect.arrayContaining([
       expect.objectContaining({ scope: 'item', interruptId }),
     ]),
@@ -113,7 +119,10 @@ function isInterruptTerminal(chunk: StreamChunk): chunk is StreamChunk & {
   )
 }
 
-const interruptFinished = (runId = 'r1', usage?: TokenUsage): StreamChunk => ({
+const interruptFinished = (
+  runId = 'r1',
+  usage?: TokenUsage,
+): AdapterYieldChunk => ({
   type: EventType.RUN_FINISHED,
   runId,
   threadId: 't1',
@@ -133,14 +142,14 @@ const interruptFinished = (runId = 'r1', usage?: TokenUsage): StreamChunk => ({
   },
 })
 
-const runStarted = (): StreamChunk => ({
+const runStarted = (): AdapterYieldChunk => ({
   type: EventType.RUN_STARTED,
   runId: 'r1',
   threadId: 't1',
   timestamp: 1,
 })
 
-const toolStart = (parentMessageId?: string): StreamChunk => ({
+const toolStart = (parentMessageId?: string): AdapterYieldChunk => ({
   type: EventType.TOOL_CALL_START,
   toolCallId: 'tool-call-1',
   toolCallName: 'clientSearch',
@@ -149,21 +158,21 @@ const toolStart = (parentMessageId?: string): StreamChunk => ({
   ...(parentMessageId ? { parentMessageId } : {}),
 })
 
-const toolArgs = (): StreamChunk => ({
+const toolArgs = (): AdapterYieldChunk => ({
   type: EventType.TOOL_CALL_ARGS,
   toolCallId: 'tool-call-1',
   delta: '{"query":"test"}',
   timestamp: 1,
 })
 
-const text = (delta: string): StreamChunk => ({
+const text = (delta: string): AdapterYieldChunk => ({
   type: EventType.TEXT_MESSAGE_CONTENT,
   messageId: 'm1',
   delta,
   timestamp: 1,
 })
 
-const runFinished = (runId = 'r1', usage?: TokenUsage): StreamChunk => ({
+const runFinished = (runId = 'r1', usage?: TokenUsage): AdapterYieldChunk => ({
   type: EventType.RUN_FINISHED,
   runId,
   threadId: 't1',
@@ -172,7 +181,10 @@ const runFinished = (runId = 'r1', usage?: TokenUsage): StreamChunk => ({
   ...(usage ? { usage } : {}),
 })
 
-const toolCallFinished = (runId = 'r1', usage?: TokenUsage): StreamChunk => ({
+const toolCallFinished = (
+  runId = 'r1',
+  usage?: TokenUsage,
+): AdapterYieldChunk => ({
   type: EventType.RUN_FINISHED,
   runId,
   threadId: 't1',
@@ -1361,7 +1373,7 @@ describe('interrupt persistence', () => {
           type: EventType.RUN_FINISHED,
           runId: 'r1',
           threadId: 't1',
-          finishReason: 'stop',
+          finishReason: 'stop' as const,
           timestamp: 1,
           outcome: {
             type: 'interrupt',
@@ -1559,7 +1571,7 @@ describe('interrupt persistence', () => {
     )
 
     const error = chunks.find((chunk) => chunk.type === EventType.RUN_ERROR)
-    expect(error?.['tanstack:interruptErrors']).toEqual(
+    expect(interruptErrorsOf(error)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           scope: 'item',
@@ -1605,7 +1617,7 @@ describe('interrupt persistence', () => {
     )
 
     const error = chunks.find((chunk) => chunk.type === EventType.RUN_ERROR)
-    expect(error?.['tanstack:interruptErrors']).toEqual(
+    expect(interruptErrorsOf(error)).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           scope: 'batch',

@@ -33,6 +33,14 @@ import {
   canonicalInterruptJson,
   digestInterruptJson,
 } from '../../interrupt-serialization'
+import { fromSpecTokenUsage } from '../../utilities/ag-ui-usage'
+import { uiMessagesToWire } from '../../utilities/ag-ui-wire'
+import {
+  tanstackMetadata,
+  withTanstackMetadata,
+} from '../../utilities/merge-metadata'
+import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
+import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
@@ -57,7 +65,7 @@ import { isCancelRequestedReason } from './cancel'
 import {
   convertMessagesToModelMessages,
   generateMessageId,
-  modelMessageToUIMessage,
+  modelMessagesToUIMessages,
   safeJsonStringify,
 } from './messages'
 import { MiddlewareRunner } from './middleware/compose'
@@ -88,6 +96,7 @@ import type {
 import type {
   AgentLoopStrategy,
   AnyTool,
+  ChatStream,
   ConstrainedModelMessage,
   CustomEvent,
   InferSchemaType,
@@ -108,8 +117,8 @@ import type {
   ToolCall,
   ToolCallArgsEvent,
   ToolCallEndEvent,
+  ToolCallResultEvent,
   ToolCallStartEvent,
-  TypedStreamChunk,
   UIMessage,
 } from '../../types'
 import type {
@@ -514,7 +523,7 @@ export interface TextActivityOptions<
   outputSchema?: TSchema
   /**
    * Whether to stream the text result.
-   * When true (default), returns an AsyncIterable<TypedStreamChunk<TTools>> for streaming output.
+   * When true (default), returns a ChatStream for streaming output.
    * When false, returns a Promise<string> with the collected text content.
    *
    * Note: If outputSchema is provided, this option is ignored and the result
@@ -636,10 +645,7 @@ export function createChatOptions<
  * - If outputSchema is provided without explicit stream:true:
  *   Promise<InferSchemaType<TSchema>>.
  * - If stream is explicitly false (no schema): Promise<string>.
- * - Otherwise (default): AsyncIterable<TypedStreamChunk<TTools>>.
- *
- * When tools with typed schemas are provided, the stream chunks include
- * type-safe `toolName` and `input` fields on tool call events.
+ * - Otherwise (default): ChatStream.
  *
  * `[TStream] extends [true]` is used (not `TStream extends true`) so that the
  * default `boolean` value of `TStream` does *not* match the streaming branch.
@@ -659,13 +665,9 @@ export type TextActivityResult<
     : Promise<InferSchemaType<TSchema>>
   : [TStream] extends [false]
     ? Promise<string>
-    : AsyncIterable<
-        TypedStreamChunk<
-          TTools extends ReadonlyArray<AnyTool>
-            ? TTools
-            : ReadonlyArray<AnyTool>
-        >
-      >
+    : TTools extends infer _TTools
+      ? ChatStream
+      : ChatStream
 
 // ===========================
 // ChatEngine Implementation
@@ -804,7 +806,6 @@ class TextEngine<
     []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
-  private hasSeenReasoningEvents = false
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
@@ -964,9 +965,8 @@ class TextEngine<
     this.parentRunIdOverride = config.params.parentRunId
 
     // Initialize middleware — devtools first, strip-to-spec always last.
-    // handleStreamChunk processes raw chunks BEFORE middleware, so internal
-    // state management sees extended fields (finishReason, delta, toolCallName, etc.).
-    // The strip middleware ensures the yielded public stream is AG-UI spec-compliant.
+    // Adapter chunks are normalized before handleStreamChunk, so internal
+    // state sees spec fields plus metadata.tanstack extras.
     const allMiddleware: Array<
       ChatMiddleware<TContext, InterruptDefinition<any, any, any, any>>
     > = [
@@ -1156,7 +1156,12 @@ class TextEngine<
             finishReason: this.lastFinishReason,
             duration: Date.now() - this.streamStartTime,
             content: this.accumulatedContent,
-            usage: this.finishedEvent?.usage,
+            usage: fromSpecTokenUsage(
+              Array.isArray(this.finishedEvent?.usage)
+                ? this.finishedEvent.usage
+                : undefined,
+              tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
+            ),
           })
         }
         return
@@ -1304,7 +1309,12 @@ class TextEngine<
             finishReason: this.lastFinishReason,
             duration: Date.now() - this.streamStartTime,
             content: this.accumulatedContent,
-            usage: this.finishedEvent?.usage,
+            usage: fromSpecTokenUsage(
+              Array.isArray(this.finishedEvent?.usage)
+                ? this.finishedEvent.usage
+                : undefined,
+              tanstackMetadata(this.finishedEvent ?? undefined)?.usage,
+            ),
           })
         }
       }
@@ -1316,18 +1326,17 @@ class TextEngine<
         typeof error.continuationRunId === 'string'
       ) {
         this.terminalHookCalled = true
-        yield {
+        yield* this.pipeThroughMiddleware({
           type: EventType.RUN_FINISHED,
           timestamp: Date.now(),
           threadId: this.threadId,
           runId: this.runIdOverride ?? this.requestId,
-          finishReason: 'stop',
           outcome: { type: 'success' },
           result: {
             replayed: true,
             continuationRunId: error.continuationRunId,
           },
-        }
+        })
         return
       }
       const interruptFailure = structuralInterruptFailure(error)
@@ -1429,7 +1438,7 @@ class TextEngine<
     this.accumulatedThinking = []
     this.currentThinkingContent = ''
     this.currentThinkingSignature = ''
-    this.hasSeenReasoningEvents = false
+
     this.finishedEvent = null
     this.streamedToolErrorResults.clear()
 
@@ -1494,7 +1503,7 @@ class TextEngine<
       )
     }
 
-    for await (const chunk of this.adapter.chatStream({
+    for await (const raw of this.adapter.chatStream({
       model: this.params.model,
       messages: this.messages,
       tools: toolsWithJsonSchemas,
@@ -1516,142 +1525,150 @@ class TextEngine<
         break
       }
 
-      this.totalChunkCount++
+      for (const chunk of normalizeStreamChunk(raw)) {
+        if (this.isCancelled()) {
+          break
+        }
 
-      // Process the original (unstripped) chunk for internal state management
-      // BEFORE middleware, so fields like finishReason, delta, etc. are available
-      this.handleStreamChunk(chunk)
+        this.totalChunkCount++
 
-      // Native combined mode: synthesize `structured-output.start` BEFORE
-      // the first TEXT_MESSAGE_START so the client-side StreamProcessor
-      // routes the schema-constrained JSON deltas into a
-      // StructuredOutputPart. We delay synthesis until we actually see
-      // text starting — intermediate tool-call iterations don't need it,
-      // and emitting at run-start would wrap tool-call commentary into a
-      // structured-output part too.
-      if (
-        chunk.type === EventType.CUSTOM &&
-        chunk.name === 'structured-output.start'
-      ) {
-        this.combinedStartEmitted = true
-        const startValue = chunk.value
+        this.handleStreamChunk(chunk)
+
+        // Native combined mode: synthesize `structured-output.start` BEFORE
+        // the first TEXT_MESSAGE_START so the client-side StreamProcessor
+        // routes the schema-constrained JSON deltas into a
+        // StructuredOutputPart. We delay synthesis until we actually see
+        // text starting — intermediate tool-call iterations don't need it,
+        // and emitting at run-start would wrap tool-call commentary into a
+        // structured-output part too.
         if (
-          startValue &&
-          typeof startValue === 'object' &&
-          'messageId' in startValue &&
-          typeof startValue.messageId === 'string'
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === 'structured-output.start'
         ) {
-          this.combinedStructuredMessageId = startValue.messageId
-          this.captureStructuredOutputMessageIdentity(startValue.messageId)
-        }
-      }
-
-      let outboundChunk: StreamChunk = chunk
-      if (
-        this.finalStructuredOutput?.source === 'event' &&
-        chunk.type === EventType.CUSTOM &&
-        chunk.name === 'structured-output.complete'
-      ) {
-        const parsed = readStructuredOutputCompleteValue(chunk.value)
-        if (parsed) {
-          const object = this.finalStructuredOutput.normalize
-            ? this.finalStructuredOutput.normalize(parsed.object)
-            : parsed.object
-          this.structuredOutputResult = { data: object, rawText: parsed.raw }
-          this.combinedCompleteEmitted = true
-          const value = chunk.value
-          const completeMessageId = readCustomEventMessageId(value)
-          if (completeMessageId) {
-            this.combinedStructuredMessageId = completeMessageId
-            this.captureStructuredOutputMessageIdentity(completeMessageId)
-          }
-          if (object !== parsed.object && value && typeof value === 'object') {
-            outboundChunk = { ...chunk, value: { ...value, object } }
+          this.combinedStartEmitted = true
+          const startValue = chunk.value
+          if (
+            startValue &&
+            typeof startValue === 'object' &&
+            'messageId' in startValue &&
+            typeof startValue.messageId === 'string'
+          ) {
+            this.combinedStructuredMessageId = startValue.messageId
+            this.captureStructuredOutputMessageIdentity(startValue.messageId)
           }
         }
-      }
 
-      if (
-        this.finalStructuredOutput?.nativeCombined === true &&
-        this.finalStructuredOutput.yieldChunks &&
-        this.finalStructuredOutput.source !== 'event' &&
-        !this.combinedStartEmitted &&
-        chunk.type === EventType.TEXT_MESSAGE_START
-      ) {
-        this.combinedStartEmitted = true
-        const messageId =
-          typeof chunk.messageId === 'string' && chunk.messageId !== ''
-            ? chunk.messageId
-            : generateMessageId()
-        this.combinedStructuredMessageId = messageId
-        const synthStart: StreamChunk = {
-          type: EventType.CUSTOM,
-          name: 'structured-output.start',
-          value: { messageId },
-          model: this.params.model,
-          timestamp: Date.now(),
-          threadId: this.threadId,
-          ...(this.runIdOverride ? { runId: this.runIdOverride } : {}),
+        let outboundChunk: StreamChunk = chunk
+        if (
+          this.finalStructuredOutput?.source === 'event' &&
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === 'structured-output.complete'
+        ) {
+          const parsed = readStructuredOutputCompleteValue(chunk.value)
+          if (parsed) {
+            const object = this.finalStructuredOutput.normalize
+              ? this.finalStructuredOutput.normalize(parsed.object)
+              : parsed.object
+            this.structuredOutputResult = { data: object, rawText: parsed.raw }
+            this.combinedCompleteEmitted = true
+            const value = chunk.value
+            const completeMessageId = readCustomEventMessageId(value)
+            if (completeMessageId) {
+              this.combinedStructuredMessageId = completeMessageId
+              this.captureStructuredOutputMessageIdentity(completeMessageId)
+            }
+            if (
+              object !== parsed.object &&
+              value &&
+              typeof value === 'object'
+            ) {
+              outboundChunk = { ...chunk, value: { ...value, object } }
+            }
+          }
         }
-        const synthOutputs = await this.middlewareRunner.runOnChunk(
+
+        if (
+          this.finalStructuredOutput?.nativeCombined === true &&
+          this.finalStructuredOutput.yieldChunks &&
+          this.finalStructuredOutput.source !== 'event' &&
+          !this.combinedStartEmitted &&
+          chunk.type === EventType.TEXT_MESSAGE_START
+        ) {
+          this.combinedStartEmitted = true
+          const messageId =
+            typeof chunk.messageId === 'string' && chunk.messageId !== ''
+              ? chunk.messageId
+              : generateMessageId()
+          this.combinedStructuredMessageId = messageId
+          const synthStart: StreamChunk = {
+            type: EventType.CUSTOM,
+            name: 'structured-output.start',
+            value: { messageId },
+            timestamp: Date.now(),
+          }
+          const synthOutputs = await this.middlewareRunner.runOnChunk(
+            this.middlewareCtx,
+            synthStart,
+          )
+          for (const outputChunk of synthOutputs) {
+            yield outputChunk
+            this.middlewareCtx.chunkIndex++
+          }
+        }
+
+        // Pipe chunk through middleware (devtools middleware observes; strip-to-spec cleans)
+        const outputChunks = await this.middlewareRunner.runOnChunk(
           this.middlewareCtx,
-          synthStart,
+          outboundChunk,
         )
-        for (const outputChunk of synthOutputs) {
+        // When a streaming structured-output finalization step will run after
+        // the agent loop, suppress the agent-loop's RUN_STARTED/RUN_FINISHED
+        // here — the finalization step emits the single outer lifecycle pair
+        // that reaches the consumer.
+        //
+        // Native combined mode does NOT issue a second adapter stream — the
+        // agent loop's lifecycle IS the outer pair the consumer sees.
+        const suppressAgentLifecycle =
+          !!this.finalStructuredOutput &&
+          this.finalStructuredOutput.yieldChunks &&
+          this.finalStructuredOutput.nativeCombined !== true
+        for (const outputChunk of outputChunks) {
+          if (
+            suppressAgentLifecycle &&
+            (outputChunk.type === EventType.RUN_STARTED ||
+              outputChunk.type === EventType.RUN_FINISHED)
+          ) {
+            continue
+          }
+          if (outputChunk.type === EventType.RUN_FINISHED) {
+            this.deferredModelRunFinishedChunks.push(outputChunk)
+            continue
+          }
+          if (this.shouldDeferToolCallRunFinished(outputChunk)) {
+            this.deferredToolCallRunFinishedChunks.push(outputChunk)
+            continue
+          }
+          if (outputChunk.type === EventType.RUN_STARTED) {
+            this.hasPublicRunStarted = true
+          }
+          this.logger.output(`type=${outputChunk.type}`, { chunk: outputChunk })
           yield outputChunk
           this.middlewareCtx.chunkIndex++
         }
+
+        if (chunk.type === EventType.RUN_FINISHED) {
+          await this.runOnUsageFromChunk(chunk)
+        }
+
+        // Drain any sandbox.file events emitted while processing this chunk.
+        yield* this.drainSandboxFileQueue()
+
+        if (this.earlyTermination) {
+          break
+        }
       }
 
-      // Pipe chunk through middleware (devtools middleware observes; strip-to-spec cleans)
-      const outputChunks = await this.middlewareRunner.runOnChunk(
-        this.middlewareCtx,
-        outboundChunk,
-      )
-      // When a streaming structured-output finalization step will run after
-      // the agent loop, suppress the agent-loop's RUN_STARTED/RUN_FINISHED
-      // here — the finalization step emits the single outer lifecycle pair
-      // that reaches the consumer.
-      //
-      // Native combined mode does NOT issue a second adapter stream — the
-      // agent loop's lifecycle IS the outer pair the consumer sees.
-      const suppressAgentLifecycle =
-        !!this.finalStructuredOutput &&
-        this.finalStructuredOutput.yieldChunks &&
-        this.finalStructuredOutput.nativeCombined !== true
-      for (const outputChunk of outputChunks) {
-        if (
-          suppressAgentLifecycle &&
-          (outputChunk.type === EventType.RUN_STARTED ||
-            outputChunk.type === EventType.RUN_FINISHED)
-        ) {
-          continue
-        }
-        if (outputChunk.type === EventType.RUN_FINISHED) {
-          this.deferredModelRunFinishedChunks.push(outputChunk)
-          continue
-        }
-        if (this.shouldDeferToolCallRunFinished(outputChunk)) {
-          this.deferredToolCallRunFinishedChunks.push(outputChunk)
-          continue
-        }
-        if (outputChunk.type === EventType.RUN_STARTED) {
-          this.hasPublicRunStarted = true
-        }
-        this.logger.output(`type=${outputChunk.type}`, { chunk: outputChunk })
-        yield outputChunk
-        this.middlewareCtx.chunkIndex++
-      }
-
-      // Handle usage via middleware
-      if (chunk.type === 'RUN_FINISHED' && chunk.usage) {
-        await this.middlewareRunner.runOnUsage(this.middlewareCtx, chunk.usage)
-      }
-
-      // Drain any sandbox.file events emitted while processing this chunk.
-      yield* this.drainSandboxFileQueue()
-
-      if (this.earlyTermination) {
+      if (this.isCancelled() || this.earlyTermination) {
         break
       }
     }
@@ -1681,6 +1698,9 @@ class TextEngine<
       case 'TOOL_CALL_END':
         this.handleToolCallEndEvent(chunk)
         break
+      case 'TOOL_CALL_RESULT':
+        this.handleToolCallResultEvent(chunk)
+        break
       case 'RUN_FINISHED':
         this.handleRunFinishedEvent(chunk)
         break
@@ -1691,15 +1711,11 @@ class TextEngine<
         this.handleStepStartedEvent()
         break
       case 'STEP_FINISHED':
-        this.handleStepFinishedEvent(chunk)
+        this.handleStepFinishedEvent()
         break
 
       case 'REASONING_MESSAGE_CONTENT':
         this.handleReasoningMessageContentEvent(chunk)
-        break
-
-      case 'TOOL_CALL_RESULT':
-        // Tool result is already added to messages in buildToolResultChunks
         break
 
       case 'REASONING_START':
@@ -1721,11 +1737,7 @@ class TextEngine<
   // ===========================
 
   private handleTextMessageContentEvent(chunk: TextMessageContentEvent): void {
-    if (chunk.content) {
-      this.accumulatedContent = chunk.content
-    } else {
-      this.accumulatedContent += chunk.delta
-    }
+    this.accumulatedContent += chunk.delta
     this.middlewareCtx.accumulatedContent = this.accumulatedContent
   }
 
@@ -1759,7 +1771,11 @@ class TextEngine<
 
   private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
     this.toolCallManager.completeToolCall(chunk)
-    if (chunk.state !== 'output-error' || chunk.result === undefined) return
+  }
+
+  private handleToolCallResultEvent(chunk: ToolCallResultEvent): void {
+    const isOutputError = tanstackMetadata(chunk)?.state === 'output-error'
+    if (!isOutputError) return
 
     const toolCall = this.toolCallManager
       .getToolCalls()
@@ -1769,15 +1785,25 @@ class TextEngine<
     this.streamedToolErrorResults.set(chunk.toolCallId, {
       toolCallId: chunk.toolCallId,
       toolName: toolCall.function.name,
-      result: chunk.result,
-      ...(chunk.input !== undefined && { input: chunk.input }),
+      result: chunk.content,
       state: 'output-error',
     })
   }
 
   private handleRunFinishedEvent(chunk: RunFinishedEvent): void {
     this.finishedEvent = chunk
-    this.lastFinishReason = chunk.finishReason ?? null
+    this.lastFinishReason = tanstackMetadata(chunk)?.finishReason ?? null
+  }
+
+  private async runOnUsageFromChunk(chunk: RunFinishedEvent): Promise<void> {
+    const usage: unknown = chunk.usage
+    const rebuilt = fromSpecTokenUsage(
+      Array.isArray(usage) ? usage : undefined,
+      tanstackMetadata(chunk)?.usage,
+    )
+    if (rebuilt) {
+      await this.middlewareRunner.runOnUsage(this.middlewareCtx, rebuilt)
+    }
   }
 
   private handleRunErrorEvent(
@@ -1785,14 +1811,10 @@ class TextEngine<
   ): void {
     this.earlyTermination = true
     if (this.finalizationError === null) {
-      const message = chunk.message || chunk.error?.message || 'Run failed'
+      const message = chunk.message || 'Run failed'
       this.finalizationError = {
         message,
-        ...(chunk.code !== undefined
-          ? { code: chunk.code }
-          : chunk.error?.code !== undefined
-            ? { code: chunk.error.code }
-            : {}),
+        ...(chunk.code !== undefined ? { code: chunk.code } : {}),
       }
     }
   }
@@ -1814,29 +1836,13 @@ class TextEngine<
     this.finalizeCurrentThinkingStep()
   }
 
-  private handleStepFinishedEvent(
-    chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
-  ): void {
-    if (!this.hasSeenReasoningEvents) {
-      if (chunk.delta) {
-        this.currentThinkingContent += chunk.delta
-      } else if (chunk.content) {
-        if (chunk.content.startsWith(this.currentThinkingContent)) {
-          this.currentThinkingContent = chunk.content
-        } else if (!this.currentThinkingContent.startsWith(chunk.content)) {
-          this.currentThinkingContent += chunk.content
-        }
-      }
-    }
-    if (chunk.signature) {
-      this.currentThinkingSignature = chunk.signature
-    }
+  private handleStepFinishedEvent(): void {
+    // Thinking text arrives on REASONING_MESSAGE_CONTENT, not STEP_FINISHED.
   }
 
   private handleReasoningMessageContentEvent(
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
-    this.hasSeenReasoningEvents = true
     this.currentThinkingContent += chunk.delta
   }
 
@@ -2244,7 +2250,7 @@ class TextEngine<
   private shouldDeferToolCallRunFinished(chunk: StreamChunk): boolean {
     return (
       chunk.type === EventType.RUN_FINISHED &&
-      this.finishedEvent?.finishReason === 'tool_calls' &&
+      this.lastFinishReason === 'tool_calls' &&
       this.tools.length > 0 &&
       this.toolCallManager.hasToolCalls()
     )
@@ -2276,7 +2282,6 @@ class TextEngine<
       type: EventType.RUN_STARTED,
       runId: finishEvent.runId,
       threadId: finishEvent.threadId,
-      model: finishEvent.model,
       timestamp: Date.now(),
     })
   }
@@ -2289,10 +2294,7 @@ class TextEngine<
     // `stop` is a finished run, not another tool cycle. `tool_calls` here
     // makes the client auto-send after afterTools, so reject looks stuck.
     this.lastFinishReason = 'stop'
-    const finishEvent = {
-      ...this.createSyntheticFinishedEvent(),
-      finishReason: 'stop' as const,
-    }
+    const finishEvent = this.createSyntheticFinishedEvent('stop')
     yield* this.emitSyntheticRunStarted(finishEvent)
     yield* this.pipeThroughMiddleware({
       ...finishEvent,
@@ -2307,7 +2309,7 @@ class TextEngine<
 
   private shouldExecuteToolPhase(): boolean {
     return (
-      this.finishedEvent?.finishReason === 'tool_calls' &&
+      this.lastFinishReason === 'tool_calls' &&
       this.tools.length > 0 &&
       this.toolCallManager.hasToolCalls()
     )
@@ -2689,41 +2691,18 @@ class TextEngine<
   }
 
   private buildMessagesSnapshotChunk(): StreamChunk {
-    const messages: MessagesSnapshotEvent['messages'] = this.messages.map(
-      (message, index) => {
-        const content =
-          typeof message.content === 'string'
-            ? message.content
-            : message.content === null
-              ? undefined
-              : JSON.stringify(message.content)
-        const id =
-          message.id ||
-          `snapshot_${this.runIdOverride ?? this.requestId}_${index}`
-        const parts =
-          message.role === 'assistant' &&
-          (message.thinking?.length || message.structuredOutput)
-            ? modelMessageToUIMessage(message, id).parts
-            : undefined
-        return {
-          id,
-          role: message.role,
-          ...(content !== undefined ? { content } : {}),
-          ...(parts ? { parts } : {}),
-          ...('toolCalls' in message && message.toolCalls
-            ? { toolCalls: message.toolCalls }
-            : {}),
-          ...('toolCallId' in message && message.toolCallId
-            ? { toolCallId: message.toolCallId }
-            : {}),
-        } as MessagesSnapshotEvent['messages'][number]
-      },
-    )
+    const withIds = this.messages.map((message, index) => ({
+      ...message,
+      id:
+        message.id ||
+        `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
+    }))
     return {
       type: EventType.MESSAGES_SNAPSHOT,
       timestamp: Date.now(),
-      model: this.params.model,
-      messages,
+      messages: uiMessagesToWire(
+        modelMessagesToUIMessages(withIds),
+      ) as MessagesSnapshotEvent['messages'],
     }
   }
 
@@ -2803,18 +2782,21 @@ class TextEngine<
 
   private buildInterruptRunErrorChunk(error: unknown): StreamChunk {
     const failure = this.interruptFailure(error)
-    return {
-      type: EventType.RUN_ERROR,
-      timestamp: Date.now(),
-      runId: this.runIdOverride ?? this.requestId,
-      threadId: this.threadId,
-      message: failure.message,
-      code: failure.code,
-      error: { message: failure.message, code: failure.code },
-      ...(failure.errors !== undefined
-        ? { 'tanstack:interruptErrors': failure.errors }
-        : {}),
-    }
+    return withTanstackMetadata(
+      {
+        type: EventType.RUN_ERROR,
+        timestamp: Date.now(),
+        message: failure.message,
+        code: failure.code,
+      },
+      {
+        runId: this.runIdOverride ?? this.requestId,
+        threadId: this.threadId,
+        ...(failure.errors !== undefined
+          ? { interruptErrors: failure.errors }
+          : {}),
+      },
+    ) as StreamChunk
   }
 
   private async *emitInterruptRunError(
@@ -2854,7 +2836,7 @@ class TextEngine<
     try {
       terminalOutputs = await this.middlewareRunner.runOnChunk(
         this.middlewareCtx,
-        terminal,
+        normalizeStreamChunk(terminal)[0]!,
       )
     } catch (error) {
       yield* this.emitInterruptRunError(error)
@@ -2866,7 +2848,6 @@ class TextEngine<
       yield* this.pipeThroughMiddleware({
         type: EventType.STATE_SNAPSHOT,
         timestamp: Date.now(),
-        model: this.params.model,
         snapshot: this.params.state,
       })
     }
@@ -3016,18 +2997,17 @@ class TextEngine<
 
   private buildToolResultChunks(
     results: Array<ToolResult>,
-    finishEvent: RunFinishedEvent,
+    _finishEvent: RunFinishedEvent,
     argsMap?: Map<string, string>,
-  ): Array<StreamChunk> {
-    const chunks: Array<StreamChunk> = []
+  ): Array<AdapterYieldChunk> {
+    const chunks: Array<AdapterYieldChunk> = []
 
     for (const result of results) {
       // `content` is the canonical value for the tool `ModelMessage` — it may
       // be an `Array<ContentPart>` (multimodal) which the adapters convert to
       // structured provider output on the next iteration. `wireContent` is the
-      // string form emitted on the AG-UI stream events (TOOL_CALL_END.result /
-      // TOOL_CALL_RESULT.content are string-only per the AG-UI spec); the
-      // multimodal array travels via the message itself, not the wire event.
+      // string form emitted on TOOL_CALL_RESULT.content (string-only per the
+      // AG-UI spec); the multimodal array travels via the message itself.
       const content = normalizeToolResult(result.result)
       const wireContent =
         typeof content === 'string' ? content : JSON.stringify(content)
@@ -3035,12 +3015,10 @@ class TextEngine<
       // argsMap is set only on continuation re-executions, where the adapter
       // never streamed these calls. Otherwise it already emitted END, so a
       // second one here would be an orphan that fails verifyEvents (#519).
-      // When we do emit END, attach parsed `input`/`output` for TypedStreamChunk.
       if (argsMap) {
         chunks.push({
-          type: 'TOOL_CALL_START',
+          type: EventType.TOOL_CALL_START,
           timestamp: Date.now(),
-          model: finishEvent.model,
           toolCallId: result.toolCallId,
           toolCallName: result.toolName,
           toolName: result.toolName,
@@ -3048,39 +3026,32 @@ class TextEngine<
 
         const args = argsMap.get(result.toolCallId) ?? '{}'
         chunks.push({
-          type: 'TOOL_CALL_ARGS',
+          type: EventType.TOOL_CALL_ARGS,
           timestamp: Date.now(),
-          model: finishEvent.model,
           toolCallId: result.toolCallId,
           delta: args,
-          args,
-        } as StreamChunk)
+        })
 
         chunks.push({
-          type: 'TOOL_CALL_END',
+          type: EventType.TOOL_CALL_END,
           timestamp: Date.now(),
-          model: finishEvent.model,
           toolCallId: result.toolCallId,
-          toolCallName: result.toolName,
-          toolName: result.toolName,
-          result: wireContent,
-          ...(result.input !== undefined && { input: result.input }),
-          ...(result.output !== undefined && { output: result.output }),
-          ...(result.state !== undefined && { state: result.state }),
         })
       }
 
-      // AG-UI spec TOOL_CALL_RESULT event (content is string-only per spec)
-      chunks.push({
-        type: 'TOOL_CALL_RESULT',
+      const resultChunk = {
+        type: EventType.TOOL_CALL_RESULT,
         timestamp: Date.now(),
-        model: finishEvent.model,
         messageId: this.createId('tool-result'),
         toolCallId: result.toolCallId,
         content: wireContent,
-        role: 'tool',
-        ...(result.state !== undefined && { state: result.state }),
-      } as StreamChunk)
+        role: 'tool' as const,
+      }
+      chunks.push(
+        (result.state === 'output-error'
+          ? withTanstackMetadata(resultChunk, { state: result.state })
+          : resultChunk) as StreamChunk,
+      )
 
       // If a placeholder tool message exists for this toolCallId (created by
       // uiMessageToModelMessages for an approval-responded part with no
@@ -3218,15 +3189,18 @@ class TextEngine<
     return pending
   }
 
-  private createSyntheticFinishedEvent(): RunFinishedEvent {
-    return {
-      type: 'RUN_FINISHED',
-      runId: this.runIdOverride ?? this.requestId,
-      threadId: this.threadId,
-      model: this.params.model,
-      timestamp: Date.now(),
-      finishReason: 'tool_calls',
-    } as RunFinishedEvent
+  private createSyntheticFinishedEvent(
+    finishReason: 'stop' | 'tool_calls' = 'tool_calls',
+  ): RunFinishedEvent {
+    return withTanstackMetadata(
+      {
+        type: EventType.RUN_FINISHED,
+        runId: this.runIdOverride ?? this.requestId,
+        threadId: this.threadId,
+        timestamp: Date.now(),
+      },
+      { finishReason, model: this.params.model },
+    ) as RunFinishedEvent
   }
 
   private async shouldContinue(): Promise<boolean> {
@@ -3505,10 +3479,7 @@ class TextEngine<
         type: EventType.CUSTOM,
         name: 'structured-output.start',
         value: { messageId: idForStart },
-        model: this.params.model,
         timestamp,
-        threadId: this.threadId,
-        ...(this.runIdOverride ? { runId: this.runIdOverride } : {}),
       }
     }
 
@@ -3522,152 +3493,161 @@ class TextEngine<
     let runErrorYielded = false
 
     // Pipe chunks through middleware; yield to consumer only when yieldChunks=true
-    for await (const chunk of providerStream) {
+    for await (const raw of providerStream) {
       // Honor cancellation between chunks (mirrors streamModelResponse).
       if (this.isCancelled()) {
         break
       }
 
-      // Detect adapter-emitted structured-output.start so we don't duplicate
-      if (
-        !startEmitted &&
-        chunk.type === EventType.CUSTOM &&
-        chunk.name === 'structured-output.start'
-      ) {
-        startEmitted = true
-      }
-
-      // Capture the assistant messageId off any text-message event so the
-      // synthesized start (when needed) uses the SAME id the deltas carry
-      if (!structuredMessageId) {
-        const extracted = extractMessageId(chunk)
-        if (extracted) {
-          structuredMessageId = extracted
-          this.captureStructuredOutputMessageIdentity(extracted)
-        }
-      }
-
-      // Synthesis only matters for the streaming client path — the agentic
-      // Promise path consumes chunks internally and returns a Promise, so
-      // there's no client-side StreamProcessor to route deltas for.
-      if (this.finalStructuredOutput.yieldChunks) {
-        // Synthesize start before the FIRST TEXT_MESSAGE_* event
+      for (const chunk of normalizeStreamChunk(raw)) {
+        // Detect adapter-emitted structured-output.start so we don't duplicate
         if (
           !startEmitted &&
-          (chunk.type === EventType.TEXT_MESSAGE_START ||
-            chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
-            chunk.type === EventType.TEXT_MESSAGE_END)
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === 'structured-output.start'
         ) {
           startEmitted = true
-          const synthStart = buildSynthesizedStart(chunk.timestamp)
-          const synthOutputs = await pipeThroughMiddleware(synthStart)
-          for (const outputChunk of synthOutputs) {
-            yield outputChunk
-            this.middlewareCtx.chunkIndex++
+        }
+
+        // Capture the assistant messageId off any text-message event so the
+        // synthesized start (when needed) uses the SAME id the deltas carry
+        if (!structuredMessageId) {
+          const extracted = extractMessageId(chunk)
+          if (extracted) {
+            structuredMessageId = extracted
+            this.captureStructuredOutputMessageIdentity(extracted)
           }
         }
 
-        // Synthesize start before a pre-delta RUN_ERROR so the client can
-        // construct an errored placeholder structured-output part instead
-        // of a silent UI.
-        if (!startEmitted && chunk.type === EventType.RUN_ERROR) {
-          startEmitted = true
-          const synthStart = buildSynthesizedStart(chunk.timestamp)
-          const synthOutputs = await pipeThroughMiddleware(synthStart)
-          for (const outputChunk of synthOutputs) {
-            yield outputChunk
-            this.middlewareCtx.chunkIndex++
+        // Synthesis only matters for the streaming client path — the agentic
+        // Promise path consumes chunks internally and returns a Promise, so
+        // there's no client-side StreamProcessor to route deltas for.
+        if (this.finalStructuredOutput.yieldChunks) {
+          // Synthesize start before the FIRST TEXT_MESSAGE_* event
+          if (
+            !startEmitted &&
+            (chunk.type === EventType.TEXT_MESSAGE_START ||
+              chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
+              chunk.type === EventType.TEXT_MESSAGE_END)
+          ) {
+            startEmitted = true
+            const synthStart = buildSynthesizedStart(chunk.timestamp)
+            const synthOutputs = await pipeThroughMiddleware(synthStart)
+            for (const outputChunk of synthOutputs) {
+              yield outputChunk
+              this.middlewareCtx.chunkIndex++
+            }
+          }
+
+          // Synthesize start before a pre-delta RUN_ERROR so the client can
+          // construct an errored placeholder structured-output part instead
+          // of a silent UI.
+          if (!startEmitted && chunk.type === EventType.RUN_ERROR) {
+            startEmitted = true
+            const synthStart = buildSynthesizedStart(chunk.timestamp)
+            const synthOutputs = await pipeThroughMiddleware(synthStart)
+            for (const outputChunk of synthOutputs) {
+              yield outputChunk
+              this.middlewareCtx.chunkIndex++
+            }
           }
         }
-      }
 
-      // 7a. Targeted state updates only.
-      // We deliberately do NOT call `handleStreamChunk(chunk)` here — that
-      // would mutate agent-loop state with finalization data:
-      //  - TEXT_MESSAGE_CONTENT deltas would pollute `accumulatedContent`
-      //    (raw JSON would leak into `info.content` on onFinish)
-      //  - RUN_FINISHED would overwrite `finishedEvent` + `lastFinishReason`
-      //    (finalization's 'stop' would overwrite the agent-loop's real
-      //    finish reason)
-      //  - STEP_FINISHED would pollute `currentThinkingContent`
-      // Finalization is a separate phase from the agent loop; its state must
-      // not cross-contaminate. The explicit branches below capture the only
-      // bits we actually need from this stream.
-      // All narrowing below is via the discriminated-union `chunk.type`
-      // — no `as` casts.
+        // 7a. Targeted state updates only.
+        // We deliberately do NOT call `handleStreamChunk(chunk)` here — that
+        // would mutate agent-loop state with finalization data:
+        //  - TEXT_MESSAGE_CONTENT deltas would pollute `accumulatedContent`
+        //    (raw JSON would leak into `info.content` on onFinish)
+        //  - RUN_FINISHED would overwrite `finishedEvent` + `lastFinishReason`
+        //    (finalization's 'stop' would overwrite the agent-loop's real
+        //    finish reason)
+        //  - STEP_FINISHED would pollute `currentThinkingContent`
+        // Finalization is a separate phase from the agent loop; its state must
+        // not cross-contaminate. The explicit branches below capture the only
+        // bits we actually need from this stream.
+        // All narrowing below is via the discriminated-union `chunk.type`
+        // — no `as` casts.
 
-      // The chunk forwarded to middleware/consumers. Replaced below only for
-      // the structured-output.complete event, whose `object` we normalize
-      // (un-widen) so streaming consumers see the same cleaned payload the
-      // Promise<T> path validates and returns.
-      let outboundChunk: StreamChunk = chunk
+        // The chunk forwarded to middleware/consumers. Replaced below only for
+        // the structured-output.complete event, whose `object` we normalize
+        // (un-widen) so streaming consumers see the same cleaned payload the
+        // Promise<T> path validates and returns.
+        let outboundChunk: StreamChunk = chunk
 
-      if (
-        chunk.type === EventType.CUSTOM &&
-        chunk.name === 'structured-output.complete'
-      ) {
-        const parsed = readStructuredOutputCompleteValue(chunk.value)
-        if (parsed) {
-          const object = this.finalStructuredOutput.normalize
-            ? this.finalStructuredOutput.normalize(parsed.object)
-            : parsed.object
-          this.structuredOutputResult = {
-            data: object,
-            rawText: parsed.raw,
-            ...(parsed.reasoning !== undefined
-              ? { reasoning: parsed.reasoning }
+        if (
+          chunk.type === EventType.CUSTOM &&
+          chunk.name === 'structured-output.complete'
+        ) {
+          const parsed = readStructuredOutputCompleteValue(chunk.value)
+          if (parsed) {
+            const object = this.finalStructuredOutput.normalize
+              ? this.finalStructuredOutput.normalize(parsed.object)
+              : parsed.object
+            this.structuredOutputResult = {
+              data: object,
+              rawText: parsed.raw,
+              ...(parsed.reasoning !== undefined
+                ? { reasoning: parsed.reasoning }
+                : {}),
+            }
+            // Rewrite the outbound event so the yielded chunk carries the
+            // normalized object (the original `chunk.value` still holds the
+            // widened one). Preserve every other field — `raw`, `reasoning` —
+            // by spreading the original value.
+            const value = chunk.value
+            if (
+              object !== parsed.object &&
+              value &&
+              typeof value === 'object'
+            ) {
+              outboundChunk = { ...chunk, value: { ...value, object } }
+            }
+          }
+        }
+
+        if (chunk.type === EventType.RUN_FINISHED) {
+          await this.runOnUsageFromChunk(chunk)
+        }
+
+        if (chunk.type === EventType.RUN_ERROR) {
+          // RunErrorEvent already exposes `message` and `code` after narrowing.
+          this.finalizationError = {
+            message: chunk.message,
+            ...(chunk.code ? { code: chunk.code } : {}),
+            ...(fallbackAdapterError !== undefined
+              ? { cause: fallbackAdapterError }
               : {}),
           }
-          // Rewrite the outbound event so the yielded chunk carries the
-          // normalized object (the original `chunk.value` still holds the
-          // widened one). Preserve every other field — `raw`, `reasoning` —
-          // by spreading the original value.
-          const value = chunk.value
-          if (object !== parsed.object && value && typeof value === 'object') {
-            outboundChunk = { ...chunk, value: { ...value, object } }
+        }
+
+        // 7b. Pipe through middleware
+        const outputChunks = await this.middlewareRunner.runOnChunk(
+          this.middlewareCtx,
+          outboundChunk,
+        )
+
+        // 7c. Decide consumer visibility — only yieldChunks=true callers get them.
+        // We do NOT strip the finalization stream's RUN_STARTED/RUN_FINISHED:
+        // they are the single outer lifecycle pair the consumer sees (the
+        // agent-loop's pair was suppressed in streamModelResponse when
+        // finalStructuredOutput.yieldChunks is true).
+        if (this.finalStructuredOutput.yieldChunks) {
+          for (const outputChunk of outputChunks) {
+            if (outputChunk.type === EventType.RUN_ERROR) {
+              runErrorYielded = true
+            }
+            yield outputChunk
+            this.middlewareCtx.chunkIndex++
           }
         }
-      }
 
-      if (chunk.type === EventType.RUN_FINISHED && chunk.usage) {
-        // RunFinishedEvent already exposes `usage` after type narrowing.
-        await this.middlewareRunner.runOnUsage(this.middlewareCtx, chunk.usage)
-      }
-
-      if (chunk.type === EventType.RUN_ERROR) {
-        // RunErrorEvent already exposes `message` and `code` after narrowing.
-        this.finalizationError = {
-          message: chunk.message,
-          ...(chunk.code ? { code: chunk.code } : {}),
-          ...(fallbackAdapterError !== undefined
-            ? { cause: fallbackAdapterError }
-            : {}),
+        // 7d. Terminate on error
+        if (this.finalizationError) {
+          break
         }
       }
 
-      // 7b. Pipe through middleware
-      const outputChunks = await this.middlewareRunner.runOnChunk(
-        this.middlewareCtx,
-        outboundChunk,
-      )
-
-      // 7c. Decide consumer visibility — only yieldChunks=true callers get them.
-      // We do NOT strip the finalization stream's RUN_STARTED/RUN_FINISHED:
-      // they are the single outer lifecycle pair the consumer sees (the
-      // agent-loop's pair was suppressed in streamModelResponse when
-      // finalStructuredOutput.yieldChunks is true).
-      if (this.finalStructuredOutput.yieldChunks) {
-        for (const outputChunk of outputChunks) {
-          if (outputChunk.type === EventType.RUN_ERROR) {
-            runErrorYielded = true
-          }
-          yield outputChunk
-          this.middlewareCtx.chunkIndex++
-        }
-      }
-
-      // 7d. Terminate on error
-      if (this.finalizationError) {
+      if (this.isCancelled() || this.finalizationError) {
         break
       }
     }
@@ -3740,20 +3720,11 @@ class TextEngine<
 
       const errChunk: StreamChunk = {
         type: EventType.RUN_ERROR,
-        runId: this.runIdOverride ?? this.requestId,
-        model: this.params.model,
         timestamp: Date.now(),
-        threadId: this.threadId,
         message: this.finalizationError.message,
         ...(this.finalizationError.code
           ? { code: this.finalizationError.code }
           : {}),
-        error: {
-          message: this.finalizationError.message,
-          ...(this.finalizationError.code
-            ? { code: this.finalizationError.code }
-            : {}),
-        },
       }
       const outputChunks = await this.middlewareRunner.runOnChunk(
         this.middlewareCtx,
@@ -3878,10 +3849,7 @@ class TextEngine<
         type: EventType.CUSTOM,
         name: 'structured-output.start',
         value: { messageId },
-        model: this.params.model,
         timestamp: Date.now(),
-        threadId: this.threadId,
-        ...(this.runIdOverride ? { runId: this.runIdOverride } : {}),
       }
       const startOutputs = await this.middlewareRunner.runOnChunk(
         this.middlewareCtx,
@@ -3915,10 +3883,7 @@ class TextEngine<
             ? { messageId: this.combinedStructuredMessageId }
             : {}),
         },
-        model: this.params.model,
         timestamp: Date.now(),
-        threadId: this.threadId,
-        ...(this.runIdOverride ? { runId: this.runIdOverride } : {}),
       }
       const completeOutputs = await this.middlewareRunner.runOnChunk(
         this.middlewareCtx,
@@ -3935,20 +3900,11 @@ class TextEngine<
     if (this.finalizationError) {
       const errChunk: StreamChunk = {
         type: EventType.RUN_ERROR,
-        runId: this.runIdOverride ?? this.requestId,
-        model: this.params.model,
         timestamp: Date.now(),
-        threadId: this.threadId,
         message: this.finalizationError.message,
         ...(this.finalizationError.code
           ? { code: this.finalizationError.code }
           : {}),
-        error: {
-          message: this.finalizationError.message,
-          ...(this.finalizationError.code
-            ? { code: this.finalizationError.code }
-            : {}),
-        },
       }
       const errOutputs = await this.middlewareRunner.runOnChunk(
         this.middlewareCtx,
@@ -4408,18 +4364,20 @@ class TextEngine<
    * and yield all resulting output chunks.
    */
   private async *pipeThroughMiddleware(
-    chunk: StreamChunk,
+    chunk: AdapterYieldChunk,
   ): AsyncGenerator<StreamChunk, void, void> {
-    const outputChunks = await this.middlewareRunner.runOnChunk(
-      this.middlewareCtx,
-      chunk,
-    )
-    for (const outputChunk of outputChunks) {
-      if (outputChunk.type === EventType.RUN_STARTED) {
-        this.hasPublicRunStarted = true
+    for (const specChunk of normalizeStreamChunk(chunk)) {
+      const outputChunks = await this.middlewareRunner.runOnChunk(
+        this.middlewareCtx,
+        specChunk,
+      )
+      for (const outputChunk of outputChunks) {
+        if (outputChunk.type === EventType.RUN_STARTED) {
+          this.hasPublicRunStarted = true
+        }
+        yield outputChunk
+        this.middlewareCtx.chunkIndex++
       }
-      yield outputChunk
-      this.middlewareCtx.chunkIndex++
     }
   }
 
@@ -4470,9 +4428,8 @@ class TextEngine<
     value: Record<string, any>,
   ): CustomEvent {
     return {
-      type: 'CUSTOM',
+      type: EventType.CUSTOM,
       timestamp: Date.now(),
-      model: this.params.model,
       name: eventName,
       value,
     }
@@ -4983,7 +4940,7 @@ async function* fallbackStructuredOutputStream(
   adapter: AnyTextAdapter,
   options: StructuredOutputOptions<Record<string, unknown>>,
   onAdapterError?: (err: unknown) => void,
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   const { chatOptions } = options
   // Synthesize run/thread/message IDs only when the caller didn't supply them.
   // Prefix `fallback-` (not `mock-`) because this is production fallback code

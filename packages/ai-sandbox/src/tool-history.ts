@@ -39,7 +39,7 @@ interface TranscriptTarget {
 
 interface OpenCall {
   name: string
-  /** Accumulated `TOOL_CALL_ARGS` deltas; superseded by `input` when the adapter sends it. */
+  /** Accumulated `TOOL_CALL_ARGS` deltas. */
   args: string
 }
 
@@ -157,9 +157,7 @@ export function createToolHistoryRecorder(): ToolHistoryRecorder {
     // to satisfy the exhaustiveness lint.
     observe(chunk, target) {
       if (chunk.type === EventType.TOOL_CALL_START) {
-        // `toolCallName` is the AG-UI field; `toolName` is its deprecated alias, and
-        // that alias is what several harness adapters still emit.
-        const name = chunk.toolCallName ?? chunk.toolName
+        const name = chunk.toolCallName
         if (!name) return
         open.set(chunk.toolCallId, { name, args: '' })
         return
@@ -167,21 +165,19 @@ export function createToolHistoryRecorder(): ToolHistoryRecorder {
       if (chunk.type === EventType.TOOL_CALL_ARGS) {
         const call = open.get(chunk.toolCallId)
         if (!call) return
-        // `args` is the accumulated-so-far field. Prefer it over stitching deltas:
-        // an adapter that sends both would otherwise double the arguments.
-        call.args = chunk.args ?? call.args + chunk.delta
+        call.args += chunk.delta
         return
       }
       if (chunk.type === EventType.TOOL_CALL_END) {
         const call = open.get(chunk.toolCallId)
         if (!call) return
         open.delete(chunk.toolCallId)
-        // `input` is the final PARSED input, so it beats the streamed string, which
-        // can be a truncated fragment if the arguments stream was cut short.
-        const args =
-          chunk.input !== undefined ? JSON.stringify(chunk.input) : call.args
-        recorded.push({ id: chunk.toolCallId, name: call.name, args })
-        appendCall(target, chunk.toolCallId, call.name, args)
+        recorded.push({
+          id: chunk.toolCallId,
+          name: call.name,
+          args: call.args,
+        })
+        appendCall(target, chunk.toolCallId, call.name, call.args)
         return
       }
       if (chunk.type === EventType.TOOL_CALL_RESULT) {

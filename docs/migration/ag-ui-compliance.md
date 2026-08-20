@@ -36,7 +36,39 @@ title: Migrating to AG-UI Client-to-Server Compliance
 
 `forwardedProps` and `data` carry the same content. New servers should read `forwardedProps`; legacy servers reading `data` keep working unchanged. The `data` field will be removed in a future major release.
 
-The `messages` array carries TanStack `UIMessage` anchors with `parts` intact, plus AG-UI mirror fields (`content`, `toolCalls`) so strict AG-UI servers can parse it. Tool results and thinking parts are additionally emitted as separate `{role:'tool',...}` and `{role:'reasoning',...}` fan-out messages alongside the anchors.
+The `messages` array on the wire is spec AG-UI. Anchors use `content`, `toolCalls`, and `metadata`. They do not include `parts`. Tool results and thinking parts go out as extra `{ role: "tool" }` and `{ role: "reasoning" }` messages.
+
+## AG-UI event and message extras
+
+This is a real behavior change. Upgrade `@tanstack/ai` and `@tanstack/ai-client` together.
+
+Wire events keep spec fields and add `metadata`. TanStack extras live under `metadata.tanstack`. Public `StreamChunk` is spec-only.
+
+```typescript
+import { chat, tanstackMetadata } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello" }],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_FINISHED") {
+    console.log(chunk.usage);
+    console.log(tanstackMetadata(chunk)?.finishReason);
+  }
+}
+```
+
+What that means:
+
+- **Wire events.** Spec fields stay at the top. Extra TanStack fields go in `metadata.tanstack`.
+- **Wire messages.** Use `content`, `toolCalls`, and fan-out `role: "tool"` / `role: "reasoning"`. There is no `parts` field on the wire.
+- **`chat()` chunks.** `chat()` yields spec `StreamChunk` events. Read tool input and output from `UIMessage` parts, not from `TOOL_CALL_END`.
+- **Usage.** `RUN_FINISHED` and `RUN_ERROR` carry the spec `usage` array (`inputTokens`, `outputTokens`). Middleware `onUsage` still receives TanStack `TokenUsage` (`promptTokens`, `completionTokens`).
+
+See [Streaming](../chat/streaming) for the `for await` branch, and [Middleware](../advanced/middleware) for `onUsage`.
 
 ## Backward compatibility & deprecation timeline
 

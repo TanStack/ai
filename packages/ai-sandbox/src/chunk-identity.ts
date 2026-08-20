@@ -30,6 +30,7 @@
  *    leaving it wall-clock is safe, but every other field must participate in
  *    the comparison or a real divergence would go undetected.
  */
+import { tanstackMetadata } from '@tanstack/ai'
 import type { StreamChunk } from '@tanstack/ai'
 
 /**
@@ -150,5 +151,7 @@ export function chunkFingerprintIgnoringThreadId(chunk: StreamChunk): string {
 export function chunkThreadId(chunk: StreamChunk): string | undefined {
   const record: Record<string, unknown> = chunk as Record<string, unknown>
   const value = record[THREAD_ID_FIELD]
-  return typeof value === 'string' ? value : undefined
+  if (typeof value === 'string') return value
+  const nested = tanstackMetadata(chunk)?.threadId
+  return typeof nested === 'string' ? nested : undefined
 }

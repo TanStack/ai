@@ -17,6 +17,7 @@ import {
   ev,
   serverTool,
 } from './test-utils'
+import { tanstackMetadata } from '../src/utilities/merge-metadata'
 import type { ModelMessage, StreamChunk, Tool, UIMessage } from '../src/types'
 import type {
   ChatMiddleware,
@@ -207,12 +208,17 @@ describe('chat()', () => {
       expect(chunks).toEqual([
         expect.objectContaining({
           type: EventType.RUN_ERROR,
-          threadId: 'thread-1',
-          runId: 'continuation-run',
           message: errors[0].message,
-          'tanstack:interruptErrors': errors,
+          metadata: expect.objectContaining({
+            tanstack: expect.objectContaining({
+              interruptErrors: errors,
+              threadId: 'thread-1',
+              runId: 'continuation-run',
+            }),
+          }),
         }),
       ])
+      expect(chunks[0]).not.toHaveProperty('tanstack:interruptErrors')
     })
 
     it('should return an async iterable that yields all adapter chunks', async () => {
@@ -476,7 +482,10 @@ describe('chat()', () => {
       const toolResultErr = chunks.find(
         (c) => c.type === 'TOOL_CALL_RESULT' && c.toolCallId === 'call_1',
       )
-      expect(toolResultErr).toMatchObject({ state: 'output-error' })
+      expect(toolResultErr).toMatchObject({
+        metadata: { tanstack: { state: 'output-error' } },
+      })
+      expect(toolResultErr).not.toHaveProperty('state')
 
       // No duplicate END (#519)
       const endChunks = chunks.filter(
@@ -749,7 +758,7 @@ describe('chat()', () => {
       })
     })
 
-    it('preserves structured-output parts on the interrupt MESSAGES_SNAPSHOT', async () => {
+    it('preserves structured-output leftover on the interrupt MESSAGES_SNAPSHOT', async () => {
       const structuredOutput = {
         type: 'structured-output' as const,
         status: 'complete' as const,
@@ -790,14 +799,18 @@ describe('chat()', () => {
       expect(snapshot).toMatchObject({
         messages: expect.arrayContaining([
           expect.objectContaining({
+            id: 'structured-1',
             role: 'assistant',
-            parts: [structuredOutput],
+            content: '{"name":"Ada"}',
           }),
         ]),
       })
+      expect(snapshot?.messages.some((message) => 'parts' in message)).toBe(
+        false,
+      )
     })
 
-    it('preserves thinking parts on the interrupt MESSAGES_SNAPSHOT', async () => {
+    it('preserves thinking on the interrupt MESSAGES_SNAPSHOT as reasoning fan-out', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -806,12 +819,6 @@ describe('chat()', () => {
             chunk(EventType.REASONING_MESSAGE_CONTENT, {
               messageId: 'reasoning-1',
               delta: 'Need to search.',
-            }),
-            chunk(EventType.STEP_FINISHED, {
-              stepName: 'think-1',
-              stepId: 'think-1',
-              content: 'Need to search.',
-              signature: 'sig-think-1',
             }),
             {
               ...ev.toolStart('call_1', 'clientSearch'),
@@ -837,26 +844,28 @@ describe('chat()', () => {
       expect(snapshot).toMatchObject({
         messages: expect.arrayContaining([
           expect.objectContaining({
+            role: 'reasoning',
+            content: 'Need to search.',
+          }),
+          expect.objectContaining({
             id: 'stream-assistant',
             role: 'assistant',
-            parts: [
+            toolCalls: [
               {
-                type: 'thinking',
-                content: 'Need to search.',
-                signature: 'sig-think-1',
-              },
-              {
-                type: 'tool-call',
                 id: 'call_1',
-                name: 'clientSearch',
-                arguments: '{"query":"test"}',
-                state: 'input-complete',
-                input: { query: 'test' },
+                type: 'function',
+                function: {
+                  name: 'clientSearch',
+                  arguments: '{"query":"test"}',
+                },
               },
             ],
           }),
         ]),
       })
+      expect(snapshot?.messages.some((message) => 'parts' in message)).toBe(
+        false,
+      )
     })
 
     it('should yield an interrupt outcome for client tools', async () => {
@@ -883,7 +892,7 @@ describe('chat()', () => {
       const runFinished = expectSingleRunFinished(chunks)
       expect(runFinished).toMatchObject({
         type: 'RUN_FINISHED',
-        finishReason: 'tool_calls',
+        metadata: { tanstack: { finishReason: 'tool_calls' } },
         outcome: {
           type: 'interrupt',
           interrupts: [
@@ -1225,7 +1234,7 @@ describe('chat()', () => {
       expect(runFinished).toBeDefined()
       expect(runFinished).toMatchObject({
         type: 'RUN_FINISHED',
-        finishReason: 'tool_calls',
+        metadata: { tanstack: { finishReason: 'tool_calls' } },
         outcome: {
           type: 'interrupt',
           interrupts: [
@@ -1326,7 +1335,9 @@ describe('chat()', () => {
       expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
         false,
       )
-      expect(expectSingleRunFinished(chunks).finishReason).toBe('stop')
+      expect(
+        tanstackMetadata(expectSingleRunFinished(chunks))?.finishReason,
+      ).toBe('stop')
     })
 
     // Regression: a DENIED approval writes a final tool result into history, so
@@ -1398,7 +1409,9 @@ describe('chat()', () => {
       )
       // Denied: the tool must not run.
       expect(execute).not.toHaveBeenCalled()
-      expect(expectSingleRunFinished(chunks).finishReason).toBe('stop')
+      expect(
+        tanstackMetadata(expectSingleRunFinished(chunks))?.finishReason,
+      ).toBe('stop')
     })
 
     it('validates an entire ephemeral batch before executing any tool', async () => {
@@ -1482,22 +1495,27 @@ describe('chat()', () => {
       expect(chunks).toEqual([
         expect.objectContaining({
           type: EventType.RUN_ERROR,
-          'tanstack:interruptErrors': expect.arrayContaining([
-            expect.objectContaining({
-              interruptId: 'approval_call_1',
-              code: 'invalid-edited-args',
+          metadata: expect.objectContaining({
+            tanstack: expect.objectContaining({
+              interruptErrors: expect.arrayContaining([
+                expect.objectContaining({
+                  interruptId: 'approval_call_1',
+                  code: 'invalid-edited-args',
+                }),
+                expect.objectContaining({
+                  interruptId: 'approval_call_2',
+                  code: 'invalid-edited-args',
+                }),
+                expect.objectContaining({
+                  scope: 'batch',
+                  code: 'item-validation-failed',
+                }),
+              ]),
             }),
-            expect.objectContaining({
-              interruptId: 'approval_call_2',
-              code: 'invalid-edited-args',
-            }),
-            expect.objectContaining({
-              scope: 'batch',
-              code: 'item-validation-failed',
-            }),
-          ]),
+          }),
         }),
       ])
+      expect(chunks[0]).not.toHaveProperty('tanstack:interruptErrors')
     })
 
     it('translates ephemeral approve, reject, cancel, edits, and payloads before continuing', async () => {
@@ -1991,22 +2009,27 @@ describe('chat()', () => {
       expect(chunks).toEqual([
         expect.objectContaining({
           type: EventType.RUN_ERROR,
-          'tanstack:interruptErrors': expect.arrayContaining([
-            expect.objectContaining({
-              interruptId: 'client_tool_call_client',
-              code: 'unknown-interrupt',
+          metadata: expect.objectContaining({
+            tanstack: expect.objectContaining({
+              interruptErrors: expect.arrayContaining([
+                expect.objectContaining({
+                  interruptId: 'client_tool_call_client',
+                  code: 'unknown-interrupt',
+                }),
+                expect.objectContaining({
+                  scope: 'batch',
+                  code: 'incomplete-batch',
+                  interruptIds: [
+                    'approval_call_approval',
+                    'client_tool_call_client',
+                  ],
+                }),
+              ]),
             }),
-            expect.objectContaining({
-              scope: 'batch',
-              code: 'incomplete-batch',
-              interruptIds: [
-                'approval_call_approval',
-                'client_tool_call_client',
-              ],
-            }),
-          ]),
+          }),
         }),
       ])
+      expect(chunks[0]).not.toHaveProperty('tanstack:interruptErrors')
     })
 
     it('keeps mixed interrupt identities and order stable during ephemeral reconstruction', async () => {
@@ -2103,15 +2126,22 @@ describe('chat()', () => {
       expect(continuationChunks).toEqual([
         expect.objectContaining({
           type: EventType.RUN_ERROR,
-          'tanstack:interruptErrors': expect.arrayContaining([
-            expect.objectContaining({
-              scope: 'batch',
-              code: 'item-validation-failed',
-              interruptIds: initialInterruptIds,
+          metadata: expect.objectContaining({
+            tanstack: expect.objectContaining({
+              interruptErrors: expect.arrayContaining([
+                expect.objectContaining({
+                  scope: 'batch',
+                  code: 'item-validation-failed',
+                  interruptIds: initialInterruptIds,
+                }),
+              ]),
             }),
-          ]),
+          }),
         }),
       ])
+      expect(continuationChunks[0]).not.toHaveProperty(
+        'tanstack:interruptErrors',
+      )
     })
 
     it('should end with an interrupt outcome for client tools with needsApproval', async () => {
@@ -2138,7 +2168,7 @@ describe('chat()', () => {
       const runFinished = expectSingleRunFinished(chunks)
       expect(runFinished).toMatchObject({
         type: 'RUN_FINISHED',
-        finishReason: 'tool_calls',
+        metadata: { tanstack: { finishReason: 'tool_calls' } },
         outcome: {
           type: 'interrupt',
           interrupts: [
@@ -2181,7 +2211,7 @@ describe('chat()', () => {
 
       expect(runFinished).toMatchObject({
         type: 'RUN_FINISHED',
-        finishReason: 'tool_calls',
+        metadata: { tanstack: { finishReason: 'tool_calls' } },
         outcome: {
           type: 'interrupt',
           interrupts: [
@@ -3152,18 +3182,16 @@ describe('chat()', () => {
       expect((stepChunks[1] as any).stepName).toBeDefined()
     })
 
-    it('should preserve STEP_FINISHED content in terminal message history', async () => {
+    it('should preserve REASONING content in terminal message history', async () => {
       let messages: ReadonlyArray<ModelMessage> = []
       const { adapter } = createMockAdapter({
         iterations: [
           [
             ev.runStarted(),
             ev.stepStarted('think-1'),
-            chunk(EventType.STEP_FINISHED, {
-              stepName: 'think-1',
-              stepId: 'think-1',
-              content: 'Let me think.',
-              signature: 'sig-think-1',
+            chunk(EventType.REASONING_MESSAGE_CONTENT, {
+              messageId: 'think-1',
+              delta: 'Let me think.',
             }),
             ev.textStart(),
             ev.textContent('Answer!'),
@@ -3191,7 +3219,7 @@ describe('chat()', () => {
       expect(messages.at(-1)).toMatchObject({
         role: 'assistant',
         content: 'Answer!',
-        thinking: [{ content: 'Let me think.', signature: 'sig-think-1' }],
+        thinking: [{ content: 'Let me think.' }],
       })
     })
   })
@@ -3279,12 +3307,6 @@ describe('chat()', () => {
               messageId: 'reasoning-1',
               delta: 'inventory.',
             }),
-            chunk(EventType.STEP_FINISHED, {
-              stepName: 'think-1',
-              stepId: 'think-1',
-              content: 'Need inventory.',
-              signature: 'sig-think-1',
-            }),
             ev.toolStart('call_1', 'getInventory'),
             ev.toolArgs('call_1', '{}'),
             ev.runFinished('tool_calls'),
@@ -3318,7 +3340,7 @@ describe('chat()', () => {
       )
 
       expect(assistantToolMessage?.thinking).toEqual([
-        { content: 'Need inventory.', signature: 'sig-think-1' },
+        { content: 'Need inventory.' },
       ])
       expect(assistantToolMessage?.id).toBeTruthy()
       expect(assistantToolMessage?.createdAt).toBeInstanceOf(Date)
@@ -3418,7 +3440,7 @@ describe('chat()', () => {
       }
     })
 
-    it('should execute tool calls that only provide the deprecated toolName field', async () => {
+    it('should execute tool calls from spec TOOL_CALL_START toolCallName', async () => {
       const toolSpy = vi.fn().mockReturnValue({ result: 'inventory' })
 
       const { adapter, calls } = createMockAdapter({
@@ -3427,7 +3449,7 @@ describe('chat()', () => {
             ev.runStarted(),
             chunk(EventType.TOOL_CALL_START, {
               toolCallId: 'call_1',
-              toolName: 'getInventory',
+              toolCallName: 'getInventory',
             }),
             ev.toolArgs('call_1', '{}'),
             ev.toolEnd('call_1', 'getInventory'),
@@ -3923,7 +3945,7 @@ describe('chat()', () => {
       expect((runFinished as any).threadId).toBe('thread-1')
     })
 
-    it('should include both toolCallName (spec) and toolName (deprecated) on TOOL_CALL_START', async () => {
+    it('should keep spec toolCallName on TOOL_CALL_START and drop toolName', async () => {
       const { adapter } = createMockAdapter({
         iterations: [
           [
@@ -3956,10 +3978,9 @@ describe('chat()', () => {
       const chunks = await collectChunks(stream as AsyncIterable<StreamChunk>)
 
       const toolStartChunks = chunks.filter((c) => c.type === 'TOOL_CALL_START')
-      for (const chunk of toolStartChunks) {
-        // Both spec and deprecated field present (passthrough)
-        expect((chunk as any).toolCallName).toBe('get_weather')
-        expect((chunk as any).toolName).toBe('get_weather')
+      for (const toolStart of toolStartChunks) {
+        expect(toolStart.toolCallName).toBe('get_weather')
+        expect(toolStart).not.toHaveProperty('toolName')
       }
     })
 
@@ -3985,7 +4006,64 @@ describe('chat()', () => {
 
       const runFinished = chunks.find((c) => c.type === 'RUN_FINISHED')
       expect(runFinished).toBeDefined()
-      expect((runFinished as any).finishReason).toBe('stop')
+      expect(runFinished).not.toHaveProperty('finishReason')
+      expect(tanstackMetadata(runFinished)?.finishReason).toBe('stop')
+    })
+
+    it('yields spec RUN_FINISHED usage[] and still calls onUsage with TokenUsage', async () => {
+      const onUsage = vi.fn()
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Hi'),
+            ev.textEnd(),
+            {
+              type: EventType.RUN_FINISHED,
+              runId: 'run-1',
+              threadId: 'thread-1',
+              timestamp: Date.now(),
+              finishReason: 'stop',
+              model: 'test-model',
+              usage: {
+                promptTokens: 10,
+                completionTokens: 5,
+                totalTokens: 15,
+              },
+            },
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Hello' }],
+          middleware: [{ name: 'capture-usage', onUsage }],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const runFinished = chunks.find((c) => c.type === 'RUN_FINISHED')
+      expect(runFinished).toBeDefined()
+      expect(runFinished).not.toHaveProperty('model')
+      expect(runFinished).not.toHaveProperty('finishReason')
+      expect(Array.isArray(runFinished?.usage)).toBe(true)
+      expect(runFinished?.usage).toEqual([
+        {
+          model: 'test-model',
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+        },
+      ])
+      expect(runFinished?.usage).not.toEqual(
+        expect.objectContaining({ promptTokens: 10 }),
+      )
+      expect(onUsage).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ promptTokens: 10 }),
+      )
     })
 
     it('should emit TOOL_CALL_RESULT events during agent loop', async () => {
@@ -4471,7 +4549,7 @@ describe('chat()', () => {
       expect(calls).toHaveLength(1)
       const terminal = expectSingleRunFinished(resume)
       expect(terminal.outcome).toEqual({ type: 'success' })
-      expect(terminal.finishReason).toBe('stop')
+      expect(tanstackMetadata(terminal)?.finishReason).toBe('stop')
     })
 
     it('runs onFinish when resolution returns toolResume stop', async () => {

@@ -30,7 +30,7 @@ import type {
   ContentPart,
   JSONSchema,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type {
@@ -119,7 +119,7 @@ export class OpenRouterTextAdapter<
 
   async *chatStream(
     options: TextOptions<ResolveProviderOptions<TModel>>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
       runId: generateId(this.name),
@@ -316,7 +316,7 @@ export class OpenRouterTextAdapter<
    */
   async *structuredOutputStream(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const chatRequest = this.mapOptionsToRequest(chatOptions)
     const responseFormat = this.resolveStructuredResponseFormat(
@@ -342,7 +342,7 @@ export class OpenRouterTextAdapter<
 
     const closeReasoningLifecycle = function* (this: {
       name: string
-    }): Generator<StreamChunk> {
+    }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId && !hasClosedReasoning) {
         hasClosedReasoning = true
         yield {
@@ -689,7 +689,7 @@ export class OpenRouterTextAdapter<
       messageId: string
       hasEmittedRunStarted: boolean
     },
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     let accumulatedContent = ''
     let hasEmittedTextMessageStart = false
     let lastModel: string | undefined

@@ -3,8 +3,10 @@ import {
   convertSchemaToJsonSchema,
   generateMessageId,
   isStandardSchema,
+  mergeMetadata,
   normalizeToUIMessage,
   parseWithStandardSchema,
+  tanstackMetadata,
 } from '@tanstack/ai/client'
 import { createNoOpChatDevtoolsBridge } from './devtools-noop'
 import {
@@ -189,6 +191,7 @@ export function normalizeQueueOption(
  * Merge a run of queued messages into a single send for `drain: 'batch'`.
  * All-string content is joined with newlines; mixed/multimodal content is
  * flattened into a single `ContentPart` array. The last item's `body` wins.
+ * Object-form metadata is merged last-write-wins per key.
  */
 function mergeQueuedMessages(items: Array<InternalQueuedMessage>): {
   content: string | MultimodalContent
@@ -209,17 +212,24 @@ function mergeQueuedMessages(items: Array<InternalQueuedMessage>): {
     }
   }
   const parts: Array<ContentPart> = []
+  let metadata: Record<string, any> | undefined
   for (const item of items) {
     if (typeof item.content === 'string') {
       parts.push({ type: 'text', content: item.content })
-    } else if (typeof item.content.content === 'string') {
+      continue
+    }
+    if (typeof item.content.content === 'string') {
       parts.push({ type: 'text', content: item.content.content })
     } else {
       parts.push(...item.content.content)
     }
+    metadata = mergeMetadata(metadata, item.content.metadata)
   }
   return {
-    content: { content: parts },
+    content: {
+      content: parts,
+      ...(metadata !== undefined ? { metadata } : {}),
+    },
     ...(body !== undefined ? { body } : {}),
   }
 }
@@ -1751,8 +1761,9 @@ export class ChatClient<
       chunk.type === 'RUN_ERROR' &&
       this.isActiveInterruptSubmissionFailure(chunk)
     ) {
+      const interruptErrors = tanstackMetadata(chunk)?.interruptErrors
       this.interruptSubmissionFailure = {
-        errors: chunk['tanstack:interruptErrors'] ?? [],
+        errors: Array.isArray(interruptErrors) ? interruptErrors : [],
       }
     }
     if (this.connectionStatus === 'connecting') {
@@ -1790,8 +1801,10 @@ export class ChatClient<
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): boolean {
     const submission = this.activeInterruptSubmission
-    const errors = chunk['tanstack:interruptErrors']
-    if (!submission || !errors || errors.length === 0) return false
+    const errors = tanstackMetadata(chunk)?.interruptErrors
+    if (!submission || !Array.isArray(errors) || errors.length === 0) {
+      return false
+    }
     const runId = getChunkRunId(chunk)
     if (runId !== undefined && runId !== this.currentRunId) return false
     if (
@@ -1980,6 +1993,7 @@ export class ChatClient<
       const userMessage = this.processor.addUserMessage(
         normalizedContent.content,
         normalizedContent.id,
+        normalizedContent.metadata,
       )
       this.events.messageSent(userMessage.id, normalizedContent.content)
       return await this.streamResponse()
@@ -2039,17 +2053,22 @@ export class ChatClient<
   }
 
   /**
-   * Normalize the message input to extract content and optional id.
-   * Trims string content automatically.
+   * Normalize the message input to extract content, optional id, and
+   * optional metadata. String form has no metadata. Trims string content.
    */
   private normalizeMessageInput(input: string | MultimodalContent): {
     content: string | Array<ContentPart>
     id?: string
+    metadata?: Record<string, any>
   } {
     if (typeof input === 'string') {
       return { content: input.trim() }
     }
-    return { content: input.content, id: input.id }
+    return {
+      content: input.content,
+      id: input.id,
+      ...(input.metadata !== undefined ? { metadata: input.metadata } : {}),
+    }
   }
 
   /**

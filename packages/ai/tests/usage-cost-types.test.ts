@@ -34,13 +34,10 @@ describe('usage cost type surface', () => {
     >()
   })
 
-  it('RunFinishedEvent.usage carries cost/costDetails', () => {
+  it('RunFinishedEvent.usage is spec usage[]', () => {
     expectTypeOf<
-      NonNullable<RunFinishedEvent['usage']>['cost']
+      NonNullable<RunFinishedEvent['usage']>[number]['inputTokens']
     >().toEqualTypeOf<number | undefined>()
-    expectTypeOf<
-      NonNullable<RunFinishedEvent['usage']>['costDetails']
-    >().toEqualTypeOf<UsageCostBreakdown | undefined>()
   })
 
   it('UsageInfo (onUsage) carries cost/costDetails', () => {

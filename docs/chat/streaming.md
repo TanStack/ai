@@ -17,10 +17,10 @@ TanStack AI supports streaming responses for real-time chat experiences. Streami
 
 ## How Streaming Works
 
-When you use `chat()`, it returns an async iterable stream of chunks:
+`chat()` returns an async iterable of spec AG-UI chunks. Branch on `chunk.type`:
 
 ```typescript
-import { chat } from "@tanstack/ai";
+import { chat, tanstackMetadata } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
@@ -28,9 +28,14 @@ const stream = chat({
   messages: [{ role: "user", content: "Hello!" }],
 });
 
-// Stream contains chunks as they arrive
 for await (const chunk of stream) {
-  console.log(chunk); // Process each chunk
+  if (chunk.type === "TEXT_MESSAGE_CONTENT") {
+    console.log(chunk.delta);
+  }
+  if (chunk.type === "RUN_FINISHED") {
+    console.log(chunk.usage);
+    console.log(tanstackMetadata(chunk)?.finishReason);
+  }
 }
 ```
 
@@ -78,15 +83,17 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 
 ### AG-UI Events
 
-- **RUN_STARTED** - Emitted when a run begins
-- **TEXT_MESSAGE_START/CONTENT/END** - Text content streaming lifecycle
-- **TOOL_CALL_START/ARGS/END** - Tool invocation lifecycle
-- **STEP_STARTED/STEP_FINISHED** - Thinking/reasoning steps
-- **CUSTOM** - Namespaced extension events (sandbox file changes, Code Mode progress, structured-output completion, and your own `emitCustomEvent` calls) — see the [Custom Events Reference](../protocol/custom-events) for the full typed taxonomy and how to narrow `chunk.value` with a plain `if`
-- **RUN_FINISHED** - Run completion with finish reason and usage
-- **RUN_ERROR** - Error occurred during the run
+Public `StreamChunk` is spec-only. TanStack extras live under `metadata.tanstack`.
 
-> **Tip:** Some models expose their internal reasoning as thinking content that streams before the response. See [Thinking & Reasoning](./thinking-content).
+| `chunk.type` | What you read |
+| --- | --- |
+| `RUN_STARTED` | `threadId`, `runId` |
+| `TEXT_MESSAGE_START` / `CONTENT` / `END` | `messageId`, `delta` |
+| `TOOL_CALL_START` / `ARGS` / `END` | `toolCallId`, `toolCallName`, args `delta`. Parsed input and output live on `UIMessage` parts |
+| `REASONING_*` / `REASONING_ENCRYPTED_VALUE` | Thinking content. See [Thinking & Reasoning](./thinking-content) |
+| `STEP_STARTED` / `STEP_FINISHED` | `stepName` only |
+| `CUSTOM` | `name` and `value` (sandbox files, Code Mode, `structured-output.*`, `*.session-id`, and your `emitCustomEvent` calls). See [Custom Events](../protocol/custom-events) |
+| `RUN_FINISHED` / `RUN_ERROR` | Spec `usage` array. `finishReason` is `metadata.tanstack.finishReason` |
 
 ### Threads and runs
 
@@ -130,12 +137,14 @@ stores the transcript per `threadId`. The media generation hooks take a
 `threadId` too, where it names a slot rather than a conversation. See
 [Id map](../persistence/id-map).
 
-### Type-Safe Tool Call Events
+### Tool input and output
 
-When you pass typed tools (defined with `toolDefinition()` and Zod schemas) to `chat()`, the stream chunks automatically carry type information for tool call events. Prefer the AG-UI field `toolCallName` (or the deprecated `toolName` alias) — both narrow to the union of your tool name literals. The `input` field on `TOOL_CALL_END` is typed as the union of your tool input schemas (typically set on the adapter-emitted END once arguments are complete):
+`TOOL_CALL_END` does not carry parsed `input`. Tool input and output live on `UIMessage` parts. On the server, feed chunks into `StreamProcessor`. On the client, read `useChat` `messages`.
+
+Server:
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
+import { chat, StreamProcessor, toolDefinition } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 import { z } from "zod";
 
@@ -148,34 +157,34 @@ const weatherTool = toolDefinition({
   }),
 });
 
-const messages = [
-  { role: "user" as const, content: "What's the weather in Paris?" },
-];
-
 const stream = chat({
   adapter: openaiText("gpt-5.5"),
-  messages,
+  messages: [
+    { role: "user", content: "What's the weather in Paris?" },
+  ],
   tools: [weatherTool],
 });
 
+const processor = new StreamProcessor();
 for await (const chunk of stream) {
-  // `'type' in chunk` is required for control-flow narrowing across the
-  // StreamChunk union (AG-UI event types from `@ag-ui/core` use Zod
-  // passthrough, which otherwise hides the discriminant from property access).
-  if ("type" in chunk && chunk.type === "TOOL_CALL_END") {
-    chunk.toolCallName; // ✅ typed as "get_weather" (not string)
-    chunk.input; // ✅ typed as { location: string; unit?: "celsius" | "fahrenheit" } | undefined
+  processor.processChunk(chunk);
+}
+processor.finalizeStream();
+
+for (const message of processor.getMessages()) {
+  for (const part of message.parts) {
+    if (part.type === "tool-call") {
+      console.log(part.name, part.input, part.output);
+    }
   }
 }
 ```
 
-Without typed tools, names default to `string` and `input`/`output` default to `unknown` — the same behavior as before. The type narrowing is automatic when you use `toolDefinition()` with Zod schemas.
-
-When multiple tools are provided, tool call events form a **discriminated union** — checking `toolCallName` (or `toolName`) narrows `input` / `output` to that specific tool's type:
+Client: pass your `.client()` tools to `useChat`. Checking `part.name` narrows `part.input` and `part.output`:
 
 ```typescript
-import { chat, toolDefinition } from "@tanstack/ai";
-import { openaiText } from "@tanstack/ai-openai";
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { toolDefinition } from "@tanstack/ai";
 import { z } from "zod";
 
 const weatherTool = toolDefinition({
@@ -185,43 +194,27 @@ const weatherTool = toolDefinition({
     location: z.string(),
     unit: z.enum(["celsius", "fahrenheit"]).optional(),
   }),
+}).client(async (input) => {
+  return { location: input.location };
 });
 
-const searchTool = toolDefinition({
-  name: "search",
-  description: "Search the web",
-  inputSchema: z.object({ query: z.string() }),
+const { messages } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+  tools: [weatherTool],
 });
 
-const messages = [
-  { role: "user" as const, content: "Find the weather for Paris" },
-];
-
-const stream = chat({
-  adapter: openaiText("gpt-5.5"),
-  messages,
-  tools: [weatherTool, searchTool],
-});
-
-for await (const chunk of stream) {
-  if ("type" in chunk && chunk.type === "TOOL_CALL_END") {
-    if (chunk.toolCallName === "get_weather") {
-      // ✅ input is narrowed to { location: string; unit?: "celsius" | "fahrenheit" }
-      console.log(`Weather in ${chunk.input?.location}`);
-    }
-    if (chunk.toolCallName === "search") {
-      // ✅ input is narrowed to { query: string }
-      console.log(`Searched for: ${chunk.input?.query}`);
+for (const message of messages) {
+  for (const part of message.parts) {
+    if (part.type === "tool-call" && part.name === "get_weather") {
+      console.log(part.input?.location);
     }
   }
 }
 ```
 
-> **Tip:** The typed stream type is exported as `TypedStreamChunk<TTools>`. The default (no type args) matches `ChatStream`: standard chunks plus the known framework `CUSTOM` event union. Free-form `emitCustomEvent` names still flow at runtime; cast to `StreamChunk` if you need to read them.
-
 ### Thinking Chunks
 
-Adapters emit reasoning as both the canonical `REASONING_MESSAGE_*` events and the older `STEP_STARTED` / `STEP_FINISHED` events. Rather than parsing those raw events yourself, read the reconciled `ThinkingPart` from `message.parts` — the stream processor merges both event families into a single part for you:
+Thinking content comes from `REASONING_*` and `REASONING_ENCRYPTED_VALUE` events. `STEP_STARTED` and `STEP_FINISHED` only carry `stepName`. Read the `ThinkingPart` on `message.parts`:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -233,13 +226,13 @@ const { messages } = useChat({
 for (const message of messages) {
   for (const part of message.parts) {
     if (part.type === "thinking") {
-      console.log("Thinking:", part.content); // Accumulated thinking content
+      console.log("Thinking:", part.content);
     }
   }
 }
 ```
 
-Thinking content is automatically converted to `ThinkingPart` in `UIMessage` objects. It is UI-only and excluded from messages sent back to the model. See [Thinking & Reasoning](./thinking-content) for the full rendering pattern.
+Thinking parts are UI-only. They are not sent back to the model. See [Thinking & Reasoning](./thinking-content) for the full rendering pattern.
 
 ## Connection Adapters
 

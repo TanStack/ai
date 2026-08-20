@@ -10,6 +10,8 @@ import {
 } from '../utilities/sampling-keys'
 import { firstNumber } from '../utilities/numbers'
 import { errorMessage, errorTypeName } from '../utilities/errors'
+import { fromSpecTokenUsage } from '../utilities/ag-ui-usage'
+import { tanstackMetadata } from '../utilities/merge-metadata'
 import { usageAttributes } from './usage-attributes'
 import type {
   AttributeValue,
@@ -631,26 +633,40 @@ export function otelMiddleware(
         }
 
         if (chunk.type !== 'RUN_FINISHED') return
+        const tanstack = tanstackMetadata(chunk)
+        const finishReason = tanstack?.finishReason
+        const model = tanstack?.model
         // Capture for the root-span finish_reasons attribute set in onFinish,
         // which receives base-shaped info without a finishReason field.
-        if (chunk.finishReason) state.lastFinishReason = chunk.finishReason
+        if (finishReason) state.lastFinishReason = finishReason
         const span = state.currentIterationSpan
         if (!span) return
 
-        if (chunk.finishReason) {
-          span.setAttribute('gen_ai.response.finish_reasons', [
-            chunk.finishReason,
-          ])
+        if (finishReason) {
+          span.setAttribute('gen_ai.response.finish_reasons', [finishReason])
         }
-        if (chunk.model) span.setAttribute('gen_ai.response.model', chunk.model)
+        if (model) span.setAttribute('gen_ai.response.model', model)
 
         // Set usage attributes on the iteration span directly from the chunk
         // so they're available before `onUsage` fires. Histogram recording is
         // deliberately NOT done here — the chat runner always invokes
         // `runOnUsage` when `chunk.usage` is present, and `onUsage` is the
         // canonical place for the metric. Recording in both would double-count.
-        if (chunk.usage) {
-          span.setAttributes(usageAttributes(chunk.usage))
+        const usage: unknown = chunk.usage
+        const rebuilt = fromSpecTokenUsage(
+          Array.isArray(usage) ? usage : undefined,
+          tanstack?.usage,
+        )
+        const tokenUsage =
+          rebuilt ??
+          (usage != null &&
+          typeof usage === 'object' &&
+          !Array.isArray(usage) &&
+          'promptTokens' in usage
+            ? (usage as TokenUsage)
+            : undefined)
+        if (tokenUsage) {
+          span.setAttributes(usageAttributes(tokenUsage))
         }
 
         if (captureContent && state.assistantTextBuffer.length > 0) {

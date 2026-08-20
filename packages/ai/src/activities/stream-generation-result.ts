@@ -7,6 +7,7 @@
 import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from './error-payload'
 import type { StreamChunk } from '../types'
+import { normalizeStreamChunk } from '../utilities/normalize-stream-chunk'
 
 function createId(prefix: string): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`
@@ -74,31 +75,24 @@ export async function* streamGenerationResult<TResult>(
       timestamp: Date.now(),
     }
 
-    yield {
+    yield* normalizeStreamChunk({
       type: EventType.RUN_FINISHED,
       runId,
       threadId,
       finishReason: 'stop',
       timestamp: Date.now(),
-    }
+    })
   } catch (error: unknown) {
     const payload = toRunErrorPayload(error, 'Generation failed')
     // `code` is omitted entirely when undefined so the event matches the
-    // AG-UI `code?: string` shape under `exactOptionalPropertyTypes`. The
-    // deprecated nested `error` form preserves the same conditional
-    // structure for backward compatibility.
+    // AG-UI `code?: string` shape under `exactOptionalPropertyTypes`.
     const codeFields =
       payload.code !== undefined ? { code: payload.code } : undefined
-    yield {
+    yield* normalizeStreamChunk({
       type: EventType.RUN_ERROR,
       message: payload.message,
       ...codeFields,
-      // Deprecated nested form for backward compatibility
-      error: {
-        message: payload.message,
-        ...codeFields,
-      },
       timestamp: Date.now(),
-    }
+    })
   }
 }

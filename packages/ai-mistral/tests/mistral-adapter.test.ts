@@ -9,7 +9,7 @@ import {
 } from 'vitest'
 import { createMistralText, mistralText } from '../src/adapters/text'
 import { transformNullsToUndefined } from '../src/utils/schema-converter'
-import type { StreamChunk, Tool, TextOptions } from '@tanstack/ai'
+import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
 import type { MistralTextProviderOptions } from '../src/adapters/text'
 
 /**
@@ -204,7 +204,7 @@ describe('Mistral AG-UI event emission', () => {
 
     setupMockStream(streamChunks)
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -255,7 +255,7 @@ describe('Mistral AG-UI event emission', () => {
 
     setupMockStream(streamChunks)
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -311,7 +311,7 @@ describe('Mistral AG-UI event emission', () => {
 
     setupMockStream(streamChunks)
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -402,7 +402,7 @@ describe('Mistral AG-UI event emission', () => {
 
     setupMockStream(streamChunks)
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -463,7 +463,7 @@ describe('Mistral AG-UI event emission', () => {
     mockComplete = vi.fn()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     let thrownError: Error | undefined
 
     try {
@@ -533,7 +533,7 @@ describe('Mistral AG-UI event emission', () => {
 
     setupMockStream(streamChunks)
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -590,7 +590,7 @@ describe('Mistral AG-UI event emission', () => {
     )
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     try {
       for await (const chunk of adapter.chatStream(
@@ -638,7 +638,7 @@ describe('Mistral AG-UI event emission', () => {
     mockComplete = vi.fn()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -718,7 +718,7 @@ describe('Mistral AG-UI event emission', () => {
     ])
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -1005,7 +1005,7 @@ describe('Mistral reasoning (magistral-* models)', () => {
     mockComplete = vi.fn()
 
     const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream(
       chatOpts({
         model: 'magistral-medium-latest',
@@ -1106,7 +1106,7 @@ describe('Mistral reasoning (magistral-* models)', () => {
     mockComplete = vi.fn()
 
     const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream(
       chatOpts({
         model: 'magistral-medium-latest',
@@ -1183,7 +1183,7 @@ describe('Mistral reasoning (magistral-* models)', () => {
     mockComplete = vi.fn()
 
     const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream(
       chatOpts({
         model: 'magistral-medium-latest',

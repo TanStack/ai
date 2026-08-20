@@ -18,7 +18,7 @@ describe('uiMessagesToWire', () => {
       role: 'system',
       content: 'You are helpful',
     })
-    expect((wire[0]! as any).parts).toBeDefined()
+    expect(wire[0]).not.toHaveProperty('parts')
   })
 
   it('mirrors a user UIMessage with a text-only parts list to a string content', () => {
@@ -133,12 +133,12 @@ describe('uiMessagesToWire', () => {
     })
   })
 
-  it('preserves the original `parts` array on every anchor message', () => {
+  it('does not put parts on wire messages', () => {
     const messages: Array<UIMessage> = [
       { id: 'u1', role: 'user', parts: [{ type: 'text', content: 'hi' }] },
     ]
     const wire = uiMessagesToWire(messages)
-    expect((wire[0]! as any).parts).toEqual([{ type: 'text', content: 'hi' }])
+    expect(wire[0]).not.toHaveProperty('parts')
   })
 
   it('serializes a structured-output part to assistant content using its raw JSON', () => {
@@ -230,7 +230,7 @@ describe('uiMessagesToWire', () => {
     expect(assistant.content).toBeUndefined()
   })
 
-  it('preserves per-part metadata on multimodal parts (round-trip via parts field)', () => {
+  it('preserves per-part metadata on multimodal content (not via parts)', () => {
     const messages: Array<UIMessage> = [
       {
         id: 'u1',
@@ -245,7 +245,136 @@ describe('uiMessagesToWire', () => {
       },
     ]
     const wire = uiMessagesToWire(messages)
-    const partOnAnchor = (wire[0]! as any).parts[0]
-    expect(partOnAnchor.metadata).toEqual({ detail: 'high' })
+    expect(wire[0]).not.toHaveProperty('parts')
+    const content = (wire[0]! as { content: Array<{ metadata?: unknown }> })
+      .content
+    expect(content[0]?.metadata).toEqual({ detail: 'high' })
+  })
+
+  it('copies user metadata and writes metadata.tanstack.createdAt as ISO-8601', () => {
+    const createdAt = new Date('2026-08-20T00:00:00.000Z')
+    const wire = uiMessagesToWire([
+      {
+        id: 'u1',
+        role: 'user',
+        parts: [{ type: 'text', content: 'hi' }],
+        createdAt,
+        metadata: { author: { id: 'user-42', name: 'Dana' } },
+      },
+    ])
+    expect(wire[0]).toEqual({
+      id: 'u1',
+      role: 'user',
+      content: 'hi',
+      metadata: {
+        author: { id: 'user-42', name: 'Dana' },
+        tanstack: { createdAt: '2026-08-20T00:00:00.000Z' },
+      },
+    })
+  })
+
+  it('does not put parts or createdAt Date on assistant anchors', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'a1',
+        role: 'assistant',
+        createdAt: new Date('2026-08-20T00:00:00.000Z'),
+        parts: [
+          { type: 'text', content: 'ok' },
+          {
+            type: 'tool-call',
+            id: 'tc1',
+            name: 'getTodos',
+            arguments: '{}',
+            state: 'complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc1',
+            content: '{}',
+            state: 'complete',
+          },
+        ],
+      },
+    ])
+    const anchor = wire.find((m) => m.role === 'assistant')
+    expect(anchor).not.toHaveProperty('parts')
+    expect(anchor).not.toHaveProperty('createdAt')
+    expect(anchor).toMatchObject({
+      id: 'a1',
+      role: 'assistant',
+      content: 'ok',
+      toolCalls: [
+        {
+          id: 'tc1',
+          type: 'function',
+          function: { name: 'getTodos', arguments: '{}' },
+        },
+      ],
+      metadata: { tanstack: { createdAt: '2026-08-20T00:00:00.000Z' } },
+    })
+    expect(wire).toHaveLength(2)
+    expect(wire[1]).toMatchObject({
+      role: 'tool',
+      toolCallId: 'tc1',
+      content: '{}',
+    })
+    expect(wire[1]).not.toHaveProperty('parts')
+  })
+
+  it('stores unfinished structured-output leftover under metadata.tanstack.structuredOutput', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'structured-output',
+            status: 'error',
+            raw: '{',
+            errorMessage: 'invalid',
+          },
+        ],
+      },
+    ])
+    expect(wire[0]).toMatchObject({
+      role: 'assistant',
+      metadata: {
+        tanstack: {
+          structuredOutput: {
+            status: 'error',
+            raw: '{',
+            errorMessage: 'invalid',
+          },
+        },
+      },
+    })
+  })
+
+  it('puts ui-resource parts in metadata.tanstack.uiResources, not on wire parts', () => {
+    const uiResource = {
+      type: 'ui-resource' as const,
+      resource: {
+        uri: 'ui://widget/todos',
+        mimeType: 'text/html',
+        text: '<div>todos</div>',
+      },
+      toolCallId: 'tc1',
+      toolName: 'getTodos',
+    }
+    const wire = uiMessagesToWire([
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [{ type: 'text', content: 'here' }, uiResource],
+      },
+    ])
+    expect(wire[0]).not.toHaveProperty('parts')
+    expect(wire[0]).toMatchObject({
+      id: 'a1',
+      role: 'assistant',
+      content: 'here',
+      metadata: { tanstack: { uiResources: [uiResource] } },
+    })
   })
 })

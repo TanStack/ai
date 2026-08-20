@@ -25,8 +25,7 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   ModelMessage,
-  RunFinishedEvent,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 
@@ -69,7 +68,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
       runId: generateId(this.name),
@@ -110,7 +109,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     options: TextOptions,
     aguiState: ChatStreamState,
     source: 'chatStream' | 'processStreamChunks',
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     // Narrow before logging: raw SDK errors can carry request metadata
     // (including auth headers) which we must never surface to user loggers.
     const errorPayload = toRunErrorPayload(
@@ -320,7 +319,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
    */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapOptionsToRequest(chatOptions)
 
@@ -349,7 +348,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     const closeReasoningLifecycle = function* (this: {
       name: string
-    }): Generator<StreamChunk> {
+    }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId && !hasClosedReasoning) {
         hasClosedReasoning = true
         yield {
@@ -689,7 +688,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     stream: AsyncIterable<ChatCompletionChunk>,
     options: TextOptions,
     aguiState: ChatStreamState,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     let accumulatedContent = ''
     let hasEmittedTextMessageStart = false
     let lastModel: string | undefined
@@ -1114,7 +1113,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         // tool results that would never arrive. OpenAI's legacy
         // `function_call` value (from the v1 function-calling API) is
         // normalized to `tool_calls` — semantically the same termination.
-        const finishReason: NonNullable<RunFinishedEvent['finishReason']> =
+        const finishReason: NonNullable<AdapterYieldChunk['finishReason']> =
           emittedAnyToolCallEnd
             ? 'tool_calls'
             : pendingFinishReason === 'tool_calls'

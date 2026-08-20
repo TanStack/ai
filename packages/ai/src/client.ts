@@ -297,6 +297,14 @@ export type {
 } from './activities/chat/stream/index'
 
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
+export {
+  mergeMetadata,
+  tanstackMetadata,
+  withTanstackMetadata,
+} from './utilities/merge-metadata'
+export { fromSpecTokenUsage, toSpecTokenUsage } from './utilities/ag-ui-usage'
+export type { SpecTokenUsage } from './utilities/ag-ui-usage'
+export { normalizeStreamChunk } from './utilities/normalize-stream-chunk'
 export type { WireMessage } from './utilities/ag-ui-wire'
 
 export type {

@@ -1,7 +1,8 @@
-import type {
-  MediaPrompt,
-  PersistedArtifactRef,
-  StreamChunk,
+import {
+  tanstackMetadata,
+  type MediaPrompt,
+  type PersistedArtifactRef,
+  type StreamChunk,
 } from '@tanstack/ai/client'
 import type { TokenUsage, TranscriptionResponseFormat } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from './connection-adapters'
@@ -461,8 +462,13 @@ export function updateGenerationResumeSnapshot(
   previous: GenerationResumeSnapshot | null | undefined,
   chunk: StreamChunk,
 ): GenerationResumeSnapshot {
-  const threadId = stringField(chunk, 'threadId')
-  const runId = stringField(chunk, 'runId')
+  const tanstack = tanstackMetadata(chunk)
+  const threadId =
+    stringField(chunk, 'threadId') ??
+    (typeof tanstack?.threadId === 'string' ? tanstack.threadId : undefined)
+  const runId =
+    stringField(chunk, 'runId') ??
+    (typeof tanstack?.runId === 'string' ? tanstack.runId : undefined)
   const carried = chunk.type === 'RUN_STARTED' ? undefined : previous
   const previousArtifacts = carried?.pendingArtifacts ?? []
   const next: GenerationResumeSnapshot = {
