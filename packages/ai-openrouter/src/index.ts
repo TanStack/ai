@@ -80,7 +80,7 @@ export type {
   OpenRouterModelInputModalitiesByName,
   OpenRouterChatModelToolCapabilitiesByName,
 } from './model-meta'
-export { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from './model-meta'
+export { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from './combined-tools-and-schema-models'
 export type {
   OpenRouterTextMetadata,
   OpenRouterImageMetadata,

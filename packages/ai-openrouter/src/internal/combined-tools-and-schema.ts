@@ -1,4 +1,4 @@
-import { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../model-meta'
+import { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from '../combined-tools-and-schema-models'
 
 type OpenRouterCombinedModelOptions = {
   models?: ReadonlyArray<string> | undefined

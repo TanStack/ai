@@ -19619,3 +19619,5 @@ export const OPENROUTER_IMAGE_MODELS = [
   OPENAI_GPT_5_IMAGE_MINI.id,
   OPENAI_GPT_5_4_IMAGE_2.id,
 ] as const
+
+export { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from './combined-tools-and-schema-models'

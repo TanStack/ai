@@ -5,6 +5,11 @@
  * 1. Paste your OpenRouter models array into the `models` variable below
  * 2. Run: npx ts-node scripts/convert-openrouter-models.ts
  * 3. Copy the output into your model-meta.ts file
+ *
+ * `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS` lives in
+ * `packages/ai-openrouter/src/combined-tools-and-schema-models.ts`. This script
+ * overwrites `model-meta.ts`, so it re-exports that handmade set instead of
+ * regenerating it.
  */
 
 import { writeFile } from 'node:fs/promises'
@@ -346,6 +351,8 @@ ${generateChatToolCapabilitiesType()}
 ${generateVideoModelsArray()}
 ${generateVideoModelMeta()}
 ${generateImageModelsArray()}
+
+export { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from './combined-tools-and-schema-models'
 `
 console.log(file)
 writeFile('packages/ai-openrouter/src/model-meta.ts', file).then(() => {
