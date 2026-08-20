@@ -1,3 +1,4 @@
+import { isFileSource, unsupportedFileSourceError } from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { undoNullWidening } from '@tanstack/ai-utils'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
@@ -1035,6 +1036,9 @@ export class MistralTextAdapter<
     }
 
     if (part.type === 'image') {
+      if (isFileSource(part.source)) {
+        throw unsupportedFileSourceError('mistral')
+      }
       const imageMetadata = part.metadata as MistralImageMetadata | undefined
       const imageValue = part.source.value
       const imageUrl =

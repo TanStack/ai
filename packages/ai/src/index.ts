@@ -10,6 +10,10 @@ export {
   generateSpeech,
   generateTranscription,
   embed,
+  uploadFile,
+  getFile,
+  deleteFile,
+  fileSourceFromHandle,
 } from './activities/index'
 
 // Create options functions - for pre-defining typed configurations
@@ -44,6 +48,10 @@ export type {
   EmbeddingAdapter,
   AnyRerankAdapter,
   RerankAdapter,
+  FilesAdapter,
+  AnyFilesAdapter,
+  FileHandle,
+  FileUploadInput,
 } from './activities/index'
 
 // Rerank adapter base + types
@@ -477,6 +485,11 @@ export {
   isContentPartArray,
   normalizeToolResult,
 } from './utilities/tool-result'
+export {
+  assertOwnFileSource,
+  isFileSource,
+  unsupportedFileSourceError,
+} from './utilities/content-source'
 
 export {
   getProviderExecutedMetadata,
