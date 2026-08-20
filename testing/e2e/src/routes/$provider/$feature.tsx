@@ -508,9 +508,6 @@ function ChatFeature({
         }
         interrupts={needsApproval ? interrupts : undefined}
         hasPendingInterrupt={interrupts.some((i) => i.status === 'pending')}
-        addToolApprovalResponse={
-          needsApproval ? addToolApprovalResponse : undefined
-        }
         showImageInput={showImageInput}
         showDocumentInput={showDocumentInput}
         onStop={stop}
