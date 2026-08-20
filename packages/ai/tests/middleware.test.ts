@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/require-await */
 import { describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
+import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
+import { defineInterrupt } from '../src/interrupt-definition'
+import { EventType } from '../src/types'
 import {
   collectChunks,
   createMockAdapter,
@@ -91,6 +95,72 @@ describe('chat() middleware', () => {
       }
 
       expect(onError).toHaveBeenCalledOnce()
+      expect(onFinish).not.toHaveBeenCalled()
+    })
+
+    it('should call onError when an adapter emits RUN_ERROR', async () => {
+      const onError = vi.fn()
+      const onFinish = vi.fn()
+      const review = defineInterrupt({
+        id: 'review',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            {
+              ...ev.runError('Provider failed'),
+              code: 'provider_error',
+            },
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          messages: [{ role: 'user', content: 'Hi' }],
+          middleware: [
+            defineChatMiddleware({
+              onInterruptBoundary(ctx) {
+                if (ctx.phase !== 'afterModel') return
+                return {
+                  interrupts: [
+                    review.interrupt({
+                      key: 'review',
+                      reason: 'review',
+                      message: 'Review the response',
+                    }),
+                  ],
+                }
+              },
+            }),
+            { name: 'test', onError, onFinish },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(chunks).toContainEqual(
+        expect.objectContaining({
+          type: EventType.RUN_ERROR,
+          message: 'Provider failed',
+          code: 'provider_error',
+        }),
+      )
+      expect(chunks).not.toContainEqual(
+        expect.objectContaining({
+          type: EventType.RUN_FINISHED,
+          outcome: expect.objectContaining({ type: 'interrupt' }),
+        }),
+      )
+      expect(onError).toHaveBeenCalledOnce()
+      expect(onError.mock.calls[0]![1].error).toMatchObject({
+        message: 'Provider failed',
+        code: 'provider_error',
+      })
       expect(onFinish).not.toHaveBeenCalled()
     })
 
