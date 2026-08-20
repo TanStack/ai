@@ -20,6 +20,13 @@ function ctx() {
   }
 }
 
+function send<T extends { type: string }>(
+  mw: ReturnType<typeof devtoolsMiddleware>,
+  chunk: T,
+) {
+  mw.onChunk?.(ctx(), chunk)
+}
+
 describe('devtoolsMiddleware spec events', () => {
   afterEach(() => {
     vi.restoreAllMocks()
@@ -31,17 +38,17 @@ describe('devtoolsMiddleware spec events', () => {
       .mockImplementation(() => undefined)
     const mw = devtoolsMiddleware()
 
-    mw.onChunk?.(ctx(), {
+    send(mw, {
       type: 'REASONING_MESSAGE_CONTENT',
       messageId: 'r-1',
       delta: 'think-a',
     })
-    mw.onChunk?.(ctx(), {
+    send(mw, {
       type: 'REASONING_MESSAGE_CONTENT',
       messageId: 'r-1',
       delta: ' think-b',
     })
-    mw.onChunk?.(ctx(), {
+    send(mw, {
       type: 'STEP_FINISHED',
       stepName: 's-1',
       content: 'ignored',
@@ -64,12 +71,12 @@ describe('devtoolsMiddleware spec events', () => {
       .mockImplementation(() => undefined)
     const mw = devtoolsMiddleware()
 
-    mw.onChunk?.(ctx(), {
+    send(mw, {
       type: 'TEXT_MESSAGE_CONTENT',
       delta: 'Hello ',
       content: 'stale accumulated extra',
     })
-    mw.onChunk?.(ctx(), {
+    send(mw, {
       type: 'TEXT_MESSAGE_CONTENT',
       delta: 'world',
     })
@@ -90,12 +97,12 @@ describe('devtoolsMiddleware spec events', () => {
       .mockImplementation(() => undefined)
     const mw = devtoolsMiddleware()
 
-    mw.onChunk?.(ctx(), {
+    send(mw, {
       type: 'TOOL_CALL_END',
       toolCallId: 'tc-1',
       result: 'should-not-emit',
     })
-    mw.onChunk?.(ctx(), {
+    send(mw, {
       type: 'TOOL_CALL_RESULT',
       toolCallId: 'tc-1',
       content: '{"ok":true}',
@@ -117,7 +124,7 @@ describe('devtoolsMiddleware spec events', () => {
       .mockImplementation(() => undefined)
     const mw = devtoolsMiddleware()
 
-    mw.onChunk?.(ctx(), {
+    send(mw, {
       type: 'RUN_FINISHED',
       threadId: 'thread-1',
       runId: 'run-1',

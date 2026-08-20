@@ -78,10 +78,11 @@ type DevtoolsKnownChunk =
   | DevtoolsReasoningMessageContentChunk
 
 // The engine emits more chunk types than this middleware acts on
-// (TEXT_MESSAGE_START, MESSAGES_SNAPSHOT, REASONING_*, CUSTOM, etc.); the
-// onChunk signature accepts the open shape, and isKnownChunk narrows to the
-// closed discriminated union before the switch.
-type DevtoolsStreamChunk = { type: string } & Record<string, unknown>
+// (TEXT_MESSAGE_START, MESSAGES_SNAPSHOT, REASONING_*, CUSTOM, etc.).
+// Spec events have no index signature, so do not intersect with
+// `Record<string, unknown>` — that made this middleware unassignable
+// to ChatMiddleware.
+type DevtoolsStreamChunk = { type: string }
 
 const KNOWN_CHUNK_TYPES: ReadonlySet<DevtoolsKnownChunk['type']> = new Set([
   'TEXT_MESSAGE_CONTENT',
@@ -94,7 +95,7 @@ const KNOWN_CHUNK_TYPES: ReadonlySet<DevtoolsKnownChunk['type']> = new Set([
   'REASONING_MESSAGE_CONTENT',
 ])
 
-function isKnownChunk(chunk: DevtoolsStreamChunk): boolean {
+function isKnownChunk(chunk: DevtoolsStreamChunk): chunk is DevtoolsKnownChunk {
   return (KNOWN_CHUNK_TYPES as ReadonlySet<string>).has(chunk.type)
 }
 
@@ -395,7 +396,7 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
 
     onChunk(ctx, rawChunk) {
       if (!isKnownChunk(rawChunk)) return
-      const chunk = rawChunk as DevtoolsKnownChunk
+      const chunk = rawChunk
       const base = buildEventContext(ctx)
 
       switch (chunk.type) {
