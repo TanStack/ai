@@ -80,17 +80,20 @@ export function useChat<
     const instance = new ChatClient<TTools, TContext>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
-      id: clientId,
       initialMessages: messagesToUse,
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
-      ...(initialOptions.threadId !== undefined && {
-        threadId: initialOptions.threadId,
-      }),
+      ...(initialOptions.persistence
+        ? {
+            persistence: initialOptions.persistence,
+            threadId: initialOptions.threadId ?? clientId,
+          }
+        : {
+            ...(initialOptions.threadId !== undefined && {
+              threadId: initialOptions.threadId,
+            }),
+          }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
-      }),
-      ...(initialOptions.persistence !== undefined && {
-        persistence: initialOptions.persistence,
       }),
       ...(initialOptions.context !== undefined && {
         context: initialOptions.context,

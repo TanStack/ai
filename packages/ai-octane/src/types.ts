@@ -74,6 +74,12 @@ export type UseChatOptions<
   | 'context'
   | 'devtools'
 > & {
+  /**
+   * Stable identity for this chat instance. Changing `id` creates a fresh
+   * client. When persistence is on, this value is used as ChatClient
+   * `threadId` unless `threadId` is set.
+   */
+  id?: string
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
