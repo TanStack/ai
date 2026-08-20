@@ -21,6 +21,21 @@ to skip.
 This also applies when planning a feature (include a doc-impact list) and
 when finishing a behavior change (docs must update before the work is done).
 
+## PR description skill (mandatory for Claude, Grok, and Codex)
+
+Before `gh pr create`, and after an agent `git push` on a branch that already
+has an open PR, you MUST load the `pr-description` skill and follow it.
+This is not optional.
+
+Use the Skill tool if this harness has one. If it does not, Read
+`.claude/skills/pr-description/SKILL.md` (copies also live at
+`.agents/skills/pr-description/SKILL.md` for Codex and
+`.grok/skills/pr-description/SKILL.md` for Grok). Keep those three files
+identical.
+
+Do not invent a title and body from memory. If you cannot load the skill,
+stop. A human-only `git push` in another terminal does not trigger this.
+
 ## Dependency Install
 
 Run `pnpm install` before starting any task and again after every merge with

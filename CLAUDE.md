@@ -8,6 +8,8 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 
 **Docs skill (mandatory).** Before planning, writing, editing, or reorganizing anything under `docs/`, load `.claude/skills/docs/SKILL.md` and follow it. Do not write docs without it. See **Documentation** below for TanStack-specific rules that also apply.
 
+**PR description skill (mandatory).** Before `gh pr create`, and after an agent `git push` on a branch that already has an open PR, load `.claude/skills/pr-description/SKILL.md` and follow it. Do not invent the title and body from memory.
+
 ## Package Manager & Tooling
 
 - **Package Manager**: pnpm@10.17.0 (required)
