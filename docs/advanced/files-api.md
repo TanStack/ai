@@ -44,6 +44,15 @@ const handle = await openaiFiles().upload({
 - `uri` — the handle's URL form when the provider exposes one (Gemini file URI, fal storage URL); `undefined` for OpenAI/Anthropic, whose handles are opaque ids.
 - `expiresAt` — epoch milliseconds, when the provider schedules the handle to expire.
 
+> **Runtime note (Gemini upload).** `geminiFiles().upload()` uses `@google/genai`'s
+> resumable upload, which sets an explicit `Content-Length` header on a `Blob`-body
+> request. Some server runtimes reject that with `fetch failed` /
+> `InvalidArgumentError: invalid content-length header`. On **TanStack Start / Nitro**
+> this fails on older Nitro (observed on `nitro@3.0.1-alpha.2`) and works on current
+> Nitro (verified on `nitro@3.0.260610-beta`) — upgrade Nitro if you hit it. Native
+> Node (and the production `node-server` build) are unaffected. OpenAI, Anthropic, and
+> fal uploads use different transports and don't exercise this path.
+
 ### get and delete
 
 Providers with a lifecycle API expose `get()` and `delete()`:
