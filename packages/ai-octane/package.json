@@ -64,10 +64,10 @@
     "@standard-schema/spec": "^1.1.0",
     "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.0.14",
-    "happy-dom": "^20.0.10",
+    "@vitest/coverage-v8": "4.1.10",
+    "happy-dom": "^20.11.2",
     "octane": "0.1.17",
-    "vite": "^8.1.4",
+    "vite": "^8.2.1",
     "zod": "^4.2.0"
   }
 }
