@@ -1,5 +1,5 @@
 ---
-"@tanstack/ai-anthropic": patch
+'@tanstack/ai-anthropic': patch
 ---
 
 Fix `modelOptions.context_management` by attaching the required
