@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+  vi,
+} from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useAudioRecorder } from '../src/use-audio-recorder'
 import type { AudioRecording } from '@tanstack/ai-client'

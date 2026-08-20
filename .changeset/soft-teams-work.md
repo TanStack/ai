@@ -1,9 +1,9 @@
 ---
-"@tanstack/ai-angular": patch
-"@tanstack/ai-svelte": patch
-"@tanstack/ai-react": patch
-"@tanstack/ai-solid": patch
-"@tanstack/ai-vue": patch
+'@tanstack/ai-angular': patch
+'@tanstack/ai-svelte': patch
+'@tanstack/ai-react': patch
+'@tanstack/ai-solid': patch
+'@tanstack/ai-vue': patch
 ---
 
 Fix audio-recorder transforming overloads so options without `onComplete`

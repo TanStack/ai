@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, expectTypeOf, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+  vi,
+} from 'vitest'
 import { createAudioRecorder } from '../src/create-audio-recorder.svelte'
 import type { AudioRecording } from '@tanstack/ai-client'
 
