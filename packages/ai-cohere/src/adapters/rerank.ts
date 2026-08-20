@@ -124,7 +124,12 @@ export class CohereRerankAdapter<
       promptTokens: 0,
       completionTokens: 0,
       totalTokens: 0,
-      ...(searchUnits !== undefined ? { unitsBilled: searchUnits } : {}),
+      ...(searchUnits !== undefined
+        ? {
+            billed: { quantity: searchUnits, unit: 'units' },
+            unitsBilled: searchUnits,
+          }
+        : {}),
     }
 
     return {

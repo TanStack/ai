@@ -239,7 +239,7 @@ describe('generation client devtools bridge', () => {
 
   it('registers a generation hook and emits run lifecycle for fetcher mode', async () => {
     const client = new GenerationClient({
-      id: 'gen-1',
+      threadId: 'gen-1',
       fetcher: async () => ({ text: 'done' }),
       devtools: {
         framework: 'react',
@@ -291,7 +291,7 @@ describe('generation client devtools bridge', () => {
 
   it('includes input, progress, and renderable previews in generation snapshots', async () => {
     const client = new GenerationClient({
-      id: 'image-hook',
+      threadId: 'image-hook',
       fetcher: async () => ({
         id: 'img-1',
         model: 'image-model',
@@ -348,7 +348,7 @@ describe('generation client devtools bridge', () => {
     }
 
     const client = new GenerationClient({
-      id: 'summary-hook',
+      threadId: 'summary-hook',
       connection: { connect },
       devtools: {
         hookName: 'useSummarize',
@@ -399,7 +399,7 @@ describe('generation client devtools bridge', () => {
     }
 
     const client = new GenerationClient({
-      id: 'image-history',
+      threadId: 'image-history',
       connection: { connect },
       devtools: {
         hookName: 'useGenerateImage',
@@ -463,7 +463,7 @@ describe('generation client devtools bridge', () => {
 
   it('responds to devtools state requests for a generation hook', async () => {
     const client = new GenerationClient({
-      id: 'gen-1',
+      threadId: 'gen-1',
       fetcher: async () => ({ text: 'done' }),
       devtools: {
         framework: 'react',
@@ -505,7 +505,7 @@ describe('generation client devtools bridge', () => {
 
   it('emits errored run lifecycle for generation failures', async () => {
     const client = new GenerationClient({
-      id: 'gen-1',
+      threadId: 'gen-1',
       fetcher: async () => {
         throw new Error('Generation failed')
       },
@@ -555,7 +555,7 @@ describe('generation client devtools bridge', () => {
     const connectSpy = vi.fn(connect)
 
     const client = new GenerationClient({
-      id: 'gen-stream',
+      threadId: 'gen-stream',
       connection: {
         connect: connectSpy,
       },
@@ -616,7 +616,7 @@ describe('generation client devtools bridge', () => {
   it('does not emit hook updates after disposal', async () => {
     const deferred = createDeferred<{ text: string }>()
     const client = new GenerationClient({
-      id: 'gen-1',
+      threadId: 'gen-1',
       fetcher: async () => deferred.promise,
       devtools: {
         hookName: 'useGenerateText',
@@ -663,7 +663,7 @@ describe('generation client devtools bridge', () => {
     const connectSpy = vi.fn(connect)
 
     const client = new VideoGenerationClient({
-      id: 'video-stream',
+      threadId: 'video-stream',
       connection: {
         connect: connectSpy,
       },
@@ -698,7 +698,7 @@ describe('generation client devtools bridge', () => {
 
   it('registers a video hook and includes job state in snapshots', async () => {
     const client = new VideoGenerationClient({
-      id: 'video-1',
+      threadId: 'video-1',
       fetcher: async () => ({
         jobId: 'job-1',
         status: 'completed',
@@ -781,7 +781,7 @@ describe('generation client devtools bridge', () => {
     }
 
     const client = new VideoGenerationClient({
-      id: 'video-hook',
+      threadId: 'video-hook',
       connection: { connect },
       devtools: {
         hookName: 'useGenerateVideo',
@@ -857,7 +857,7 @@ describe('generation client devtools bridge', () => {
     }
 
     const client = new VideoGenerationClient({
-      id: 'video-history',
+      threadId: 'video-history',
       connection: { connect },
       devtools: {
         hookName: 'useGenerateVideo',

@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WebsocketChatRouteImport } from './routes/websocket-chat'
 import { Route as TypesafeToolsRouteImport } from './routes/typesafe-tools'
 import { Route as ThreadsRouteImport } from './routes/threads'
 import { Route as ServerFnChatRouteImport } from './routes/server-fn-chat'
@@ -36,6 +37,7 @@ import { Route as GenerationsStructuredOutputRouteImport } from './routes/genera
 import { Route as GenerationsStructuredChatRouteImport } from './routes/generations.structured-chat'
 import { Route as GenerationsSpeechRouteImport } from './routes/generations.speech'
 import { Route as GenerationsPersistentGenerationRouteImport } from './routes/generations.persistent-generation'
+import { Route as GenerationsOpenrouterCombinedRouteImport } from './routes/generations.openrouter-combined'
 import { Route as GenerationsImageRouteImport } from './routes/generations.image'
 import { Route as GenerationsAudioRouteImport } from './routes/generations.audio'
 import { Route as ExampleRuntimeContextRouteImport } from './routes/example.runtime-context'
@@ -49,6 +51,7 @@ import { Route as ApiSandboxTriageRouteImport } from './routes/api.sandbox-triag
 import { Route as ApiSandboxRepoReportRouteImport } from './routes/api.sandbox-repo-report'
 import { Route as ApiResumableRouteImport } from './routes/api.resumable'
 import { Route as ApiPersistentChatRouteImport } from './routes/api.persistent-chat'
+import { Route as ApiOpenrouterCombinedRouteImport } from './routes/api.openrouter-combined'
 import { Route as ApiMcpStatusRouteImport } from './routes/api.mcp-status'
 import { Route as ApiMcpPoolRouteImport } from './routes/api.mcp-pool'
 import { Route as ApiMcpManualRouteImport } from './routes/api.mcp-manual'
@@ -71,6 +74,11 @@ import { Route as ApiGenerateImageRouteImport } from './routes/api.generate.imag
 import { Route as ApiGenerateAudioRouteImport } from './routes/api.generate.audio'
 import { Route as ApiGenerateImageArtifactRouteImport } from './routes/api.generate.image.artifact'
 
+const WebsocketChatRoute = WebsocketChatRouteImport.update({
+  id: '/websocket-chat',
+  path: '/websocket-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TypesafeToolsRoute = TypesafeToolsRouteImport.update({
   id: '/typesafe-tools',
   path: '/typesafe-tools',
@@ -210,6 +218,12 @@ const GenerationsPersistentGenerationRoute =
     path: '/generations/persistent-generation',
     getParentRoute: () => rootRouteImport,
   } as any)
+const GenerationsOpenrouterCombinedRoute =
+  GenerationsOpenrouterCombinedRouteImport.update({
+    id: '/generations/openrouter-combined',
+    path: '/generations/openrouter-combined',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const GenerationsImageRoute = GenerationsImageRouteImport.update({
   id: '/generations/image',
   path: '/generations/image',
@@ -273,6 +287,11 @@ const ApiResumableRoute = ApiResumableRouteImport.update({
 const ApiPersistentChatRoute = ApiPersistentChatRouteImport.update({
   id: '/api/persistent-chat',
   path: '/api/persistent-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOpenrouterCombinedRoute = ApiOpenrouterCombinedRouteImport.update({
+  id: '/api/openrouter-combined',
+  path: '/api/openrouter-combined',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiMcpStatusRoute = ApiMcpStatusRouteImport.update({
@@ -403,6 +422,7 @@ export interface FileRoutesByFullPath {
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
+  '/websocket-chat': typeof WebsocketChatRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
@@ -417,6 +437,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -430,6 +451,7 @@ export interface FileRoutesByFullPath {
   '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
+  '/generations/openrouter-combined': typeof GenerationsOpenrouterCombinedRoute
   '/generations/persistent-generation': typeof GenerationsPersistentGenerationRoute
   '/generations/speech': typeof GenerationsSpeechRoute
   '/generations/structured-chat': typeof GenerationsStructuredChatRoute
@@ -466,6 +488,7 @@ export interface FileRoutesByTo {
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
+  '/websocket-chat': typeof WebsocketChatRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
@@ -480,6 +503,7 @@ export interface FileRoutesByTo {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -493,6 +517,7 @@ export interface FileRoutesByTo {
   '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
+  '/generations/openrouter-combined': typeof GenerationsOpenrouterCombinedRoute
   '/generations/persistent-generation': typeof GenerationsPersistentGenerationRoute
   '/generations/speech': typeof GenerationsSpeechRoute
   '/generations/structured-chat': typeof GenerationsStructuredChatRoute
@@ -530,6 +555,7 @@ export interface FileRoutesById {
   '/server-fn-chat': typeof ServerFnChatRoute
   '/threads': typeof ThreadsRoute
   '/typesafe-tools': typeof TypesafeToolsRoute
+  '/websocket-chat': typeof WebsocketChatRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
@@ -544,6 +570,7 @@ export interface FileRoutesById {
   '/api/mcp-manual': typeof ApiMcpManualRoute
   '/api/mcp-pool': typeof ApiMcpPoolRoute
   '/api/mcp-status': typeof ApiMcpStatusRoute
+  '/api/openrouter-combined': typeof ApiOpenrouterCombinedRoute
   '/api/persistent-chat': typeof ApiPersistentChatRoute
   '/api/resumable': typeof ApiResumableRoute
   '/api/sandbox-repo-report': typeof ApiSandboxRepoReportRoute
@@ -557,6 +584,7 @@ export interface FileRoutesById {
   '/example/runtime-context': typeof ExampleRuntimeContextRoute
   '/generations/audio': typeof GenerationsAudioRoute
   '/generations/image': typeof GenerationsImageRoute
+  '/generations/openrouter-combined': typeof GenerationsOpenrouterCombinedRoute
   '/generations/persistent-generation': typeof GenerationsPersistentGenerationRoute
   '/generations/speech': typeof GenerationsSpeechRoute
   '/generations/structured-chat': typeof GenerationsStructuredChatRoute
@@ -595,6 +623,7 @@ export interface FileRouteTypes {
     | '/server-fn-chat'
     | '/threads'
     | '/typesafe-tools'
+    | '/websocket-chat'
     | '/api/artifacts'
     | '/api/capability-demo'
     | '/api/generic-interrupts'
@@ -609,6 +638,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/openrouter-combined'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -622,6 +652,7 @@ export interface FileRouteTypes {
     | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
+    | '/generations/openrouter-combined'
     | '/generations/persistent-generation'
     | '/generations/speech'
     | '/generations/structured-chat'
@@ -658,6 +689,7 @@ export interface FileRouteTypes {
     | '/server-fn-chat'
     | '/threads'
     | '/typesafe-tools'
+    | '/websocket-chat'
     | '/api/artifacts'
     | '/api/capability-demo'
     | '/api/generic-interrupts'
@@ -672,6 +704,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/openrouter-combined'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -685,6 +718,7 @@ export interface FileRouteTypes {
     | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
+    | '/generations/openrouter-combined'
     | '/generations/persistent-generation'
     | '/generations/speech'
     | '/generations/structured-chat'
@@ -721,6 +755,7 @@ export interface FileRouteTypes {
     | '/server-fn-chat'
     | '/threads'
     | '/typesafe-tools'
+    | '/websocket-chat'
     | '/api/artifacts'
     | '/api/capability-demo'
     | '/api/generic-interrupts'
@@ -735,6 +770,7 @@ export interface FileRouteTypes {
     | '/api/mcp-manual'
     | '/api/mcp-pool'
     | '/api/mcp-status'
+    | '/api/openrouter-combined'
     | '/api/persistent-chat'
     | '/api/resumable'
     | '/api/sandbox-repo-report'
@@ -748,6 +784,7 @@ export interface FileRouteTypes {
     | '/example/runtime-context'
     | '/generations/audio'
     | '/generations/image'
+    | '/generations/openrouter-combined'
     | '/generations/persistent-generation'
     | '/generations/speech'
     | '/generations/structured-chat'
@@ -785,6 +822,7 @@ export interface RootRouteChildren {
   ServerFnChatRoute: typeof ServerFnChatRoute
   ThreadsRoute: typeof ThreadsRoute
   TypesafeToolsRoute: typeof TypesafeToolsRoute
+  WebsocketChatRoute: typeof WebsocketChatRoute
   ApiArtifactsRoute: typeof ApiArtifactsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
   ApiGenericInterruptsRoute: typeof ApiGenericInterruptsRoute
@@ -799,6 +837,7 @@ export interface RootRouteChildren {
   ApiMcpManualRoute: typeof ApiMcpManualRoute
   ApiMcpPoolRoute: typeof ApiMcpPoolRoute
   ApiMcpStatusRoute: typeof ApiMcpStatusRoute
+  ApiOpenrouterCombinedRoute: typeof ApiOpenrouterCombinedRoute
   ApiPersistentChatRoute: typeof ApiPersistentChatRoute
   ApiResumableRoute: typeof ApiResumableRoute
   ApiSandboxRepoReportRoute: typeof ApiSandboxRepoReportRoute
@@ -812,6 +851,7 @@ export interface RootRouteChildren {
   ExampleRuntimeContextRoute: typeof ExampleRuntimeContextRoute
   GenerationsAudioRoute: typeof GenerationsAudioRoute
   GenerationsImageRoute: typeof GenerationsImageRoute
+  GenerationsOpenrouterCombinedRoute: typeof GenerationsOpenrouterCombinedRoute
   GenerationsPersistentGenerationRoute: typeof GenerationsPersistentGenerationRoute
   GenerationsSpeechRoute: typeof GenerationsSpeechRoute
   GenerationsStructuredChatRoute: typeof GenerationsStructuredChatRoute
@@ -829,6 +869,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/websocket-chat': {
+      id: '/websocket-chat'
+      path: '/websocket-chat'
+      fullPath: '/websocket-chat'
+      preLoaderRoute: typeof WebsocketChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/typesafe-tools': {
       id: '/typesafe-tools'
       path: '/typesafe-tools'
@@ -1018,6 +1065,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GenerationsPersistentGenerationRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/generations/openrouter-combined': {
+      id: '/generations/openrouter-combined'
+      path: '/generations/openrouter-combined'
+      fullPath: '/generations/openrouter-combined'
+      preLoaderRoute: typeof GenerationsOpenrouterCombinedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/generations/image': {
       id: '/generations/image'
       path: '/generations/image'
@@ -1107,6 +1161,13 @@ declare module '@tanstack/react-router' {
       path: '/api/persistent-chat'
       fullPath: '/api/persistent-chat'
       preLoaderRoute: typeof ApiPersistentChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openrouter-combined': {
+      id: '/api/openrouter-combined'
+      path: '/api/openrouter-combined'
+      fullPath: '/api/openrouter-combined'
+      preLoaderRoute: typeof ApiOpenrouterCombinedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/mcp-status': {
@@ -1291,6 +1352,7 @@ const rootRouteChildren: RootRouteChildren = {
   ServerFnChatRoute: ServerFnChatRoute,
   ThreadsRoute: ThreadsRoute,
   TypesafeToolsRoute: TypesafeToolsRoute,
+  WebsocketChatRoute: WebsocketChatRoute,
   ApiArtifactsRoute: ApiArtifactsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
   ApiGenericInterruptsRoute: ApiGenericInterruptsRoute,
@@ -1305,6 +1367,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpManualRoute: ApiMcpManualRoute,
   ApiMcpPoolRoute: ApiMcpPoolRoute,
   ApiMcpStatusRoute: ApiMcpStatusRoute,
+  ApiOpenrouterCombinedRoute: ApiOpenrouterCombinedRoute,
   ApiPersistentChatRoute: ApiPersistentChatRoute,
   ApiResumableRoute: ApiResumableRoute,
   ApiSandboxRepoReportRoute: ApiSandboxRepoReportRoute,
@@ -1318,6 +1381,7 @@ const rootRouteChildren: RootRouteChildren = {
   ExampleRuntimeContextRoute: ExampleRuntimeContextRoute,
   GenerationsAudioRoute: GenerationsAudioRoute,
   GenerationsImageRoute: GenerationsImageRoute,
+  GenerationsOpenrouterCombinedRoute: GenerationsOpenrouterCombinedRoute,
   GenerationsPersistentGenerationRoute: GenerationsPersistentGenerationRoute,
   GenerationsSpeechRoute: GenerationsSpeechRoute,
   GenerationsStructuredChatRoute: GenerationsStructuredChatRoute,

@@ -44,10 +44,9 @@ export function useChat<
 >(
   options: UseChatOptions<TTools, TContext, TInterrupts>,
 ): UseChatReturn<TTools, TInterrupts> {
-  // The hook's identity is its `threadId` — also the persistence key, so a
-  // reload with the same `threadId` restores the same conversation. `hookId` is
-  // only a stable fallback for client-recreation keying when no `threadId` is
-  // given (an ephemeral chat), never a persistence key.
+  // The hook's identity is its `threadId`. Reload with the same `threadId`
+  // restores the same conversation. `hookId` is only a recreation key when no
+  // `threadId` is given. It is never sent on the wire.
   const hookId = useId()
   const clientId = options.threadId ?? hookId
 
@@ -129,14 +128,19 @@ export function useChat<
       ...transport,
       initialMessages: messagesToUse,
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
-      ...(initialOptions.threadId !== undefined && {
-        threadId: initialOptions.threadId,
-      }),
+      ...(typeof initialOptions.threadId === 'string' &&
+      initialOptions.persistence
+        ? {
+            persistence: initialOptions.persistence,
+            threadId: initialOptions.threadId,
+          }
+        : {
+            ...(initialOptions.threadId !== undefined && {
+              threadId: initialOptions.threadId,
+            }),
+          }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
-      }),
-      ...(initialOptions.persistence !== undefined && {
-        persistence: initialOptions.persistence,
       }),
       ...(initialOptions.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: initialOptions.initialResumeSnapshot,

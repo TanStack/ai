@@ -250,7 +250,7 @@ All generation hooks share the same interface:
 |--------|------|-------------|
 | `connection` | `ConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
 | `fetcher` | `(input) => Promise<Result \| Response>` | Direct async function, or server function returning an SSE `Response` |
-| `id` | `string` | Unique identifier for this instance |
+| `threadId` | `string` | Stable scope for this generation. Required when `persistence` is on. Optional for ephemeral runs. |
 | `body` | `Record<string, any>` | Additional body parameters (connection mode) |
 | `onResult` | `(result) => T \| null \| void` | Transform or react to the result |
 | `onError` | `(error) => void` | Error callback |

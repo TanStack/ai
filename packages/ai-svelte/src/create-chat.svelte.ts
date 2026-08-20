@@ -110,23 +110,27 @@ export function createChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  // The hook's identity is its `threadId`, which ChatClient also uses as the
-  // persistence key — no separate `id`. When no `threadId` is given the client
-  // generates one, so an ephemeral chat still works but is not restored on reload.
+  // The hook's identity is its `threadId`. When no `threadId` is given the
+  // client mints one after mount, so an ephemeral chat still works but is not
+  // restored on reload.
   const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
+    ...(typeof options.threadId === 'string' && options.persistence
+      ? {
+          persistence: options.persistence,
+          threadId: options.threadId,
+        }
+      : {
+          ...(options.threadId !== undefined && { threadId: options.threadId }),
+        }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(options.body !== undefined && { body: options.body }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),

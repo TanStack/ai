@@ -1,5 +1,14 @@
 # @tanstack/ai-sandbox-vercel
 
+## 0.2.2
+
+### Patch Changes
+
+- [#921](https://github.com/TanStack/ai/pull/921) [`3bb0806`](https://github.com/TanStack/ai/commit/3bb0806740759de50de477303679b5e3b66e88a5) - Vercel sandbox requests now append a `@tanstack/ai` token to the `user-agent`.
+
+- Updated dependencies []:
+  - @tanstack/ai-sandbox@0.3.4
+
 ## 0.2.1
 
 ### Patch Changes

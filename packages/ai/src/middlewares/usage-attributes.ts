@@ -12,8 +12,8 @@ import type { TokenUsage } from '../types'
  * `gen_ai.usage.cost` and `gen_ai.usage.total_tokens` are de-facto extensions
  * consumed by backends like PostHog (which otherwise re-derive cost from their
  * own price tables, losing cache discounts and gateway markup). Fields with no
- * semconv or de-facto convention (`costDetails`, `durationSeconds`,
- * `unitsBilled`) are TanStack-namespaced.
+ * semconv or de-facto convention (`billed`, `costDetails`, and the deprecated
+ * `durationSeconds`/`unitsBilled`) are TanStack-namespaced.
  *
  * Shared by `otelMiddleware` across every activity (chat and the media
  * activities) so usage lands identically whichever activity produced the span.
@@ -29,6 +29,16 @@ export function usageAttributes(
   const attrs: Record<string, AttributeValue> = {
     'gen_ai.usage.input_tokens': usage.promptTokens,
     'gen_ai.usage.output_tokens': usage.completionTokens,
+  }
+  // The self-describing billed quantity: the unit rides along as a string
+  // attribute so backends can label/aggregate non-token usage without
+  // out-of-band knowledge of the provider.
+  if (usage.billed !== undefined) {
+    const quantity = firstNumber(usage.billed.quantity)
+    if (quantity !== undefined) {
+      attrs['tanstack.ai.usage.billed_quantity'] = quantity
+      attrs['tanstack.ai.usage.billed_unit'] = usage.billed.unit
+    }
   }
   const optional: Array<[key: string, value: unknown]> = [
     ['gen_ai.usage.total_tokens', usage.totalTokens],

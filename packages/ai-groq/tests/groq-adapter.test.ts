@@ -505,6 +505,90 @@ describe('Groq AG-UI event emission', () => {
     }
   })
 
+  it('emits a non-executable tool error for tool_use_failed', async () => {
+    const providerError = {
+      message: 'Failed to call a function. Please adjust your prompt.',
+      type: 'invalid_request_error',
+      code: 'tool_use_failed',
+      failed_generation: JSON.stringify({
+        name: 'lookup_weather',
+        arguments: { location: 'Berlin', units: 'celsius' },
+      }),
+    }
+    pendingMockCreate = vi.fn().mockRejectedValue(
+      Object.assign(new Error(providerError.message), {
+        code: providerError.code,
+        error: providerError,
+      }),
+    )
+
+    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+      tools: [weatherTool],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks.map((chunk) => chunk.type)).toEqual([
+      'RUN_STARTED',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'RUN_FINISHED',
+    ])
+    const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+    if (toolCallEnd?.type === 'TOOL_CALL_END') {
+      expect(toolCallEnd.toolName).toBe('lookup_weather')
+      expect(toolCallEnd.input).toEqual({
+        location: 'Berlin',
+        units: 'celsius',
+      })
+      expect(toolCallEnd.result).toBe(
+        JSON.stringify({ error: providerError.message }),
+      )
+      expect(toolCallEnd.state).toBe('output-error')
+    }
+    const runFinished = chunks.at(-1)
+    if (runFinished?.type === 'RUN_FINISHED') {
+      expect(runFinished.finishReason).toBe('tool_calls')
+    }
+  })
+
+  it('emits RUN_ERROR when tool_use_failed has no valid failed generation', async () => {
+    const providerError = {
+      message: 'Failed to call a function. Please adjust your prompt.',
+      type: 'invalid_request_error',
+      code: 'tool_use_failed',
+      failed_generation: '{',
+    }
+    pendingMockCreate = vi.fn().mockRejectedValue(
+      Object.assign(new Error(providerError.message), {
+        code: providerError.code,
+        error: providerError,
+      }),
+    )
+
+    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+      tools: [weatherTool],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks.map((chunk) => chunk.type)).toEqual([
+      'RUN_STARTED',
+      'RUN_ERROR',
+    ])
+  })
+
   it('emits RUN_ERROR on stream error', async () => {
     const streamChunks = [
       {

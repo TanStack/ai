@@ -11,6 +11,8 @@ import type { ProviderTool } from './tools/provider-tool'
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
 import type {
+  BilledUsage,
+  BillingUnit,
   CompletionTokensDetails,
   PromptTokensDetails,
   ProviderUsageDetails,
@@ -1105,6 +1107,8 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
 // Re-export the canonical usage types (defined in `@tanstack/ai-event-client`)
 // so `@tanstack/ai` consumers keep importing them from here unchanged.
 export type {
+  BilledUsage,
+  BillingUnit,
   CompletionTokensDetails,
   PromptTokensDetails,
   ProviderUsageDetails,
@@ -2080,9 +2084,10 @@ export interface RerankResult<TDocument = string> {
   rerankedDocuments: Array<TDocument>
   /**
    * Usage for the request. Rerank typically bills in provider-defined "search
-   * units" (`usage.unitsBilled`) rather than tokens. Some providers (e.g.
-   * OpenRouter) may also report `totalTokens` and `cost`; Cohere reports only
-   * search units and leaves the token counts at 0.
+   * units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens.
+   * Some providers (e.g. OpenRouter) may also report `totalTokens` and `cost`.
+   * Cohere reports only search units and leaves the token counts at 0.
+   * The deprecated `unitsBilled` field is still populated for compatibility.
    */
   usage: TokenUsage
 }
@@ -2465,8 +2470,8 @@ export interface VideoUrlResult {
   expiresAt?: Date
   /**
    * Usage information for the completed generation, when the adapter can report
-   * it. For usage-based providers (e.g. fal) this carries `unitsBilled` — the
-   * real billed quantity — so consumers can compute exact cost.
+   * it. For usage-based providers (e.g. fal) this carries `billed` — the real
+   * billed quantity paired with its unit — so consumers can compute exact cost.
    */
   usage?: TokenUsage
   /** Persisted artifact references for generated assets, when available */

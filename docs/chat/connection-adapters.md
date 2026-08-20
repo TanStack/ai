@@ -32,7 +32,8 @@ This page covers every supported transport, when to pick which, and how to build
 | Code that **synchronously** returns an `AsyncIterable<StreamChunk>` (in-process `chat()`, an RSC stream, tests) | [`stream`](#server-functions-and-direct-async-iterables) |
 | An **async** call — a TanStack Start server function or any `Promise`-returning function — resolving to a `Response` or an `AsyncIterable<StreamChunk>` | [`fetcher`](#server-functions-via-fetcher) |
 | An RPC framework like Cap'n Web, gRPC-Web, or tRPC | [`rpcStream`](#rpc-streams) |
-| A single long-lived WebSocket (or BroadcastChannel, postMessage, shared worker) serving many runs | [Custom `subscribe` / `send` adapter](#persistent-transports-websockets-and-friends) |
+| A single long-lived, resumable WebSocket serving many runs | [`webSocket`](#websockets) |
+| BroadcastChannel, postMessage, a shared worker, or another persistent transport | [Custom `subscribe` / `send` adapter](#persistent-transports-websockets-and-friends) |
 | Standard SSE but with custom fetch wrapping (auth refresh, retries) | [`fetchServerSentEvents` with `fetchClient`](#custom-fetch-client) |
 | Something else entirely (HTTP/3, Server-Sent Events over a different protocol, etc.) | [Custom `connect` adapter](#custom-request-scoped-adapters) |
 
@@ -314,11 +315,47 @@ const { messages } = useChat({
 
 Like `stream()`, `rpcStream()` takes an optional second argument of persistence handlers (`{ hydrate, hydrateGeneration, joinRun }`) so server-driven persistence works over RPC — each handler is usually a one-line RPC call.
 
+## WebSockets
+
+For a persistent, resumable WebSocket, use the built-in `webSocket()` adapter instead of hand-rolling a `SubscribeConnectionAdapter`. It opens one socket for the whole conversation, reconnects a dropped durable run automatically, and pairs with the server's `toWebSocketStream` / `toWebSocketResponse`:
+
+```typescript
+import { useChat, webSocket } from "@tanstack/ai-react";
+
+const connection = webSocket("/api/chat-ws");
+
+const { messages, sendMessage } = useChat({ connection });
+```
+
+On Cloudflare Workers or Durable Objects, pair that client with `toWebSocketResponse`. Elsewhere, accept the socket yourself and pass it to `toWebSocketStream` (see [WebSockets](../resumable-streams/websockets)):
+
+```typescript
+import { chat, memoryStream, toWebSocketResponse } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export default {
+  fetch(request: Request): Response {
+    return toWebSocketResponse(request, {
+      durability: (ctx) => memoryStream(ctx.request),
+      onRun: ({ messages, threadId, runId }) =>
+        chat({
+          adapter: openaiText("gpt-5.5"),
+          messages,
+          threadId,
+          runId,
+        }),
+    });
+  },
+};
+```
+
+See [WebSockets](../resumable-streams/websockets) for the wire protocol, reconnect details, and hosting on Node vs Cloudflare.
+
 ## Persistent Transports (WebSockets and Friends)
 
 A persistent transport — WebSocket, BroadcastChannel, postMessage between iframes, a shared worker — is fundamentally different from request/response. You open the channel **once**, then send and receive over it for the lifetime of the client. `stream()`/`connect()` can't model this cleanly because they assume one async iterable per request.
 
-For these cases, implement the `SubscribeConnectionAdapter` interface directly. The shape (full definition in [The Adapter Interface](#the-adapter-interface)):
+The built-in `webSocket()` adapter above covers the common resumable WebSocket case. For anything else persistent, implement the `SubscribeConnectionAdapter` interface directly. The shape (full definition in [The Adapter Interface](#the-adapter-interface)):
 
 ```typescript
 import type { SubscribeConnectionAdapter } from "@tanstack/ai-react";
@@ -332,7 +369,9 @@ import type { SubscribeConnectionAdapter } from "@tanstack/ai-react";
 
 The runtime correlates them: chunks emitted on the subscription queue between `send()` and the next terminal event (`RUN_FINISHED` / `RUN_ERROR`) are attributed to that run.
 
-### WebSocket example
+### Custom WebSocket example
+
+Building your own protocol instead of the built-in `webSocket()` adapter (a different wire format, no resume support needed, or a server you don't control)? Implement `SubscribeConnectionAdapter` by hand:
 
 ```typescript
 import { useChat, type SubscribeConnectionAdapter } from "@tanstack/ai-react";

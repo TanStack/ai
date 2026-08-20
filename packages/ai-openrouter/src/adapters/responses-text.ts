@@ -7,6 +7,7 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../internal/request-options'
+import { openRouterSupportsCombinedToolsAndSchema } from '../internal/combined-tools-and-schema'
 import { makeStructuredOutputCompatible } from '../internal/schema-converter'
 import { convertFunctionToolToResponsesFormat } from '../internal/responses-tool-converter'
 import { isWebSearchTool } from '../tools/web-search-tool'
@@ -29,6 +30,7 @@ import type {
 } from '@tanstack/ai/adapters'
 import type {
   ContentPart,
+  JSONSchema,
   ModelMessage,
   StreamChunk,
   TextOptions,
@@ -1605,6 +1607,18 @@ export class OpenRouterResponsesTextAdapter<
         )
       : undefined
 
+    // Attach text.format json_schema only when outputSchema is set and every
+    // routed model is in the combined-capable set.
+    const combinedOutputSchema: JSONSchema | undefined = options.outputSchema
+    const combinedSchema =
+      combinedOutputSchema &&
+      this.supportsCombinedToolsAndSchema(options.modelOptions)
+        ? this.makeStructuredOutputCompatible(
+            combinedOutputSchema,
+            combinedOutputSchema.required,
+          )
+        : undefined
+
     const built: Pick<
       ResponsesRequest,
       | 'model'
@@ -1617,6 +1631,7 @@ export class OpenRouterResponsesTextAdapter<
       | 'tools'
       | 'toolChoice'
       | 'parallelToolCalls'
+      | 'text'
     > = {
       ...modelOptions,
       model: options.model + variantSuffix,
@@ -1635,9 +1650,34 @@ export class OpenRouterResponsesTextAdapter<
         tools.length > 0 && {
           tools,
         }),
+      ...(combinedSchema && {
+        // Merge onto any caller-supplied `text` (spread above via
+        // `...modelOptions`) so sibling fields like `text.verbosity` survive;
+        // only `text.format` is overridden by the combined-mode schema.
+        text: {
+          ...modelOptions.text,
+          format: {
+            type: 'json_schema' as const,
+            name: 'structured_output',
+            schema: combinedSchema,
+            strict: true,
+          },
+        },
+      }),
     }
 
     return built
+  }
+
+  /**
+   * Combined mode is safe only when this model and every `modelOptions.models`
+   * fallback are in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`.
+   * `:variant` suffixes are routing directives and do not change the gate.
+   */
+  supportsCombinedToolsAndSchema(
+    modelOptions?: OpenRouterResponsesTextProviderOptions,
+  ): boolean {
+    return openRouterSupportsCombinedToolsAndSchema(this.model, modelOptions)
   }
 
   /**

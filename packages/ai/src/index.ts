@@ -103,6 +103,7 @@ export type {
 
 // MCP error classes (value exports — usable with instanceof)
 export { MCPDuplicateToolNameError } from './activities/chat/mcp/manager'
+export { DuplicateToolNameError } from './activities/chat/tools/unique-tool-names'
 
 // Schema conversion (Standard JSON Schema compliant)
 export {
@@ -137,6 +138,22 @@ export type {
   StreamDurability,
   UpsertableStreamDurability,
 } from './stream-durability'
+
+// WebSocket transport utilities
+export {
+  toWebSocketStream,
+  toWebSocketResponse,
+  resumeWebSocketStream,
+  resumeWebSocketResponse,
+  encodeWsFrame,
+  decodeWsFrame,
+} from './stream-to-websocket'
+export type {
+  WebSocketLike,
+  WsRunContext,
+  WebSocketStreamInit,
+  InboundFrame,
+} from './stream-to-websocket'
 
 // Tool call management
 export { ToolCallManager } from './activities/chat/tools/tool-calls'

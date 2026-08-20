@@ -46,6 +46,10 @@ export {
 } from './interrupt-resume'
 export type { PendingInterruptResumeRecord } from './interrupt-resume'
 export {
+  assertUniqueToolNames,
+  DuplicateToolNameError,
+} from './activities/chat/tools/unique-tool-names'
+export {
   appendOutputSchemaInstruction,
   parseJsonFromAssistantText,
 } from './utilities/structured-output-text'

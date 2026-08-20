@@ -34,6 +34,7 @@ import {
 import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { LazyToolManager } from './tools/lazy-tool-manager'
+import { assertUniqueToolNames } from './tools/unique-tool-names'
 import {
   MiddlewareAbortError,
   ToolCallManager,
@@ -51,7 +52,11 @@ import {
 } from './tools/approval-schema'
 import { maxIterations as maxIterationsStrategy } from './agent-loop-strategies'
 import { isCancelRequestedReason } from './cancel'
-import { convertMessagesToModelMessages, generateMessageId } from './messages'
+import {
+  convertMessagesToModelMessages,
+  generateMessageId,
+  modelMessageToUIMessage,
+} from './messages'
 import { MiddlewareRunner } from './middleware/compose'
 import { getRunDetached } from './middleware/run-store'
 import { publishRunDetachedSignal } from '../../delivery-detach'
@@ -902,9 +907,11 @@ class TextEngine<
     []
   private currentThinkingContent = ''
   private currentThinkingSignature = ''
+  private hasSeenReasoningEvents = false
   private eventOptions?: Record<string, unknown> | undefined
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
+  private readonly streamedToolErrorResults = new Map<string, ToolResult>()
   private deferredToolCallRunFinishedChunks: Array<StreamChunk> = []
   /** The model terminal is held until afterModel can choose an interrupt. */
   private deferredModelRunFinishedChunks: Array<StreamChunk> = []
@@ -1027,6 +1034,7 @@ class TextEngine<
     this.messages = convertMessagesToModelMessages(config.params.messages)
 
     // Initialize lazy tool manager after messages are converted (needs message history for scanning)
+    assertUniqueToolNames(config.params.tools || [])
     this.lazyToolManager = new LazyToolManager(
       config.params.tools || [],
       this.messages,
@@ -1387,6 +1395,7 @@ class TextEngine<
             duration: Date.now() - this.streamStartTime,
           })
         } else {
+          this.addTerminalReasoningMessage()
           this.terminalHookCalled = true
           await this.middlewareRunner.runOnFinish(this.middlewareCtx, {
             finishReason: this.lastFinishReason,
@@ -1517,7 +1526,9 @@ class TextEngine<
     this.accumulatedThinking = []
     this.currentThinkingContent = ''
     this.currentThinkingSignature = ''
+    this.hasSeenReasoningEvents = false
     this.finishedEvent = null
+    this.streamedToolErrorResults.clear()
 
     // Update mutable context fields
     this.middlewareCtx.currentMessageId = this.currentMessageId
@@ -1774,16 +1785,19 @@ class TextEngine<
         this.handleStepFinishedEvent(chunk)
         break
 
+      case 'REASONING_MESSAGE_CONTENT':
+        this.handleReasoningMessageContentEvent(chunk)
+        break
+
       case 'TOOL_CALL_RESULT':
         // Tool result is already added to messages in buildToolResultChunks
         break
 
       case 'REASONING_START':
       case 'REASONING_MESSAGE_START':
-      case 'REASONING_MESSAGE_CONTENT':
       case 'REASONING_MESSAGE_END':
       case 'REASONING_END':
-        // Reasoning events are handled by StreamProcessor
+        // No special handling needed
         break
 
       default:
@@ -1831,6 +1845,20 @@ class TextEngine<
 
   private handleToolCallEndEvent(chunk: ToolCallEndEvent): void {
     this.toolCallManager.completeToolCall(chunk)
+    if (chunk.state !== 'output-error' || chunk.result === undefined) return
+
+    const toolCall = this.toolCallManager
+      .getToolCalls()
+      .find((candidate) => candidate.id === chunk.toolCallId)
+    if (!toolCall) return
+
+    this.streamedToolErrorResults.set(chunk.toolCallId, {
+      toolCallId: chunk.toolCallId,
+      toolName: toolCall.function.name,
+      result: chunk.result,
+      ...(chunk.input !== undefined && { input: chunk.input }),
+      state: 'output-error',
+    })
   }
 
   private handleRunFinishedEvent(chunk: RunFinishedEvent): void {
@@ -1878,12 +1906,27 @@ class TextEngine<
   private handleStepFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
-    if (chunk.delta) {
-      this.currentThinkingContent += chunk.delta
+    if (!this.hasSeenReasoningEvents) {
+      if (chunk.delta) {
+        this.currentThinkingContent += chunk.delta
+      } else if (chunk.content) {
+        if (chunk.content.startsWith(this.currentThinkingContent)) {
+          this.currentThinkingContent = chunk.content
+        } else if (!this.currentThinkingContent.startsWith(chunk.content)) {
+          this.currentThinkingContent += chunk.content
+        }
+      }
     }
     if (chunk.signature) {
       this.currentThinkingSignature = chunk.signature
     }
+  }
+
+  private handleReasoningMessageContentEvent(
+    chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
+  ): void {
+    this.hasSeenReasoningEvents = true
+    this.currentThinkingContent += chunk.delta
   }
 
   /**
@@ -2098,6 +2141,9 @@ class TextEngine<
     // Handle undiscovered lazy tool calls with self-correcting error messages
     const undiscoveredLazyResults: Array<ToolResult> = []
     const executableToolCalls = toolCalls.filter((tc) => {
+      if (this.streamedToolErrorResults.has(tc.id)) {
+        return false
+      }
       if (this.lazyToolManager.isUndiscoveredLazyTool(tc.function.name)) {
         undiscoveredLazyResults.push({
           toolCallId: tc.id,
@@ -2114,14 +2160,17 @@ class TextEngine<
       return true
     })
 
-    // Non-executed outcomes (undiscovered lazy). Per-turn skips come from
-    // middleware and appear in execution results.
-    const deferredErrorResults = [...undiscoveredLazyResults]
+    // Non-executed outcomes. Per-turn skips come from middleware and appear in
+    // execution results.
+    const deferredErrorResults = [
+      ...this.streamedToolErrorResults.values(),
+      ...undiscoveredLazyResults,
+    ]
 
     if (executableToolCalls.length === 0) {
       yield* this.flushDeferredToolCallRunFinishedChunks()
-      // All tool calls were undiscovered lazy tools — errors emitted, continue
-      // loop (strategy / onShouldContinue may stop).
+      // All tool calls already have error results — emit them, then continue
+      // the loop (strategy / onShouldContinue may stop).
       if (deferredErrorResults.length > 0) {
         for (const chunk of this.buildToolResultChunks(
           deferredErrorResults,
@@ -2367,6 +2416,30 @@ class TextEngine<
         ...(this.accumulatedThinking.length > 0 && {
           thinking: this.accumulatedThinking,
         }),
+      },
+    ]
+    this.middlewareCtx.messages = this.messages
+  }
+
+  private addTerminalReasoningMessage(): void {
+    this.finalizeCurrentThinkingStep()
+    if (this.accumulatedThinking.length === 0) return
+
+    const messages = this.middlewareCtx.messages
+    const alreadyPresent = messages.some(
+      (message) =>
+        message.role === 'assistant' && message.id === this.currentMessageId,
+    )
+    if (alreadyPresent) return
+
+    this.messages = [
+      ...messages,
+      {
+        role: 'assistant',
+        content: this.accumulatedContent || null,
+        id: this.currentMessageId ?? undefined,
+        createdAt: this.currentMessageCreatedAt ?? undefined,
+        thinking: this.accumulatedThinking,
       },
     ]
     this.middlewareCtx.messages = this.messages
@@ -2636,12 +2709,18 @@ class TextEngine<
             : message.content === null
               ? undefined
               : JSON.stringify(message.content)
+        const id =
+          message.id ||
+          `snapshot_${this.runIdOverride ?? this.requestId}_${index}`
+        const parts =
+          message.role === 'assistant' && message.thinking?.length
+            ? modelMessageToUIMessage(message, id).parts
+            : undefined
         return {
-          id:
-            message.id ||
-            `snapshot_${this.runIdOverride ?? this.requestId}_${index}`,
+          id,
           role: message.role,
           ...(content !== undefined ? { content } : {}),
+          ...(parts ? { parts } : {}),
           ...('toolCalls' in message && message.toolCalls
             ? { toolCalls: message.toolCalls }
             : {}),
@@ -4307,6 +4386,7 @@ class TextEngine<
     this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
     this.systemPrompts = config.systemPrompts
+    assertUniqueToolNames(config.tools)
     this.tools = config.tools
     this.params = {
       ...this.params,
@@ -4502,6 +4582,9 @@ export function chat<
     readRuntimeMiddleware(options.middleware) ?? [],
     options.adapter,
   )
+  if (options.tools) {
+    assertUniqueToolNames(options.tools)
+  }
 
   const { outputSchema, stream } = options
 

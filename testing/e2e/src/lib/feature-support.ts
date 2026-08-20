@@ -199,11 +199,15 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // (or per-feature override in `features.ts`) must opt into combined mode
   // — otherwise the engine takes the legacy finalization path, which makes
   // an extra request that this feature's fixture doesn't model.
+  // openrouter and openrouter-responses both default to openai/gpt-4o,
+  // which is in OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS.
   'agentic-structured-stream': new Set([
     'openai',
     'anthropic',
     'gemini',
     'grok',
+    'openrouter',
+    'openrouter-responses',
     'byteplus',
   ]),
   // Bedrock excluded: the default e2e model (openai.gpt-oss-120b) is text-only

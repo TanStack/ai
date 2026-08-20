@@ -137,7 +137,7 @@ export class GrokTranscriptionAdapter<
 
       const resolvedLanguage = data.language ?? language
       // xAI's /v1/stt response carries no token counts — STT is duration-billed —
-      // so surface the audio duration as `durationSeconds`, mirroring the
+      // so surface the audio duration as the billed quantity, mirroring the
       // whisper-1 path in the OpenAI transcription adapter.
       const usage: TokenUsage | undefined =
         data.duration !== undefined && data.duration > 0
@@ -145,6 +145,7 @@ export class GrokTranscriptionAdapter<
               promptTokens: 0,
               completionTokens: 0,
               totalTokens: 0,
+              billed: { quantity: data.duration, unit: 'seconds' },
               durationSeconds: data.duration,
             }
           : undefined

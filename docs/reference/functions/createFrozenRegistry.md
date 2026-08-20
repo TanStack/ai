@@ -6,7 +6,7 @@ title: createFrozenRegistry
 # Function: createFrozenRegistry()
 
 ```ts
-function createFrozenRegistry<TTool>(tools): ToolRegistry<TTool>;
+function createFrozenRegistry<TTool>(tools?): ToolRegistry<TTool>;
 ```
 
 Defined in: [packages/ai/src/tool-registry.ts:119](https://github.com/TanStack/ai/blob/main/packages/ai/src/tool-registry.ts#L119)
@@ -24,7 +24,7 @@ Add and remove operations are no-ops on frozen registries.
 
 ## Parameters
 
-### tools
+### tools?
 
 `TTool`[] = `[]`
 

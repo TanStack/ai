@@ -29,7 +29,7 @@
           "label": "Devtools",
           "to": "getting-started/devtools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Quick Start: Vue",
@@ -83,7 +83,7 @@
           "label": "Provider Tools",
           "to": "tools/provider-tools",
           "addedAt": "2026-04-21",
-          "updatedAt": "2026-07-02"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Provider Skills",
@@ -173,7 +173,7 @@
           "label": "Connection Adapters",
           "to": "chat/connection-adapters",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Thinking & Reasoning",
@@ -236,12 +236,19 @@
         {
           "label": "Overview",
           "to": "resumable-streams/overview",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Advanced",
           "to": "resumable-streams/advanced",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "WebSockets",
+          "to": "resumable-streams/websockets",
+          "addedAt": "2026-08-19"
         },
         {
           "label": "Custom Durability Adapter",
@@ -301,7 +308,8 @@
         {
           "label": "Id Map",
           "to": "persistence/id-map",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Keep Generated Files",
@@ -355,7 +363,7 @@
           "label": "Overview",
           "to": "structured-outputs/overview",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "One-Shot Extraction",
@@ -378,7 +386,7 @@
           "label": "With Tools",
           "to": "structured-outputs/with-tools",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Harness Agents",
@@ -428,7 +436,7 @@
           "label": "Generations",
           "to": "media/generations",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Realtime Voice Chat",
@@ -458,25 +466,25 @@
           "label": "Audio Generation",
           "to": "media/audio-generation",
           "addedAt": "2026-04-23",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-08"
         },
         {
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -497,7 +505,8 @@
         {
           "label": "Reranking",
           "to": "rerank/rerank",
-          "addedAt": "2026-06-25"
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -508,7 +517,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Built-in Middleware",
@@ -525,7 +534,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-08-06"
+          "updatedAt": "2026-08-08"
         }
       ]
     },
@@ -770,43 +779,43 @@
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-react",
           "to": "api/ai-react",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-solid",
           "to": "api/ai-solid",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-preact",
           "to": "api/ai-preact",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-vue",
           "to": "api/ai-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-svelte",
           "to": "api/ai-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -841,7 +850,7 @@
           "label": "Grok (xAI)",
           "to": "adapters/grok",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Groq",
@@ -875,7 +884,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-13"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Perplexity Search",
@@ -934,7 +943,7 @@
           "label": "BytePlus",
           "to": "adapters/byteplus",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-07"
+          "updatedAt": "2026-08-19"
         }
       ]
     },

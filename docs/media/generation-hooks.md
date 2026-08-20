@@ -397,7 +397,7 @@ function EmbeddingGenerator() {
 |--------|------|-------------|
 | `connection` | `ConnectConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
 | `fetcher` | `GenerationFetcher<TInput, TResult>` | Direct async function (no streaming protocol needed) |
-| `id` | `string` | Unique identifier for this generation instance |
+| `threadId` | `string` | Stable scope for this generation. Required when `persistence` is on. Optional for ephemeral runs. |
 | `body` | `Record<string, any>` | Additional body parameters sent with connection requests |
 | `onResult` | `(result: TResult) => TOutput \| null \| void` | Transform or react to results |
 | `onError` | `(error: Error) => void` | Error callback |

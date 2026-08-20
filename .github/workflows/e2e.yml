@@ -42,13 +42,12 @@ jobs:
       - name: Build Packages
         run: pnpm run build:all
 
+      # GitHub-hosted ubuntu-24.04 already has Chromium system libs.
+      # install-deps / --with-deps run apt-get against azure.archive.ubuntu.com
+      # and that mirror hangs, which kills this job.
       - name: Install Playwright Chromium
         if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm --filter @tanstack/ai-e2e exec playwright install --with-deps chromium
-
-      - name: Install Playwright Deps (if cached)
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm --filter @tanstack/ai-e2e exec playwright install-deps chromium
+        run: pnpm --filter @tanstack/ai-e2e exec playwright install chromium
 
       - name: Run E2E Tests
         run: pnpm --filter @tanstack/ai-e2e test:e2e

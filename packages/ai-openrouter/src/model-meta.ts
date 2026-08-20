@@ -150,15 +150,15 @@ const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 384000,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.078596,
-        cached: 0.0157192,
+        normal: 0.0765,
+        cached: 0.0153,
       },
       output: {
-        normal: 0.157192,
+        normal: 0.153,
       },
     },
     image: 0,
@@ -3793,12 +3793,12 @@ const GOOGLE_GEMMA_4_31B_IT = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 262144,
+  max_output_tokens: 16384,
   pricing: {
     text: {
       input: {
-        normal: 0.1,
-        cached: 0.1,
+        normal: 0.09,
+        cached: 0.05,
       },
       output: {
         normal: 0.34,
@@ -4269,6 +4269,43 @@ const KWAIPILOT_KAT_CODER_PRO_V2_5 = {
       },
       output: {
         normal: 2.96,
+      },
+    },
+    image: 0,
+  },
+} as const
+const LIQUID_LFM_2_5_2_6B_FREE = {
+  id: 'liquid/lfm-2.5-2.6b:free',
+  name: 'LiquidAI: LFM2.5-2.6B (free)',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'logprobs',
+      'maxCompletionTokens',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'responseFormat',
+      'seed',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topLogprobs',
+      'topP',
+    ],
+  },
+  context_window: 128000,
+  max_output_tokens: 8192,
+  pricing: {
+    text: {
+      input: {
+        normal: 0,
+        cached: 0,
+      },
+      output: {
+        normal: 0,
       },
     },
     image: 0,
@@ -5063,11 +5100,11 @@ const MINIMAX_MINIMAX_M3_BATCH = {
   pricing: {
     text: {
       input: {
-        normal: 0.15,
-        cached: 0.03,
+        normal: 0.3,
+        cached: 0.06,
       },
       output: {
-        normal: 0.6,
+        normal: 1.2,
       },
     },
     image: 0,
@@ -5790,11 +5827,11 @@ const MOONSHOTAI_KIMI_K2_5 = {
   pricing: {
     text: {
       input: {
-        normal: 0.57,
-        cached: 0.095,
+        normal: 0.45,
+        cached: 0.07,
       },
       output: {
-        normal: 2.85,
+        normal: 2.25,
       },
     },
     image: 0,
@@ -5899,11 +5936,11 @@ const MOONSHOTAI_KIMI_K2_7_CODE_BATCH = {
   pricing: {
     text: {
       input: {
-        normal: 0.475,
-        cached: 0.095,
+        normal: 0.95,
+        cached: 0.19,
       },
       output: {
-        normal: 2,
+        normal: 4,
       },
     },
     image: 0,
@@ -6409,11 +6446,11 @@ const NVIDIA_NEMOTRON_3_ULTRA_550B_A55B_BATCH = {
   pricing: {
     text: {
       input: {
-        normal: 0.3,
-        cached: 0.1,
+        normal: 0.6,
+        cached: 0.2,
       },
       output: {
-        normal: 1.8,
+        normal: 3.6,
       },
     },
     image: 0,
@@ -10613,12 +10650,12 @@ const QWEN_QWEN3_NEXT_80B_A3B_INSTRUCT = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 262144,
+  max_output_tokens: 16384,
   pricing: {
     text: {
       input: {
-        normal: 0.1,
-        cached: 0.07,
+        normal: 0.09,
+        cached: 0,
       },
       output: {
         normal: 1.1,
@@ -10938,15 +10975,15 @@ const QWEN_QWEN3_5_122B_A10B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 81920,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.29,
+        normal: 0.26,
         cached: 0,
       },
       output: {
-        normal: 2.4,
+        normal: 2.08,
       },
     },
     image: 0,
@@ -11229,15 +11266,15 @@ const QWEN_QWEN3_6_27B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 262144,
+  max_output_tokens: 65536,
   pricing: {
     text: {
       input: {
-        normal: 0.6,
-        cached: 0.12,
+        normal: 0.3,
+        cached: 0.03,
       },
       output: {
-        normal: 3.6,
+        normal: 2,
       },
     },
     image: 0,
@@ -12270,11 +12307,11 @@ const THINKINGMACHINES_INKLING_BATCH = {
   pricing: {
     text: {
       input: {
-        normal: 0.5,
-        cached: 0.085,
+        normal: 1,
+        cached: 0.17,
       },
       output: {
-        normal: 2.025,
+        normal: 4.05,
       },
     },
     image: 0,
@@ -13039,11 +13076,11 @@ const Z_AI_GLM_5_2 = {
   pricing: {
     text: {
       input: {
-        normal: 0.5,
-        cached: 0.115,
+        normal: 0.966,
+        cached: 0.1932,
       },
       output: {
-        normal: 3.15,
+        normal: 3.036,
       },
     },
     image: 0,
@@ -13072,11 +13109,11 @@ const Z_AI_GLM_5_2_BATCH = {
   pricing: {
     text: {
       input: {
-        normal: 0.7,
-        cached: 0.13,
+        normal: 1.4,
+        cached: 0.26,
       },
       output: {
-        normal: 2.2,
+        normal: 4.4,
       },
     },
     image: 0,
@@ -13093,14 +13130,16 @@ const Z_AI_GLM_5_2_FREE = {
       'maxCompletionTokens',
       'presencePenalty',
       'reasoning',
+      'responseFormat',
       'seed',
       'stop',
       'temperature',
+      'toolChoice',
       'topP',
     ],
   },
-  context_window: 128000,
-  max_output_tokens: 128000,
+  context_window: 256000,
+  max_output_tokens: 256000,
   pricing: {
     text: {
       input: {
@@ -13109,6 +13148,36 @@ const Z_AI_GLM_5_2_FREE = {
       },
       output: {
         normal: 0,
+      },
+    },
+    image: 0,
+  },
+} as const
+const Z_AI_GLM_5_3 = {
+  id: 'z-ai/glm-5.3',
+  name: 'Z.ai: GLM 5.3',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    supports: [
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 1048576,
+  max_output_tokens: 131072,
+  pricing: {
+    text: {
+      input: {
+        normal: 1.4,
+        cached: 0.26,
+      },
+      output: {
+        normal: 4.4,
       },
     },
     image: 0,
@@ -14729,6 +14798,23 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'responseFormat'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+    >
+  [LIQUID_LFM_2_5_2_6B_FREE.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'logprobs'
+      | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'seed'
       | 'stop'
       | 'temperature'
       | 'toolChoice'
@@ -18177,9 +18263,21 @@ export type OpenRouterModelOptionsByName = {
       | 'maxCompletionTokens'
       | 'presencePenalty'
       | 'reasoning'
+      | 'responseFormat'
       | 'seed'
       | 'stop'
       | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
+  [Z_AI_GLM_5_3.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'temperature'
+      | 'toolChoice'
       | 'topP'
     >
   [Z_AI_GLM_5V_TURBO.id]: OpenRouterCommonOptions &
@@ -18420,6 +18518,7 @@ export type OpenRouterModelInputModalitiesByName = {
   [KWAIPILOT_KAT_CODER_AIR_V2_5.id]: ReadonlyArray<'text'>
   [KWAIPILOT_KAT_CODER_PRO_V2.id]: ReadonlyArray<'text'>
   [KWAIPILOT_KAT_CODER_PRO_V2_5.id]: ReadonlyArray<'text'>
+  [LIQUID_LFM_2_5_2_6B_FREE.id]: ReadonlyArray<'text'>
   [MANCER_WEAVER.id]: ReadonlyArray<'text'>
   [MEITUAN_LONGCAT_2_0.id]: ReadonlyArray<'text'>
   [META_LLAMA_LLAMA_3_1_70B_INSTRUCT.id]: ReadonlyArray<'text'>
@@ -18716,6 +18815,7 @@ export type OpenRouterModelInputModalitiesByName = {
   [Z_AI_GLM_5_2.id]: ReadonlyArray<'text'>
   [Z_AI_GLM_5_2_BATCH.id]: ReadonlyArray<'text'>
   [Z_AI_GLM_5_2_FREE.id]: ReadonlyArray<'text'>
+  [Z_AI_GLM_5_3.id]: ReadonlyArray<'text'>
   [Z_AI_GLM_5V_TURBO.id]: ReadonlyArray<'image' | 'text' | 'video'>
   'openrouter/auto': ReadonlyArray<
     'text' | 'image' | 'audio' | 'video' | 'document'
@@ -18855,6 +18955,7 @@ export const OPENROUTER_CHAT_MODELS = [
   KWAIPILOT_KAT_CODER_AIR_V2_5.id,
   KWAIPILOT_KAT_CODER_PRO_V2.id,
   KWAIPILOT_KAT_CODER_PRO_V2_5.id,
+  LIQUID_LFM_2_5_2_6B_FREE.id,
   MANCER_WEAVER.id,
   MEITUAN_LONGCAT_2_0.id,
   META_LLAMA_LLAMA_3_1_70B_INSTRUCT.id,
@@ -19127,6 +19228,7 @@ export const OPENROUTER_CHAT_MODELS = [
   Z_AI_GLM_5_2.id,
   Z_AI_GLM_5_2_BATCH.id,
   Z_AI_GLM_5_2_FREE.id,
+  Z_AI_GLM_5_3.id,
   Z_AI_GLM_5V_TURBO.id,
   'openrouter/auto',
 ] as const
@@ -19567,3 +19669,123 @@ export const OPENROUTER_IMAGE_MODELS = [
   OPENAI_GPT_5_IMAGE_MINI.id,
   OPENAI_GPT_5_4_IMAGE_2.id,
 ] as const
+
+/**
+ * OpenRouter catalog ids whose resolved upstream model natively supports
+ * strict `json_schema` output **together with** `tools` in a single streaming
+ * request — "combined mode" (issue #612, extends #605). When `chat({
+ * outputSchema, tools, stream: true })` targets one of these, the engine wires
+ * the schema into the regular `chatStream` request alongside `tools` and
+ * harvests the schema-constrained JSON from the agent loop's final-turn text,
+ * skipping the separate finalization round-trip. Ids **not** listed here take
+ * the proven legacy finalization path.
+ *
+ * Membership mirrors the per-provider upstream gates that #605 maintains —
+ * NOT the catalog's `responseFormat` support flag, which is too permissive
+ * (it is also `true` for `claude-opus-4.1`, every `gemini-2.5*`, and `gpt-3.5*`,
+ * all of which the upstream native adapters exclude from combined mode):
+ *   - Anthropic: the Claude 4.5+ ids in the upstream
+ *     `ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS` gate (opus/sonnet/haiku);
+ *     newer ids land here only once that gate adds them
+ *   - Google: Gemini 3.x only
+ *   - OpenAI: strict-`json_schema` era (gpt-4o-2024-08-06 and later), gpt-4.1,
+ *     gpt-5*, o-series, and gpt-oss-* — tool-capable text variants only
+ *   - x.ai: Grok 4.x (tool-capable; excludes the multi-agent variant)
+ *
+ * Every entry must also exist in {@link OpenRouterModelOptionsByName} and carry
+ * both `responseFormat` and `toolChoice` capability (guarded by the
+ * `satisfies` check on `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODEL_IDS`
+ * below), and exist in {@link OPENROUTER_CHAT_MODELS} (guarded by a unit test).
+ */
+type OpenRouterCombinedToolsAndSchemaModelId = {
+  [K in keyof OpenRouterModelOptionsByName]: 'responseFormat' extends keyof OpenRouterModelOptionsByName[K]
+    ? 'toolChoice' extends keyof OpenRouterModelOptionsByName[K]
+      ? K
+      : never
+    : never
+}[keyof OpenRouterModelOptionsByName]
+
+const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODEL_IDS = [
+  // Anthropic — the Claude 4.5+ ids the upstream gate currently blesses.
+  // Mirrors ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS exactly (through the
+  // Claude 5 ids), plus the OpenRouter-only `-fast` variants of gated models.
+  'anthropic/claude-fable-5',
+  'anthropic/claude-haiku-4.5',
+  'anthropic/claude-opus-4.5',
+  'anthropic/claude-opus-4.6',
+  'anthropic/claude-opus-4.7',
+  'anthropic/claude-opus-4.7-fast',
+  'anthropic/claude-opus-4.8',
+  'anthropic/claude-opus-4.8-fast',
+  'anthropic/claude-sonnet-4.5',
+  'anthropic/claude-sonnet-4.6',
+  'anthropic/claude-sonnet-5',
+
+  // Google — Gemini 3.x text models only (image-only ids stay on the legacy path)
+  'google/gemini-3-flash-preview',
+  'google/gemini-3.1-flash-lite',
+  'google/gemini-3.1-flash-lite-preview',
+  'google/gemini-3.1-pro-preview',
+  'google/gemini-3.1-pro-preview-customtools',
+  'google/gemini-3.5-flash',
+  'google/gemini-3.5-flash-lite',
+  'google/gemini-3.6-flash',
+  'google/gemini-3.7-flash',
+
+  // OpenAI — strict-json_schema era, tool-capable text models.
+  // Cut is gpt-4o-2024-08-06. The dated pin gpt-4o-mini-2024-07-18 predates
+  // that launch, so it is not listed; the unpinned gpt-4o-mini alias is.
+  'openai/gpt-4o',
+  'openai/gpt-4o-2024-08-06',
+  'openai/gpt-4o-2024-11-20',
+  'openai/gpt-4o-mini',
+  'openai/gpt-4.1',
+  'openai/gpt-4.1-mini',
+  'openai/gpt-4.1-nano',
+  'openai/gpt-5',
+  'openai/gpt-5-mini',
+  'openai/gpt-5-nano',
+  'openai/gpt-5-pro',
+  'openai/gpt-5.1',
+  'openai/gpt-5.1-codex',
+  'openai/gpt-5.1-codex-max',
+  'openai/gpt-5.1-codex-mini',
+  'openai/gpt-5.2',
+  'openai/gpt-5.2-chat',
+  'openai/gpt-5.2-codex',
+  'openai/gpt-5.2-pro',
+  'openai/gpt-5.3-codex',
+  'openai/gpt-5.4',
+  'openai/gpt-5.4-mini',
+  'openai/gpt-5.4-nano',
+  'openai/gpt-5.4-pro',
+  'openai/gpt-5.5',
+  'openai/gpt-5.5-pro',
+  'openai/gpt-5.6-luna',
+  'openai/gpt-5.6-luna-pro',
+  'openai/gpt-5.6-sol',
+  'openai/gpt-5.6-sol-pro',
+  'openai/gpt-5.6-terra',
+  'openai/gpt-5.6-terra-pro',
+  'openai/gpt-chat-latest',
+  'openai/o1',
+  'openai/o3',
+  'openai/o3-mini',
+  'openai/o3-mini-high',
+  'openai/o3-pro',
+  'openai/o4-mini',
+  'openai/o4-mini-high',
+  'openai/gpt-oss-120b',
+  'openai/gpt-oss-20b',
+  'openai/gpt-oss-safeguard-20b',
+
+  // x.ai — Grok 4.x (tool-capable; skip grok-4.20-multi-agent)
+  'x-ai/grok-4.20',
+  'x-ai/grok-4.3',
+  'x-ai/grok-4.5',
+  'x-ai/grok-4.6',
+] as const satisfies ReadonlyArray<OpenRouterCombinedToolsAndSchemaModelId>
+
+export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS = new Set<string>(
+  OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODEL_IDS,
+)
