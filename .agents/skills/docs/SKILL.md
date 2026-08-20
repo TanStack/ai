@@ -13,7 +13,7 @@ Work in two phases. First plan the story: who reads this, what they want, and ho
 
 The plan is not private. The user must see the readers and must choose the tone before any page is written.
 
-```
+```text
 Find docs
   → read neighbors
   → Phase 1: readers + pages
@@ -85,22 +85,26 @@ The page split comes out of this step. Do not skip it.
 ### Gate: show the personas
 
 <HARD-GATE>
-This gate is the entire turn. Listing readers in a thought, a todo, or a buried plan is not this gate. The user must see the list in a dedicated message, then the agent must stop.
+The user must see the list. Listing readers in a thought, a todo, or a buried plan is not this gate.
 
 After step 4, send a message that contains only:
 
 1. Each reader, one user story, and the page you will write for them.
 2. One question: confirm, drop a reader, or add one.
 
-If the harness has an AskQuestion (or similar) tool, use it for that question. If it does not, use a numbered list. Either way, end the turn.
+If the harness has an AskQuestion (or similar) tool, use it for that question. If it does not, use a numbered list.
 
-Do not write files. Do not start Phase 2. Do not say you will proceed unless they object.
+Then pick one path:
 
-Skip the *wait* only when one of these is true:
+**Default: stop.** This message is the entire turn. End the turn. Do not write files. Do not start Phase 2. Do not say you will proceed unless they object.
+
+**Skip the wait: continue in this same turn.** Use this path only when one of these is true:
 
 - This conversation already has the user's confirmation of this persona list.
-- The user said "use sane defaults", "just write it", or "don't ask questions". Still SHOW the list in the same turn, then continue.
+- The user said "use sane defaults", "just write it", or "don't ask questions". Still SHOW the list in this turn, then continue.
 - The change is a tiny copy edit: typo, broken link, code-fence language, or a factual fix. No new page, no new section, no rewrite of a journey.
+
+On this path, do not end the turn. After you show the list (or after a tiny copy edit, with no list), continue to the next step.
 
 These are not skips:
 
@@ -121,7 +125,7 @@ When a topic has several angles, give each its own short page and link them. A r
 
 Example. A feature for tool interrupts:
 
-```
+```text
 Bad: one page
   interrupts.md   (overview + simple case + many interrupts + custom, all crammed in)
 
@@ -134,11 +138,9 @@ Good: a small set of linked pages
 
 Each page is short and does one thing. The overview stitches them into a story.
 
-## Phase 2: write like a human
+## Gate: ask for tone
 
-Do not start this phase until the persona gate has passed, the tone gate has passed, and `simple-english` plus `i-have-adhd` are loaded.
-
-### Gate: ask for tone
+This gate sits between Phase 1 and Phase 2. Run it before you write any page. Do not nest it inside Phase 2.
 
 <HARD-GATE>
 This gate runs before any page content is written. It does not run for a doc-impact list that is only a plan.
@@ -150,13 +152,19 @@ Send a message that contains only:
 1. The tone you inferred from neighboring pages, in one line (how formal, how much setup, second person or not).
 2. One question with options: use that tone, more casual, more formal, or the user names another.
 
-If the harness has an AskQuestion (or similar) tool, use it. If it does not, use a numbered list. Either way, end the turn.
+If the harness has an AskQuestion (or similar) tool, use it. If it does not, use a numbered list.
 
-Skip the *wait* only when one of these is true:
+Then pick one path:
+
+**Default: stop.** This message is the entire turn. End the turn. Do not write page content.
+
+**Skip the wait: continue in this same turn.** Use this path only when one of these is true:
 
 - This conversation already has the user's tone choice, including an explicit "match the existing pages".
 - The user said "use sane defaults", "just write it", or "don't ask questions". Still STATE the inferred tone in one line, then continue.
 - Tiny copy edit, same carve-out as the persona gate.
+
+On this path, do not end the turn. After you state the tone (or after a tiny copy edit, with no question), continue to Phase 2.
 
 These are not skips:
 
@@ -165,6 +173,12 @@ These are not skips:
 - "Tone does not matter for a reference page."
 - "I'll match neighbors and mention it later."
 </HARD-GATE>
+
+## Phase 2: write like a human
+
+Do not write page content until the persona gate has passed, the tone gate has passed, and `simple-english` plus `i-have-adhd` are loaded.
+
+The tone gate is the heading above this one. Run that gate first. Then load the two skills. Then write.
 
 Legibility is the goal, above everything else.
 
@@ -183,7 +197,7 @@ A reader who sees the problem first knows in seconds whether they are on the rig
 
 The first line of the how is the next action (from `i-have-adhd`). The problem still comes first so they know they are on the right page.
 
-```
+```text
 Bad:
   Call useInterrupts() and pass a resolver. The resolver runs once per
   pending item inside a transaction...
@@ -202,7 +216,7 @@ The order for a guide is problem, one-line fix, then the how (steps, snippets, A
 
 Do not explain in four paragraphs what one sentence and a code block can show. Readers grasp a diff or a snippet faster than prose.
 
-```
+```text
 Bad:
   Three paragraphs describing how the config object accepts a
   middleware array, what each slot does, and how ordering works.
@@ -223,7 +237,7 @@ The moment a sentence covers more than one item, option, store, flag, or step, i
 
 The tell is a sentence that names two or more things and says something about each. Cut it into one bullet per thing, one or two sentences each.
 
-```
+```text
 Bad:
   Each store is independent. Provide only the ones you need. For chat:
   `messages` for the transcript, `runs` for run lifecycle, `interrupts` for
@@ -275,7 +289,7 @@ Docs describe what exists now. The reader never saw the old design, the earlier 
 
 Never justify the current API by comparing it to a version that did not ship. A line like "instead of `useAssistant`, this uses `usePlugin`, which makes more sense because..." is noise to someone who never knew `useAssistant` existed. Cut it and just describe `usePlugin`.
 
-```
+```text
 Bad:
   We renamed useAssistant to usePlugin and moved the tools onto it,
   so instead of calling assistant.addTool you now use plugin.tools.
@@ -296,7 +310,7 @@ The doc is read by someone who just arrived. They never saw the pull request, th
 
 **Cut rejected alternatives.** If a discussion weighed option A against option B and picked B, the doc documents B. It never names A, never says B is "better than" A, never says A "is no longer needed." The reader is not choosing between them; they use what shipped.
 
-```
+```text
 Bad:
   We use a plain JSON Schema here instead of zod, since it is lighter
   and zod is no longer a dependency.
@@ -309,7 +323,7 @@ Good:
 
 **Do not explain what something is not, when the reader never thought it was.** If a piece moved out of a module during a refactor, the doc for its new home does not warn against the old arrangement. A reader who never knew locks lived inside persistence is only confused by a paragraph insisting locks are not a persistence store and must not be passed in as one. State what the thing is now, in its own terms.
 
-```
+```text
 Bad (in the locks doc):
   Locks are not a persistence store. Do not pass a lock into the stores
   map. That used to be possible but is wrong now.
