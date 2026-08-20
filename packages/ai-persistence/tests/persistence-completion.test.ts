@@ -6,7 +6,13 @@ import {
   defineChatMiddleware,
   provideDetachableRun,
 } from '@tanstack/ai'
-import type { AnyTextAdapter, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  ChatMiddleware,
+  ChatMiddlewareConfig,
+  ModelMessage,
+  StreamChunk,
+} from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import {
@@ -98,9 +104,9 @@ function createCompletionRun(
     messages: Array<ModelMessage>
     runId: string
     threadId: string
-    resume?: Parameters<typeof chat>[0]['resume']
+    resume?: ChatMiddlewareConfig['resume']
     abortController?: AbortController
-    middleware?: Parameters<typeof chat>[0]['middleware']
+    middleware?: Array<ChatMiddleware>
   },
 ) {
   const completionSetup = createCompletionConsumer()
