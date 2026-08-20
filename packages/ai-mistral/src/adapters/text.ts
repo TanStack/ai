@@ -1054,6 +1054,9 @@ export class MistralTextAdapter<
     }
 
     if (part.type === 'document') {
+      if (isFileSource(part.source)) {
+        throw unsupportedFileSourceError('mistral')
+      }
       const documentValue = part.source.value
       const documentUrl =
         part.source.type === 'data' && !documentValue.startsWith('data:')

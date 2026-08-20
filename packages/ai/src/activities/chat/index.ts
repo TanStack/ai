@@ -3500,6 +3500,12 @@ class TextEngine<
     // Apply merged config back to engine state
     this.applyMiddlewareConfig(postOnConfig)
 
+    // Schema-only structured output with no tools skips the agent loop, so
+    // `streamModelResponse` never runs this check. Middleware can also
+    // replace `this.messages` above. Fail closed here before the
+    // structured-output adapter call.
+    assertMessagesFileSourceSupport(this.adapter, this.messages)
+
     // Build the StructuredOutputOptions the adapter expects.
     // `this.adapter` is already `TAdapter extends AnyTextAdapter` per the
     // class generics — no cast needed.

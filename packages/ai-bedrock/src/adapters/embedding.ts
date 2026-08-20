@@ -1,8 +1,10 @@
 import { BaseEmbeddingAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import {
+  isFileSource,
   requireTextOnlyEmbeddingInput,
   resolveEmbeddingInput,
+  unsupportedFileSourceError,
 } from '@tanstack/ai'
 import { resolveBedrockAuth } from '../utils/auth'
 import { BEDROCK_EMBEDDING_MODELS } from '../model-meta'
@@ -432,6 +434,7 @@ function readCohereEmbeddingBody(
  */
 function toTitanInputImage(image: ImagePart, model: string): string {
   const source = image.source
+  if (isFileSource(source)) throw unsupportedFileSourceError('bedrock')
   if (source.type === 'data') {
     return source.value
   }
