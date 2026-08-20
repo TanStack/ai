@@ -38,62 +38,51 @@ async function collectChunks(
 }
 
 describe('byteplus file content source', () => {
-  it('rejects a foreign provider file handle instead of sending it as a URL', async () => {
-    const chunks = await collectChunks(
-      chat({
-        adapter: adapterWithMockClient(),
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'image',
-                source: {
-                  type: 'file',
-                  value: 'file-openai-abc',
-                  provider: 'openai',
+  it('rejects a foreign provider file reference in core preflight, before any request', async () => {
+    await expect(
+      collectChunks(
+        chat({
+          adapter: adapterWithMockClient(),
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: {
+                    type: 'file',
+                    reference: { openai: 'file-openai-abc' },
+                  },
                 },
-              },
-            ],
-          },
-        ],
-      }),
-    )
-
-    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
-    expect(runError).toBeDefined()
-    if (runError?.type === 'RUN_ERROR') {
-      expect(runError.message).toMatch(/byteplus/)
-      expect(runError.message).toMatch(/file/)
-    }
+              ],
+            },
+          ],
+        }),
+      ),
+    ).rejects.toThrow(/byteplus does not support provider file-handle/)
   })
 
-  it('rejects a byteplus-marked file source — the provider has no Files API', async () => {
-    const chunks = await collectChunks(
-      chat({
-        adapter: adapterWithMockClient(),
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'video',
-                source: {
-                  type: 'file',
-                  value: 'https://example.com/some-handle',
-                  provider: 'byteplus',
+  it('rejects a byteplus-keyed file source — the provider has no Files API', async () => {
+    await expect(
+      collectChunks(
+        chat({
+          adapter: adapterWithMockClient(),
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'video',
+                  source: {
+                    type: 'file',
+                    reference: { byteplus: 'https://example.com/some-handle' },
+                  },
                 },
-              },
-            ],
-          },
-        ],
-      }),
-    )
-
-    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
-    expect(runError).toBeDefined()
-    if (runError?.type === 'RUN_ERROR') {
-      expect(runError.message).toMatch(/byteplus/)
-    }
+              ],
+            },
+          ],
+        }),
+      ),
+    ).rejects.toThrow(/byteplus does not support provider file-handle/)
   })
 })

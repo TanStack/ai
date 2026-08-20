@@ -364,8 +364,9 @@ function Messages({
                     )
                   }
 
-                  // Render image parts
-                  if (part.type === 'image') {
+                  // Render image parts (file references have no local bytes
+                  // or URL to render, so only url/data sources get an <img>)
+                  if (part.type === 'image' && 'value' in part.source) {
                     const imageUrl =
                       part.source.type === 'url'
                         ? part.source.value

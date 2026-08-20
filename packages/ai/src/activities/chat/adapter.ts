@@ -90,6 +90,15 @@ export interface TextAdapter<
   readonly requires?: ReadonlyArray<CapabilityHandle>
 
   /**
+   * Declares that this adapter can consume `{ type: 'file' }` content sources
+   * (provider Files API references). `chat()` rejects file sources in preflight
+   * for adapters that don't declare this, so an adapter written before the
+   * file arm existed fails closed instead of silently mis-mapping a reference
+   * onto its URL/data branch.
+   */
+  readonly supportsFileSources?: boolean
+
+  /**
    * @internal Type-only properties for inference. Not assigned at runtime.
    */
   '~types': {
@@ -209,6 +218,7 @@ export abstract class BaseTextAdapter<
   abstract readonly name: string
   readonly model: TModel
   readonly requires?: ReadonlyArray<CapabilityHandle> = undefined
+  readonly supportsFileSources?: boolean = undefined
 
   // Type-only property - never assigned at runtime
   declare '~types': {

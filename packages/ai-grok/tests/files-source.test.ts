@@ -42,7 +42,10 @@ function fileSourceMessage(provider: string) {
       content: [
         {
           type: 'image' as const,
-          source: { type: 'file' as const, value: 'file-abc', provider },
+          source: {
+            type: 'file' as const,
+            reference: { [provider]: 'file-abc' },
+          },
         },
       ],
     },
@@ -50,34 +53,25 @@ function fileSourceMessage(provider: string) {
 }
 
 describe('grok file content source', () => {
-  it('rejects an openai file handle instead of forwarding its file_id', async () => {
-    const chunks = await collectChunks(
-      chat({
-        adapter: adapterWithMockClient(),
-        messages: fileSourceMessage('openai'),
-      }),
-    )
-
-    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
-    expect(runError).toBeDefined()
-    if (runError?.type === 'RUN_ERROR') {
-      expect(runError.message).toMatch(/grok/)
-      expect(runError.message).toMatch(/file/)
-    }
+  it('rejects an openai file reference in core preflight, before any request', async () => {
+    await expect(
+      collectChunks(
+        chat({
+          adapter: adapterWithMockClient(),
+          messages: fileSourceMessage('openai'),
+        }),
+      ),
+    ).rejects.toThrow(/grok does not support provider file-handle/)
   })
 
-  it('rejects even a grok-marked file source — xAI has no Files API', async () => {
-    const chunks = await collectChunks(
-      chat({
-        adapter: adapterWithMockClient(),
-        messages: fileSourceMessage('grok'),
-      }),
-    )
-
-    const runError = chunks.find((c) => c.type === 'RUN_ERROR')
-    expect(runError).toBeDefined()
-    if (runError?.type === 'RUN_ERROR') {
-      expect(runError.message).toMatch(/does not support provider file-handle/)
-    }
+  it('rejects even a grok-keyed file source — xAI has no Files API', async () => {
+    await expect(
+      collectChunks(
+        chat({
+          adapter: adapterWithMockClient(),
+          messages: fileSourceMessage('grok'),
+        }),
+      ),
+    ).rejects.toThrow(/does not support provider file-handle/)
   })
 })

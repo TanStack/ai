@@ -474,9 +474,12 @@ export {
   normalizeToolResult,
 } from './utilities/tool-result'
 export {
-  assertOwnFileSource,
+  assertMessagesFileSourceSupport,
+  assertPromptFileSourceSupport,
+  fileReferenceFor,
   isFileSource,
   unsupportedFileSourceError,
+  type FileSourceCapable,
 } from './utilities/content-source'
 
 export {
