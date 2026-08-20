@@ -343,19 +343,29 @@ export async function validateInterruptResumeBatch(
         ),
       )
     }
-    if (
-      binding.expiresAt !== undefined &&
-      Date.parse(binding.expiresAt) <= (input.now ?? Date.now())
-    ) {
-      errors.push(
-        interruptItemError(
-          input,
-          record.interruptId,
-          'expired',
-          `Interrupt ${record.interruptId} has expired.`,
-          { source: 'server' },
-        ),
-      )
+    if (binding.expiresAt !== undefined) {
+      const expiresAt = Date.parse(binding.expiresAt)
+      if (!Number.isFinite(expiresAt)) {
+        errors.push(
+          interruptItemError(
+            input,
+            record.interruptId,
+            'invalid-payload',
+            `Interrupt ${record.interruptId} has an invalid expiresAt.`,
+            { source: 'server' },
+          ),
+        )
+      } else if (expiresAt <= (input.now ?? Date.now())) {
+        errors.push(
+          interruptItemError(
+            input,
+            record.interruptId,
+            'expired',
+            `Interrupt ${record.interruptId} has expired.`,
+            { source: 'server' },
+          ),
+        )
+      }
     }
 
     const responseSchema = validateDescriptorSchema(
@@ -684,23 +694,42 @@ export async function validateInterruptResumeBatch(
     if (!entry) continue
     const binding = record.binding
     if (binding.kind === 'generic') {
-      const parsed =
-        entry.status === 'resolved' && record.genericRequest !== undefined
-          ? await parseSchemaValue(
-              record.genericRequest.definition.responseSchema,
-              entry.payload,
-            )
-          : undefined
-      genericInterrupts.set(
-        record.interruptId,
-        entry.status === 'resolved'
-          ? {
-              interruptId: record.interruptId,
-              status: 'resolved',
-              payload: parsed?.success ? parsed.data : entry.payload,
-            }
-          : { interruptId: record.interruptId, status: 'cancelled' },
+      if (entry.status !== 'resolved') {
+        genericInterrupts.set(record.interruptId, {
+          interruptId: record.interruptId,
+          status: 'cancelled',
+        })
+        continue
+      }
+      if (record.genericRequest === undefined) {
+        genericInterrupts.set(record.interruptId, {
+          interruptId: record.interruptId,
+          status: 'resolved',
+          payload: entry.payload,
+        })
+        continue
+      }
+      const parsed = await parseSchemaValue(
+        record.genericRequest.definition.responseSchema,
+        entry.payload,
       )
+      if (!parsed.success) {
+        return {
+          errors: [
+            interruptItemError(
+              input,
+              record.interruptId,
+              'invalid-payload',
+              `Interrupt ${record.interruptId} payload is invalid.`,
+            ),
+          ],
+        }
+      }
+      genericInterrupts.set(record.interruptId, {
+        interruptId: record.interruptId,
+        status: 'resolved',
+        payload: parsed.data,
+      })
       continue
     }
     if (entry.status === 'cancelled') {
@@ -787,6 +816,9 @@ export function readUnopenedInterruptBinding(
   const responseSchemaHash = stringField(raw, 'responseSchemaHash')
   const expiresAt = stringField(raw, 'expiresAt')
   if (!interruptId || responseSchemaHash === '') return undefined
+  if (expiresAt !== undefined && !Number.isFinite(Date.parse(expiresAt))) {
+    return undefined
+  }
   const v = INTERRUPT_BINDING_VERSION
   if (kind === 'generic') {
     const definitionId = stringField(raw, 'definitionId')

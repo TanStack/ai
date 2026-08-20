@@ -101,6 +101,18 @@ describe('first-party interrupt definitions', () => {
       ]),
     ).toThrow(/Interrupt input field id is not allowed/)
   })
+
+  it('rejects a non-date expiresAt', () => {
+    expect(() =>
+      approval.interrupt({
+        key: 'payment-1',
+        payload: { amount: 10 },
+        reason: 'tool_call',
+        message: 'Approve payment?',
+        expiresAt: 'not-a-date',
+      }),
+    ).toThrow(/expiresAt must be a valid date string/)
+  })
 })
 
 describe('AG-UI interrupt protocol types', () => {
@@ -346,5 +358,21 @@ describe('interrupt binding seam', () => {
     }
 
     expect(readInterruptBinding(legacy)).toEqual(openedBinding)
+  })
+
+  it('rejects a binding with an unparseable expiresAt', () => {
+    const invalid: Interrupt = {
+      id: 'pause-1',
+      reason: 'confirmation',
+      metadata: {
+        [INTERRUPT_BINDING_METADATA_KEY]: {
+          ...openedBinding,
+          expiresAt: 'not-a-date',
+        },
+      },
+    }
+
+    expect(readUnopenedInterruptBinding(invalid)).toBeUndefined()
+    expect(readInterruptBinding(invalid)).toBeUndefined()
   })
 })

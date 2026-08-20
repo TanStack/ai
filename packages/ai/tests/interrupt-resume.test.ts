@@ -129,6 +129,24 @@ describe('validateInterruptResumeBatch', () => {
     expect(result.errors.some((error) => error.code === 'expired')).toBe(true)
   })
 
+  it('rejects an unparseable expiresAt', async () => {
+    const fixture = approvalFixture({
+      expiresAt: 'not-a-date',
+    })
+    const result = await validateInterruptResumeBatch(
+      baseInput(pendingOf(fixture), [
+        {
+          interruptId: fixture.binding.interruptId,
+          status: 'resolved',
+          payload: { approved: true, payload: { note: 'ok' } },
+        },
+      ]),
+    )
+    expect(
+      result.errors.some((error) => error.code === 'invalid-payload'),
+    ).toBe(true)
+  })
+
   it('rejects stale correlation metadata', async () => {
     const fixture = approvalFixture({ interruptedRunId: 'other-run' })
     const result = await validateInterruptResumeBatch(
@@ -350,6 +368,56 @@ describe('validateInterruptResumeBatch', () => {
       },
     )
     expect(result.resumeToolState?.clientToolResults?.size).toBe(0)
+  })
+
+  it('rejects an invalid first-party generic answer', async () => {
+    const review = defineInterrupt({
+      id: 'review-plan',
+      responseSchema: z.object({
+        approved: z.boolean(),
+        note: z.string(),
+      }),
+    })
+    const request = review.interrupt({
+      key: 'one',
+      reason: 'review',
+      message: 'Review',
+    })
+    const binding: Extract<InterruptBinding, { kind: 'generic' }> = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'generic',
+      interruptId: 'generic-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      definitionId: 'review-plan',
+      key: 'one',
+      batchIndex: 0,
+    }
+    const result = await validateInterruptResumeBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      pending: [
+        {
+          interruptId: binding.interruptId,
+          payload: request,
+          binding,
+          genericRequest: request,
+        },
+      ],
+      resume: [
+        {
+          interruptId: binding.interruptId,
+          status: 'resolved',
+          payload: { approved: 'yes' },
+        },
+      ],
+      tools: [transfer],
+    })
+    expect(
+      result.errors.some((error) => error.code === 'invalid-payload'),
+    ).toBe(true)
+    expect(result.resumeToolState).toBeUndefined()
   })
 
   it('still requires a client-tool resume when the batch has no generic interrupt', async () => {

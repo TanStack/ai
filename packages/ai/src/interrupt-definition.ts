@@ -11,11 +11,11 @@ import {
   isStandardSchema,
   isStandardJSONSchema,
 } from './activities/chat/tools/schema-converter'
+import { INTERRUPT_BINDING_VERSION } from './interrupts'
 
 export const INTERRUPT_PAYLOAD_METADATA_KEY =
   'tanstack:interruptPayload' as const
 export const INTERRUPT_BINDING_KIND = 'generic' as const
-export const INTERRUPT_BINDING_VERSION = 1 as const
 
 type PortableSchema =
   | StandardJSONSchemaV1<any, any>
@@ -381,8 +381,8 @@ function validateNonEmptyString(value: unknown, label: string): string {
 }
 
 function validateExpiresAt(value: unknown): string {
-  if (typeof value !== 'string') {
-    throw new TypeError('Interrupt expiresAt must be a string.')
+  if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) {
+    throw new TypeError('Interrupt expiresAt must be a valid date string.')
   }
   return value
 }

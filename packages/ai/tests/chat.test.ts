@@ -3984,7 +3984,7 @@ describe('chat()', () => {
         id: 'review-plan',
         responseSchema: z.object({ approved: z.boolean() }),
       })
-      const { adapter } = createMockAdapter({
+      const { adapter, calls } = createMockAdapter({
         iterations: [
           [
             ev.runStarted(),
@@ -4020,6 +4020,15 @@ describe('chat()', () => {
         }) as AsyncIterable<StreamChunk>,
       )
 
+      expect(calls).toHaveLength(1)
+      expect(
+        chunks.some(
+          (chunk) =>
+            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+            'delta' in chunk &&
+            chunk.delta === 'Plan',
+        ),
+      ).toBe(true)
       const terminal = expectSingleRunFinished(chunks)
       expect(terminal.outcome).toMatchObject({
         type: 'interrupt',
@@ -4038,6 +4047,185 @@ describe('chat()', () => {
       expect(
         chunks.some((chunk) => chunk.type === EventType.STATE_SNAPSHOT),
       ).toBe(false)
+    })
+
+    it('rehydrates a transformed display payload on ephemeral resume', async () => {
+      const review = defineInterrupt({
+        id: 'review-plan',
+        payloadSchema: z.string().transform((value) => value.length),
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const observed: Array<unknown> = []
+      const middleware = defineChatMiddleware({
+        onInterruptBoundary(ctx) {
+          if (ctx.parentRunId) return
+          if (ctx.phase !== 'afterModel') return
+          return {
+            interrupts: [
+              review.interrupt({
+                key: 'turn-1',
+                reason: 'review',
+                message: 'Review the plan',
+                payload: 'hello',
+              }),
+            ],
+          }
+        },
+        onInterruptResolution(_ctx, resolutions) {
+          observed.push(
+            ...resolutions
+              .for(review)
+              .map((resolution) => resolution.request.payload),
+          )
+          return { toolResume: 'continue' }
+        },
+      })
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Plan'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Continued'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const first = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [middleware],
+          messages: [{ role: 'user', content: 'Make a plan' }],
+          threadId: 'thread-transform',
+          runId: 'run-transform',
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const interrupt = expectSingleRunFinished(first).outcome
+      if (interrupt?.type !== 'interrupt') {
+        throw new Error('Expected afterModel interrupt')
+      }
+      const paused = interrupt.interrupts[0]
+      if (!paused) throw new Error('Expected interrupt id')
+      const continuation = genericInterruptContinuationFromDescriptor(paused)
+      if (!continuation) {
+        throw new Error('Expected generic continuation metadata')
+      }
+
+      const resume = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [middleware],
+          messages: [{ role: 'user', content: 'Make a plan' }],
+          threadId: 'thread-transform',
+          runId: 'run-transform-resume',
+          parentRunId: 'run-transform',
+          resume: [
+            {
+              interruptId: paused.id,
+              status: 'resolved',
+              payload: { approved: true },
+              metadata: wrapGenericInterruptContinuation(continuation),
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(calls).toHaveLength(2)
+      expect(observed).toEqual([5])
+      expect(
+        resume.some((chunk) => chunk.type === EventType.RUN_FINISHED),
+      ).toBe(true)
+    })
+
+    it('rejects an ephemeral continuation whose schema hash drifted', async () => {
+      const review = defineInterrupt({
+        id: 'review-plan',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Plan'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      const middleware = defineChatMiddleware({
+        onInterruptBoundary(ctx) {
+          if (ctx.phase !== 'afterModel') return
+          return {
+            interrupts: [
+              review.interrupt({
+                key: 'turn-1',
+                reason: 'review',
+                message: 'Review the plan',
+              }),
+            ],
+          }
+        },
+      })
+
+      const first = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [middleware],
+          messages: [{ role: 'user', content: 'Make a plan' }],
+          threadId: 'thread-stale',
+          runId: 'run-stale',
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const interrupt = expectSingleRunFinished(first).outcome
+      if (interrupt?.type !== 'interrupt') {
+        throw new Error('Expected afterModel interrupt')
+      }
+      const paused = interrupt.interrupts[0]
+      if (!paused) throw new Error('Expected interrupt id')
+      const continuation = genericInterruptContinuationFromDescriptor(paused)
+      if (!continuation) {
+        throw new Error('Expected generic continuation metadata')
+      }
+
+      const resume = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [middleware],
+          messages: [{ role: 'user', content: 'Make a plan' }],
+          threadId: 'thread-stale',
+          runId: 'run-stale-resume',
+          parentRunId: 'run-stale',
+          resume: [
+            {
+              interruptId: paused.id,
+              status: 'resolved',
+              payload: { approved: true },
+              metadata: wrapGenericInterruptContinuation({
+                ...continuation,
+                responseSchemaHash: 'sha256:drifted',
+              }),
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(calls).toHaveLength(1)
+      expect(resume.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        true,
+      )
     })
 
     it('starts a synthetic run before a beforeModel interrupt', async () => {

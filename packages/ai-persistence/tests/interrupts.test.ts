@@ -1235,6 +1235,104 @@ describe('interrupt persistence', () => {
     ).toBe('resolved')
   })
 
+  it('rejects a persisted generic interrupt whose definition hash drifted', async () => {
+    const persistence = memoryPersistence()
+    const review = defineInterrupt({
+      id: 'persisted-review',
+      payloadSchema: transformedDisplaySchema,
+      responseSchema: coercedCountSchema,
+    })
+    const first = mockAdapter([[runStarted(), runFinished('r1')]])
+    await collect(
+      chat({
+        adapter: first.adapter,
+        interrupts: [review],
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [
+          defineChatMiddleware({
+            onInterruptBoundary(ctx) {
+              if (ctx.phase !== 'afterModel') return
+              return {
+                interrupts: [
+                  review.interrupt({
+                    key: 'one',
+                    payload: 'Review this plan',
+                    reason: 'review',
+                    message: 'Review this plan',
+                  }),
+                ],
+              }
+            },
+          }),
+          withPersistence(persistence),
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+    const interruptId = (
+      await persistence.stores.interrupts!.listPending('t1')
+    )[0]?.interruptId
+    expect(interruptId).toBeDefined()
+    if (!interruptId) throw new Error('Expected a persisted generic interrupt')
+
+    const driftedResponseSchema = {
+      '~standard': {
+        version: 1,
+        vendor: 'test',
+        validate(value: unknown) {
+          return value &&
+            typeof value === 'object' &&
+            !Array.isArray(value) &&
+            'approved' in value &&
+            typeof value.approved === 'boolean'
+            ? { value: { approved: value.approved } }
+            : { issues: [{ message: 'approved is required' }] }
+        },
+        jsonSchema: {
+          input() {
+            return {
+              type: 'object',
+              required: ['approved'],
+              properties: { approved: { type: 'boolean' } },
+            }
+          },
+        },
+      },
+    } as const
+    const drifted = defineInterrupt({
+      id: 'persisted-review',
+      payloadSchema: transformedDisplaySchema,
+      responseSchema: driftedResponseSchema,
+    })
+    const resumed = mockAdapter([[runStarted(), text('SHOULD NOT RUN')]])
+    const chunks = await collect(
+      chat({
+        adapter: resumed.adapter,
+        interrupts: [drifted],
+        messages: [],
+        runId: 'r1',
+        threadId: 't1',
+        resume: [
+          {
+            interruptId,
+            status: 'resolved',
+            payload: { approved: true },
+          },
+        ],
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(resumed.calls).toHaveLength(0)
+    expect(chunks.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+      true,
+    )
+    expect(
+      (await persistence.stores.interrupts!.get(interruptId))?.status,
+    ).toBe('pending')
+  })
+
   it('resumes a registered generic record without blocking on a foreign persisted interrupt', async () => {
     const persistence = memoryPersistence()
     const review = defineInterrupt({

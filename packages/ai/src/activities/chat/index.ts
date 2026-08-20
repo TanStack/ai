@@ -14,6 +14,7 @@ import { EventType } from '../../types'
 import {
   INTERRUPT_BINDING_METADATA_KEY,
   InterruptResumeValidationError,
+  readInterruptBinding,
   readUnopenedInterruptBinding,
   validateInterruptResumeBatch,
 } from '../../interrupt-resume'
@@ -21,6 +22,7 @@ import { INTERRUPT_BINDING_VERSION } from '../../interrupts'
 import {
   INTERRUPT_PAYLOAD_METADATA_KEY,
   createInterruptBinding,
+  rehydrateInterruptRequest,
 } from '../../interrupt-definition'
 import { readGenericInterruptContinuation } from '../../generic-interrupt-continuation'
 import type {
@@ -216,118 +218,11 @@ function normalizePublicInterruptBinding(
   value: unknown,
   expectedInterruptId: string,
 ): InterruptBinding | undefined {
-  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
-    return undefined
-  }
-  const binding: Record<string, unknown> = Object.fromEntries(
-    Object.entries(value),
-  )
-  if (
-    binding.interruptId !== expectedInterruptId ||
-    // A binding version we don't recognise belongs to another producer. Drop
-    // it rather than reading our fields out of it.
-    (binding.v !== undefined && binding.v !== INTERRUPT_BINDING_VERSION) ||
-    typeof binding.interruptedRunId !== 'string' ||
-    typeof binding.generation !== 'number' ||
-    !Number.isInteger(binding.generation) ||
-    binding.generation < 0 ||
-    (binding.expiresAt !== undefined && typeof binding.expiresAt !== 'string')
-  ) {
-    return undefined
-  }
-  const base = {
-    v: INTERRUPT_BINDING_VERSION,
-    interruptId: binding.interruptId,
-    interruptedRunId: binding.interruptedRunId,
-    generation: binding.generation,
-    ...(typeof binding.responseSchemaHash === 'string'
-      ? { responseSchemaHash: binding.responseSchemaHash }
-      : {}),
-    ...(typeof binding.expiresAt === 'string'
-      ? { expiresAt: binding.expiresAt }
-      : {}),
-  }
-  if (binding.kind === 'generic') {
-    if (
-      binding.responseSchemaHash !== undefined &&
-      typeof binding.responseSchemaHash !== 'string'
-    ) {
-      return undefined
-    }
-    const hasFirstPartyFields = [
-      binding.definitionId,
-      binding.key,
-      binding.batchIndex,
-      binding.payloadSchemaHash,
-    ].some((field) => field !== undefined)
-    if (
-      hasFirstPartyFields &&
-      (typeof binding.definitionId !== 'string' ||
-        typeof binding.key !== 'string' ||
-        typeof binding.batchIndex !== 'number' ||
-        !Number.isInteger(binding.batchIndex) ||
-        binding.batchIndex < 0 ||
-        (binding.payloadSchemaHash !== undefined &&
-          typeof binding.payloadSchemaHash !== 'string'))
-    ) {
-      return undefined
-    }
-    if (
-      typeof binding.definitionId === 'string' &&
-      typeof binding.key === 'string' &&
-      typeof binding.batchIndex === 'number'
-    ) {
-      return {
-        kind: binding.kind,
-        ...base,
-        definitionId: binding.definitionId,
-        key: binding.key,
-        batchIndex: binding.batchIndex,
-        ...(typeof binding.payloadSchemaHash === 'string'
-          ? { payloadSchemaHash: binding.payloadSchemaHash }
-          : {}),
-      }
-    }
-    return { kind: binding.kind, ...base }
-  }
-  if (
-    typeof binding.responseSchemaHash !== 'string' ||
-    typeof binding.toolName !== 'string' ||
-    typeof binding.toolCallId !== 'string'
-  ) {
-    return undefined
-  }
-  if (
-    binding.kind === 'client-tool-execution' &&
-    typeof binding.outputSchemaHash === 'string'
-  ) {
-    return {
-      kind: binding.kind,
-      ...base,
-      responseSchemaHash: binding.responseSchemaHash,
-      toolName: binding.toolName,
-      toolCallId: binding.toolCallId,
-      outputSchemaHash: binding.outputSchemaHash,
-    }
-  }
-  if (
-    binding.kind === 'tool-approval' &&
-    Object.prototype.hasOwnProperty.call(binding, 'originalArgs') &&
-    typeof binding.inputSchemaHash === 'string' &&
-    typeof binding.approvalSchemaHash === 'string'
-  ) {
-    return {
-      kind: binding.kind,
-      ...base,
-      responseSchemaHash: binding.responseSchemaHash,
-      toolName: binding.toolName,
-      toolCallId: binding.toolCallId,
-      originalArgs: binding.originalArgs,
-      inputSchemaHash: binding.inputSchemaHash,
-      approvalSchemaHash: binding.approvalSchemaHash,
-    }
-  }
-  return undefined
+  return readInterruptBinding({
+    id: expectedInterruptId,
+    reason: '',
+    metadata: { [INTERRUPT_BINDING_METADATA_KEY]: value },
+  })
 }
 
 // The leaf context-inference primitives (KnownContext, MergeContext,
@@ -4239,19 +4134,17 @@ class TextEngine<
         InterruptDefinition<any, any, any, any>
       >
       try {
-        request = Reflect.apply(definition.interrupt, definition, [
-          {
-            key: entry.key,
-            reason: entry.reason,
-            message: entry.message,
-            ...(typeof entry.expiresAt === 'string'
-              ? { expiresAt: entry.expiresAt }
-              : {}),
-            ...(Object.prototype.hasOwnProperty.call(entry, 'payload')
-              ? { payload: entry.payload }
-              : {}),
-          },
-        ])
+        request = rehydrateInterruptRequest(definition, {
+          key: entry.key,
+          reason: entry.reason,
+          message: entry.message,
+          ...(typeof entry.expiresAt === 'string'
+            ? { expiresAt: entry.expiresAt }
+            : {}),
+          ...(Object.prototype.hasOwnProperty.call(entry, 'payload')
+            ? { payload: entry.payload }
+            : {}),
+        })
       } catch (error) {
         return fail(
           `Generic interrupt continuation ${id} is invalid: ${

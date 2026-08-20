@@ -10,6 +10,7 @@ import {
   hashSchemaInput,
   isStandardSchema,
   normalizeApprovalSchema,
+  readInterruptBinding,
   wrapGenericInterruptContinuation,
 } from '@tanstack/ai/client'
 import type {
@@ -197,131 +198,10 @@ function isLegacyInterruptMetadata(interrupt: Interrupt): boolean {
   )
 }
 
-function isBindingBase(value: UnknownObject): boolean {
-  return (
-    // A binding stamped with a version we don't know is another producer's.
-    // Reject it whole; never read our fields out of it. Missing `v` is read as
-    // the current version so pre-versioning bindings still resume.
-    (value['v'] === undefined || value['v'] === INTERRUPT_BINDING_VERSION) &&
-    typeof value['kind'] === 'string' &&
-    typeof value['interruptId'] === 'string' &&
-    typeof value['interruptedRunId'] === 'string' &&
-    typeof value['generation'] === 'number' &&
-    Number.isInteger(value['generation']) &&
-    value['generation'] >= 0 &&
-    (value['expiresAt'] === undefined ||
-      (typeof value['expiresAt'] === 'string' &&
-        Number.isFinite(Date.parse(value['expiresAt']))))
-  )
-}
-
-function readBinding(value: unknown): InterruptBinding | undefined {
-  if (!isUnknownObject(value) || !isBindingBase(value)) return undefined
-  const expiresAt =
-    typeof value['expiresAt'] === 'string' ? value['expiresAt'] : undefined
-  if (value['kind'] === 'generic') {
-    if (
-      value['responseSchemaHash'] !== undefined &&
-      typeof value['responseSchemaHash'] !== 'string'
-    ) {
-      return undefined
-    }
-    const firstPartyFields = [
-      value['definitionId'],
-      value['key'],
-      value['batchIndex'],
-      value['payloadSchemaHash'],
-    ]
-    const hasFirstPartyFields = firstPartyFields.some(
-      (field) => field !== undefined,
-    )
-    if (
-      hasFirstPartyFields &&
-      (typeof value['definitionId'] !== 'string' ||
-        typeof value['key'] !== 'string' ||
-        typeof value['batchIndex'] !== 'number' ||
-        !Number.isInteger(value['batchIndex']) ||
-        value['batchIndex'] < 0 ||
-        (value['payloadSchemaHash'] !== undefined &&
-          typeof value['payloadSchemaHash'] !== 'string'))
-    ) {
-      return undefined
-    }
-    return {
-      v: INTERRUPT_BINDING_VERSION,
-      kind: 'generic',
-      interruptId: String(value['interruptId']),
-      interruptedRunId: String(value['interruptedRunId']),
-      generation: Number(value['generation']),
-      ...(typeof value['responseSchemaHash'] === 'string'
-        ? { responseSchemaHash: value['responseSchemaHash'] }
-        : {}),
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
-      ...(hasFirstPartyFields
-        ? {
-            definitionId: String(value['definitionId']),
-            key: String(value['key']),
-            batchIndex: Number(value['batchIndex']),
-            ...(typeof value['payloadSchemaHash'] === 'string'
-              ? { payloadSchemaHash: value['payloadSchemaHash'] }
-              : {}),
-          }
-        : {}),
-    }
-  }
-  if (
-    value['kind'] === 'client-tool-execution' &&
-    typeof value['toolName'] === 'string' &&
-    typeof value['toolCallId'] === 'string' &&
-    typeof value['outputSchemaHash'] === 'string' &&
-    typeof value['responseSchemaHash'] === 'string'
-  ) {
-    return {
-      v: INTERRUPT_BINDING_VERSION,
-      kind: 'client-tool-execution',
-      interruptId: String(value['interruptId']),
-      interruptedRunId: String(value['interruptedRunId']),
-      generation: Number(value['generation']),
-      toolName: value['toolName'],
-      toolCallId: value['toolCallId'],
-      outputSchemaHash: value['outputSchemaHash'],
-      responseSchemaHash: String(value['responseSchemaHash']),
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
-    }
-  }
-  if (
-    value['kind'] === 'tool-approval' &&
-    typeof value['toolName'] === 'string' &&
-    typeof value['toolCallId'] === 'string' &&
-    typeof value['inputSchemaHash'] === 'string' &&
-    typeof value['approvalSchemaHash'] === 'string' &&
-    typeof value['responseSchemaHash'] === 'string' &&
-    'originalArgs' in value
-  ) {
-    return {
-      v: INTERRUPT_BINDING_VERSION,
-      kind: 'tool-approval',
-      interruptId: String(value['interruptId']),
-      interruptedRunId: String(value['interruptedRunId']),
-      generation: Number(value['generation']),
-      toolName: value['toolName'],
-      toolCallId: value['toolCallId'],
-      originalArgs: value['originalArgs'],
-      inputSchemaHash: value['inputSchemaHash'],
-      approvalSchemaHash: value['approvalSchemaHash'],
-      responseSchemaHash: String(value['responseSchemaHash']),
-      ...(expiresAt !== undefined ? { expiresAt } : {}),
-    }
-  }
-  return undefined
-}
-
 function getDescriptorBinding(
   interrupt: Interrupt,
 ): InterruptBinding | undefined {
-  const candidate: unknown =
-    interrupt.metadata?.[INTERRUPT_BINDING_METADATA_KEY]
-  return readBinding(candidate)
+  return readInterruptBinding(interrupt)
 }
 
 function hasReservedFirstPartyBindingMarker(interrupt: Interrupt): boolean {

@@ -486,13 +486,31 @@ async function applyPendingResumes(
     await interrupts.commitBatch(entries)
     return
   }
-  for (const interrupt of pending) {
-    const entry = resumeByInterruptId.get(interrupt.interruptId)
-    if (!entry) continue
+  const ids = new Set<string>()
+  for (const entry of entries) {
+    if (ids.has(entry.interruptId)) {
+      throw new Error(
+        `Interrupt batch contains duplicate id: ${entry.interruptId}.`,
+      )
+    }
+    ids.add(entry.interruptId)
+    const existing = await interrupts.get(entry.interruptId)
+    if (!existing) {
+      throw new Error(
+        `Interrupt batch references missing id: ${entry.interruptId}.`,
+      )
+    }
+    if (existing.status !== 'pending') {
+      throw new Error(
+        `Interrupt batch references non-pending id: ${entry.interruptId}.`,
+      )
+    }
+  }
+  for (const entry of entries) {
     if (entry.status === 'resolved') {
-      await interrupts.resolve(interrupt.interruptId, entry.payload)
+      await interrupts.resolve(entry.interruptId, entry.response)
     } else {
-      await interrupts.cancel(interrupt.interruptId)
+      await interrupts.cancel(entry.interruptId)
     }
   }
 }
