@@ -10,6 +10,7 @@ import type {
 } from '@tanstack/ai-client'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
 import type { Feature, Mode, Provider } from '@/lib/types'
+import { parseAimockPort } from '@/lib/devtools-test'
 import { ALL_FEATURES, ALL_PROVIDERS } from '@/lib/types'
 import { isSupported } from '@/lib/feature-support'
 import { addToCartToolDef } from '@/lib/tools'
@@ -27,16 +28,10 @@ const VALID_MODES = new Set<Mode>(['sse', 'http-stream', 'fetcher'])
 export const Route = createFileRoute('/$provider/$feature')({
   component: FeaturePage,
   validateSearch: (search: Record<string, unknown>) => {
-    const port =
-      typeof search.aimockPort === 'number'
-        ? search.aimockPort
-        : typeof search.aimockPort === 'string'
-          ? parseInt(search.aimockPort, 10)
-          : undefined
     const rawMode = typeof search.mode === 'string' ? search.mode : undefined
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
-      aimockPort: port != null && !isNaN(port) ? port : undefined,
+      aimockPort: parseAimockPort(search.aimockPort),
       mode:
         rawMode && VALID_MODES.has(rawMode as Mode)
           ? (rawMode as Mode)

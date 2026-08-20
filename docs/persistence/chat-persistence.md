@@ -72,10 +72,10 @@ schema changes through your deployment workflow instead. See
 ## Threads, runs, and turns
 
 The transcript is stored per `threadId`, and each run gets a `runs` record with its
-status, timings and usage. One thing follows from that and matters when you wire a
-client: a reconnecting client never has to present a run id it may no longer know.
-The store resolves the thread's live run with `findActiveRun(threadId)` and the client
-tails that.
+status, timings, and reported usage across provider calls. One thing follows from
+that and matters when you wire a client: a reconnecting client never has to present
+a run id it may no longer know. The store resolves the thread's live run with
+`findActiveRun(threadId)` and the client tails that.
 
 [Id map](./id-map) covers how to choose a thread id and what both ids mean on the
 generation hooks. [How persistence works](./internals) has the rest.
@@ -98,8 +98,8 @@ generation hooks. [How persistence works](./internals) has the rest.
 | Moment | What is written | Best-effort? |
 | --- | --- | --- |
 | **Start of a run** (`onStart`) | Pending turn (just-submitted user message + prior history) so a reload mid-generation still shows the question | Yes. Failure does not abort the run; finish is authoritative |
-| **Interrupt boundary** | New interrupt records, run status `interrupted`, and a thread snapshot of current messages | No. Store failures propagate |
-| **Finish** (`onFinish`) | Complete transcript (including the terminal assistant reply with its stream `messageId` for in-place reload identity), run status `completed`, and commit of consumed resumes | No. The transcript is saved **before** the run is marked completed |
+| **Interrupt boundary** | New interrupt records, run status `interrupted`, known usage, and a thread snapshot of current messages | No. Store failures propagate |
+| **Finish** (`onFinish`) | Complete transcript (including the terminal assistant reply with its stream `messageId` for in-place reload identity), run status `completed`, known usage, and commit of consumed resumes | No. The transcript is saved **before** the run is marked completed |
 | **Optionally while streaming** | Throttled partial assistant text when `snapshotStreaming: true` | Yes |
 
 ```ts group=chat-persistence
@@ -114,9 +114,15 @@ with `snapshotIntervalMs` (default `1000`).
 
 On **error**, the run is marked `failed`. On **abort**, the run is marked
 `aborted` with a `finishedAt`; `interrupted` is written only at an interrupt
-boundary, and it is not terminal. Resumes accepted in `onConfig` are **not**
-consumed until a success boundary (interrupt or finish), so a failed run leaves
-pending interrupts retryable with the same resume batch.
+boundary, and it is not terminal. Both terminal paths retain usage reported
+before the failure or abort. Resumes accepted in `onConfig` are **not**
+consumed until a success boundary (interrupt or finish). If a run fails before
+the resume commit, every pending interrupt stays retryable. The same is true
+when an atomic `commitBatch()` fails: the whole batch stays pending.
+
+The legacy sequential fallback is different. A write can fail after earlier
+entries were committed. Reload the thread's current pending interrupt records
+and submit only that remaining batch. Do not resend the original full batch.
 
 One abort does **not** terminalize: a plain client disconnect on a run that some
 other middleware has declared *detachable* (a durable event log plus a run
@@ -130,8 +136,11 @@ either one makes the abort terminal again. See
 [Takeover & Detached Runs](../sandbox/takeover#detach-vs-cancel).
 
 The lifecycle a run record moves through. `completed`, `failed`, and `aborted`
-are terminal; `interrupted` is **parked**, not terminal, and a continuation
-after one is a new run with a fresh `runId`:
+are terminal; `interrupted` is **parked**, not terminal. The normal client flow
+starts a continuation with a fresh `runId`. A server integration can reuse the
+same `runId`; `createOrResume` leaves its status `interrupted` until the next
+interrupt or terminal boundary. `findActiveRun` only returns `running` records,
+so it cannot discover a same-ID continuation while that continuation executes.
 
 ```mermaid
 stateDiagram-v2
@@ -144,27 +153,43 @@ stateDiagram-v2
     completed --> [*]
     failed --> [*]
     aborted --> [*]
-    interrupted --> [*] : continuation runs under a new runId
+    interrupted --> [*] : continuation may use a new runId
+    interrupted --> interrupted : same runId pauses again
+    interrupted --> completed : same runId completes
+    interrupted --> failed : same runId fails
+    interrupted --> aborted : same runId aborts
 ```
 
 ## Interrupts survive a restart
 
-When a run pauses on an interrupt (a tool approval, a client-side tool, a
-generic wait), the middleware records it. A later request on that thread must
-carry a `resume` batch that answers the pending interrupts before new input is
-accepted, otherwise it is rejected, which is why the example above forwards
-`params.resume`.
+When a run pauses on an interrupt (a tool approval, a client-side tool, or a
+generic middleware request), the middleware records it. A later request on that
+thread must carry a `resume` batch that answers the pending interrupts before
+new input is accepted, otherwise it is rejected, which is why the example above
+forwards `params.resume`.
+
+For a mixed batch, the persistence middleware validates every entry before it
+continues. It commits all resolved and cancelled entries at one success
+boundary. An `InterruptStore` can implement `commitBatch()` to make that write
+atomic. Without it, the compatibility fallback writes entries one at a time and
+is not atomic.
 
 Persistence is the **server-authoritative resume path**: the middleware
 validates the resume batch against pending interrupts, builds
-`ChatResumeToolState` (approvals / client-tool results), and **clears**
-`config.resume` so the chat engine skips its ephemeral reconstruction (which
-needs client message history the persistence flow deliberately omits). Resumes
-are committed (resolved/cancelled in the store) only once the run reaches a
-successful interrupt or finish boundary.
+`ChatResumeToolState` (approvals / client-tool results / generic requests), and
+**clears** `config.resume` so the chat engine skips its ephemeral
+reconstruction (which needs client message history the persistence flow
+deliberately omits). Resumes are committed (resolved/cancelled in the store)
+only once the run reaches a successful interrupt or finish boundary.
 
-An interrupt record is born `pending` and only a commit moves it, which is why
-a failed continuation leaves it answerable again:
+`onInterruptResolution` still runs at the same moment as a request without
+persistence: after init `onConfig`, before `onStart`. See
+[Apply Answers](../interrupts/apply-answers).
+
+An interrupt record is born `pending` and only a commit moves it. With
+`commitBatch()`, a failed commit leaves the full batch answerable again. With
+the sequential fallback, reload first because some earlier entries may already
+be resolved or cancelled:
 
 ```mermaid
 stateDiagram-v2

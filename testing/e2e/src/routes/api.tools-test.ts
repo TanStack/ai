@@ -16,30 +16,46 @@ const providerFreeScenarios = new Set([
   'client-context',
   'client-server-context',
   'malformed-tool-arguments',
+  'provider-rejected-tool-call',
 ])
 
 function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
   const config =
-    scenario === 'malformed-tool-arguments'
+    scenario === 'provider-rejected-tool-call'
       ? {
-          arguments: '{',
+          arguments: '{"component":"database","unexpected":true}',
           initialText: 'Checking system status.',
-          input: undefined,
-          name: 'malformed-tool-arguments-test',
-          responseText: 'Recovered from malformed tool arguments.',
+          input: { component: 'database', unexpected: true },
+          name: 'provider-rejected-tool-call-test',
+          responseText: 'Recovered from provider-rejected tool call.',
+          result: JSON.stringify({ error: 'Provider rejected tool call' }),
+          state: 'output-error' as const,
           toolName: 'check_status',
         }
-      : {
-          arguments: '{}',
-          initialText: 'Reading runtime context.',
-          input: {},
-          name: 'runtime-context-test',
-          responseText: 'Runtime context was read.',
-          toolName:
-            scenario === 'client-context'
-              ? 'read_client_context'
-              : 'read_server_context',
-        }
+      : scenario === 'malformed-tool-arguments'
+        ? {
+            arguments: '{',
+            initialText: 'Checking system status.',
+            input: undefined,
+            name: 'malformed-tool-arguments-test',
+            responseText: 'Recovered from malformed tool arguments.',
+            result: undefined,
+            state: undefined,
+            toolName: 'check_status',
+          }
+        : {
+            arguments: '{}',
+            initialText: 'Reading runtime context.',
+            input: {},
+            name: 'runtime-context-test',
+            responseText: 'Runtime context was read.',
+            result: undefined,
+            state: undefined,
+            toolName:
+              scenario === 'client-context'
+                ? 'read_client_context'
+                : 'read_server_context',
+          }
   return {
     kind: 'text',
     name: config.name,
@@ -113,6 +129,9 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
           toolCallName: config.toolName,
           toolName: config.toolName,
           ...(config.input === undefined ? {} : { input: config.input }),
+          ...(config.result === undefined
+            ? {}
+            : { result: config.result, state: config.state }),
           model,
           timestamp: Date.now(),
         }
@@ -220,7 +239,12 @@ export const Route = createFileRoute('/api/tools-test')({
 
           const adapterOptions = providerFreeScenarios.has(scenario)
             ? { adapter: createProviderFreeAdapter(scenario) }
-            : createTextAdapter('openai', undefined, aimockPort, testId)
+            : createTextAdapter(
+                'openai',
+                scenario === 'client-tool-reasoning' ? 'gpt-5.2' : undefined,
+                aimockPort,
+                testId,
+              )
 
           const tools = getToolsForScenario(scenario)
           const runtimeContext: TestRuntimeContext =
@@ -244,6 +268,8 @@ export const Route = createFileRoute('/api/tools-test')({
             context: runtimeContext,
             threadId: params.threadId,
             runId: params.runId,
+            ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
+            ...(params.resume ? { resume: params.resume } : {}),
             agentLoopStrategy: maxIterations(20),
             abortController,
           })

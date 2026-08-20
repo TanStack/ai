@@ -1,6 +1,8 @@
+import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import { convertCodeExecutionToolToAdapterFormat } from './code-execution-tool'
 import { convertComputerUseToolToAdapterFormat } from './computer-use-tool'
 import { convertFileSearchToolToAdapterFormat } from './file-search-tool'
+import { getGeminiProviderToolKind } from './gemini-provider-tool'
 import { convertGoogleMapsToolToAdapterFormat } from './google-maps-tool'
 import { convertGoogleSearchRetrievalToolToAdapterFormat } from './google-search-retriveal-tool'
 import { convertGoogleSearchToolToAdapterFormat } from './google-search-tool'
@@ -33,6 +35,7 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
   if (!tools || tools.length === 0) {
     return []
   }
+  assertUniqueToolNames(tools)
   const result: Array<ToolUnion> = []
   const functionDeclarations: Array<{
     name: string
@@ -42,9 +45,7 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
 
   // Process each tool and group function declarations together
   for (const tool of tools) {
-    const name = tool.name
-
-    switch (name) {
+    switch (getGeminiProviderToolKind(tool)) {
       case 'code_execution':
         result.push(convertCodeExecutionToolToAdapterFormat(tool))
         break
@@ -66,7 +67,7 @@ export function convertToolsToProviderFormat<TTool extends Tool>(
       case 'url_context':
         result.push(convertUrlContextToolToAdapterFormat(tool))
         break
-      default:
+      case undefined:
         // Collect function declarations to group together
         // Description is required for Gemini function declarations
         if (!tool.description) {

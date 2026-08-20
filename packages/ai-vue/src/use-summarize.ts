@@ -36,10 +36,6 @@ export interface UseSummarizeOptions<
   connection?: ConnectConnectionAdapter
   /** Direct async function for summarization */
   fetcher?: GenerationFetcher<SummarizeGenerateInput, SummarizationResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -113,7 +109,7 @@ export interface UseSummarizeReturn<TOutput = SummarizationResult> extends Omit<
 export function useSummarize<TTransformed = void>(
   options: Omit<
     UseSummarizeOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: SummarizationResult) => TTransformed
   } & GenerationPersistenceOptions,

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-code-mode-snippets",
-  "version": "0.3.14",
+  "version": "0.4.1",
   "description": "Persistent runtime snippet library for TanStack AI Code Mode agents and sandboxed tool orchestration.",
   "author": "Tanner Linsley",
   "license": "MIT",

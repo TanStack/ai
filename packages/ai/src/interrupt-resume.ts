@@ -25,6 +25,10 @@ import type {
   ChatMiddlewareConfig,
   ChatResumeToolState,
 } from './activities/chat/middleware/types'
+import type {
+  GenericInterruptRequest,
+  InterruptDefinition,
+} from './interrupt-definition'
 import type { Interrupt, RunAgentResumeItem } from './types'
 
 /**
@@ -46,6 +50,10 @@ export interface PendingInterruptResumeRecord {
   interruptId: string
   payload: unknown
   binding: InterruptBinding
+  /** Present for a first-party generic interrupt. */
+  genericRequest?: GenericInterruptRequest<
+    InterruptDefinition<any, any, any, any>
+  >
 }
 
 export interface ValidateInterruptResumeBatchInput {
@@ -164,6 +172,17 @@ function runtimeTool(
   return tools.find((tool) => tool.name === name) as RuntimeTool | undefined
 }
 
+async function parseSchemaValue(
+  schema: unknown,
+  value: unknown,
+): Promise<{ success: true; data: unknown } | { success: false }> {
+  if (!isStandardSchema(schema)) return { success: true, data: value }
+  const result = await validateWithStandardSchema<unknown>(schema, value)
+  return result.success
+    ? { success: true, data: result.data }
+    : { success: false }
+}
+
 function descriptorResponseSchema(
   record: PendingInterruptResumeRecord,
 ): unknown {
@@ -219,9 +238,14 @@ function validateDescriptorSchema(
   errors: Array<InterruptSubmissionError>,
 ): unknown {
   const schema = descriptorResponseSchema(record)
+  const responseSchemaHash = binding.responseSchemaHash
+  if (schema === undefined && responseSchemaHash === undefined) {
+    return undefined
+  }
   if (
     schema === undefined ||
-    schemaHash(schema) !== binding.responseSchemaHash
+    responseSchemaHash === undefined ||
+    schemaHash(schema) !== responseSchemaHash
   ) {
     errors.push(
       interruptItemError(
@@ -276,12 +300,24 @@ export async function validateInterruptResumeBatch(
     }
   }
 
+  const pendingGenerics = input.pending.filter(
+    (record) => record.binding.kind === 'generic',
+  )
+  const genericBatchSatisfied =
+    pendingGenerics.length > 0 &&
+    pendingGenerics.every((record) => resumeById.has(record.interruptId))
+
   let incomplete = false
   for (const record of input.pending) {
     const errors = group(record.interruptId)
     const entry = resumeById.get(record.interruptId)
     const binding = record.binding
     if (!entry) {
+      // Client tools that share a generic interrupt batch wait for
+      // `toolResume`. `continue` re-emits them; `cancel` / `stop` skip them.
+      if (genericBatchSatisfied && binding.kind === 'client-tool-execution') {
+        continue
+      }
       incomplete = true
       errors.push(
         interruptItemError(
@@ -307,19 +343,29 @@ export async function validateInterruptResumeBatch(
         ),
       )
     }
-    if (
-      binding.expiresAt !== undefined &&
-      Date.parse(binding.expiresAt) <= (input.now ?? Date.now())
-    ) {
-      errors.push(
-        interruptItemError(
-          input,
-          record.interruptId,
-          'expired',
-          `Interrupt ${record.interruptId} has expired.`,
-          { source: 'server' },
-        ),
-      )
+    if (binding.expiresAt !== undefined) {
+      const expiresAt = Date.parse(binding.expiresAt)
+      if (!Number.isFinite(expiresAt)) {
+        errors.push(
+          interruptItemError(
+            input,
+            record.interruptId,
+            'invalid-payload',
+            `Interrupt ${record.interruptId} has an invalid expiresAt.`,
+            { source: 'server' },
+          ),
+        )
+      } else if (expiresAt <= (input.now ?? Date.now())) {
+        errors.push(
+          interruptItemError(
+            input,
+            record.interruptId,
+            'expired',
+            `Interrupt ${record.interruptId} has expired.`,
+            { source: 'server' },
+          ),
+        )
+      }
     }
 
     const responseSchema = validateDescriptorSchema(
@@ -342,6 +388,28 @@ export async function validateInterruptResumeBatch(
       continue
     }
     if (binding.kind === 'generic') {
+      const genericRequest = record.genericRequest
+      if (genericRequest !== undefined) {
+        const batchIndex = binding.batchIndex
+        if (
+          binding.definitionId !== genericRequest.definition.id ||
+          binding.key !== genericRequest.key ||
+          binding.interruptId !== record.interruptId ||
+          batchIndex === undefined ||
+          !Number.isInteger(batchIndex) ||
+          batchIndex < 0
+        ) {
+          errors.push(
+            interruptItemError(
+              input,
+              record.interruptId,
+              'stale',
+              `Generic interrupt ${record.interruptId} has stale definition metadata.`,
+              { source: 'server' },
+            ),
+          )
+        }
+      }
       if (entry.status === 'cancelled') {
         if (entry.payload !== undefined) {
           errors.push(
@@ -353,6 +421,16 @@ export async function validateInterruptResumeBatch(
             ),
           )
         }
+      } else if (genericRequest !== undefined) {
+        await pushSchemaIssues({
+          request: input,
+          errors,
+          interruptId: record.interruptId,
+          schema: genericRequest.definition.responseSchema,
+          value: entry.payload,
+          code: 'invalid-payload',
+          label: `Interrupt ${record.interruptId} payload is invalid`,
+        })
       } else if (responseSchema !== undefined) {
         await pushSchemaIssues({
           request: input,
@@ -616,16 +694,42 @@ export async function validateInterruptResumeBatch(
     if (!entry) continue
     const binding = record.binding
     if (binding.kind === 'generic') {
-      genericInterrupts.set(
-        record.interruptId,
-        entry.status === 'resolved'
-          ? {
-              interruptId: record.interruptId,
-              status: 'resolved',
-              payload: entry.payload,
-            }
-          : { interruptId: record.interruptId, status: 'cancelled' },
+      if (entry.status !== 'resolved') {
+        genericInterrupts.set(record.interruptId, {
+          interruptId: record.interruptId,
+          status: 'cancelled',
+        })
+        continue
+      }
+      if (record.genericRequest === undefined) {
+        genericInterrupts.set(record.interruptId, {
+          interruptId: record.interruptId,
+          status: 'resolved',
+          payload: entry.payload,
+        })
+        continue
+      }
+      const parsed = await parseSchemaValue(
+        record.genericRequest.definition.responseSchema,
+        entry.payload,
       )
+      if (!parsed.success) {
+        return {
+          errors: [
+            interruptItemError(
+              input,
+              record.interruptId,
+              'invalid-payload',
+              `Interrupt ${record.interruptId} payload is invalid.`,
+            ),
+          ],
+        }
+      }
+      genericInterrupts.set(record.interruptId, {
+        interruptId: record.interruptId,
+        status: 'resolved',
+        payload: parsed.data,
+      })
       continue
     }
     if (entry.status === 'cancelled') {
@@ -711,17 +815,44 @@ export function readUnopenedInterruptBinding(
   const interruptId = stringField(raw, 'interruptId')
   const responseSchemaHash = stringField(raw, 'responseSchemaHash')
   const expiresAt = stringField(raw, 'expiresAt')
-  if (!interruptId || !responseSchemaHash) return undefined
+  if (!interruptId || responseSchemaHash === '') return undefined
+  if (expiresAt !== undefined && !Number.isFinite(Date.parse(expiresAt))) {
+    return undefined
+  }
   const v = INTERRUPT_BINDING_VERSION
   if (kind === 'generic') {
+    const definitionId = stringField(raw, 'definitionId')
+    const key = stringField(raw, 'key')
+    const batchIndex = raw['batchIndex']
+    const payloadSchemaHash = stringField(raw, 'payloadSchemaHash')
+    const hasFirstPartyFields =
+      definitionId !== undefined ||
+      key !== undefined ||
+      batchIndex !== undefined ||
+      payloadSchemaHash !== undefined
+    if (
+      hasFirstPartyFields &&
+      (!definitionId ||
+        !key ||
+        typeof batchIndex !== 'number' ||
+        !Number.isInteger(batchIndex) ||
+        batchIndex < 0)
+    ) {
+      return undefined
+    }
     return {
       v,
       kind,
       interruptId,
-      responseSchemaHash,
+      ...(responseSchemaHash ? { responseSchemaHash } : {}),
       ...(expiresAt ? { expiresAt } : {}),
+      ...(definitionId ? { definitionId } : {}),
+      ...(key ? { key } : {}),
+      ...(typeof batchIndex === 'number' ? { batchIndex } : {}),
+      ...(payloadSchemaHash ? { payloadSchemaHash } : {}),
     }
   }
+  if (!responseSchemaHash) return undefined
   const toolName = stringField(raw, 'toolName')
   const toolCallId = stringField(raw, 'toolCallId')
   if (!toolName || !toolCallId) return undefined

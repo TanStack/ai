@@ -14,6 +14,7 @@ import type {
   BlobStore,
   GenerationRunRecord,
   GenerationRunStore,
+  InterruptCommitEntry,
   InterruptRecord,
   InterruptStore,
   MessageStore,
@@ -187,6 +188,49 @@ class MemoryInterruptStore implements InterruptStore {
       })
     }
     return Promise.resolve()
+  }
+  async commitBatch(
+    entries: ReadonlyArray<InterruptCommitEntry>,
+  ): Promise<void> {
+    const ids = new Set<string>()
+    for (const entry of entries) {
+      if (ids.has(entry.interruptId)) {
+        throw new Error(
+          `Interrupt batch contains duplicate id: ${entry.interruptId}.`,
+        )
+      }
+      ids.add(entry.interruptId)
+      const existing = this.interrupts.get(entry.interruptId)
+      if (!existing) {
+        throw new Error(
+          `Interrupt batch references missing id: ${entry.interruptId}.`,
+        )
+      }
+      if (existing.status !== 'pending') {
+        throw new Error(
+          `Interrupt batch references non-pending id: ${entry.interruptId}.`,
+        )
+      }
+    }
+    const resolvedAt = Date.now()
+    for (const entry of entries) {
+      const existing = this.interrupts.get(entry.interruptId)
+      if (!existing) continue
+      if (entry.status === 'resolved') {
+        this.interrupts.set(entry.interruptId, {
+          ...existing,
+          status: 'resolved',
+          resolvedAt,
+          response: entry.response,
+        })
+      } else {
+        this.interrupts.set(entry.interruptId, {
+          ...existing,
+          status: 'cancelled',
+          resolvedAt,
+        })
+      }
+    }
   }
   get(interruptId: string): Promise<InterruptRecord | null> {
     return Promise.resolve(this.interrupts.get(interruptId) ?? null)

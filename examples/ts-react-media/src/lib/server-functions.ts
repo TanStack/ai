@@ -207,17 +207,17 @@ export const generateImageFn = createServerFn({ method: 'POST' })
           },
         })
       }
-      case 'gemini-3.1-flash-image-preview': {
+      case 'gemini-3.1-flash-image': {
         return generateImage({
-          adapter: geminiImage('gemini-3.1-flash-image-preview'),
+          adapter: geminiImage('gemini-3.1-flash-image'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
         })
       }
-      case 'gemini-3-pro-image-preview': {
+      case 'gemini-3-pro-image': {
         return generateImage({
-          adapter: geminiImage('gemini-3-pro-image-preview'),
+          adapter: geminiImage('gemini-3-pro-image'),
           prompt: asImagePrompt(data.prompt),
           numberOfImages: 1,
           size: '16:9_4K',
@@ -339,8 +339,8 @@ function videoStreamForModel(data: VideoRequest): AsyncIterable<StreamChunk> {
     case 'grok-imagine-video': {
       // Direct xAI Imagine API (XAI_API_KEY) — no fal in between. The base
       // grok-imagine-video (v1.0) supports text-to-video; durations are
-      // 1-15 integer seconds. Completed jobs report usage.unitsBilled
-      // (billed seconds) and usage.cost (exact USD).
+      // 1-15 integer seconds. Completed jobs report usage.billed
+      // ({ quantity, unit: 'seconds' }) and usage.cost (exact USD).
       return generateVideo({
         stream: true,
         pollingInterval: VIDEO_POLL_INTERVAL_MS,

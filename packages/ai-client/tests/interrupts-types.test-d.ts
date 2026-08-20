@@ -1,5 +1,5 @@
 import { expectTypeOf } from 'vitest'
-import { toolDefinition } from '@tanstack/ai/client'
+import { defineInterrupt, toolDefinition } from '@tanstack/ai/client'
 import { z } from 'zod'
 import type { JSONSchema, ServerTool } from '@tanstack/ai'
 import type {
@@ -14,6 +14,9 @@ import type {
   BoundInterrupts,
   ChatClient,
   ChatInterrupt,
+  GenericAGUIInterrupt,
+  GenericInterrupt,
+  RegisteredGenericInterrupt,
   ToolApprovalInterrupt,
 } from '../src/index'
 
@@ -54,6 +57,17 @@ type Tools = readonly [
   typeof raw,
 ]
 type Interrupt = ChatInterrupt<Tools>
+
+declare const externalGeneric: GenericAGUIInterrupt
+externalGeneric.cancel()
+externalGeneric.clearResolution()
+externalGeneric.resolveInterrupt({ accepted: true })
+
+declare const unboundInterrupt: Extract<Interrupt, { kind: 'unbound' }>
+// @ts-expect-error Unbound interrupts are owned by another system.
+unboundInterrupt.cancel()
+// @ts-expect-error Unbound interrupts are owned by another system.
+unboundInterrupt.clearResolution()
 
 expectTypeOf<InputSchemaOf<ServerTool>>().toEqualTypeOf<NoSchema>()
 expectTypeOf<OutputSchemaOf<ServerTool>>().toEqualTypeOf<NoSchema>()
@@ -162,3 +176,67 @@ client.unsafeResumeInterrupts([])
 expectTypeOf<Extract<Interrupt, { kind: 'tool-approval' }>>().toMatchTypeOf<
   ToolApprovalInterrupt<Tools[number]>
 >()
+
+const reviewPlan = defineInterrupt({
+  id: 'review-plan',
+  payloadSchema: z.object({ title: z.string() }),
+  responseSchema: z.string().transform((value) => Number(value)),
+})
+
+const acknowledge = defineInterrupt({
+  id: 'acknowledge',
+  responseSchema: z.object({ accepted: z.boolean() }),
+})
+
+const payloadOnlyReview = defineInterrupt({
+  id: 'payload-only-review',
+  payloadSchema: z.object({
+    title: z.string().transform((value) => value.toUpperCase()),
+  }),
+})
+
+type RegisteredInterrupts = readonly [
+  typeof reviewPlan,
+  typeof acknowledge,
+  typeof payloadOnlyReview,
+]
+type RegisteredClientInterrupt = ChatInterrupt<Tools, RegisteredInterrupts>
+
+declare const reviewInterrupt: Extract<
+  RegisteredClientInterrupt,
+  { definitionId: 'review-plan' }
+>
+expectTypeOf(reviewInterrupt).toMatchTypeOf<
+  RegisteredGenericInterrupt<RegisteredInterrupts>
+>()
+expectTypeOf(reviewInterrupt).toEqualTypeOf<
+  GenericInterrupt<typeof reviewPlan>
+>()
+expectTypeOf(reviewInterrupt.payload).toEqualTypeOf<
+  { title: string } | undefined
+>()
+reviewInterrupt.resolveInterrupt('42')
+// @ts-expect-error response schema input is a string, not its transformed output
+reviewInterrupt.resolveInterrupt(42)
+
+declare const acknowledgement: Extract<
+  RegisteredClientInterrupt,
+  { definitionId: 'acknowledge' }
+>
+expectTypeOf(acknowledgement.payload).toEqualTypeOf<undefined>()
+acknowledgement.resolveInterrupt({ accepted: true })
+// @ts-expect-error response input must match the registered schema
+acknowledgement.resolveInterrupt({ accepted: 'yes' })
+
+declare const payloadOnlyInterrupt: Extract<
+  RegisteredClientInterrupt,
+  { definitionId: 'payload-only-review' }
+>
+expectTypeOf(payloadOnlyReview.responseSchema).toEqualTypeOf<undefined>()
+expectTypeOf(payloadOnlyInterrupt.payload).toEqualTypeOf<
+  { title: string } | undefined
+>()
+expectTypeOf(payloadOnlyInterrupt.resolveInterrupt)
+  .parameter(0)
+  .toEqualTypeOf<unknown>()
+payloadOnlyInterrupt.resolveInterrupt({ accepted: true, comment: 'continue' })

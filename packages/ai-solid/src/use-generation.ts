@@ -3,7 +3,6 @@ import { createGenerationDevtoolsBridge } from '@tanstack/ai-client/devtools'
 import {
   createEffect,
   createSignal,
-  createUniqueId,
   onCleanup,
   onMount,
   untrack,
@@ -37,10 +36,6 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
@@ -68,8 +63,8 @@ export interface UseGenerationOptions<TInput, TResult, TOutput = TResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -174,7 +169,7 @@ export function useGeneration<
 >(
   options: Omit<
     UseGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -183,7 +178,6 @@ export function useGeneration<
   TInput
 > {
   type TOutput = InferGenerationOutputFromReturn<TResult, TTransformed>
-  const hookId = createUniqueId()
 
   const [result, setResult] = createSignal<TOutput | null>(null)
   const [isLoading, setIsLoading] = createSignal(false)
@@ -201,15 +195,11 @@ export function useGeneration<
     // Conditional spread on `body`: `GenerationClientOptions.body` is a
     // strict optional (`body?: Record<string, any>`) and EOPT forbids
     // assigning the source `T | undefined` directly.
-    const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+    const clientOptions: Omit<
+      GenerationClientOptions<TInput, TResult, TOutput>,
+      'persistence' | 'threadId'
+    > = {
       body: options.body,
-      // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
-      ...(options.threadId !== undefined
-        ? { threadId: options.threadId }
-        : { id: options.id ?? hookId }),
-      ...(options.persistence !== undefined && {
-        persistence: options.persistence,
-      }),
       ...(options.hydrateGeneration !== undefined && {
         hydrateGeneration: options.hydrateGeneration,
       }),
@@ -257,9 +247,22 @@ export function useGeneration<
       },
     }
 
+    const persistenceProps =
+      typeof options.threadId === 'string' && options.persistence
+        ? {
+            persistence: options.persistence,
+            threadId: options.threadId,
+          }
+        : {
+            ...(options.threadId !== undefined && {
+              threadId: options.threadId,
+            }),
+          }
+
     if (options.connection) {
       return new GenerationClient<TInput, TResult, TOutput>({
         ...clientOptions,
+        ...persistenceProps,
         connection: options.connection,
       })
     }
@@ -267,6 +270,7 @@ export function useGeneration<
     if (options.fetcher) {
       return new GenerationClient<TInput, TResult, TOutput>({
         ...clientOptions,
+        ...persistenceProps,
         fetcher: options.fetcher,
       })
     }

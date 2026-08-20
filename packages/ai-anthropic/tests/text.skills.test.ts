@@ -145,4 +145,21 @@ describe('computeAnthropicBetas', () => {
     )
     expect(req.container).toBeUndefined()
   })
+
+  it('does not enable code execution for an ordinary function with that name', () => {
+    const fnTool = {
+      name: 'code_execution',
+      description: 'Run an application function',
+      metadata: {
+        skills: [{ type: 'anthropic', skill_id: 'must-not-be-lifted' }],
+      },
+    } as any
+
+    expect(computeAnthropicBetas([fnTool], undefined)).toBeUndefined()
+
+    const req = makeAdapter().mapCommonOptionsToAnthropic(
+      baseOptions({ tools: [fnTool] }),
+    )
+    expect(req.container).toBeUndefined()
+  })
 })

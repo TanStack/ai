@@ -36,10 +36,6 @@ export interface UseGenerateImageOptions<
   connection?: ConnectConnectionAdapter
   /** Direct async function for image generation */
   fetcher?: GenerationFetcher<ImageGenerateInput, ImageGenerationResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -117,7 +113,7 @@ export interface UseGenerateImageReturn<
 export function useGenerateImage<TTransformed = void>(
   options: Omit<
     UseGenerateImageOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: ImageGenerationResult) => TTransformed
   } & GenerationPersistenceOptions,

@@ -68,7 +68,7 @@ interface RunRecord {
   startedAt: number // epoch ms
   finishedAt?: number // epoch ms, set once the run reaches a terminal status
   error?: RunError
-  usage?: TokenUsage // token counts, from @tanstack/ai
+  usage?: TokenUsage // reported usage accumulated for this runId
   // ---------------------------------------------------------------------------
   // DURABLE SANDBOXED RUNS ONLY. A chat app never writes these four and nothing
   // in `@tanstack/ai-persistence` reads them. Leave the columns out until you
@@ -128,12 +128,18 @@ interface RunStore {
 }
 ```
 
+`withPersistence` sums reported numeric usage fields across provider calls for
+the same `runId`. The opaque `providerUsageDetails` field retains the latest
+reported bag. Known usage is persisted when the run interrupts or reaches a
+terminal status.
+
 `createOrResume`, `update`, `get`, and `findActiveRun` are the floor: a backend
 that implements those four is a valid `RunStore`. Three contracts to hold:
 
 - `createOrResume` must be idempotent. A second call for an existing `runId`
-  returns the stored record unchanged, which is what makes resuming a run safe.
-  Retries may repeat the same run id.
+  returns the complete stored record unchanged, including `usage`. This makes
+  resuming a run safe and lets usage continue accumulating. Retries may repeat
+  the same run id.
 - `update` against an unknown `runId` is a no-op.
 - `findActiveRun` must do real work. Stub it to `null` and `reconstructChat`
   always reports `activeRun: null`, so a client that reloads (or switches back
@@ -216,8 +222,13 @@ interface InterruptRecord {
   response?: unknown
 }
 
+type InterruptCommitEntry =
+  | { interruptId: string; status: 'resolved'; response?: unknown }
+  | { interruptId: string; status: 'cancelled' }
+
 interface InterruptStore {
   create(record: Omit<InterruptRecord, 'status' | 'resolvedAt'>): Promise<void>
+  commitBatch?(entries: ReadonlyArray<InterruptCommitEntry>): Promise<void>
   resolve(interruptId: string, response?: unknown): Promise<void>
   cancel(interruptId: string): Promise<void>
   get(interruptId: string): Promise<InterruptRecord | null>
@@ -227,6 +238,15 @@ interface InterruptStore {
   listPendingByRun(runId: string): Promise<Array<InterruptRecord>>
 }
 ```
+
+`commitBatch` is optional. Use one database transaction for all entries when
+you implement it. The legacy `resolve` and `cancel` fallback is sequential and
+is not atomic.
+
+If you implement `commitBatch`, reject the whole batch (throw, write nothing)
+when any entry has a duplicate `interruptId`, names an interrupt that does not
+exist, or names an interrupt that is not `'pending'`. `resolve` and `cancel`
+stay no-ops for a missing `interruptId`.
 
 `create` accepts a record without `status`/`resolvedAt` so every interrupt is
 born `'pending'`; it is insert-if-absent, so a duplicate `create` never clobbers

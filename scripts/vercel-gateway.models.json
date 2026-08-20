@@ -1613,15 +1613,22 @@
     "owned_by": "alibaba",
     "name": "Qwen3.8 27B",
     "description": "Built on the architectural foundation of Qwen3.5, Qwen3.8 delivers substantial gains across coding, professional work, research, and long-horizon agentic tasks. Qwen3.8-27B brings these advances to a compact, deployment-friendly dense model: a native vision-language model that understands images and videos, with flexible thinking control, designed to carry complex, multi-step tasks through to completion with greater reliability.",
-    "context_window": 262144,
-    "max_tokens": 262133,
+    "context_window": 1000000,
+    "max_tokens": 131072,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "vision", "implicit-caching", "free"],
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "vision",
+      "implicit-caching",
+      "video-input",
+      "file-input"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
-      "input": ["text", "image"],
+      "input": ["text", "image", "pdf", "video"],
       "output": ["text"]
     },
     "supported_parameters": [
@@ -1635,9 +1642,9 @@
     ],
     "temperature": true,
     "pricing": {
-      "input": "0.0000001",
-      "output": "0.0000004",
-      "input_cache_read": "0.00000001",
+      "input": "0.00000055",
+      "output": "0.0000033",
+      "input_cache_read": "0.00000011",
       "varies_by_provider": true
     }
   },
@@ -5096,15 +5103,32 @@
     "type": "speech",
     "zdr": "none",
     "no_training": "none",
+    "tags": ["free"],
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
       "output": ["audio"]
     },
-    "pricing": {
-      "input": "0.000015",
-      "speech_input_character_cost": "0.000015"
-    }
+    "pricing": {}
+  },
+  {
+    "id": "fish-audio/s1-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1760918400,
+    "owned_by": "fish-audio",
+    "name": "S1 (Free)",
+    "description": "Fish Audio S1 is trained on over 2 million hours of audio with online RLHF (GRPO). It achieves 0.8% WER and 0.4% CER on Seed TTS Eval. S1 supports open-domain emotion, tone, and special effect markers.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["free"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {}
   },
   {
     "id": "fish-audio/s2-pro",
@@ -5117,15 +5141,32 @@
     "type": "speech",
     "zdr": "none",
     "no_training": "none",
+    "tags": ["free"],
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
       "output": ["audio"]
     },
-    "pricing": {
-      "input": "0.000015",
-      "speech_input_character_cost": "0.000015"
-    }
+    "pricing": {}
+  },
+  {
+    "id": "fish-audio/s2-pro-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1773014400,
+    "owned_by": "fish-audio",
+    "name": "S2 Pro (Free)",
+    "description": "Fish Audio S2 is the second-generation TTS model from Fish Audio. It's trained on over 10 million hours of audio across approximately 80 languages, and it introduces inline tag control: natural-language instructions embedded directly in your script at any position, giving you fine-grained direction over how speech is delivered at the word or phrase level.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["free"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {}
   },
   {
     "id": "fish-audio/s2.1-pro",
@@ -5138,15 +5179,32 @@
     "type": "speech",
     "zdr": "none",
     "no_training": "none",
+    "tags": ["free"],
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["text"],
       "output": ["audio"]
     },
-    "pricing": {
-      "input": "0.000015",
-      "speech_input_character_cost": "0.000015"
-    }
+    "pricing": {}
+  },
+  {
+    "id": "fish-audio/s2.1-pro-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1785196800,
+    "owned_by": "fish-audio",
+    "name": "S2.1 Pro (Free)",
+    "description": "S2.1 Pro is Fish Audio's current state-of-the-art voice model — the best model we have, now available to every developer for free via API. It is a neural speech synthesis model designed for production-grade AI voice generation, with particular strengths in low-latency streaming, multilingual TTS, and voice cloning. ",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["free"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {}
   },
   {
     "id": "fish-audio/transcribe-1",
@@ -5159,15 +5217,32 @@
     "type": "transcription",
     "zdr": "none",
     "no_training": "none",
+    "tags": ["free"],
     "supported_specifications": ["v3", "v4"],
     "modalities": {
       "input": ["audio"],
       "output": ["text"]
     },
-    "pricing": {
-      "input": "0.0000000001",
-      "transcription_duration_cost_per_second": "0.0001"
-    }
+    "pricing": {}
+  },
+  {
+    "id": "fish-audio/transcribe-1-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1772323200,
+    "owned_by": "fish-audio",
+    "name": "Transcribe-1 (Free)",
+    "description": "Turn spoken audio into accurate text — with timed segments — using Fish Audio’s ASR model. Send an audio file, get back the transcript, its duration, and timestamped segments.",
+    "type": "transcription",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["free"],
+    "supported_specifications": ["v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {}
   },
   {
     "id": "google/gemini-2.5-flash",
@@ -6318,7 +6393,7 @@
     "released": 1786579200,
     "owned_by": "google",
     "name": "Gemini 3.7 Flash",
-    "description": "",
+    "description": "Gemini 3.7 Flash is the high-efficiency, cost-effective powerhouse of the Gemini 3 family. It delivers Pro-level agentic capabilities, major leaps in code generation and terminal execution. 3.7 Flash serves as the primary agentic workhorse in the Gemini 3 family, bridging the gap between deep-reasoning Pro models and high-throughput Flash-Lite models while delivering high token efficiency and multi-step multimodal processing.",
     "context_window": 1000000,
     "max_tokens": 65536,
     "type": "language",
@@ -6353,6 +6428,18 @@
       "input": "0.00000075",
       "output": "0.00000375",
       "input_cache_read": "0.000000075",
+      "service_tiers": {
+        "flex": {
+          "input": "0.000000375",
+          "output": "0.000001875",
+          "input_cache_read": "0.0000000375"
+        },
+        "priority": {
+          "input": "0.00000135",
+          "output": "0.00000675",
+          "input_cache_read": "0.000000135"
+        }
+      },
       "regional": {
         "eu": {
           "input": "0.000000825",
@@ -9365,9 +9452,9 @@
       },
       "regional": {
         "us": {
-          "input": "0.000003",
-          "output": "0.000015",
-          "input_cache_read": "0.0000003"
+          "input": "0.0000033",
+          "output": "0.0000165",
+          "input_cache_read": "0.00000033"
         }
       }
     }
@@ -9601,9 +9688,9 @@
     "context_window": 262144,
     "max_tokens": 131072,
     "type": "language",
-    "zdr": "some",
-    "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "free"],
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9620,6 +9707,9 @@
     ],
     "temperature": true,
     "pricing": {
+      "input": "0.00000005",
+      "output": "0.0000002",
+      "input_cache_read": "0.00000001",
       "varies_by_provider": true
     }
   },
@@ -16957,100 +17047,6 @@
     }
   },
   {
-    "id": "zai/glm-4.6v",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1759190400,
-    "owned_by": "zai",
-    "name": "GLM-4.6V",
-    "description": "GLM-4.6V series are Z.ai’s iterations in a multimodal large language model. GLM-4.6V scales its context window to 128k tokens in training, and achieves SoTA performance in visual understanding among models of similar parameter scales.",
-    "context_window": 128000,
-    "max_tokens": 24000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": [
-      "vision",
-      "file-input",
-      "reasoning",
-      "tool-use",
-      "implicit-caching"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      }
-    ],
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0.0000003",
-      "output": "0.0000009",
-      "input_cache_read": "0.00000005"
-    }
-  },
-  {
-    "id": "zai/glm-4.6v-flash",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1759190400,
-    "owned_by": "zai",
-    "name": "GLM-4.6V-Flash",
-    "description": "For local deployment and low-latency applications. GLM-4.6V series are Z.ai’s iterations in a multimodal large language model. GLM-4.6V scales its context window to 128k tokens in training, and achieves SoTA performance in visual understanding among models of similar parameter scales.",
-    "context_window": 128000,
-    "max_tokens": 24000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": [
-      "vision",
-      "reasoning",
-      "file-input",
-      "tool-use",
-      "implicit-caching",
-      "free"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "toggle"
-      }
-    ],
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0",
-      "output": "0"
-    }
-  },
-  {
     "id": "zai/glm-4.7",
     "object": "model",
     "created": 1755815280,
@@ -17343,9 +17339,9 @@
       }
     ],
     "pricing": {
-      "input": "0.0000011",
-      "output": "0.000003851",
-      "input_cache_read": "0.000000275",
+      "input": "0.0000008",
+      "output": "0.00000255",
+      "input_cache_read": "0.00000016",
       "varies_by_provider": true,
       "fast": {
         "input": "0.0000021",
@@ -17412,6 +17408,41 @@
           "input_cache_read": "0.00000021"
         }
       }
+    }
+  },
+  {
+    "id": "zai/glm-5.3",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787011200,
+    "owned_by": "zai",
+    "name": "GLM 5.3",
+    "description": "GLM 5.3 delivers comprehensive advancements in complex software engineering and agent capabilities. It uses the same base model as GLM-5.2, with all improvements driven by post-training.",
+    "context_window": 1000000,
+    "max_tokens": 12800,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.0000014",
+      "output": "0.0000044",
+      "input_cache_read": "0.00000026"
     }
   },
   {

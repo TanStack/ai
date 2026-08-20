@@ -90,9 +90,10 @@ new AgentSideConnection((conn) => ({
     return {
       protocolVersion: PROTOCOL_VERSION,
       agentCapabilities: { loadSession: true },
-      // 'grok.com' matches \`resolveGrokAcpAuthMethod\`'s fallback when no
-      // XAI_API_KEY/GROK_API_KEY env is set, so the real handshake picks it.
-      authMethods: [{ id: 'grok.com', name: 'grok.com', description: null }],
+      authMethods: [
+        { id: 'xai.api_key', name: 'xai.api_key', description: null },
+        { id: 'grok.com', name: 'grok.com', description: null },
+      ],
     }
   },
   async authenticate() {

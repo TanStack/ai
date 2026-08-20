@@ -11,6 +11,8 @@ import type { ProviderTool } from './tools/provider-tool'
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
 import type {
+  BilledUsage,
+  BillingUnit,
   CompletionTokensDetails,
   PromptTokensDetails,
   ProviderUsageDetails,
@@ -958,10 +960,13 @@ export interface TextOptions<
    *    `supportsCombinedToolsAndSchema(modelOptions) === true`. The adapter
    *    should then wire the schema into the upstream request (e.g.
    *    `response_format: { type: 'json_schema', ... }`, `text.format`,
-   *    `output_format`) alongside any `tools`. The model's natural final
-   *    turn carries the schema-constrained JSON text and the engine
-   *    harvests it from the agent loop without a separate finalization
-   *    round-trip.
+   *    `output_format`, `--json-schema`) alongside any `tools`.
+   *
+   *    How the engine then takes the object depends on
+   *    `combinedStructuredOutputSource()`:
+   *    - `'text'` (default): the final-turn assistant text is the JSON.
+   *    - `'event'`: the adapter emits `structured-output.complete` during
+   *      `chatStream`. Accumulated prose is not parsed.
    *
    *    Adapters that did NOT declare the capability never see this field
    *    populated — the engine instead invokes `structuredOutput` /
@@ -1023,8 +1028,7 @@ export interface TextOptions<
 
   /**
    * AG-UI interrupt resume responses supplied by the client on a follow-up run.
-   * Threaded through request parsing now so later runtime behavior can resolve
-   * upstream-native interrupts.
+   * A first-party generic item carries the original request in `metadata`.
    */
   resume?: Array<RunAgentResumeItem>
 
@@ -1103,6 +1107,8 @@ export interface RunStartedEvent extends AGUIRunStartedEvent {
 // Re-export the canonical usage types (defined in `@tanstack/ai-event-client`)
 // so `@tanstack/ai` consumers keep importing them from here unchanged.
 export type {
+  BilledUsage,
+  BillingUnit,
   CompletionTokensDetails,
   PromptTokensDetails,
   ProviderUsageDetails,
@@ -1121,7 +1127,10 @@ export type Interrupt = AGUIInterrupt
 
 export type RunFinishedOutcome = AGUIRunFinishedOutcome
 
-export type RunAgentResumeItem = AGUIResumeEntry
+export type RunAgentResumeItem = AGUIResumeEntry & {
+  /** AG-UI resume metadata. First-party generic requests ride here. */
+  metadata?: Record<string, unknown>
+}
 
 /**
  * Emitted when a run completes successfully.
@@ -2075,9 +2084,10 @@ export interface RerankResult<TDocument = string> {
   rerankedDocuments: Array<TDocument>
   /**
    * Usage for the request. Rerank typically bills in provider-defined "search
-   * units" (`usage.unitsBilled`) rather than tokens. Some providers (e.g.
-   * OpenRouter) may also report `totalTokens` and `cost`; Cohere reports only
-   * search units and leaves the token counts at 0.
+   * units" (`usage.billed = { quantity, unit: 'units' }`) rather than tokens.
+   * Some providers (e.g. OpenRouter) may also report `totalTokens` and `cost`.
+   * Cohere reports only search units and leaves the token counts at 0.
+   * The deprecated `unitsBilled` field is still populated for compatibility.
    */
   usage: TokenUsage
 }
@@ -2460,8 +2470,8 @@ export interface VideoUrlResult {
   expiresAt?: Date
   /**
    * Usage information for the completed generation, when the adapter can report
-   * it. For usage-based providers (e.g. fal) this carries `unitsBilled` — the
-   * real billed quantity — so consumers can compute exact cost.
+   * it. For usage-based providers (e.g. fal) this carries `billed` — the real
+   * billed quantity paired with its unit — so consumers can compute exact cost.
    */
   usage?: TokenUsage
   /** Persisted artifact references for generated assets, when available */

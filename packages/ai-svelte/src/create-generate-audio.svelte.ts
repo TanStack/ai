@@ -35,10 +35,6 @@ export interface CreateGenerateAudioOptions<
   connection?: ConnectConnectionAdapter
   /** Direct async function for audio generation */
   fetcher?: GenerationFetcher<AudioGenerateInput, AudioGenerationResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -108,7 +104,7 @@ export interface CreateGenerateAudioReturn<
 export function createGenerateAudio<TTransformed = void>(
   options: Omit<
     CreateGenerateAudioOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: AudioGenerationResult) => TTransformed
   } & GenerationPersistenceOptions,

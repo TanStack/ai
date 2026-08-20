@@ -38,6 +38,7 @@ import {
   updateToolResultPart,
 } from './message-updaters'
 import { ImmediateStrategy } from './strategies'
+import { INTERRUPT_BINDING_METADATA_KEY } from '../../../interrupt-resume'
 import type {
   ChunkRecording,
   ChunkStrategy,
@@ -137,6 +138,22 @@ export interface StreamProcessorOptions {
 }
 
 const STRUCTURED_OUTPUT_UPDATE_BATCH_SIZE = 12
+
+function interruptBatchHasGeneric(interrupts: Array<Interrupt>): boolean {
+  return interrupts.some((interrupt) => {
+    const metadata = interrupt.metadata
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return false
+    }
+    const binding = metadata[INTERRUPT_BINDING_METADATA_KEY]
+    return (
+      binding !== null &&
+      typeof binding === 'object' &&
+      !Array.isArray(binding) &&
+      binding.kind === 'generic'
+    )
+  })
+}
 
 /**
  * StreamProcessor - State machine for processing AI response streams
@@ -1548,6 +1565,7 @@ export class StreamProcessor {
   }
 
   private handleInterrupts(interrupts: Array<Interrupt>): void {
+    const hasGeneric = interruptBatchHasGeneric(interrupts)
     for (const interrupt of interrupts) {
       const metadata =
         interrupt.metadata && typeof interrupt.metadata === 'object'
@@ -1598,6 +1616,9 @@ export class StreamProcessor {
       }
 
       if (kind === 'client_tool' || interrupt.reason === 'client_tool_input') {
+        // Generic interrupts in the same batch decide `toolResume`. Do not
+        // run client tools until that policy is `continue`.
+        if (hasGeneric) continue
         this.events.onToolCall?.({
           toolCallId,
           toolName,
@@ -1854,9 +1875,10 @@ export class StreamProcessor {
 
     if (chunk.name === 'structured-output.start' && chunk.value) {
       const v = chunk.value as { messageId?: string }
-      const targetId = v.messageId ?? messageId
+      const { messageId: targetId } = this.ensureAssistantMessage(
+        v.messageId ?? messageId ?? undefined,
+      )
       if (targetId) {
-        this.ensureAssistantMessage(targetId)
         this.structuredMessageIds.add(targetId)
         this.structuredOutputUpdateBatches.delete(targetId)
         this.events.onStructuredOutputChange?.({
@@ -1876,7 +1898,9 @@ export class StreamProcessor {
         reasoning?: string
         messageId?: string
       }
-      const targetId = v.messageId ?? messageId
+      const { messageId: targetId } = this.ensureAssistantMessage(
+        v.messageId ?? messageId ?? undefined,
+      )
       if (targetId) {
         this.flushStructuredOutputUpdate(targetId)
         this.messages = completeStructuredOutputPart(

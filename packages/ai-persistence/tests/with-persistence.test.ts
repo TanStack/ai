@@ -5,6 +5,7 @@ import type {
   ModelMessage,
   StreamChunk,
   Tool,
+  TokenUsage,
 } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
@@ -46,12 +47,17 @@ const ev = {
     delta,
     timestamp: 1,
   }),
-  runFinished: (runId = 'r1', threadId = 't1'): StreamChunk => ({
+  runFinished: (
+    runId = 'r1',
+    threadId = 't1',
+    usage?: TokenUsage,
+  ): StreamChunk => ({
     type: EventType.RUN_FINISHED,
     runId,
     threadId,
     finishReason: 'stop',
     timestamp: 1,
+    ...(usage ? { usage } : {}),
   }),
   interrupted: (interruptId = 'interrupt-1'): StreamChunk => ({
     type: EventType.RUN_FINISHED,
@@ -77,13 +83,6 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   const out: Array<StreamChunk> = []
   for await (const c of stream) out.push(c)
   return out
-}
-
-async function expectCollectRejects(
-  stream: AsyncIterable<StreamChunk>,
-  pattern: RegExp,
-) {
-  await expect(collect(stream)).rejects.toThrow(pattern)
 }
 
 function serverSearchTool(): Tool {
@@ -134,6 +133,94 @@ describe('withPersistence (state-only)', () => {
       { role: 'user', content: 'hi' },
       { role: 'assistant', content: 'hello' },
     ])
+  })
+
+  it('persists cumulative usage across model calls', async () => {
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'agent-tool',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'call_1',
+          toolCallName: 'search',
+          toolName: 'search',
+          parentMessageId: 'agent-tool',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'call_1',
+          delta: '{}',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+          usage: {
+            promptTokens: 10,
+            completionTokens: 2,
+            totalTokens: 12,
+            promptTokensDetails: { cachedTokens: 3 },
+            billed: { quantity: 2, unit: 'units' },
+            unitsBilled: 2,
+            cost: 1,
+          },
+        },
+      ],
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'agent-final',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        ev.text('hello'),
+        ev.runFinished('r1', 't1', {
+          promptTokens: 20,
+          completionTokens: 4,
+          totalTokens: 24,
+          completionTokensDetails: { reasoningTokens: 2 },
+          providerUsageDetails: { requestId: 'final' },
+          billed: { quantity: 1, unit: 'units' },
+          unitsBilled: 1,
+          cost: 2,
+        }),
+      ],
+    ])
+
+    await collect(
+      chat({
+        adapter,
+        messages: [{ role: 'user', content: 'search' }],
+        tools: [serverSearchTool()],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect((await persistence.stores.runs!.get('r1'))?.usage).toEqual({
+      promptTokens: 30,
+      completionTokens: 6,
+      totalTokens: 36,
+      promptTokensDetails: { cachedTokens: 3 },
+      completionTokensDetails: { reasoningTokens: 2 },
+      providerUsageDetails: { requestId: 'final' },
+      billed: { quantity: 3, unit: 'units' },
+      unitsBilled: 3,
+      cost: 3,
+    })
   })
 
   it('persists the pending user turn at start, so it survives a failed run', async () => {
@@ -372,7 +459,11 @@ describe('withPersistence (state-only)', () => {
           timestamp: 1,
         },
         ev.text('hello'),
-        ev.runFinished(),
+        ev.runFinished('r1', 't1', {
+          promptTokens: 20,
+          completionTokens: 4,
+          totalTokens: 24,
+        }),
       ],
     ])
 
@@ -430,6 +521,11 @@ describe('withPersistence (state-only)', () => {
           threadId: 't1',
           finishReason: 'tool_calls',
           timestamp: 1,
+          usage: {
+            promptTokens: 10,
+            completionTokens: 2,
+            totalTokens: 12,
+          },
         },
       ],
       [
@@ -553,7 +649,7 @@ describe('withPersistence (state-only)', () => {
     }
   })
 
-  it('does not let structured-output TEXT_MESSAGE_START replace the agent-loop id', async () => {
+  it('preserves the agent-loop message id and cumulative usage through structured output', async () => {
     const persistence = memoryPersistence()
     const { adapter } = mockAdapter([
       [
@@ -584,6 +680,11 @@ describe('withPersistence (state-only)', () => {
           threadId: 't1',
           finishReason: 'tool_calls',
           timestamp: 1,
+          usage: {
+            promptTokens: 10,
+            completionTokens: 2,
+            totalTokens: 12,
+          },
         },
       ],
       [
@@ -595,12 +696,21 @@ describe('withPersistence (state-only)', () => {
           timestamp: 1,
         },
         ev.text('hello'),
-        ev.runFinished(),
+        ev.runFinished('r1', 't1', {
+          promptTokens: 20,
+          completionTokens: 4,
+          totalTokens: 24,
+        }),
       ],
     ])
     adapter.structuredOutput = async () => ({
       data: { name: 'Ada' },
       rawText: '{"name":"Ada"}',
+      usage: {
+        promptTokens: 5,
+        completionTokens: 1,
+        totalTokens: 6,
+      },
     })
 
     await collect(
@@ -624,6 +734,11 @@ describe('withPersistence (state-only)', () => {
       (message) => message.role === 'assistant' && message.content === 'hello',
     )
     expect(terminal?.id).toBe('agent-final')
+    expect((await persistence.stores.runs!.get('r1'))?.usage).toEqual({
+      promptTokens: 35,
+      completionTokens: 7,
+      totalTokens: 42,
+    })
   })
 
   it('records an interrupt and marks the run interrupted', async () => {
@@ -663,7 +778,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     const next = mockAdapter([[ev.text('SHOULD NOT RUN')]])
-    await expectCollectRejects(
+    const blockedChunks = await collect(
       chat({
         adapter: next.adapter,
         messages: [{ role: 'user', content: 'new input' }],
@@ -671,7 +786,22 @@ describe('withPersistence (state-only)', () => {
         threadId: 't1',
         middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
-      /pending interrupts.*resume is required/i,
+    )
+    const blockedError = blockedChunks.find(
+      (chunk) => chunk.type === EventType.RUN_ERROR,
+    )
+    expect(blockedError?.['tanstack:interruptErrors']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'interrupt-1',
+          code: 'unknown-interrupt',
+        }),
+        expect.objectContaining({
+          scope: 'batch',
+          code: 'incomplete-batch',
+        }),
+      ]),
     )
     expect(next.calls.length).toBe(0)
   })
@@ -691,7 +821,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     const next = mockAdapter([[ev.text('SHOULD NOT RUN')]])
-    await expectCollectRejects(
+    const mismatchChunks = await collect(
       chat({
         adapter: next.adapter,
         messages: [{ role: 'user', content: 'new input' }],
@@ -700,7 +830,22 @@ describe('withPersistence (state-only)', () => {
         resume: [{ interruptId: 'other-interrupt', status: 'resolved' }],
         middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
-      /missing resume entry for pending interrupt interrupt-1/i,
+    )
+    const mismatchError = mismatchChunks.find(
+      (chunk) => chunk.type === EventType.RUN_ERROR,
+    )
+    expect(mismatchError?.['tanstack:interruptErrors']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'interrupt-1',
+          code: 'unknown-interrupt',
+        }),
+        expect.objectContaining({
+          scope: 'batch',
+          code: 'incomplete-batch',
+        }),
+      ]),
     )
     expect(next.calls.length).toBe(0)
   })

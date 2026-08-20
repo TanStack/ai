@@ -23,10 +23,6 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for speech generation */
   fetcher?: GenerationFetcher<SpeechGenerateInput, TTSResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
@@ -54,8 +50,8 @@ export interface UseGenerateSpeechOptions<TOutput = TTSResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -146,7 +142,7 @@ export interface UseGenerateSpeechReturn<TOutput = TTSResult> {
 export function useGenerateSpeech<TTransformed = void>(
   options: Omit<
     UseGenerateSpeechOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TTSResult) => TTransformed
   } & GenerationPersistenceOptions,

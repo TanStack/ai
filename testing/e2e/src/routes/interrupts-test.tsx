@@ -15,6 +15,7 @@ import {
   shareAdoptionStory,
 } from '@/lib/interrupt-scenario-tools'
 import type { ResolutionConfig } from '@/lib/interrupt-scenario-tools'
+import { parseAimockPort } from '@/lib/devtools-test'
 
 /**
  * Interrupt playground — deterministic e2e host for every wildlife interrupt
@@ -533,13 +534,9 @@ function sectionStyle(accent: string) {
 export const Route = createFileRoute('/interrupts-test')({
   component: InterruptsTestPage,
   validateSearch: (search: Record<string, unknown>) => {
-    const port =
-      typeof search.aimockPort === 'string'
-        ? parseInt(search.aimockPort, 10)
-        : undefined
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
-      aimockPort: port != null && !isNaN(port) ? port : undefined,
+      aimockPort: parseAimockPort(search.aimockPort),
       scenario:
         typeof search.scenario === 'string' ? search.scenario : undefined,
     }

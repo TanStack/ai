@@ -164,9 +164,10 @@ interface RerankResult<TDocument = string> {
   ranking: Array<{ index: number; score: number; document: TDocument }>
   // The documents reordered by relevance (ranking.map(r => r.document)).
   rerankedDocuments: Array<TDocument>
-  // Rerank typically bills in provider "search units" (usage.unitsBilled).
-  // Some providers (e.g. OpenRouter) also report totalTokens and cost; Cohere
-  // reports only search units and leaves token counts at 0.
+  // Rerank typically bills in provider "search units"
+  // (usage.billed = { quantity, unit: 'units' }). Some providers (for example
+  // OpenRouter) also report totalTokens and cost. Cohere reports only search
+  // units and leaves token counts at 0.
   usage: TokenUsage
 }
 ```
@@ -295,7 +296,11 @@ const result = await rerank({
     {
       name: 'usage-logger',
       onUsage: (_ctx, usage) => {
-        console.log('search units billed:', usage.unitsBilled)
+        if (usage.billed) {
+          console.log(
+            `search units billed: ${usage.billed.quantity} ${usage.billed.unit}`,
+          )
+        }
       },
     },
   ],

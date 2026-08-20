@@ -112,6 +112,132 @@ export async function POST(request: Request) {
 }
 ```
 
+## Tools and structured output together
+
+You can pass both `tools` and `outputSchema` on one `chat()` call. For some
+upstream models OpenRouter can return the typed object in that same streaming
+request, so the engine does not make a second finalization call.
+
+That happens only when **every** model that can receive the request is in
+`OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`. The set is generated from
+OpenRouter's catalog on every model sync: every chat model whose
+`supported_parameters` include `structured_outputs`, `tools` and `tool_choice`
+(Claude 4.5+, Gemini 2.5+, GPT-4o+, Grok 4, DeepSeek V3+, Llama 3.1+, and so
+on). Models OpenRouter does not flag, such as `anthropic/claude-opus-4.1`, stay
+on the legacy two-call path.
+
+If any fallback in `modelOptions.models` is outside that set, OpenRouter keeps
+the two-call path. Routing suffixes such as `:nitro` do not change the gate.
+
+Import the set from `@tanstack/ai-openrouter/model-meta` if you need to check a
+model before you send:
+
+```typescript
+import { OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS } from "@tanstack/ai-openrouter/model-meta";
+
+OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS.has("openai/gpt-5.5");
+```
+
+Chat Completions (`openRouterText`) and Responses (`openRouterResponsesText`)
+both attach the schema on this path. The client does not change: `useChat({
+outputSchema })` still reads `partial` and `final`.
+
+Server (Chat Completions):
+
+```typescript
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
+import { openRouterText } from "@tanstack/ai-openrouter";
+import { z } from "zod";
+
+const getWeather = toolDefinition({
+  name: "get_weather",
+  description: "Get the current weather",
+  inputSchema: z.object({ location: z.string() }),
+}).server(async ({ location }) => {
+  return { temperature: 72, conditions: "sunny", location };
+});
+
+const AnswerSchema = z.object({
+  summary: z.string(),
+  location: z.string(),
+});
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openRouterText("openai/gpt-5.5"),
+    messages,
+    tools: [getWeather],
+    outputSchema: AnswerSchema,
+    stream: true,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+Server (Responses). Same `tools` and `outputSchema` as the Chat Completions
+example, with `openRouterResponsesText`:
+
+```typescript
+import { chat, toServerSentEventsResponse, toolDefinition } from "@tanstack/ai";
+import { openRouterResponsesText } from "@tanstack/ai-openrouter";
+import { z } from "zod";
+
+const getWeather = toolDefinition({
+  name: "get_weather",
+  description: "Get the current weather",
+  inputSchema: z.object({ location: z.string() }),
+}).server(async ({ location }) => {
+  return { temperature: 72, conditions: "sunny", location };
+});
+
+const AnswerSchema = z.object({
+  summary: z.string(),
+  location: z.string(),
+});
+
+export async function POST(request: Request) {
+  const { messages } = await request.json();
+
+  const stream = chat({
+    adapter: openRouterResponsesText("openai/gpt-5.5"),
+    messages,
+    tools: [getWeather],
+    outputSchema: AnswerSchema,
+    stream: true,
+  });
+
+  return toServerSentEventsResponse(stream);
+}
+```
+
+Client:
+
+```tsx
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+import { z } from "zod";
+
+const AnswerSchema = z.object({
+  summary: z.string(),
+  location: z.string(),
+});
+
+const { sendMessage, partial, final } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+  outputSchema: AnswerSchema,
+});
+```
+
+See [Structured Outputs with tools](../structured-outputs/with-tools) for the
+event order, and [Middleware](../advanced/middleware) for how
+`structuredOutput` phase behaves on this path.
+
+To try this in a browser, run `examples/ts-react-chat` and open
+`/generations/openrouter-combined`. The page shows the tool call, the typed
+object, and the adapter call counts. `structuredOutputStream` must stay at 0.
+
 ## Environment Variables
 
 Set your API key in environment variables:

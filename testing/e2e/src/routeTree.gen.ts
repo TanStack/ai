@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WebsocketAdapterRouteImport } from './routes/websocket-adapter'
 import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
@@ -36,10 +37,13 @@ import { Route as ApiToolCallLifecycleWireRouteImport } from './routes/api.tool-
 import { Route as ApiSummarizeRouteImport } from './routes/api.summarize'
 import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-tool-history'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
+import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
+import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
+import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
@@ -60,6 +64,8 @@ import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-t
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
 import { Route as ApiGenerationPersistenceResumeRouteImport } from './routes/api.generation-persistence-resume'
+import { Route as ApiGeminiNativeImageWireRouteImport } from './routes/api.gemini-native-image-wire'
+import { Route as ApiGeminiImageGaModelsRouteImport } from './routes/api.gemini-image-ga-models'
 import { Route as ApiForeignInterruptRouteImport } from './routes/api.foreign-interrupt'
 import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
@@ -67,6 +73,7 @@ import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-del
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
 import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
+import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
@@ -79,6 +86,11 @@ import { Route as ApiTranscriptionStreamRouteImport } from './routes/api.transcr
 import { Route as ApiImageStreamRouteImport } from './routes/api.image.stream'
 import { Route as ApiAudioStreamRouteImport } from './routes/api.audio.stream'
 
+const WebsocketAdapterRoute = WebsocketAdapterRouteImport.update({
+  id: '/websocket-adapter',
+  path: '/websocket-adapter',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ToolsTestRoute = ToolsTestRouteImport.update({
   id: '/tools-test',
   path: '/tools-test',
@@ -217,6 +229,12 @@ const ApiSandboxDurabilityRoute = ApiSandboxDurabilityRouteImport.update({
   path: '/api/sandbox-durability',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiProviderToolDispatchWireRoute =
+  ApiProviderToolDispatchWireRouteImport.update({
+    id: '/api/provider-tool-dispatch-wire',
+    path: '/api/provider-tool-dispatch-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPersistenceDurabilityRoute =
   ApiPersistenceDurabilityRouteImport.update({
     id: '/api/persistence-durability',
@@ -228,6 +246,11 @@ const ApiOtelUsageRoute = ApiOtelUsageRouteImport.update({
   path: '/api/otel-usage',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOtelTranscriptionRoute = ApiOtelTranscriptionRouteImport.update({
+  id: '/api/otel-transcription',
+  path: '/api/otel-transcription',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOtelMediaRoute = ApiOtelMediaRouteImport.update({
   id: '/api/otel-media',
   path: '/api/otel-media',
@@ -237,6 +260,12 @@ const ApiOpenrouterWebToolsWireRoute =
   ApiOpenrouterWebToolsWireRouteImport.update({
     id: '/api/openrouter-web-tools-wire',
     path: '/api/openrouter-web-tools-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiOpenrouterJsonObjectWireRoute =
+  ApiOpenrouterJsonObjectWireRouteImport.update({
+    id: '/api/openrouter-json-object-wire',
+    path: '/api/openrouter-json-object-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiOpenrouterCostRoute = ApiOpenrouterCostRouteImport.update({
@@ -343,6 +372,17 @@ const ApiGenerationPersistenceResumeRoute =
     path: '/api/generation-persistence-resume',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiGeminiNativeImageWireRoute =
+  ApiGeminiNativeImageWireRouteImport.update({
+    id: '/api/gemini-native-image-wire',
+    path: '/api/gemini-native-image-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiGeminiImageGaModelsRoute = ApiGeminiImageGaModelsRouteImport.update({
+  id: '/api/gemini-image-ga-models',
+  path: '/api/gemini-image-ga-models',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiForeignInterruptRoute = ApiForeignInterruptRouteImport.update({
   id: '/api/foreign-interrupt',
   path: '/api/foreign-interrupt',
@@ -378,6 +418,12 @@ const ApiByokChatRoute = ApiByokChatRouteImport.update({
   path: '/api/byok-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiByteplusSeedance1080pWireRoute =
+  ApiByteplusSeedance1080pWireRouteImport.update({
+    id: '/api/byteplus-seedance-1080p-wire',
+    path: '/api/byteplus-seedance-1080p-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiAudioRoute = ApiAudioRouteImport.update({
   id: '/api/audio',
   path: '/api/audio',
@@ -454,6 +500,7 @@ export interface FileRoutesByFullPath {
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/tools-test': typeof ToolsTestRoute
+  '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
@@ -461,12 +508,15 @@ export interface FileRoutesByFullPath {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/byok-chat': typeof ApiByokChatRoute
+  '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
+  '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -487,10 +537,13 @@ export interface FileRoutesByFullPath {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
+  '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
+  '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -525,6 +578,7 @@ export interface FileRoutesByTo {
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/tools-test': typeof ToolsTestRoute
+  '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
@@ -532,12 +586,15 @@ export interface FileRoutesByTo {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/byok-chat': typeof ApiByokChatRoute
+  '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
+  '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -558,10 +615,13 @@ export interface FileRoutesByTo {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
+  '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
+  '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -597,6 +657,7 @@ export interface FileRoutesById {
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
   '/tools-test': typeof ToolsTestRoute
+  '/websocket-adapter': typeof WebsocketAdapterRoute
   '/$provider/$feature': typeof ProviderFeatureRoute
   '/api/anthropic-bug-test': typeof ApiAnthropicBugTestRoute
   '/api/anthropic-skills-wire': typeof ApiAnthropicSkillsWireRoute
@@ -604,12 +665,15 @@ export interface FileRoutesById {
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
   '/api/byok-chat': typeof ApiByokChatRoute
+  '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
   '/api/embedding': typeof ApiEmbeddingRoute
   '/api/foreign-interrupt': typeof ApiForeignInterruptRoute
+  '/api/gemini-image-ga-models': typeof ApiGeminiImageGaModelsRoute
+  '/api/gemini-native-image-wire': typeof ApiGeminiNativeImageWireRoute
   '/api/generation-persistence-resume': typeof ApiGenerationPersistenceResumeRoute
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
@@ -630,10 +694,13 @@ export interface FileRoutesById {
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
+  '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
+  '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-tool-history': typeof ApiSandboxToolHistoryRoute
   '/api/summarize': typeof ApiSummarizeRoute
@@ -670,6 +737,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/persistence-durability'
     | '/tools-test'
+    | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
@@ -677,12 +745,15 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/byok-chat'
+    | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/foreign-interrupt'
+    | '/api/gemini-image-ga-models'
+    | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/image'
@@ -703,10 +774,13 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
+    | '/api/openrouter-json-object-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
+    | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
@@ -741,6 +815,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/persistence-durability'
     | '/tools-test'
+    | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
@@ -748,12 +823,15 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/byok-chat'
+    | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/foreign-interrupt'
+    | '/api/gemini-image-ga-models'
+    | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/image'
@@ -774,10 +852,13 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
+    | '/api/openrouter-json-object-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
+    | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
@@ -812,6 +893,7 @@ export interface FileRouteTypes {
     | '/middleware-test'
     | '/persistence-durability'
     | '/tools-test'
+    | '/websocket-adapter'
     | '/$provider/$feature'
     | '/api/anthropic-bug-test'
     | '/api/anthropic-skills-wire'
@@ -819,12 +901,15 @@ export interface FileRouteTypes {
     | '/api/arktype-tool-wire'
     | '/api/audio'
     | '/api/byok-chat'
+    | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
     | '/api/embedding'
     | '/api/foreign-interrupt'
+    | '/api/gemini-image-ga-models'
+    | '/api/gemini-native-image-wire'
     | '/api/generation-persistence-resume'
     | '/api/generation-persistence-server'
     | '/api/image'
@@ -845,10 +930,13 @@ export interface FileRouteTypes {
     | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
+    | '/api/openrouter-json-object-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
+    | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-tool-history'
     | '/api/summarize'
@@ -884,6 +972,7 @@ export interface RootRouteChildren {
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
   ToolsTestRoute: typeof ToolsTestRoute
+  WebsocketAdapterRoute: typeof WebsocketAdapterRoute
   ProviderFeatureRoute: typeof ProviderFeatureRoute
   ApiAnthropicBugTestRoute: typeof ApiAnthropicBugTestRoute
   ApiAnthropicSkillsWireRoute: typeof ApiAnthropicSkillsWireRoute
@@ -891,12 +980,15 @@ export interface RootRouteChildren {
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
   ApiByokChatRoute: typeof ApiByokChatRoute
+  ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
   ApiEmbeddingRoute: typeof ApiEmbeddingRoute
   ApiForeignInterruptRoute: typeof ApiForeignInterruptRoute
+  ApiGeminiImageGaModelsRoute: typeof ApiGeminiImageGaModelsRoute
+  ApiGeminiNativeImageWireRoute: typeof ApiGeminiNativeImageWireRoute
   ApiGenerationPersistenceResumeRoute: typeof ApiGenerationPersistenceResumeRoute
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
@@ -917,10 +1009,13 @@ export interface RootRouteChildren {
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
+  ApiOpenrouterJsonObjectWireRoute: typeof ApiOpenrouterJsonObjectWireRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
+  ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
+  ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxToolHistoryRoute: typeof ApiSandboxToolHistoryRoute
   ApiSummarizeRoute: typeof ApiSummarizeRoute
@@ -934,6 +1029,13 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/websocket-adapter': {
+      id: '/websocket-adapter'
+      path: '/websocket-adapter'
+      fullPath: '/websocket-adapter'
+      preLoaderRoute: typeof WebsocketAdapterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tools-test': {
       id: '/tools-test'
       path: '/tools-test'
@@ -1123,6 +1225,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiSandboxDurabilityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/provider-tool-dispatch-wire': {
+      id: '/api/provider-tool-dispatch-wire'
+      path: '/api/provider-tool-dispatch-wire'
+      fullPath: '/api/provider-tool-dispatch-wire'
+      preLoaderRoute: typeof ApiProviderToolDispatchWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/persistence-durability': {
       id: '/api/persistence-durability'
       path: '/api/persistence-durability'
@@ -1137,6 +1246,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOtelUsageRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/otel-transcription': {
+      id: '/api/otel-transcription'
+      path: '/api/otel-transcription'
+      fullPath: '/api/otel-transcription'
+      preLoaderRoute: typeof ApiOtelTranscriptionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/otel-media': {
       id: '/api/otel-media'
       path: '/api/otel-media'
@@ -1149,6 +1265,13 @@ declare module '@tanstack/react-router' {
       path: '/api/openrouter-web-tools-wire'
       fullPath: '/api/openrouter-web-tools-wire'
       preLoaderRoute: typeof ApiOpenrouterWebToolsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openrouter-json-object-wire': {
+      id: '/api/openrouter-json-object-wire'
+      path: '/api/openrouter-json-object-wire'
+      fullPath: '/api/openrouter-json-object-wire'
+      preLoaderRoute: typeof ApiOpenrouterJsonObjectWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/openrouter-cost': {
@@ -1291,6 +1414,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenerationPersistenceResumeRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/gemini-native-image-wire': {
+      id: '/api/gemini-native-image-wire'
+      path: '/api/gemini-native-image-wire'
+      fullPath: '/api/gemini-native-image-wire'
+      preLoaderRoute: typeof ApiGeminiNativeImageWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/gemini-image-ga-models': {
+      id: '/api/gemini-image-ga-models'
+      path: '/api/gemini-image-ga-models'
+      fullPath: '/api/gemini-image-ga-models'
+      preLoaderRoute: typeof ApiGeminiImageGaModelsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/foreign-interrupt': {
       id: '/api/foreign-interrupt'
       path: '/api/foreign-interrupt'
@@ -1338,6 +1475,13 @@ declare module '@tanstack/react-router' {
       path: '/api/byok-chat'
       fullPath: '/api/byok-chat'
       preLoaderRoute: typeof ApiByokChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/byteplus-seedance-1080p-wire': {
+      id: '/api/byteplus-seedance-1080p-wire'
+      path: '/api/byteplus-seedance-1080p-wire'
+      fullPath: '/api/byteplus-seedance-1080p-wire'
+      preLoaderRoute: typeof ApiByteplusSeedance1080pWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/audio': {
@@ -1497,6 +1641,7 @@ const rootRouteChildren: RootRouteChildren = {
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
   ToolsTestRoute: ToolsTestRoute,
+  WebsocketAdapterRoute: WebsocketAdapterRoute,
   ProviderFeatureRoute: ProviderFeatureRoute,
   ApiAnthropicBugTestRoute: ApiAnthropicBugTestRoute,
   ApiAnthropicSkillsWireRoute: ApiAnthropicSkillsWireRoute,
@@ -1504,12 +1649,15 @@ const rootRouteChildren: RootRouteChildren = {
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
   ApiByokChatRoute: ApiByokChatRoute,
+  ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
   ApiEmbeddingRoute: ApiEmbeddingRoute,
   ApiForeignInterruptRoute: ApiForeignInterruptRoute,
+  ApiGeminiImageGaModelsRoute: ApiGeminiImageGaModelsRoute,
+  ApiGeminiNativeImageWireRoute: ApiGeminiNativeImageWireRoute,
   ApiGenerationPersistenceResumeRoute: ApiGenerationPersistenceResumeRoute,
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
@@ -1530,10 +1678,13 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
+  ApiOpenrouterJsonObjectWireRoute: ApiOpenrouterJsonObjectWireRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
+  ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
+  ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxToolHistoryRoute: ApiSandboxToolHistoryRoute,
   ApiSummarizeRoute: ApiSummarizeRoute,

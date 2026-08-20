@@ -30,6 +30,7 @@ export type {
   ChatClientPersistence,
   ChatPersistedState,
   ChatPersistenceOption,
+  ChatPersistenceOptions,
   ChatStorageAdapter,
   ChatClientOptions,
   ChatPendingInterrupt,
@@ -38,6 +39,9 @@ export type {
   ChatInterrupt,
   ChatInterruptState,
   GenericAGUIInterrupt,
+  GenericInterrupt,
+  RegisteredGenericInterrupt,
+  ResolvableChatInterrupt,
   UnboundInterrupt,
   InterruptItemStatus,
   ToolApprovalInterrupt,
@@ -143,6 +147,7 @@ export {
   xhrHttpStream,
   stream,
   rpcStream,
+  webSocket,
   StreamTruncatedError,
   DurableStreamIncompleteError,
   StreamReconnectLimitError,
@@ -155,6 +160,7 @@ export {
   type RunAgentInputContext,
   type StreamConnectionHandlers,
   type SubscribeConnectionAdapter,
+  type WebSocketConnectionOptions,
   type XhrConnectionOptions,
 } from './connection-adapters'
 

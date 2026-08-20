@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
+  defineInterrupt,
   hashSchemaInput,
   normalizeApprovalSchema,
   toolDefinition,
@@ -126,6 +127,24 @@ describe('validateInterruptResumeBatch', () => {
       ),
     )
     expect(result.errors.some((error) => error.code === 'expired')).toBe(true)
+  })
+
+  it('rejects an unparseable expiresAt', async () => {
+    const fixture = approvalFixture({
+      expiresAt: 'not-a-date',
+    })
+    const result = await validateInterruptResumeBatch(
+      baseInput(pendingOf(fixture), [
+        {
+          interruptId: fixture.binding.interruptId,
+          status: 'resolved',
+          payload: { approved: true, payload: { note: 'ok' } },
+        },
+      ]),
+    )
+    expect(
+      result.errors.some((error) => error.code === 'invalid-payload'),
+    ).toBe(true)
   })
 
   it('rejects stale correlation metadata', async () => {
@@ -259,6 +278,183 @@ describe('validateInterruptResumeBatch', () => {
     const result = await validateInterruptResumeBatch(
       baseInput(pendingOf(fixture), []),
     )
+    expect(
+      result.errors.some(
+        (error) =>
+          error.code === 'incomplete-batch' ||
+          error.code === 'unknown-interrupt',
+      ),
+    ).toBe(true)
+  })
+
+  it('allows a missing client-tool resume when every generic in the batch is answered', async () => {
+    const review = defineInterrupt({
+      id: 'review-plan',
+      payloadSchema: z.object({ title: z.string() }),
+      responseSchema: z.object({
+        approved: z.boolean(),
+        note: z.string(),
+      }),
+    })
+    const request = review.interrupt({
+      key: 'one',
+      reason: 'review',
+      message: 'Review',
+      payload: { title: 'Plan' },
+    })
+    const renderDef = toolDefinition({
+      name: 'render_review',
+      description: 'Render a review',
+      inputSchema: z.object({ reviewId: z.string() }),
+      outputSchema: z.object({ rendered: z.boolean() }),
+    })
+    const genericBinding: Extract<InterruptBinding, { kind: 'generic' }> = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'generic',
+      interruptId: 'generic-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      definitionId: 'review-plan',
+      key: 'one',
+      batchIndex: 0,
+    }
+    const clientBinding: Extract<
+      InterruptBinding,
+      { kind: 'client-tool-execution' }
+    > = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'client-tool-execution',
+      interruptId: 'client_tool_call-2',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      toolName: 'render_review',
+      toolCallId: 'call-2',
+      outputSchemaHash: hashSchemaInput(renderDef.outputSchema),
+      responseSchemaHash: 'sha256:client-tool',
+    }
+    const result = await validateInterruptResumeBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      pending: [
+        {
+          interruptId: genericBinding.interruptId,
+          payload: request,
+          binding: genericBinding,
+          genericRequest: request,
+        },
+        {
+          interruptId: clientBinding.interruptId,
+          payload: {},
+          binding: clientBinding,
+        },
+      ],
+      resume: [
+        {
+          interruptId: genericBinding.interruptId,
+          status: 'resolved',
+          payload: { approved: true, note: 'ok' },
+        },
+      ],
+      tools: [transfer, renderDef.client(async () => ({ rendered: true }))],
+    })
+    expect(result.errors).toEqual([])
+    expect(result.resumeToolState).toBeDefined()
+    expect(result.resumeToolState?.genericInterrupts?.get('generic-1')).toEqual(
+      {
+        interruptId: 'generic-1',
+        status: 'resolved',
+        payload: { approved: true, note: 'ok' },
+      },
+    )
+    expect(result.resumeToolState?.clientToolResults?.size).toBe(0)
+  })
+
+  it('rejects an invalid first-party generic answer', async () => {
+    const review = defineInterrupt({
+      id: 'review-plan',
+      responseSchema: z.object({
+        approved: z.boolean(),
+        note: z.string(),
+      }),
+    })
+    const request = review.interrupt({
+      key: 'one',
+      reason: 'review',
+      message: 'Review',
+    })
+    const binding: Extract<InterruptBinding, { kind: 'generic' }> = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'generic',
+      interruptId: 'generic-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      definitionId: 'review-plan',
+      key: 'one',
+      batchIndex: 0,
+    }
+    const result = await validateInterruptResumeBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      pending: [
+        {
+          interruptId: binding.interruptId,
+          payload: request,
+          binding,
+          genericRequest: request,
+        },
+      ],
+      resume: [
+        {
+          interruptId: binding.interruptId,
+          status: 'resolved',
+          payload: { approved: 'yes' },
+        },
+      ],
+      tools: [transfer],
+    })
+    expect(
+      result.errors.some((error) => error.code === 'invalid-payload'),
+    ).toBe(true)
+    expect(result.resumeToolState).toBeUndefined()
+  })
+
+  it('still requires a client-tool resume when the batch has no generic interrupt', async () => {
+    const renderDef = toolDefinition({
+      name: 'render_review',
+      description: 'Render a review',
+      inputSchema: z.object({ reviewId: z.string() }),
+      outputSchema: z.object({ rendered: z.boolean() }),
+    })
+    const clientBinding: Extract<
+      InterruptBinding,
+      { kind: 'client-tool-execution' }
+    > = {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'client-tool-execution',
+      interruptId: 'client_tool_call-2',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      toolName: 'render_review',
+      toolCallId: 'call-2',
+      outputSchemaHash: hashSchemaInput(renderDef.outputSchema),
+      responseSchemaHash: 'sha256:client-tool',
+    }
+    const result = await validateInterruptResumeBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      pending: [
+        {
+          interruptId: clientBinding.interruptId,
+          payload: {},
+          binding: clientBinding,
+        },
+      ],
+      resume: [],
+      tools: [renderDef.client(async () => ({ rendered: true }))],
+    })
     expect(
       result.errors.some(
         (error) =>

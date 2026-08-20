@@ -13,6 +13,7 @@ import {
 import { toReactive } from './internal/to-reactive'
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
@@ -21,7 +22,7 @@ import type {
 } from '@tanstack/ai'
 import type {
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
@@ -41,19 +42,21 @@ import type {
 const EMPTY_INTERRUPTS = Object.freeze([])
 const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
-let nextId = 0
-
 export function injectChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
   options: InjectChatOptions<
     TTools,
     TSchema,
-    TContext
-  > = {} as InjectChatOptions<TTools, TSchema, TContext>,
-): InjectChatResult<TTools, TSchema> {
+    TContext,
+    TInterrupts
+  > = {} as InjectChatOptions<TTools, TSchema, TContext, TInterrupts>,
+): InjectChatResult<TTools, TSchema, TInterrupts> {
   assertInInjectionContext(injectChat)
 
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
@@ -61,7 +64,6 @@ export function injectChat<
 
   const destroyRef = inject(DestroyRef)
   const injector = inject(Injector)
-  const clientId = options.id || `injectChat-${nextId++}`
 
   const messages = signal<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
@@ -74,7 +76,7 @@ export function injectChat<
   const sessionGenerating = signal(false)
   const queue = signal<Array<QueuedMessage>>([])
   const runId = signal<string | null>(null)
-  const interruptState = signal<ChatInterruptState<TTools>>({
+  const interruptState = signal<ChatInterruptState<TTools, TInterrupts>>({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
     interruptErrors: EMPTY_INTERRUPT_ERRORS,
@@ -97,21 +99,24 @@ export function injectChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  const client = new ChatClient<TTools, TContext>({
+  const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
-    id: clientId,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
+    ...(typeof options.threadId === 'string' && options.persistence
+      ? {
+          persistence: options.persistence,
+          threadId: options.threadId,
+        }
+      : {
+          ...(options.threadId !== undefined && { threadId: options.threadId }),
+        }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(bodySource !== undefined && { body: bodySource() }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(forwardedPropsSource !== undefined && {
       forwardedProps: forwardedPropsSource(),
     }),
@@ -138,6 +143,9 @@ export function injectChat<
       options.onInterruptStateChange?.(nextInterruptState)
     },
     tools: options.tools,
+    ...(options.interrupts !== undefined && {
+      interrupts: options.interrupts,
+    }),
     onCustomEvent: (eventType, data, context) =>
       options.onCustomEvent?.(eventType, data, context),
     ...(options.streamProcessor !== undefined && {
@@ -292,7 +300,11 @@ export function injectChat<
   const interruptErrors = computed(() => interruptState().interruptErrors)
   const resuming = computed(() => interruptState().resuming)
   const resolveInterrupts = (
-    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
   ) => {
     if (typeof resolution === 'boolean') {
       client.resolveInterrupts(resolution)
@@ -337,5 +349,5 @@ export function injectChat<
     resumeInterruptsUnsafe,
     partial,
     final,
-  } as unknown as InjectChatResult<TTools, TSchema>
+  } as unknown as InjectChatResult<TTools, TSchema, TInterrupts>
 }

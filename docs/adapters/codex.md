@@ -28,10 +28,19 @@ A runnable demo lives at [`examples/sandbox-cloudflare`](https://github.com/TanS
 
 ## Authentication
 
-The harness resolves credentials the same way the Codex CLI does:
+Your laptop can already have `codex login`. A CI runner only has
+`CODEX_API_KEY`. The default `authMode` is `'api-key'`. Set `'host'` when
+you want `codex login`. See [Harness Auth](../sandbox/auth).
 
-- the `apiKey` config option (exported to the subprocess as `CODEX_API_KEY`; usage-based billing), or
-- an existing ChatGPT login on the machine (`codex login`).
+```ts
+import { codexText } from "@tanstack/ai-codex"
+
+codexText("gpt-5.5")
+codexText("gpt-5.5", { authMode: "host" })
+```
+
+- `'api-key'` (default): expect `CODEX_API_KEY` (or pass `apiKey`).
+- `'host'`: use `codex login`. Do not inject `CODEX_API_KEY`.
 
 ## Basic Usage
 
@@ -60,13 +69,16 @@ const stream = chat({
 | `networkAccessEnabled` | Allow network access inside the `workspace-write` sandbox.                                                                                     |
 | `webSearchMode`        | `'disabled'` \| `'cached'` \| `'live'`.                                                                                                        |
 | `additionalDirectories`| Extra writable directories beyond `cwd`.                                                                                                       |
+| `authMode`             | `'api-key'` (default) expects `CODEX_API_KEY`. `'host'` uses `codex login`. See [Harness Auth](../sandbox/auth).                                |
 | `apiKey`               | OpenAI API key for the harness subprocess.                                                                                                     |
 | `baseUrl`              | Override the Codex backend base URL.                                                                                                           |
 | `codexPathOverride`    | Use a specific codex executable instead of the SDK's bundled binary.                                                                           |
 | `env`                  | Environment variables for the subprocess. When set, `process.env` is **not** inherited (Codex SDK semantics).                                  |
 | `config`               | Extra `--config key=value` overrides passed to the Codex CLI (e.g. additional `mcp_servers` entries).                                          |
 
-Per-call overrides — `sessionId`, `sandboxMode`, `approvalPolicy`, `modelReasoningEffort`, `workingDirectory`, `skipGitRepoCheck` — go through `modelOptions`.
+Per-call overrides go through `modelOptions`: `sessionId`, `sandboxMode`,
+`approvalPolicy`, `modelReasoningEffort`, `workingDirectory`,
+`skipGitRepoCheck`, and `authMode`.
 
 ## Stateful Sessions
 
@@ -170,7 +182,61 @@ const stream = chat({
 
 ## Structured Output
 
-`structuredOutput()` uses Codex's native `outputSchema` support in a fresh, read-only, one-shot thread whose final message is a JSON string conforming to your schema. It works for finalization after a chat, but a plain provider adapter (e.g. `@tanstack/ai-openai`) is the better choice when structured extraction is the primary job — it's faster and doesn't spawn a subprocess.
+Pass `outputSchema` on `chat()`. Codex runs one harness turn and constrains the last message with `--output-schema`. Tool activity and assistant text stream as Codex writes them. The last message is also parsed as the schema object and arrives as `structured-output.complete`.
+
+```ts
+import { chat } from "@tanstack/ai"
+import { codexText } from "@tanstack/ai-codex"
+import { defineSandbox, withSandbox } from "@tanstack/ai-sandbox"
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+const sandbox = defineSandbox({
+  id: "repo-report",
+  provider: dockerSandbox({ image: "node:22" }),
+})
+
+const report = await chat({
+  adapter: codexText("gpt-5.3-codex"),
+  messages: [{ role: "user", content: "Review this repo." }],
+  outputSchema: Report,
+  middleware: [withSandbox(sandbox)],
+})
+
+report.summary
+```
+
+On the client, pass the same schema to `useChat` and read `final`. `partial` stays empty until the end.
+
+```tsx
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+function ReportView() {
+  const { final, isLoading } = useChat({
+    connection: fetchServerSentEvents("/api/repo-report"),
+    outputSchema: Report,
+  })
+
+  if (isLoading) return <p>The agent is inspecting the repo.</p>
+  if (!final) return null
+  return <p>{final.summary}</p>
+}
+```
+
+If you only need to extract JSON from a prompt and do not need a sandbox, use `@tanstack/ai-openai`. That path is faster.
+
+Full walkthrough, including the client: [Harness Agents](../structured-outputs/harnesses).
 
 ## Limitations
 

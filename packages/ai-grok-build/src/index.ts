@@ -30,3 +30,9 @@ export {
   DEFAULT_GROK_ACP_PORT,
 } from './process/acp'
 export type { GrokBuildProtocol } from './provider-options'
+export type { GrokBuildAuthMode, GrokBuildAcpAuthMethod } from './auth'
+export {
+  resolveGrokAcpAuthMethod,
+  resolveGrokSessionAuthMethod,
+  formatAcpRequestError,
+} from './auth'

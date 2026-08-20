@@ -13,7 +13,7 @@ keywords:
 
 # Tool Approval
 
-You have a tool that shouldn't run until a person says yes: transferring money,
+You have a tool that must not run until a person says yes: transferring money,
 deleting a record, sending a message. You want the model to plan the call, then
 wait for a human to approve it before anything happens.
 

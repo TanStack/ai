@@ -482,7 +482,7 @@ function EmbeddingGenerator() {
 | `fetcher` | `GenerationFetcher<TInput, TResult>` | Direct async function (no streaming protocol needed) |
 | `byok` | `ByokClient` | Optional keyring. Keys go in `x-byok-*` headers, never the body |
 | `byokProvider` | `() => ProviderId \| undefined` | Optional provider slug. If it returns a slug, only that key is sent. Otherwise `body.provider`. If no slug resolves, generate throws |
-| `id` | `string` | Unique identifier for this generation instance |
+| `threadId` | `string` | Stable scope for this generation. Required when `persistence` is on. Optional for ephemeral runs. |
 | `body` | `Record<string, any>` | Additional body parameters sent with connection requests |
 | `onResult` | `(result: TResult) => TOutput \| null \| void` | Transform or react to results |
 | `onError` | `(error: Error) => void` | Error callback |

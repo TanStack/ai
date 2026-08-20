@@ -102,7 +102,7 @@ The context's `phase` field tracks where you are in the lifecycle:
 | `modelStream` | While adapter streams chunks | `onChunk`, `onUsage` |
 | `beforeTools` | Before tool execution | `onBeforeToolCall` |
 | `afterTools` | After tool execution | `onAfterToolCall` |
-| `structuredOutput` | During the final structured-output adapter call (when `outputSchema` is set **and** the adapter does not declare `supportsCombinedToolsAndSchema()`). Chunks from `adapter.structuredOutputStream` (or the synthesized non-streaming fallback) flow through `onChunk` with this phase, and `onUsage` fires for the final call's tokens. **Does not fire** for adapters that natively combine tools + schema in one streaming call (modern OpenAI Chat Completions, OpenAI Responses, Claude 4.5+, Gemini 3.x, Grok 4.x family — see issue #605); on that path middleware observes the run through `beforeModel` / `modelStream` as usual. | `onStructuredOutputConfig`, `onConfig`, `onChunk`, `onUsage` |
+| `structuredOutput` | During the final structured-output adapter call (when `outputSchema` is set **and** the adapter does not declare `supportsCombinedToolsAndSchema()`). Chunks from `adapter.structuredOutputStream` (or the synthesized non-streaming fallback) flow through `onChunk` with this phase, and `onUsage` fires for the final call's tokens. **Does not fire** for adapters that natively combine tools + schema in one streaming call (modern OpenAI Chat Completions, OpenAI Responses, Claude 4.5+, Gemini 3.x, Grok 4.x family, and OpenRouter when every routed model is in `OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`; see issue #605). On that path middleware observes the run through `beforeModel` / `modelStream` as usual. | `onStructuredOutputConfig`, `onConfig`, `onChunk`, `onUsage` |
 
 ## Hooks Reference
 
@@ -331,6 +331,180 @@ const budget: ChatMiddleware = {
 ```
 
 For a full per-turn + cumulative tool budget recipe, see [Tool-call budgets](../chat/agentic-cycle#tool-call-budgets-middleware-recipe).
+
+### onInterruptBoundary and onInterruptResolution
+
+Use these hooks when middleware needs data from the client. Define the request
+with `defineInterrupt()` and register it with `chat({ interrupts })` and
+`useChat({ interrupts })`. Do not emit raw AG-UI events from middleware.
+
+`onInterruptBoundary` runs at four points in an agent iteration:
+
+- `beforeModel`, before the adapter starts.
+- `afterModel`, after the model response is complete.
+- `beforeTools`, before tool execution starts.
+- `afterTools`, after the tool phase is complete.
+
+Each middleware can return requests from one boundary. The engine combines all
+requests from that boundary into one AG-UI interrupt batch. The batch ends the
+run with one interrupt outcome.
+
+This hook cannot change config. Its only legal return is `{ interrupts }` or
+nothing. The continuation is a new `chat()` call, so the hook runs again. Skip
+the emit when `ctx.parentRunId` is set if this pause belongs to the original
+request only.
+
+What is in `ctx` at each phase, and when to use each phase, is in
+[Lifecycle Boundaries](../interrupts/boundaries).
+
+Create one shared definition. Both the server and the client import this value,
+so the definition ID and response shape stay the same on both sides.
+
+```typescript title="review-plan.ts"
+import { defineInterrupt, type ChatMiddleware } from '@tanstack/ai'
+import { z } from 'zod'
+
+export const reviewPlan = defineInterrupt({
+  id: 'review-plan',
+  payloadSchema: z.object({ title: z.string() }),
+  responseSchema: z.object({ approved: z.boolean() }),
+})
+
+export const reviewMiddleware: ChatMiddleware<unknown, typeof reviewPlan> = {
+  name: 'review-plan',
+  onInterruptBoundary(ctx) {
+    if (ctx.phase !== 'beforeTools') return
+    if (ctx.parentRunId) return
+    return {
+      interrupts: [
+        reviewPlan.interrupt({
+          key: 'release-plan',
+          reason: 'review-required',
+          message: 'Approve this plan?',
+          payload: { title: 'Release plan' },
+        }),
+      ],
+    }
+  },
+  onInterruptResolution(_ctx, resumedInterrupts) {
+    for (const result of resumedInterrupts.for(reviewPlan)) {
+      if (result.status === 'resolved' && !result.response.approved) {
+        return { toolResume: 'stop' }
+      }
+    }
+  },
+}
+```
+
+Register the definition on the server. Forward `parentRunId` and `resume` so
+a client resolution starts the continuation with its full context.
+
+```typescript title="route.ts"
+import {
+  chat,
+  chatParamsFromRequestBody,
+  toServerSentEventsResponse,
+} from '@tanstack/ai'
+import { openaiText } from '@tanstack/ai-openai'
+import { reviewMiddleware, reviewPlan } from './review-plan'
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequestBody(await request.json())
+  const stream = chat({
+    adapter: openaiText('gpt-5.5'),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+    ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
+    ...(params.resume ? { resume: params.resume } : {}),
+    interrupts: [reviewPlan],
+    middleware: [reviewMiddleware],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+Register the same definition on the client. Check `kind` and `definitionId`.
+TypeScript then treats the item as `GenericInterrupt<typeof reviewPlan>`.
+`resolveInterrupt` uses the response shape from `reviewPlan.responseSchema`.
+
+```tsx title="review-plan-panel.tsx"
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import type { GenericInterrupt } from '@tanstack/ai-react'
+import { reviewPlan } from './review-plan'
+
+function ReviewCard({
+  interrupt,
+}: {
+  interrupt: GenericInterrupt<typeof reviewPlan>
+}) {
+  return (
+    <button
+      onClick={() => interrupt.resolveInterrupt({ approved: true })}
+    >
+      Approve plan
+    </button>
+  )
+}
+
+export function ReviewPlanPanel() {
+  const { interrupts, sendMessage } = useChat({
+    connection: fetchServerSentEvents('/api/chat'),
+    interrupts: [reviewPlan],
+  })
+
+  return (
+    <>
+      <button onClick={() => sendMessage('Review the release plan')}>
+        Start review
+      </button>
+      {interrupts.map((interrupt) => {
+        if (interrupt.kind !== 'generic') return null
+        if (!('definitionId' in interrupt)) return null
+        if (interrupt.definitionId !== reviewPlan.id) return null
+        return <ReviewCard key={interrupt.id} interrupt={interrupt} />
+      })}
+    </>
+  )
+}
+```
+
+`onInterruptResolution` does not run in the `chat()` call that paused. It
+runs once at the start of the next `chat()` call, after the client answers.
+
+```
+setup
+onConfig                 (phase is init)
+onInterruptResolution    (phase is still init)
+onStart
+then stop, or continue the agent loop
+```
+
+`useChat` sends `parentRunId` and `resume` on that second request. Each
+generic resume item includes the original request in `metadata`. If `resume`
+is present and `parentRunId` is missing, the server throws.
+
+Use `resumedInterrupts.for(definition)` for one typed definition. Use
+`resumedInterrupts.all()` for every registered definition. Use
+`resumedInterrupts.all(definitionA, definitionB)` to read a typed subset.
+
+The hook can return `toolResume: 'continue'`, `'cancel'`, or `'stop'`. Results
+from all middleware combine by the most restrictive rule: `stop` wins over
+`cancel`, and `cancel` wins over `continue`.
+
+This hook cannot change prompts, tools, or messages. Store the answer on a
+capability, then return those fields from `onConfig` when
+`ctx.phase === 'beforeModel'`.
+
+| Hook | Can change |
+| --- | --- |
+| `onInterruptBoundary` | Nothing. It can only pause. |
+| `onInterruptResolution` | Pending-tool policy (`toolResume`) |
+| `onConfig` | `messages`, `systemPrompts`, `tools`, `modelOptions`, `metadata` |
+
+The full resume order, plus an example that writes a user note into the
+system prompt, is in [Apply Answers](../interrupts/apply-answers).
 
 ### onBeforeToolCall
 
@@ -721,9 +895,32 @@ If you drop `withCounter` from the array, `chat()` reports a compile-time error 
 `createChatMiddleware()` builds the array through chained `.use()` calls and enforces **provider-before-consumer ordering at compile time**: each `.use()` requires that the middleware's `requires` are already covered by capabilities provided by earlier `.use()` calls.
 
 ```typescript
-import { chat, createChatMiddleware } from "@tanstack/ai";
+import {
+  chat,
+  createCapability,
+  createChatMiddleware,
+  defineChatMiddleware,
+} from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
-import { withCounter, countsChunks } from "./counter-middleware";
+
+const counterCapability = createCapability<{ value: number }>()("counter");
+const [getCounter, provideCounter] = counterCapability;
+
+const withCounter = defineChatMiddleware({
+  name: "with-counter",
+  provides: [counterCapability],
+  setup(ctx) {
+    provideCounter(ctx, { value: 0 });
+  },
+});
+
+const countsChunks = defineChatMiddleware({
+  name: "counts-chunks",
+  requires: [counterCapability],
+  onChunk(ctx) {
+    getCounter(ctx).value++;
+  },
+});
 
 const middleware = createChatMiddleware()
   .use(withCounter) // provides "counter"

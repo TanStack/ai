@@ -6,6 +6,7 @@ import type {
   AcpPermissionMode,
   AcpTransportPreference,
 } from '@tanstack/ai-acp'
+import type { GrokBuildAuthMode } from './auth'
 
 export type GrokBuildProtocol = 'acp' | 'streaming-json'
 
@@ -30,7 +31,13 @@ export interface GrokBuildTextProviderOptions {
   /** ACP transport when `protocol` is `'acp'`. Defaults to `'auto'`. */
   transport?: AcpTransportPreference
   /**
-   * ACP auth method (`xai.api_key` | `grok.com`). Omitted → auto from env keys.
+   * `'api-key'` (default) calls authenticate with `xai.api_key`.
+   * `'host'` skips ACP authenticate (use `grok login`).
+   * Not inferred from the sandbox.
+   */
+  authMode?: GrokBuildAuthMode
+  /**
+   * Explicit ACP auth method. Wins over {@link authMode}.
    */
   authMethodId?: string
   /** ACP permission policy for tool approvals. Defaults to `'bypassPermissions'`. */

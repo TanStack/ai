@@ -29,7 +29,7 @@
           "label": "Devtools",
           "to": "getting-started/devtools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Quick Start: Vue",
@@ -83,7 +83,7 @@
           "label": "Provider Tools",
           "to": "tools/provider-tools",
           "addedAt": "2026-04-21",
-          "updatedAt": "2026-07-02"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Provider Skills",
@@ -189,27 +189,43 @@
         {
           "label": "Overview",
           "to": "interrupts/overview",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Tool Approval",
           "to": "interrupts/tool-approval",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Multiple Interrupts",
           "to": "interrupts/multiple",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Generic Interrupts",
           "to": "interrupts/generic",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
+        },
+        {
+          "label": "Lifecycle Boundaries",
+          "to": "interrupts/boundaries",
+          "addedAt": "2026-08-13"
+        },
+        {
+          "label": "Apply Answers",
+          "to": "interrupts/apply-answers",
+          "addedAt": "2026-08-13",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Migration",
           "to": "interrupts/migration",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         }
       ]
     },
@@ -220,12 +236,19 @@
         {
           "label": "Overview",
           "to": "resumable-streams/overview",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Advanced",
           "to": "resumable-streams/advanced",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "WebSockets",
+          "to": "resumable-streams/websockets",
+          "addedAt": "2026-08-19"
         },
         {
           "label": "Custom Durability Adapter",
@@ -246,7 +269,8 @@
         {
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-13"
         },
         {
           "label": "Client Persistence",
@@ -284,7 +308,8 @@
         {
           "label": "Id Map",
           "to": "persistence/id-map",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Keep Generated Files",
@@ -309,7 +334,8 @@
         {
           "label": "Store Reference",
           "to": "persistence/store-reference",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "How Persistence Works",
@@ -337,17 +363,19 @@
           "label": "Overview",
           "to": "structured-outputs/overview",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-06-10"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "One-Shot Extraction",
           "to": "structured-outputs/one-shot",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Streaming UIs",
           "to": "structured-outputs/streaming",
-          "addedAt": "2026-05-19"
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Multi-Turn Chat",
@@ -358,7 +386,13 @@
           "label": "With Tools",
           "to": "structured-outputs/with-tools",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "Harness Agents",
+          "to": "structured-outputs/harnesses",
+          "addedAt": "2026-08-14",
+          "updatedAt": "2026-08-18"
         }
       ]
     },
@@ -402,7 +436,7 @@
           "label": "Generations",
           "to": "media/generations",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Realtime Voice Chat",
@@ -432,19 +466,19 @@
           "label": "Audio Generation",
           "to": "media/audio-generation",
           "addedAt": "2026-04-23",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-08"
         },
         {
           "label": "Image Generation",
           "to": "media/image-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-13"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Video Generation",
           "to": "media/video-generation",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Generation Hooks",
@@ -471,7 +505,8 @@
         {
           "label": "Reranking",
           "to": "rerank/rerank",
-          "addedAt": "2026-06-25"
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -482,7 +517,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Built-in Middleware",
@@ -499,7 +534,7 @@
           "label": "OpenTelemetry",
           "to": "advanced/otel",
           "addedAt": "2026-05-08",
-          "updatedAt": "2026-08-06"
+          "updatedAt": "2026-08-08"
         }
       ]
     },
@@ -511,25 +546,30 @@
           "label": "Overview",
           "to": "sandbox/overview",
           "addedAt": "2026-06-16",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Quick Start",
           "to": "sandbox/quick-start",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Providers",
           "to": "sandbox/providers",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Harnesses",
           "to": "sandbox/harnesses",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-18"
+        },
+        {
+          "label": "Harness Auth",
+          "to": "sandbox/auth",
+          "addedAt": "2026-08-18"
         },
         {
           "label": "Workspace",
@@ -678,7 +718,8 @@
         {
           "label": "Runtime Adapter Switching",
           "to": "advanced/runtime-adapter-switching",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-14"
         },
         {
           "label": "Tree-Shaking",
@@ -803,7 +844,7 @@
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Ollama",
@@ -815,7 +856,7 @@
           "label": "Grok (xAI)",
           "to": "adapters/grok",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Groq",
@@ -872,30 +913,31 @@
           "label": "Claude Code",
           "to": "adapters/claude-code",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Codex",
           "to": "adapters/codex",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "OpenCode",
           "to": "adapters/opencode",
           "addedAt": "2026-06-12",
-          "updatedAt": "2026-06-30"
+          "updatedAt": "2026-08-17"
         },
         {
           "label": "Grok Build",
           "to": "adapters/grok-build",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "ACP-Compatible",
           "to": "adapters/acp-compatible",
-          "addedAt": "2026-06-30"
+          "addedAt": "2026-06-30",
+          "updatedAt": "2026-08-18"
         },
         {
           "label": "Amazon Bedrock",
@@ -907,7 +949,7 @@
           "label": "BytePlus",
           "to": "adapters/byteplus",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-07"
+          "updatedAt": "2026-08-19"
         }
       ]
     },

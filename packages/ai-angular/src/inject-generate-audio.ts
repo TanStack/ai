@@ -37,10 +37,6 @@ export interface InjectGenerateAudioOptions<
   connection?: ConnectConnectionAdapter
   /** Direct async function for audio generation */
   fetcher?: GenerationFetcher<AudioGenerateInput, AudioGenerationResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests. Reactive. */
   body?: ReactiveOption<Record<string, any>>
   /** Display options for TanStack AI Devtools. */
@@ -115,7 +111,7 @@ export interface InjectGenerateAudioResult<
 export function injectGenerateAudio<TTransformed = void>(
   options: Omit<
     InjectGenerateAudioOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: AudioGenerationResult) => TTransformed
   } & GenerationPersistenceOptions,

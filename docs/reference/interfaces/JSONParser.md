@@ -11,7 +11,7 @@ JSON Parser interface - allows for custom parser implementations
 
 ## Properties
 
-### parse()
+### parse
 
 ```ts
 parse: (jsonString) => any;

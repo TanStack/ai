@@ -26,17 +26,11 @@ import type { ByokClient } from '@tanstack/ai-client/byok'
 import type { ProviderId } from '@tanstack/ai/byok'
 import type { ReactiveOption } from './internal/to-reactive'
 
-let nextId = 0
-
 export interface InjectGenerationOptions<TInput, TResult, TOutput = TResult> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for one-shot generation (no streaming protocol needed) */
   fetcher?: GenerationFetcher<TInput, TResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional request body params. Reactive. */
   body?: ReactiveOption<Record<string, any>>
   /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
@@ -64,8 +58,8 @@ export interface InjectGenerationOptions<TInput, TResult, TOutput = TResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -151,7 +145,7 @@ export function injectGeneration<
 >(
   options: Omit<
     InjectGenerationOptions<TInput, TResult>,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TResult) => TTransformed
   } & GenerationPersistenceOptions,
@@ -176,15 +170,11 @@ export function injectGeneration<
   const bodySource =
     options.body !== undefined ? toReactive(options.body) : undefined
 
-  // Identity: pass `threadId` alone when set (never also pass deprecated `id`).
-  const clientOptions: GenerationClientOptions<TInput, TResult, TOutput> = {
+  const clientOptions: Omit<
+    GenerationClientOptions<TInput, TResult, TOutput>,
+    'persistence' | 'threadId'
+  > = {
     ...(bodySource !== undefined && { body: bodySource() }),
-    ...(options.threadId !== undefined
-      ? { threadId: options.threadId }
-      : { id: options.id ?? `injectGeneration-${nextId++}` }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
     ...(options.hydrateGeneration !== undefined && {
       hydrateGeneration: options.hydrateGeneration,
     }),
@@ -232,15 +222,29 @@ export function injectGeneration<
     },
   }
 
+  const persistenceProps =
+    typeof options.threadId === 'string' && options.persistence
+      ? {
+          persistence: options.persistence,
+          threadId: options.threadId,
+        }
+      : {
+          ...(options.threadId !== undefined && {
+            threadId: options.threadId,
+          }),
+        }
+
   let client: GenerationClient<TInput, TResult, TOutput>
   if (options.connection) {
     client = new GenerationClient({
       ...clientOptions,
+      ...persistenceProps,
       connection: options.connection,
     })
   } else if (options.fetcher) {
     client = new GenerationClient({
       ...clientOptions,
+      ...persistenceProps,
       fetcher: options.fetcher,
     })
   } else {

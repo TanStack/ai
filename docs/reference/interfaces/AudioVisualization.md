@@ -11,7 +11,7 @@ Interface for accessing audio visualization data
 
 ## Properties
 
-### getInputFrequencyData()
+### getInputFrequencyData
 
 ```ts
 getInputFrequencyData: () => Uint8Array;
@@ -27,7 +27,7 @@ Get frequency data for input audio visualization
 
 ***
 
-### getInputTimeDomainData()
+### getInputTimeDomainData
 
 ```ts
 getInputTimeDomainData: () => Uint8Array;
@@ -43,7 +43,7 @@ Get time domain data for input waveform
 
 ***
 
-### getOutputFrequencyData()
+### getOutputFrequencyData
 
 ```ts
 getOutputFrequencyData: () => Uint8Array;
@@ -59,7 +59,7 @@ Get frequency data for output audio visualization
 
 ***
 
-### getOutputTimeDomainData()
+### getOutputTimeDomainData
 
 ```ts
 getOutputTimeDomainData: () => Uint8Array;
@@ -99,10 +99,10 @@ Input sample rate
 
 ***
 
-### onInputAudio()?
+### onInputAudio?
 
 ```ts
-optional onInputAudio: (callback) => () => void;
+optional onInputAudio?: (callback) => () => void;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:227](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L227)
@@ -117,20 +117,14 @@ Subscribe to raw input audio samples
 
 #### Returns
 
-```ts
-(): void;
-```
-
-##### Returns
-
-`void`
+() => `void`
 
 ***
 
-### onOutputAudio()?
+### onOutputAudio?
 
 ```ts
-optional onOutputAudio: (callback) => () => void;
+optional onOutputAudio?: (callback) => () => void;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:231](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L231)
@@ -145,13 +139,7 @@ Subscribe to raw output audio samples
 
 #### Returns
 
-```ts
-(): void;
-```
-
-##### Returns
-
-`void`
+() => `void`
 
 ***
 

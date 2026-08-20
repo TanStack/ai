@@ -89,6 +89,30 @@ describe('local-process process', () => {
     await sbx.destroy()
   })
 
+  it('resolves wait() when the child closes before stdout is fully consumed', async () => {
+    const sbx = await fresh()
+    // Write digits as strings. `console.log(number)` colorizes under FORCE_COLOR
+    // (CI sets that), so the assertion would see `\u001b[33m0\u001b[39m`.
+    await sbx.fs.write(
+      '/workspace/count.mjs',
+      `for (let i = 0; i < 20; i++) process.stdout.write(String(i) + '\\n')`,
+    )
+    const proc = await sbx.process.spawn('node count.mjs', {
+      cwd: '/workspace',
+    })
+    let out = ''
+    for await (const chunk of proc.stdout) {
+      out += chunk
+      await new Promise((resolve) => setTimeout(resolve, 10))
+    }
+    await expect(proc.wait()).resolves.toBe(0)
+    const lines = out.trimEnd().split(/\r?\n/)
+    expect(lines).toEqual(
+      Array.from({ length: 20 }, (_, index) => String(index)),
+    )
+    await sbx.destroy()
+  })
+
   it('advertises killableProcesses (killTree forcibly kills spawned processes)', async () => {
     const sbx = await fresh()
     // NOTE: this only reads a module constant. What makes the constant TRUE is

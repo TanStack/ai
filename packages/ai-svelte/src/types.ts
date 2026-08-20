@@ -1,5 +1,6 @@
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
@@ -10,7 +11,7 @@ import type {
   BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatRequestBody,
   ChatResumeState,
@@ -78,8 +79,10 @@ export type CreateChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext>,
+  ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -92,10 +95,6 @@ export type CreateChatOptions<
   | 'onRunIdChange'
   | 'context'
   | 'devtools'
-  // `id` is not a hook option: the hook's identity is its `threadId`, which is
-  // also the persistence key. Persist across reloads by passing a stable
-  // `threadId`; there is no separate id to set.
-  | 'id'
 > & {
   live?: boolean
   /** Display options for TanStack AI Devtools. */
@@ -116,10 +115,13 @@ export type CreateChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = BaseCreateChatReturn<
   TTools,
   TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
-  TContext
+  TContext,
+  TInterrupts
 > &
   (TSchema extends SchemaInput
     ? {
@@ -141,6 +143,8 @@ interface BaseCreateChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
   TContext = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /**
    * Current messages in the conversation (reactive getter). When
@@ -205,14 +209,21 @@ interface BaseCreateChatReturn<
    * it, correlate a log line).
    */
   readonly runId: string | null
-  readonly interrupts: BoundInterrupts<TTools>
+  readonly interrupts: BoundInterrupts<TTools, TInterrupts>
   /** @deprecated Use `interrupts`. */
-  readonly pendingInterrupts: BoundInterrupts<TTools>
-  readonly interruptErrors: ChatInterruptState<TTools>['interruptErrors']
+  readonly pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
+  readonly interruptErrors: ChatInterruptState<
+    TTools,
+    TInterrupts
+  >['interruptErrors']
   readonly resuming: boolean
   resolveInterrupts: {
     (approved: boolean): void
-    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
   }
   cancelInterrupts: () => void
   retryInterrupts: () => void

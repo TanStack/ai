@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type {
   AnyClientTool,
   InferSchemaType,
+  InterruptDefinition,
   ModelMessage,
   RunAgentResumeItem,
   SchemaInput,
@@ -11,7 +12,7 @@ import type {
 } from '@tanstack/ai/client'
 import type {
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
@@ -36,13 +37,15 @@ export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
-  options: UseChatOptions<TTools, TSchema, TContext>,
-): UseChatReturn<TTools, TSchema> {
-  // The hook's identity is its `threadId` — also the persistence key, so a
-  // reload with the same `threadId` restores the same conversation. `hookId` is
-  // only a stable fallback for React's client-recreation keying when no
-  // `threadId` is given (an ephemeral chat), never a persistence key.
+  options: UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
+): UseChatReturn<TTools, TSchema, TInterrupts> {
+  // The hook's identity is its `threadId`. Reload with the same `threadId`
+  // restores the same conversation. `hookId` is only a React recreation key
+  // when no `threadId` is given. It is never sent on the wire.
   const hookId = useId()
   const clientId = options.threadId ?? hookId
 
@@ -59,7 +62,7 @@ export function useChat<
   const [queue, setQueue] = useState<Array<QueuedMessage>>([])
   const [runId, setRunId] = useState<string | null>(null)
   const [interruptState, setInterruptState] = useState<
-    ChatInterruptState<TTools>
+    ChatInterruptState<TTools, TInterrupts>
   >(() => ({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
@@ -89,7 +92,8 @@ export function useChat<
   messagesRef.current = messages
 
   // Track current options in a ref to avoid recreating client when options change
-  const optionsRef = useRef<UseChatOptions<TTools, TSchema, TContext>>(options)
+  const optionsRef =
+    useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts>>(options)
   optionsRef.current = options
 
   const syncResumeState = useCallback((target: ChatClient | null) => {
@@ -113,7 +117,7 @@ export function useChat<
       : { fetcher: initialOptions.fetcher }
 
     const instanceHolder: {
-      current: ChatClient<TTools, TContext> | undefined
+      current: ChatClient<TTools, TContext, TInterrupts> | undefined
     } = { current: undefined }
     const getActiveInstance = () => {
       const currentInstance = instanceHolder.current
@@ -123,22 +127,27 @@ export function useChat<
       return currentInstance
     }
     const pendingInitializationErrors: Array<Error> = []
-    const instance = new ChatClient<TTools, TContext>({
+    const instance = new ChatClient<TTools, TContext, TInterrupts>({
       devtoolsBridgeFactory: createChatDevtoolsBridge,
       ...transport,
       initialMessages: messagesToUse,
+      ...(typeof initialOptions.threadId === 'string' &&
+      initialOptions.persistence
+        ? {
+            persistence: initialOptions.persistence,
+            threadId: initialOptions.threadId,
+          }
+        : {
+            ...(initialOptions.threadId !== undefined && {
+              threadId: initialOptions.threadId,
+            }),
+          }),
       ...(initialOptions.body !== undefined && { body: initialOptions.body }),
-      ...(initialOptions.threadId !== undefined && {
-        threadId: initialOptions.threadId,
-      }),
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
       ...(initialOptions.byok !== undefined && { byok: initialOptions.byok }),
       byokProvider: () => optionsRef.current.byokProvider?.(),
-      ...(initialOptions.persistence !== undefined && {
-        persistence: initialOptions.persistence,
-      }),
       ...(initialOptions.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: initialOptions.initialResumeSnapshot,
       }),
@@ -174,6 +183,9 @@ export function useChat<
       },
       ...(initialOptions.tools !== undefined && {
         tools: initialOptions.tools,
+      }),
+      ...(initialOptions.interrupts !== undefined && {
+        interrupts: initialOptions.interrupts,
       }),
       onCustomEvent: (eventType, data, context) => {
         if (!getActiveInstance()) return
@@ -460,7 +472,11 @@ export function useChat<
 
   const resolveInterrupts = useCallback(
     (
-      resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+      resolution:
+        | boolean
+        | ((
+            interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+          ) => undefined),
     ) => {
       if (typeof resolution === 'boolean') {
         client.resolveInterrupts(resolution)
@@ -564,5 +580,5 @@ export function useChat<
     resumeInterrupts,
     partial,
     final,
-  } as unknown as UseChatReturn<TTools, TSchema>
+  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts>
 }

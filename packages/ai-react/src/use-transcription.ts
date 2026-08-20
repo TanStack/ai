@@ -23,10 +23,6 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
   connection?: ConnectConnectionAdapter
   /** Direct async function for transcription */
   fetcher?: GenerationFetcher<TranscriptionGenerateInput, TranscriptionResult>
-  /**
-   * @deprecated Prefer `threadId`. Only allowed when `threadId` is omitted (see `GenerationPersistenceOptions`).
-   */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
@@ -54,8 +50,8 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
    * id on the wire, which the protocol requires.
    *
    * **Required whenever `persistence` is set** — an app that cannot name the
-   * scope has nothing to restore to. Optional for ephemeral generations, where
-   * it falls back to `id` purely to satisfy the wire.
+   * scope has nothing to restore to. Optional for ephemeral generations. If
+   * omitted, the client mints a wire id after mount.
    */
   threadId?: string
   /**
@@ -154,7 +150,7 @@ export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
 export function useTranscription<TTransformed = void>(
   options: Omit<
     UseTranscriptionOptions,
-    'onResult' | 'persistence' | 'threadId' | 'id'
+    'onResult' | 'persistence' | 'threadId'
   > & {
     onResult?: (result: TranscriptionResult) => TTransformed
   } & GenerationPersistenceOptions,

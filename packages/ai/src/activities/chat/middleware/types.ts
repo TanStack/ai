@@ -1,4 +1,8 @@
 import type {
+  StandardJSONSchemaV1,
+  StandardSchemaV1,
+} from '@standard-schema/spec'
+import type {
   AgentLoopState,
   JSONSchema,
   ModelMessage,
@@ -10,6 +14,10 @@ import type {
 } from '../../../types'
 import type { SystemPrompt } from '../../../system-prompts'
 import type { ToolApprovalResolution } from '../../../interrupts'
+import type {
+  GenericInterruptRequest,
+  InterruptDefinition,
+} from '../../../interrupt-definition'
 import type {
   Capability,
   CapabilityHandle,
@@ -68,6 +76,7 @@ export interface ChatSandboxHooks<TContext = unknown> {
  * Phase of the chat middleware lifecycle.
  * - 'init': Initial config transform before the chat engine starts
  * - 'beforeModel': Before each adapter chatStream call (per agent iteration)
+ * - 'afterModel': After each adapter chatStream call (per agent iteration)
  * - 'modelStream': During model streaming
  * - 'beforeTools': Before tool execution phase
  * - 'afterTools': After tool execution phase
@@ -77,10 +86,96 @@ export interface ChatSandboxHooks<TContext = unknown> {
 export type ChatMiddlewarePhase =
   | 'init'
   | 'beforeModel'
+  | 'afterModel'
   | 'modelStream'
   | 'beforeTools'
   | 'afterTools'
   | 'structuredOutput'
+
+export const INTERRUPT_BOUNDARY_PHASES = [
+  'beforeModel',
+  'afterModel',
+  'beforeTools',
+  'afterTools',
+] as const
+
+export type InterruptBoundaryPhase = (typeof INTERRUPT_BOUNDARY_PHASES)[number]
+
+export const INTERRUPT_TOOL_RESUMES = ['continue', 'cancel', 'stop'] as const
+
+export type InterruptToolResume = (typeof INTERRUPT_TOOL_RESUMES)[number]
+
+type AnyInterruptDefinition = InterruptDefinition<any, any, any, any>
+
+type InterruptResponse<TDefinition> =
+  TDefinition extends InterruptDefinition<any, any, infer TResponseSchema, any>
+    ? TResponseSchema extends StandardSchemaV1<any, infer TResponse>
+      ? TResponse
+      : TResponseSchema extends StandardJSONSchemaV1<any, infer TResponse>
+        ? TResponse
+        : unknown
+    : unknown
+
+export type GenericInterruptResolution<
+  TDefinition extends AnyInterruptDefinition,
+> = TDefinition extends AnyInterruptDefinition
+  ?
+      | {
+          readonly request: GenericInterruptRequest<TDefinition>
+          readonly status: 'resolved'
+          readonly response: InterruptResponse<TDefinition>
+        }
+      | {
+          readonly request: GenericInterruptRequest<TDefinition>
+          readonly status: 'cancelled'
+          readonly response?: never
+        }
+  : never
+
+export interface InterruptResolutionCollection<
+  TDefinitions extends AnyInterruptDefinition = AnyInterruptDefinition,
+> {
+  for: <
+    TDefinition extends ([TDefinitions] extends [never]
+      ? AnyInterruptDefinition
+      : TDefinitions),
+  >(
+    definition: TDefinition,
+  ) => ReadonlyArray<GenericInterruptResolution<TDefinition>>
+  all: {
+    (): ReadonlyArray<GenericInterruptResolution<TDefinitions>>
+    <const TSelected extends ReadonlyArray<TDefinitions>>(
+      ...definitions: TSelected
+    ): ReadonlyArray<GenericInterruptResolution<TSelected[number]>>
+  }
+}
+
+type BivariantInterruptResolutionHook<
+  TContext,
+  TDefinitions extends AnyInterruptDefinition,
+> = InterruptResolutionHookSignature<TContext, TDefinitions>['call']
+
+declare abstract class InterruptResolutionHookSignature<
+  TContext,
+  TDefinitions extends AnyInterruptDefinition,
+> {
+  abstract call(
+    ctx: ChatMiddlewareContext<TContext>,
+    resolutions: InterruptResolutionCollection<TDefinitions>,
+  ): InterruptResolutionResult | Promise<InterruptResolutionResult>
+}
+
+export type InterruptBoundaryResult<
+  TDefinitions extends AnyInterruptDefinition = AnyInterruptDefinition,
+> =
+  | undefined
+  | {
+      readonly interrupts: ReadonlyArray<GenericInterruptRequest<TDefinitions>>
+    }
+
+export type InterruptResolutionResult = void | {
+  readonly toolResume: InterruptToolResume
+}
 
 /**
  * Stable context object passed to all middleware hooks.
@@ -229,6 +324,13 @@ export interface ChatResumeToolState {
   clientToolResults?: ReadonlyMap<string, unknown> | undefined
   genericInterrupts?:
     | ReadonlyMap<string, ChatResumeGenericResolution>
+    | undefined
+  /** Durable generic requests reconstructed by server middleware. */
+  genericInterruptRequests?:
+    | ReadonlyMap<
+        string,
+        GenericInterruptRequest<InterruptDefinition<any, any, any, any>>
+      >
     | undefined
   deniedToolResults?: ReadonlyMap<string, unknown> | undefined
   cancelledToolCallIds?: ReadonlySet<string> | undefined
@@ -460,9 +562,31 @@ export interface ErrorInfo {
  * }
  * ```
  */
-export interface ChatMiddleware<TContext = unknown> {
+export interface ChatMiddleware<
+  TContext = unknown,
+  TInterruptDefinitions extends AnyInterruptDefinition = never,
+> {
   /** Optional name for debugging and identification */
   name?: string
+
+  /**
+   * Called at a lifecycle boundary. Return interrupt requests to pause the run.
+   * Requests from every middleware in the same boundary form one batch.
+   */
+  onInterruptBoundary?: (
+    ctx: ChatMiddlewareContext<TContext> & { phase: InterruptBoundaryPhase },
+  ) =>
+    | InterruptBoundaryResult<TInterruptDefinitions>
+    | Promise<InterruptBoundaryResult<TInterruptDefinitions>>
+
+  /**
+   * Called on a continuation run after the client answers registered interrupts.
+   * Return `toolResume` to decide whether pending tools continue, cancel, or stop.
+   */
+  onInterruptResolution?: BivariantInterruptResolutionHook<
+    TContext,
+    TInterruptDefinitions
+  >
 
   /**
    * Capabilities this middleware requires. `chat()` validates that some
@@ -653,4 +777,5 @@ export interface ChatMiddleware<TContext = unknown> {
 }
 
 /** A `ChatMiddleware` with a permissive context — for use as a constraint. */
-export type AnyChatMiddleware = ChatMiddleware<any>
+/** A permissive middleware constraint that retains the definition parameter. */
+export type AnyChatMiddleware = ChatMiddleware<any, any>

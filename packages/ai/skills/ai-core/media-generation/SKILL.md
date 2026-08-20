@@ -151,9 +151,16 @@ function ImageGenerator() {
 ### 1. Image Generation
 
 Supported adapters: `openaiImage` (dall-e-2, dall-e-3, gpt-image-1,
-gpt-image-1-mini, gpt-image-2), `geminiImage` (gemini-3.1-flash-image-preview,
-gemini-3.1-flash-lite-image, imagen-4.0-generate-001, etc.) and `byteplusImage`
-(Seedream — `seedream-4-0-250828`, `seedream-4-5-251128`, the 5.0 family).
+gpt-image-1-mini, gpt-image-2), `geminiImage` (gemini-3.1-flash-image,
+gemini-3.1-flash-lite-image, gemini-3-pro-image, imagen-4.0-generate-001, etc.)
+and `byteplusImage` (Seedream — `seedream-4-0-250828`, `seedream-4-5-251128`,
+the 5.0 family).
+
+> **Use the GA Gemini image ids.** `gemini-3.1-flash-image-preview` and
+> `gemini-3-pro-image-preview` were shut down on 2026-06-25 and now 404. They
+> survive in the type union only as deprecated aliases so existing code keeps
+> compiling — a call to them typechecks and then fails at runtime. Use
+> `gemini-3.1-flash-image` / `gemini-3-pro-image` instead.
 
 > **Seedream quirks:** `watermark` defaults to **`true`** (pass
 > `modelOptions: { watermark: false }` for a clean image), `size` is a token
@@ -182,7 +189,7 @@ const openaiResult = await generateImage({
 
 // Gemini native model with aspect-ratio sizes
 const geminiResult = await generateImage({
-  adapter: geminiImage('gemini-3.1-flash-image-preview'),
+  adapter: geminiImage('gemini-3.1-flash-image'),
   prompt: 'A futuristic cityscape at night',
   size: '16:9_4K',
 })
@@ -554,7 +561,7 @@ durations 4/8/12s, single `input_reference` image prompt part), `grokVideo(...)`
 outputs inherit the source clip's properties, so `size`/`aspect_ratio`/`resolution`
 throw in both modes and `duration` throws in edit mode — pass none of them there;
 generation uses the aspect-ratio size template like `'16:9_720p'` (1080p is 1.5-only),
-integer durations 1-15s, reports `usage.unitsBilled` seconds and exact `usage.cost`), `byteplusVideo(...)` (Seedance —
+integer durations 1-15s, reports `usage.billed` seconds ({ quantity, unit: 'seconds' }) and exact `usage.cost`), `byteplusVideo(...)` (Seedance —
 aspect-ratio size template like `'16:9_720p'`, durations 4-15s on the 2.0 family,
 4-12s on 1.5-pro, 2-12s on the 1.0-pro models; reads `ARK_API_KEY`),
 `openRouterVideo(...)` (OpenRouter's dedicated `POST /api/v1/videos` gateway),
@@ -613,10 +620,11 @@ const { generate, result, jobId, videoStatus, isLoading } = useGenerateVideo({
 
 fal bills media generation by usage-based units, not tokens. Every fal media
 adapter (`falImage`, `falAudio`, `falSpeech`, `falTranscription`, `falVideo`)
-surfaces the real billed quantity on the result as `usage.unitsBilled`, read
-from fal's `x-fal-billable-units` response header — no `fetch` interceptor
-needed. It rides on the canonical `TokenUsage` shape (token fields are `0` for
-media), mirroring how duration-billed transcription surfaces `durationSeconds`.
+surfaces the real billed quantity on the result as `usage.billed`
+({ quantity, unit: 'units' }), read from fal's `x-fal-billable-units` response
+header — no `fetch` interceptor needed. It rides on the canonical `TokenUsage`
+shape (token fields are `0` for media), mirroring how duration-billed
+transcription reports { quantity, unit: 'seconds' }.
 
 ```typescript
 import { generateImage } from '@tanstack/ai'
@@ -627,10 +635,10 @@ const result = await generateImage({
   prompt: 'a serene mountain lake',
 })
 
-// usage.unitsBilled is the priced quantity. Multiply by the endpoint unit
+// usage.billed.quantity is the priced quantity. Multiply by the endpoint unit
 // price (GET https://api.fal.ai/v1/models/pricing?endpoint_id=…) for exact cost.
-if (result.usage?.unitsBilled != null) {
-  const cost = result.usage.unitsBilled * unitPrice
+if (result.usage?.billed) {
+  const cost = result.usage.billed.quantity * unitPrice
 }
 ```
 
@@ -1003,7 +1011,7 @@ generateImage({
 })
 
 generateImage({
-  adapter: geminiImage('gemini-3.1-flash-image-preview'), // native multimodal
+  adapter: geminiImage('gemini-3.1-flash-image'), // native multimodal
   prompt: [
     { type: 'text', content: 'Edit this' },
     { type: 'image', source: { type: 'url', value: url } },

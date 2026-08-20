@@ -77,9 +77,13 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'deepseek/deepseek-v4-pro',
   'deepseek/deepseek-v4-pro-0813',
   'fish-audio/s1',
+  'fish-audio/s1-free',
   'fish-audio/s2-pro',
+  'fish-audio/s2-pro-free',
   'fish-audio/s2.1-pro',
+  'fish-audio/s2.1-pro-free',
   'fish-audio/transcribe-1',
+  'fish-audio/transcribe-1-free',
   'google/gemini-2.5-flash',
   'google/gemini-2.5-flash-image',
   'google/gemini-2.5-flash-lite',
@@ -254,8 +258,6 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'zai/glm-4.5-air',
   'zai/glm-4.5v',
   'zai/glm-4.6',
-  'zai/glm-4.6v',
-  'zai/glm-4.6v-flash',
   'zai/glm-4.7',
   'zai/glm-4.7-flash',
   'zai/glm-4.7-flashx',
@@ -264,6 +266,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'zai/glm-5.1',
   'zai/glm-5.2',
   'zai/glm-5.2-fast',
+  'zai/glm-5.3',
   'zai/glm-5v-turbo',
 ] as const
 
@@ -932,9 +935,13 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'include_reasoning'
     >
   'fish-audio/s1': VercelGatewayCommonOptions
+  'fish-audio/s1-free': VercelGatewayCommonOptions
   'fish-audio/s2-pro': VercelGatewayCommonOptions
+  'fish-audio/s2-pro-free': VercelGatewayCommonOptions
   'fish-audio/s2.1-pro': VercelGatewayCommonOptions
+  'fish-audio/s2.1-pro-free': VercelGatewayCommonOptions
   'fish-audio/transcribe-1': VercelGatewayCommonOptions
+  'fish-audio/transcribe-1-free': VercelGatewayCommonOptions
   'google/gemini-2.5-flash': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2355,26 +2362,6 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
-  'zai/glm-4.6v': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
-  'zai/glm-4.6v-flash': VercelGatewayCommonOptions &
-    Pick<
-      VercelGatewayBaseOptions,
-      | 'max_tokens'
-      | 'max_output_tokens'
-      | 'temperature'
-      | 'stop'
-      | 'reasoning'
-      | 'include_reasoning'
-    >
   'zai/glm-4.7': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2455,6 +2442,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'zai/glm-5.3': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
   'zai/glm-5v-turbo': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2494,7 +2491,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'alibaba/qwen3.7-max': readonly ['text']
   'alibaba/qwen3.7-plus': readonly ['text', 'image', 'document']
   'alibaba/qwen3.8-2.4t-a95b': readonly ['text']
-  'alibaba/qwen3.8-27b': readonly ['text', 'image']
+  'alibaba/qwen3.8-27b': readonly ['text', 'image', 'document', 'video']
   'alibaba/qwen3.8-max': readonly ['text', 'image']
   'amazon/nova-2-lite': readonly ['text', 'image', 'document']
   'amazon/nova-lite': readonly ['text', 'image', 'document']
@@ -2531,9 +2528,13 @@ export type VercelGatewayModelInputModalitiesByName = {
   'deepseek/deepseek-v4-pro': readonly ['text']
   'deepseek/deepseek-v4-pro-0813': readonly ['text']
   'fish-audio/s1': readonly ['text']
+  'fish-audio/s1-free': readonly ['text']
   'fish-audio/s2-pro': readonly ['text']
+  'fish-audio/s2-pro-free': readonly ['text']
   'fish-audio/s2.1-pro': readonly ['text']
+  'fish-audio/s2.1-pro-free': readonly ['text']
   'fish-audio/transcribe-1': readonly ['text', 'audio']
+  'fish-audio/transcribe-1-free': readonly ['text', 'audio']
   'google/gemini-2.5-flash': readonly ['text', 'image', 'document']
   'google/gemini-2.5-flash-image': readonly ['text', 'image']
   'google/gemini-2.5-flash-lite': readonly ['text', 'image', 'document']
@@ -2718,8 +2719,6 @@ export type VercelGatewayModelInputModalitiesByName = {
   'zai/glm-4.5-air': readonly ['text']
   'zai/glm-4.5v': readonly ['text', 'image']
   'zai/glm-4.6': readonly ['text']
-  'zai/glm-4.6v': readonly ['text', 'image', 'document']
-  'zai/glm-4.6v-flash': readonly ['text', 'image', 'document']
   'zai/glm-4.7': readonly ['text']
   'zai/glm-4.7-flash': readonly ['text']
   'zai/glm-4.7-flashx': readonly ['text']
@@ -2728,6 +2727,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'zai/glm-5.1': readonly ['text']
   'zai/glm-5.2': readonly ['text']
   'zai/glm-5.2-fast': readonly ['text']
+  'zai/glm-5.3': readonly ['text']
   'zai/glm-5v-turbo': readonly ['text', 'image', 'document']
 }
 
