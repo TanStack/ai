@@ -278,6 +278,14 @@ await generateVideo({
 })
 ```
 
+Reference images / start frames that are reused (or arrive as inline base64 on
+memory-constrained runtimes) can instead be uploaded once via the provider's
+Files adapter and referenced with `source: fileSourceFromHandle(handle)` —
+supported for Gemini image generation (`geminiFiles()`) and fal image/video
+inputs (`falFiles()`). Endpoints that require raw bytes (OpenAI `images/edits`,
+Sora `input_reference`, Gemini Veo) reject file sources with a clear error.
+See `ai-core/adapter-configuration/SKILL.md` §7.
+
 **URL inputs that require an upload throw by default.** Most adapters pass a
 `type: 'url'` source straight through to the provider. Three paths can't —
 OpenAI `images.edit()`, OpenAI Sora `input_reference`, and Gemini **Veo** —

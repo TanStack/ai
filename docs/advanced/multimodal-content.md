@@ -284,11 +284,15 @@ const imagePart = {
 Use `type: 'file'` to reference media you uploaded once via a provider's [Files API](./files-api.md) — the provider stores the bytes and you pass a lightweight handle instead of re-sending base64 or a public URL every request. A handle only works with the provider that issued it, so the `provider` field is required and validated at request time.
 
 ```typescript
-import { openaiFiles } from '@tanstack/ai-openai'
-import { openaiText, chat, fileSourceFromHandle } from '@tanstack/ai'
+import { openaiFiles, openaiText } from '@tanstack/ai-openai'
+import { chat, fileSourceFromHandle, uploadFile } from '@tanstack/ai'
+import { pdfBase64 } from './pdf-data'
 
 // Upload once...
-const handle = await openaiFiles().upload({ data: pdfBase64, mimeType: 'application/pdf' })
+const handle = await uploadFile({
+  adapter: openaiFiles(),
+  input: { data: pdfBase64, mimeType: 'application/pdf' },
+})
 
 // ...then reference the handle by id in as many requests as you like.
 for await (const chunk of chat({

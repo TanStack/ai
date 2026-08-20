@@ -17,25 +17,30 @@ TanStack AI exposes this as a tree-shakeable **`files` adapter** per provider, p
 
 ## Files adapters
 
-Each provider with a native surface has a factory: `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, and `falFiles()`. They read the same API-key env var as the provider's other adapters, or accept an explicit key.
+Each provider with a native surface has a factory: `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, and `falFiles()`. They read the same API-key env var as the provider's other adapters; to pass a key explicitly, use the `create*Files(apiKey)` variants (`createOpenaiFiles`, `createAnthropicFiles`, `createGeminiFiles`) — `falFiles(config)` takes its key in the config object.
 
 ```typescript
-import { openaiFiles } from '@tanstack/ai-openai'
+import { createOpenaiFiles, openaiFiles } from '@tanstack/ai-openai'
 import { geminiFiles } from '@tanstack/ai-gemini'
 import { anthropicFiles } from '@tanstack/ai-anthropic'
 import { falFiles } from '@tanstack/ai-fal'
 
 const files = openaiFiles() // reads OPENAI_API_KEY
+const filesWithKey = createOpenaiFiles('sk-your-key') // explicit key
 ```
 
-### upload
+### uploadFile
 
-`upload()` accepts a `Blob` (memory-efficient — preferred for large assets) or `{ data, mimeType }` where `data` is base64. It returns a `FileHandle`:
+Drive an adapter with the `uploadFile()` activity function. It accepts a `Blob` (memory-efficient — preferred for large assets) or `{ data, mimeType }` where `data` is base64, and returns a `FileHandle`:
 
 ```typescript
-const handle = await openaiFiles().upload({
-  data: pdfBase64,
-  mimeType: 'application/pdf',
+import { uploadFile } from '@tanstack/ai'
+import { openaiFiles } from '@tanstack/ai-openai'
+import { pdfBase64 } from './pdf-data'
+
+const handle = await uploadFile({
+  adapter: openaiFiles(),
+  input: { data: pdfBase64, mimeType: 'application/pdf' },
 })
 // handle: { id, provider, uri?, mimeType?, sizeBytes?, expiresAt?, filename? }
 ```
@@ -53,16 +58,26 @@ const handle = await openaiFiles().upload({
 > Node (and the production `node-server` build) are unaffected. OpenAI, Anthropic, and
 > fal uploads use different transports and don't exercise this path.
 
-### get and delete
+### getFile and deleteFile
 
-Providers with a lifecycle API expose `get()` and `delete()`:
+Providers with a lifecycle API support `getFile()` and `deleteFile()`. Both accept the handle itself (preferred — the handle's provider type rejects a foreign provider's handle at compile time) or its raw `id`:
 
 ```typescript
-const meta = await openaiFiles().get(handle.id)
-await openaiFiles().delete(handle.id)
+import { deleteFile, getFile, uploadFile } from '@tanstack/ai'
+import { openaiFiles } from '@tanstack/ai-openai'
+import { pdfBase64 } from './pdf-data'
+
+const files = openaiFiles()
+const handle = await uploadFile({
+  adapter: files,
+  input: { data: pdfBase64, mimeType: 'application/pdf' },
+})
+
+const meta = await getFile({ adapter: files, id: handle })
+await deleteFile({ adapter: files, id: handle })
 ```
 
-> fal storage is **upload-only** — `falFiles()` has no `get` / `delete`, and calling them throws a clear error.
+> fal storage is **upload-only** — `falFiles()` defines no `get` / `delete`, and calling `getFile()` / `deleteFile()` with it throws a clear error.
 
 ## Referencing a handle in a message
 
@@ -71,15 +86,14 @@ Use `fileSourceFromHandle(handle)` to turn a `FileHandle` into a `{ type: 'file'
 ### Server: upload + reference
 
 ```typescript
-import { chat, fileSourceFromHandle } from '@tanstack/ai'
-import { anthropicText } from '@tanstack/ai-anthropic'
-import { anthropicFiles } from '@tanstack/ai-anthropic'
+import { chat, fileSourceFromHandle, uploadFile } from '@tanstack/ai'
+import { anthropicFiles, anthropicText } from '@tanstack/ai-anthropic'
 
 export async function askAboutPdf(pdfBase64: string, request: string) {
   // Upload once; reuse the handle across turns.
-  const handle = await anthropicFiles().upload({
-    data: pdfBase64,
-    mimeType: 'application/pdf',
+  const handle = await uploadFile({
+    adapter: anthropicFiles(),
+    input: { data: pdfBase64, mimeType: 'application/pdf' },
   })
 
   return chat({
@@ -99,11 +113,11 @@ export async function askAboutPdf(pdfBase64: string, request: string) {
 
 ### Client: reuse a handle across requests
 
-Upload happens server-side (it needs the provider key), so the client works with the returned handle. Persist `{ id, provider, uri, mimeType }` and rebuild the source on each turn:
+Upload happens server-side (it needs the provider key), so the client works with the returned handle. Persist `{ id, provider, uri, mimeType }` and rebuild the source on each turn. `fileSourceFromHandle` and `FileHandle` are exported from the browser-safe `@tanstack/ai/client` entry, so this doesn't pull the server bundle into the client:
 
 ```typescript
-import { fileSourceFromHandle } from '@tanstack/ai'
-import type { FileHandle } from '@tanstack/ai'
+import { fileSourceFromHandle } from '@tanstack/ai/client'
+import type { FileHandle } from '@tanstack/ai/client'
 
 // `handle` was returned by your server's upload endpoint and stored client-side.
 function imageMessage(handle: FileHandle, prompt: string) {

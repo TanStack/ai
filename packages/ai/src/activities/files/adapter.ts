@@ -31,17 +31,23 @@ export type FileUploadInput =
 /**
  * A provider-issued file handle returned by {@link FilesAdapter.upload} /
  * {@link FilesAdapter.get}. Reference it in a message via a `{ type: 'file' }`
- * content source — use {@link fileSourceFromHandle} to build one.
+ * content source — use `fileSourceFromHandle` to build one.
+ *
+ * `TProvider` carries the issuing provider's name as a literal (`'openai'`,
+ * `'gemini'`, ...) when the handle came from a concrete files adapter, so
+ * cross-provider lifecycle calls (`deleteFile` with a foreign handle) fail at
+ * compile time. It defaults to `string` so wire-deserialized handles still fit.
  */
-export interface FileHandle {
+export interface FileHandle<TProvider extends string = string> {
   /**
    * Provider handle used for lifecycle operations (`get`/`delete`): the
    * OpenAI/Anthropic `file_id`, the Gemini file resource name (`files/...`), or
-   * the fal storage URL.
+   * the fal storage URL (fal itself has no lifecycle API — the URL doubles as
+   * the wire reference).
    */
   id: string
   /** The provider that issued the handle (`'openai'`, `'gemini'`, ...). */
-  provider: string
+  provider: TProvider
   /**
    * The handle's URL form when the provider exposes one (Gemini file URI, fal
    * storage URL). For providers whose handle is an opaque id (OpenAI,
@@ -61,22 +67,26 @@ export interface FileHandle {
 /**
  * The `files` adapter contract. `upload` is required; `get`/`delete` are
  * optional and present only when the provider has a lifecycle API.
+ *
+ * `TName` is the provider name literal (`'openai'`, `'gemini'`, ...); concrete
+ * adapters bind it so the handles they issue carry their provenance in the
+ * type system.
  */
-export interface FilesAdapter {
+export interface FilesAdapter<TName extends string = string> {
   readonly kind: 'files'
-  readonly name: string
-  upload: (input: FileUploadInput) => Promise<FileHandle>
-  get?: (id: string) => Promise<FileHandle>
+  readonly name: TName
+  upload: (input: FileUploadInput) => Promise<FileHandle<TName>>
+  get?: (id: string) => Promise<FileHandle<TName>>
   delete?: (id: string) => Promise<void>
 }
 
-export type AnyFilesAdapter = FilesAdapter
+export type AnyFilesAdapter = FilesAdapter<string>
 
 /**
  * Normalize a {@link FileUploadInput} to a `Blob` (plus best-effort MIME /
  * filename) so provider adapters can hand it straight to their SDK. A `Blob`
- * input passes through; base64 `{ data }` is decoded to bytes. Shared so the
- * four provider files adapters don't each re-implement the decode.
+ * input passes through; base64 `{ data }` is decoded to bytes. Shared so
+ * provider files adapters don't each re-implement the decode.
  */
 export function normalizeFileUploadInput(input: FileUploadInput): {
   blob: Blob
@@ -95,12 +105,16 @@ export function normalizeFileUploadInput(input: FileUploadInput): {
 }
 
 /**
- * Abstract base for provider files adapters. Subclasses set `name`, implement
- * `upload`, and optionally implement `get`/`delete`.
+ * Abstract base for provider files adapters. Subclasses bind `TName` to their
+ * provider literal, set `name`, implement `upload`, and may add `get`/`delete`
+ * (declared on {@link FilesAdapter}, not here, since not every provider has a
+ * lifecycle API).
  */
-export abstract class BaseFilesAdapter implements FilesAdapter {
+export abstract class BaseFilesAdapter<
+  TName extends string = string,
+> implements FilesAdapter<TName> {
   readonly kind = 'files' as const
-  abstract readonly name: string
+  abstract readonly name: TName
 
-  abstract upload(input: FileUploadInput): Promise<FileHandle>
+  abstract upload(input: FileUploadInput): Promise<FileHandle<TName>>
 }

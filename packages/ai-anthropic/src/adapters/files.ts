@@ -22,7 +22,7 @@ export interface AnthropicFilesConfig extends AnthropicClientConfig {}
  * references it by `file_id`. Pair with `anthropicText()`: reference the
  * returned handle in an image/document message via `fileSourceFromHandle`.
  */
-export class AnthropicFilesAdapter extends BaseFilesAdapter {
+export class AnthropicFilesAdapter extends BaseFilesAdapter<'anthropic'> {
   readonly name = 'anthropic' as const
   private readonly client: Anthropic_SDK
 
@@ -31,7 +31,7 @@ export class AnthropicFilesAdapter extends BaseFilesAdapter {
     this.client = createAnthropicClient(config)
   }
 
-  async upload(input: FileUploadInput): Promise<FileHandle> {
+  async upload(input: FileUploadInput): Promise<FileHandle<'anthropic'>> {
     const { blob, mimeType, filename } = normalizeFileUploadInput(input)
     const file = await toFile(blob, filename, {
       ...(mimeType ? { type: mimeType } : {}),
@@ -43,7 +43,7 @@ export class AnthropicFilesAdapter extends BaseFilesAdapter {
     return toFileHandle(result)
   }
 
-  async get(id: string): Promise<FileHandle> {
+  async get(id: string): Promise<FileHandle<'anthropic'>> {
     const result = await this.client.beta.files.retrieveMetadata(id, {
       betas: [FILES_API_BETA],
     })
@@ -55,7 +55,7 @@ export class AnthropicFilesAdapter extends BaseFilesAdapter {
   }
 }
 
-function toFileHandle(file: FileMetadata): FileHandle {
+function toFileHandle(file: FileMetadata): FileHandle<'anthropic'> {
   return {
     id: file.id,
     provider: 'anthropic',

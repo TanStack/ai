@@ -417,6 +417,57 @@ compatible providers speak.
 > Verify the provider's current `baseURL` and model ids against its live docs —
 > they drift. See `docs/adapters/openai-compatible.md` for the full provider table.
 
+### 7. Files Adapters (upload once, reference by handle)
+
+Four providers expose a native Files/storage API as a tree-shakeable `files`
+adapter: `openaiFiles()`, `anthropicFiles()`, `geminiFiles()` (each reads the
+same env var as the provider's text adapter; `create*Files(apiKey)` variants
+take an explicit key), and `falFiles(config)`. Upload media once with
+`uploadFile()`, then reference the returned `FileHandle` in messages via a
+`{ type: 'file' }` content source instead of re-sending base64 each request:
+
+```typescript
+import { chat, fileSourceFromHandle, uploadFile } from '@tanstack/ai'
+import { openaiFiles, openaiText } from '@tanstack/ai-openai'
+import { pdfBase64 } from './pdf-data'
+
+const handle = await uploadFile({
+  adapter: openaiFiles(),
+  input: { data: pdfBase64, mimeType: 'application/pdf' },
+})
+
+chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', content: 'Summarize this document' },
+        { type: 'document', source: fileSourceFromHandle(handle) },
+      ],
+    },
+  ],
+})
+```
+
+Rules agents must respect:
+
+- **A handle only works with the provider that issued it.** Adapters validate
+  `source.provider` at request time and throw on a mismatch; the `FileHandle`
+  provider-literal types also reject cross-provider `getFile()`/`deleteFile()`
+  calls at compile time.
+- **Lifecycle:** `getFile()` / `deleteFile()` work for OpenAI, Anthropic, and
+  Gemini. fal storage is upload-only — those calls throw for `falFiles()`.
+- **Not every endpoint consumes handles.** Chat Completions image inputs,
+  OpenAI `images/edits` + Sora `input_reference`, Gemini Veo, and providers
+  without a Files API (Grok, Groq, Bedrock, Mistral, OpenRouter, Ollama,
+  BytePlus) throw a clear "unsupported file source" error — pass `data`/`url`
+  sources there instead.
+- `fileSourceFromHandle` and the `FileHandle` type are also exported from the
+  browser-safe `@tanstack/ai/client` entry for clients that persist handles.
+
+See `docs/advanced/files-api.md` for the full guide.
+
 ## Common Mistakes
 
 ### a. HIGH: Confusing legacy monolithic with tree-shakeable adapter

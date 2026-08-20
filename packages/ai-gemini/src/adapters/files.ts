@@ -15,7 +15,7 @@ export interface GeminiFilesConfig extends GeminiClientConfig {}
  * returned handle via `fileSourceFromHandle(handle)`, which uses the handle URI
  * (Gemini fetches it server-side as `fileData.fileUri`).
  */
-export class GeminiFilesAdapter extends BaseFilesAdapter {
+export class GeminiFilesAdapter extends BaseFilesAdapter<'gemini'> {
   readonly name = 'gemini' as const
   private readonly client: GoogleGenAI
 
@@ -24,7 +24,7 @@ export class GeminiFilesAdapter extends BaseFilesAdapter {
     this.client = createGeminiClient(config)
   }
 
-  async upload(input: FileUploadInput): Promise<FileHandle> {
+  async upload(input: FileUploadInput): Promise<FileHandle<'gemini'>> {
     const { blob, mimeType } = normalizeFileUploadInput(input)
     const file = await this.client.files.upload({
       file: blob,
@@ -33,7 +33,7 @@ export class GeminiFilesAdapter extends BaseFilesAdapter {
     return toFileHandle(file)
   }
 
-  async get(id: string): Promise<FileHandle> {
+  async get(id: string): Promise<FileHandle<'gemini'>> {
     return toFileHandle(await this.client.files.get({ name: id }))
   }
 
@@ -42,7 +42,7 @@ export class GeminiFilesAdapter extends BaseFilesAdapter {
   }
 }
 
-function toFileHandle(file: GeminiFile): FileHandle {
+function toFileHandle(file: GeminiFile): FileHandle<'gemini'> {
   // `name` (e.g. "files/abc-123") is the lifecycle id; `uri` is the URL Gemini
   // fetches when the handle is referenced in a message.
   if (!file.name) {

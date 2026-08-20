@@ -17,6 +17,7 @@ import {
   generateImage,
   generateVideo,
   toServerSentEventsResponse,
+  uploadFile,
 } from '@tanstack/ai'
 
 import type { FilesAdapter, StreamChunk } from '@tanstack/ai'
@@ -128,9 +129,9 @@ async function uploadInlineImageInputs(
   return Promise.all(
     prompt.map(async (part) => {
       if (part.type !== 'image' || part.source.type !== 'data') return part
-      const handle = await files.upload({
-        data: part.source.value,
-        mimeType: part.source.mimeType,
+      const handle = await uploadFile({
+        adapter: files,
+        input: { data: part.source.value, mimeType: part.source.mimeType },
       })
       return { ...part, source: fileSourceFromHandle(handle) }
     }),
