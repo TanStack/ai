@@ -10,6 +10,8 @@ TanStack AI is a type-safe, provider-agnostic AI SDK for building AI-powered app
 
 **PR description skill (mandatory).** Before `gh pr create`, and after an agent `git push` on a branch that already has an open PR, load `.claude/skills/pr-description/SKILL.md` and follow it. Do not invent the title and body from memory.
 
+**Contributing guide (mandatory).** Before you open a GitHub issue or pull request, read `CONTRIBUTING.md` and follow it. Use the issue or PR template. Update `docs/` when the change is user-facing. Add a changeset on the PR when a published package changed.
+
 **Ponytail skill (mandatory).** Before planning, writing, or editing application code, tests, or examples, load `.claude/skills/ponytail/SKILL.md` and follow it. Do not design or implement without it. Ponytail does not skip this repo's quality gates, E2E tests, or the docs and PR-description skills.
 
 ## Package Manager & Tooling

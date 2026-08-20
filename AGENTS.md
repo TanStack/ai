@@ -36,6 +36,20 @@ identical.
 Do not invent a title and body from memory. If you cannot load the skill,
 stop. A human-only `git push` in another terminal does not trigger this.
 
+## Contributing guide (mandatory for issues and PRs)
+
+Before you open a GitHub issue or pull request, you MUST read
+`CONTRIBUTING.md` and follow it. This is not optional.
+
+For issues: use the templates it points to. Include a minimal repro when
+you report a bug.
+
+For pull requests: fill the PR template honestly. Update `docs/` when the
+change is user-facing. Include a changeset on the PR when a published
+package changed. Do not open the PR and add those later.
+
+If you cannot read `CONTRIBUTING.md`, stop.
+
 ## Ponytail skill (mandatory for Claude, Grok, and Codex)
 
 Before you plan, write, or edit application code, tests, or examples, you
