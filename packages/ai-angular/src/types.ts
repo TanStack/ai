@@ -1,5 +1,6 @@
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
@@ -10,7 +11,7 @@ import type {
   BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatRequestBody,
   ChatResumeState,
@@ -67,8 +68,10 @@ export type InjectChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext>,
+  ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -106,9 +109,12 @@ export type InjectChatOptions<
 export type InjectChatResult<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = BaseInjectChatResult<
   TTools,
-  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
+  TInterrupts
 > &
   (TSchema extends SchemaInput
     ? {
@@ -122,6 +128,8 @@ export type InjectChatResult<
 interface BaseInjectChatResult<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /** Current messages in the conversation. */
   messages: Signal<Array<UIMessage<TTools, TData>>>
@@ -162,16 +170,22 @@ interface BaseInjectChatResult<
    */
   runId: Signal<string | null>
   /** Immutable bound interrupts for the current interrupted run. */
-  interrupts: Signal<BoundInterrupts<TTools>>
+  interrupts: Signal<BoundInterrupts<TTools, TInterrupts>>
   /** @deprecated Use `interrupts`. */
-  pendingInterrupts: Signal<BoundInterrupts<TTools>>
+  pendingInterrupts: Signal<BoundInterrupts<TTools, TInterrupts>>
   /** Batch-level interrupt errors. */
-  interruptErrors: Signal<ChatInterruptState<TTools>['interruptErrors']>
+  interruptErrors: Signal<
+    ChatInterruptState<TTools, TInterrupts>['interruptErrors']
+  >
   /** Whether the client is submitting an interrupt batch. */
   resuming: Signal<boolean>
   resolveInterrupts: {
     (approved: boolean): void
-    (resolver: (interrupt: ChatInterrupt<TTools>) => undefined): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
   }
   cancelInterrupts: () => void
   retryInterrupts: () => void

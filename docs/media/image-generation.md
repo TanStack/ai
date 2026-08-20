@@ -460,7 +460,7 @@ The `useGenerateImage` hook accepts:
 | ------------ | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `connection` | `ConnectionAdapter`                                     | Streaming transport (SSE, HTTP stream, custom)                                                 |
 | `fetcher`    | `(input) => Promise<ImageGenerationResult \| Response>` | Direct async function, or server function returning an SSE `Response`                          |
-| `id`         | `string`                                                | Unique identifier for this instance                                                            |
+| `threadId`   | `string`                                                | Stable scope for this generation. Required when `persistence` is on. Optional for ephemeral runs. |
 | `body`       | `Record<string, any>`                                   | Additional body parameters (connection mode)                                                   |
 | `onResult`   | `(result) => TOutput \| null \| void`                   | Callback when images are generated. Optionally return a transformed value to store as `result` |
 | `onError`    | `(error) => void`                                       | Callback on error                                                                              |

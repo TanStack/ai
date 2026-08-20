@@ -1,5 +1,14 @@
 # @tanstack/ai-sandbox-local-process
 
+## 0.2.2
+
+### Patch Changes
+
+- [#1119](https://github.com/TanStack/ai/pull/1119) [`880d710`](https://github.com/TanStack/ai/commit/880d710626e77d85442082f95de03fa6cda78b78) - Fix local-process spawn handles hanging when the child exits before `wait()` is called.
+
+- Updated dependencies []:
+  - @tanstack/ai-sandbox@0.3.4
+
 ## 0.2.1
 
 ### Patch Changes

@@ -161,9 +161,14 @@ The matching server `GET` uses `reconstructChat`. See
 On **error**, the run is marked `failed`. On **abort**, the run is marked
 `aborted` with a `finishedAt`; `interrupted` is written only at an interrupt
 boundary, and it is not terminal. Both terminal paths retain usage reported
-before the failure or abort. Resumes accepted in `onConfig` are **not** consumed
-until a success boundary (interrupt or finish), so a failed run leaves pending
-interrupts retryable with the same resume batch.
+before the failure or abort. Resumes accepted in `onConfig` are **not**
+consumed until a success boundary (interrupt or finish). If a run fails before
+the resume commit, every pending interrupt stays retryable. The same is true
+when an atomic `commitBatch()` fails: the whole batch stays pending.
+
+The legacy sequential fallback is different. A write can fail after earlier
+entries were committed. Reload the thread's current pending interrupt records
+and submit only that remaining batch. Do not resend the original full batch.
 
 One abort does **not** terminalize: a plain client disconnect on a run that some
 other middleware has declared *detachable* (a durable event log plus a run
@@ -203,22 +208,34 @@ stateDiagram-v2
 
 ## Interrupts survive a restart
 
-When a run pauses on an interrupt (a tool approval, a client-side tool, a
-generic wait), the middleware records it. A later request on that thread must
-carry a `resume` batch that answers the pending interrupts before new input is
-accepted, otherwise it is rejected, which is why the example above forwards
-`params.resume`.
+When a run pauses on an interrupt (a tool approval, a client-side tool, or a
+generic middleware request), the middleware records it. A later request on that
+thread must carry a `resume` batch that answers the pending interrupts before
+new input is accepted, otherwise it is rejected, which is why the example above
+forwards `params.resume`.
+
+For a mixed batch, the persistence middleware validates every entry before it
+continues. It commits all resolved and cancelled entries at one success
+boundary. An `InterruptStore` can implement `commitBatch()` to make that write
+atomic. Without it, the compatibility fallback writes entries one at a time and
+is not atomic.
 
 Persistence is the **server-authoritative resume path**: the middleware
 validates the resume batch against pending interrupts, builds
-`ChatResumeToolState` (approvals / client-tool results), and **clears**
-`config.resume` so the chat engine skips its ephemeral reconstruction (which
-needs client message history the persistence flow deliberately omits). Resumes
-are committed (resolved/cancelled in the store) only once the run reaches a
-successful interrupt or finish boundary.
+`ChatResumeToolState` (approvals / client-tool results / generic requests), and
+**clears** `config.resume` so the chat engine skips its ephemeral
+reconstruction (which needs client message history the persistence flow
+deliberately omits). Resumes are committed (resolved/cancelled in the store)
+only once the run reaches a successful interrupt or finish boundary.
 
-An interrupt record is born `pending` and only a commit moves it, which is why
-a failed continuation leaves it answerable again:
+`onInterruptResolution` still runs at the same moment as a request without
+persistence: after init `onConfig`, before `onStart`. See
+[Apply Answers](../interrupts/apply-answers).
+
+An interrupt record is born `pending` and only a commit moves it. With
+`commitBatch()`, a failed commit leaves the full batch answerable again. With
+the sequential fallback, reload first because some earlier entries may already
+be resolved or cancelled:
 
 ```mermaid
 stateDiagram-v2

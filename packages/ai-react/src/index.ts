@@ -100,6 +100,8 @@ export {
   type XhrConnectionOptions,
   type WebSocketConnectionOptions,
   type InferChatMessages,
+  type GenericInterrupt,
+  type RegisteredGenericInterrupt,
   type GenerationClientState,
   type ImageGenerateInput,
   type AudioGenerateInput,

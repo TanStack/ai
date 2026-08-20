@@ -34,6 +34,8 @@
     ],
     "supported_durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": null,
     "seed": true,
     "pricing_skus": {
@@ -77,6 +79,8 @@
     ],
     "supported_durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": null,
     "seed": true,
     "pricing_skus": {
@@ -97,6 +101,8 @@
     "supported_sizes": ["1280x720", "1080x1920", "720x1280", "1920x1080"],
     "supported_durations": [5, 10],
     "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": true,
     "pricing_skus": {
@@ -137,6 +143,8 @@
     ],
     "supported_durations": [2, 3, 4, 5, 6, 7, 8, 9, 10],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": true,
     "pricing_skus": {
@@ -167,6 +175,8 @@
       5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
     ],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": false,
     "pricing_skus": {
@@ -220,6 +230,8 @@
     ],
     "supported_durations": [4, 5, 6, 7, 8, 9, 10, 11, 12],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": true,
     "pricing_skus": {
@@ -274,6 +286,8 @@
     ],
     "supported_durations": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": true,
     "pricing_skus": {
@@ -321,6 +335,8 @@
     ],
     "supported_durations": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": true,
     "pricing_skus": {
@@ -364,6 +380,8 @@
     ],
     "supported_durations": [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": true,
     "pricing_skus": {
@@ -405,6 +423,8 @@
       24, 25, 26, 27, 28, 29, 30
     ],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": true,
     "pricing_skus": {
@@ -433,6 +453,8 @@
     ],
     "supported_durations": [4, 6, 8],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": true,
     "pricing_skus": {
@@ -468,6 +490,8 @@
     ],
     "supported_durations": [4, 6, 8],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": true,
     "pricing_skus": {
@@ -498,6 +522,8 @@
     "supported_sizes": ["1280x720", "720x1280", "1920x1080", "1080x1920"],
     "supported_durations": [8, 4, 6],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": true,
     "pricing_skus": {
@@ -526,6 +552,8 @@
     "supported_sizes": ["1280x720", "720x1280", "720x720"],
     "supported_durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": false,
     "pricing_skus": {
@@ -551,6 +579,8 @@
     "supported_sizes": ["1280x720", "720x1280", "720x720"],
     "supported_durations": [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": false,
     "pricing_skus": {
@@ -576,6 +606,8 @@
     "supported_sizes": ["1280x720", "720x1280", "720x720"],
     "supported_durations": [5, 10],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": false,
     "pricing_skus": {
@@ -595,6 +627,8 @@
     "supported_sizes": ["1920x1080"],
     "supported_durations": [6, 10],
     "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": false,
     "seed": null,
     "pricing_skus": {
@@ -614,6 +648,8 @@
     "supported_sizes": null,
     "supported_durations": [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     "supported_frame_images": ["first_frame", "last_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": false,
     "pricing_skus": {
@@ -634,6 +670,8 @@
     "supported_sizes": ["1280x720", "1080x1920", "1920x1080", "720x1280"],
     "supported_durations": [4, 8, 12, 16, 20],
     "supported_frame_images": null,
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": true,
     "seed": false,
     "pricing_skus": {
@@ -664,6 +702,8 @@
     "supported_sizes": null,
     "supported_durations": null,
     "supported_frame_images": null,
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": false,
     "seed": true,
     "pricing_skus": {
@@ -684,6 +724,8 @@
     "supported_sizes": ["1280x720", "720x1280"],
     "supported_durations": [2, 3, 4, 5, 6, 7, 8, 9, 10],
     "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": false,
     "seed": true,
     "pricing_skus": {
@@ -726,6 +768,8 @@
     ],
     "supported_durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": null,
     "seed": null,
     "pricing_skus": {
@@ -755,6 +799,8 @@
     "supported_sizes": null,
     "supported_durations": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15],
     "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
     "generate_audio": null,
     "seed": null,
     "pricing_skus": {

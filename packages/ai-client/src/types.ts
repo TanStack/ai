@@ -9,6 +9,7 @@ import type {
   DocumentPart,
   ImagePart,
   InferSchemaType,
+  InterruptDefinition,
   InferToolInput,
   InferToolOutput,
   InputSchemaOf,
@@ -86,6 +87,51 @@ export interface GenericAGUIInterrupt extends BoundInterruptBase {
   resolveInterrupt: (payload: unknown) => void
 }
 
+type InterruptResponseInput<TDefinition> =
+  TDefinition extends InterruptDefinition<any, any, infer TResponseSchema, any>
+    ? InferSchemaType<TResponseSchema>
+    : never
+
+type RegisteredGenericInterruptFor<
+  TDefinition extends InterruptDefinition<any, any, any, any>,
+> =
+  TDefinition extends InterruptDefinition<
+    infer TDefinitionId,
+    any,
+    any,
+    infer TPayload
+  >
+    ? BoundInterruptBase & {
+        readonly kind: 'generic'
+        readonly definitionId: TDefinitionId
+        readonly key: string
+        readonly payload: TPayload | undefined
+        readonly binding: Readonly<
+          Extract<InterruptBinding, { kind: 'generic' }> & {
+            definitionId: TDefinitionId
+            key: string
+            batchIndex: number
+          }
+        >
+        resolveInterrupt: (
+          response: InterruptResponseInput<TDefinition>,
+        ) => void
+      }
+    : never
+
+export type RegisteredGenericInterrupt<
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>>,
+> = TInterrupts[number] extends infer TDefinition
+  ? TDefinition extends InterruptDefinition<any, any, any, any>
+    ? RegisteredGenericInterruptFor<TDefinition>
+    : never
+  : never
+
+/** A bound generic interrupt for one `defineInterrupt()` definition. */
+export type GenericInterrupt<
+  TDefinition extends InterruptDefinition<any, any, any, any>,
+> = RegisteredGenericInterruptFor<TDefinition>
+
 /**
  * An interrupt that arrived on the stream carrying no resume binding this
  * client understands — no `tanstack:interruptBinding`, or one written at a
@@ -98,7 +144,10 @@ export interface GenericAGUIInterrupt extends BoundInterruptBase {
  * send an answer no one is waiting for. Render it, or route it to whatever
  * actually owns the pause.
  */
-export interface UnboundInterrupt extends BoundInterruptBase {
+export interface UnboundInterrupt extends Omit<
+  BoundInterruptBase,
+  'cancel' | 'clearResolution'
+> {
   readonly kind: 'unbound'
   readonly binding?: undefined
   readonly canResolve: false
@@ -188,18 +237,37 @@ type ApprovalInterrupts<TTools extends ReadonlyArray<AnyClientTool>> =
 // union.
 export type ChatInterrupt<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
-> = GenericAGUIInterrupt | UnboundInterrupt | ApprovalInterrupts<TTools>
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> =
+  | GenericAGUIInterrupt
+  | RegisteredGenericInterrupt<TInterrupts>
+  | UnboundInterrupt
+  | ApprovalInterrupts<TTools>
+
+export type ResolvableChatInterrupt<
+  TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> =
+  | GenericAGUIInterrupt
+  | RegisteredGenericInterrupt<TInterrupts>
+  | ApprovalInterrupts<TTools>
 
 export type BoundInterrupts<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
-> = ReadonlyArray<ChatInterrupt<TTools>>
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> = ReadonlyArray<ChatInterrupt<TTools, TInterrupts>>
 
 export interface ChatInterruptState<
   TTools extends ReadonlyArray<AnyClientTool> = ReadonlyArray<AnyClientTool>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
-  readonly interrupts: BoundInterrupts<TTools>
+  readonly interrupts: BoundInterrupts<TTools, TInterrupts>
   /** @deprecated Use `interrupts`. Same snapshot today. */
-  readonly pendingInterrupts: BoundInterrupts<TTools>
+  readonly pendingInterrupts: BoundInterrupts<TTools, TInterrupts>
   readonly interruptErrors: ReadonlyArray<BatchInterruptError>
   readonly resuming: boolean
 }
@@ -628,6 +696,36 @@ export type ChatPersistenceOption<
   TTools extends ReadonlyArray<AnyClientTool> = any,
 > = boolean | ChatClientPersistence<TTools>
 
+/**
+ * The `persistence` / `threadId` pairing for `ChatClient` and the chat hooks.
+ *
+ * Persistence that is on (`true` or a storage adapter) requires a `threadId`.
+ * A minted id changes every reload, so nothing would restore. The compiler
+ * asks for the conversation id instead.
+ *
+ * Omit `persistence`, or set it to `false`, and `threadId` stays optional.
+ * The client then mints one after mount for the wire and DevTools.
+ *
+ * Intersect this onto `ChatClientOptions`. Do not apply a later plain `Omit`
+ * to that type: it collapses the union and the requirement disappears. Use
+ * {@link DistributedOmit}.
+ */
+export type ChatPersistenceOptions<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+> =
+  | {
+      persistence: true
+      threadId: string
+    }
+  | {
+      persistence: ChatClientPersistence<TTools>
+      threadId: string
+    }
+  | {
+      persistence?: false | undefined
+      threadId?: string
+    }
+
 type IsUnknown<T> = unknown extends T
   ? [T] extends [unknown]
     ? true
@@ -712,48 +810,13 @@ export type ClientContextOptionFromTools<TTools, TContext> = [
 export interface ChatClientBaseOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /**
    * Initial messages to populate the chat
    */
   initialMessages?: Array<UIMessage<TTools>>
-
-  /**
-   * How this chat persists across reloads. See {@link ChatPersistenceOption}.
-   *
-   * - Omit or `false`: ephemeral, in-memory only.
-   * - `true`: server-authoritative. The client caches nothing and hydrates the
-   *   thread from the server by its `threadId` on mount (needs a connection with
-   *   a `hydrate` handler). Big transcripts never touch the browser, and the same
-   *   thread opens the same way on another device.
-   * - a {@link ChatClientPersistence} adapter: client-authoritative. The combined
-   *   {@link ChatPersistedState} record (transcript plus resume pointer) is cached
-   *   in the browser, restoring the transcript, pending interrupts, and an
-   *   in-flight run on reload.
-   *
-   * Use `initialResumeSnapshot` for a host-supplied in-memory rehydrate instead.
-   */
-  persistence?: ChatPersistenceOption<TTools>
-
-  /**
-   * Optional storage-key override for this chat instance, and the devtools
-   * instance id. Persistence keys on `threadId` by default; set `id` only when
-   * you need the persisted record keyed separately from the wire thread.
-   * Prefer a stable `threadId` for the common case.
-   *
-   * The framework hooks (`useChat` / `createChat`) do NOT expose `id`: a hook's
-   * identity is its `threadId`. This lower-level escape hatch exists only for
-   * direct `ChatClient` construction.
-   */
-  id?: string
-
-  /**
-   * The conversation id for this chat, stable across sends and reloads. It is
-   * the AG-UI thread key on the wire AND the key client persistence stores the
-   * conversation under, so set a stable `threadId` to have a reload restore the
-   * same conversation. If omitted, a unique thread id is generated per session.
-   */
-  threadId?: string
 
   /**
    * Initial resumable run state, useful when rehydrating a persisted client
@@ -871,7 +934,7 @@ export interface ChatClientBaseOptions<
    */
   onResumeStateChange?: (
     resumeState: ChatResumeState | null,
-    pendingInterrupts: BoundInterrupts<TTools>,
+    pendingInterrupts: BoundInterrupts<TTools, TInterrupts>,
   ) => void
 
   /**
@@ -881,7 +944,9 @@ export interface ChatClientBaseOptions<
   onRunIdChange?: (runId: string | null) => void
 
   /** Callback when the immutable interrupt state snapshot changes. */
-  onInterruptStateChange?: (state: ChatInterruptState<TTools>) => void
+  onInterruptStateChange?: (
+    state: ChatInterruptState<TTools, TInterrupts>,
+  ) => void
 
   /**
    * Callback when a custom event is received from a server-side tool.
@@ -902,6 +967,9 @@ export interface ChatClientBaseOptions<
    * When provided, tools with execute functions will be called automatically
    */
   tools?: TTools
+
+  /** First-party generic interrupts this client can type and resolve. */
+  interrupts?: TInterrupts
 
   /**
    * Devtools hook metadata for this client instance.
@@ -932,14 +1000,21 @@ export interface ChatClientBaseOptions<
 
 /**
  * Options for `ChatClient`. Exactly one of `connection` or `fetcher` must be
- * provided — the type-level XOR is enforced via `ChatTransport`.
+ * provided — the type-level XOR is enforced via `ChatTransport`. Persistence
+ * that is on requires a `threadId` via {@link ChatPersistenceOptions}.
  */
 export type ChatClientOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TContext = InferredClientContext<TTools>,
-> = DistributedOmit<ChatClientBaseOptions<TTools, TContext>, 'context'> &
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> = DistributedOmit<
+  ChatClientBaseOptions<TTools, TContext, TInterrupts>,
+  'context'
+> &
   ClientContextOptionFromTools<TTools, TContext> &
-  ChatTransport
+  ChatTransport &
+  ChatPersistenceOptions<TTools>
 
 export interface ChatRequestBody {
   messages: Array<ModelMessage>
@@ -986,9 +1061,12 @@ export function clientTools<const T extends Array<AnyClientTool>>(
 export function createChatClientOptions<
   const TTools extends ReadonlyArray<AnyClientTool>,
   TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
-  options: ChatClientOptions<TTools, TContext>,
-): ChatClientOptions<TTools, TContext> {
+  options: ChatClientOptions<TTools, TContext, TInterrupts>,
+): ChatClientOptions<TTools, TContext, TInterrupts> {
   return options
 }
 

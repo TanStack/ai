@@ -5,6 +5,7 @@ import { modelMessagesToUIMessages, toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 import type { ModelMessage, ToolCallPart } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
+import { parseAimockPort } from '@/lib/devtools-test'
 import { SCENARIO_LIST } from '@/lib/tools-test-tools'
 
 /**
@@ -782,13 +783,9 @@ function ToolsTestPage() {
 export const Route = createFileRoute('/tools-test')({
   component: ToolsTestPage,
   validateSearch: (search: Record<string, unknown>) => {
-    const port =
-      typeof search.aimockPort === 'string'
-        ? parseInt(search.aimockPort, 10)
-        : undefined
     return {
       testId: typeof search.testId === 'string' ? search.testId : undefined,
-      aimockPort: port != null && !isNaN(port) ? port : undefined,
+      aimockPort: parseAimockPort(search.aimockPort),
       historyFixture:
         typeof search.historyFixture === 'string'
           ? search.historyFixture

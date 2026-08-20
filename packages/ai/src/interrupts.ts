@@ -84,12 +84,15 @@ interface InterruptBindingBase {
   interruptId: string
   interruptedRunId: string
   generation: number
-  responseSchemaHash: string
   expiresAt?: string
 }
 
+interface ResponseSchemaInterruptBindingBase extends InterruptBindingBase {
+  responseSchemaHash: string
+}
+
 export type InterruptBinding =
-  | (InterruptBindingBase & {
+  | (ResponseSchemaInterruptBindingBase & {
       kind: 'tool-approval'
       toolName: string
       toolCallId: string
@@ -97,7 +100,7 @@ export type InterruptBinding =
       inputSchemaHash: string
       approvalSchemaHash: string
     })
-  | (InterruptBindingBase & {
+  | (ResponseSchemaInterruptBindingBase & {
       kind: 'client-tool-execution'
       toolName: string
       toolCallId: string
@@ -105,6 +108,13 @@ export type InterruptBinding =
     })
   | (InterruptBindingBase & {
       kind: 'generic'
+      /** Omitted when the generic interrupt accepts an unvalidated response. */
+      responseSchemaHash?: string
+      /** Present only for a first-party generic interrupt. */
+      definitionId?: string
+      key?: string
+      batchIndex?: number
+      payloadSchemaHash?: string
     })
 
 export type UnopenedInterruptBinding = InterruptBinding extends infer TBinding

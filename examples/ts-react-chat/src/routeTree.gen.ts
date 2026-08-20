@@ -26,6 +26,7 @@ import { Route as Issue176ToolResultRouteImport } from './routes/issue-176-tool-
 import { Route as InterruptsRouteImport } from './routes/interrupts'
 import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
+import { Route as GenericInterruptsRouteImport } from './routes/generic-interrupts'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
 import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
 import { Route as IndexRouteImport } from './routes/index'
@@ -62,6 +63,7 @@ import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiInterruptsRouteImport } from './routes/api.interrupts'
 import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
+import { Route as ApiGenericInterruptsRouteImport } from './routes/api.generic-interrupts'
 import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
 import { Route as ApiArtifactsRouteImport } from './routes/api.artifacts'
 import { Route as ExampleGuitarsIndexRouteImport } from './routes/example.guitars/index'
@@ -155,6 +157,11 @@ const ImageToolReproRoute = ImageToolReproRouteImport.update({
 const ImageGenRoute = ImageGenRouteImport.update({
   id: '/image-gen',
   path: '/image-gen',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GenericInterruptsRoute = GenericInterruptsRouteImport.update({
+  id: '/generic-interrupts',
+  path: '/generic-interrupts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GenerationHooksRoute = GenerationHooksRouteImport.update({
@@ -342,6 +349,11 @@ const ApiImageGenRoute = ApiImageGenRouteImport.update({
   path: '/api/image-gen',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiGenericInterruptsRoute = ApiGenericInterruptsRouteImport.update({
+  id: '/api/generic-interrupts',
+  path: '/api/generic-interrupts',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiCapabilityDemoRoute = ApiCapabilityDemoRouteImport.update({
   id: '/api/capability-demo',
   path: '/api/capability-demo',
@@ -393,6 +405,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
+  '/generic-interrupts': typeof GenericInterruptsRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
   '/interrupts': typeof InterruptsRoute
@@ -412,6 +425,7 @@ export interface FileRoutesByFullPath {
   '/websocket-chat': typeof WebsocketChatRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
+  '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/interrupts': typeof ApiInterruptsRoute
@@ -457,6 +471,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
+  '/generic-interrupts': typeof GenericInterruptsRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
   '/interrupts': typeof InterruptsRoute
@@ -476,6 +491,7 @@ export interface FileRoutesByTo {
   '/websocket-chat': typeof WebsocketChatRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
+  '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/interrupts': typeof ApiInterruptsRoute
@@ -522,6 +538,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/capability-demo': typeof CapabilityDemoRoute
   '/generation-hooks': typeof GenerationHooksRoute
+  '/generic-interrupts': typeof GenericInterruptsRoute
   '/image-gen': typeof ImageGenRoute
   '/image-tool-repro': typeof ImageToolReproRoute
   '/interrupts': typeof InterruptsRoute
@@ -541,6 +558,7 @@ export interface FileRoutesById {
   '/websocket-chat': typeof WebsocketChatRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
+  '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
   '/api/interrupts': typeof ApiInterruptsRoute
@@ -588,6 +606,7 @@ export interface FileRouteTypes {
     | '/'
     | '/capability-demo'
     | '/generation-hooks'
+    | '/generic-interrupts'
     | '/image-gen'
     | '/image-tool-repro'
     | '/interrupts'
@@ -607,6 +626,7 @@ export interface FileRouteTypes {
     | '/websocket-chat'
     | '/api/artifacts'
     | '/api/capability-demo'
+    | '/api/generic-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
     | '/api/interrupts'
@@ -652,6 +672,7 @@ export interface FileRouteTypes {
     | '/'
     | '/capability-demo'
     | '/generation-hooks'
+    | '/generic-interrupts'
     | '/image-gen'
     | '/image-tool-repro'
     | '/interrupts'
@@ -671,6 +692,7 @@ export interface FileRouteTypes {
     | '/websocket-chat'
     | '/api/artifacts'
     | '/api/capability-demo'
+    | '/api/generic-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
     | '/api/interrupts'
@@ -716,6 +738,7 @@ export interface FileRouteTypes {
     | '/'
     | '/capability-demo'
     | '/generation-hooks'
+    | '/generic-interrupts'
     | '/image-gen'
     | '/image-tool-repro'
     | '/interrupts'
@@ -735,6 +758,7 @@ export interface FileRouteTypes {
     | '/websocket-chat'
     | '/api/artifacts'
     | '/api/capability-demo'
+    | '/api/generic-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
     | '/api/interrupts'
@@ -781,6 +805,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   CapabilityDemoRoute: typeof CapabilityDemoRoute
   GenerationHooksRoute: typeof GenerationHooksRoute
+  GenericInterruptsRoute: typeof GenericInterruptsRoute
   ImageGenRoute: typeof ImageGenRoute
   ImageToolReproRoute: typeof ImageToolReproRoute
   InterruptsRoute: typeof InterruptsRoute
@@ -800,6 +825,7 @@ export interface RootRouteChildren {
   WebsocketChatRoute: typeof WebsocketChatRoute
   ApiArtifactsRoute: typeof ApiArtifactsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
+  ApiGenericInterruptsRoute: typeof ApiGenericInterruptsRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
   ApiInterruptsRoute: typeof ApiInterruptsRoute
@@ -960,6 +986,13 @@ declare module '@tanstack/react-router' {
       path: '/image-gen'
       fullPath: '/image-gen'
       preLoaderRoute: typeof ImageGenRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/generic-interrupts': {
+      id: '/generic-interrupts'
+      path: '/generic-interrupts'
+      fullPath: '/generic-interrupts'
+      preLoaderRoute: typeof GenericInterruptsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/generation-hooks': {
@@ -1214,6 +1247,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiImageGenRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/generic-interrupts': {
+      id: '/api/generic-interrupts'
+      path: '/api/generic-interrupts'
+      fullPath: '/api/generic-interrupts'
+      preLoaderRoute: typeof ApiGenericInterruptsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/capability-demo': {
       id: '/api/capability-demo'
       path: '/api/capability-demo'
@@ -1295,6 +1335,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   CapabilityDemoRoute: CapabilityDemoRoute,
   GenerationHooksRoute: GenerationHooksRoute,
+  GenericInterruptsRoute: GenericInterruptsRoute,
   ImageGenRoute: ImageGenRoute,
   ImageToolReproRoute: ImageToolReproRoute,
   InterruptsRoute: InterruptsRoute,
@@ -1314,6 +1355,7 @@ const rootRouteChildren: RootRouteChildren = {
   WebsocketChatRoute: WebsocketChatRoute,
   ApiArtifactsRoute: ApiArtifactsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
+  ApiGenericInterruptsRoute: ApiGenericInterruptsRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiImageToolReproRoute: ApiImageToolReproRoute,
   ApiInterruptsRoute: ApiInterruptsRoute,

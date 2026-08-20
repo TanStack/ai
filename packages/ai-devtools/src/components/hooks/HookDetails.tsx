@@ -531,9 +531,7 @@ const HookHeader: Component<{
             </span>
           </Show>
           {/* Prefer threadId as the user-facing identity (generation scope /
-              chat thread). Only show the raw registry id when it differs —
-              after the client prefers threadId over deprecated `id`, the two
-              often match and duplicating them is noise. */}
+              chat thread). Only show the raw registry id when it differs. */}
           <span data-testid="ai-devtools-hook-identity">
             {props.hook.threadId
               ? `thread ${props.hook.threadId}`

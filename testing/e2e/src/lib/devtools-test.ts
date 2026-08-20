@@ -3,19 +3,24 @@ export interface DevtoolsRouteSearch {
   aimockPort?: number
 }
 
+export function parseAimockPort(value: unknown): number | undefined {
+  const port =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string'
+        ? Number.parseInt(value, 10)
+        : undefined
+  return port != null && !Number.isNaN(port) ? port : undefined
+}
+
 export function parseDevtoolsRouteSearch(
   search: Record<string, unknown>,
 ): DevtoolsRouteSearch {
-  const aimockPort =
-    typeof search.aimockPort === 'string'
-      ? Number.parseInt(search.aimockPort, 10)
-      : undefined
+  const aimockPort = parseAimockPort(search.aimockPort)
 
   return {
     ...(typeof search.testId === 'string' ? { testId: search.testId } : {}),
-    ...(aimockPort !== undefined && !Number.isNaN(aimockPort)
-      ? { aimockPort }
-      : {}),
+    ...(aimockPort !== undefined ? { aimockPort } : {}),
   }
 }
 

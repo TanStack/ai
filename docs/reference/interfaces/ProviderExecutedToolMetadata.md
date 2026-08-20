@@ -5,7 +5,7 @@ title: ProviderExecutedToolMetadata
 
 # Interface: ProviderExecutedToolMetadata
 
-Defined in: [packages/ai/src/types.ts:189](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L189)
+Defined in: [packages/ai/src/types.ts:191](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L191)
 
 Convention for tool-call `metadata` that marks a call as **provider-executed**
 — run by the provider's own infrastructure (e.g. Anthropic `web_search` /
@@ -35,4 +35,4 @@ preserves those per-adapter fields.
 optional providerExecuted?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:190](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L190)
+Defined in: [packages/ai/src/types.ts:192](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L192)

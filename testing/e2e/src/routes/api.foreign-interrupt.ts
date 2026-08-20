@@ -148,15 +148,16 @@ export const Route = createFileRoute('/api/foreign-interrupt')({
       POST: async ({ request }) => {
         const body: unknown = await request.json()
         const threadId = stringField(body, 'threadId') ?? 'thread-1'
+        // Bindings correlate on the request runId. A fresh server id would
+        // make `ours` generic but not resolvable.
+        const runId = stringField(body, 'runId') ?? `run-${threadId}`
         const resumed = resumedInterruptIds(body)
         if (resumed.length > 0) {
           return toServerSentEventsResponse(
-            resumedRun(threadId, `run-${threadId}-continuation`, resumed),
+            resumedRun(threadId, `${runId}-continuation`, resumed),
           )
         }
-        return toServerSentEventsResponse(
-          foreignRun(threadId, `run-${threadId}`),
-        )
+        return toServerSentEventsResponse(foreignRun(threadId, runId))
       },
     },
   },

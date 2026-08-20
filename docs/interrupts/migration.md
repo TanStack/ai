@@ -18,8 +18,8 @@ AG-UI interrupt descriptors. Native runs end with
 `RUN_FINISHED.outcome.type === 'interrupt'`, and the continuation is a new run
 whose `parentRunId` is the interrupted run.
 
-There's no codemod. Migrate the server lifecycle and client rendering together.
-Legacy readers stay temporarily for old streams but can't provide the full
+There is no codemod. Migrate the server lifecycle and client rendering together.
+Legacy readers stay temporarily for old streams but cannot provide the full
 native contract. Start from [Overview](./overview).
 
 ## API mapping
@@ -130,7 +130,7 @@ Deprecated readers recognize well-formed historical `approval-requested` and
 cloned-history follow-up. They do **not** support edited arguments, custom
 approval payloads, generic responses, payloadless cancellation, or expiry/
 schema-hash reconciliation; those fail with `legacy-unsupported`. Native and
-legacy items can't mix in one batch; a failed legacy transport keeps staged
+legacy items cannot mix in one batch; a failed legacy transport keeps staged
 decisions and reports `legacy-submit-failed`.
 
 ## Checklist

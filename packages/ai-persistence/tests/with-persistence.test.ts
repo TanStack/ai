@@ -85,13 +85,6 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
   return out
 }
 
-async function expectCollectRejects(
-  stream: AsyncIterable<StreamChunk>,
-  pattern: RegExp,
-) {
-  await expect(collect(stream)).rejects.toThrow(pattern)
-}
-
 function serverSearchTool(): Tool {
   return {
     name: 'search',
@@ -1201,7 +1194,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     const next = mockAdapter([[ev.text('SHOULD NOT RUN')]])
-    await expectCollectRejects(
+    const blockedChunks = await collect(
       chat({
         adapter: next.adapter,
         messages: [{ role: 'user', content: 'new input' }],
@@ -1209,7 +1202,22 @@ describe('withPersistence (state-only)', () => {
         threadId: 't1',
         middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
-      /pending interrupts.*resume is required/i,
+    )
+    const blockedError = blockedChunks.find(
+      (chunk) => chunk.type === EventType.RUN_ERROR,
+    )
+    expect(blockedError?.['tanstack:interruptErrors']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'interrupt-1',
+          code: 'unknown-interrupt',
+        }),
+        expect.objectContaining({
+          scope: 'batch',
+          code: 'incomplete-batch',
+        }),
+      ]),
     )
     expect(next.calls.length).toBe(0)
   })
@@ -1229,7 +1237,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     const next = mockAdapter([[ev.text('SHOULD NOT RUN')]])
-    await expectCollectRejects(
+    const mismatchChunks = await collect(
       chat({
         adapter: next.adapter,
         messages: [{ role: 'user', content: 'new input' }],
@@ -1238,7 +1246,22 @@ describe('withPersistence (state-only)', () => {
         resume: [{ interruptId: 'other-interrupt', status: 'resolved' }],
         middleware: [withPersistence(persistence)],
       }) as AsyncIterable<StreamChunk>,
-      /missing resume entry for pending interrupt interrupt-1/i,
+    )
+    const mismatchError = mismatchChunks.find(
+      (chunk) => chunk.type === EventType.RUN_ERROR,
+    )
+    expect(mismatchError?.['tanstack:interruptErrors']).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          scope: 'item',
+          interruptId: 'interrupt-1',
+          code: 'unknown-interrupt',
+        }),
+        expect.objectContaining({
+          scope: 'batch',
+          code: 'incomplete-batch',
+        }),
+      ]),
     )
     expect(next.calls.length).toBe(0)
   })

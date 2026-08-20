@@ -3,6 +3,7 @@ import { EventType } from '@tanstack/ai/client'
 import {
   fetchHttpStream,
   fetchServerSentEvents,
+  fetcherToConnectionAdapter,
   normalizeConnectionAdapter,
   rpcStream,
   stream,
@@ -26,7 +27,110 @@ describe('connection-adapters', () => {
     vi.clearAllMocks()
   })
 
+  it('forwards resume on a fetcher adapter', async () => {
+    const fetcher = vi.fn(async function* () {})
+    const adapter = fetcherToConnectionAdapter(fetcher)
+    const signal = new AbortController().signal
+
+    for await (const _chunk of adapter.connect([], { source: 'test' }, signal, {
+      threadId: 'thread-1',
+      runId: 'resume-run',
+      parentRunId: 'interrupted-run',
+      resume: [
+        {
+          interruptId: 'generic-1',
+          status: 'cancelled',
+          metadata: {
+            'tanstack:interruptContinuation': {
+              v: 1,
+              definitionId: 'review',
+              key: 'one',
+              batchIndex: 0,
+              reason: 'review',
+              message: 'Review',
+            },
+          },
+        },
+      ],
+    })) {
+      // Consume the terminal event.
+    }
+
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.objectContaining({
+        threadId: 'thread-1',
+        runId: 'resume-run',
+        parentRunId: 'interrupted-run',
+        resume: [
+          {
+            interruptId: 'generic-1',
+            status: 'cancelled',
+            metadata: {
+              'tanstack:interruptContinuation': {
+                v: 1,
+                definitionId: 'review',
+                key: 'one',
+                batchIndex: 0,
+                reason: 'review',
+                message: 'Review',
+              },
+            },
+          },
+        ],
+      }),
+      { signal },
+    )
+  })
+
   describe('fetchServerSentEvents', () => {
+    it('sends generic continuation on resume metadata, not state', async () => {
+      const mockResponse = {
+        ok: true,
+        body: {
+          getReader: () => ({
+            read: vi.fn().mockResolvedValue({ done: true, value: undefined }),
+            releaseLock: vi.fn(),
+          }),
+        },
+      }
+      fetchMock.mockResolvedValue(mockResponse as any)
+      const adapter = fetchServerSentEvents('/api/chat')
+      const resume = [
+        {
+          interruptId: 'generic-1',
+          status: 'cancelled' as const,
+          metadata: {
+            'tanstack:interruptContinuation': {
+              v: 1,
+              definitionId: 'review',
+              key: 'one',
+              batchIndex: 0,
+              reason: 'review',
+              message: 'Review',
+            },
+          },
+        },
+      ]
+
+      for await (const _chunk of adapter.connect(
+        [{ role: 'user', content: 'Resume' }],
+        undefined,
+        undefined,
+        {
+          threadId: 'thread-1',
+          runId: 'run-2',
+          resume,
+        },
+      )) {
+        // Consume the empty stream.
+      }
+
+      const request = fetchMock.mock.calls[0]?.[1] as RequestInit
+      const body = JSON.parse(String(request.body))
+      expect(body.resume).toEqual(resume)
+      expect(body.state).toEqual({})
+    })
+
     it('should handle SSE format with data: prefix', async () => {
       const mockReader = {
         read: vi

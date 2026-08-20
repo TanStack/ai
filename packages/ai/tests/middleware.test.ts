@@ -1259,16 +1259,21 @@ describe('chat() middleware', () => {
 
       const middleware: ChatMiddleware = {
         name: 'tool-injector',
-        onConfig: (_ctx, config) => ({
-          tools: [
-            ...config.tools,
-            {
-              name: 'addedTool',
-              description: 'Added by middleware',
-              execute: addedToolExecute,
-            },
-          ],
-        }),
+        onConfig: (_ctx, config) => {
+          if (config.tools.some((tool) => tool.name === 'addedTool')) {
+            return
+          }
+          return {
+            tools: [
+              ...config.tools,
+              {
+                name: 'addedTool',
+                description: 'Added by middleware',
+                execute: addedToolExecute,
+              },
+            ],
+          }
+        },
       }
 
       const stream = chat({
@@ -2220,16 +2225,21 @@ describe('chat() middleware', () => {
 
       const middleware: ChatMiddleware = {
         name: 'tool-injector',
-        onConfig: (_ctx, config) => ({
-          tools: [
-            ...config.tools,
-            {
-              name: 'injectedTool',
-              description: 'Injected by middleware',
-              execute: injectedToolExecute,
-            },
-          ],
-        }),
+        onConfig: (_ctx, config) => {
+          if (config.tools.some((tool) => tool.name === 'injectedTool')) {
+            return
+          }
+          return {
+            tools: [
+              ...config.tools,
+              {
+                name: 'injectedTool',
+                description: 'Injected by middleware',
+                execute: injectedToolExecute,
+              },
+            ],
+          }
+        },
       }
 
       const stream = chat({

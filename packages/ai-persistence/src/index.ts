@@ -19,6 +19,7 @@ export type {
   TerminalRunStatus,
   RunRecord,
   RunStore,
+  InterruptCommitEntry,
   InterruptRecord,
   InterruptStatus,
   InterruptStore,

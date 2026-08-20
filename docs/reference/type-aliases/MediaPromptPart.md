@@ -13,7 +13,7 @@ type MediaPromptPart =
 | AudioPart<MediaInputMetadata>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2132](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2132)
+Defined in: [packages/ai/src/types.ts:2137](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2137)
 
 A single part of a multimodal media-generation prompt. Reuses the chat
 content-part shapes: text parts carry the instruction, image / video /

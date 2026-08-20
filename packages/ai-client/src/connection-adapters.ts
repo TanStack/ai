@@ -508,7 +508,10 @@ async function fetchThreadHydration(
   const data = (await response.json()) as {
     messages?: Array<UIMessage>
     activeRun?: { runId?: unknown } | null
-    interrupts?: { runId?: unknown; pending?: unknown } | null
+    interrupts?: {
+      runId?: unknown
+      pending?: unknown
+    } | null
   }
   const activeRun =
     data.activeRun && typeof data.activeRun.runId === 'string'
@@ -872,7 +875,10 @@ export interface ChatHydrationResult {
    * so a reload (or another device) re-prompts the approval from the server. The
    * client restores them exactly as a persisted resume snapshot would.
    */
-  interrupts: { runId: string; pending: Array<ChatPendingInterrupt> } | null
+  interrupts: {
+    runId: string
+    pending: Array<ChatPendingInterrupt>
+  } | null
 }
 
 /**
@@ -2455,6 +2461,12 @@ export function fetcherToConnectionAdapter(
           data,
           threadId: runContext.threadId,
           runId: runContext.runId,
+          ...(runContext.parentRunId !== undefined
+            ? { parentRunId: runContext.parentRunId }
+            : {}),
+          ...(runContext.resume !== undefined
+            ? { resume: runContext.resume }
+            : {}),
         },
         { signal: abortSignal },
       )

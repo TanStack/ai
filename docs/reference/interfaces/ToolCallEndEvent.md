@@ -5,7 +5,7 @@ title: ToolCallEndEvent
 
 # Interface: ToolCallEndEvent\<TToolName, TInput, TOutput\>
 
-Defined in: [packages/ai/src/types.ts:1267](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1267)
+Defined in: [packages/ai/src/types.ts:1271](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1271)
 
 Emitted when a tool call completes.
 
@@ -46,7 +46,7 @@ Constrained output type from the tool's `outputSchema`. Defaults to `unknown`.
 optional input?: TInput;
 ```
 
-Defined in: [packages/ai/src/types.ts:1283](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1283)
+Defined in: [packages/ai/src/types.ts:1287](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1287)
 
 Final parsed input arguments (TanStack AI internal)
 
@@ -58,7 +58,7 @@ Final parsed input arguments (TanStack AI internal)
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1274](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1274)
+Defined in: [packages/ai/src/types.ts:1278](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1278)
 
 Model identifier for multi-model support
 
@@ -70,7 +70,7 @@ Model identifier for multi-model support
 optional output?: TOutput;
 ```
 
-Defined in: [packages/ai/src/types.ts:1290](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1290)
+Defined in: [packages/ai/src/types.ts:1294](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1294)
 
 Tool execution output, validated against the tool's `outputSchema` when
 one is declared. Prefer this over parsing `result` when present.
@@ -87,7 +87,7 @@ optional result?:
   | ContentPart<unknown, unknown, unknown, unknown, unknown>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:1292](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1292)
+Defined in: [packages/ai/src/types.ts:1296](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1296)
 
 Tool execution result (TanStack AI internal / wire form)
 
@@ -99,7 +99,7 @@ Tool execution result (TanStack AI internal / wire form)
 optional state?: ToolOutputState;
 ```
 
-Defined in: [packages/ai/src/types.ts:1294](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1294)
+Defined in: [packages/ai/src/types.ts:1298](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1298)
 
 Tool execution output state (TanStack AI internal)
 
@@ -111,7 +111,7 @@ Tool execution output state (TanStack AI internal)
 optional toolCallName?: TToolName;
 ```
 
-Defined in: [packages/ai/src/types.ts:1276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1276)
+Defined in: [packages/ai/src/types.ts:1280](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1280)
 
 Name of the tool that completed (AG-UI-compatible optional field)
 
@@ -123,7 +123,7 @@ Name of the tool that completed (AG-UI-compatible optional field)
 optional toolName?: TToolName;
 ```
 
-Defined in: [packages/ai/src/types.ts:1281](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1281)
+Defined in: [packages/ai/src/types.ts:1285](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1285)
 
 #### Deprecated
 
@@ -138,4 +138,4 @@ Kept for backward compatibility.
 type: "TOOL_CALL_END";
 ```
 
-Defined in: [packages/ai/src/types.ts:1272](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1272)
+Defined in: [packages/ai/src/types.ts:1276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1276)

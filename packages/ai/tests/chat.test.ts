@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat, createChatOptions } from '../src/activities/chat/index'
+import { defineInterrupt } from '../src/interrupt-definition'
+import {
+  genericInterruptContinuationFromDescriptor,
+  wrapGenericInterruptContinuation,
+} from '../src/generic-interrupt-continuation'
 import { defineChatMiddleware } from '../src/activities/chat/middleware/define'
 import { DISCOVERY_TOOL_NAME } from '../src/activities/chat/tools/lazy-tool-manager'
 import { EventType } from '../src/types'
@@ -4018,6 +4023,694 @@ describe('chat()', () => {
       expect((resultChunks[0] as any).content).toContain('72')
       // model is kept (passthrough allows extra fields)
       expect((resultChunks[0] as any).toolCallId).toBeDefined()
+    })
+  })
+
+  describe('generic interrupts', () => {
+    it('emits one afterModel interrupt terminal and stores continuation state', async () => {
+      const review = defineInterrupt({
+        id: 'review-plan',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Plan'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [
+            defineChatMiddleware({
+              onInterruptBoundary(ctx) {
+                if (ctx.phase !== 'afterModel') return
+                return {
+                  interrupts: [
+                    review.interrupt({
+                      key: 'turn-1',
+                      reason: 'review',
+                      message: 'Review the plan',
+                    }),
+                  ],
+                }
+              },
+            }),
+          ],
+          messages: [{ role: 'user', content: 'Make a plan' }],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(calls).toHaveLength(1)
+      expect(
+        chunks.some(
+          (chunk) =>
+            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+            'delta' in chunk &&
+            chunk.delta === 'Plan',
+        ),
+      ).toBe(true)
+      const terminal = expectSingleRunFinished(chunks)
+      expect(terminal.outcome).toMatchObject({
+        type: 'interrupt',
+        interrupts: [
+          {
+            reason: 'review',
+            message: 'Review the plan',
+          },
+        ],
+      })
+      expect(
+        chunks.findIndex((chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT),
+      ).toBeLessThan(
+        chunks.findIndex((chunk) => chunk.type === EventType.RUN_FINISHED),
+      )
+      expect(
+        chunks.some((chunk) => chunk.type === EventType.STATE_SNAPSHOT),
+      ).toBe(false)
+    })
+
+    it('rehydrates a transformed display payload on ephemeral resume', async () => {
+      const review = defineInterrupt({
+        id: 'review-plan',
+        payloadSchema: z.string().transform((value) => value.length),
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const observed: Array<unknown> = []
+      const middleware = defineChatMiddleware({
+        onInterruptBoundary(ctx) {
+          if (ctx.parentRunId) return
+          if (ctx.phase !== 'afterModel') return
+          return {
+            interrupts: [
+              review.interrupt({
+                key: 'turn-1',
+                reason: 'review',
+                message: 'Review the plan',
+                payload: 'hello',
+              }),
+            ],
+          }
+        },
+        onInterruptResolution(_ctx, resolutions) {
+          observed.push(
+            ...resolutions
+              .for(review)
+              .map((resolution) => resolution.request.payload),
+          )
+          return { toolResume: 'continue' }
+        },
+      })
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Plan'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Continued'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+
+      const first = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [middleware],
+          messages: [{ role: 'user', content: 'Make a plan' }],
+          threadId: 'thread-transform',
+          runId: 'run-transform',
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const interrupt = expectSingleRunFinished(first).outcome
+      if (interrupt?.type !== 'interrupt') {
+        throw new Error('Expected afterModel interrupt')
+      }
+      const paused = interrupt.interrupts[0]
+      if (!paused) throw new Error('Expected interrupt id')
+      const continuation = genericInterruptContinuationFromDescriptor(paused)
+      if (!continuation) {
+        throw new Error('Expected generic continuation metadata')
+      }
+
+      const resume = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [middleware],
+          messages: [{ role: 'user', content: 'Make a plan' }],
+          threadId: 'thread-transform',
+          runId: 'run-transform-resume',
+          parentRunId: 'run-transform',
+          resume: [
+            {
+              interruptId: paused.id,
+              status: 'resolved',
+              payload: { approved: true },
+              metadata: wrapGenericInterruptContinuation(continuation),
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(calls).toHaveLength(2)
+      expect(observed).toEqual([5])
+      expect(
+        resume.some((chunk) => chunk.type === EventType.RUN_FINISHED),
+      ).toBe(true)
+    })
+
+    it('rejects an ephemeral continuation whose schema hash drifted', async () => {
+      const review = defineInterrupt({
+        id: 'review-plan',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.textContent('Plan'),
+            ev.textEnd(),
+            ev.runFinished('stop'),
+          ],
+        ],
+      })
+      const middleware = defineChatMiddleware({
+        onInterruptBoundary(ctx) {
+          if (ctx.phase !== 'afterModel') return
+          return {
+            interrupts: [
+              review.interrupt({
+                key: 'turn-1',
+                reason: 'review',
+                message: 'Review the plan',
+              }),
+            ],
+          }
+        },
+      })
+
+      const first = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [middleware],
+          messages: [{ role: 'user', content: 'Make a plan' }],
+          threadId: 'thread-stale',
+          runId: 'run-stale',
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const interrupt = expectSingleRunFinished(first).outcome
+      if (interrupt?.type !== 'interrupt') {
+        throw new Error('Expected afterModel interrupt')
+      }
+      const paused = interrupt.interrupts[0]
+      if (!paused) throw new Error('Expected interrupt id')
+      const continuation = genericInterruptContinuationFromDescriptor(paused)
+      if (!continuation) {
+        throw new Error('Expected generic continuation metadata')
+      }
+
+      const resume = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [middleware],
+          messages: [{ role: 'user', content: 'Make a plan' }],
+          threadId: 'thread-stale',
+          runId: 'run-stale-resume',
+          parentRunId: 'run-stale',
+          resume: [
+            {
+              interruptId: paused.id,
+              status: 'resolved',
+              payload: { approved: true },
+              metadata: wrapGenericInterruptContinuation({
+                ...continuation,
+                responseSchemaHash: 'sha256:drifted',
+              }),
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(calls).toHaveLength(1)
+      expect(resume.some((chunk) => chunk.type === EventType.RUN_ERROR)).toBe(
+        true,
+      )
+    })
+
+    it('starts a synthetic run before a beforeModel interrupt', async () => {
+      const review = defineInterrupt({
+        id: 'before-model-lifecycle',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const { adapter, calls } = createMockAdapter({ iterations: [] })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          runId: 'before-model-run',
+          middleware: [
+            defineChatMiddleware({
+              onInterruptBoundary(ctx) {
+                if (ctx.phase !== 'beforeModel') return
+                return {
+                  interrupts: [
+                    review.interrupt({
+                      key: 'one',
+                      reason: 'review',
+                      message: 'Review',
+                    }),
+                  ],
+                }
+              },
+            }),
+          ],
+          messages: [{ role: 'user', content: 'Start' }],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(calls).toHaveLength(0)
+      expect(chunks.map((chunk) => chunk.type)).toEqual([
+        EventType.RUN_STARTED,
+        EventType.MESSAGES_SNAPSHOT,
+        EventType.RUN_FINISHED,
+      ])
+      expect(expectSingleRunFinished(chunks).outcome?.type).toBe('interrupt')
+    })
+
+    it('pauses before tools without executing them', async () => {
+      const decision = defineInterrupt({
+        id: 'before-tools',
+        responseSchema: z.object({ proceed: z.boolean() }),
+      })
+      const execute = vi.fn(() => ({ ok: true }))
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.textStart(),
+            ev.toolStart('tool-1', 'write'),
+            ev.toolArgs('tool-1', '{}'),
+            ev.toolEnd('tool-1', 'write', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [decision],
+          middleware: [
+            defineChatMiddleware({
+              onInterruptBoundary(ctx) {
+                if (ctx.phase !== 'beforeTools') return
+                return {
+                  interrupts: [
+                    decision.interrupt({
+                      key: 'tools',
+                      reason: 'review',
+                      message: 'Run tools?',
+                    }),
+                  ],
+                }
+              },
+            }),
+          ],
+          messages: [{ role: 'user', content: 'Write it' }],
+          tools: [serverTool('write', execute)],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(execute).not.toHaveBeenCalled()
+      expect(expectSingleRunFinished(chunks).outcome).toMatchObject({
+        type: 'interrupt',
+      })
+    })
+
+    it('stops after afterTools when resolution returns toolResume stop', async () => {
+      const review = defineInterrupt({
+        id: 'after-tools-stop',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const execute = vi.fn(() => ({ ok: true }))
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tool-1', 'write'),
+            ev.toolArgs('tool-1', '{}'),
+            ev.toolEnd('tool-1', 'write', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+      const middleware = defineChatMiddleware({
+        onInterruptBoundary(ctx) {
+          if (ctx.phase !== 'afterTools') return
+          return {
+            interrupts: [
+              review.interrupt({
+                key: 'after-tools',
+                reason: 'review',
+                message: 'Review the tool result',
+              }),
+            ],
+          }
+        },
+        onInterruptResolution(_ctx, resolutions) {
+          for (const resolution of resolutions.for(review)) {
+            if (
+              resolution.status === 'resolved' &&
+              !resolution.response.approved
+            ) {
+              return { toolResume: 'stop' }
+            }
+          }
+          return { toolResume: 'continue' }
+        },
+      })
+
+      const first = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [middleware],
+          messages: [{ role: 'user', content: 'Write it' }],
+          tools: [serverTool('write', execute)],
+          threadId: 'thread-after-tools',
+          runId: 'run-after-tools',
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const interrupt = expectSingleRunFinished(first).outcome
+      if (interrupt?.type !== 'interrupt') {
+        throw new Error('Expected afterTools interrupt')
+      }
+      const paused = interrupt.interrupts[0]
+      if (!paused) throw new Error('Expected interrupt id')
+      const continuation = genericInterruptContinuationFromDescriptor(paused)
+      if (!continuation) {
+        throw new Error('Expected generic continuation metadata')
+      }
+
+      const resume = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [middleware],
+          messages: [
+            { role: 'user', content: 'Write it' },
+            {
+              role: 'assistant',
+              content: null,
+              toolCalls: [
+                {
+                  id: 'tool-1',
+                  type: 'function',
+                  function: { name: 'write', arguments: '{}' },
+                },
+              ],
+            },
+            { role: 'tool', content: '{"ok":true}', toolCallId: 'tool-1' },
+          ],
+          tools: [serverTool('write', execute)],
+          threadId: 'thread-after-tools',
+          runId: 'run-after-tools-resume',
+          parentRunId: 'run-after-tools',
+          resume: [
+            {
+              interruptId: paused.id,
+              status: 'resolved',
+              payload: { approved: false },
+              metadata: wrapGenericInterruptContinuation(continuation),
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(execute).toHaveBeenCalledTimes(1)
+      expect(calls).toHaveLength(1)
+      const terminal = expectSingleRunFinished(resume)
+      expect(terminal.outcome).toEqual({ type: 'success' })
+      expect(terminal.finishReason).toBe('stop')
+    })
+
+    it('runs onFinish when resolution returns toolResume stop', async () => {
+      const review = defineInterrupt({
+        id: 'after-tools-stop-finish',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const onFinish = vi.fn()
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tool-1', 'write'),
+            ev.toolArgs('tool-1', '{}'),
+            ev.toolEnd('tool-1', 'write', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+      const reviewMiddleware = defineChatMiddleware({
+        onInterruptBoundary(ctx) {
+          if (ctx.phase !== 'afterTools') return
+          return {
+            interrupts: [
+              review.interrupt({
+                key: 'after-tools',
+                reason: 'review',
+                message: 'Review the tool result',
+              }),
+            ],
+          }
+        },
+        onInterruptResolution() {
+          return { toolResume: 'stop' }
+        },
+      })
+      const first = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [reviewMiddleware],
+          messages: [{ role: 'user', content: 'Write it' }],
+          tools: [serverTool('write', () => ({ ok: true }))],
+          threadId: 'thread-stop-finish',
+          runId: 'run-stop-finish',
+        }) as AsyncIterable<StreamChunk>,
+      )
+      const paused = expectSingleRunFinished(first).outcome
+      if (paused?.type !== 'interrupt') {
+        throw new Error('Expected afterTools interrupt')
+      }
+      const interrupt = paused.interrupts[0]
+      if (!interrupt) throw new Error('Expected interrupt id')
+      const continuation = genericInterruptContinuationFromDescriptor(interrupt)
+      if (!continuation) {
+        throw new Error('Expected generic continuation metadata')
+      }
+
+      await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [
+            reviewMiddleware,
+            defineChatMiddleware({ name: 'observe-finish', onFinish }),
+          ],
+          messages: [
+            { role: 'user', content: 'Write it' },
+            {
+              role: 'assistant',
+              content: null,
+              toolCalls: [
+                {
+                  id: 'tool-1',
+                  type: 'function',
+                  function: { name: 'write', arguments: '{}' },
+                },
+              ],
+            },
+            { role: 'tool', content: '{"ok":true}', toolCallId: 'tool-1' },
+          ],
+          tools: [serverTool('write', () => ({ ok: true }))],
+          threadId: 'thread-stop-finish',
+          runId: 'run-stop-finish-resume',
+          parentRunId: 'run-stop-finish',
+          resume: [
+            {
+              interruptId: interrupt.id,
+              status: 'resolved',
+              payload: { approved: false },
+              metadata: wrapGenericInterruptContinuation(continuation),
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(onFinish).toHaveBeenCalledOnce()
+      expect(onFinish.mock.calls[0]?.[1]).toMatchObject({
+        finishReason: 'stop',
+      })
+    })
+
+    it('keeps pending tool calls in the afterModel snapshot', async () => {
+      const review = defineInterrupt({
+        id: 'after-model-tools',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tool-1', 'write'),
+            ev.toolArgs('tool-1', '{}'),
+            ev.toolEnd('tool-1', 'write', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [
+            defineChatMiddleware({
+              onInterruptBoundary(ctx) {
+                if (ctx.phase !== 'afterModel') return
+                return {
+                  interrupts: [
+                    review.interrupt({
+                      key: 'after-model',
+                      reason: 'review',
+                      message: 'Review before tools',
+                    }),
+                  ],
+                }
+              },
+            }),
+          ],
+          messages: [{ role: 'user', content: 'Write it' }],
+          tools: [serverTool('write', () => ({ ok: true }))],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const snapshot = chunks.find(
+        (chunk) => chunk.type === EventType.MESSAGES_SNAPSHOT,
+      )
+      if (!snapshot || snapshot.type !== EventType.MESSAGES_SNAPSHOT) {
+        throw new Error('Expected messages snapshot')
+      }
+      const assistant = snapshot.messages.at(-1)
+      expect(assistant).toMatchObject({
+        role: 'assistant',
+        toolCalls: [
+          {
+            id: 'tool-1',
+            function: { name: 'write' },
+          },
+        ],
+      })
+    })
+
+    it('keeps tool approvals in the afterTools generic batch', async () => {
+      const review = defineInterrupt({
+        id: 'after-tools-with-approval',
+        responseSchema: z.object({ approved: z.boolean() }),
+      })
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted(),
+            ev.toolStart('tool-1', 'delete'),
+            ev.toolArgs('tool-1', '{}'),
+            ev.toolEnd('tool-1', 'delete', { input: {} }),
+            ev.runFinished('tool_calls'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          interrupts: [review],
+          middleware: [
+            defineChatMiddleware({
+              onInterruptBoundary(ctx) {
+                if (ctx.phase !== 'afterTools') return
+                return {
+                  interrupts: [
+                    review.interrupt({
+                      key: 'after-tools',
+                      reason: 'review',
+                      message: 'Review after tools',
+                    }),
+                  ],
+                }
+              },
+            }),
+          ],
+          messages: [{ role: 'user', content: 'Delete it' }],
+          tools: [
+            {
+              ...serverTool('delete', () => ({ ok: true })),
+              needsApproval: true,
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      const terminal = expectSingleRunFinished(chunks)
+      expect(terminal.outcome?.type).toBe('interrupt')
+      if (terminal.outcome?.type !== 'interrupt') return
+      const reasons = terminal.outcome.interrupts.map(
+        (interrupt) => interrupt.reason,
+      )
+      expect(reasons).toContain('tool_call')
+      expect(reasons).toContain('review')
+    })
+
+    it('rejects duplicate interrupt definition ids before adapter work', () => {
+      const first = defineInterrupt({
+        id: 'duplicate-chat-id',
+        responseSchema: z.object({ ok: z.boolean() }),
+      })
+      const second = defineInterrupt({
+        id: 'duplicate-chat-id',
+        responseSchema: z.object({ ok: z.boolean() }),
+      })
+      const { adapter } = createMockAdapter({ iterations: [] })
+
+      expect(() =>
+        Reflect.apply(chat, undefined, [
+          {
+            adapter,
+            interrupts: [first, second],
+            messages: [{ role: 'user', content: 'Hello' }],
+          },
+        ]),
+      ).toThrow('Duplicate interrupt definition id: duplicate-chat-id')
     })
   })
 })

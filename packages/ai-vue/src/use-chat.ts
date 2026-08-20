@@ -10,6 +10,7 @@ import {
 } from 'vue'
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
   RunAgentResumeItem,
@@ -18,7 +19,7 @@ import type {
 } from '@tanstack/ai'
 import type {
   ChatClientState,
-  ChatInterrupt,
+  ResolvableChatInterrupt,
   ChatInterruptState,
   ChatResumeState,
   ConnectionStatus,
@@ -42,13 +43,17 @@ export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  const TInterrupts extends ReadonlyArray<
+    InterruptDefinition<any, any, any, any>
+  > = readonly [],
 >(
-  options: UseChatOptions<TTools, TSchema, TContext> = {} as UseChatOptions<
+  options: UseChatOptions<
     TTools,
     TSchema,
-    TContext
-  >,
-): UseChatReturn<TTools, TSchema> {
+    TContext,
+    TInterrupts
+  > = {} as UseChatOptions<TTools, TSchema, TContext, TInterrupts>,
+): UseChatReturn<TTools, TSchema, TInterrupts> {
   const messages = shallowRef<Array<UIMessage<TTools>>>(
     options.initialMessages || [],
   )
@@ -60,7 +65,7 @@ export function useChat<
   const sessionGenerating = shallowRef(false)
   const queue = shallowRef<Array<QueuedMessage>>([])
   const runId = shallowRef<string | null>(null)
-  const interruptState = shallowRef<ChatInterruptState<TTools>>({
+  const interruptState = shallowRef<ChatInterruptState<TTools, TInterrupts>>({
     interrupts: EMPTY_INTERRUPTS,
     pendingInterrupts: EMPTY_INTERRUPTS,
     interruptErrors: EMPTY_INTERRUPT_ERRORS,
@@ -92,23 +97,27 @@ export function useChat<
     ? { connection: options.connection }
     : { fetcher: options.fetcher }
 
-  // The hook's identity is its `threadId`, which ChatClient also uses as the
-  // persistence key — no separate `id`. When no `threadId` is given the client
-  // generates one, so an ephemeral chat still works but is not restored on reload.
-  const client = new ChatClient<TTools, TContext>({
+  // The hook's identity is its `threadId`. When no `threadId` is given the
+  // client mints one after mount, so an ephemeral chat still works but is not
+  // restored on reload.
+  const client = new ChatClient<TTools, TContext, TInterrupts>({
     devtoolsBridgeFactory: createChatDevtoolsBridge,
     ...transport,
     ...(options.initialMessages !== undefined && {
       initialMessages: options.initialMessages,
     }),
-    ...(options.persistence !== undefined && {
-      persistence: options.persistence,
-    }),
+    ...(typeof options.threadId === 'string' && options.persistence
+      ? {
+          persistence: options.persistence,
+          threadId: options.threadId,
+        }
+      : {
+          ...(options.threadId !== undefined && { threadId: options.threadId }),
+        }),
     ...(options.initialResumeSnapshot !== undefined && {
       initialResumeSnapshot: options.initialResumeSnapshot,
     }),
     ...(options.body !== undefined && { body: options.body }),
-    ...(options.threadId !== undefined && { threadId: options.threadId }),
     ...(options.forwardedProps !== undefined && {
       forwardedProps: options.forwardedProps,
     }),
@@ -130,6 +139,9 @@ export function useChat<
       options.onError?.(err)
     },
     tools: options.tools,
+    ...(options.interrupts !== undefined && {
+      interrupts: options.interrupts,
+    }),
     onCustomEvent: (eventType, data, context) =>
       options.onCustomEvent?.(eventType, data, context),
     ...(options.streamProcessor !== undefined && {
@@ -320,7 +332,11 @@ export function useChat<
   const resuming = computed(() => interruptState.value.resuming)
 
   const resolveInterrupts = (
-    resolution: boolean | ((interrupt: ChatInterrupt<TTools>) => undefined),
+    resolution:
+      | boolean
+      | ((
+          interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+        ) => undefined),
   ) => {
     if (typeof resolution === 'boolean') {
       client.resolveInterrupts(resolution)
@@ -417,5 +433,5 @@ export function useChat<
     resumeInterrupts,
     partial: readonly(partial),
     final: readonly(final),
-  } as unknown as UseChatReturn<TTools, TSchema>
+  } as unknown as UseChatReturn<TTools, TSchema, TInterrupts>
 }

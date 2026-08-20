@@ -74,6 +74,20 @@ The lazy tools are: `compareGuitars`, `calculateFinancing`, and `searchGuitars`.
 - In multi-turn conversations, previously discovered tools are usable immediately without re-discovery
 - If the LLM skips discovery, it gets an error and self-corrects
 
+## Generic interrupt playground
+
+Open `/generic-interrupts` to try first-party generic interrupts at each
+lifecycle phase:
+
+- `beforeModel`
+- `afterModel`
+- `beforeTools`
+- `afterTools`
+
+Pick a resume policy (`continue`, `cancel`, or `stop`). Each pause shows two
+typed cards (`reviewPlan` and `chooseAudience`). Resolve both, then watch the
+selected policy.
+
 ## ✨ Features
 
 ### AI Capabilities

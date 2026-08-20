@@ -1271,6 +1271,51 @@ describe('StreamProcessor', () => {
       })
     })
 
+    it('does not auto-run client tools when a generic interrupt shares the batch', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.toolStart('tc-1', 'clientSearch'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"query":"test"}'))
+      processor.processChunk({
+        ...ev.runFinished('tool_calls'),
+        outcome: {
+          type: 'interrupt',
+          interrupts: [
+            {
+              id: 'generic-1',
+              reason: 'review_required',
+              message: 'Review the plan',
+              metadata: {
+                'tanstack:interruptBinding': {
+                  v: 1,
+                  kind: 'generic',
+                  interruptId: 'generic-1',
+                  definitionId: 'review-plan',
+                  key: 'one',
+                  batchIndex: 0,
+                },
+              },
+            },
+            {
+              id: 'client_tool_tc-1',
+              reason: 'tanstack:client_tool_execution',
+              toolCallId: 'tc-1',
+              metadata: {
+                kind: 'client_tool',
+                toolName: 'clientSearch',
+                input: { query: 'test' },
+              },
+            },
+          ],
+        },
+      })
+
+      expect(events.onToolCall).not.toHaveBeenCalled()
+    })
+
     it('should deliver client tool interrupt before stream end for mixed tool streams', async () => {
       const order: Array<string> = []
       const events = spyEvents()

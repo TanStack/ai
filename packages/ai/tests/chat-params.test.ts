@@ -310,6 +310,49 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
     expect('payload' in result.resume![0]!).toBe(false)
   })
 
+  it('keeps resume metadata for generic continuation', async () => {
+    const metadata = {
+      'tanstack:interruptContinuation': {
+        v: 1,
+        definitionId: 'review',
+        key: 'one',
+        batchIndex: 0,
+        reason: 'review',
+        message: 'Review',
+      },
+    }
+    const result = await chatParamsFromRequestBody({
+      ...base,
+      messages: [],
+      resume: [
+        {
+          interruptId: 'i1',
+          status: 'resolved',
+          payload: { approved: true },
+          metadata,
+        },
+      ],
+    })
+    expect(result.resume).toEqual([
+      {
+        interruptId: 'i1',
+        status: 'resolved',
+        payload: { approved: true },
+        metadata,
+      },
+    ])
+  })
+
+  it('rejects non-object resume metadata', async () => {
+    await expect(
+      chatParamsFromRequestBody({
+        ...base,
+        messages: [],
+        resume: [{ interruptId: 'i1', status: 'cancelled', metadata: 'nope' }],
+      }),
+    ).rejects.toThrow(/resume\[0\]\.metadata/)
+  })
+
   it('defaults forwardedProps to {} and rejects a non-object one', async () => {
     const result = await chatParamsFromRequestBody(withMessages([]))
     expect(result.forwardedProps).toEqual({})

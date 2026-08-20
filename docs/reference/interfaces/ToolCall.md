@@ -5,7 +5,7 @@ title: ToolCall
 
 # Interface: ToolCall\<TMetadata\>
 
-Defined in: [packages/ai/src/types.ts:161](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L161)
+Defined in: [packages/ai/src/types.ts:163](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L163)
 
 ## Type Parameters
 
@@ -21,7 +21,7 @@ Defined in: [packages/ai/src/types.ts:161](https://github.com/TanStack/ai/blob/m
 function: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:164](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L164)
+Defined in: [packages/ai/src/types.ts:166](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L166)
 
 #### arguments
 
@@ -43,7 +43,7 @@ name: string;
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:162](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L162)
+Defined in: [packages/ai/src/types.ts:164](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L164)
 
 ***
 
@@ -53,7 +53,7 @@ Defined in: [packages/ai/src/types.ts:162](https://github.com/TanStack/ai/blob/m
 optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:171](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L171)
+Defined in: [packages/ai/src/types.ts:173](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L173)
 
 Provider-specific metadata to carry through the tool call lifecycle.
 Typed per-adapter via `TToolCallMetadata`. For example,
@@ -67,4 +67,4 @@ Typed per-adapter via `TToolCallMetadata`. For example,
 type: "function";
 ```
 
-Defined in: [packages/ai/src/types.ts:163](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L163)
+Defined in: [packages/ai/src/types.ts:165](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L165)

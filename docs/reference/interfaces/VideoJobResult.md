@@ -5,7 +5,7 @@ title: VideoJobResult
 
 # Interface: VideoJobResult
 
-Defined in: [packages/ai/src/types.ts:2423](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2423)
+Defined in: [packages/ai/src/types.ts:2428](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2428)
 
 **`Experimental`**
 
@@ -21,7 +21,7 @@ Result of creating a video generation job.
 optional artifacts?: PersistedArtifactRef[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2433](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2433)
+Defined in: [packages/ai/src/types.ts:2438](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2438)
 
 **`Experimental`**
 
@@ -37,7 +37,7 @@ refs for persisted prompt INPUTS (e.g. a start frame).
 jobId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2425](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2425)
+Defined in: [packages/ai/src/types.ts:2430](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2430)
 
 **`Experimental`**
 
@@ -51,7 +51,7 @@ Unique job identifier for polling status
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:2427](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2427)
+Defined in: [packages/ai/src/types.ts:2432](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2432)
 
 **`Experimental`**
 
