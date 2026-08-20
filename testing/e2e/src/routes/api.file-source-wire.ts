@@ -1,8 +1,13 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, createChatOptions } from '@tanstack/ai'
 import { createTextAdapter } from '@/lib/providers'
+import { ALL_PROVIDERS } from '@/lib/types'
 import type { ModelMessage } from '@tanstack/ai'
 import type { Provider } from '@/lib/types'
+
+function isProvider(value: string): value is Provider {
+  return (ALL_PROVIDERS as ReadonlyArray<string>).includes(value)
+}
 
 /**
  * Wire-format verification for `{ type: 'file' }` content sources (#909).
@@ -22,10 +27,28 @@ export const Route = createFileRoute('/api/file-source-wire')({
     handlers: {
       POST: async ({ request }) => {
         const url = new URL(request.url)
-        const provider = (url.searchParams.get('provider') ??
-          'openai') as Provider
-        const handleProvider =
-          url.searchParams.get('handleProvider') ?? provider
+        const providerParam = url.searchParams.get('provider') ?? 'openai'
+        const handleParam = url.searchParams.get('handleProvider')
+        if (!isProvider(providerParam)) {
+          return new Response(
+            JSON.stringify({
+              ok: false,
+              error: `Unknown provider: ${providerParam}`,
+            }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } },
+          )
+        }
+        const provider = providerParam
+        if (handleParam !== null && !isProvider(handleParam)) {
+          return new Response(
+            JSON.stringify({
+              ok: false,
+              error: `Unknown handleProvider: ${handleParam}`,
+            }),
+            { status: 400, headers: { 'Content-Type': 'application/json' } },
+          )
+        }
+        const handleProvider = handleParam ?? provider
         const testId = url.searchParams.get('testId') ?? undefined
 
         const { adapter } = createTextAdapter(
@@ -68,10 +91,7 @@ export const Route = createFileRoute('/api/file-source-wire')({
             ...createChatOptions({ adapter }),
             messages,
           })) {
-            if (
-              chunk.type === 'RUN_ERROR' &&
-              /file/.test(chunk.message ?? '')
-            ) {
+            if (chunk.type === 'RUN_ERROR') {
               runError = chunk.message
             }
           }

@@ -73,7 +73,7 @@ export function createOpenaiFiles(
   apiKey: string,
   config?: Omit<OpenAIFilesConfig, 'apiKey'>,
 ): OpenAIFilesAdapter {
-  return new OpenAIFilesAdapter({ apiKey, ...config })
+  return new OpenAIFilesAdapter({ ...config, apiKey })
 }
 
 /**
