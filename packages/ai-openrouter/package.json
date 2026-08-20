@@ -28,6 +28,10 @@
     "./tools": {
       "types": "./dist/esm/tools/index.d.ts",
       "import": "./dist/esm/tools/index.js"
+    },
+    "./pkce": {
+      "types": "./dist/esm/pkce.d.ts",
+      "import": "./dist/esm/pkce.js"
     }
   },
   "files": [

@@ -120,6 +120,39 @@ export function KeyForm() {
 
 If `snapshot.locked` is true, call `byok.unlock()` first.
 
+## Sign in with OpenRouter
+
+OpenRouter can mint a key via PKCE instead of a paste field. Import from `@tanstack/ai-openrouter/pkce`. The helper writes the key with `openrouterByok.id` — the slug is required and is always `openrouter`.
+
+```tsx
+import { useEffect } from "react";
+import { openrouterByok } from "@tanstack/ai-openrouter";
+import {
+  completeOpenRouterPkceIntoByok,
+  startOpenRouterPkceLogin,
+} from "@tanstack/ai-openrouter/pkce";
+import { byok } from "./byok";
+
+export function OpenRouterSignIn() {
+  useEffect(() => {
+    void completeOpenRouterPkceIntoByok(byok);
+  }, []);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void startOpenRouterPkceLogin();
+      }}
+    >
+      Sign in with OpenRouter
+    </button>
+  );
+}
+```
+
+Pass `openrouterByok` in `defineByok({ providers })`. The relay reads `x-byok-openrouter` with `getByokKey(request, openrouterByok.id)`.
+
 ## Read the key on the relay
 
 The header wins. If it is empty, `getByokOrEnvKey` reads env names in order. If both are empty, return `byokMissing`. The client then sets `snapshot.prompt`.
