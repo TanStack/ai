@@ -1,5 +1,3 @@
-export { ollamaByok } from './byok'
-
 // ===========================
 // New tree-shakeable adapters
 // ===========================

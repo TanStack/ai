@@ -1,4 +1,3 @@
-export { claudeCodeByok } from './byok'
 export { ClaudeCodeTextAdapter, claudeCodeText } from './adapters/text'
 export type {
   ClaudeCodeTextConfig,

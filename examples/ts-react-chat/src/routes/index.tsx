@@ -27,15 +27,21 @@ import remarkGfm from 'remark-gfm'
 import {
   fetchServerSentEvents,
   useAudioRecorder,
+  useByok,
   useChat,
   useTranscription,
 } from '@tanstack/ai-react'
+import {
+  completeOpenRouterPkceIntoByok,
+  startOpenRouterPkceLogin,
+} from '@tanstack/ai-openrouter/pkce'
 import { clientTools } from '@tanstack/ai-client'
 import { ThinkingPart } from '@tanstack/ai-react-ui'
 import type { BoundInterrupts } from '@tanstack/ai-client'
 import type { UIMessage } from '@tanstack/ai-react'
 import type { ContentPart } from '@tanstack/ai'
 import type { GeminiInteractionsCustomEventValue } from '@tanstack/ai-gemini/experimental'
+import type { ProviderId } from '@tanstack/ai/byok'
 import type { ModelOption } from '@/lib/model-selection'
 import GuitarRecommendation from '@/components/example-GuitarRecommendation'
 import {
@@ -45,8 +51,8 @@ import {
   recommendGuitarToolDef,
 } from '@/lib/guitar-tools'
 import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
-import { byok, toByokProvider } from '@/lib/byok'
-import { ByokKeyForm } from '@/components/ByokKeyForm'
+import { byok, getEnvKeyStatus, toByokProvider } from '@/lib/byok'
+import { ByokKeyDialog } from '@/components/ByokKeyDialog'
 
 /**
  * Generate a random message ID
@@ -425,6 +431,41 @@ function ChatPage() {
   )
   const selectedProviderRef = useRef(selectedModel.provider)
   selectedProviderRef.current = selectedModel.provider
+  const snapshot = useByok(byok)
+  const [envKeyStatus, setEnvKeyStatus] = useState<Record<string, boolean>>(
+    {},
+  )
+  const [keyDialog, setKeyDialog] = useState<{
+    open: boolean
+    provider: ProviderId | null
+  }>({ open: false, provider: null })
+  const [openRouterCompleting, setOpenRouterCompleting] = useState(false)
+  const [openRouterError, setOpenRouterError] = useState<string | null>(null)
+
+  useEffect(() => {
+    void getEnvKeyStatus().then(setEnvKeyStatus)
+  }, [])
+
+  useEffect(() => {
+    setOpenRouterCompleting(true)
+    void completeOpenRouterPkceIntoByok(byok)
+      .catch((error: unknown) =>
+        setOpenRouterError(
+          error instanceof Error
+            ? error.message
+            : 'OpenRouter sign-in failed',
+        ),
+      )
+      .finally(() => setOpenRouterCompleting(false))
+  }, [])
+
+  useEffect(() => {
+    if (snapshot.prompt?.reason === 'missing') {
+      setKeyDialog({ open: true, provider: snapshot.prompt.provider })
+    }
+  }, [snapshot.prompt])
+
+  const activeByokId = toByokProvider(selectedModel.provider)
 
   // Reset the interaction id whenever the user switches model/provider so
   // we don't chain against a stale or wrong-model interaction. Messages
@@ -656,6 +697,27 @@ function ChatPage() {
                 ))}
               </select>
             </div>
+            <ByokKeyDialog
+              open={keyDialog.open}
+              onOpenChange={(open) => setKeyDialog((s) => ({ ...s, open }))}
+              envStatus={envKeyStatus}
+              activeProvider={activeByokId}
+              highlightProvider={keyDialog.provider}
+              openRouter={{
+                onLogin: () => {
+                  setOpenRouterError(null)
+                  void startOpenRouterPkceLogin().catch((error: unknown) =>
+                    setOpenRouterError(
+                      error instanceof Error
+                        ? error.message
+                        : 'OpenRouter sign-in failed',
+                    ),
+                  )
+                },
+                completing: openRouterCompleting,
+                error: openRouterError,
+              }}
+            />
             <Link
               to="/interrupts"
               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 text-orange-400 hover:bg-orange-500/20 transition-colors text-sm font-medium whitespace-nowrap"
@@ -677,9 +739,6 @@ function ChatPage() {
               <Image className="w-4 h-4" />
               Image Gen
             </Link>
-          </div>
-          <div className="mt-3">
-            <ByokKeyForm provider={selectedModel.provider} />
           </div>
         </div>
 

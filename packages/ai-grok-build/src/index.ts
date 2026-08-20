@@ -1,4 +1,3 @@
-export { grokBuildByok } from './byok'
 export { GrokBuildTextAdapter, grokBuildText } from './adapters/text'
 export type { GrokBuildTextConfig } from './adapters/text'
 export type { GrokBuildTextProviderOptions } from './provider-options'

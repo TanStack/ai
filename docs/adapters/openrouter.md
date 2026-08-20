@@ -584,7 +584,7 @@ Client: start login, then on return save the key into `defineByok`.
 ```tsx
 import { useEffect } from "react";
 import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
-import { openrouterByok } from "@tanstack/ai-openrouter";
+import { openrouterByok } from "@tanstack/ai-openrouter/byok";
 import {
   completeOpenRouterPkceIntoByok,
   startOpenRouterPkceLogin,
@@ -622,7 +622,8 @@ import {
   toServerSentEventsResponse,
 } from "@tanstack/ai";
 import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
-import { createOpenRouterText, openrouterByok } from "@tanstack/ai-openrouter";
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
+import { openrouterByok } from "@tanstack/ai-openrouter/byok";
 
 export async function POST(request: Request) {
   const params = await chatParamsFromRequest(request);

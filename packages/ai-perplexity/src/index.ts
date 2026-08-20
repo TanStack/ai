@@ -1,5 +1,3 @@
-export { perplexityByok } from './byok'
-
 export {
   PerplexitySearchClient,
   perplexitySearchTool,

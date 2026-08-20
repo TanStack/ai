@@ -4,8 +4,6 @@
  * Vercel AI Gateway adapter for TanStack AI.
  */
 
-export { vercelGatewayByok } from './byok'
-
 export {
   VercelGatewayTextAdapter,
   type VercelGatewayTextConfig,

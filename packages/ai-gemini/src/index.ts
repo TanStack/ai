@@ -1,5 +1,3 @@
-export { geminiByok } from './byok'
-
 // ===========================
 // New tree-shakeable adapters
 // ===========================

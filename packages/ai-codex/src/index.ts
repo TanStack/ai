@@ -1,4 +1,3 @@
-export { codexByok } from './byok'
 export { CodexTextAdapter, codexText } from './adapters/text'
 export type {
   CodexTextConfig,
