@@ -23,8 +23,8 @@ Create one `ByokClient` for the app. `defaultByokStorage()` uses a passkey when 
 
 ```typescript
 import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
-import { openaiByok } from "@tanstack/ai-openai";
-import { anthropicByok } from "@tanstack/ai-anthropic";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+import { anthropicByok } from "@tanstack/ai-anthropic/byok";
 
 export const byok = defineByok({
   storage: defaultByokStorage(),
@@ -32,7 +32,7 @@ export const byok = defineByok({
 });
 ```
 
-Each adapter exports a `{ id, label, env?, validate? }` object. `id` is the slug and is required. `env` is the env var **name** (or a list of names) — not a `process.env` read. This object is safe to import on the client. Pass those objects into `providers` so `byok.validate()` can hit the adapter's check URL.
+Each adapter exports a `{ id, label, env?, validate? }` object from its `/byok` subpath (`@tanstack/ai-openai/byok`, `@tanstack/ai-anthropic/byok`, …). Import that subpath on the client — the adapter's main entry pulls in the provider SDK. `id` is the slug and is required. `env` is the env var **name** (or a list of names) — not a `process.env` read. Pass those objects into `providers` so `byok.validate()` can hit the adapter's check URL.
 
 If the server can fall back to an env key, tell the client. Then a send is not blocked when the browser has no key yet:
 
@@ -138,7 +138,7 @@ OpenRouter can mint a key via PKCE instead of a paste field. Import from `@tanst
 
 ```tsx
 import { useEffect } from "react";
-import { openrouterByok } from "@tanstack/ai-openrouter";
+import { openrouterByok } from "@tanstack/ai-openrouter/byok";
 import {
   completeOpenRouterPkceIntoByok,
   startOpenRouterPkceLogin,
@@ -177,7 +177,8 @@ import {
   chatParamsFromRequest,
   toServerSentEventsResponse,
 } from "@tanstack/ai";
-import { createOpenaiChat, openaiByok } from "@tanstack/ai-openai";
+import { createOpenaiChat } from "@tanstack/ai-openai";
+import { openaiByok } from "@tanstack/ai-openai/byok";
 import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
 
 export async function POST(request: Request) {

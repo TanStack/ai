@@ -31,6 +31,7 @@ export default mergeConfig(
   tanstackViteConfig({
     entry: [
       './src/index.ts',
+      './src/byok.ts',
       './src/model-meta.ts',
       './src/tools/index.ts',
       './src/pkce.ts',

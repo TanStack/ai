@@ -354,7 +354,7 @@ export const openaiByok = defineByokProvider({
 });
 ```
 
-Import the object from the adapter (`openaiByok` from `@tanstack/ai-openai`) and pass it to `defineByok({ providers })`. On the relay, pass the same object to `getByokKey` from `@tanstack/ai/byok/server`.
+Import the object from the adapter `/byok` subpath (`openaiByok` from `@tanstack/ai-openai/byok`) and pass it to `defineByok({ providers })`. The main adapter entry pulls in the provider SDK — do not import it on the client. On the relay, pass the same object to `getByokKey` from `@tanstack/ai/byok/server`.
 
 ### Parameters
 
@@ -375,7 +375,7 @@ The header wins. A `ByokProvider` then tries `provider.env` in order. A slug is 
 
 ```typescript
 import { getByokKey } from "@tanstack/ai/byok/server";
-import { openaiByok } from "@tanstack/ai-openai";
+import { openaiByok } from "@tanstack/ai-openai/byok";
 
 export async function POST(request: Request) {
   const apiKey = getByokKey(request, openaiByok);
@@ -398,7 +398,7 @@ Return a `401` JSON `Response` with `{ error: { type: "byok_missing", provider, 
 
 ```typescript
 import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
-import { openaiByok } from "@tanstack/ai-openai";
+import { openaiByok } from "@tanstack/ai-openai/byok";
 
 export async function POST(request: Request) {
   const apiKey = getByokKey(request, openaiByok);

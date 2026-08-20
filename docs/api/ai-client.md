@@ -474,7 +474,7 @@ export const byok = defineByok({ storage: defaultByokStorage() });
 ### Factory options
 
 - `storage?` - A `KeyringStorage` implementation. Default is `memoryStorage()` (session only, not saved)
-- `providers?` - Adapter-exported `{ id, label, env?, validate? }` objects. `id` is required. Their `validate` entries feed `byok.validate()`. `env` is env var names for the relay (`getByokKey` from `@tanstack/ai/byok/server`)
+- `providers?` - Adapter-exported `{ id, label, env?, validate? }` objects from each adapter's `/byok` subpath (`@tanstack/ai-openai/byok`). `id` is required. Their `validate` entries feed `byok.validate()`. `env` is env var names for the relay (`getByokKey` from `@tanstack/ai/byok/server`). Import `/byok` on the client — the adapter main entry pulls in the provider SDK
 - `validate?` - Optional per-slug `{ url, headers(key) }` map. Wins over `providers` for the same slug. Slugs without an entry stay `set`
 
 ### Methods
