@@ -1,9 +1,9 @@
 ---
-"@tanstack/ai": minor
-"@tanstack/ai-client": minor
-"@tanstack/ai-event-client": minor
-"@tanstack/ai-persistence": minor
-"@tanstack/ai-sandbox": minor
+'@tanstack/ai': minor
+'@tanstack/ai-client': minor
+'@tanstack/ai-event-client': minor
+'@tanstack/ai-persistence': minor
+'@tanstack/ai-sandbox': minor
 ---
 
 Put AG-UI extras under `metadata.tanstack` and make public `StreamChunk` spec-only.

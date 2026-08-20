@@ -211,7 +211,9 @@ export async function* translateSdkStream(
     partialReasoningId = null
   }
 
-  function* emitStructuredOutput(object: unknown): Generator<AdapterYieldChunk> {
+  function* emitStructuredOutput(
+    object: unknown,
+  ): Generator<AdapterYieldChunk> {
     const raw = JSON.stringify(object)
     const messageId = genId()
     yield structuredOutputStartChunk({
@@ -381,7 +383,9 @@ export async function* translateSdkStream(
     }
   }
 
-  function* handleResult(message: SdkResultMessage): Generator<AdapterYieldChunk> {
+  function* handleResult(
+    message: SdkResultMessage,
+  ): Generator<AdapterYieldChunk> {
     yield* closePartialText()
     yield* closePartialReasoning()
     yield* synthesizeUnresolvedResults()

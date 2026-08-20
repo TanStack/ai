@@ -100,12 +100,15 @@ async function* replay(): AsyncIterable<CodexThreadEvent> {
 
 async function fingerprintRun(genId: () => string): Promise<Array<string>> {
   const out: Array<string> = []
-  const chunks: AsyncIterable<AdapterYieldChunk> = translateThreadEvents(replay(), {
-    model: 'gpt-5.1-codex',
-    runId: 'run-1',
-    threadId: 'thread-1',
-    genId,
-  })
+  const chunks: AsyncIterable<AdapterYieldChunk> = translateThreadEvents(
+    replay(),
+    {
+      model: 'gpt-5.1-codex',
+      runId: 'run-1',
+      threadId: 'thread-1',
+      genId,
+    },
+  )
   for await (const chunk of chunks) out.push(chunkFingerprint(chunk))
   return out
 }

@@ -371,4 +371,3 @@ describe('normalizeStreamChunk', () => {
     ).toBe(false)
   })
 })
-

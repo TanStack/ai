@@ -2327,8 +2327,12 @@ describe('OpenRouter STEP event consistency', () => {
     // equivalent to the legacy STEP_FINISHED accumulator without losing data.
     const reasoningDeltas = chunks
       .filter(
-        (c): c is Extract<AdapterYieldChunk, { type: 'REASONING_MESSAGE_CONTENT' }> =>
-          c.type === 'REASONING_MESSAGE_CONTENT',
+        (
+          c,
+        ): c is Extract<
+          AdapterYieldChunk,
+          { type: 'REASONING_MESSAGE_CONTENT' }
+        > => c.type === 'REASONING_MESSAGE_CONTENT',
       )
       .map((c) => c.delta)
       .join('')
@@ -2505,8 +2509,12 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
       events.push(evt)
     }
     const runError = events.find(
-      (e): e is Extract<AdapterYieldChunk, { type: typeof EventType.RUN_ERROR }> =>
-        e.type === EventType.RUN_ERROR,
+      (
+        e,
+      ): e is Extract<
+        AdapterYieldChunk,
+        { type: typeof EventType.RUN_ERROR }
+      > => e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
     expect(runError!.message).toMatch(/empty text content/i)
@@ -2531,8 +2539,12 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
       events.push(evt)
     }
     const runError = events.find(
-      (e): e is Extract<AdapterYieldChunk, { type: typeof EventType.RUN_ERROR }> =>
-        e.type === EventType.RUN_ERROR,
+      (
+        e,
+      ): e is Extract<
+        AdapterYieldChunk,
+        { type: typeof EventType.RUN_ERROR }
+      > => e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
     expect(runError!.message).toMatch(/unsupported content part/i)

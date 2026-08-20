@@ -178,7 +178,9 @@ export async function* translateAcpStream(
     unresolvedToolCalls.clear()
   }
 
-  function* openToolCall(update: AcpToolCallUpdate): Generator<AdapterYieldChunk> {
+  function* openToolCall(
+    update: AcpToolCallUpdate,
+  ): Generator<AdapterYieldChunk> {
     if (knownToolCalls.has(update.toolCallId)) return
     knownToolCalls.add(update.toolCallId)
     const toolCallName = resolveToolName(update, ctx.bridgedToolNames)
@@ -219,7 +221,9 @@ export async function* translateAcpStream(
     unresolvedToolCalls.add(update.toolCallId)
   }
 
-  function* resolveToolCall(update: AcpToolCallUpdate): Generator<AdapterYieldChunk> {
+  function* resolveToolCall(
+    update: AcpToolCallUpdate,
+  ): Generator<AdapterYieldChunk> {
     yield* openToolCall(update)
     unresolvedToolCalls.delete(update.toolCallId)
     yield {
@@ -233,7 +237,9 @@ export async function* translateAcpStream(
     }
   }
 
-  function* handleUpdate(update: AcpSessionUpdate): Generator<AdapterYieldChunk> {
+  function* handleUpdate(
+    update: AcpSessionUpdate,
+  ): Generator<AdapterYieldChunk> {
     if (update.sessionUpdate === 'agent_message_chunk') {
       yield* closeReasoning()
       // Non-text content (image / audio / resource / resource_link): surface it

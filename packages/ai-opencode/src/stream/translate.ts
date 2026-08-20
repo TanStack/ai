@@ -355,7 +355,9 @@ export async function* translateOpencodeStream(
     // terminal `done` event and are ignored.
   }
 
-  function* finish(message: OpencodeAssistantMessage): Generator<AdapterYieldChunk> {
+  function* finish(
+    message: OpencodeAssistantMessage,
+  ): Generator<AdapterYieldChunk> {
     yield* startRun()
     yield* closeText()
     yield* closeReasoning()

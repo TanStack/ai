@@ -264,8 +264,12 @@ describe('OpenRouter responses adapter — request shape', () => {
       events.push(evt)
     }
     const runError = events.find(
-      (e): e is Extract<AdapterYieldChunk, { type: typeof EventType.RUN_ERROR }> =>
-        e.type === EventType.RUN_ERROR,
+      (
+        e,
+      ): e is Extract<
+        AdapterYieldChunk,
+        { type: typeof EventType.RUN_ERROR }
+      > => e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
     expect(runError!.message).toMatch(/openRouterText/)
@@ -284,8 +288,12 @@ describe('OpenRouter responses adapter — request shape', () => {
       events.push(evt)
     }
     const runError = events.find(
-      (e): e is Extract<AdapterYieldChunk, { type: typeof EventType.RUN_ERROR }> =>
-        e.type === EventType.RUN_ERROR,
+      (
+        e,
+      ): e is Extract<
+        AdapterYieldChunk,
+        { type: typeof EventType.RUN_ERROR }
+      > => e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
     expect(runError!.message).toMatch(/webFetchTool/)
@@ -571,8 +579,12 @@ describe('OpenRouter responses adapter — request shape', () => {
       events.push(evt)
     }
     const runError = events.find(
-      (e): e is Extract<AdapterYieldChunk, { type: typeof EventType.RUN_ERROR }> =>
-        e.type === EventType.RUN_ERROR,
+      (
+        e,
+      ): e is Extract<
+        AdapterYieldChunk,
+        { type: typeof EventType.RUN_ERROR }
+      > => e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
     expect(runError!.message.toLowerCase()).toMatch(

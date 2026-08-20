@@ -54,7 +54,9 @@ const FIXTURE: Array<GrokBuildStreamEvent> = [
   },
 ]
 
-async function translate(genId: () => string): Promise<Array<AdapterYieldChunk>> {
+async function translate(
+  genId: () => string,
+): Promise<Array<AdapterYieldChunk>> {
   async function* source() {
     for (const event of FIXTURE) yield event
   }

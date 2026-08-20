@@ -66,9 +66,7 @@ describe('fromSpecTokenUsage', () => {
 
   it('rebuilds from spec array alone', () => {
     expect(
-      fromSpecTokenUsage([
-        { inputTokens: 4, outputTokens: 5, totalTokens: 9 },
-      ]),
+      fromSpecTokenUsage([{ inputTokens: 4, outputTokens: 5, totalTokens: 9 }]),
     ).toEqual({
       promptTokens: 4,
       completionTokens: 5,

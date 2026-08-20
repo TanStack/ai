@@ -590,8 +590,10 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         .filter(
           (
             c,
-          ): c is Extract<AdapterYieldChunk, { type: 'REASONING_MESSAGE_CONTENT' }> =>
-            c.type === 'REASONING_MESSAGE_CONTENT',
+          ): c is Extract<
+            AdapterYieldChunk,
+            { type: 'REASONING_MESSAGE_CONTENT' }
+          > => c.type === 'REASONING_MESSAGE_CONTENT',
         )
         .map((c) => c.delta)
       expect(reasoningDeltas).toEqual([

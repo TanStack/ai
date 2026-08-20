@@ -342,7 +342,9 @@ export async function* translateThreadEvents(
     }
   }
 
-  function* handleItemCompleted(item: CodexThreadItem): Generator<AdapterYieldChunk> {
+  function* handleItemCompleted(
+    item: CodexThreadItem,
+  ): Generator<AdapterYieldChunk> {
     if (item.type === 'agent_message') {
       yield* handleAgentMessage(item, true)
     } else if (item.type === 'reasoning') {

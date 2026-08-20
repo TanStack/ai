@@ -1,9 +1,5 @@
 import type { InterruptSubmissionError } from '../interrupts'
-import type {
-  ContentPart,
-  StreamChunk,
-  ToolOutputState,
-} from '../types'
+import type { ContentPart, StreamChunk, ToolOutputState } from '../types'
 
 /**
  * Adapter / engine yield before normalize. Public StreamChunk is spec-only.

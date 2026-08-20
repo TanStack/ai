@@ -1371,7 +1371,9 @@ describe('Anthropic stream processing', () => {
       (c) =>
         c.type === 'TOOL_CALL_START' &&
         (c as { toolCallId: string }).toolCallId === 'srv_fetch',
-    ) as (AdapterYieldChunk & { metadata?: Record<string, unknown> }) | undefined
+    ) as
+      | (AdapterYieldChunk & { metadata?: Record<string, unknown> })
+      | undefined
     expect(serverStart).toBeDefined()
     expect(serverStart!.metadata).toMatchObject({
       providerExecuted: true,
@@ -1840,11 +1842,15 @@ describe('Anthropic stream processing', () => {
     }
 
     const textStart = chunks.find(
-      (chunk): chunk is Extract<AdapterYieldChunk, { type: 'TEXT_MESSAGE_START' }> =>
+      (
+        chunk,
+      ): chunk is Extract<AdapterYieldChunk, { type: 'TEXT_MESSAGE_START' }> =>
         chunk.type === 'TEXT_MESSAGE_START',
     )
     const toolStart = chunks.find(
-      (chunk): chunk is Extract<AdapterYieldChunk, { type: 'TOOL_CALL_START' }> =>
+      (
+        chunk,
+      ): chunk is Extract<AdapterYieldChunk, { type: 'TOOL_CALL_START' }> =>
         chunk.type === 'TOOL_CALL_START',
     )
 
