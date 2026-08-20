@@ -10,7 +10,7 @@ description: >
   "minimal solution", "yagni", "do less", or "shortest path", and whenever
   they complain about over-engineering, bloat, boilerplate, or unnecessary
   dependencies.
-argument-hint: "[lite|full|ultra]"
+argument-hint: '[lite|full|ultra]'
 license: MIT
 ---
 
@@ -63,13 +63,14 @@ Pattern: `[code] → skipped: [X], add when [Y].`
 
 ## Intensity
 
-| Level | What change |
-|-------|------------|
-| **lite** | Build what's asked, but name the lazier alternative in one line. User picks. |
-| **full** | The ladder enforced. Stdlib and native first. Shortest diff, shortest explanation. Default. |
+| Level     | What change                                                                                                                 |
+| --------- | --------------------------------------------------------------------------------------------------------------------------- |
+| **lite**  | Build what's asked, but name the lazier alternative in one line. User picks.                                                |
+| **full**  | The ladder enforced. Stdlib and native first. Shortest diff, shortest explanation. Default.                                 |
 | **ultra** | YAGNI extremist. Deletion before addition. Ship the one-liner and challenge the rest of the requirement in the same breath. |
 
 Example: "Add a cache for these API responses."
+
 - lite: "Done, cache added. FYI: `functools.lru_cache` covers this in one line if you'd rather not own a cache class."
 - full: "`@lru_cache(maxsize=1000)` on the fetch function. Skipped custom cache class, add when lru_cache measurably falls short."
 - ultra: "No cache until a profiler says so. When it does: `@lru_cache`. A hand-rolled TTL cache class is a bug farm with a hit rate."
