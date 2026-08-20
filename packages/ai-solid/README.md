@@ -407,7 +407,7 @@ export const Route = createFileRoute('/api/chat')({
         return toServerSentEventsResponse(
           chat({
             adapter: anthropicText(),
-            model: 'claude-sonnet-4-20250514',
+            model: 'claude-sonnet-4-6',
             messages,
             tools, // Tools with execute functions
           }),

@@ -42,7 +42,7 @@ const codeModeConfig = {
 const { toolsRegistry, systemPrompt, selectedSnippets } =
   await codeModeWithSnippets({
     config: codeModeConfig,
-    adapter: anthropic('claude-3-haiku'), // Cheap model for snippet selection
+    adapter: anthropic('claude-haiku-4-5'), // Cheap model for snippet selection
     snippets: {
       storage: snippetStorage,
       maxSnippetsInContext: 5,
@@ -52,7 +52,7 @@ const { toolsRegistry, systemPrompt, selectedSnippets } =
 
 // Use in chat
 const stream = chat({
-  adapter: anthropic('claude-sonnet-4-20250514'), // Main model
+  adapter: anthropic('claude-sonnet-4-6'), // Main model
   toolRegistry: toolsRegistry,
   messages,
   systemPrompts: [basePrompt, systemPrompt],

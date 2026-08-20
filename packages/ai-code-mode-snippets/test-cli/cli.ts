@@ -590,7 +590,7 @@ program
 
       try {
         const { anthropicText } = await import('@tanstack/ai-anthropic')
-        const modelName = model || 'claude-sonnet-4-20250514'
+        const modelName = model || 'claude-sonnet-4-6'
         adapter = anthropicText(modelName, { apiKey })
         logInfo(`Using Anthropic adapter with model: ${modelName}`)
       } catch (error) {
@@ -706,7 +706,7 @@ program
 
       try {
         const { anthropicText } = await import('@tanstack/ai-anthropic')
-        const modelName = model || 'claude-sonnet-4-20250514'
+        const modelName = model || 'claude-sonnet-4-6'
         adapter = anthropicText(modelName, { apiKey })
         logInfo(`Using Anthropic adapter with model: ${modelName}`)
       } catch (error) {
