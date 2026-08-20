@@ -1698,7 +1698,12 @@ describe('sandbox snapshot lifecycle foundation', () => {
       })),
     ).toEqual([
       { role: 'user', content: 'Persist this answer' },
-      { role: 'assistant', content: 'The completed answer' },
+      {
+        role: 'assistant',
+        content: 'The completed answer',
+        id: expect.any(String),
+        createdAt: expect.any(Date),
+      },
     ])
     expect(checkpoint?.files).toEqual([
       { kind: 'file', path: 'app.ts', size: 23, blobKey: expect.any(String) },
