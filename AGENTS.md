@@ -36,6 +36,23 @@ identical.
 Do not invent a title and body from memory. If you cannot load the skill,
 stop. A human-only `git push` in another terminal does not trigger this.
 
+## Ponytail skill (mandatory for Claude, Grok, and Codex)
+
+Before you plan, write, or edit application code, tests, or examples, you
+MUST load the `ponytail` skill and follow it. This is not optional.
+
+Use the Skill tool if this harness has one. If it does not, Read
+`.claude/skills/ponytail/SKILL.md` (copies also live at
+`.agents/skills/ponytail/SKILL.md` for Codex and
+`.grok/skills/ponytail/SKILL.md` for Grok). Keep those three files
+identical.
+
+Do not design or implement from memory of this file. If you cannot load the
+skill, stop.
+
+Ponytail does not skip this repo's quality gates, E2E tests, or the `docs`
+and `pr-description` skills. Load those when their own rules say so.
+
 ## Dependency Install
 
 Run `pnpm install` before starting any task and again after every merge with
