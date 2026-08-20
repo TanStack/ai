@@ -169,7 +169,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       ).toBe(true)
     })
 
-    it('returns false for upstream models the upstream gate excludes', () => {
+    it('returns false for catalog models without structured_outputs support', () => {
       expect(
         createOpenRouterText(
           'anthropic/claude-opus-4.1',
@@ -178,13 +178,13 @@ describe('OpenRouter combined tools + outputSchema', () => {
       ).toBe(false)
       expect(
         createOpenRouterText(
-          'openai/gpt-4o-2024-05-13',
+          'anthropic/claude-sonnet-4',
           'k',
         ).supportsCombinedToolsAndSchema(),
       ).toBe(false)
       expect(
         createOpenRouterText(
-          'openai/gpt-4o-mini-2024-07-18',
+          'anthropic/claude-3-haiku',
           'k',
         ).supportsCombinedToolsAndSchema(),
       ).toBe(false)
@@ -199,7 +199,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       ).toBe(true)
       expect(
         createOpenRouterResponsesText(
-          'openai/gpt-4o-2024-05-13',
+          'anthropic/claude-sonnet-4',
           'k',
         ).supportsCombinedToolsAndSchema(),
       ).toBe(false)
@@ -215,7 +215,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       ).toBe(true)
       expect(
         adapter.supportsCombinedToolsAndSchema({
-          models: ['openai/gpt-4o-2024-05-13'],
+          models: ['anthropic/claude-sonnet-4'],
         }),
       ).toBe(false)
     })
@@ -231,7 +231,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
       ).toBe(true)
       expect(
         openRouterSupportsCombinedToolsAndSchema('openai/gpt-4o', {
-          models: ['openai/gpt-4o-2024-05-13:nitro'],
+          models: ['anthropic/claude-sonnet-4:nitro'],
         }),
       ).toBe(false)
     })
@@ -303,14 +303,14 @@ describe('OpenRouter combined tools + outputSchema', () => {
           properties: { answer: { type: 'string' } },
           required: ['answer'],
         },
-        modelOptions: { models: ['openai/gpt-4o-2024-05-13'] },
+        modelOptions: { models: ['anthropic/claude-sonnet-4'] },
       })) {
         // drain
       }
 
       const params = mockChatSend.mock.calls[0]![0].chatRequest
       expect(params.responseFormat).toBeUndefined()
-      expect(params.models).toEqual(['openai/gpt-4o-2024-05-13'])
+      expect(params.models).toEqual(['anthropic/claude-sonnet-4'])
       expect(params.tools).toBeDefined()
     })
   })

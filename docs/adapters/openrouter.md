@@ -119,15 +119,12 @@ upstream models OpenRouter can return the typed object in that same streaming
 request, so the engine does not make a second finalization call.
 
 That happens only when **every** model that can receive the request is in
-`OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`. The set is the upstream models
-that already support this combined mode:
-
-- Anthropic Claude 4.5 and later
-- Gemini 3.x text models
-- Grok 4.x (not the multi-agent variant)
-- OpenAI models from the `gpt-4o-2024-08-06` strict JSON Schema era onward
-  (the unpinned `openai/gpt-4o-mini` alias is included; the dated pin
-  `openai/gpt-4o-mini-2024-07-18` is not)
+`OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS`. The set is generated from
+OpenRouter's catalog on every model sync: every chat model whose
+`supported_parameters` include `structured_outputs`, `tools` and `tool_choice`
+(Claude 4.5+, Gemini 2.5+, GPT-4o+, Grok 4, DeepSeek V3+, Llama 3.1+, and so
+on). Models OpenRouter does not flag, such as `anthropic/claude-opus-4.1`, stay
+on the legacy two-call path.
 
 If any fallback in `modelOptions.models` is outside that set, OpenRouter keeps
 the two-call path. Routing suffixes such as `:nitro` do not change the gate.

@@ -884,7 +884,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Perplexity Search",
