@@ -93,6 +93,7 @@ Notes:
 | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `tests/delivery-durability.spec.ts`    | Transport layer: offset-tagged log, `Last-Event-ID` reconnect, second-tab join, SSE + NDJSON                                                                |
 | `tests/persistence-durability.spec.ts` | Client layer: a browser refresh restores the conversation and any pending interrupt                                                                         |
+| `tests/join-run-client-tool.spec.ts`   | Mid-run reload: `joinRun` replay that ends on a client tool drains the continuation (issue #1058)                                                           |
 | `tests/sandbox-durability.spec.ts`     | Sandbox instances: a second run resumes the persisted sandbox                                                                                               |
 | `tests/durable-takeover.spec.ts`       | Takeover with log alignment, detach-on-disconnect, out-of-band cancel in both bands, cancel-vs-disconnect divergence, and the superseded-driver epoch fence |
 
@@ -128,6 +129,7 @@ E2E coverage is mandatory for every feature, bug fix, or behavior change (see th
 | Tool system change                      | Add scenario to `tools-test-scenarios.ts` + test in `tools-test/` specs.                                                                                                                                   |
 | Middleware change                       | Add test to `middleware.spec.ts` with appropriate scenario.                                                                                                                                                |
 | Client-side change (useChat, etc.)      | Add test covering the observable behavior change.                                                                                                                                                          |
+| joinRun + client-tool continuation      | Add a spec that reloads mid-run, tails with `joinRun`, and asserts the client-tool result POSTs after replay (see `tests/join-run-client-tool.spec.ts`).                                                   |
 | Durable/detachable run + takeover       | Add a spec that disconnects mid-stream, reconnects with the same `runId`, and asserts the resumed stream continues from the aligned offset instead of restarting the agent.                                |
 | Out-of-band cancel vs. plain disconnect | Add a case distinguishing `requestRunCancel`/`wasCancelRequested` (durable cancel — record ends `'aborted'`) from an unrequested disconnect on a detachable run (record stays `'running'`, resumable).     |
 | New run-store backend                   | Run `runPersistenceConformance` from `packages/ai-persistence/src/testkit/` against it; it now pins `undefined` vs. explicit `false` on `cancelRequested` and absent vs. explicit `undefined` on `update`. |

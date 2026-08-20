@@ -1691,7 +1691,12 @@ describe('sandbox snapshot lifecycle foundation', () => {
 
     const checkpoint = await f.checkpoints.get('checkpoint-run-1')
     expect(checkpoint).not.toBeNull()
-    expect(checkpoint?.conversation).toEqual([
+    expect(
+      checkpoint?.conversation.map((message) => ({
+        role: message.role,
+        content: message.content,
+      })),
+    ).toEqual([
       { role: 'user', content: 'Persist this answer' },
       { role: 'assistant', content: 'The completed answer' },
     ])

@@ -243,7 +243,7 @@
           "label": "Advanced",
           "to": "resumable-streams/advanced",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "WebSockets",

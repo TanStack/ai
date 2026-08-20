@@ -14,6 +14,7 @@ import { Route as ToolsTestRouteImport } from './routes/tools-test'
 import { Route as PersistenceDurabilityRouteImport } from './routes/persistence-durability'
 import { Route as MiddlewareTestRouteImport } from './routes/middleware-test'
 import { Route as MarkdownCjkRouteImport } from './routes/markdown-cjk'
+import { Route as JoinRunClientToolRouteImport } from './routes/join-run-client-tool'
 import { Route as InterruptsTestRouteImport } from './routes/interrupts-test'
 import { Route as GenerationPersistenceServerRouteImport } from './routes/generation-persistence-server'
 import { Route as GenerationPersistenceResumeRouteImport } from './routes/generation-persistence-resume'
@@ -61,6 +62,7 @@ import { Route as ApiMcpAppsChatRouteImport } from './routes/api.mcp-apps-chat'
 import { Route as ApiMcpAppsCallRouteImport } from './routes/api.mcp-apps-call'
 import { Route as ApiMaxToolCallsWireRouteImport } from './routes/api.max-tool-calls-wire'
 import { Route as ApiLazyToolsWireRouteImport } from './routes/api.lazy-tools-wire'
+import { Route as ApiJoinRunClientToolRouteImport } from './routes/api.join-run-client-tool'
 import { Route as ApiInterruptsTestRouteImport } from './routes/api.interrupts-test'
 import { Route as ApiImageRouteImport } from './routes/api.image'
 import { Route as ApiGenerationPersistenceServerRouteImport } from './routes/api.generation-persistence-server'
@@ -110,6 +112,11 @@ const MiddlewareTestRoute = MiddlewareTestRouteImport.update({
 const MarkdownCjkRoute = MarkdownCjkRouteImport.update({
   id: '/markdown-cjk',
   path: '/markdown-cjk',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const JoinRunClientToolRoute = JoinRunClientToolRouteImport.update({
+  id: '/join-run-client-tool',
+  path: '/join-run-client-tool',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InterruptsTestRoute = InterruptsTestRouteImport.update({
@@ -357,6 +364,11 @@ const ApiLazyToolsWireRoute = ApiLazyToolsWireRouteImport.update({
   path: '/api/lazy-tools-wire',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiJoinRunClientToolRoute = ApiJoinRunClientToolRouteImport.update({
+  id: '/api/join-run-client-tool',
+  path: '/api/join-run-client-tool',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiInterruptsTestRoute = ApiInterruptsTestRouteImport.update({
   id: '/api/interrupts-test',
   path: '/api/interrupts-test',
@@ -503,6 +515,7 @@ export interface FileRoutesByFullPath {
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
   '/interrupts-test': typeof InterruptsTestRoute
+  '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
@@ -528,6 +541,7 @@ export interface FileRoutesByFullPath {
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
+  '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -582,6 +596,7 @@ export interface FileRoutesByTo {
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
   '/interrupts-test': typeof InterruptsTestRoute
+  '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
@@ -607,6 +622,7 @@ export interface FileRoutesByTo {
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
+  '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -662,6 +678,7 @@ export interface FileRoutesById {
   '/generation-persistence-resume': typeof GenerationPersistenceResumeRoute
   '/generation-persistence-server': typeof GenerationPersistenceServerRoute
   '/interrupts-test': typeof InterruptsTestRoute
+  '/join-run-client-tool': typeof JoinRunClientToolRoute
   '/markdown-cjk': typeof MarkdownCjkRoute
   '/middleware-test': typeof MiddlewareTestRoute
   '/persistence-durability': typeof PersistenceDurabilityRoute
@@ -687,6 +704,7 @@ export interface FileRoutesById {
   '/api/generation-persistence-server': typeof ApiGenerationPersistenceServerRoute
   '/api/image': typeof ApiImageRouteWithChildren
   '/api/interrupts-test': typeof ApiInterruptsTestRoute
+  '/api/join-run-client-tool': typeof ApiJoinRunClientToolRoute
   '/api/lazy-tools-wire': typeof ApiLazyToolsWireRoute
   '/api/max-tool-calls-wire': typeof ApiMaxToolCallsWireRoute
   '/api/mcp-apps-call': typeof ApiMcpAppsCallRoute
@@ -743,6 +761,7 @@ export interface FileRouteTypes {
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
     | '/interrupts-test'
+    | '/join-run-client-tool'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
@@ -768,6 +787,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-server'
     | '/api/image'
     | '/api/interrupts-test'
+    | '/api/join-run-client-tool'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -822,6 +842,7 @@ export interface FileRouteTypes {
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
     | '/interrupts-test'
+    | '/join-run-client-tool'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
@@ -847,6 +868,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-server'
     | '/api/image'
     | '/api/interrupts-test'
+    | '/api/join-run-client-tool'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -901,6 +923,7 @@ export interface FileRouteTypes {
     | '/generation-persistence-resume'
     | '/generation-persistence-server'
     | '/interrupts-test'
+    | '/join-run-client-tool'
     | '/markdown-cjk'
     | '/middleware-test'
     | '/persistence-durability'
@@ -926,6 +949,7 @@ export interface FileRouteTypes {
     | '/api/generation-persistence-server'
     | '/api/image'
     | '/api/interrupts-test'
+    | '/api/join-run-client-tool'
     | '/api/lazy-tools-wire'
     | '/api/max-tool-calls-wire'
     | '/api/mcp-apps-call'
@@ -981,6 +1005,7 @@ export interface RootRouteChildren {
   GenerationPersistenceResumeRoute: typeof GenerationPersistenceResumeRoute
   GenerationPersistenceServerRoute: typeof GenerationPersistenceServerRoute
   InterruptsTestRoute: typeof InterruptsTestRoute
+  JoinRunClientToolRoute: typeof JoinRunClientToolRoute
   MarkdownCjkRoute: typeof MarkdownCjkRoute
   MiddlewareTestRoute: typeof MiddlewareTestRoute
   PersistenceDurabilityRoute: typeof PersistenceDurabilityRoute
@@ -1006,6 +1031,7 @@ export interface RootRouteChildren {
   ApiGenerationPersistenceServerRoute: typeof ApiGenerationPersistenceServerRoute
   ApiImageRoute: typeof ApiImageRouteWithChildren
   ApiInterruptsTestRoute: typeof ApiInterruptsTestRoute
+  ApiJoinRunClientToolRoute: typeof ApiJoinRunClientToolRoute
   ApiLazyToolsWireRoute: typeof ApiLazyToolsWireRoute
   ApiMaxToolCallsWireRoute: typeof ApiMaxToolCallsWireRoute
   ApiMcpAppsCallRoute: typeof ApiMcpAppsCallRoute
@@ -1076,6 +1102,13 @@ declare module '@tanstack/react-router' {
       path: '/markdown-cjk'
       fullPath: '/markdown-cjk'
       preLoaderRoute: typeof MarkdownCjkRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/join-run-client-tool': {
+      id: '/join-run-client-tool'
+      path: '/join-run-client-tool'
+      fullPath: '/join-run-client-tool'
+      preLoaderRoute: typeof JoinRunClientToolRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/interrupts-test': {
@@ -1407,6 +1440,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiLazyToolsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/join-run-client-tool': {
+      id: '/api/join-run-client-tool'
+      path: '/api/join-run-client-tool'
+      fullPath: '/api/join-run-client-tool'
+      preLoaderRoute: typeof ApiJoinRunClientToolRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/interrupts-test': {
       id: '/api/interrupts-test'
       path: '/api/interrupts-test'
@@ -1658,6 +1698,7 @@ const rootRouteChildren: RootRouteChildren = {
   GenerationPersistenceResumeRoute: GenerationPersistenceResumeRoute,
   GenerationPersistenceServerRoute: GenerationPersistenceServerRoute,
   InterruptsTestRoute: InterruptsTestRoute,
+  JoinRunClientToolRoute: JoinRunClientToolRoute,
   MarkdownCjkRoute: MarkdownCjkRoute,
   MiddlewareTestRoute: MiddlewareTestRoute,
   PersistenceDurabilityRoute: PersistenceDurabilityRoute,
@@ -1683,6 +1724,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiGenerationPersistenceServerRoute: ApiGenerationPersistenceServerRoute,
   ApiImageRoute: ApiImageRouteWithChildren,
   ApiInterruptsTestRoute: ApiInterruptsTestRoute,
+  ApiJoinRunClientToolRoute: ApiJoinRunClientToolRoute,
   ApiLazyToolsWireRoute: ApiLazyToolsWireRoute,
   ApiMaxToolCallsWireRoute: ApiMaxToolCallsWireRoute,
   ApiMcpAppsCallRoute: ApiMcpAppsCallRoute,

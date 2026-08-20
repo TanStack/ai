@@ -101,7 +101,9 @@ A durable run's producer is decoupled from the delivery socket. When the client
 disconnects (a page reload, a dropped connection), the response is cancelled but
 the run keeps draining into the log to its own terminal, so a reconnect or a
 mount-time `joinRun` tails it to completion. This is what makes a run resumable
-across a full reload, not just an in-session reconnect.
+across a full reload, not just an in-session reconnect. If that replay ends on
+a client tool, the client sends the tool result after the replay finishes. That
+is the same path as a live stream.
 
 A run ends early only on a genuine cancel or a failure:
 
