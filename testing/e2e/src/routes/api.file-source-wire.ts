@@ -85,13 +85,19 @@ export const Route = createFileRoute('/api/file-source-wire')({
         // Adapters differ in how the cross-provider guard surfaces: some
         // yield a RUN_ERROR chunk, others throw before the stream starts.
         // Report both the same way so the spec has one shape to assert.
+        // Aimock can also emit RUN_ERROR after a successful mapping (it
+        // does not model `file_id`). Only file-source mapping/lookup
+        // errors fail this route.
         let runError: string | undefined
         try {
           for await (const chunk of chat({
             ...createChatOptions({ adapter }),
             messages,
           })) {
-            if (chunk.type === 'RUN_ERROR') {
+            if (
+              chunk.type === 'RUN_ERROR' &&
+              /file/.test(chunk.message ?? '')
+            ) {
               runError = chunk.message
             }
           }
