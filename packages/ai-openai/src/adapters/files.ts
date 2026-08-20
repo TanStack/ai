@@ -23,7 +23,7 @@ export interface OpenAIFilesConfig extends OpenAIClientConfig {
  * it by `file_id`. Pair with `openaiText()` (Responses API): reference the
  * returned handle in a message via `fileSourceFromHandle(handle)`.
  */
-export class OpenAIFilesAdapter extends BaseFilesAdapter {
+export class OpenAIFilesAdapter extends BaseFilesAdapter<'openai'> {
   readonly name = 'openai' as const
   protected client: OpenAI
   private readonly purpose: FilePurpose
@@ -35,7 +35,7 @@ export class OpenAIFilesAdapter extends BaseFilesAdapter {
     this.purpose = purpose ?? 'user_data'
   }
 
-  async upload(input: FileUploadInput): Promise<FileHandle> {
+  async upload(input: FileUploadInput): Promise<FileHandle<'openai'>> {
     const { blob, mimeType, filename } = normalizeFileUploadInput(input)
     const file = await toFile(blob, filename, {
       ...(mimeType ? { type: mimeType } : {}),
@@ -47,7 +47,7 @@ export class OpenAIFilesAdapter extends BaseFilesAdapter {
     return toFileHandle(result)
   }
 
-  async get(id: string): Promise<FileHandle> {
+  async get(id: string): Promise<FileHandle<'openai'>> {
     return toFileHandle(await this.client.files.retrieve(id))
   }
 
@@ -56,7 +56,7 @@ export class OpenAIFilesAdapter extends BaseFilesAdapter {
   }
 }
 
-function toFileHandle(file: FileObject): FileHandle {
+function toFileHandle(file: FileObject): FileHandle<'openai'> {
   return {
     id: file.id,
     provider: 'openai',

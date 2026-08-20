@@ -1397,11 +1397,18 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         | undefined
 
       if (isFileSource(part.source)) {
-        // The Chat Completions API references images only by URL/data URI, not
-        // by an uploaded file_id — point callers at the Responses adapter.
+        // The Chat Completions API references images only by URL/data URI,
+        // not by an uploaded file_id. Only mention the Responses alternative
+        // for OpenAI itself — compatible providers built on this base have no
+        // file_id-consuming endpoint at all.
         throw unsupportedFileSourceError(
           this.name,
-          'on the Chat Completions API — use the Responses adapter (e.g. openaiText) to reference an uploaded file by file_id',
+          // Only OpenAI's own chat-completions adapter (name 'openai-chat')
+          // has a Responses sibling to point at; other subclasses (Groq,
+          // Bedrock, BytePlus, compatible providers) have no file_id surface.
+          this.name === 'openai-chat'
+            ? 'on the Chat Completions API — use the Responses adapter (openaiText) to reference an uploaded file by file_id'
+            : 'on the Chat Completions API',
         )
       }
 

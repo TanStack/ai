@@ -11,6 +11,7 @@
 '@tanstack/ai-openrouter': patch
 '@tanstack/ai-ollama': patch
 '@tanstack/ai-bedrock': patch
+'@tanstack/ai-byteplus': patch
 ---
 
 feat(ai): native Files API support across providers (upload adapters + `file` content source)
@@ -19,4 +20,5 @@ Adds first-class support for provider **Files / storage APIs** so callers can up
 
 - **New tree-shakeable `files` adapter kind** — `openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, and `falFiles()`. Each exposes `upload()`, and (where the provider has a lifecycle API) `get()` / `delete()`. Drive them with the new `uploadFile()` / `getFile()` / `deleteFile()` activity functions. fal is upload-only.
 - **New `{ type: 'file' }` arm on `ContentPartSource`** — reference an uploaded handle in a chat message. Adapters map it to the right wire field: OpenAI (Responses) `input_image`/`input_file` `file_id`, Anthropic `file_id` message source (with the `files-api-2025-04-14` beta), Gemini `fileData.fileUri`, fal storage URL passthrough. Use `fileSourceFromHandle(handle)` to build the source from an uploaded `FileHandle`.
-- **Runtime provider routing** — a file handle only routes to the provider that issued it; adapters throw a clear error on a cross-provider handle, and providers/endpoints that can't consume a handle (image edits, Veo, Chat Completions images, Bedrock, Mistral, Grok, OpenRouter, Ollama) throw a clear "unsupported file source" error instead of silently mis-mapping.
+- **Runtime provider routing** — a file handle only routes to the provider that issued it; adapters throw a clear error on a cross-provider handle, and providers/endpoints that can't consume a handle (image edits, Veo, Chat Completions images, Bedrock, Mistral, Grok, OpenRouter, Ollama, BytePlus) throw a clear "unsupported file source" error instead of silently mis-mapping. Grok/Bedrock adapters built on the shared OpenAI Responses base are gated too (`supportsFileIdInput`), so an inherited `file_id` mapping can't leak to providers without a Files API.
+- **Provider-literal typed handles** — `FileHandle<'openai'>` etc. flow from each files adapter through `uploadFile()`, and `getFile()`/`deleteFile()` accept the handle itself, so cross-provider lifecycle calls fail at compile time. `fileSourceFromHandle` and `FileHandle` are also exported from the browser-safe `@tanstack/ai/client` entry.

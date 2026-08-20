@@ -43,7 +43,9 @@ export function assertOwnFileSource(
  * (image edits, Veo) rather than a reference.
  *
  * @param detail Optional context appended to the message (e.g. a modality or
- * endpoint name, or a pointer to the adapter that does support handles).
+ * endpoint name, or a pointer to the adapter that does support handles). When
+ * provided it replaces the generic remediation tail, so a site-specific hint
+ * ("pass inline bytes") is never contradicted by generic advice.
  */
 export function unsupportedFileSourceError(
   providerName: string,
@@ -51,7 +53,10 @@ export function unsupportedFileSourceError(
 ): Error {
   return new Error(
     `${providerName} does not support provider file-handle sources ` +
-      `({ type: 'file' })${detail ? ` ${detail}` : ''}. Pass a data or url ` +
-      `source, or upload via the provider's files adapter where supported.`,
+      `({ type: 'file' })` +
+      (detail
+        ? ` ${detail}.`
+        : `. Pass a data or url source, or upload via the provider's files ` +
+          `adapter where supported.`),
   )
 }
