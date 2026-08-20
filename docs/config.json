@@ -761,6 +761,11 @@
           "updatedAt": "2026-07-21"
         },
         {
+          "label": "Files API",
+          "to": "advanced/files-api",
+          "addedAt": "2026-07-08"
+        },
+        {
           "label": "Per-Model Type Safety",
           "to": "advanced/per-model-type-safety",
           "addedAt": "2026-04-15"

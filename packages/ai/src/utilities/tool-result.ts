@@ -11,7 +11,7 @@ const CONTENT_PART_TYPES = new Set([
 /**
  * Structural check for a single `ContentPart`. A text part must carry a string
  * `content`; every other modality must carry a `source` with `type` of
- * `'url' | 'data'` and a string `value`.
+ * `'url' | 'data' | 'file'` and a string `value`.
  */
 export function isContentPart(value: unknown): value is ContentPart {
   if (typeof value !== 'object' || value === null) return false
@@ -30,6 +30,8 @@ export function isContentPart(value: unknown): value is ContentPart {
   // sources don't. Requiring it here keeps the runtime guard consistent with
   // the type and avoids emitting `data:undefined;base64,...` downstream.
   if (src.type === 'data') return typeof src.mimeType === 'string'
+  // `file` sources reference a provider-issued handle and must name their issuer.
+  if (src.type === 'file') return typeof src.provider === 'string'
   return src.type === 'url'
 }
 

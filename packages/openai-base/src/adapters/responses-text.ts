@@ -1,4 +1,9 @@
-import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
+import {
+  EventType,
+  assertOwnFileSource,
+  isFileSource,
+  normalizeSystemPrompts,
+} from '@tanstack/ai'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   toRunErrorPayload,
@@ -1829,6 +1834,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         const imageMetadata = part.metadata as
           | { detail?: 'auto' | 'low' | 'high' }
           | undefined
+        if (isFileSource(part.source)) {
+          assertOwnFileSource(part.source, this.name)
+          return {
+            type: 'input_image',
+            file_id: part.source.value,
+            detail: imageMetadata?.detail || 'auto',
+          }
+        }
         if (part.source.type === 'url') {
           return {
             type: 'input_image',
@@ -1852,6 +1865,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
       case 'audio': {
+        if (isFileSource(part.source)) {
+          assertOwnFileSource(part.source, this.name)
+          return {
+            type: 'input_file',
+            file_id: part.source.value,
+          }
+        }
         if (part.source.type === 'url') {
           return {
             type: 'input_file',
@@ -1885,6 +1905,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           documentMetadata?.detail !== undefined
             ? { detail: documentMetadata.detail as 'low' | 'high' }
             : {}
+        if (isFileSource(part.source)) {
+          assertOwnFileSource(part.source, this.name)
+          return {
+            type: 'input_file',
+            file_id: part.source.value,
+            ...documentDetail,
+          }
+        }
         if (part.source.type === 'url') {
           // The Responses API fetches the PDF itself; filename and MIME
           // type are inferred from the response.
@@ -1947,7 +1975,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           ...documentDetail,
         }
       }
-
       case 'video':
       default:
         // OpenAI Responses API doesn't accept native video parts on this

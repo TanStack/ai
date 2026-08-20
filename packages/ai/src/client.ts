@@ -303,6 +303,7 @@ export type {
   AudioPart,
   ContentPart,
   ContentPartDataSource,
+  ContentPartFileSource,
   ContentPartSource,
   ContentPartUrlSource,
   CustomEvent,
