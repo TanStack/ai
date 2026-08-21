@@ -1464,9 +1464,9 @@ export class OpenRouterTextAdapter<
    * Handles backward compatibility with string content.
    */
   protected normalizeContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null) {
+    if (content === null || content === undefined) {
       return []
     }
     if (typeof content === 'string') {
@@ -1479,9 +1479,9 @@ export class OpenRouterTextAdapter<
    * Extracts text content from a content value that may be string, null, or ContentPart array.
    */
   protected extractTextContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null) {
+    if (content === null || content === undefined) {
       return ''
     }
     if (typeof content === 'string') {

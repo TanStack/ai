@@ -1067,9 +1067,9 @@ export class MistralTextAdapter<
    * Normalizes message content to an array of ContentPart.
    */
   private normalizeContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null) return []
+    if (content === null || content === undefined) return []
     if (typeof content === 'string') return [{ type: 'text', content }]
     return content
   }
@@ -1078,9 +1078,9 @@ export class MistralTextAdapter<
    * Extracts text content from a content value that may be string, null, or ContentPart array.
    */
   private extractTextContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null) return ''
+    if (content === null || content === undefined) return ''
     if (typeof content === 'string') return content
     return content
       .filter((p) => p.type === 'text')

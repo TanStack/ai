@@ -1431,9 +1431,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
    * Handles backward compatibility with string content.
    */
   protected normalizeContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null) {
+    if (content === null || content === undefined) {
       return []
     }
     if (typeof content === 'string') {
@@ -1446,9 +1446,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
    * Extracts text content from a content value that may be string, null, or ContentPart array.
    */
   protected extractTextContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null) {
+    // Tool-call-only assistant turns (e.g. an approval resume replaying the
+    // pending call) carry no text and arrive as `null` or `undefined`; both
+    // must collapse to '' rather than crash on `.filter`.
+    if (content === null || content === undefined) {
       return ''
     }
     if (typeof content === 'string') {
