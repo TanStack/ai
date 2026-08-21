@@ -72,6 +72,15 @@ and `pr-description` skills. Load those when their own rules say so.
 Run `pnpm install` before starting any task and again after every merge with
 `main`.
 
+## Adding a New Library
+
+When you add a new library under `packages/`, add a `workspace:*` override for
+it in `pnpm-workspace.yaml` under `overrides:` (e.g.
+`'@tanstack/ai-foo': workspace:*`) and run `pnpm install`. Every `packages/`
+library must have an entry — this forces any transitive or example dependency
+that references a published version onto the local workspace copy. Use
+`workspace:*` for internal deps in `package.json` as usual.
+
 ## Pre-PR Quality Gate (MANDATORY)
 
 **Before committing, run the narrowest meaningful quality checks for your
