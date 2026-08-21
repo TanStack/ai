@@ -11,7 +11,7 @@ title: mergeAgentTools
 function mergeAgentTools<TServerTools>(serverTools, clientTools): TServerTools;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:359](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L359)
+Defined in: [packages/ai/src/utilities/chat-params.ts:372](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L372)
 
 Merge a server-side tool array with the AG-UI client-declared tools
 received in the request body.
@@ -67,7 +67,7 @@ A merged array suitable for `chat({ tools })`.
 function mergeAgentTools<TServerTools>(serverTools, clientTools): MergedAgentTools<TServerTools>;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:362](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L362)
+Defined in: [packages/ai/src/utilities/chat-params.ts:375](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L375)
 
 Merge a server-side tool array with the AG-UI client-declared tools
 received in the request body.

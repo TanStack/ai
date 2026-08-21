@@ -17,7 +17,7 @@ function chatParamsFromRequestBody(body): Promise<{
      | null>
     | UIMessage<unknown>)[];
   parentRunId?: string;
-  resume?: ResumeEntry[];
+  resume?: RunAgentResumeItem[];
   runId: string;
   state: unknown;
   threadId: string;
@@ -25,7 +25,7 @@ function chatParamsFromRequestBody(body): Promise<{
 }>;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:208](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L208)
+Defined in: [packages/ai/src/utilities/chat-params.ts:221](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L221)
 
 Parse and validate an HTTP request body as an AG-UI `RunAgentInput`.
 
@@ -56,7 +56,7 @@ schema library, so this package pulls in no validation runtime of its own.
      \| `null`\>
     \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>)[];
   `parentRunId?`: `string`;
-  `resume?`: `ResumeEntry`[];
+  `resume?`: [`RunAgentResumeItem`](../type-aliases/RunAgentResumeItem.md)[];
   `runId`: `string`;
   `state`: `unknown`;
   `threadId`: `string`;
