@@ -31,7 +31,7 @@ The slug is an open id (`openai`, `bedrock`, `my-llm`): `[a-z][a-z0-9-]{0,63}`. 
 
 ## 1. Define the store
 
-```typescript
+```typescript group=byok
 import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
 import { openaiByok } from "@tanstack/ai-openai/byok";
 import { anthropicByok } from "@tanstack/ai-anthropic/byok";
@@ -50,7 +50,7 @@ Each `/byok` export is `{ id, label, env?, validate? }`. `id` is required. `env`
 
 By default, `prepare` **blocks the send** if the browser has no key (`ByokBlockedError`, `snapshot.prompt`). If your relay has env keys, say so:
 
-```typescript
+```typescript group=byok
 byok.setServerCoverage(true);
 ```
 
@@ -84,7 +84,7 @@ export function KeyForm() {
             setValue("");
             setError("");
           })
-          .catch((caught) => {
+          .catch((caught: unknown) => {
             setError(
               caught instanceof Error ? caught.message : "Could not save key",
             );

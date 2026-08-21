@@ -9,6 +9,9 @@ const config = defineConfig({
     watch: false,
     globals: true,
     environment: 'node',
+    // In-sandbox adapter tests spawn a real local-process sandbox.
+    // Under Nx parallel load the default 5s budget is too tight.
+    testTimeout: 30_000,
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',

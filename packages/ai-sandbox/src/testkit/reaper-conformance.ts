@@ -132,6 +132,12 @@ export interface ReaperConformanceConfig {
    * can in fact follow.
    */
   followUnsupported?: { reason: string }
+  /**
+   * Declare that this provider cannot run GNU `stat -c '%Y %n'`. The three
+   * age-gate cases skip with this reason. Docker alpine is the authority on
+   * the witness line; local-process on Darwin is BSD `stat`.
+   */
+  mtimeListUnsupported?: { reason: string }
 }
 
 /** Poll interval handed to providers that cannot follow a growing file. */
@@ -712,9 +718,21 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
     // -----------------------------------------------------------------------
     // 2. The age gate on a real shell.
     // -----------------------------------------------------------------------
-    it(
+    const mtimeSkip = config.mtimeListUnsupported
+    const itMtime = (
+      title: string,
+      timeout: number,
+      fn: () => Promise<void>,
+    ) =>
+      it(
+        mtimeSkip ? `${title} (unsupported: ${mtimeSkip.reason})` : title,
+        { timeout, skip: Boolean(mtimeSkip) },
+        fn,
+      )
+
+    itMtime(
       "emits stat's self-witness line for a populated directory, so the age gate is usable",
-      { timeout: 60_000 },
+      60_000,
       async () => {
         const { handle, dispose } = await config.createHandle()
         const dir = caseDir()
@@ -745,9 +763,9 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
       },
     )
 
-    it(
+    itMtime(
       'reports an EMPTY journal directory as witness-only rather than unavailable',
-      { timeout: 60_000 },
+      60_000,
       async () => {
         const { handle, dispose } = await config.createHandle()
         const dir = caseDir()
@@ -783,9 +801,9 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
       },
     )
 
-    it(
+    itMtime(
       'keeps an orphan younger than orphanTtlMs and sweeps the older one, in the same pass',
-      { timeout: 120_000 },
+      120_000,
       async () => {
         const { handle, dispose } = await config.createHandle()
         const dir = caseDir()

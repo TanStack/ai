@@ -205,7 +205,7 @@ describe('ChatClient byok', () => {
     const client = new ChatClient({
       connection: recordingConnection({}),
       byok,
-      id: 'chat-1',
+      threadId: 'chat-1',
       persistence,
       forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
     })

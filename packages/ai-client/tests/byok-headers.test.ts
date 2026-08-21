@@ -4,10 +4,11 @@ import {
   fetchServerSentEvents,
   fetcherToConnectionAdapter,
 } from '../src/connection-adapters'
+import type { ChatFetcher } from '../src/types'
 
 describe('runContext.headers', () => {
   it('merges BYOK headers onto the fetch request', async () => {
-    const fetchClient = vi.fn(async () => byokMissing('openai'))
+    const fetchClient = vi.fn<typeof fetch>(async () => byokMissing('openai'))
     const connection = fetchServerSentEvents('/api/chat', { fetchClient })
     const runContext = {
       threadId: 't1',
@@ -24,15 +25,15 @@ describe('runContext.headers', () => {
         void _chunk
       }
     }).rejects.toBeInstanceOf(ByokMissingError)
-    const init = fetchClient.mock.calls[0]?.[1] as RequestInit
-    const headers = new Headers(init.headers)
+    const init = fetchClient.mock.calls[0]![1]
+    const headers = new Headers(init?.headers)
     expect(headers.get('x-byok-openai')).toBe('sk-live')
-    const body = JSON.parse(String(init.body)) as { forwardedProps?: unknown }
+    const body = JSON.parse(String(init?.body)) as { forwardedProps?: unknown }
     expect(JSON.stringify(body)).not.toContain('sk-live')
   })
 
   it('passes headers into a ChatFetcher', async () => {
-    const fetcher = vi.fn(async () => byokMissing('openai'))
+    const fetcher = vi.fn<ChatFetcher>(async () => byokMissing('openai'))
     const adapter = fetcherToConnectionAdapter(fetcher)
     const abort = new AbortController()
     await expect(async () => {
@@ -44,7 +45,7 @@ describe('runContext.headers', () => {
         void _chunk
       }
     }).rejects.toThrow()
-    expect(fetcher.mock.calls[0]?.[1]).toMatchObject({
+    expect(fetcher.mock.calls[0]![1]).toMatchObject({
       headers: { 'x-byok-openai': 'sk-live' },
     })
   })

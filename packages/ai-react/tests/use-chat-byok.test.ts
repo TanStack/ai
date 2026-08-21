@@ -82,7 +82,7 @@ describe('useChat byok', () => {
           byok,
           byokProvider: () => provider,
         }),
-      { initialProps: { provider: 'openai' as const } },
+      { initialProps: { provider: 'openai' as 'openai' | 'anthropic' } },
     )
 
     rerender({ provider: 'anthropic' })
