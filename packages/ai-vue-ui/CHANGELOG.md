@@ -1,5 +1,77 @@
 # @tanstack/ai-vue-ui
 
+## 0.2.39
+
+### Patch Changes
+
+- Updated dependencies [[`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai-vue@0.18.0
+
+## 0.2.38
+
+### Patch Changes
+
+- Updated dependencies [[`f6b9d89`](https://github.com/TanStack/ai/commit/f6b9d89e7365f0cb30a41cf3a46b7dd237fbc73c), [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd)]:
+  - @tanstack/ai-vue@0.17.0
+
+## 0.2.37
+
+### Patch Changes
+
+- [#1071](https://github.com/TanStack/ai/pull/1071) [`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e) - fix: publish internal dependency ranges as `^x.y.z` instead of exact pins
+
+  Internal dependencies on other TanStack AI packages used `workspace:*` in
+  `dependencies` and `peerDependencies`. pnpm rewrites that to an **exact** version
+  at publish time, so a released package asked for e.g. `@tanstack/ai-utils@0.4.0`
+  rather than `^0.4.0`.
+
+  Two consequences for consumers:
+  - **Duplicate copies.** An exact pin cannot dedupe. Installing a newer
+    `@tanstack/ai` alongside a package pinned to the previous patch produced two
+    copies in the tree, which breaks `instanceof` checks and module-level state,
+    and inflates bundles.
+  - **Unsatisfiable peers.** An exactly pinned `peerDependency` conflicts the
+    moment the internal package ships its next patch, forcing consumers into
+    overrides or `--legacy-peer-deps`.
+
+  These fields now use `workspace:^`, which publishes as `^x.y.z`. Every package
+  here is still `0.x`, so `^0.43.1` resolves to `0.43.x` only — patches dedupe
+  cleanly and no breaking minor is ever pulled in.
+
+  `devDependencies` deliberately keep `workspace:*`: they are never published, and
+  `*` correctly means "always build against the local copy".
+
+- Updated dependencies [[`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e)]:
+  - @tanstack/ai-vue@0.16.2
+
+## 0.2.36
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.16.1
+
+## 0.2.35
+
+### Patch Changes
+
+- Updated dependencies [[`7499171`](https://github.com/TanStack/ai/commit/74991716aea4d90a5d0363676a1e3349689a48e8)]:
+  - @tanstack/ai-vue@0.16.0
+
+## 0.2.34
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-vue@0.15.1
+
+## 0.2.33
+
+### Patch Changes
+
+- Updated dependencies [[`35946e3`](https://github.com/TanStack/ai/commit/35946e3c39fb123c133ebe662f8e2cf0139f2b8c)]:
+  - @tanstack/ai-vue@0.15.0
+
 ## 0.2.32
 
 ### Patch Changes

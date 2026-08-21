@@ -11,7 +11,7 @@ Adapter interface for generating provider-specific tokens
 
 ## Properties
 
-### generateToken()
+### generateToken
 
 ```ts
 generateToken: () => Promise<RealtimeToken>;

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-anthropic",
-  "version": "0.16.2",
+  "version": "0.16.9",
   "description": "Anthropic Claude adapter for TanStack AI chat, tool calling, thinking, and structured outputs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -50,16 +50,16 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.97.1",
-    "@tanstack/ai-utils": "workspace:*"
+    "@tanstack/ai-utils": "workspace:^"
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
@@ -67,7 +67,7 @@
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.10",
     "zod": "^4.2.0"
   }
 }

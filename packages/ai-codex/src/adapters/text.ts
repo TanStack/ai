@@ -3,13 +3,20 @@ import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   SandboxCapability,
+  alignedIfAttaching,
   createBridgeEventChannel,
+  createRunScopedIdGen,
+  encodeRunId,
   getSandbox,
+  getSandboxDurability,
   getSandboxPolicy,
   getToolBridgeProvisioner,
   getWorkspaceProjection,
+  journalOptionsFor,
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
+  resolveDurableRunId,
+  resolveDurableThreadId,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
@@ -44,6 +51,21 @@ export type CodexApprovalMode =
 
 const DEFAULT_WORKDIR = '/workspace'
 
+/**
+ * Providers that already isolate the agent in a VM or container where Codex
+ * cannot create a nested bubblewrap user namespace. Isolation is then the
+ * outer sandbox plus `defineSandboxPolicy`. Issue #1081 item 8.
+ */
+const NESTED_BWRAP_UNSUPPORTED = new Set(['daytona', 'cloudflare'])
+
+function defaultSandboxMode(provider: string): CodexSandboxMode {
+  return NESTED_BWRAP_UNSUPPORTED.has(provider)
+    ? 'danger-full-access'
+    : 'workspace-write'
+}
+
+export type CodexAuthMode = 'host' | 'api-key'
+
 export interface CodexTextConfig {
   /** Working directory inside the sandbox. Defaults to `/workspace`. */
   cwd?: string
@@ -67,6 +89,11 @@ export interface CodexTextConfig {
   additionalDirectories?: Array<string>
   /** Path/name of the codex executable inside the sandbox. Defaults to `codex`. */
   codexExecutable?: string
+  /**
+   * `'api-key'` (default) expects `CODEX_API_KEY` in the process or sandbox
+   * secrets. `'host'` uses `codex login`. Not inferred from the sandbox.
+   */
+  authMode?: CodexAuthMode
   /** Extra environment variables for the codex process inside the sandbox. */
   env?: Record<string, string>
   /** Extra raw `--config key=value` overrides (values passed verbatim as TOML). */
@@ -119,24 +146,35 @@ export class CodexTextAdapter<
     )
   }
 
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  combinedStructuredOutputSource(): 'event' {
+    return 'event'
+  }
+
   /** Mirror @openai/codex-sdk's `codex exec --experimental-json` invocation. */
   private buildCommand(
     options: TextOptions<CodexTextProviderOptions>,
     resume: string | undefined,
     bridge: HostToolBridge | undefined,
     policyFlags: CodexPolicyFlags,
+    provider: string,
+    outputSchemaPath: string | undefined,
   ): string {
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exe = config.codexExecutable ?? 'codex'
     const args: Array<string> = ['exec', '--experimental-json']
 
-    // Precedence: per-call modelOptions > adapter config > sandbox policy > default.
+    // Precedence: per-call modelOptions > adapter config > sandbox policy >
+    // provider default. Daytona/Cloudflare cannot nest bubblewrap.
     const sandboxMode =
       modelOptions?.sandboxMode ??
       config.sandboxMode ??
       policyFlags.sandboxMode ??
-      'workspace-write'
+      defaultSandboxMode(provider)
     const approvalPolicy =
       modelOptions?.approvalPolicy ??
       config.approvalPolicy ??
@@ -192,6 +230,10 @@ export class CodexTextAdapter<
       args.push('--config', q(`${key}=${value}`))
     }
 
+    if (outputSchemaPath !== undefined) {
+      args.push('--output-schema', q(outputSchemaPath))
+    }
+
     // Resume an existing thread (mirrors the SDK's `resume <threadId>`).
     if (resume !== undefined) args.push('resume', q(resume))
 
@@ -205,8 +247,33 @@ export class CodexTextAdapter<
     let bridge: HostToolBridge | undefined
     const tempFiles: Array<string> = []
     let cleanupSandbox: SandboxHandle | undefined
-    const runId = options.runId ?? this.generateId()
-    const threadId = options.threadId ?? this.generateId()
+    // Durability caveat: the journaled path below derives its journal file
+    // path from `runId` alone (see `journalPaths` in `@tanstack/ai-sandbox`),
+    // and a successor host must recompute that same path to resume this run.
+    // That is only possible when the caller supplies a stable `runId`.
+    // `resolveDurableRunId` enforces that when durability is wired (both
+    // `runs` and `durability.adapter` given to `withSandbox`) and preserves
+    // the generated fallback — `this.generateId()`, a fresh random id every
+    // call — when it is not, so a non-durable run's behavior is unchanged.
+    const durability = options.capabilities
+      ? getSandboxDurability(options.capabilities, { optional: true })
+      : undefined
+    const runId = resolveDurableRunId(options.runId, {
+      durable: durability !== undefined,
+      adapter: 'codex',
+      fallback: () => this.generateId(),
+    })
+    // `threadId` is stamped on every chunk `translateThreadEvents` emits, so an
+    // ATTACHING run that mints a fresh one replays a stream the stored log
+    // cannot match at index 0. `resolveDurableThreadId` refuses that up front
+    // instead of letting alignment discover it mid-stream; a durable FRESH run
+    // and a non-durable run both keep the generated fallback untouched.
+    const threadId = resolveDurableThreadId(options.threadId, {
+      durable: durability !== undefined,
+      attaching: durability?.attach === true,
+      adapter: 'codex',
+      fallback: () => this.generateId(),
+    })
     // Surfaces custom events from bridged tools (e.g. code mode console logs)
     // on this run's live output stream.
     const channel = createBridgeEventChannel({
@@ -257,11 +324,21 @@ export class CodexTextAdapter<
       const policy = options.capabilities
         ? getSandboxPolicy(options.capabilities, { optional: true })
         : undefined
+      let outputSchemaArg: string | undefined
+      if (options.outputSchema) {
+        const schemaFile = `.tanstack-output-schema-${encodeRunId(runId)}.json`
+        const schemaPath = `${cwd}/${schemaFile}`
+        await sandbox.fs.write(schemaPath, JSON.stringify(options.outputSchema))
+        tempFiles.push(schemaPath)
+        outputSchemaArg = schemaFile
+      }
       const command = this.buildCommand(
         options,
         resume,
         bridge,
         mapPolicyToCodexFlags(policy),
+        sandbox.provider,
+        outputSchemaArg,
       )
 
       logger.request(
@@ -277,12 +354,34 @@ export class CodexTextAdapter<
       let runCommand = command
       let stdinInput: string | undefined = fullPrompt
       if (sandbox.capabilities.writableStdin === false) {
-        const promptPath = `/tmp/tanstack-codex-prompt-${options.runId ?? this.generateId()}`
+        // Reuse the ALREADY-RESOLVED `runId`, not a fresh `options.runId ?? this.generateId()`
+        // re-derivation: the latter mints a SECOND random id whenever
+        // `options.runId` is absent, so the prompt file's suffix would not
+        // even match the journal path derived from the run's own `runId`
+        // above (see `resolveDurableRunId`). That mismatch is invisible
+        // (the prompt still gets read), but it defeats the whole point of a
+        // stable, caller-supplied `runId` for anything keyed off it.
+        // `encodeRunId`, because durability makes `runId` CALLER-chosen and this
+        // interpolates it into a filesystem path. Raw, a `/` would silently turn
+        // the basename into a nested path (writing outside `/tmp` or failing on a
+        // missing dir), `..` would climb out of it, and a long id would fail the
+        // spawn with `ENAMETOOLONG`. The encoder collapses every id to one
+        // bounded, injective path segment — the same one `journalPaths` uses, so
+        // the prompt file and the journal agree on how this id spells.
+        const promptPath = `/tmp/tanstack-codex-prompt-${encodeRunId(runId)}`
         await sandbox.fs.write(promptPath, fullPrompt)
         tempFiles.push(promptPath)
         runCommand = `${command} < ${q(promptPath)}`
         stdinInput = undefined
       }
+
+      // `undefined` whenever the run is not durable, so `spawnNdjson` takes its
+      // original, unjournaled path and behavior stays byte-identical to a
+      // pre-durability run. When durable, this also carries `attach`, which is
+      // how `spawnNdjson` decides to tail an EXISTING journal instead of
+      // starting a new agent — set by the attach route's `drive()` callback,
+      // never by an application's POST handler (see `SandboxDurabilityOptions.attach`).
+      const journalOptions = journalOptionsFor(durability, runId)
 
       const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
@@ -297,27 +396,58 @@ export class CodexTextAdapter<
           logger.provider(`provider=codex non-json line: ${line}`, {
             chunk: line,
           }),
+        // Route stdout through the in-sandbox journal so a resuming host can
+        // re-read it from byte 0 (see `@tanstack/ai-sandbox`'s journal.ts).
+        ...(journalOptions === undefined ? {} : { journal: journalOptions }),
       })
 
       async function* asEvents(): AsyncIterable<CodexThreadEvent> {
         for await (const event of rawEvents) yield event as CodexThreadEvent
       }
 
-      yield* mergeChunkStreams(
-        translateThreadEvents(asEvents(), {
-          model: this.model,
-          runId,
-          threadId,
-          ...(options.parentRunId !== undefined && {
-            parentRunId: options.parentRunId,
-          }),
-          genId: () => this.generateId(),
-          onThreadEvent: (event) =>
-            logger.provider(`provider=codex type=${event.type}`, {
-              chunk: event,
+      // Deterministic, run-scoped ids: journal replay re-translates the same
+      // journal bytes, and `this.generateId()` (Date.now() + Math.random())
+      // would mint different message ids on every replay. See
+      // chunk-identity.ts in `@tanstack/ai-sandbox` for why this is required.
+      const genId = createRunScopedIdGen(runId)
+
+      // `mergeChunkStreams` below interleaves `translateThreadEvents`'s
+      // deterministic output with `channel.stream` (host-tool-bridge CUSTOM
+      // events from LIVE tool execution — see `createBridgeEventChannel`
+      // above). Those events do not occur on a replay, so a takeover's replay
+      // is NOT chunk-for-chunk identical to what the log holds.
+      // `alignedIfAttaching` handles it: alignment skips stored out-of-band
+      // CUSTOM entries within a bounded window (see `align.ts`), so a
+      // bridged-tool run can be taken over without a spurious
+      // `JournalReplayDivergedError`, while a genuine determinism regression
+      // still throws. It is a no-op (passes the stream through untouched)
+      // whenever the run is not durable or is not attaching, so a
+      // non-durable run's output is unaffected byte for byte.
+      //
+      // The wrap goes OUTSIDE `mergeChunkStreams`, never around the pre-merge
+      // translator alone: the stored log holds the previous host's MERGED
+      // output, so comparing against anything else would compare against a
+      // stream the log never contained.
+      yield* alignedIfAttaching(
+        mergeChunkStreams(
+          translateThreadEvents(asEvents(), {
+            model: this.model,
+            runId,
+            threadId,
+            ...(options.parentRunId !== undefined && {
+              parentRunId: options.parentRunId,
             }),
-        }),
-        channel.stream,
+            genId,
+            ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
+            onThreadEvent: (event) =>
+              logger.provider(`provider=codex type=${event.type}`, {
+                chunk: event,
+              }),
+          }),
+          channel.stream,
+        ),
+        durability,
+        logger,
       )
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
@@ -358,8 +488,8 @@ export class CodexTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox Codex adapter. ' +
-          'Use a model adapter for structured output, or omit outputSchema.',
+        'This harness honors outputSchema on chat() in the same turn. ' +
+          'Pass outputSchema to chat(), or use a model adapter for a one-shot extract.',
       ),
     )
   }

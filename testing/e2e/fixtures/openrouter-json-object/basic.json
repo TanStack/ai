@@ -1,0 +1,12 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[json-object-wire] return a person as json"
+      },
+      "response": {
+        "content": "{\"name\":\"Alice\",\"age\":30}"
+      }
+    }
+  ]
+}

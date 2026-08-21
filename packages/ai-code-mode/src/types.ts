@@ -183,20 +183,20 @@ export interface CodeModeToolConfig {
 
   /**
    * Optional function to get additional bindings dynamically.
-   * Called at execution time (each execute_typescript call) to get current skill bindings.
+   * Called at execution time (each execute_typescript call) to get current snippet bindings.
    * These are merged with the static external_* bindings.
    *
-   * @returns Record of skill bindings with skill_ prefix
+   * @returns Record of snippet bindings with snippet_ prefix
    *
    * @example
    * ```typescript
-   * getSkillBindings: async () => {
-   *   const skills = await storage.loadAll()
-   *   return skillsToBindings(skills, 'skill_')
+   * getSnippetBindings: async () => {
+   *   const snippets = await storage.loadAll()
+   *   return snippetsToBindings(snippets, 'snippet_')
    * }
    * ```
    */
-  getSkillBindings?: () => Promise<Record<string, ToolBinding>>
+  getSnippetBindings?: () => Promise<Record<string, ToolBinding>>
 
   /**
    * How to surface tool parameters whose names look like secrets.
@@ -233,8 +233,8 @@ export interface CodeModeToolConfig {
    * and `await` in its input (the default wraps the code in an async function
    * internally to allow this).
    *
-   * NOTE: This only affects `createCodeModeTool`. The skills helpers
-   * (`skillsToTools`, `codeModeWithSkills` in `@tanstack/ai-code-mode-skills`)
+   * NOTE: This only affects `createCodeModeTool`. The snippet helpers
+   * (`snippetsToTools`, `codeModeWithSnippets` in `@tanstack/ai-code-mode-snippets`)
    * call the exported `stripTypeScript` directly, so they ignore this hook — but
    * they still get the edge-safe sucrase default, so #487 is fixed for them too;
    * they just can't be pointed at a different transpiler.
@@ -285,6 +285,7 @@ export interface CodeModeToolResult {
         message: string
         name?: string | undefined
         line?: number | undefined
+        stack?: string | undefined
       }
     | undefined
 }

@@ -37,7 +37,7 @@ const forbiddenPackages = new Set([
 ])
 
 const providerPackagePattern =
-  /^@tanstack\/ai-(anthropic|elevenlabs|fal|gemini|grok|groq|ollama|openai|openrouter)(?:\/|$)/
+  /^@tanstack\/ai-(anthropic|byteplus|elevenlabs|fal|gemini|grok|groq|ollama|openai|openrouter)(?:\/|$)/
 
 const forbiddenPackagePrefixes = ['@vue/']
 const builtins = new Set(

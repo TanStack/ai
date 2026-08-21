@@ -87,7 +87,12 @@ export class FalImageAdapter<TModel extends FalModel> extends BaseImageAdapter<
 
     try {
       const input = this.buildInput(options, resolved)
-      const result = await fal.subscribe(this.model, { input })
+      // Pass request-specific abortSignal only — never via fal.config(), which
+      // is global and would cancel concurrent generations from other calls.
+      const result = await fal.subscribe(this.model, {
+        input,
+        ...(options.abortSignal ? { abortSignal: options.abortSignal } : {}),
+      })
       return this.transformResponse(result)
     } catch (error) {
       logger.errors('fal.generateImage fatal', {

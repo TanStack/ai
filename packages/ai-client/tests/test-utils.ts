@@ -1,5 +1,8 @@
 import { vi } from 'vitest'
-import type { ConnectConnectionAdapter } from '../src/connection-adapters'
+import type {
+  ConnectConnectionAdapter,
+  SubscribeConnectionAdapter,
+} from '../src/connection-adapters'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai/client'
 import type { ChatClientPersistence, UIMessage } from '../src/types'
 
@@ -14,11 +17,7 @@ export function createUIMessage(
   return { id, role, parts: [{ type: 'text', content: text }] }
 }
 
-/**
- * Create a persistence adapter whose three methods are vitest spies. `getItem`
- * synchronously returns `initial` (defaults to `undefined`); override individual
- * methods via the returned object's `.mock*` helpers for async/error scenarios.
- */
+/** Mock message persistence adapter for ChatPersistor / ChatClient tests. */
 export function createMockPersistence(
   initial?: Array<UIMessage> | null,
 ): ChatClientPersistence {
@@ -28,6 +27,7 @@ export function createMockPersistence(
     removeItem: vi.fn(),
   }
 }
+
 /**
  * Options for creating a mock connection adapter
  */
@@ -132,6 +132,75 @@ export function createMockConnectionAdapter(
       }
     },
   }
+}
+
+/**
+ * Subscribe/send adapter that tests can push chunks into at any time.
+ *
+ * `ChatClient.processIncomingChunk` yields a `setTimeout(0)` after each chunk
+ * so React can paint. A test that pushes the next batch during that gap would
+ * lose the wake on a naive mock (the generator is not parked, so `wake()` is
+ * a no-op, then the generator parks on a new waiter and the chunk sits
+ * forever). This helper:
+ * - rechecks the queue after every yielded batch
+ * - rechecks again after parking the waiter, so a push in that window still
+ *   wakes
+ */
+export function createPushableSubscribeConnection(): {
+  connection: SubscribeConnectionAdapter
+  push: (...chunks: Array<StreamChunk>) => void
+} {
+  let wake: (() => void) | null = null
+  const queue: Array<StreamChunk> = []
+
+  const wakeWaiter = () => {
+    const resolve = wake
+    wake = null
+    resolve?.()
+  }
+
+  const connection: SubscribeConnectionAdapter = {
+    subscribe: (signal?: AbortSignal) => {
+      return (async function* () {
+        while (!signal?.aborted) {
+          if (queue.length > 0) {
+            const batch = queue.splice(0)
+            for (const chunk of batch) {
+              yield chunk
+            }
+            continue
+          }
+          await new Promise<void>((resolve) => {
+            if (signal?.aborted) {
+              resolve()
+              return
+            }
+            wake = resolve
+            const onAbort = () => {
+              if (wake === resolve) {
+                wake = null
+              }
+              resolve()
+            }
+            signal?.addEventListener('abort', onAbort, { once: true })
+            if (queue.length > 0 || signal?.aborted) {
+              wakeWaiter()
+            }
+          })
+        }
+      })()
+    },
+    send: async () => {
+      wakeWaiter()
+    },
+  }
+
+  const push = (...chunks: Array<StreamChunk>) => {
+    queue.push(...chunks)
+    wakeWaiter()
+  }
+
+  return { connection, push }
 }
 
 /**

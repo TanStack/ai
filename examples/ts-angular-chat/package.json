@@ -10,11 +10,11 @@
     "test:types": "node scripts/typecheck.mjs"
   },
   "dependencies": {
-    "@angular/common": "^21.2.0",
-    "@angular/compiler": "^21.2.0",
-    "@angular/core": "^21.2.0",
-    "@angular/forms": "^21.2.0",
-    "@angular/platform-browser": "^21.2.0",
+    "@angular/common": "^21.2.20",
+    "@angular/compiler": "^21.2.20",
+    "@angular/core": "^21.2.20",
+    "@angular/forms": "^21.2.20",
+    "@angular/platform-browser": "^21.2.20",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-angular": "workspace:*",
     "@tanstack/ai-client": "workspace:*",
@@ -25,11 +25,11 @@
   },
   "devDependencies": {
     "@analogjs/vite-plugin-angular": "^2.6.2",
-    "@angular/build": "^21.2.0",
+    "@angular/build": "^21.2.21",
     "@tailwindcss/vite": "^4.1.18",
     "@types/node": "^24.10.1",
     "dotenv": "^17.2.3",
     "typescript": "5.9.3",
-    "vite": "^7.3.3"
+    "vite": "^8.2.1"
   }
 }

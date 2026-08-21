@@ -2,12 +2,12 @@
 title: Workspace
 id: workspace
 order: 4
-description: "Describe what the agent sees inside the sandbox — source repo, package manager, setup commands, and named scripts — with one portable, harness-agnostic definition."
+description: "Describe what the agent sees inside the sandbox: source repo, package manager, setup commands, and named scripts, in one portable definition."
 ---
 
 The workspace is what the agent boots into: a cloned, installed repo with the
 commands you want it to run. `defineWorkspace()` describes that working tree
-once, portably — each harness adapter projects it into its own native format,
+once. Each harness adapter projects it into its own native format,
 and it runs inside whichever [provider](./providers) you chose. This page covers
 the working tree itself: `source`, `packageManager`, `setup`, and `scripts`.
 Secrets, skills, and MCP servers live on [Provisioning](./provisioning).
@@ -24,7 +24,7 @@ defineWorkspace({
   setup: ['corepack enable', 'pnpm install'],
   // Named commands the agent can run.
   scripts: { test: 'pnpm test', build: 'pnpm build' },
-  // Injected into the sandbox env at create/resume — never persisted.
+  // Injected into the sandbox env at create/resume, never persisted.
   secrets: createSecrets({ XAI_API_KEY: process.env.XAI_API_KEY ?? '' }),
 })
 ```
@@ -40,7 +40,7 @@ The fields:
 | `secrets`        | Typed secret refs injected into the env. See [Provisioning](./provisioning). |
 
 > `defineWorkspace()` also takes `skills`, `plugins`, and `instructions` for
-> provisioning the agent environment — those are covered on
+> provisioning the agent environment. Those are covered on
 > [Provisioning](./provisioning) rather than duplicated here.
 
 ## Source
@@ -62,7 +62,7 @@ defineWorkspace({ source: { type: 'git', url: 'https://github.com/owner/repo', r
 // An existing directory on the host (e.g. local-process dev loop).
 defineWorkspace({ source: { type: 'local', path: '/abs/path/to/repo' } })
 
-// No working tree — the agent starts in an empty workspace.
+// No working tree: the agent starts in an empty workspace.
 defineWorkspace({ source: { type: 'none' } })
 ```
 
@@ -80,13 +80,13 @@ for a specific history depth, or `'full'` to fetch everything:
 ```ts
 import { defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
 
-// Shallow clone (depth 1) — the default.
+// Shallow clone (depth 1) is the default.
 defineWorkspace({ source: githubRepo({ repo: 'owner/app' }) })
 
-// Explicit depth — fetches the last 10 commits.
+// Explicit depth: fetches the last 10 commits.
 defineWorkspace({ source: githubRepo({ repo: 'owner/app', depth: 10 }) })
 
-// Full history — disables the depth flag entirely.
+// Full history: disables the depth flag entirely.
 defineWorkspace({ source: githubRepo({ repo: 'owner/app', depth: 'full' }) })
 ```
 
@@ -100,8 +100,8 @@ infer it.
 ## Setup
 
 `setup` runs once during bootstrap to turn a freshly cloned repo into an
-installed one. It accepts either a plain string array — every step runs
-serially — or a builder callback that records serial and parallel groups.
+installed one. It accepts either a plain string array (every step runs serially) or
+a builder callback that records serial and parallel groups.
 
 The simplest form is the array, equivalent to all-serial:
 
@@ -117,7 +117,7 @@ defineWorkspace({
 The callback runs over a **persistent shell**: the working directory and
 environment carry over between steps, so a `cd` or `export` in a serial step is
 visible to the next one. Use `parallel([...])` to launch independent commands
-concurrently — they inherit the shell's cwd and env, and the next serial step
+concurrently. They inherit the shell's cwd and env, and the next serial step
 waits for all of them to finish:
 
 ```ts
@@ -140,6 +140,40 @@ defineWorkspace({
 > When the provider supports snapshots, bootstrap caches the result after
 > `setup` so subsequent runs skip it. See
 > [Lifecycle &amp; snapshots](./lifecycle).
+
+### Installing an agent CLI
+
+Every step runs through `sh -c`, and a step fails the bootstrap when its exit
+code is non-zero. When a step installs a harness CLI globally, make it verify the
+CLI before it returns. The agent CLIs (`@openai/codex`,
+`@anthropic-ai/claude-code`, …) ship their native binary as a platform-specific
+**optional** dependency, and npm treats optional dependencies as best-effort: a
+failed download is not an install error, so `npm install -g` exits `0` and leaves
+a CLI that dies later with `Missing optional dependency`. Running the CLI turns
+that into a loud bootstrap failure instead of a broken run:
+
+```ts
+import { defineWorkspace, githubRepo } from '@tanstack/ai-sandbox'
+
+const install = 'npm install -g @openai/codex --include=optional && codex --version'
+
+defineWorkspace({
+  source: githubRepo({ repo: 'owner/app' }),
+  // Retry once: the failure above is usually a transient download.
+  setup: [`${install} || { ${install} ; }`],
+})
+```
+
+Keep each command self-contained. Do not build a step by splicing one command
+into another (`` `${cmd} || sudo ${cmd}` ``): a command that starts with a
+subshell (like the Grok CLI installer, `(curl … || curl …) | bash`) is not a
+valid argument to another command, and `sh` then fails at parse time with
+`syntax error: unexpected "("` (exit `2`) without running anything.
+
+Some providers run as a non-root user. Workspace-local installs such as
+`pnpm install` do not need sudo. System or global package installs on those
+providers need non-interactive `sudo -n` in `setup`. See
+[Providers](./providers) and [Policy](./policy).
 
 ## Scripts
 

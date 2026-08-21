@@ -9,6 +9,8 @@ export type {
   GenerationAbortInfo,
   GenerationErrorInfo,
   AnyGenerationMiddleware,
+  GenerationResultTransform,
+  GenerationResultTransformContext,
 } from './types'
 export {
   createGenerationContext,

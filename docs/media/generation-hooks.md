@@ -19,6 +19,14 @@ keywords:
 
 TanStack AI provides framework hooks for every generation type: image, audio, speech, transcription, summarization, and video. Each hook connects to a server endpoint and manages loading, error, and result state for you.
 
+> **Surviving reloads and dropped connections:** every generation hook takes the
+> same `persistence` option `useChat` does, so a long run's status and result
+> come back after a page reload or a dropped connection. It restores by
+> `threadId`, which for a generation names the slot successive runs fill
+> (`product-7-hero`) rather than a conversation. See
+> [Id map](../persistence/id-map). Setup is in
+> [Generation Persistence](../persistence/generation-persistence).
+
 ## Overview
 
 Generation hooks share a consistent API across all media types:
@@ -33,7 +41,7 @@ Generation hooks share a consistent API across all media types:
 | `useGenerateVideo` | `VideoGenerateInput` | `VideoGenerateResult` |
 | `useGeneration` | Generic `TInput` | Generic `TResult` |
 
-Every hook returns the same core shape: `generate`, `result`, `isLoading`, `error`, `status`, `stop`, and `reset`. You provide either a `connection` (streaming transport) or a `fetcher` (direct async call).
+Every hook returns the same core shape: `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, and `runId` (the id of the job in flight, or `null`). You provide either a `connection` (streaming transport) or a `fetcher` (direct async call).
 
 ## Server Setup
 
@@ -389,7 +397,7 @@ function EmbeddingGenerator() {
 |--------|------|-------------|
 | `connection` | `ConnectConnectionAdapter` | Streaming transport (SSE, HTTP stream, custom) |
 | `fetcher` | `GenerationFetcher<TInput, TResult>` | Direct async function (no streaming protocol needed) |
-| `id` | `string` | Unique identifier for this generation instance |
+| `threadId` | `string` | Stable scope for this generation. Required when `persistence` is on. Optional for ephemeral runs. |
 | `body` | `Record<string, any>` | Additional body parameters sent with connection requests |
 | `onResult` | `(result: TResult) => TOutput \| null \| void` | Transform or react to results |
 | `onError` | `(error: Error) => void` | Error callback |

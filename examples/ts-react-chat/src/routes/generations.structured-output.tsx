@@ -80,7 +80,10 @@ const PROVIDER_MODELS: Record<
   // keys on the exact string, so any drift here silently breaks
   // combined-mode routing.
   gemini: [
+    { value: 'gemini-3.7-flash', label: 'Gemini 3.7 Flash' },
+    { value: 'gemini-3.6-flash', label: 'Gemini 3.6 Flash' },
     { value: 'gemini-3.5-flash', label: 'Gemini 3.5 Flash' },
+    { value: 'gemini-3.5-flash-lite', label: 'Gemini 3.5 Flash Lite' },
     { value: 'gemini-3-flash-preview', label: 'Gemini 3 Flash (Preview)' },
     { value: 'gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro (Preview)' },
     { value: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash Lite' },
@@ -247,7 +250,7 @@ function StructuredOutputPage() {
   }
 
   const chat = useChat({
-    id: 'structured-output:useChat',
+    threadId: 'structured-output:useChat',
     outputSchema: GuitarRecommendationSchema,
     connection: fetchServerSentEvents('/api/structured-output'),
     forwardedProps: { provider, model, stream },

@@ -1,5 +1,127 @@
 # @tanstack/ai-code-mode
 
+## 0.4.2
+
+### Patch Changes
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+
+## 0.4.1
+
+### Patch Changes
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b), [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a), [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b), [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd)]:
+  - @tanstack/ai@0.46.0
+
+## 0.4.0
+
+### Minor Changes
+
+- [#1114](https://github.com/TanStack/ai/pull/1114) [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d) - Rename Code Mode "skills" to "snippets" to disambiguate them from agent skills (the `SKILL.md` packaging system).
+
+  **Breaking — package rename.** `@tanstack/ai-code-mode-skills` is now published as **`@tanstack/ai-code-mode-snippets`**. Update your dependency and imports. The `/storage` subpath is unchanged.
+
+  **Breaking — API rename.** Every `Skill`/`skill` identifier in the package public API becomes `Snippet`/`snippet`, for example:
+  - `codeModeWithSkills()` → `codeModeWithSnippets()`
+  - `skillsToTools()` / `skillToTool()` → `snippetsToTools()` / `snippetToTool()`
+  - `skillsToBindings()` / `skillsToSimpleBindings()` → `snippetsToBindings()` / `snippetsToSimpleBindings()`
+  - `selectRelevantSkills()` → `selectRelevantSnippets()`
+  - `createSkillManagementTools()` → `createSnippetManagementTools()`
+  - `createSkillsSystemPrompt()` → `createSnippetsSystemPrompt()`
+  - `generateSkillTypes()` → `generateSnippetTypes()`
+  - `createFileSkillStorage()` / `createMemorySkillStorage()` → `createFileSnippetStorage()` / `createMemorySnippetStorage()`
+  - Types: `Skill`, `SkillStorage`, `SkillIndexEntry`, `SkillStats`, `SkillBinding`, `SkillsConfig`, `CodeModeWithSkillsOptions`/`Result` → the `Snippet…` equivalents
+  - Options: `skills` → `snippets`, `skillsAsTools` → `snippetsAsTools`, `maxSkillsInContext` → `maxSnippetsInContext`
+  - Runtime tools: `search_skills` / `get_skill` / `register_skill` → `search_snippets` / `get_snippet` / `register_snippet`
+  - Sandbox bindings are now exposed with the `snippet_` prefix (was `skill_`)
+
+  **Breaking — sandbox hook (`@tanstack/ai-code-mode`).** The `createCodeModeTool` config option `getSkillBindings` is renamed to **`getSnippetBindings`** (same signature — an optional `() => Promise<Record<string, ToolBinding>>` returning dynamic bindings merged at execution time).
+
+  **Breaking — wire contract (`@tanstack/ai`).** The Code Mode custom events are renamed: `code_mode:skill_call` / `_result` / `_error` → `code_mode:snippet_*` (payload field `skill` → `snippet`), and `skill:registered` → `snippet:registered`. The exported event types `CodeModeSkillCallEvent` / `CodeModeSkillResultEvent` / `CodeModeSkillErrorEvent` / `SkillRegisteredEvent` are renamed to their `Snippet` equivalents.
+
+### Patch Changes
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+
+## 0.3.11
+
+### Patch Changes
+
+- [#750](https://github.com/TanStack/ai/pull/750) [`b2b82e4`](https://github.com/TanStack/ai/commit/b2b82e4f88517c5b5c2d545810729cff7221c99e) - Add `@tanstack/ai-isolate-quickjs-bun`, a Code Mode isolate driver that runs QuickJS natively on the Bun runtime through `bun:ffi` (via [`quickjs-bun`](https://github.com/superpowerdotcom/quickjs-bun)).
+
+  It implements the same `IsolateDriver` contract as the existing drivers and is a drop-in replacement for `@tanstack/ai-isolate-quickjs` on Bun servers:
+
+  ```typescript
+  import { createQuickJSBunIsolateDriver } from '@tanstack/ai-isolate-quickjs-bun'
+  import { createCodeModeTool } from '@tanstack/ai-code-mode'
+
+  const executeTypescript = createCodeModeTool({
+    driver: createQuickJSBunIsolateDriver(),
+    tools: [myTool],
+  })
+  ```
+
+  Compared to the WASM driver:
+  - Native QuickJS through `bun:ffi` — no WebAssembly or asyncify overhead, and no native build step (the QuickJS sources are compiled once per process by Bun's embedded TinyCC).
+  - Each context gets a dedicated QuickJS runtime with its own memory and stack limits, so executions on different contexts are not serialized through a shared VM.
+  - Same normalized `MemoryLimitError` / `StackOverflowError` / `DisposedError` contract, console capture prefixes, and JSON tool-call protocol as the other drivers, plus a normalized `TimeoutError` for deadline expiry (the WASM driver surfaces timeouts as `InternalError: interrupted`).
+  - A configurable `maxToolCalls` limit (default 1000) bounds output and memory growth from untrusted sandbox code.
+
+  The driver requires Bun `>= 1.3.14` and throws an error when used on Node.js.
+
+  It pins `quickjs-bun` to an exact version (`0.1.2`) rather than a range, because that package is still pre-1.0 and compiles QuickJS through TinyCC/`bun:ffi` — its API and platform support may shift between patch releases (see the package README for the compatibility note and the Windows `QUICKJS_BUN_NATIVE_LIBRARY` requirement).
+
+  The `@tanstack/ai-code-mode` README and bundled skill are updated to document the new driver.
+
+- [#1071](https://github.com/TanStack/ai/pull/1071) [`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e) - fix: publish internal dependency ranges as `^x.y.z` instead of exact pins
+
+  Internal dependencies on other TanStack AI packages used `workspace:*` in
+  `dependencies` and `peerDependencies`. pnpm rewrites that to an **exact** version
+  at publish time, so a released package asked for e.g. `@tanstack/ai-utils@0.4.0`
+  rather than `^0.4.0`.
+
+  Two consequences for consumers:
+  - **Duplicate copies.** An exact pin cannot dedupe. Installing a newer
+    `@tanstack/ai` alongside a package pinned to the previous patch produced two
+    copies in the tree, which breaks `instanceof` checks and module-level state,
+    and inflates bundles.
+  - **Unsatisfiable peers.** An exactly pinned `peerDependency` conflicts the
+    moment the internal package ships its next patch, forcing consumers into
+    overrides or `--legacy-peer-deps`.
+
+  These fields now use `workspace:^`, which publishes as `^x.y.z`. Every package
+  here is still `0.x`, so `^0.43.1` resolves to `0.43.x` only — patches dedupe
+  cleanly and no breaking minor is ever pulled in.
+
+  `devDependencies` deliberately keep `workspace:*`: they are never published, and
+  `*` correctly means "always build against the local copy".
+
+- Updated dependencies [[`59aa8b5`](https://github.com/TanStack/ai/commit/59aa8b5049549246227c8f2cf736ce50d05205a5), [`ee07854`](https://github.com/TanStack/ai/commit/ee07854fd3d2d4bb279e6e4748802f7f9a5a7167), [`b785cc4`](https://github.com/TanStack/ai/commit/b785cc4ae382fb0e2a337199d192bd9335ac9249), [`47e2464`](https://github.com/TanStack/ai/commit/47e246480d29e2ab5a83ca684e047670e75ba66c), [`dd7ddf1`](https://github.com/TanStack/ai/commit/dd7ddf19283358adfbf61d057321d7daee3ca50d), [`6903978`](https://github.com/TanStack/ai/commit/690397804254dca638961c79b7941555edc52c02), [`fdb791a`](https://github.com/TanStack/ai/commit/fdb791a1c9c8de906eecf76f59743f697621b027), [`7aa4ae9`](https://github.com/TanStack/ai/commit/7aa4ae9d07d21195dd3d62598ac503f1dfdc79e4), [`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e)]:
+  - @tanstack/ai@0.44.0
+
+## 0.3.10
+
+### Patch Changes
+
+- Updated dependencies [[`ed44467`](https://github.com/TanStack/ai/commit/ed44467c5e701f0a4fcc1c9f5639d036de35d26a)]:
+  - @tanstack/ai@0.43.1
+
+## 0.3.9
+
+### Patch Changes
+
+- Updated dependencies [[`7499171`](https://github.com/TanStack/ai/commit/74991716aea4d90a5d0363676a1e3349689a48e8)]:
+  - @tanstack/ai@0.43.0
+
+## 0.3.8
+
+### Patch Changes
+
+- Updated dependencies [[`3e1b510`](https://github.com/TanStack/ai/commit/3e1b510e4fdd2334af468c47b7c37b572805200e)]:
+  - @tanstack/ai@0.42.0
+
 ## 0.3.7
 
 ### Patch Changes

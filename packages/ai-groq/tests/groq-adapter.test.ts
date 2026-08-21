@@ -12,6 +12,7 @@ import {
   createGroqText as _realCreateGroqText,
   groqText as _realGroqText,
 } from '../src/adapters/text'
+import { createGroqSummarize, groqSummarize } from '../src/adapters/summarize'
 import { EventType } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import type { GroqTextProviderOptions } from '../src/index'
@@ -186,6 +187,37 @@ describe('Groq adapters', () => {
         top_p: 0.8,
         max_completion_tokens: 128,
       })
+    })
+  })
+
+  describe('Summarize adapter', () => {
+    it('creates a summarize adapter with explicit API key', () => {
+      const adapter = createGroqSummarize(
+        'llama-3.3-70b-versatile',
+        'test-api-key',
+      )
+
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('summarize')
+      expect(adapter.name).toBe('groq')
+      expect(adapter.model).toBe('llama-3.3-70b-versatile')
+    })
+
+    it('creates a summarize adapter from environment variable', () => {
+      vi.stubEnv('GROQ_API_KEY', 'env-api-key')
+
+      const adapter = groqSummarize('llama-3.3-70b-versatile')
+
+      expect(adapter).toBeDefined()
+      expect(adapter.kind).toBe('summarize')
+    })
+
+    it('throws if GROQ_API_KEY is not set when using groqSummarize', () => {
+      vi.stubEnv('GROQ_API_KEY', '')
+
+      expect(() => groqSummarize('llama-3.3-70b-versatile')).toThrow(
+        'GROQ_API_KEY is required',
+      )
     })
   })
 })
@@ -471,6 +503,150 @@ describe('Groq AG-UI event emission', () => {
     if (runFinishedChunk?.type === 'RUN_FINISHED') {
       expect(runFinishedChunk.finishReason).toBe('tool_calls')
     }
+  })
+
+  it('emits a non-executable tool error for tool_use_failed', async () => {
+    const providerError = {
+      message: 'Failed to call a function. Please adjust your prompt.',
+      type: 'invalid_request_error',
+      code: 'tool_use_failed',
+      failed_generation: JSON.stringify({
+        name: 'lookup_weather',
+        arguments: { location: 'Berlin', units: 'celsius' },
+      }),
+    }
+    pendingMockCreate = vi.fn().mockRejectedValue(
+      Object.assign(new Error(providerError.message), {
+        code: providerError.code,
+        error: providerError,
+      }),
+    )
+
+    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+      tools: [weatherTool],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks.map((chunk) => chunk.type)).toEqual([
+      'RUN_STARTED',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'RUN_FINISHED',
+    ])
+    const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+    if (toolCallEnd?.type === 'TOOL_CALL_END') {
+      expect(toolCallEnd.toolName).toBe('lookup_weather')
+      expect(toolCallEnd.input).toEqual({
+        location: 'Berlin',
+        units: 'celsius',
+      })
+      expect(toolCallEnd.result).toBe(
+        JSON.stringify({ error: providerError.message }),
+      )
+      expect(toolCallEnd.state).toBe('output-error')
+    }
+    const runFinished = chunks.at(-1)
+    if (runFinished?.type === 'RUN_FINISHED') {
+      expect(runFinished.finishReason).toBe('tool_calls')
+    }
+  })
+
+  it('emits a non-executable tool error for streamed tool_use_failed', async () => {
+    const providerError = {
+      message: 'Failed to call a function. Please adjust your prompt.',
+      type: 'invalid_request_error',
+      code: 'tool_use_failed',
+      failed_generation: JSON.stringify({
+        name: 'lookup_weather',
+        arguments: { location: 'Berlin', units: 'celsius' },
+      }),
+    }
+    const errorIterable = {
+      [Symbol.asyncIterator]() {
+        return {
+          async next() {
+            throw Object.assign(new Error(providerError.message), {
+              code: providerError.code,
+              error: providerError,
+            })
+          },
+        }
+      },
+    }
+    pendingMockCreate = vi.fn().mockResolvedValue(errorIterable)
+
+    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+      tools: [weatherTool],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks.map((chunk) => chunk.type)).toEqual([
+      'RUN_STARTED',
+      'TOOL_CALL_START',
+      'TOOL_CALL_ARGS',
+      'TOOL_CALL_END',
+      'RUN_FINISHED',
+    ])
+    const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+    if (toolCallEnd?.type === 'TOOL_CALL_END') {
+      expect(toolCallEnd.toolName).toBe('lookup_weather')
+      expect(toolCallEnd.input).toEqual({
+        location: 'Berlin',
+        units: 'celsius',
+      })
+      expect(toolCallEnd.result).toBe(
+        JSON.stringify({ error: providerError.message }),
+      )
+      expect(toolCallEnd.state).toBe('output-error')
+    }
+    const runFinished = chunks.at(-1)
+    if (runFinished?.type === 'RUN_FINISHED') {
+      expect(runFinished.finishReason).toBe('tool_calls')
+    }
+  })
+
+  it('emits RUN_ERROR when tool_use_failed has no valid failed generation', async () => {
+    const providerError = {
+      message: 'Failed to call a function. Please adjust your prompt.',
+      type: 'invalid_request_error',
+      code: 'tool_use_failed',
+      failed_generation: '{',
+    }
+    pendingMockCreate = vi.fn().mockRejectedValue(
+      Object.assign(new Error(providerError.message), {
+        code: providerError.code,
+        error: providerError,
+      }),
+    )
+
+    const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of adapter.chatStream({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: 'Weather in Berlin?' }],
+      tools: [weatherTool],
+      logger: testLogger,
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(chunks.map((chunk) => chunk.type)).toEqual([
+      'RUN_STARTED',
+      'RUN_ERROR',
+    ])
   })
 
   it('emits RUN_ERROR on stream error', async () => {

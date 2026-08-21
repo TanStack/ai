@@ -107,6 +107,36 @@ describe('computeAnthropicBetas', () => {
     expect(computeAnthropicBetas(undefined, undefined)).toBeUndefined()
   })
 
+  it('adds context-management beta when context_management is set (issue #1074)', () => {
+    const betas = computeAnthropicBetas(undefined, {
+      context_management: {
+        edits: [{ type: 'clear_tool_uses_20250919' }],
+      },
+    })
+    expect(betas).toEqual(['context-management-2025-06-27'])
+  })
+
+  it('does not add context-management beta when context_management is null', () => {
+    expect(
+      computeAnthropicBetas(undefined, { context_management: null }),
+    ).toBeUndefined()
+  })
+
+  it('unions context-management with interleaved-thinking betas', () => {
+    const betas = computeAnthropicBetas(undefined, {
+      thinking: { type: 'enabled', budget_tokens: 2048 },
+      context_management: {
+        edits: [{ type: 'clear_thinking_20251015', keep: 'all' }],
+      },
+    })
+    expect(betas).toEqual(
+      expect.arrayContaining([
+        'interleaved-thinking-2025-05-14',
+        'context-management-2025-06-27',
+      ]),
+    )
+  })
+
   it('uses code-execution-2025-05-22 beta for legacy code_execution_20250522 tool', () => {
     const tool = codeExecutionTool({
       type: 'code_execution_20250522',
@@ -141,6 +171,23 @@ describe('computeAnthropicBetas', () => {
 
     const adapter = makeAdapter()
     const req = adapter.mapCommonOptionsToAnthropic(
+      baseOptions({ tools: [fnTool] }),
+    )
+    expect(req.container).toBeUndefined()
+  })
+
+  it('does not enable code execution for an ordinary function with that name', () => {
+    const fnTool = {
+      name: 'code_execution',
+      description: 'Run an application function',
+      metadata: {
+        skills: [{ type: 'anthropic', skill_id: 'must-not-be-lifted' }],
+      },
+    } as any
+
+    expect(computeAnthropicBetas([fnTool], undefined)).toBeUndefined()
+
+    const req = makeAdapter().mapCommonOptionsToAnthropic(
       baseOptions({ tools: [fnTool] }),
     )
     expect(req.container).toBeUndefined()

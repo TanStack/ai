@@ -34,14 +34,14 @@ function DevtoolsGenerationHooksRoute() {
   const sharedBody = { testId, aimockPort }
 
   const image = useGenerateImage({
-    id: 'generation-hooks:useGenerateImage',
+    threadId: 'generation-hooks:useGenerateImage',
     connection: fetchServerSentEvents('/api/image'),
     body: { ...sharedBody, provider: 'openai' },
     devtools: { name: 'Image Studio' },
     onResult: duplicateSingleImageResult,
   })
   const audio = useGenerateAudio({
-    id: 'generation-hooks:useGenerateAudio',
+    threadId: 'generation-hooks:useGenerateAudio',
     fetcher: async (input) => {
       const response = await fetch('/api/audio', {
         method: 'POST',
@@ -62,26 +62,26 @@ function DevtoolsGenerationHooksRoute() {
     onResult: normalizeAudioResult,
   })
   const speech = useGenerateSpeech({
-    id: 'generation-hooks:useGenerateSpeech',
+    threadId: 'generation-hooks:useGenerateSpeech',
     connection: fetchServerSentEvents('/api/tts'),
     body: { ...sharedBody, provider: 'openai' },
     devtools: { name: 'Speech Studio' },
     onResult: normalizeSpeechResult,
   })
   const transcription = useTranscription({
-    id: 'generation-hooks:useTranscription',
+    threadId: 'generation-hooks:useTranscription',
     connection: fetchServerSentEvents('/api/transcription'),
     body: { ...sharedBody, provider: 'openai' },
     devtools: { name: 'Transcription Studio' },
   })
   const summarize = useSummarize({
-    id: 'generation-hooks:useSummarize',
+    threadId: 'generation-hooks:useSummarize',
     connection: fetchServerSentEvents('/api/summarize'),
     body: { ...sharedBody, provider: 'openai', stream: true },
     devtools: { name: 'Summary Studio' },
   })
   const video = useGenerateVideo({
-    id: 'generation-hooks:useGenerateVideo',
+    threadId: 'generation-hooks:useGenerateVideo',
     connection: fetchServerSentEvents('/api/video'),
     body: { ...sharedBody, provider: 'openai' },
     devtools: { name: 'Video Studio' },

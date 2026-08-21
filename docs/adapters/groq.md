@@ -110,6 +110,8 @@ const stream = chat({
 });
 ```
 
+If Groq rejects a generated tool call with `tool_use_failed` and includes a reconstructable tool call in `failed_generation`, the adapter returns the provider error as that tool's result without executing the call. The agent loop can then repair the call on its next iteration. Other provider errors remain terminal run errors.
+
 ## Transcription
 
 Groq exposes Whisper-based speech-to-text via `groqTranscription()` and the `generateTranscription()` activity. The `audio` input accepts a `File`, `Blob`, `ArrayBuffer`, base64 string, data URL, or an `https://` URL (forwarded directly to Groq without re-uploading).
@@ -165,6 +167,24 @@ Enable reasoning for models that support it (e.g., `openai/gpt-oss-120b`, `qwen/
 modelOptions: {
   reasoning_effort: "medium", // "none" | "default" | "low" | "medium" | "high"
 }
+```
+
+## Summarization
+
+Summarize long text content:
+
+```typescript
+import { summarize } from "@tanstack/ai";
+import { groqSummarize } from "@tanstack/ai-groq";
+
+const result = await summarize({
+  adapter: groqSummarize("llama-3.3-70b-versatile"),
+  text: "Your long text to summarize...",
+  maxLength: 100,
+  style: "concise", // "concise" | "bullet-points" | "paragraph"
+});
+
+console.log(result.summary);
 ```
 
 ## Supported Models
@@ -229,6 +249,18 @@ Creates a Groq chat adapter with an explicit API key.
   - `baseURL` - Custom base URL for API requests (optional)
 
 **Returns:** A Groq chat adapter instance.
+
+### `groqSummarize(model, config?)`
+
+Creates a Groq summarization adapter using environment variables.
+
+**Returns:** A Groq summarize adapter instance.
+
+### `createGroqSummarize(model, apiKey, config?)`
+
+Creates a Groq summarization adapter with an explicit API key.
+
+**Returns:** A Groq summarize adapter instance.
 
 ### `groqTranscription(model, config?)` / `createGroqTranscription(model, apiKey, config?)`
 

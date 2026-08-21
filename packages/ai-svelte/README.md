@@ -1,3 +1,20 @@
+<div align="center">
+  <picture>
+    <source
+      media="(prefers-color-scheme: dark)"
+      srcset="https://tanstack.com/api/readme/ai.png?framework=svelte&theme=dark"
+    />
+    <source
+      media="(prefers-color-scheme: light)"
+      srcset="https://tanstack.com/api/readme/ai.png?framework=svelte"
+    />
+    <img
+      src="https://tanstack.com/api/readme/ai.png?framework=svelte"
+      alt="TanStack Svelte AI"
+      width="900"
+    />
+  </picture>
+</div>
 # @tanstack/ai-svelte
 
 Svelte bindings for TanStack AI.

@@ -5,7 +5,7 @@ title: ToolResultPart
 
 # Interface: ToolResultPart
 
-Defined in: [packages/ai/src/types.ts:400](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L400)
+Defined in: [packages/ai/src/types.ts:427](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L427)
 
 ## Properties
 
@@ -17,17 +17,17 @@ content:
   | ContentPart<unknown, unknown, unknown, unknown, unknown>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:403](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L403)
+Defined in: [packages/ai/src/types.ts:430](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L430)
 
 ***
 
 ### error?
 
 ```ts
-optional error: string;
+optional error?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:405](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L405)
+Defined in: [packages/ai/src/types.ts:432](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L432)
 
 ***
 
@@ -37,7 +37,7 @@ Defined in: [packages/ai/src/types.ts:405](https://github.com/TanStack/ai/blob/m
 state: ToolResultState;
 ```
 
-Defined in: [packages/ai/src/types.ts:404](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L404)
+Defined in: [packages/ai/src/types.ts:431](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L431)
 
 ***
 
@@ -47,7 +47,7 @@ Defined in: [packages/ai/src/types.ts:404](https://github.com/TanStack/ai/blob/m
 toolCallId: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:402](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L402)
+Defined in: [packages/ai/src/types.ts:429](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L429)
 
 ***
 
@@ -57,4 +57,4 @@ Defined in: [packages/ai/src/types.ts:402](https://github.com/TanStack/ai/blob/m
 type: "tool-result";
 ```
 
-Defined in: [packages/ai/src/types.ts:401](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L401)
+Defined in: [packages/ai/src/types.ts:428](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L428)

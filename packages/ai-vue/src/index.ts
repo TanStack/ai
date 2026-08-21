@@ -5,6 +5,12 @@ export type {
   UseChatReturn,
   UIMessage,
   ChatRequestBody,
+  QueuedMessage,
+  SendMessageOptions,
+  WhenBusy,
+  QueueConfig,
+  QueueStrategy,
+  QueueOption,
 } from './types'
 
 // Generation hooks
@@ -56,11 +62,22 @@ export type {
 // Re-export from ai-client for convenience
 export {
   fetchServerSentEvents,
+  localStoragePersistence,
+  sessionStoragePersistence,
+  indexedDBPersistence,
+  StorageUnavailableError,
+  type ChatClientPersistence,
+  type ChatPersistedState,
+  type ChatPersistenceOption,
+  type ChatStorageAdapter,
+  type WebStoragePersistenceOptions,
+  type IndexedDBPersistenceOptions,
   fetchHttpStream,
   xhrServerSentEvents,
   xhrHttpStream,
   stream,
   rpcStream,
+  webSocket,
   createChatClientOptions,
   type ConnectionAdapter,
   type ConnectConnectionAdapter,
@@ -68,6 +85,7 @@ export {
   type RunAgentInputContext,
   type FetchConnectionOptions,
   type XhrConnectionOptions,
+  type WebSocketConnectionOptions,
   type InferChatMessages,
   type GenerationClientState,
   type ImageGenerateInput,

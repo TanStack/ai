@@ -9,6 +9,6 @@ title: MediaPromptModality
 type MediaPromptModality = "image" | "video" | "audio";
 ```
 
-Defined in: [packages/ai/src/types.ts:1739](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1739)
+Defined in: [packages/ai/src/types.ts:2160](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2160)
 
 Non-text modalities a media-generation model can accept in its prompt.

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai",
-  "version": "0.41.0",
+  "version": "0.47.2",
   "description": "Type-safe TypeScript AI SDK for streaming chat, tool calling, agents, structured outputs, and multimodal generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -28,6 +28,10 @@
     "./client": {
       "types": "./dist/esm/client.d.ts",
       "import": "./dist/esm/client.js"
+    },
+    "./locks": {
+      "types": "./dist/esm/locks.d.ts",
+      "import": "./dist/esm/locks.js"
     },
     "./adapters": {
       "types": "./dist/esm/activities/index.d.ts",
@@ -58,11 +62,11 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
     "test:coverage": "vitest run --coverage",
     "test:coverage:watch": "vitest --coverage --watch",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -85,10 +89,10 @@
     "tanstack-intent"
   ],
   "dependencies": {
-    "@ag-ui/core": "^0.0.52",
+    "@ag-ui/core": "0.1.1-canary.beta.0",
     "@standard-schema/spec": "^1.1.0",
-    "@tanstack/ai-event-client": "workspace:*",
-    "@tanstack/ai-utils": "workspace:*",
+    "@tanstack/ai-event-client": "workspace:^",
+    "@tanstack/ai-utils": "workspace:^",
     "partial-json": "^0.1.7"
   },
   "peerDependencies": {
@@ -101,7 +105,7 @@
   },
   "devDependencies": {
     "@opentelemetry/api": "^1.9.0",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.10",
     "arktype": "^2.1.28",
     "zod": "^4.2.0"
   }

@@ -41,6 +41,22 @@ export interface AnthropicSystemPromptMetadata {
   cache_control?: CacheControlEphemeral
 }
 
+/**
+ * Top-level prompt-caching control.
+ *
+ * Anthropic's Messages API accepts `cache_control` as a request-level
+ * parameter: it auto-places the breakpoint on the last cacheable block of the
+ * rendered prompt (`tools` → `system` → `messages`). Use this when you don't
+ * need per-block placement; for a breakpoint on a specific system prompt, use
+ * the structured `systemPrompts` form with
+ * {@link AnthropicSystemPromptMetadata} instead.
+ *
+ * @see https://docs.anthropic.com/en/docs/build-with-claude/prompt-caching
+ */
+export interface AnthropicCacheControlOptions {
+  cache_control?: CacheControlEphemeral
+}
+
 export interface AnthropicContainerOptions {
   /**
    * Container identifier for reuse across requests.
@@ -288,7 +304,8 @@ Required range: x >= 0
   max_tokens?: number
 }
 
-export type ExternalTextProviderOptions = AnthropicContainerOptions &
+export type ExternalTextProviderOptions = AnthropicCacheControlOptions &
+  AnthropicContainerOptions &
   AnthropicContextManagementOptions &
   AnthropicMCPOptions &
   AnthropicServiceTierOptions &

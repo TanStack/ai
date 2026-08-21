@@ -143,6 +143,52 @@ describe('codex in-sandbox adapter', () => {
     await sbx.destroy()
   })
 
+  it('defaults to danger-full-access on Daytona-like providers', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', FAKE_CODEX)
+    const daytonaHandle: SandboxHandle = { ...sbx, provider: 'daytona' }
+
+    const adapter = codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+    })
+    await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(daytonaHandle),
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/codex-argv.txt')
+    expect(argv).toContain('--sandbox danger-full-access')
+    expect(argv).not.toContain('--sandbox workspace-write')
+
+    await sbx.destroy()
+  })
+
+  it('keeps workspace-write on local-process when no sandboxMode is set', async () => {
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', FAKE_CODEX)
+
+    const adapter = codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+    })
+    await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'say pong' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/codex-argv.txt')
+    expect(argv).toContain('--sandbox workspace-write')
+
+    await sbx.destroy()
+  })
+
   it('requires a sandbox capability', async () => {
     const adapter = codexText('gpt-5.5-codex')
     const chunks = await collect(
@@ -154,5 +200,57 @@ describe('codex in-sandbox adapter', () => {
     )
     const err = chunks.find((c) => c.type === 'RUN_ERROR')
     expect((err as { message?: string }).message).toMatch(/requires a sandbox/i)
+  })
+
+  it('passes --output-schema and emits structured-output.complete', async () => {
+    const fake = [
+      `import { writeFileSync } from 'node:fs'`,
+      `writeFileSync('codex-argv.txt', process.argv.join(' '))`,
+      `let input = ''`,
+      `process.stdin.on('data', (d) => { input += d })`,
+      `process.stdin.on('end', () => {`,
+      `  const w = (o) => process.stdout.write(JSON.stringify(o) + '\\n')`,
+      `  w({ type: 'thread.started', thread_id: 'th-so' })`,
+      `  w({ type: 'turn.started' })`,
+      `  w({ type: 'item.completed', item: { id: 'i1', type: 'agent_message', text: '{"ok":true}' } })`,
+      `  w({ type: 'turn.completed', usage: { input_tokens: 1, output_tokens: 1 } })`,
+      `})`,
+    ].join('\n')
+
+    const sbx = await provider.create({})
+    await sbx.fs.write('/workspace/fake-codex.mjs', fake)
+
+    const adapter = codexText('gpt-5.5-codex', {
+      codexExecutable: 'node fake-codex.mjs',
+    })
+
+    const chunks = await collect(
+      adapter.chatStream({
+        model: 'gpt-5.5-codex',
+        messages: [{ role: 'user', content: 'summarize' }],
+        logger: noopLogger,
+        capabilities: capabilityContextWith(sbx),
+        outputSchema: {
+          type: 'object',
+          properties: { ok: { type: 'boolean' } },
+          required: ['ok'],
+        },
+      }),
+    )
+
+    const argv = await sbx.fs.read('/workspace/codex-argv.txt')
+    expect(argv).toContain('--output-schema')
+
+    const complete = chunks.find(
+      (c) => c.type === 'CUSTOM' && c.name === 'structured-output.complete',
+    )
+    expect(complete).toBeDefined()
+    if (complete?.type === 'CUSTOM') {
+      expect(complete.value).toEqual(
+        expect.objectContaining({ object: { ok: true } }),
+      )
+    }
+
+    await sbx.destroy()
   })
 })

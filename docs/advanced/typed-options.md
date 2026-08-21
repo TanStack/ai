@@ -139,7 +139,7 @@ import { createImageOptions, generateImage } from '@tanstack/ai'
 import { openaiImage } from '@tanstack/ai-openai'
 
 const heroImageOptions = createImageOptions({
-  adapter: openaiImage('gpt-image-1'),
+  adapter: openaiImage('gpt-image-2'),
   prompt: 'A glass sphere refracting a sunset over a calm sea',
   size: '1536x1024',
   numberOfImages: 1,

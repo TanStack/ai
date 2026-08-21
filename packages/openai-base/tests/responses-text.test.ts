@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type OpenAI from 'openai'
-import { EventType } from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
 import type { StreamChunk, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
@@ -960,7 +960,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       }
     })
 
-    it('uses the internal function_call item id for tool call correlation', async () => {
+    it('uses call_id for tool correlation and preserves the item id as metadata', async () => {
       const streamChunks = [
         {
           type: 'response.created',
@@ -1027,26 +1027,26 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         chunks.push(chunk)
       }
 
-      // TOOL_CALL_* events should use the internal function_call item id
-      // (matches main's OpenAI adapter behavior; the agent loop carries this
-      // id back as `toolCallId` on the tool ModelMessage, which the Responses
-      // API accepts as `call_id` for function_call_output).
+      // `call_id` correlates the eventual function_call_output. The separate
+      // output item ID is provider metadata that the agent loop carries into
+      // the next request so both opaque identifiers can be replayed.
       const toolStart = chunks.find((c) => c.type === 'TOOL_CALL_START')
       expect(toolStart).toBeDefined()
       if (toolStart?.type === 'TOOL_CALL_START') {
-        expect(toolStart.toolCallId).toBe('fc_internal_001')
+        expect(toolStart.toolCallId).toBe('call_api_abc123')
+        expect(toolStart.metadata).toEqual({ itemId: 'fc_internal_001' })
       }
 
       const toolArgs = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS')
       expect(toolArgs.length).toBeGreaterThan(0)
       if (toolArgs[0]?.type === 'TOOL_CALL_ARGS') {
-        expect(toolArgs[0].toolCallId).toBe('fc_internal_001')
+        expect(toolArgs[0].toolCallId).toBe('call_api_abc123')
       }
 
       const toolEnd = chunks.find((c) => c.type === 'TOOL_CALL_END')
       expect(toolEnd).toBeDefined()
       if (toolEnd?.type === 'TOOL_CALL_END') {
-        expect(toolEnd.toolCallId).toBe('fc_internal_001')
+        expect(toolEnd.toolCallId).toBe('call_api_abc123')
       }
     })
 
@@ -1396,6 +1396,77 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const startIdx = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
       const contentIdx = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
       expect(startIdx).toBeLessThan(contentIdx)
+    })
+
+    it('recovers final text from response.completed when no text was streamed', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-completed-text',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.content_part.added',
+          part: { type: 'output_text', text: '' },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-completed-text',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                id: 'msg-completed-text',
+                type: 'message',
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Recovered final answer',
+                    annotations: [],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 5, output_tokens: 3, total_tokens: 8 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Answer carefully' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const contentChunks = chunks.filter(
+        (chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT,
+      )
+      expect(contentChunks).toHaveLength(1)
+      expect(contentChunks[0]).toMatchObject({
+        delta: 'Recovered final answer',
+        content: 'Recovered final answer',
+      })
+
+      const eventTypes = chunks.map((chunk) => chunk.type)
+      const startIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+      const contentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
+      const endIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+      const finishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
+      expect(startIndex).toBeGreaterThanOrEqual(0)
+      expect(contentIndex).toBeGreaterThan(startIndex)
+      expect(endIndex).toBeGreaterThan(contentIndex)
+      expect(finishedIndex).toBeGreaterThan(endIndex)
     })
 
     it('skips content_part.done when deltas were already streamed', async () => {
@@ -1798,6 +1869,51 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       )
     })
 
+    it('forwards response.usage on structuredOutput', async () => {
+      setupMockResponsesClient([], {
+        output: [
+          {
+            type: 'message',
+            content: [
+              {
+                type: 'output_text',
+                text: '{"name":"Alice","age":30}',
+              },
+            ],
+          },
+        ],
+        usage: {
+          input_tokens: 9,
+          output_tokens: 4,
+          total_tokens: 13,
+        },
+      })
+
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+
+      const result = await adapter.structuredOutput({
+        chatOptions: {
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Give me a person object' }],
+        },
+        outputSchema: {
+          type: 'object',
+          properties: {
+            name: { type: 'string' },
+            age: { type: 'number' },
+          },
+          required: ['name', 'age'],
+        },
+      })
+
+      expect(result.usage).toEqual({
+        promptTokens: 9,
+        completionTokens: 4,
+        totalTokens: 13,
+      })
+    })
+
     it('passes provider nulls through unchanged (engine un-widens, not the adapter)', async () => {
       const nonStreamResponse = {
         output: [
@@ -2128,6 +2244,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
                   name: 'lookup_weather',
                   arguments: '{"location":"Berlin"}',
                 },
+                metadata: { itemId: 'fc_123' },
               },
             ],
           },
@@ -2147,6 +2264,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         expect.arrayContaining([
           expect.objectContaining({
             type: 'function_call',
+            id: 'fc_123',
             call_id: 'call_123',
             name: 'lookup_weather',
             arguments: '{"location":"Berlin"}',
@@ -2160,6 +2278,132 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
             type: 'function_call_output',
             call_id: 'call_123',
             output: '{"temp":72}',
+          }),
+        ]),
+      )
+    })
+
+    /**
+     * End-to-end guard for the `call_id` / output-item-`id` split, covering
+     * every adapter that inherits this base (`@tanstack/ai-openai`,
+     * `@tanstack/ai-grok`, `@tanstack/ai-bedrock`, and the OpenAI-compatible
+     * adapter — none of them override `convertMessagesToInput`).
+     *
+     * Unlike the request-mapping test above, this drives the real `chat()`
+     * agent loop, so it proves the output item id actually survives the round
+     * trip: adapter -> TOOL_CALL_START metadata -> assistant ModelMessage ->
+     * adapter. Hand-building the assistant message would assume the very
+     * propagation that can break.
+     *
+     * This has to live here, in a unit test. The mock-based E2E suite cannot
+     * catch it: aimock maps an incoming `function_call.call_id` straight onto
+     * `tool_calls[].id`, so a request that uses the *wrong* id consistently in
+     * both the `function_call` and its `function_call_output` still correlates
+     * and still passes. Only a provider that knows the real item -> call_id
+     * mapping rejects it.
+     */
+    it('round-trips distinct output item and call IDs through a server tool', async () => {
+      const firstTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'fc_item_1',
+            call_id: 'call_abc',
+            name: 'lookup_weather',
+            arguments: '',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'fc_item_1',
+          output_index: 0,
+          arguments: '{"location":"Berlin"}',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-1',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'fc_item_1',
+                call_id: 'call_abc',
+                name: 'lookup_weather',
+                arguments: '{"location":"Berlin"}',
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ]
+      const secondTurn = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_text.delta',
+          item_id: 'msg_1',
+          output_index: 0,
+          content_index: 0,
+          delta: 'Sunny',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-2',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: { input_tokens: 2, output_tokens: 1, total_tokens: 3 },
+          },
+        },
+      ]
+
+      mockResponsesCreate = vi
+        .fn()
+        .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+        .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+      const execute = vi.fn().mockReturnValue({ temperature: 72 })
+
+      for await (const _chunk of chat({
+        adapter: new TestResponsesAdapter(testConfig, 'test-model'),
+        messages: [{ role: 'user', content: 'How is the weather?' }],
+        tools: [{ ...weatherTool, execute }],
+      })) {
+        // consume both agent-loop turns
+      }
+
+      expect(execute).toHaveBeenCalledOnce()
+      expect(mockResponsesCreate).toHaveBeenCalledTimes(2)
+
+      const secondRequest = mockResponsesCreate.mock.calls[1]![0]
+      expect(secondRequest.input).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            type: 'function_call',
+            id: 'fc_item_1',
+            call_id: 'call_abc',
+          }),
+          expect.objectContaining({
+            type: 'function_call_output',
+            call_id: 'call_abc',
           }),
         ]),
       )
@@ -2236,6 +2480,425 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         { type: 'input_text', text: 'screenshot' },
         { type: 'input_image', image_url: 'https://x/y.png', detail: 'auto' },
       ])
+    })
+  })
+
+  describe('document content parts (PDF input)', () => {
+    // A minimal one-page PDF.
+    const TINY_PDF_BASE64 = Buffer.from(
+      '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n' +
+        '2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n' +
+        '3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\n' +
+        'trailer<</Root 1 0 R>>\n%%EOF',
+    ).toString('base64')
+
+    // A payload that is not a PDF (no '%PDF' header).
+    const NOT_PDF_BASE64 = Buffer.from('hello, not a pdf').toString('base64')
+
+    const minimalStreamChunks = [
+      {
+        type: 'response.created',
+        response: {
+          id: 'resp-doc-1',
+          model: 'test-model',
+          status: 'in_progress',
+        },
+      },
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp-doc-1',
+          model: 'test-model',
+          status: 'completed',
+          output: [],
+          usage: { input_tokens: 10, output_tokens: 1, total_tokens: 11 },
+        },
+      },
+    ]
+
+    async function runChat(content: Array<any>): Promise<Array<StreamChunk>> {
+      setupMockResponsesClient(minimalStreamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content }],
+      })) {
+        chunks.push(chunk)
+      }
+      return chunks
+    }
+
+    it('converts a base64 data source to input_file with a default filename', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content).toEqual([
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+
+    it('uses metadata.filename when provided', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+          metadata: { filename: 'report.pdf' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].filename).toBe('report.pdf')
+    })
+
+    it('passes an existing data URL through without double-wrapping', async () => {
+      const dataUrl = `data:application/pdf;base64,${TINY_PDF_BASE64}`
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: dataUrl, mimeType: 'application/pdf' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].file_data).toBe(dataUrl)
+    })
+
+    it('converts a URL source to input_file with file_url only', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'url', value: 'https://example.com/doc.pdf' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      const part = payload.input[0].content[0]
+      expect(part).toEqual({
+        type: 'input_file',
+        file_url: 'https://example.com/doc.pdf',
+      })
+      expect(part).not.toHaveProperty('file_data')
+      expect(part).not.toHaveProperty('filename')
+    })
+
+    it('emits RUN_ERROR for a non-PDF document MIME type', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/msword',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/application\/msword/)
+      }
+    })
+
+    it('emits RUN_ERROR for a data URL with a non-PDF media type', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: `data:image/png;base64,${TINY_PDF_BASE64}`,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/non-PDF media type/)
+      }
+    })
+
+    it('rejects a data URL whose media type merely extends application/pdf', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: `data:application/pdf+xml;base64,${TINY_PDF_BASE64}`,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/non-PDF media type/)
+      }
+    })
+
+    it('accepts case-insensitive PDF media types (RFC 2045)', async () => {
+      const dataUrl = `data:APPLICATION/PDF;base64,${TINY_PDF_BASE64}`
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: dataUrl, mimeType: 'Application/PDF' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].file_data).toBe(dataUrl)
+    })
+
+    it('passes metadata.detail through on both source shapes', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+          metadata: { detail: 'high' },
+        },
+        {
+          type: 'document',
+          source: { type: 'url', value: 'https://example.com/doc.pdf' },
+          metadata: { detail: 'low' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].detail).toBe('high')
+      expect(payload.input[0].content[1]).toEqual({
+        type: 'input_file',
+        file_url: 'https://example.com/doc.pdf',
+        detail: 'low',
+      })
+    })
+
+    it("passes detail: 'auto' through to the payload", async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+          metadata: { detail: 'auto' },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0].detail).toBe('auto')
+    })
+
+    it('omits detail when metadata does not provide it', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content[0]).not.toHaveProperty('detail')
+    })
+
+    it('still rejects video content parts', async () => {
+      const chunks = await runChat([
+        {
+          type: 'video',
+          source: { type: 'url', value: 'https://example.com/clip.mp4' },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(
+          /Unsupported content part type: video/,
+        )
+      }
+    })
+
+    it('keeps text and document parts in order within one message', async () => {
+      await runChat([
+        { type: 'text', content: 'summarize this' },
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: TINY_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content).toEqual([
+        { type: 'input_text', text: 'summarize this' },
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+
+    it('converts a document part inside a tool result', async () => {
+      setupMockResponsesClient(minimalStreamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [
+          { role: 'user', content: 'fetch the doc' },
+          {
+            role: 'assistant',
+            content: '',
+            toolCalls: [
+              {
+                id: 'call_doc',
+                type: 'function',
+                function: { name: 'fetch_doc', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            role: 'tool',
+            toolCallId: 'call_doc',
+            content: [
+              { type: 'text', content: 'here it is' },
+              {
+                type: 'document',
+                source: {
+                  type: 'data',
+                  value: TINY_PDF_BASE64,
+                  mimeType: 'application/pdf',
+                },
+              },
+            ],
+          },
+        ],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      const out = payload.input.find(
+        (i: any) => i.type === 'function_call_output',
+      )
+      expect(out.output).toEqual([
+        { type: 'input_text', text: 'here it is' },
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+
+    it('emits RUN_ERROR for raw base64 without a mimeType that is not a PDF', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: NOT_PDF_BASE64 },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/%PDF/)
+      }
+    })
+
+    it('accepts raw base64 PDF data without a mimeType', async () => {
+      await runChat([
+        {
+          type: 'document',
+          source: { type: 'data', value: TINY_PDF_BASE64 },
+        },
+      ])
+
+      const [payload] = mockResponsesCreate.mock.calls[0]!
+      expect(payload.input[0].content).toEqual([
+        {
+          type: 'input_file',
+          filename: 'document.pdf',
+          file_data: `data:application/pdf;base64,${TINY_PDF_BASE64}`,
+        },
+      ])
+    })
+
+    it('emits RUN_ERROR for non-PDF data mislabeled as application/pdf', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: NOT_PDF_BASE64,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/%PDF/)
+      }
+    })
+
+    it('emits RUN_ERROR for a PDF data URL whose payload is not a PDF', async () => {
+      const chunks = await runChat([
+        {
+          type: 'document',
+          source: {
+            type: 'data',
+            value: `data:application/pdf;base64,${NOT_PDF_BASE64}`,
+            mimeType: 'application/pdf',
+          },
+        },
+      ])
+
+      const errorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+      expect(errorChunk).toBeDefined()
+      if (errorChunk?.type === 'RUN_ERROR') {
+        expect(errorChunk.message).toMatch(/only support application\/pdf/)
+        expect(errorChunk.message).toMatch(/%PDF/)
+      }
     })
   })
 

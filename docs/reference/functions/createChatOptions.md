@@ -6,10 +6,10 @@ title: createChatOptions
 # Function: createChatOptions()
 
 ```ts
-function createChatOptions<TAdapter, TSchema, TStream, TTools, TMiddleware>(options): TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>>;
+function createChatOptions<TAdapter, TSchema, TStream, TTools, TMiddleware>(options): Omit<TextActivityOptions<TAdapter, TSchema, TStream, InferredContext<TTools, TMiddleware>>, "tools"> & object;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:341](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L341)
+Defined in: [packages/ai/src/activities/chat/index.ts:527](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L527)
 
 Create typed options for the chat() function without executing.
 This is useful for pre-defining configurations with full type inference.
@@ -31,11 +31,11 @@ This is useful for pre-defining configurations with full type inference.
 ### TTools
 
 `TTools` *extends* 
-  \| (
+  \| readonly (
   \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
   \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
   \| `undefined` = 
-  \| (
+  \| readonly (
   \| `Omit`\<[`Tool`](../interfaces/Tool.md)\<`any`, `any`, `any`, `any`\>, `"execute"`\> & `object` & `object`
   \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
   \| `undefined`
@@ -56,7 +56,7 @@ This is useful for pre-defining configurations with full type inference.
 
 ## Returns
 
-`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `InferredContext`\<`TTools`, `TMiddleware`\>\>
+`Omit`\<`TextActivityOptions`\<`TAdapter`, `TSchema`, `TStream`, `InferredContext`\<`TTools`, `TMiddleware`\>\>, `"tools"`\> & `object`
 
 ## Example
 

@@ -103,7 +103,6 @@ describe('ChatClient devtools bridge', () => {
   })
 
   function createClient(options?: {
-    id?: string
     threadId?: string
     connection?: ConnectConnectionAdapter
     tools?: ReadonlyArray<AnyClientTool>
@@ -112,7 +111,6 @@ describe('ChatClient devtools bridge', () => {
     devtoolsName?: string
   }) {
     const client = new ChatClient({
-      id: options?.id ?? 'chat-1',
       threadId: options?.threadId ?? 'thread-1',
       connection: options?.connection ?? createMockConnectionAdapter(),
       ...(options?.tools ? { tools: options.tools } : {}),
@@ -169,7 +167,7 @@ describe('ChatClient devtools bridge', () => {
 
   function dispatchToolFixture(overrides: Partial<AIDevtoolsToolFixture> = {}) {
     const fixture: AIDevtoolsToolFixture = {
-      hookId: 'chat-1',
+      hookId: 'thread-1',
       threadId: 'thread-1',
       runId: 'run-fixture',
       toolName: 'weather',
@@ -265,13 +263,62 @@ describe('ChatClient devtools bridge', () => {
       [
         'hook:registered',
         expect.objectContaining({
-          hookId: 'chat-1',
+          hookId: 'thread-1',
           lifecycle: 'mounted',
         }),
       ],
     ])
 
     client.dispose()
+  })
+
+  it('binds hook identity to threadId', () => {
+    const client = createClient({
+      threadId: 'support-42',
+    })
+
+    expect(eventClientMock.emitted('hook:registered')).toEqual([
+      [
+        'hook:registered',
+        expect.objectContaining({
+          hookId: 'support-42',
+          clientId: 'support-42',
+          threadId: 'support-42',
+        }),
+      ],
+    ])
+    const payload = eventClientMock.emitted('hook:registered')[0]?.[1]
+    expect(payload).toEqual(
+      expect.not.objectContaining({ correlationId: expect.anything() }),
+    )
+
+    client.dispose()
+  })
+
+  it('does not unregister a superseded client that shares a threadId', () => {
+    const first = createClient({
+      threadId: 'support-42',
+    })
+    const second = createClient({
+      threadId: 'support-42',
+    })
+
+    eventClientMock.emit.mockClear()
+    first.dispose()
+
+    expect(eventClientMock.emitted('hook:unregistered')).toEqual([])
+
+    second.dispose()
+
+    expect(eventClientMock.emitted('hook:unregistered')).toEqual([
+      [
+        'hook:unregistered',
+        expect.objectContaining({
+          hookId: 'support-42',
+          threadId: 'support-42',
+        }),
+      ],
+    ])
   })
 
   it('registers the chat hook and emits the initial state snapshot', () => {
@@ -285,8 +332,8 @@ describe('ChatClient devtools bridge', () => {
         timestamp: expect.any(Number),
         source: 'client',
         visibility: 'client-state',
-        hookId: 'chat-1',
-        clientId: 'chat-1',
+        hookId: 'thread-1',
+        clientId: 'thread-1',
         threadId: 'thread-1',
         hookName: 'useChat',
         framework: 'react',
@@ -301,8 +348,8 @@ describe('ChatClient devtools bridge', () => {
         eventType: 'hook:state-snapshot',
         source: 'client',
         visibility: 'client-state',
-        hookId: 'chat-1',
-        clientId: 'chat-1',
+        hookId: 'thread-1',
+        clientId: 'thread-1',
         threadId: 'thread-1',
         hookName: 'useChat',
         framework: 'react',
@@ -325,7 +372,7 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'hook:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         hookName: 'useChat',
         displayName: 'Recipe Assistant',
       }),
@@ -333,7 +380,7 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'hook:state-snapshot',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         hookName: 'useChat',
         displayName: 'Recipe Assistant',
       }),
@@ -357,7 +404,7 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'tools:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         hookName: 'useChat',
         framework: 'react',
         outputKind: 'chat',
@@ -382,14 +429,14 @@ describe('ChatClient devtools bridge', () => {
     vi.clearAllMocks()
 
     eventClientMock.dispatch('devtools:request-state', {
-      targetHookId: 'chat-1',
+      targetHookId: 'thread-1',
     })
 
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'hook:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
-        clientId: 'chat-1',
+        hookId: 'thread-1',
+        clientId: 'thread-1',
         threadId: 'thread-1',
         hookName: 'useChat',
         outputKind: 'chat',
@@ -398,15 +445,15 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'tools:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         tools: [],
       }),
     )
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'hook:state-snapshot',
       expect.objectContaining({
-        hookId: 'chat-1',
-        clientId: 'chat-1',
+        hookId: 'thread-1',
+        clientId: 'thread-1',
         threadId: 'thread-1',
         state: expect.objectContaining({
           messages: [],
@@ -426,7 +473,7 @@ describe('ChatClient devtools bridge', () => {
     expect(eventClientMock.emitAIDevtoolsEvent).toHaveBeenCalledWith(
       'hook:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         threadId: 'thread-1',
         hookName: 'useChat',
         lifecycle: 'mounted',
@@ -435,13 +482,13 @@ describe('ChatClient devtools bridge', () => {
 
     eventClientMock.emitAIDevtoolsEvent.mockClear()
     eventClientMock.dispatch('devtools:request-state', {
-      targetHookId: 'chat-1',
+      targetHookId: 'thread-1',
     })
 
     expect(eventClientMock.emitAIDevtoolsEvent).toHaveBeenCalledWith(
       'hook:registered',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         threadId: 'thread-1',
         hookName: 'useChat',
         lifecycle: 'mounted',
@@ -450,7 +497,7 @@ describe('ChatClient devtools bridge', () => {
     expect(eventClientMock.emitAIDevtoolsEvent).toHaveBeenCalledWith(
       'hook:state-snapshot',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         threadId: 'thread-1',
         state: expect.objectContaining({
           messages: [],
@@ -517,7 +564,7 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'devtools:tool-fixture:applied',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         threadId: 'thread-1',
         runId: 'run-fixture',
         toolName: fixture.toolName,
@@ -531,7 +578,7 @@ describe('ChatClient devtools bridge', () => {
     expect(aiEventClient.emit).toHaveBeenCalledWith(
       'text:message:created',
       expect.objectContaining({
-        hookId: 'chat-1',
+        hookId: 'thread-1',
         threadId: 'thread-1',
         runId: 'run-fixture',
         toolCallId: 'fixture-call',
@@ -756,13 +803,17 @@ describe('ChatClient devtools bridge', () => {
   })
 
   it('routes hook-scoped fixture events to the latest bridge for a hook id', async () => {
-    const staleClient = createClient({ threadId: 'thread-stale' })
-    const activeClient = createClient({ threadId: 'thread-active' })
+    const staleClient = createClient({
+      threadId: 'shared-thread',
+    })
+    const activeClient = createClient({
+      threadId: 'shared-thread',
+    })
     vi.clearAllMocks()
 
     eventClientMock.dispatch('devtools:tool-fixture:apply', {
-      hookId: 'chat-1',
-      threadId: 'thread-stale',
+      hookId: 'shared-thread',
+      threadId: 'shared-thread',
       toolName: 'weather',
       input: { city: 'Paris' },
       output: { temperature: 21 },
@@ -797,13 +848,15 @@ describe('ChatClient devtools bridge', () => {
   it('keeps superseded duplicate hook bridges silent when they emit later', async () => {
     const runContexts: Array<RunAgentInputContext> = []
     const firstClient = createClient({
-      threadId: 'thread-first',
+      threadId: 'shared-thread',
       connection: createRunTrackingAdapter(
         [createTextChunks('from first', 'msg-first')],
         runContexts,
       ),
     })
-    const duplicateClient = createClient({ threadId: 'thread-duplicate' })
+    const duplicateClient = createClient({
+      threadId: 'shared-thread',
+    })
     vi.clearAllMocks()
 
     await firstClient.sendMessage('start')
@@ -821,8 +874,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'hook:unregistered',
         expect.objectContaining({
-          hookId: 'chat-1',
-          threadId: 'thread-duplicate',
+          hookId: 'shared-thread',
+          threadId: 'shared-thread',
         }),
       ],
     ])
@@ -833,7 +886,7 @@ describe('ChatClient devtools bridge', () => {
     vi.clearAllMocks()
 
     const fixture: AIDevtoolsToolFixture = {
-      hookId: 'chat-1',
+      hookId: 'thread-1',
       threadId: 'thread-1',
       toolName: 'weather',
       input: { city: 'Rome' },
@@ -1048,7 +1101,7 @@ describe('ChatClient devtools bridge', () => {
       [
         'run:created',
         expect.objectContaining({
-          hookId: 'chat-1',
+          hookId: 'thread-1',
           threadId: 'thread-1',
           runId: runContext?.runId,
           status: 'created',
@@ -1059,7 +1112,7 @@ describe('ChatClient devtools bridge', () => {
       [
         'run:started',
         expect.objectContaining({
-          hookId: 'chat-1',
+          hookId: 'thread-1',
           threadId: 'thread-1',
           runId: runContext?.runId,
           status: 'started',
@@ -1070,7 +1123,7 @@ describe('ChatClient devtools bridge', () => {
       [
         'run:completed',
         expect.objectContaining({
-          hookId: 'chat-1',
+          hookId: 'thread-1',
           threadId: 'thread-1',
           runId: runContext?.runId,
           status: 'completed',
@@ -1216,8 +1269,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'structured-output:started',
         expect.objectContaining({
-          hookId: 'chat-1',
-          clientId: 'chat-1',
+          hookId: 'thread-1',
+          clientId: 'thread-1',
           threadId: runContexts[0]?.threadId,
           runId: runContexts[0]?.runId,
           messageId: 'msg-structured',
@@ -1230,8 +1283,8 @@ describe('ChatClient devtools bridge', () => {
         [
           'structured-output:updated',
           expect.objectContaining({
-            hookId: 'chat-1',
-            clientId: 'chat-1',
+            hookId: 'thread-1',
+            clientId: 'thread-1',
             threadId: runContexts[0]?.threadId,
             runId: runContexts[0]?.runId,
             messageId: 'msg-structured',
@@ -1246,8 +1299,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'structured-output:completed',
         expect.objectContaining({
-          hookId: 'chat-1',
-          clientId: 'chat-1',
+          hookId: 'thread-1',
+          clientId: 'thread-1',
           threadId: runContexts[0]?.threadId,
           runId: runContexts[0]?.runId,
           messageId: 'msg-structured',
@@ -1271,6 +1324,101 @@ describe('ChatClient devtools bridge', () => {
         partial: finalObject,
       }),
     )
+
+    client.dispose()
+  })
+
+  it('re-emits memory:* devtools events from a transported memory:state CUSTOM chunk', async () => {
+    const runContexts: Array<RunAgentInputContext> = []
+    const chunks: Array<StreamChunk> = [
+      runStartedChunk({ threadId: 'thread-1', runId: 'run-mem' }),
+      {
+        type: EventType.CUSTOM,
+        model: 'test',
+        timestamp: Date.now(),
+        name: 'memory:state',
+        value: {
+          scope: { threadId: 'sess-1' },
+          adapter: 'in-memory',
+          query: 'what is my name?',
+          recall: {
+            fragmentCount: 2,
+            hasTools: false,
+            systemPromptChars: 96,
+            durationMs: 4,
+          },
+          snapshot: {
+            takenAt: '2026-07-22T00:00:00.000Z',
+            data: {
+              records: [{ id: 'r1', text: 'name is Jack', kind: 'message' }],
+            },
+            facts: [{ id: 'r1', text: 'name is Jack', source: 'user' }],
+          },
+        },
+      },
+      textContentChunk({
+        messageId: 'msg-mem',
+        delta: 'Your name is Jack',
+        content: 'Your name is Jack',
+      }),
+      runFinishedChunk({ threadId: 'thread-1', runId: 'run-mem' }),
+    ]
+    const client = createClient({
+      connection: createRunTrackingAdapter([chunks], runContexts),
+    })
+    vi.clearAllMocks()
+
+    await client.sendMessage('what is my name?')
+    await waitForCondition(
+      () => eventClientMock.emitted('memory:snapshot').length > 0,
+    )
+
+    expect(eventClientMock.emitted('memory:retrieve:started')).toEqual([
+      [
+        'memory:retrieve:started',
+        expect.objectContaining({
+          scope: { threadId: 'sess-1' },
+          adapter: 'in-memory',
+          query: 'what is my name?',
+        }),
+      ],
+    ])
+    expect(eventClientMock.emitted('memory:retrieve:completed')).toEqual([
+      [
+        'memory:retrieve:completed',
+        expect.objectContaining({
+          adapter: 'in-memory',
+          fragmentCount: 2,
+          hasTools: false,
+          systemPromptChars: 96,
+          durationMs: 4,
+        }),
+      ],
+    ])
+    expect(eventClientMock.emitted('memory:snapshot')).toEqual([
+      [
+        'memory:snapshot',
+        expect.objectContaining({
+          adapter: 'in-memory',
+          takenAt: '2026-07-22T00:00:00.000Z',
+          facts: [{ id: 'r1', text: 'name is Jack', source: 'user' }],
+        }),
+      ],
+    ])
+
+    // Replay: a devtools panel opening AFTER the turn requests state; the bridge
+    // re-emits the last memory:state so a late-opened panel isn't empty.
+    vi.clearAllMocks()
+    eventClientMock.dispatch('devtools:request-state', {})
+    await waitForCondition(
+      () => eventClientMock.emitted('memory:snapshot').length > 0,
+    )
+    expect(eventClientMock.emitted('memory:retrieve:completed')).toEqual([
+      [
+        'memory:retrieve:completed',
+        expect.objectContaining({ adapter: 'in-memory', fragmentCount: 2 }),
+      ],
+    ])
 
     client.dispose()
   })
@@ -1395,8 +1543,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'structured-output:completed',
         expect.objectContaining({
-          hookId: 'chat-1',
-          clientId: 'chat-1',
+          hookId: 'thread-1',
+          clientId: 'thread-1',
           threadId: runContexts[0]?.threadId,
           runId: runContexts[0]?.runId,
           messageId: 'msg-structured-terminal',
@@ -1548,8 +1696,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'tools:approval:requested',
         expect.objectContaining({
-          hookId: 'chat-1',
-          clientId: 'chat-1',
+          hookId: 'thread-1',
+          clientId: 'thread-1',
           threadId: runContexts[0]?.threadId,
           runId: runContexts[0]?.runId,
           streamId: expect.any(String),
@@ -1616,8 +1764,8 @@ describe('ChatClient devtools bridge', () => {
       [
         'tools:approval:responded',
         expect.objectContaining({
-          hookId: 'chat-1',
-          clientId: 'chat-1',
+          hookId: 'thread-1',
+          clientId: 'thread-1',
           toolCallId: 'approval-call-1',
           approvalId: 'approval-approval-call-1',
           approved: true,

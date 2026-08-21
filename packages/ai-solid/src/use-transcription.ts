@@ -1,10 +1,16 @@
 import { useGeneration } from './use-generation'
+import { reconstructTranscriptionResult } from '@tanstack/ai-client'
+import type {
+  UseGenerationOptions,
+  UseGenerationReturn,
+} from './use-generation'
 import type { StreamChunk, TranscriptionResult } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
   ConnectConnectionAdapter,
   GenerationClientState,
   GenerationFetcher,
+  GenerationPersistenceOptions,
   InferGenerationOutputFromReturn,
   TranscriptionGenerateInput,
 } from '@tanstack/ai-client'
@@ -15,13 +21,20 @@ import type { Accessor } from 'solid-js'
  *
  * @template TOutput - The transformed output type (defaults to TranscriptionResult)
  */
-export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
+export interface UseTranscriptionOptions<
+  TOutput = TranscriptionResult,
+> extends Pick<
+  UseGenerationOptions<
+    TranscriptionGenerateInput,
+    TranscriptionResult,
+    TOutput
+  >,
+  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+> {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
   /** Direct async function for transcription */
   fetcher?: GenerationFetcher<TranscriptionGenerateInput, TranscriptionResult>
-  /** Unique identifier for this generation instance */
-  id?: string
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
   /** Display options for TanStack AI Devtools. */
@@ -47,7 +60,9 @@ export interface UseTranscriptionOptions<TOutput = TranscriptionResult> {
  *
  * @template TOutput - The transformed output type (defaults to TranscriptionResult)
  */
-export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
+export interface UseTranscriptionReturn<
+  TOutput = TranscriptionResult,
+> extends Omit<UseGenerationReturn<TOutput>, 'generate'> {
   /** Trigger transcription */
   generate: (input: TranscriptionGenerateInput) => Promise<void>
   /** The transcription result, or null */
@@ -58,10 +73,6 @@ export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
   error: Accessor<Error | undefined>
   /** Current state of the generation */
   status: Accessor<GenerationClientState>
-  /** Abort the current transcription */
-  stop: () => void
-  /** Clear result, error, and return to idle */
-  reset: () => void
 }
 
 /**
@@ -100,9 +111,12 @@ export interface UseTranscriptionReturn<TOutput = TranscriptionResult> {
  * ```
  */
 export function useTranscription<TTransformed = void>(
-  options: Omit<UseTranscriptionOptions, 'onResult'> & {
+  options: Omit<
+    UseTranscriptionOptions,
+    'onResult' | 'persistence' | 'threadId'
+  > & {
     onResult?: (result: TranscriptionResult) => TTransformed
-  },
+  } & GenerationPersistenceOptions,
 ): UseTranscriptionReturn<
   InferGenerationOutputFromReturn<TranscriptionResult, TTransformed>
 > {
@@ -112,20 +126,11 @@ export function useTranscription<TTransformed = void>(
     hookName: 'useTranscription',
     outputKind: 'text' as const,
   }
-  const { generate, result, isLoading, error, status, stop, reset } =
-    useGeneration<
-      TranscriptionGenerateInput,
-      TranscriptionResult,
-      TTransformed
-    >({ ...options, devtools })
+  const generation = useGeneration<
+    TranscriptionGenerateInput,
+    TranscriptionResult,
+    TTransformed
+  >({ ...options, devtools, reconstructResult: reconstructTranscriptionResult })
 
-  return {
-    generate: generate as (input: TranscriptionGenerateInput) => Promise<void>,
-    result,
-    isLoading,
-    error,
-    status,
-    stop,
-    reset,
-  }
+  return generation
 }

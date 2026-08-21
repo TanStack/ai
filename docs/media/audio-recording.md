@@ -17,7 +17,7 @@ keywords:
 You have a chat or generation UI and you want users to talk instead of type. By
 the end of this guide you'll capture microphone audio in the browser with
 `useAudioRecorder`, read the latest recording reactively, and send it straight
-into a chat message or a transcription request — with no transcoding and no
+into a chat message or a transcription request, with no transcoding and no
 extra dependencies.
 
 `useAudioRecorder` wraps the browser's `getUserMedia` / `MediaRecorder` and
@@ -58,7 +58,7 @@ function RecordButton() {
 
 ## Handling errors
 
-Failures reach you through **two** channels — pick one, don't handle both:
+Failures reach you through **two** channels. Pick one, and do not handle both:
 
 - `onError(error)` fires for permission denial and recorder errors.
 - `start()` and `stop()` also **reject**. `start()` rejects on permission
@@ -91,7 +91,7 @@ function Preview() {
 
 ## Transform the recording
 
-Pass `onComplete` to turn the raw recording into whatever your app needs — a URL
+Pass `onComplete` to turn the raw recording into whatever your app needs: a URL
 after upload, an encoded blob, or a custom object. Both `stop()` and the
 reactive `recording` field then resolve to your transformed value, and the
 transform can be `async`:
@@ -109,7 +109,7 @@ function Uploader() {
 ```
 
 Return nothing (`undefined`) to keep the raw `AudioRecording`; any returned
-value — including `null` — is used as-is and re-types `stop()` and `recording`.
+value (including `null`) is used as-is and re-types `stop()` and `recording`.
 This is similar to the `onResult` transform on the
 [generation hooks](./generation-hooks), but is async-capable. (Unlike
 `onResult`, where `null` means "keep the previous value," only `undefined` keeps
@@ -158,7 +158,7 @@ function VoiceComposer() {
 ## Transcribe a recording
 
 Wrap the recording as a `data:` URL so the provider receives the recorder's
-native content type — passing raw `base64` makes the transcription adapter
+native content type. Passing raw `base64` makes the transcription adapter
 assume `audio/mpeg` and mislabel the webm/mp4 bytes. See
 [Transcription](./transcription) for the matching server route.
 
@@ -245,8 +245,8 @@ may still be active:
 
 ## Hook API
 
-`useAudioRecorder(options?)` — and the `createAudioRecorder` /
-`injectAudioRecorder` equivalents — accept:
+`useAudioRecorder(options?)` and its `createAudioRecorder` / `injectAudioRecorder`
+equivalents accept:
 
 | Option       | Type                                                | Description                                                                                          |
 | ------------ | --------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
@@ -266,6 +266,6 @@ And return:
 | `stop`        | `() => Promise<T>`    | Stop, and resolve with the recording (transformed if applicable)    |
 | `cancel`      | `() => void`          | Discard the in-progress recording and release the mic               |
 
-> Reactive shapes (`recording`, `isRecording`) vary per framework — see the
+> Reactive shapes (`recording`, `isRecording`) vary per framework. See the
 > table in [Other frameworks](#other-frameworks). `T` is `AudioRecording`
 > unless an `onComplete` transform changes it.

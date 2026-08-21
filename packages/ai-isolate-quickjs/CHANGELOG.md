@@ -1,5 +1,82 @@
 # @tanstack/ai-isolate-quickjs
 
+## 0.3.1
+
+### Patch Changes
+
+- Updated dependencies [[`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai-code-mode@0.4.0
+
+## 0.3.0
+
+### Minor Changes
+
+- [#1099](https://github.com/TanStack/ai/pull/1099) [`44a3848`](https://github.com/TanStack/ai/commit/44a384830858b3913edfbe562d390e65bea0ef92) - Add a `wasmLocation` driver option for loading the QuickJS WASM binary from a custom URL or path, such as a public directory or CDN.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.3.11
+
+## 0.2.1
+
+### Patch Changes
+
+- [#1071](https://github.com/TanStack/ai/pull/1071) [`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e) - fix: publish internal dependency ranges as `^x.y.z` instead of exact pins
+
+  Internal dependencies on other TanStack AI packages used `workspace:*` in
+  `dependencies` and `peerDependencies`. pnpm rewrites that to an **exact** version
+  at publish time, so a released package asked for e.g. `@tanstack/ai-utils@0.4.0`
+  rather than `^0.4.0`.
+
+  Two consequences for consumers:
+  - **Duplicate copies.** An exact pin cannot dedupe. Installing a newer
+    `@tanstack/ai` alongside a package pinned to the previous patch produced two
+    copies in the tree, which breaks `instanceof` checks and module-level state,
+    and inflates bundles.
+  - **Unsatisfiable peers.** An exactly pinned `peerDependency` conflicts the
+    moment the internal package ships its next patch, forcing consumers into
+    overrides or `--legacy-peer-deps`.
+
+  These fields now use `workspace:^`, which publishes as `^x.y.z`. Every package
+  here is still `0.x`, so `^0.43.1` resolves to `0.43.x` only — patches dedupe
+  cleanly and no breaking minor is ever pulled in.
+
+  `devDependencies` deliberately keep `workspace:*`: they are never published, and
+  `*` correctly means "always build against the local copy".
+
+- Updated dependencies [[`b2b82e4`](https://github.com/TanStack/ai/commit/b2b82e4f88517c5b5c2d545810729cff7221c99e), [`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e)]:
+  - @tanstack/ai-code-mode@0.3.11
+
+## 0.2.0
+
+### Minor Changes
+
+- [#948](https://github.com/TanStack/ai/pull/948) [`7299b38`](https://github.com/TanStack/ai/commit/7299b38ec585fa712a5ba9031e847180207abc60) - Replace asyncify-suspended host functions with promise-based bridging in the QuickJS isolate driver. Sequential awaits of the same async tool binding previously corrupted QuickJS refcounts and could abort the WASM module (https://github.com/justjake/quickjs-emscripten/issues/258) — the passing tests relied on an incidental heap-layout effect of the injected `console` global. Tool bindings now return QuickJS promises resolved from the host, which never suspend the WASM stack, and the driver uses the plain (non-asyncify) QuickJS build. Concurrent tool calls via `Promise.all` in sandboxed code are now supported, and execution timeouts are enforced with a host-side deadline in addition to the QuickJS interrupt handler.
+
+  **Migration notes:**
+  - **WASM variant changed.** The driver now loads the sync QuickJS build. If you bundle or self-host the wasm binary, ship `@jitl/quickjs-wasmfile-release-sync/wasm` instead of `@jitl/quickjs-wasmfile-release-asyncify/wasm` — the sync glue cannot instantiate the asyncify binary.
+  - **Timeouts are now terminal for the context.** After a `TimeoutError` (previously surfaced as `InternalError: interrupted`), outstanding tool calls are cancelled with a timeout error inside the sandbox, the context is disposed, and subsequent `execute()` calls return `DisposedError` — the timed-out program's interrupted jobs stay queued in the VM and must not run inside a later execution. Create a new context after a timeout; `@tanstack/ai-code-mode` already creates a context per execution, so typical Code Mode usage is unaffected.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.3.10
+
+## 0.1.48
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.3.9
+
+## 0.1.47
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @tanstack/ai-code-mode@0.3.8
+
 ## 0.1.46
 
 ### Patch Changes

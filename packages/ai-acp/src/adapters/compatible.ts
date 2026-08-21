@@ -1,15 +1,24 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  appendOutputSchemaInstruction,
+  parseJsonFromAssistantText,
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
+  DurableAttachNotSupportedError,
   SandboxCapability,
   buildApprovalRequestedEvent,
   createBridgeEventChannel,
   getSandbox,
+  getSandboxDurability,
   getToolBridgeProvisioner,
   getWorkspaceProjection,
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
+  resolveDurableRunId,
   resolveHarnessCwd,
 } from '@tanstack/ai-sandbox'
 import { AsyncQueue } from '../stream/queue'
@@ -131,9 +140,15 @@ export interface AcpCompatibleConfig<
   /** Extra environment variables for the harness process. */
   env?: Record<string, string>
   /**
+   * `'api-key'` (default) uses {@link authMethodId} (or `modelOptions.authMethodId`).
+   * `'host'` skips ACP authenticate (use the CLI login on the machine).
+   * Not inferred from the sandbox.
+   */
+  authMode?: 'host' | 'api-key'
+  /**
    * ACP auth method to select before the session starts, when the harness
    * advertises one (e.g. `'pi-api-key'`). Overridable per call via
-   * `modelOptions.authMethodId`.
+   * `modelOptions.authMethodId`. Ignored when {@link authMode} is `'host'`.
    */
   authMethodId?: string
   /** ACP permission policy. Defaults to `'bypassPermissions'`. */
@@ -182,7 +197,13 @@ export interface AcpCompatibleProviderOptions {
   sessionId?: string
   /** Per-call override of the harness working directory. */
   cwd?: string
-  /** Per-call override of the ACP auth method. */
+  /**
+   * `'api-key'` (default) uses {@link authMethodId}.
+   * `'host'` skips ACP authenticate.
+   * Not inferred from the sandbox.
+   */
+  authMode?: 'host' | 'api-key'
+  /** Per-call override of the ACP auth method. Ignored when authMode is `'host'`. */
   authMethodId?: string
   /** Per-call override of the ACP permission policy. */
   permissionMode?: AcpPermissionMode
@@ -242,6 +263,14 @@ export class AcpCompatibleTextAdapter<
     }
     this.harness = config
     this.name = config.name
+  }
+
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  combinedStructuredOutputSource(): 'event' {
+    return 'event'
   }
 
   private sandboxFrom(
@@ -331,8 +360,56 @@ export class AcpCompatibleTextAdapter<
       const modelOptions = options.modelOptions
       const cwd = modelOptions?.cwd ?? this.harness.cwd ?? DEFAULT_WORKDIR
       const harnessCwd = resolveHarnessCwd(sandbox, cwd)
-      const runId = options.runId ?? this.generateId()
+      // This adapter does not journal yet, so a generated id is still fine.
+      // Routed through the helper anyway so that whenever it gains journaling
+      // it inherits the caller-supplied-runId requirement instead of
+      // re-deriving it (see `packages/ai-sandbox/src/durability.ts`).
+      const runId = resolveDurableRunId(options.runId, {
+        durable: false,
+        adapter: 'acp',
+        fallback: () => this.generateId(),
+      })
       const threadId = options.threadId ?? this.generateId()
+
+      // Durability wired onto a path that cannot deliver it. Two outcomes, split
+      // by whether a first attempt has already run.
+      //
+      // ATTACH is fatal. `sandboxRunDriver`'s `drive()` sets `attach: true` only
+      // when a previous host was already streaming this run, so continuing past
+      // here reaches `startAcpSession` + `session.prompt(...)` and re-runs the
+      // agent from scratch against the workspace that attempt already mutated,
+      // appending its whole output to a log that still holds the first
+      // attempt's. This adapter has no journal to tail, no
+      // `awaitAttachableJournal` to refuse the attach up front, and no
+      // `alignedIfAttaching` to suppress the already-delivered prefix — so there
+      // is nothing between here and that corruption except this throw.
+      //
+      // A FRESH durable run only fails to be recoverable LATER, which an app may
+      // knowingly accept (it can wire `withSandbox({ runs, durability })` once at
+      // the middleware level and still route some runs through this adapter). So
+      // that is a warn, not a throw: audible, not fatal. Once per run, not per
+      // chunk — a per-chunk warning would be worse than none. Mirrors
+      // `ai-grok-build`'s `chatStreamAcp`.
+      const durability = options.capabilities
+        ? getSandboxDurability(options.capabilities, { optional: true })
+        : undefined
+      if (durability !== undefined) {
+        if (durability.attach) {
+          throw new DurableAttachNotSupportedError(
+            'acp',
+            'this adapter drives the harness over a bidirectional ACP ' +
+              'connection and does not journal',
+          )
+        }
+        logger.warn(
+          'acp: sandbox durability is wired but this adapter never journals — ' +
+            'this run will not be recoverable on reconnect. Use a journaling ' +
+            'harness adapter for runs that must survive a host restart, or drop ' +
+            'durability if these runs are not meant to.',
+          { runId, adapter: 'acp' },
+        )
+      }
+
       const channel = createBridgeEventChannel({
         model: this.model,
         threadId,
@@ -395,8 +472,12 @@ export class AcpCompatibleTextAdapter<
         modelOptions?.permissionMode ??
         this.harness.permissionMode ??
         'bypassPermissions'
+      const authMode =
+        modelOptions?.authMode ?? this.harness.authMode ?? 'api-key'
       const authMethodId =
-        modelOptions?.authMethodId ?? this.harness.authMethodId
+        authMode === 'host'
+          ? undefined
+          : (modelOptions?.authMethodId ?? this.harness.authMethodId)
 
       const approvalRequests: Array<StreamChunk> = []
       const permissionHandler = this.makePermissionHandler({
@@ -459,12 +540,18 @@ export class AcpCompatibleTextAdapter<
       const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
         .map((p) => p.content)
         .filter((c) => c.trim() !== '')
-      const promptText = this.applySystemPrompts(
+      let promptText = this.applySystemPrompts(
         systemPrompts,
         session.resumed || sessionId === undefined
           ? resumePrompt
           : this.buildPrompt(options.messages, undefined).prompt,
       )
+      if (options.outputSchema) {
+        promptText = appendOutputSchemaInstruction(
+          promptText,
+          options.outputSchema,
+        )
+      }
 
       session
         .prompt(promptText)
@@ -478,7 +565,11 @@ export class AcpCompatibleTextAdapter<
         })
         .catch((error: unknown) => queue.fail(error))
 
-      yield* mergeChunkStreams(
+      const wantsStructured = options.outputSchema !== undefined
+      let lastAssistantText = ''
+      let lastTextMessageId: string | undefined
+      let heldFinished: StreamChunk | undefined
+      for await (const chunk of mergeChunkStreams(
         translateAcpStream(queue, {
           model: this.model,
           runId,
@@ -506,7 +597,36 @@ export class AcpCompatibleTextAdapter<
             }),
         }),
         channel.stream,
-      )
+      )) {
+        if (wantsStructured && chunk.type === EventType.RUN_FINISHED) {
+          heldFinished = chunk
+          continue
+        }
+        if (wantsStructured) {
+          if (chunk.type === EventType.TEXT_MESSAGE_START) {
+            lastAssistantText = ''
+            if (typeof chunk.messageId === 'string' && chunk.messageId !== '') {
+              lastTextMessageId = chunk.messageId
+            }
+          } else if (
+            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+            typeof chunk.delta === 'string'
+          ) {
+            lastAssistantText += chunk.delta
+          }
+        }
+        yield chunk
+      }
+
+      if (options.outputSchema) {
+        yield* this.emitParsedStructuredOutput(
+          lastAssistantText,
+          threadId,
+          runId,
+          lastTextMessageId,
+        )
+      }
+      if (heldFinished) yield heldFinished
 
       // Surface any pending approval requests (interactive ask-policy actions
       // awaiting a client decision); the client approves and re-runs to continue.
@@ -590,13 +710,54 @@ export class AcpCompatibleTextAdapter<
     }
   }
 
+  private *emitParsedStructuredOutput(
+    raw: string,
+    threadId: string,
+    runId: string,
+    messageId = this.generateId(),
+  ): Generator<StreamChunk> {
+    try {
+      const object = parseJsonFromAssistantText(raw)
+      yield structuredOutputStartChunk({
+        messageId,
+        model: this.model,
+        threadId,
+        runId,
+      })
+      yield structuredOutputCompleteChunk({
+        messageId,
+        model: this.model,
+        threadId,
+        runId,
+        object,
+        raw,
+      })
+    } catch (error: unknown) {
+      const parserMessage =
+        error instanceof Error
+          ? error.message
+          : 'Failed to parse structured output'
+      const preview = raw.trim().slice(0, 200)
+      const message =
+        preview === '' ? parserMessage : `${parserMessage} Content: ${preview}`
+      yield {
+        type: EventType.RUN_ERROR,
+        model: this.model,
+        timestamp: Date.now(),
+        message,
+        code: 'structured-output-parse-failed',
+        error: { message, code: 'structured-output-parse-failed' },
+      }
+    }
+  }
+
   structuredOutput(
     _options: StructuredOutputOptions<ResolvedOptions<TModelOptions>>,
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        `Structured output is not supported by the in-sandbox "${this.name}" ACP harness adapter. ` +
-          'Use a model adapter for structured output, or omit outputSchema.',
+        'This harness honors outputSchema on chat() in the same turn. ' +
+          'Pass outputSchema to chat(), or use a model adapter for a one-shot extract.',
       ),
     )
   }

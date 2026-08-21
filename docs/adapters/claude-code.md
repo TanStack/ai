@@ -24,14 +24,23 @@ The Claude Code adapter runs [Claude Code](https://docs.anthropic.com/en/docs/cl
 npm install @tanstack/ai-claude-code
 ```
 
-A runnable demo lives at [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) — switch the harness (Claude Code, Codex, OpenCode, Grok Build) and sandbox provider per run, with session resume, the harness tool timeline, permission modes, and tool bridging, wired into a TanStack Start app.
+A runnable demo lives at [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare) — pick Claude Code, Codex, or Grok Build in the UI, with session resume, the harness tool timeline, and tool bridging, wired into a TanStack Start app on Workers. For the same wiring on plain Node with durable, refresh-surviving runs (this adapter on Docker), see [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web).
 
 ## Authentication
 
-The harness resolves credentials the same way Claude Code does:
+Your laptop can already have `claude login`. A CI runner only has
+`ANTHROPIC_API_KEY`. The default `authMode` is `'api-key'`. Set `'host'`
+when you want `claude login`. See [Harness Auth](../sandbox/auth).
 
-- `ANTHROPIC_API_KEY` in the server's environment (or the `apiKey` config option), or
-- an existing Claude subscription login on the machine (`claude login`).
+```ts
+import { claudeCodeText } from "@tanstack/ai-claude-code"
+
+claudeCodeText("claude-opus-4-8")
+claudeCodeText("claude-opus-4-8", { authMode: "host" })
+```
+
+- `'api-key'` (default): inject `ANTHROPIC_API_KEY` (or pass `apiKey`).
+- `'host'`: use `claude login`. Do not inject `ANTHROPIC_API_KEY`.
 
 ## Basic Usage
 
@@ -59,6 +68,7 @@ const stream = chat({
 | `maxTurns`                   | Maximum harness-internal turns per run.                                                                                                            |
 | `systemPromptMode`           | `'append'` (default) keeps Claude Code's preset system prompt and appends your `systemPrompts`; `'replace'` sends yours as the entire prompt.       |
 | `mcpServers`                 | Extra MCP servers passed through to the harness untouched.                                                                                         |
+| `authMode`                   | `'api-key'` (default) injects `ANTHROPIC_API_KEY`. `'host'` uses `claude login`. Also valid on `modelOptions`. See [Harness Auth](../sandbox/auth). |
 | `apiKey`                     | Anthropic API key for the harness subprocess.                                                                                                       |
 | `env`                        | Extra environment variables for the harness subprocess.                                                                                            |
 | `pathToClaudeCodeExecutable` | Use a specific Claude Code executable instead of the SDK's bundled one.                                                                             |
@@ -170,7 +180,65 @@ const stream = chat({
 
 ## Structured Output
 
-`structuredOutput()` uses the harness's native JSON-schema output format in a one-shot run (single turn, no tools). It works for finalization after a chat, but a plain provider adapter (e.g. `@tanstack/ai-anthropic`) is the better choice when structured extraction is the primary job — it's faster and doesn't spawn a subprocess.
+Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its native tools, and returns a typed object. The schema JSON is passed to `--json-schema` as inline JSON (the CLI rejects a file path). Tool activity and prose stream as usual. The object arrives as `structured-output.complete`, including when Claude delivers it through its built-in `StructuredOutput` tool.
+
+The adapter loads only user settings (`--setting-sources user`). A cloned repo's `.claude/settings.json` does not block headless `-p`. The adapter does not pass `--bare`, because that flag ignores a host `claude login`.
+
+On local-process, Claude uses your host `claude login`. On Docker, pass `ANTHROPIC_API_KEY` in the process env. A container has no host login.
+
+```ts
+import { chat } from "@tanstack/ai"
+import { claudeCodeText } from "@tanstack/ai-claude-code"
+import { defineSandbox, withSandbox } from "@tanstack/ai-sandbox"
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+const sandbox = defineSandbox({
+  id: "repo-report",
+  provider: dockerSandbox({ image: "node:22" }),
+})
+
+const report = await chat({
+  adapter: claudeCodeText("claude-opus-4-8"),
+  messages: [{ role: "user", content: "Review this repo." }],
+  outputSchema: Report,
+  middleware: [withSandbox(sandbox)],
+})
+
+report.summary
+```
+
+On the client, pass the same schema to `useChat` and read `final`. `partial` stays empty until the end.
+
+```tsx
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+function ReportView() {
+  const { final, isLoading } = useChat({
+    connection: fetchServerSentEvents("/api/repo-report"),
+    outputSchema: Report,
+  })
+
+  if (isLoading) return <p>The agent is inspecting the repo.</p>
+  if (!final) return null
+  return <p>{final.summary}</p>
+}
+```
+
+If you only need to extract JSON from a prompt and do not need a sandbox, use `@tanstack/ai-anthropic`. That path is faster.
+
+Full walkthrough, including the client: [Harness Agents](../structured-outputs/harnesses).
 
 ## Limitations
 

@@ -2,6 +2,7 @@ import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
 import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
+import { getAnthropicProviderToolKind } from '../tools/anthropic-provider-tool'
 import {
   readCodeExecutionConfig,
   readCodeExecutionSkills,
@@ -147,7 +148,8 @@ function buildServerToolResultBlock(
  * Computes the `betas` array for a Messages request. Unions:
  * - `interleaved-thinking-2025-05-14` when interleaved thinking is enabled,
  * - `code-execution-2025-08-25` when a `code_execution` tool is present,
- * - `skills-2025-10-02` when that tool carries skills.
+ * - `skills-2025-10-02` when that tool carries skills,
+ * - `context-management-2025-06-27` when `context_management` is set.
  * Returns `undefined` when none apply (so the call site omits `betas`).
  */
 export function computeAnthropicBetas(
@@ -158,6 +160,7 @@ export function computeAnthropicBetas(
           type?: 'enabled' | 'disabled' | 'adaptive'
           budget_tokens?: number
         }
+        context_management?: unknown | null
       }
     | undefined,
 ): Array<AnthropicBeta> | undefined {
@@ -169,9 +172,17 @@ export function computeAnthropicBetas(
     modelOptions.thinking.budget_tokens > 0
   if (useInterleavedThinking) betas.add('interleaved-thinking-2025-05-14')
 
+  // Context editing requires the beta header; the body field alone is not
+  // enough (issue #1074). `null` is a typed "unset" — do not enable the beta.
+  if (modelOptions?.context_management != null) {
+    betas.add('context-management-2025-06-27')
+  }
+
   // Code-execution beta is version-aware: select from the FIRST code_execution
   // tool's config type.
-  const codeExecTool = tools?.find((t) => t.name === 'code_execution')
+  const codeExecTool = tools?.find(
+    (tool) => getAnthropicProviderToolKind(tool) === 'code_execution',
+  )
   if (codeExecTool) {
     const cfgType = readCodeExecutionConfig(codeExecTool)?.type
     // Each code_execution tool version pairs with a specific beta. Known
@@ -188,9 +199,9 @@ export function computeAnthropicBetas(
   // container-lift, which lifts skills from any code_execution tool that
   // carries them (not just the first).
   const hasSkills = tools?.some(
-    (t) =>
-      t.name === 'code_execution' &&
-      (readCodeExecutionSkills(t)?.length ?? 0) > 0,
+    (tool) =>
+      getAnthropicProviderToolKind(tool) === 'code_execution' &&
+      (readCodeExecutionSkills(tool)?.length ?? 0) > 0,
   )
   if (hasSkills) betas.add('skills-2025-10-02')
 
@@ -455,6 +466,7 @@ export class AnthropicTextAdapter<
     const validProviderOptions: Partial<InternalTextProviderOptions> = {}
     if (modelOptions) {
       const validKeys: Array<keyof AnthropicTextProviderOptions> = [
+        'cache_control',
         'container',
         'context_management',
         'effort',
@@ -574,7 +586,7 @@ export class AnthropicTextAdapter<
     // canonical path for skills; `modelOptions.container.skills` is deprecated.
     const toolSkills = options.tools
       ?.map((tool) =>
-        tool.name === 'code_execution'
+        getAnthropicProviderToolKind(tool) === 'code_execution'
           ? readCodeExecutionSkills(tool)
           : undefined,
       )
@@ -648,11 +660,14 @@ export class AnthropicTextAdapter<
         return {
           type: 'image',
           source: imageSource,
-          ...metadata,
+          ...(metadata?.cache_control !== undefined && {
+            cache_control: metadata.cache_control,
+          }),
         }
       }
       case 'document': {
         const metadata = part.metadata as AnthropicDocumentMetadata | undefined
+        const title = metadata?.title ?? metadata?.filename
         const docSource: Base64PDFSource | URLPDFSource =
           part.source.type === 'data'
             ? {
@@ -667,7 +682,16 @@ export class AnthropicTextAdapter<
         return {
           type: 'document',
           source: docSource,
-          ...metadata,
+          ...(metadata?.cache_control !== undefined && {
+            cache_control: metadata.cache_control,
+          }),
+          ...(metadata?.citations !== undefined && {
+            citations: metadata.citations,
+          }),
+          ...(metadata?.context !== undefined && {
+            context: metadata.context,
+          }),
+          ...(title !== undefined && { title }),
         }
       }
       case 'audio':

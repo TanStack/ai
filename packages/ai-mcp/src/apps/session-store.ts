@@ -1,3 +1,4 @@
+import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
 import type { TransportConfig } from '../transport'
 
 export interface McpServerDescriptor {
@@ -9,6 +10,11 @@ export interface McpServerDescriptor {
    */
   transport: TransportConfig | undefined
   prefix?: string
+  /**
+   * Options to rebuild the client with. Carried so a reconnect keeps a custom
+   * `jsonSchemaValidator` — an edge runtime cannot use the SDK's AJV default.
+   */
+  clientOptions?: ClientOptions
 }
 
 export interface McpSessionStore {

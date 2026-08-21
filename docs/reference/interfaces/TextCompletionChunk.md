@@ -5,7 +5,7 @@ title: TextCompletionChunk
 
 # Interface: TextCompletionChunk
 
-Defined in: [packages/ai/src/types.ts:1639](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1639)
+Defined in: [packages/ai/src/types.ts:1978](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1978)
 
 ## Properties
 
@@ -15,17 +15,17 @@ Defined in: [packages/ai/src/types.ts:1639](https://github.com/TanStack/ai/blob/
 content: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1642](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1642)
+Defined in: [packages/ai/src/types.ts:1981](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1981)
 
 ***
 
 ### finishReason?
 
 ```ts
-optional finishReason: "length" | "stop" | "content_filter" | null;
+optional finishReason?: "length" | "stop" | "content_filter" | null;
 ```
 
-Defined in: [packages/ai/src/types.ts:1644](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1644)
+Defined in: [packages/ai/src/types.ts:1983](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1983)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/types.ts:1644](https://github.com/TanStack/ai/blob/
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1640](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1640)
+Defined in: [packages/ai/src/types.ts:1979](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1979)
 
 ***
 
@@ -45,24 +45,24 @@ Defined in: [packages/ai/src/types.ts:1640](https://github.com/TanStack/ai/blob/
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1641](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1641)
+Defined in: [packages/ai/src/types.ts:1980](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1980)
 
 ***
 
 ### role?
 
 ```ts
-optional role: "assistant";
+optional role?: "assistant";
 ```
 
-Defined in: [packages/ai/src/types.ts:1643](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1643)
+Defined in: [packages/ai/src/types.ts:1982](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1982)
 
 ***
 
 ### usage?
 
 ```ts
-optional usage: TokenUsage<ProviderUsageDetails>;
+optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1645](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1645)
+Defined in: [packages/ai/src/types.ts:1984](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1984)

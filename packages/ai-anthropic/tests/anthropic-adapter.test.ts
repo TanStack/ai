@@ -8,6 +8,7 @@ import {
 } from '@tanstack/ai'
 import { AnthropicTextAdapter } from '../src/adapters/text'
 import type { AnthropicTextProviderOptions } from '../src/adapters/text'
+import type { AnthropicDocumentMetadata } from '../src/message-types'
 import { ANTHROPIC_MAX_NONSTREAMING_TOKENS } from '../src/model-meta'
 import { z } from 'zod'
 
@@ -80,6 +81,103 @@ function createTextStream(text: string) {
 describe('Anthropic adapter option mapping', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+  })
+
+  it('serializes only supported document metadata', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+    const metadata = {
+      mediaType: 'application/pdf',
+      cache_control: { type: 'ephemeral' },
+      citations: { enabled: true },
+      context: 'Quarterly report',
+      filename: 'report.pdf',
+      placeholder: 'Attachment: report.pdf',
+    } as AnthropicDocumentMetadata & { placeholder: string }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'data',
+                value: 'JVBERi0xLjQ=',
+                mimeType: 'application/pdf',
+              },
+              metadata,
+            },
+          ],
+        },
+      ],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    expect(payload.messages[0].content[0]).toEqual({
+      type: 'document',
+      source: {
+        type: 'base64',
+        data: 'JVBERi0xLjQ=',
+        media_type: 'application/pdf',
+      },
+      cache_control: { type: 'ephemeral' },
+      citations: { enabled: true },
+      context: 'Quarterly report',
+      title: 'report.pdf',
+    })
+  })
+
+  it('prefers document title over filename and serializes only cache_control for images', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'data',
+                value: 'JVBERi0xLjQ=',
+                mimeType: 'application/pdf',
+              },
+              metadata: { title: 'Q3 Report', filename: 'report.pdf' },
+            },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/a.png' },
+              metadata: {
+                mediaType: 'image/png',
+                cache_control: { type: 'ephemeral' },
+                filename: 'a.png',
+              },
+            },
+          ],
+        },
+      ],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    expect(payload.messages[0].content[0].title).toBe('Q3 Report')
+    expect(payload.messages[0].content[1]).toEqual({
+      type: 'image',
+      source: { type: 'url', url: 'https://example.com/a.png' },
+      cache_control: { type: 'ephemeral' },
+    })
   })
 
   it('passes systemPrompts as TextBlockParam[] for prompt caching support', async () => {
@@ -395,6 +493,61 @@ describe('Anthropic adapter option mapping', () => {
     const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
     expect(payload.temperature).toBe(0.4)
     expect(payload.max_tokens).toBe(2048)
+  })
+
+  it('forwards context_management and attaches the required beta (issue #1074)', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+    const contextManagement = {
+      edits: [{ type: 'clear_tool_uses_20250919' as const }],
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        context_management: contextManagement,
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.context_management).toEqual(contextManagement)
+    expect(payload.betas).toEqual(['context-management-2025-06-27'])
+  })
+
+  it('forwards top-level cache_control from modelOptions instead of dropping it', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: vi.fn(),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Hi' }],
+      modelOptions: {
+        cache_control: { type: 'ephemeral' },
+      } satisfies AnthropicTextProviderOptions,
+      debug: { logger, errors: true },
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    expect(payload.cache_control).toEqual({ type: 'ephemeral' })
+
+    const droppedKeyError = logger.error.mock.calls.find((call) =>
+      String(call[0]).includes('dropped unknown modelOptions key'),
+    )
+    expect(droppedKeyError).toBeUndefined()
   })
 
   it('does not warn about dropped keys when max_tokens is passed via modelOptions', async () => {

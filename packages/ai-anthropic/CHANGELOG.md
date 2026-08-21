@@ -1,5 +1,98 @@
 # @tanstack/ai-anthropic
 
+## 0.16.9
+
+### Patch Changes
+
+- [#1080](https://github.com/TanStack/ai/pull/1080) [`3bb55f3`](https://github.com/TanStack/ai/commit/3bb55f33524ccb52ee8262a06a3f90154a7db23a) - Fix `modelOptions.context_management` by attaching the required
+  `context-management-2025-06-27` beta. The option was typed and forwarded on the
+  request body, but Anthropic rejects context editing without the beta header —
+  so the feature typechecked and could not work (issue [#1074](https://github.com/TanStack/ai/issues/1074)).
+- Updated dependencies [[`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/ai@0.47.1
+
+## 0.16.8
+
+### Patch Changes
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+
+## 0.16.7
+
+### Patch Changes
+
+- [#932](https://github.com/TanStack/ai/pull/932) [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b) - Classify Anthropic, Gemini, and OpenAI native tools with stable runtime discriminators so ordinary functions can use the same public names without selecting provider-native behavior. Native tools must come from the adapter factory (`webSearchTool()`, `googleSearchTool()`, and the rest). A reserved `name` alone does not select a native converter. `chat()` throws `DuplicateToolNameError` when a factory tool and a custom function share the same public name.
+
+  Previously the converters picked provider-native behavior by `tool.name`. Tool names are public application identifiers, so a plain function called `web_search`, `google_search`, or `code_execution` was routed into a native converter: it lost its `inputSchema` and was sent as a provider-only payload (and on Anthropic could also flip on `code_execution` / skills beta headers). Native tools are now identified by adapter-owned metadata, which converters strip before building the wire payload, so provider API versions stay confined to the wire converters.
+
+  Also preserves Anthropic `webSearchTool` options (`max_uses`, `allowed_domains`, `blocked_domains`, `user_location`, `cache_control`) on the wire payload.
+
+  Also fixes `googleSearchTool({ searchTypes: … })` being silently dropped on the experimental `geminiTextInteractions()` adapter. The Interactions converter read a snake_case `search_types` array, but the public factory takes the Generate Content shape (`GoogleSearch.searchTypes: { webSearch?, imageSearch? }`), so the field never matched and every request fell back to the provider default of web-search-only. The camelCase config is now translated to the Interactions wire list.
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b), [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a), [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b), [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd)]:
+  - @tanstack/ai@0.46.0
+
+## 0.16.6
+
+### Patch Changes
+
+- [#1136](https://github.com/TanStack/ai/pull/1136) [`b7928f2`](https://github.com/TanStack/ai/commit/b7928f2fe75f8e329989ded720927375eae7aee3) - Register `claude-opus-5` and `claude-opus-5-fast` on the per-model tool-capabilities map so they match `ANTHROPIC_MODELS`.
+
+- [#1048](https://github.com/TanStack/ai/pull/1048) [`bc8c5e8`](https://github.com/TanStack/ai/commit/bc8c5e8684da159b08e63aba7cfc51b01289d4eb) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+
+## 0.16.5
+
+### Patch Changes
+
+- [#1062](https://github.com/TanStack/ai/pull/1062) [`ad62202`](https://github.com/TanStack/ai/commit/ad622026d322294cb50c6ff79c9e2f95103d66af) - Forward top-level `cache_control` from `modelOptions` in the Anthropic text adapter.
+
+  Anthropic's Messages API accepts `cache_control` as a request-level parameter (it auto-places the cache breakpoint on the last cacheable block), but the adapter's `modelOptions` allowlist omitted it, so any value passed was silently stripped and logged as a dropped key. Per-block caching via `systemPrompts[].metadata.cache_control` is unchanged.
+
+- [#1071](https://github.com/TanStack/ai/pull/1071) [`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e) - fix: publish internal dependency ranges as `^x.y.z` instead of exact pins
+
+  Internal dependencies on other TanStack AI packages used `workspace:*` in
+  `dependencies` and `peerDependencies`. pnpm rewrites that to an **exact** version
+  at publish time, so a released package asked for e.g. `@tanstack/ai-utils@0.4.0`
+  rather than `^0.4.0`.
+
+  Two consequences for consumers:
+  - **Duplicate copies.** An exact pin cannot dedupe. Installing a newer
+    `@tanstack/ai` alongside a package pinned to the previous patch produced two
+    copies in the tree, which breaks `instanceof` checks and module-level state,
+    and inflates bundles.
+  - **Unsatisfiable peers.** An exactly pinned `peerDependency` conflicts the
+    moment the internal package ships its next patch, forcing consumers into
+    overrides or `--legacy-peer-deps`.
+
+  These fields now use `workspace:^`, which publishes as `^x.y.z`. Every package
+  here is still `0.x`, so `^0.43.1` resolves to `0.43.x` only — patches dedupe
+  cleanly and no breaking minor is ever pulled in.
+
+  `devDependencies` deliberately keep `workspace:*`: they are never published, and
+  `*` correctly means "always build against the local copy".
+
+- Updated dependencies [[`59aa8b5`](https://github.com/TanStack/ai/commit/59aa8b5049549246227c8f2cf736ce50d05205a5), [`ee07854`](https://github.com/TanStack/ai/commit/ee07854fd3d2d4bb279e6e4748802f7f9a5a7167), [`b785cc4`](https://github.com/TanStack/ai/commit/b785cc4ae382fb0e2a337199d192bd9335ac9249), [`47e2464`](https://github.com/TanStack/ai/commit/47e246480d29e2ab5a83ca684e047670e75ba66c), [`dd7ddf1`](https://github.com/TanStack/ai/commit/dd7ddf19283358adfbf61d057321d7daee3ca50d), [`6903978`](https://github.com/TanStack/ai/commit/690397804254dca638961c79b7941555edc52c02), [`fdb791a`](https://github.com/TanStack/ai/commit/fdb791a1c9c8de906eecf76f59743f697621b027), [`7aa4ae9`](https://github.com/TanStack/ai/commit/7aa4ae9d07d21195dd3d62598ac503f1dfdc79e4), [`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e)]:
+  - @tanstack/ai@0.44.0
+
+## 0.16.4
+
+### Patch Changes
+
+- Updated dependencies [[`7499171`](https://github.com/TanStack/ai/commit/74991716aea4d90a5d0363676a1e3349689a48e8)]:
+  - @tanstack/ai@0.43.0
+  - @tanstack/ai-utils@0.4.0
+
+## 0.16.3
+
+### Patch Changes
+
+- Updated dependencies [[`3e1b510`](https://github.com/TanStack/ai/commit/3e1b510e4fdd2334af468c47b7c37b572805200e)]:
+  - @tanstack/ai@0.42.0
+
 ## 0.16.2
 
 ### Patch Changes

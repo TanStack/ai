@@ -14,7 +14,7 @@ A message in a realtime conversation
 ### audioId?
 
 ```ts
-optional audioId: string;
+optional audioId?: string;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:174](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L174)
@@ -26,7 +26,7 @@ Reference to audio buffer if stored
 ### durationMs?
 
 ```ts
-optional durationMs: number;
+optional durationMs?: number;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:176](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L176)
@@ -50,7 +50,7 @@ Unique message identifier
 ### interrupted?
 
 ```ts
-optional interrupted: boolean;
+optional interrupted?: boolean;
 ```
 
 Defined in: [packages/ai/src/realtime/types.ts:172](https://github.com/TanStack/ai/blob/main/packages/ai/src/realtime/types.ts#L172)

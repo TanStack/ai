@@ -18,7 +18,7 @@ Granular debug configuration combining per-category toggles with an optional cus
 ### agentLoop?
 
 ```ts
-optional agentLoop: boolean;
+optional agentLoop?: boolean;
 ```
 
 Defined in: [packages/ai/src/logger/types.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L50)
@@ -34,7 +34,7 @@ Iteration markers and phase transitions in the chat agent loop. Chat-only.
 ### config?
 
 ```ts
-optional config: boolean;
+optional config?: boolean;
 ```
 
 Defined in: [packages/ai/src/logger/types.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L54)
@@ -50,7 +50,7 @@ Config transforms returned by middleware `onConfig` hooks. Chat-only.
 ### errors?
 
 ```ts
-optional errors: boolean;
+optional errors?: boolean;
 ```
 
 Defined in: [packages/ai/src/logger/types.ts:58](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L58)
@@ -66,7 +66,7 @@ Caught errors throughout the pipeline. Unlike other categories, defaults to `tru
 ### logger?
 
 ```ts
-optional logger: Logger;
+optional logger?: Logger;
 ```
 
 Defined in: [packages/ai/src/logger/types.ts:77](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L77)
@@ -78,7 +78,7 @@ Custom `Logger` implementation. When omitted, a default `ConsoleLogger` routes o
 ### middleware?
 
 ```ts
-optional middleware: boolean;
+optional middleware?: boolean;
 ```
 
 Defined in: [packages/ai/src/logger/types.ts:42](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L42)
@@ -94,7 +94,7 @@ Inputs and outputs around each middleware hook invocation. Chat-only.
 ### output?
 
 ```ts
-optional output: boolean;
+optional output?: boolean;
 ```
 
 Defined in: [packages/ai/src/logger/types.ts:38](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L38)
@@ -110,12 +110,12 @@ Chunks/results yielded to the consumer after all middleware. For streaming activ
 ### provider?
 
 ```ts
-optional provider: boolean;
+optional provider?: boolean;
 ```
 
 Defined in: [packages/ai/src/logger/types.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L34)
 
-Raw chunks/frames received from a provider SDK (OpenAI, Anthropic, Gemini, Ollama, Grok, Groq, OpenRouter, fal, ElevenLabs). Emitted inside every streaming adapter's chunk loop.
+Raw chunks/frames received from a provider SDK (OpenAI, Anthropic, Gemini, Ollama, Grok, Groq, OpenRouter, fal, ElevenLabs, BytePlus). Emitted inside every streaming adapter's chunk loop.
 
 #### Inherited from
 
@@ -126,7 +126,7 @@ Raw chunks/frames received from a provider SDK (OpenAI, Anthropic, Gemini, Ollam
 ### request?
 
 ```ts
-optional request: boolean;
+optional request?: boolean;
 ```
 
 Defined in: [packages/ai/src/logger/types.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L62)
@@ -142,7 +142,7 @@ Outgoing call metadata (provider, model, message/tool counts) emitted before eac
 ### sandbox?
 
 ```ts
-optional sandbox: boolean;
+optional sandbox?: boolean;
 ```
 
 Defined in: [packages/ai/src/logger/types.ts:67](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L67)
@@ -159,7 +159,7 @@ hook dispatch, ensure/bootstrap and lifecycle transitions. Chat-only.
 ### tools?
 
 ```ts
-optional tools: boolean;
+optional tools?: boolean;
 ```
 
 Defined in: [packages/ai/src/logger/types.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/logger/types.ts#L46)

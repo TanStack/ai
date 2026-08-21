@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import {
   GitBranch,
   Loader2,
@@ -9,21 +9,17 @@ import {
   Upload,
   X,
 } from 'lucide-react'
+import { useGenerateVideo } from '@tanstack/ai-react'
 import type { AttachedMedia } from '@/lib/media'
 import type { OmniTaskMode } from '@/lib/models'
 import type { MediaPromptPart } from '@tanstack/ai/client'
 
-import {
-  createVideoJobFn,
-  getVideoStatusFn,
-  getVideoUrlFn,
-} from '@/lib/server-functions'
+import { generateVideoFn } from '@/lib/server-functions'
 import { readMediaFile, toImagePart, toVideoPart } from '@/lib/media'
 
 const OMNI_MODEL = 'gemini-omni-flash-preview'
 /** Omni bills per second of generated video. */
 const PRICE_PER_SECOND = 0.1
-const POLL_INTERVAL_MS = 4000
 
 type AspectRatio = '16:9' | '9:16'
 
@@ -79,14 +75,21 @@ export default function OmniStudio() {
   const imageInputRef = useRef<HTMLInputElement>(null)
   const videoInputRef = useRef<HTMLInputElement>(null)
   const promptRef = useRef<HTMLTextAreaElement>(null)
-  const pollingRefs = useRef<Map<string, NodeJS.Timeout>>(new Map())
-
-  useEffect(() => {
-    return () => {
-      pollingRefs.current.forEach((interval) => clearInterval(interval))
-      pollingRefs.current.clear()
+  /**
+   * The turn currently on the wire, plus the request settings that go with
+   * it. `useGenerateVideo` builds its client (and captures the fetcher) once,
+   * so per-send values are read from here at call time instead of being
+   * closed over; the hook's callbacks use it to know which turn to update.
+   */
+  const submissionRef = useRef<{
+    localId: string
+    previousInteractionId?: string
+    omniOptions: {
+      duration?: number
+      aspectRatio: AspectRatio
+      task?: OmniTaskMode
     }
-  }, [])
+  } | null>(null)
 
   const updateTurn = (localId: string, patch: Partial<OmniTurn>) => {
     setTurns((prev) =>
@@ -96,44 +99,58 @@ export default function OmniStudio() {
     )
   }
 
-  const stopPolling = (localId: string) => {
-    const interval = pollingRefs.current.get(localId)
-    if (interval) {
-      clearInterval(interval)
-      pollingRefs.current.delete(localId)
-    }
-  }
-
-  const pollTurn = async (localId: string, jobId: string) => {
-    try {
-      const status = await getVideoStatusFn({
-        data: { jobId, model: OMNI_MODEL },
+  // One hook serves the whole session: only one turn can be in flight (the
+  // composer is disabled while generating), and the timeline of finished
+  // clips is this component's own state rather than something the hook models.
+  const { generate, isLoading } = useGenerateVideo({
+    threadId: 'omni-studio',
+    // `options.signal` is the hook's abort signal; cancelling the response is
+    // what ends the server's polling loop instead of leaving it running.
+    fetcher: (input, options) => {
+      const submission = submissionRef.current
+      if (!submission) throw new Error('No Omni turn in flight')
+      return generateVideoFn({
+        data: {
+          prompt: input.prompt,
+          model: OMNI_MODEL,
+          ...(submission.previousInteractionId
+            ? { previousInteractionId: submission.previousInteractionId }
+            : {}),
+          omniOptions: submission.omniOptions,
+        },
+        signal: options?.signal,
       })
-      if (status.status === 'completed') {
-        stopPolling(localId)
-        const urlResult = await getVideoUrlFn({
-          data: { jobId, model: OMNI_MODEL },
-        })
-        if (!urlResult.url) throw new Error('No URL found')
-        updateTurn(localId, { status: 'completed', url: urlResult.url })
-        // Conversational default: the newest finished clip becomes the one
-        // the next prompt continues from.
-        setContinueFrom(localId)
-      } else if (status.status === 'failed') {
-        stopPolling(localId)
-        updateTurn(localId, {
+    },
+    onJobCreated: (jobId) => {
+      const submission = submissionRef.current
+      if (submission) {
+        updateTurn(submission.localId, { status: 'processing', jobId })
+      }
+    },
+    onResult: (result) => {
+      const submission = submissionRef.current
+      if (!submission) return
+      // Clearing the ref is what re-opens the composer to the next send.
+      submissionRef.current = null
+      updateTurn(submission.localId, {
+        status: 'completed',
+        url: result.url,
+      })
+      // Conversational default: the newest finished clip becomes the one
+      // the next prompt continues from.
+      setContinueFrom(submission.localId)
+    },
+    onError: (err) => {
+      const submission = submissionRef.current
+      if (submission) {
+        submissionRef.current = null
+        updateTurn(submission.localId, {
           status: 'error',
-          error: status.error ?? 'Video generation failed',
+          error: err.message,
         })
       }
-    } catch (err) {
-      stopPolling(localId)
-      updateTurn(localId, {
-        status: 'error',
-        error: err instanceof Error ? err.message : 'Failed to get status',
-      })
-    }
-  }
+    },
+  })
 
   const handleImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files ?? [])
@@ -158,9 +175,7 @@ export default function OmniStudio() {
     }
   }
 
-  const isBusy = turns.some(
-    (turn) => turn.status === 'submitting' || turn.status === 'processing',
-  )
+  const isBusy = isLoading
 
   const continueFromTurn = continueFrom
     ? turns.find((turn) => turn.localId === continueFrom)
@@ -198,7 +213,11 @@ export default function OmniStudio() {
   }
 
   const handleSend = async () => {
-    if (!prompt.trim() || isBusy) return
+    // `isBusy` comes from React state, which hasn't re-rendered yet for a
+    // second click in the same tick; the ref is set synchronously below and
+    // cleared when the run settles, so it closes that window — without it a
+    // second send would overwrite the submission and strand the first turn.
+    if (!prompt.trim() || isBusy || submissionRef.current) return
 
     const parentJobId = continueFromTurn?.jobId
     const localId = crypto.randomUUID()
@@ -233,31 +252,16 @@ export default function OmniStudio() {
     setImages([])
     setVideo(null)
 
-    try {
-      const result = await createVideoJobFn({
-        data: {
-          prompt: builtPrompt,
-          model: OMNI_MODEL,
-          ...(parentJobId ? { previousInteractionId: parentJobId } : {}),
-          omniOptions: {
-            ...(durationLocked ? {} : { duration }),
-            aspectRatio,
-            ...(task !== 'auto' ? { task } : {}),
-          },
-        },
-      })
-      updateTurn(localId, { status: 'processing', jobId: result.jobId })
-      const interval = setInterval(() => {
-        pollTurn(localId, result.jobId)
-      }, POLL_INTERVAL_MS)
-      pollingRefs.current.set(localId, interval)
-    } catch (err) {
-      updateTurn(localId, {
-        status: 'error',
-        error:
-          err instanceof Error ? err.message : 'Failed to create video job',
-      })
+    submissionRef.current = {
+      localId,
+      ...(parentJobId ? { previousInteractionId: parentJobId } : {}),
+      omniOptions: {
+        ...(durationLocked ? {} : { duration }),
+        aspectRatio,
+        ...(task !== 'auto' ? { task } : {}),
+      },
     }
+    await generate({ prompt: builtPrompt })
   }
 
   const estimatedCost = (duration * PRICE_PER_SECOND).toFixed(2)

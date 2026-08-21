@@ -6,10 +6,10 @@ title: toolDefinition
 # Function: toolDefinition()
 
 ```ts
-function toolDefinition<TInput, TOutput, TName, TNeedsApproval>(config): ToolDefinition<TInput, TOutput, TName, TNeedsApproval>;
+function toolDefinition<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema>(config): ToolDefinition<TInput, TOutput, TName, TNeedsApproval, TApprovalSchema>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:209](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L209)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:331](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L331)
 
 Create an isomorphic tool definition that can be used directly or instantiated for server/client
 
@@ -25,11 +25,11 @@ or plain JSON Schema objects.
 
 ### TInput
 
-`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = `undefined`
 
 ### TOutput
 
-`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = `undefined`
 
 ### TName
 
@@ -39,15 +39,21 @@ or plain JSON Schema objects.
 
 `TNeedsApproval` *extends* `boolean` = `false`
 
+### TApprovalSchema
+
+`TApprovalSchema` *extends* 
+  \| [`ApprovalSchemaConfig`](../type-aliases/ApprovalSchemaConfig.md)
+  \| `undefined` = `undefined`
+
 ## Parameters
 
 ### config
 
-[`ToolDefinitionConfig`](../interfaces/ToolDefinitionConfig.md)\<`TInput`, `TOutput`, `TName`, `TNeedsApproval`\>
+[`ToolDefinitionConfig`](../type-aliases/ToolDefinitionConfig.md)\<`TInput`, `TOutput`, `TName`, `TNeedsApproval`, `TApprovalSchema`\>
 
 ## Returns
 
-[`ToolDefinition`](../interfaces/ToolDefinition.md)\<`TInput`, `TOutput`, `TName`, `TNeedsApproval`\>
+[`ToolDefinition`](../interfaces/ToolDefinition.md)\<`TInput`, `TOutput`, `TName`, `TNeedsApproval`, `TApprovalSchema`\>
 
 ## Example
 

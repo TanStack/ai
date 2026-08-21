@@ -26,6 +26,7 @@ import type {
   SandboxHandle,
   SnapshotRef,
   SpawnHandle,
+  SandboxFsStat,
 } from '@tanstack/ai-sandbox'
 import type {
   SpriteCheckpoint,
@@ -43,6 +44,30 @@ export const SPRITES_CAPS: SandboxCapabilities = {
   // stdin channel here, so adapters that feed a prompt over stdin must deliver
   // it via a file + shell redirection instead.
   writableStdin: false,
+  // UNVERIFIED AGAINST A LIVE SPRITE, and deliberately still `true` — unlike the
+  // docker / local-process / vercel / daytona declarations, this one does NOT rest
+  // on a client-side detach. `spawnProcess.kill()` delegates to the exec stream's
+  // `kill()`, which resolves the session id (waiting up to 5s for the
+  // `session_info` frame) and issues a real SERVER-side
+  // `POST /v1/sprites/<name>/exec/<sessionId>/kill` BEFORE closing the socket; the
+  // caller's `signal` runs the same path. Dropping the WebSocket alone would be the
+  // proven-broken shape, and `client.ts` is explicit that it must not be (see
+  // `terminate`, and the two `client.test.ts` cases that assert the kill endpoint
+  // is hit — including when the kill races ahead of `session_info`).
+  //
+  // What is NOT established, and cannot be from here, is WHAT that endpoint
+  // signals. Sprites publishes no SDK or docs in this repo, so whether the kill is
+  // process-group-wide or pid-only is unknown, and `journalFollowCommand` is a
+  // three-statement command (`mkdir …; : >> …; tail -f …`) that no shell can
+  // exec-optimize — so the `tail -f` is necessarily a CHILD of the `bash -c` this
+  // handle spawns. A pid-only kill would therefore leak a `tail -f` per follow read,
+  // which is precisely the local-process defect. `killSession` also swallows a
+  // non-2xx response, so a refused kill is silent.
+  //
+  // Measuring it needs a live Sprite: `tests/journal.conformance.test.ts` registers
+  // the follow cases and runs them the moment `SPRITES_API_KEY` is present,
+  // reporting a NAMED skip until then. Do not read this `true` as measured.
+  killableProcesses: true,
   // Sprites checkpoints capture the writable filesystem overlay. Exposed via
   // `snapshot()` (create) and the provider-specific `restoreCheckpoint()` /
   // `listCheckpoints()`. Note: restore is in-place on the same Sprite, and a
@@ -141,6 +166,7 @@ export class SpritesHandle implements SandboxHandle {
           type: entry.type,
         }))
       },
+      lstat: async (p) => this.lstat(this.abs(p)),
       mkdir: async (p) => {
         const r = await this.exec(`mkdir -p ${q(this.abs(p))}`)
         if (r.exitCode !== 0) throw new Error(`mkdir failed: ${errText(r)}`)
@@ -180,6 +206,15 @@ export class SpritesHandle implements SandboxHandle {
     if (p.startsWith('/workspace/'))
       return `${this.workdir}/${p.slice('/workspace/'.length)}`
     return p
+  }
+
+  private async lstat(path: string): Promise<SandboxFsStat | undefined> {
+    const r = await this.exec(lstatCommand(path))
+    if (r.exitCode === 0 && r.stdout.trim() === LSTAT_MISSING) return undefined
+    if (r.exitCode !== 0) {
+      throw new Error(`lstat failed: ${errText(r)}`)
+    }
+    return parseLstatOutput(r.stdout)
   }
 
   private mergedEnv(extra?: Record<string, string>): Record<string, string> {
@@ -317,6 +352,32 @@ export class SpritesHandle implements SandboxHandle {
 /** POSIX single-quote escape for embedding paths in `bash -c`. */
 function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
+}
+const LSTAT_MISSING = '__TANSTACK_LSTAT_MISSING__'
+
+/** Verify a missing path by listing parent entries. `test -e` also fails for inaccessible parents. */
+function lstatCommand(path: string): string {
+  return `tanstack_lstat_path=${q(path)}; tanstack_lstat_output=$(stat -c '%f:%s' -- "$tanstack_lstat_path" 2>&1); tanstack_lstat_status=$?; if [ "$tanstack_lstat_status" -eq 0 ]; then printf '%s\n' "$tanstack_lstat_output"; else tanstack_lstat_missing() { tanstack_missing_path=$1; case "$tanstack_missing_path" in /|.) return 1 ;; */*) tanstack_parent=${'$'}{tanstack_missing_path%/*}; tanstack_name=${'$'}{tanstack_missing_path##*/}; [ -n "$tanstack_parent" ] || tanstack_parent=/ ;; *) tanstack_parent=.; tanstack_name=$tanstack_missing_path ;; esac; tanstack_parent_mode=$(stat -L -c '%f' -- "$tanstack_parent" 2>/dev/null); tanstack_parent_status=$?; if [ "$tanstack_parent_status" -ne 0 ]; then tanstack_lstat_missing "$tanstack_parent"; else case "$tanstack_parent_mode" in 4[0-9a-fA-F][0-9a-fA-F][0-9a-fA-F]) case "$tanstack_parent" in /*) tanstack_find_parent=$tanstack_parent ;; *) tanstack_find_parent=./$tanstack_parent ;; esac; tanstack_match=$(find -H "$tanstack_find_parent" -mindepth 1 -maxdepth 1 -exec sh -c 'tanstack_target=$1; shift; for tanstack_candidate do [ "${'$'}{tanstack_candidate##*/}" = "$tanstack_target" ] && { printf 1; exit 0; }; done; exit 0' sh "$tanstack_name" '{}' + 2>/dev/null); tanstack_find_status=$?; [ "$tanstack_find_status" -eq 0 ] && [ -z "$tanstack_match" ] ;; *) return 1 ;; esac; fi; }; if tanstack_lstat_missing "$tanstack_lstat_path"; then printf '%s' '${LSTAT_MISSING}'; else printf '%s\n' "$tanstack_lstat_output" >&2; exit "$tanstack_lstat_status"; fi; fi`
+}
+function parseLstatOutput(output: string): SandboxFsStat {
+  const fields = /^(?<mode>[0-9a-fA-F]{4}):(?<size>\d+)\n?$/.exec(output)
+  const mode = fields?.groups?.mode
+  const size = fields?.groups?.size
+  if (!mode || !size) throw new Error(`invalid lstat output: ${output}`)
+  const parsedMode = Number.parseInt(mode, 16)
+  const parsedSize = Number(size)
+  if (
+    !Number.isSafeInteger(parsedMode) ||
+    !Number.isSafeInteger(parsedSize) ||
+    parsedSize < 0
+  )
+    throw new Error(`invalid lstat output: ${output}`)
+  const type = parsedMode & 0xf000
+  if (type === 0x8000)
+    return { type: 'file', mode: parsedMode, size: parsedSize }
+  if (type === 0x4000) return { type: 'dir', mode: parsedMode }
+  if (type === 0xa000) return { type: 'symlink', mode: parsedMode }
+  return { type: 'other', mode: parsedMode }
 }
 
 /**

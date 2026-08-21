@@ -1,25 +1,47 @@
 import type {
   AnyClientTool,
+  InterruptDefinition,
   InferSchemaType,
   ModelMessage,
+  RunAgentResumeItem,
   SchemaInput,
 } from '@tanstack/ai'
 import type {
   AIDevtoolsDisplayOptions,
+  BoundInterrupts,
   ChatClientOptions,
   ChatClientState,
+  ResolvableChatInterrupt,
+  ChatInterruptState,
   ChatRequestBody,
+  ChatResumeState,
   ClientContextOptionFromTools,
   ConnectionStatus,
   DistributedOmit,
   InferredClientContext,
   MultimodalContent,
+  QueueConfig,
+  QueueOption,
+  QueueStrategy,
+  QueuedMessage,
+  SendMessageOptions,
   UIMessage,
+  WhenBusy,
 } from '@tanstack/ai-client'
 import type { DeepReadonly, ShallowRef } from 'vue'
 
 // Re-export types from ai-client
-export type { ChatRequestBody, MultimodalContent, UIMessage }
+export type {
+  ChatRequestBody,
+  MultimodalContent,
+  QueueConfig,
+  QueuedMessage,
+  QueueOption,
+  QueueStrategy,
+  SendMessageOptions,
+  UIMessage,
+  WhenBusy,
+}
 
 /**
  * Recursive partial — every property and every nested array element is optional.
@@ -59,8 +81,10 @@ export type UseChatOptions<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
   TContext = InferredClientContext<TTools>,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = DistributedOmit<
-  ChatClientOptions<TTools, TContext>,
+  ChatClientOptions<TTools, TContext, TInterrupts>,
   | 'onMessagesChange'
   | 'onLoadingChange'
   | 'onErrorChange'
@@ -68,6 +92,9 @@ export type UseChatOptions<
   | 'onSubscriptionChange'
   | 'onConnectionStatusChange'
   | 'onSessionGeneratingChange'
+  | 'onQueueChange'
+  | 'onResumeStateChange'
+  | 'onRunIdChange'
   | 'context'
   | 'devtools'
 > & {
@@ -89,9 +116,12 @@ export type UseChatOptions<
 export type UseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TSchema extends SchemaInput | undefined = undefined,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > = BaseUseChatReturn<
   TTools,
-  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown
+  TSchema extends SchemaInput ? InferSchemaType<TSchema> : unknown,
+  TInterrupts
 > &
   (TSchema extends SchemaInput
     ? {
@@ -112,6 +142,8 @@ export type UseChatReturn<
 interface BaseUseChatReturn<
   TTools extends ReadonlyArray<AnyClientTool> = any,
   TData = unknown,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
 > {
   /**
    * Current messages in the conversation. When `outputSchema` is supplied,
@@ -124,7 +156,20 @@ interface BaseUseChatReturn<
    * Send a message and get a response.
    * Can be a simple string or multimodal content with images, audio, etc.
    */
-  sendMessage: (content: string | MultimodalContent) => Promise<void>
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: SendMessageOptions,
+  ) => Promise<void>
+
+  /**
+   * Pending messages queued while a stream is in flight.
+   */
+  queue: Readonly<ShallowRef<Array<QueuedMessage>>>
+
+  /**
+   * Cancel a queued message before it drains. No-op if already sent.
+   */
+  cancelQueued: (id: string) => void
 
   /**
    * Append a message to the conversation
@@ -149,6 +194,45 @@ interface BaseUseChatReturn<
     id: string // approval.id, not toolCallId
     approved: boolean
   }) => Promise<void>
+
+  /**
+   * The id of the run this client has in flight — one it started or rejoined —
+   * or `null` when there is none (including while a run sits paused on an
+   * interrupt, waiting on approval).
+   *
+   * A run is one turn of the conversation, so this changes from turn to turn. A
+   * whole tool loop stays inside one run, while resuming after an interrupt
+   * continues the turn under a new id — so one user message can produce several
+   * run ids. Use it to talk to your own server about that run (cancel it, poll
+   * it, correlate a log line).
+   */
+  runId: DeepReadonly<ShallowRef<string | null>>
+  interrupts: Readonly<ShallowRef<BoundInterrupts<TTools, TInterrupts>>>
+  /** @deprecated Use `interrupts`. */
+  pendingInterrupts: Readonly<ShallowRef<BoundInterrupts<TTools, TInterrupts>>>
+  interruptErrors: DeepReadonly<
+    ShallowRef<ChatInterruptState<TTools, TInterrupts>['interruptErrors']>
+  >
+  resuming: DeepReadonly<ShallowRef<boolean>>
+  resolveInterrupts: {
+    (approved: boolean): void
+    (
+      resolver: (
+        interrupt: ResolvableChatInterrupt<TTools, TInterrupts>,
+      ) => undefined,
+    ): void
+  }
+  cancelInterrupts: () => void
+  retryInterrupts: () => void
+  resumeInterruptsUnsafe: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
+  /** @deprecated Use bound interrupt methods or `resumeInterruptsUnsafe`. */
+  resumeInterrupts: (
+    resume: Array<RunAgentResumeItem>,
+    state?: ChatResumeState,
+  ) => Promise<boolean>
 
   /**
    * Reload the last assistant message

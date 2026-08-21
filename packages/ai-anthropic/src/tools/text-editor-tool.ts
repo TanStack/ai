@@ -1,4 +1,7 @@
-import { brandProviderTool } from '@tanstack/ai'
+import {
+  brandAnthropicProviderTool,
+  getAnthropicProviderToolMetadata,
+} from './anthropic-provider-tool'
 import type {
   ToolTextEditor20250124,
   ToolTextEditor20250429,
@@ -19,7 +22,9 @@ export type AnthropicTextEditorTool = ProviderTool<'anthropic', 'text_editor'>
 export function convertTextEditorToolToAdapterFormat(
   tool: Tool,
 ): TextEditorToolConfig {
-  const metadata = tool.metadata as TextEditorToolConfig
+  const metadata = getAnthropicProviderToolMetadata(
+    tool,
+  ) as TextEditorToolConfig
   return {
     ...metadata,
   }
@@ -28,9 +33,12 @@ export function convertTextEditorToolToAdapterFormat(
 export function textEditorTool<T extends TextEditorToolConfig>(
   config: T,
 ): AnthropicTextEditorTool {
-  return brandProviderTool<AnthropicTextEditorTool>({
-    name: 'str_replace_editor',
-    description: '',
-    metadata: config,
-  })
+  return brandAnthropicProviderTool<AnthropicTextEditorTool>(
+    {
+      name: 'str_replace_editor',
+      description: '',
+      metadata: config,
+    },
+    'text_editor',
+  )
 }

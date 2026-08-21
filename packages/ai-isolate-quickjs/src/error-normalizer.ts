@@ -2,10 +2,12 @@ import type { NormalizedError } from '@tanstack/ai-code-mode'
 
 const MEMORY_LIMIT_ERROR = 'MemoryLimitError'
 const STACK_OVERFLOW_ERROR = 'StackOverflowError'
+export const TIMEOUT_ERROR = 'TimeoutError'
 
 /**
  * Whether this normalized error indicates the QuickJS VM should not be reused
- * (memory or stack limit exceeded).
+ * (memory or stack limit exceeded). Timeouts are also terminal but take a
+ * separate release path (see `releaseAfterTimeout` in isolate-context).
  */
 export function isFatalQuickJSLimitError(error: NormalizedError): boolean {
   return (
@@ -41,6 +43,15 @@ export function normalizeError(error: unknown): NormalizedError {
       }
     }
 
+    // QuickJS reports a fired interrupt handler as "InternalError: interrupted".
+    if (error.name === 'InternalError' && lower.includes('interrupted')) {
+      return {
+        name: TIMEOUT_ERROR,
+        message: 'Code execution timed out',
+        stack: error.stack,
+      }
+    }
+
     if (error.name === 'RuntimeError' && lower.includes('unreachable')) {
       return {
         name: 'WasmRuntimeError',
@@ -65,9 +76,24 @@ export function normalizeError(error: unknown): NormalizedError {
 
   if (typeof error === 'object' && error !== null) {
     const errObj = error as Record<string, unknown>
+    const name = String(errObj.name || 'Error')
+    const message = String(errObj.message || 'Unknown error')
+    if (
+      name === 'InternalError' &&
+      message.toLowerCase().includes('interrupted')
+    ) {
+      return {
+        name: TIMEOUT_ERROR,
+        message: 'Code execution timed out',
+        ...(errObj['stack'] !== undefined && {
+          stack: String(errObj['stack']),
+        }),
+      }
+    }
+
     return {
-      name: String(errObj.name || 'Error'),
-      message: String(errObj.message || 'Unknown error'),
+      name,
+      message,
       ...(errObj['stack'] !== undefined && {
         stack: String(errObj['stack']),
       }),

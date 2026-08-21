@@ -3,6 +3,8 @@ export type {
   ChatMiddlewareContext,
   ChatMiddlewarePhase,
   ChatMiddlewareConfig,
+  ChatResumeToolState,
+  ChatResumeGenericResolution,
   StructuredOutputMiddlewareConfig,
   ToolCallHookContext,
   BeforeToolCallDecision,
@@ -16,7 +18,22 @@ export type {
   SandboxFileEvent,
   SandboxFileHookEvent,
   ChatSandboxHooks,
+  InterruptBoundaryPhase,
+  InterruptToolResume,
+  InterruptResolutionCollection,
+  GenericInterruptResolution,
+  InterruptBoundaryResult,
+  InterruptResolutionResult,
 } from './types'
+
+export { INTERRUPT_BOUNDARY_PHASES, INTERRUPT_TOOL_RESUMES } from './types'
+
+export {
+  GenericInterruptDefinitionRegistryCapability,
+  getGenericInterruptDefinitionRegistry,
+  provideGenericInterruptDefinitionRegistry,
+} from './generic-interrupts'
+export type { GenericInterruptDefinitionRegistry } from './generic-interrupts'
 
 export { MiddlewareRunner } from './compose'
 
@@ -39,3 +56,27 @@ export type {
 } from './builder'
 export { validateCapabilities } from './validate'
 export type { AnyChatMiddleware } from './types'
+
+export {
+  LocksCapability,
+  getLocks,
+  provideLocks,
+  InMemoryLockStore,
+  withLocks,
+  defineLock,
+} from './locks'
+export type { LockStore } from './locks'
+
+export {
+  isRunStatus,
+  isTerminalRunStatus,
+  defineRunStore,
+  InMemoryRunStore,
+} from './run-store'
+export type {
+  RunStatus,
+  TerminalRunStatus,
+  RunRecord,
+  RunError,
+  RunStore,
+} from './run-store'

@@ -1,14 +1,16 @@
 import { describe, expect, it } from 'vitest'
 import { defineSandbox } from '../src/sandbox'
+import { createSecrets } from '../src/secrets'
 import { defineWorkspace, githubRepo } from '../src/workspace'
-import { InMemoryLockStore, InMemorySandboxStore } from '../src/store'
+import { InMemoryLockStore } from '@tanstack/ai/locks'
+import { InMemorySandboxInstanceStore } from '../src/instance-store'
 import { FULL_CAPS, makeFakeProvider } from './fakes'
 import type { SandboxCapabilities } from '../src/contracts'
 
 const baseCtx = () => ({
   threadId: 'thread-1',
   runId: 'run-1',
-  store: new InMemorySandboxStore(),
+  store: new InMemorySandboxInstanceStore(),
   locks: new InMemoryLockStore(),
 })
 
@@ -139,6 +141,39 @@ describe('ensureSandbox algorithm', () => {
     expect(await ctx.store.get(def.key(ctx))).toBeNull()
   })
 
+  it('destroy does not hand the provider an already-aborted signal', async () => {
+    /*
+     * Teardown runs on the abort path too, so forwarding `ctx.signal` handed a
+     * provider that honors it an already-aborted signal: it would return without
+     * doing anything, and `store.delete` below still ran — orphaning a live,
+     * billed sandbox whose only lookup row is gone (the instance store has no
+     * `list`). Assert the signal's state AT THE PROVIDER BOUNDARY, not merely
+     * that destroy was called.
+     */
+    const provider = makeFakeProvider()
+    const seen: Array<{ present: boolean; aborted: boolean }> = []
+    const originalDestroy = provider.destroy
+    provider.destroy = (input) => {
+      seen.push({
+        present: input.signal !== undefined,
+        aborted: input.signal?.aborted ?? false,
+      })
+      return originalDestroy(input)
+    }
+
+    const controller = new AbortController()
+    const def = defineSandbox({ id: 'repo', provider, workspace })
+    const ctx = { ...baseCtx(), signal: controller.signal }
+    await def.ensure(ctx)
+
+    // The run is cancelled; teardown is a consequence of that very abort.
+    controller.abort()
+    await def.destroy(ctx)
+
+    expect(seen).toEqual([{ present: true, aborted: false }])
+    expect(await ctx.store.get(def.key(ctx))).toBeNull()
+  })
+
   it('serializes concurrent ensures for the same key (one create)', async () => {
     const provider = makeFakeProvider()
     const def = defineSandbox({ id: 'repo', provider, workspace })
@@ -197,5 +232,72 @@ describe('ensureSandbox algorithm', () => {
     await def.ensure({ ...ctx, runId: 'run-2' })
     expect(provider.calls.create).toBe(2)
     expect(provider.calls.resume).toBe(0)
+  })
+
+  // Secrets live in handle memory and per-command env. Resume does not
+  // re-run bootstrap, so ensure() must put them back on the live handle.
+  it('re-applies workspace secrets onto a resumed handle', async () => {
+    const provider = makeFakeProvider()
+    const def = defineSandbox({
+      id: 'repo',
+      provider,
+      workspace: defineWorkspace({
+        source: { type: 'none' },
+        secrets: createSecrets({ ANTHROPIC_API_KEY: 'sk-secret-value' }),
+      }),
+      fileEvents: false,
+    })
+    const ctx = baseCtx()
+    await def.ensure(ctx)
+
+    const applied: Array<Record<string, string>> = []
+    const originalResume = provider.resume.bind(provider)
+    provider.resume = async (input) => {
+      const handle = await originalResume(input)
+      if (!handle) return null
+      const originalSet = handle.env.set.bind(handle.env)
+      handle.env.set = async (vars) => {
+        applied.push(vars)
+        return originalSet(vars)
+      }
+      return handle
+    }
+
+    await def.ensure({ ...ctx, runId: 'run-2' })
+
+    expect(applied).toEqual([{ ANTHROPIC_API_KEY: 'sk-secret-value' }])
+  })
+
+  it('re-applies workspace secrets onto a restored snapshot handle', async () => {
+    const provider = makeFakeProvider({ resumeReturnsNull: true })
+    const def = defineSandbox({
+      id: 'repo',
+      provider,
+      workspace: defineWorkspace({
+        source: { type: 'none' },
+        secrets: createSecrets({ ANTHROPIC_API_KEY: 'sk-secret-value' }),
+      }),
+      lifecycle: { reuse: 'thread', snapshot: 'after-setup' },
+      fileEvents: false,
+    })
+    const ctx = baseCtx()
+    await def.ensure(ctx)
+
+    const applied: Array<Record<string, string>> = []
+    const restoreSnapshot = provider.restoreSnapshot
+    if (!restoreSnapshot) throw new Error('expected restoreSnapshot')
+    provider.restoreSnapshot = async (input) => {
+      const handle = await restoreSnapshot(input)
+      const originalSet = handle.env.set.bind(handle.env)
+      handle.env.set = async (vars) => {
+        applied.push(vars)
+        return originalSet(vars)
+      }
+      return handle
+    }
+
+    await def.ensure({ ...ctx, runId: 'run-2' })
+
+    expect(applied).toEqual([{ ANTHROPIC_API_KEY: 'sk-secret-value' }])
   })
 })

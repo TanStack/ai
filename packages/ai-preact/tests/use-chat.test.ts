@@ -1,20 +1,26 @@
-import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
-import type { SubscribeConnectionAdapter } from '@tanstack/ai-client'
+import { ChatClient } from '@tanstack/ai-client'
 import { act, renderHook, waitFor } from '@testing-library/preact'
 import { StrictMode } from 'preact/compat'
 import { useState } from 'preact/hooks'
-import { describe, expect, it, vi } from 'vitest'
-import type { UIMessage } from '../src/types'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { useChat } from '../src/use-chat'
 import {
+  createInterruptResumeSnapshot,
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
   renderUseChat,
 } from './test-utils'
+import type { SubscribeConnectionAdapter } from '@tanstack/ai-client'
+import type { UIMessage } from '../src/types'
+import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 
 describe('useChat', () => {
+  afterEach(() => {
+    vi.doUnmock('preact/hooks')
+  })
+
   function createDeferred<T>() {
     let resolve!: (value: T) => void
     const promise = new Promise<T>((promiseResolve) => {
@@ -22,6 +28,127 @@ describe('useChat', () => {
     })
     return { promise, resolve }
   }
+
+  describe('interrupt state', () => {
+    it('projects one immutable snapshot with the deprecated pending alias', async () => {
+      const onInterruptStateChange = vi.fn()
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+        initialResumeSnapshot: createInterruptResumeSnapshot(),
+        onInterruptStateChange,
+      })
+
+      expect(onInterruptStateChange).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ interrupts: result.current.interrupts }),
+        { source: 'hydrate' },
+      )
+      expect(Object.isFrozen(result.current.interrupts)).toBe(true)
+      expect(result.current.pendingInterrupts).toBe(result.current.interrupts)
+      expect(result.current.interrupts[0]).toMatchObject({
+        id: 'staged-interrupt',
+        status: 'pending',
+      })
+      expect(result.current.interrupts[1]).toMatchObject({
+        id: 'invalid-interrupt',
+        status: 'pending',
+      })
+      expect(result.current.interruptErrors).toEqual([])
+      expect(result.current.resuming).toBe(false)
+      expect(result.current.interrupts[0]).toEqual(
+        expect.objectContaining({
+          resolveInterrupt: expect.any(Function),
+          cancel: expect.any(Function),
+          clearResolution: expect.any(Function),
+        }),
+      )
+
+      act(() => result.current.resolveInterrupts(false))
+      await waitFor(() => {
+        expect(result.current.interruptErrors[0]?.code).toBe(
+          'unsupported-bulk-operation',
+        )
+      })
+      expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          interrupts: result.current.interrupts,
+          interruptErrors: result.current.interruptErrors,
+        }),
+        { source: 'live' },
+      )
+    })
+
+    it('awaits onResponse when hydration resumes during activation', async () => {
+      const response = createDeferred<void>()
+      const onResponse = vi.fn(() => response.promise)
+      const onConnect = vi.fn()
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('resumed'),
+          onConnect,
+        }),
+        initialResumeSnapshot: createInterruptResumeSnapshot(),
+        live: true,
+        onResponse,
+        onInterruptStateChange: (state, context) => {
+          if (context.source !== 'hydrate') return
+          for (const interrupt of state.interrupts) {
+            if (interrupt.kind === 'unbound') continue
+            interrupt.cancel()
+          }
+        },
+      })
+
+      await waitFor(() => {
+        expect(onResponse).toHaveBeenCalledOnce()
+      })
+      expect(onConnect).not.toHaveBeenCalled()
+
+      await act(async () => {
+        response.resolve()
+        await response.promise
+      })
+
+      await waitFor(() => {
+        expect(onConnect).toHaveBeenCalledOnce()
+        expect(result.current.resuming).toBe(false)
+      })
+    })
+
+    it('delegates every root interrupt control to ChatClient', async () => {
+      const resolve = vi
+        .spyOn(ChatClient.prototype, 'resolveInterrupts')
+        .mockImplementation(() => {})
+      const cancel = vi
+        .spyOn(ChatClient.prototype, 'cancelInterrupts')
+        .mockImplementation(() => {})
+      const retry = vi
+        .spyOn(ChatClient.prototype, 'retryInterrupts')
+        .mockImplementation(() => {})
+      const unsafe = vi
+        .spyOn(ChatClient.prototype, 'resumeInterruptsUnsafe')
+        .mockResolvedValue(true)
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+      })
+      const resolver = () => undefined
+      const resume = [{ interruptId: 'one', status: 'cancelled' as const }]
+
+      act(() => {
+        result.current.resolveInterrupts(resolver)
+        result.current.cancelInterrupts()
+        result.current.retryInterrupts()
+      })
+      await expect(result.current.resumeInterruptsUnsafe(resume)).resolves.toBe(
+        true,
+      )
+
+      expect(resolve).toHaveBeenCalledWith(resolver)
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(retry).toHaveBeenCalledOnce()
+      expect(unsafe).toHaveBeenCalledWith(resume, undefined)
+    })
+  })
 
   describe('initialization', () => {
     it('should initialize with default state', () => {
@@ -86,14 +213,40 @@ describe('useChat', () => {
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'persisted-chat',
-        persistence,
+        threadId: 'persisted-chat',
+        persistence: persistence,
       })
 
       await waitFor(() => {
         expect(result.current.messages).toEqual(persistedMessages)
       })
       expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
+    })
+
+    it('should forward synchronous persisted interrupt hydration', () => {
+      const onInterruptStateChange = vi.fn()
+      const persistence = {
+        getItem: vi.fn(() => ({
+          messages: [],
+          resume: createInterruptResumeSnapshot(),
+        })),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+        threadId: 'persisted-interrupt-chat',
+        persistence,
+        onInterruptStateChange,
+      })
+
+      expect(result.current.interrupts).toHaveLength(2)
+      expect(onInterruptStateChange).toHaveBeenCalledOnce()
+      expect(onInterruptStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({ interrupts: result.current.interrupts }),
+        { source: 'hydrate' },
+      )
     })
 
     it('should preserve persisted empty messages over provided initial messages', async () => {
@@ -114,9 +267,9 @@ describe('useChat', () => {
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'persisted-empty-chat',
+        threadId: 'persisted-empty-chat',
         initialMessages,
-        persistence,
+        persistence: persistence,
       })
 
       await waitFor(() => {
@@ -155,8 +308,8 @@ describe('useChat', () => {
         const [id, setId] = useState('old-chat')
         const chat = useChat({
           connection: createMockConnectionAdapter(),
-          id,
-          persistence,
+          threadId: id,
+          persistence: persistence,
         })
 
         return { ...chat, setId }
@@ -180,13 +333,13 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual(newMessages)
     })
 
-    it('should use provided id', async () => {
+    it('should use provided threadId', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'custom-id',
+        threadId: 'custom-id',
       })
 
       await act(async () => {
@@ -397,7 +550,7 @@ describe('useChat', () => {
       expect(result.current.messages.length).toBe(0)
     })
 
-    it('should not send message while loading', async () => {
+    it('should queue a message sent while loading and send it after', async () => {
       const adapter = createMockConnectionAdapter({
         chunks: createTextChunks('Response'),
         chunkDelay: 100,
@@ -410,11 +563,16 @@ describe('useChat', () => {
         await Promise.all([promise1, promise2])
       })
 
-      // Should only have one user message since second was blocked
+      // The second send is queued (default `whenBusy: 'queue'`) while the
+      // first stream is in flight, then auto-drains once it settles — both
+      // end up sent, in order.
       const userMessages = result.current.messages.filter(
         (m) => m.role === 'user',
       )
-      expect(userMessages.length).toBe(1)
+      expect(userMessages.map((m) => m.parts[0])).toEqual([
+        { type: 'text', content: 'First' },
+        { type: 'text', content: 'Second' },
+      ])
     })
 
     it('should handle errors during sendMessage', async () => {
@@ -978,25 +1136,34 @@ describe('useChat', () => {
       expect(onError.mock.calls[0]?.[0].message).toBe('Test error')
     })
 
-    it('should call onResponse callback when response is received', async () => {
+    it('should await onResponse before connecting', async () => {
       const chunks = createTextChunks('Response')
-      const adapter = createMockConnectionAdapter({ chunks })
-      const onResponse = vi.fn()
+      const onConnect = vi.fn()
+      const adapter = createMockConnectionAdapter({ chunks, onConnect })
+      const response = createDeferred<void>()
+      const onResponse = vi.fn(() => response.promise)
 
       const { result } = renderUseChat({
         connection: adapter,
         onResponse,
       })
 
-      await act(async () => {
-        await result.current.sendMessage('Test')
+      let sendPromise: Promise<void>
+      act(() => {
+        sendPromise = result.current.sendMessage('Test')
       })
 
-      // onResponse may or may not be called depending on adapter implementation
-      // This test verifies the callback is passed through
       await waitFor(() => {
-        expect(result.current.messages.length).toBeGreaterThan(0)
+        expect(onResponse).toHaveBeenCalledOnce()
       })
+      expect(onConnect).not.toHaveBeenCalled()
+
+      await act(async () => {
+        response.resolve()
+        await sendPromise!
+      })
+
+      expect(onConnect).toHaveBeenCalledOnce()
     })
   })
 
@@ -1014,15 +1181,15 @@ describe('useChat', () => {
         }
 
         const { result, rerender } = renderHook(
-          (opts: { id: string; onChunk: (chunk: StreamChunk) => void }) =>
+          (opts: { threadId: string; onChunk: (chunk: StreamChunk) => void }) =>
             useChat({
               connection: adapter,
-              id: opts.id,
+              threadId: opts.threadId,
               onChunk: opts.onChunk,
             }),
           {
             initialProps: {
-              id: 'old-client',
+              threadId: 'old-client',
               onChunk: oldOnChunk,
             },
           },
@@ -1037,7 +1204,7 @@ describe('useChat', () => {
         })
 
         rerender({
-          id: 'new-client',
+          threadId: 'new-client',
           onChunk: newOnChunk,
         })
 
@@ -1133,7 +1300,7 @@ describe('useChat', () => {
 
         const { result } = renderHook(() => {
           const [id, setId] = useState('client-A')
-          const chat = useChat({ connection: adapter, id })
+          const chat = useChat({ connection: adapter, threadId: id })
           return { ...chat, switchId: setId }
         })
 
@@ -1192,7 +1359,7 @@ describe('useChat', () => {
 
         const { result } = renderHook(() => {
           const [id, setId] = useState('client-A')
-          const chat = useChat({ connection: adapter, id })
+          const chat = useChat({ connection: adapter, threadId: id })
           return { ...chat, switchId: setId }
         })
 
@@ -1261,7 +1428,7 @@ describe('useChat', () => {
     })
 
     describe('concurrent operations', () => {
-      it('should handle multiple sendMessage calls', async () => {
+      it('should queue and then deliver multiple sendMessage calls in order', async () => {
         const adapter = createMockConnectionAdapter({
           chunks: createTextChunks('Response'),
           chunkDelay: 50,
@@ -1274,11 +1441,15 @@ describe('useChat', () => {
           await Promise.all([promise1, promise2])
         })
 
-        // Should only have one user message (second should be blocked)
+        // The second call is queued while the first stream is in flight,
+        // then auto-sent once it settles — both land, in order.
         const userMessages = result.current.messages.filter(
           (m) => m.role === 'user',
         )
-        expect(userMessages.length).toBe(1)
+        expect(userMessages.map((m) => m.parts[0])).toEqual([
+          { type: 'text', content: 'First' },
+          { type: 'text', content: 'Second' },
+        ])
       })
 
       it('should handle stop during sendMessage', async () => {
@@ -1467,11 +1638,11 @@ describe('useChat', () => {
 
         const { result: result1 } = renderUseChat({
           connection: adapter1,
-          id: 'chat-1',
+          threadId: 'chat-1',
         })
         const { result: result2 } = renderUseChat({
           connection: adapter2,
-          id: 'chat-2',
+          threadId: 'chat-2',
         })
 
         await act(async () => {
@@ -1497,11 +1668,11 @@ describe('useChat', () => {
         const adapter = createMockConnectionAdapter()
         const { result: result1 } = renderUseChat({
           connection: adapter,
-          id: 'chat-1',
+          threadId: 'chat-1',
         })
         const { result: result2 } = renderUseChat({
           connection: adapter,
-          id: 'chat-2',
+          threadId: 'chat-2',
         })
 
         // Should not interfere with each other

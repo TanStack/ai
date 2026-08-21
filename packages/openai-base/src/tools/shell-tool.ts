@@ -1,3 +1,7 @@
+import {
+  getOpenAIProviderToolMetadata,
+  openAIProviderTool,
+} from './openai-provider-tool'
 import type { FunctionShellTool as ShellToolConfig } from 'openai/resources/responses/responses'
 import type { Tool } from '@tanstack/ai'
 
@@ -21,7 +25,8 @@ export interface ShellToolFactoryConfig {
  * `environment` (container config + skills) stored in metadata.
  */
 export function convertShellToolToAdapterFormat(tool: Tool): ShellToolConfig {
-  const metadata = (tool.metadata ?? {}) as ShellToolFactoryConfig
+  const metadata = (getOpenAIProviderToolMetadata(tool) ??
+    {}) as ShellToolFactoryConfig
   return {
     type: 'shell',
     ...(metadata.environment !== undefined && {
@@ -37,13 +42,16 @@ export function convertShellToolToAdapterFormat(tool: Tool): ShellToolConfig {
  * re-wrap this in their own package.
  */
 export function shellTool(config: ShellToolFactoryConfig = {}): Tool {
-  return {
-    name: 'shell',
-    description: 'Execute shell commands',
-    metadata: {
-      ...(config.environment !== undefined && {
-        environment: config.environment,
-      }),
+  return openAIProviderTool(
+    {
+      name: 'shell',
+      description: 'Execute shell commands',
+      metadata: {
+        ...(config.environment !== undefined && {
+          environment: config.environment,
+        }),
+      },
     },
-  }
+    'shell',
+  )
 }
