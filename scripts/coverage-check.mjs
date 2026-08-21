@@ -6,11 +6,8 @@
 // checked-in number.
 //
 // Usage:
-//   node scripts/coverage-check.mjs --collect <dir>          # after a coverage run
+//   node scripts/coverage-check.mjs --collect <dir> [--expect pkg,pkg]
 //   node scripts/coverage-check.mjs --base <dir> --head <dir>
-//
-// ponytail: two directories of json-summary files and a subtraction. No
-// coverage service, no history, no baseline to maintain.
 import {
   appendFileSync,
   mkdirSync,
@@ -31,7 +28,6 @@ function arg(name) {
   return i === -1 ? undefined : process.argv[i + 1]
 }
 
-/** Reduce a vitest json-summary to the four totals we compare. */
 function totals(summary) {
   // A package with no source loaded reports totals of 0/0 as 100%; that is not
   // a number worth comparing.
@@ -41,33 +37,88 @@ function totals(summary) {
   )
 }
 
-/**
- * Copy this run's summaries into `dir`, one small file per package, so they
- * survive the `git checkout` that happens between the two coverage runs.
- */
-function collect(dir) {
-  mkdirSync(dir, { recursive: true })
-  let n = 0
+function packageDirs() {
+  const dirs = {}
   for (const entry of readdirSync('packages', { withFileTypes: true })) {
     if (!entry.isDirectory()) continue
-    let summary
+    dirs[entry.name] = entry.name
     try {
-      summary = JSON.parse(
-        readFileSync(
-          join('packages', entry.name, 'coverage', 'coverage-summary.json'),
-          'utf8',
-        ),
+      const pkg = JSON.parse(
+        readFileSync(join('packages', entry.name, 'package.json'), 'utf8'),
       )
-    } catch (error) {
-      // No summary means the package was not measured in this run, which is
-      // different from it measuring 0%.
-      if (error.code === 'ENOENT') continue
-      throw error
+      if (pkg.name) dirs[pkg.name] = entry.name
+    } catch {
+      // Directory with no package.json is still collectable by folder name.
     }
-    const metrics = totals(summary)
-    if (!metrics) continue
-    writeFileSync(join(dir, `${entry.name}.json`), JSON.stringify(metrics))
+  }
+  return dirs
+}
+
+function expectedDirs() {
+  const raw = arg('--expect')
+  if (raw === undefined) return undefined
+  const names = raw
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean)
+  const dirs = packageDirs()
+  const resolved = []
+  const unknown = []
+  for (const name of names) {
+    const dir = dirs[name]
+    if (!dir) unknown.push(name)
+    else resolved.push(dir)
+  }
+  if (unknown.length > 0) {
+    console.error(`Unknown package(s): ${unknown.join(', ')}`)
+    process.exit(1)
+  }
+  return resolved
+}
+
+function readSummary(dirName) {
+  try {
+    return JSON.parse(
+      readFileSync(
+        join('packages', dirName, 'coverage', 'coverage-summary.json'),
+        'utf8',
+      ),
+    )
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return null
+    throw error
+  }
+}
+
+function collect(dir) {
+  mkdirSync(dir, { recursive: true })
+  const expected = expectedDirs()
+  const names =
+    expected ??
+    readdirSync('packages', { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+  const missing = []
+  let n = 0
+  for (const name of names) {
+    const summary = readSummary(name)
+    if (!summary) {
+      if (expected) missing.push(`${name} (no coverage-summary.json)`)
+      continue
+    }
+    const values = totals(summary)
+    if (!values) {
+      if (expected) missing.push(`${name} (0 statements)`)
+      continue
+    }
+    writeFileSync(join(dir, `${name}.json`), JSON.stringify(values))
     n++
+  }
+  if (missing.length > 0) {
+    console.error(
+      `Coverage collect failed for ${missing.length} package(s):\n  ${missing.join('\n  ')}`,
+    )
+    process.exit(1)
   }
   console.log(`Collected ${n} coverage summary/summaries into ${dir}`)
 }
@@ -77,8 +128,7 @@ function read(dir) {
   try {
     files = readdirSync(dir)
   } catch (error) {
-    // A missing directory means that side measured nothing at all.
-    if (error.code === 'ENOENT') return {}
+    if (error && error.code === 'ENOENT') return {}
     throw error
   }
   return Object.fromEntries(
@@ -101,7 +151,7 @@ const baseDir = arg('--base')
 const headDir = arg('--head')
 if (!baseDir || !headDir) {
   console.error(
-    'Usage: coverage-check.mjs --collect <dir> | --base <dir> --head <dir>',
+    'Usage: coverage-check.mjs --collect <dir> [--expect pkg,pkg] | --base <dir> --head <dir>',
   )
   process.exit(2)
 }
@@ -111,8 +161,8 @@ const head = read(headDir)
 const names = Object.keys(head).sort()
 
 if (names.length === 0) {
-  console.log('No packages were measured — nothing to compare.')
-  process.exit(0)
+  console.error('No packages were measured — nothing to compare.')
+  process.exit(1)
 }
 
 const regressions = []
@@ -123,8 +173,6 @@ for (const name of names) {
   const before = base[name]
   const after = head[name]
   if (!before) {
-    // New package, or one whose suite could not be measured on the base
-    // commit. There is nothing to regress against.
     additions.push(name)
     rows.push([
       name,
@@ -146,9 +194,19 @@ for (const name of names) {
   ])
 }
 
-const removed = Object.keys(base)
+for (const name of Object.keys(base)
   .filter((name) => !head[name])
-  .sort()
+  .sort()) {
+  const before = base[name]
+  regressions.push({ name, before, after: null, dropped: ['missing'] })
+  rows.push([
+    name,
+    ...METRICS.map((metric) => `missing (${before[metric].toFixed(2)}%)`),
+    'DROP',
+  ])
+}
+
+const compared = names.filter((name) => base[name]).length
 
 const header = ['package', ...METRICS, '']
 const widths = header.map((_, column) =>
@@ -170,17 +228,19 @@ if (additions.length > 0) {
       ` (new, or unmeasurable there): ${additions.join(', ')}`,
   )
 }
-if (removed.length > 0) {
-  console.log(`\nNot measured on this PR: ${removed.join(', ')}`)
-}
+
+const headline =
+  regressions.length > 0
+    ? `❌ Coverage dropped in ${regressions.length} package(s).`
+    : compared > 0
+      ? `✅ Coverage held across ${compared} compared package(s).`
+      : `${additions.length} package(s) are new; nothing to compare against.`
 
 if (process.env.GITHUB_STEP_SUMMARY) {
   const md = [
     `## Coverage`,
     ``,
-    regressions.length > 0
-      ? `❌ Coverage dropped in ${regressions.length} package(s).`
-      : `✅ Coverage held across ${names.length} measured package(s).`,
+    headline,
     ``,
     `Each package is measured twice in this job — on this PR and on its merge-base` +
       ` with \`main\` — and compared. A drop of more than ${TOLERANCE}pp in any metric fails.` +
@@ -203,6 +263,10 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 if (regressions.length > 0) {
   console.error(`\nCoverage dropped in ${regressions.length} package(s):`)
   for (const { name, before, after, dropped } of regressions) {
+    if (!after) {
+      console.error(`  ${name}: measured on base, missing on this PR`)
+      continue
+    }
     for (const metric of dropped) {
       console.error(
         `  ${name} ${metric}: ${before[metric].toFixed(2)}% -> ${after[metric].toFixed(2)}%`,
@@ -213,4 +277,10 @@ if (regressions.length > 0) {
   process.exit(1)
 }
 
-console.log(`\nCoverage held across ${names.length} measured package(s).`)
+if (compared === 0) {
+  console.log(
+    `\n${additions.length} package(s) are new; nothing to compare against.`,
+  )
+} else {
+  console.log(`\nCoverage held across ${compared} compared package(s).`)
+}
