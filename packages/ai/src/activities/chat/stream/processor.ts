@@ -1469,6 +1469,12 @@ export class StreamProcessor {
    * Handle TOOL_CALL_END event — arguments are finalized (input-complete).
    * Tool output arrives on TOOL_CALL_RESULT, not on this event.
    *
+   * If TOOL_CALL_END carries parsed `input`, use it as the canonical arguments:
+   * back-fill the accumulated string when no TOOL_CALL_ARGS deltas were seen
+   * (adapters that deliver the whole input on END — e.g. Anthropic
+   * server_tool_use / web_search — issue #839) and override the rendered part's
+   * `input` with the canonical value.
+   *
    * @see docs/chat-architecture.md#single-shot-tool-call-response — End-to-end flow
    */
   private handleToolCallEndEvent(
@@ -1480,11 +1486,48 @@ export class StreamProcessor {
     const msgState = this.getMessageState(messageId)
     if (!msgState) return
 
+    // The parsed input can ride on the spec `input` field or, for adapters
+    // that only stamp it into TanStack metadata, on `metadata.tanstack.input`.
+    const input =
+      chunk.input !== undefined
+        ? chunk.input
+        : (tanstackMetadata(chunk)?.input as unknown)
+
     // Transition the tool call to input-complete (the authoritative completion signal)
     const existingToolCall = msgState.toolCalls.get(chunk.toolCallId)
     if (existingToolCall && existingToolCall.state !== 'input-complete') {
+      // Back-fill the arguments string from the parsed input when no
+      // TOOL_CALL_ARGS deltas were received, so completeToolCall's strict parse
+      // surfaces the correct value on the ToolCallPart.
+      if (input !== undefined && !existingToolCall.arguments) {
+        try {
+          existingToolCall.arguments = JSON.stringify(input)
+        } catch {
+          // circular refs, BigInt, etc. — leave arguments empty rather than
+          // aborting stream processing
+        }
+      }
+
       const index = msgState.toolCallOrder.indexOf(chunk.toolCallId)
       this.completeToolCall(messageId, index, existingToolCall)
+
+      // Canonicalize on the parsed input: overrides the accumulated-args parse
+      // that completeToolCall wrote (adapters may coerce values differently
+      // between streamed args and the final structured input).
+      if (input !== undefined) {
+        existingToolCall.parsedArguments = input
+        this.messages = updateToolCallPart(this.messages, messageId, {
+          id: existingToolCall.id,
+          name: existingToolCall.name,
+          arguments: existingToolCall.arguments,
+          state: 'input-complete',
+          input,
+          ...(existingToolCall.metadata !== undefined && {
+            metadata: existingToolCall.metadata,
+          }),
+        })
+        this.emitMessagesChange()
+      }
     }
   }
 
@@ -1510,7 +1553,20 @@ export class StreamProcessor {
   private handleToolCallResultEvent(
     chunk: Extract<StreamChunk, { type: 'TOOL_CALL_RESULT' }>,
   ): void {
-    const messageId = this.toolCallToMessage.get(chunk.toolCallId)
+    // A resume stream delivers TOOL_CALL_RESULT for a tool call that was
+    // started in a PRIOR run. A preceding MESSAGES_SNAPSHOT resets stream state
+    // (clearing `toolCallToMessage`), so fall back to locating the message that
+    // owns the tool-call part — matching `addToolResult`/`handleInterrupts`.
+    // Without this the result is dropped, the follow-up request omits the tool
+    // message, and the still-"pending" tool call re-interrupts (issue #532).
+    const messageId =
+      this.toolCallToMessage.get(chunk.toolCallId) ??
+      this.messages.find((m) =>
+        m.parts.some(
+          (p): p is ToolCallPart =>
+            p.type === 'tool-call' && p.id === chunk.toolCallId,
+        ),
+      )?.id
     if (!messageId) return
 
     const extra = chunk as AdapterYieldChunk
@@ -1741,12 +1797,35 @@ export class StreamProcessor {
   /**
    * Handle STEP_FINISHED event.
    *
-   * Thinking content comes from REASONING_MESSAGE_CONTENT, not STEP_FINISHED.
+   * Thinking *content* comes from REASONING_MESSAGE_CONTENT, not STEP_FINISHED.
+   * But some adapters (e.g. BytePlus thinking-summary) carry the provider
+   * signature blob ONLY on the STEP_FINISHED event, so still extract that here
+   * and attach it to the thinking step the reasoning events already built.
    */
   private handleStepFinishedEvent(
-    _chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
+    chunk: Extract<StreamChunk, { type: 'STEP_FINISHED' }>,
   ): void {
-    return
+    const extra = chunk as AdapterYieldChunk
+    const signature = extra.signature
+    if (!signature) return
+
+    const { messageId, state } = this.ensureAssistantMessage(
+      this.getActiveAssistantMessageId() ?? undefined,
+    )
+    const stepId = state.currentThinkingStepId ?? extra.stepId
+    if (!stepId) return
+    const thinking = state.thinkingSteps.get(stepId)
+    if (thinking === undefined) return
+
+    state.thinkingStepSignatures.set(stepId, signature)
+    this.messages = updateThinkingPart(
+      this.messages,
+      messageId,
+      stepId,
+      thinking,
+      signature,
+    )
+    this.emitMessagesChange()
   }
 
   /**

@@ -98,8 +98,13 @@ function collapseContentParts(
  * Extract text content from ModelMessage content (string, null, or ContentPart array).
  * Used when only the text portion is needed (e.g., tool result content).
  */
-function getTextContent(content: string | null | Array<ContentPart>): string {
-  if (content === null) return ''
+function getTextContent(
+  content: string | null | undefined | Array<ContentPart>,
+): string {
+  // Tool-call-only assistant turns carry no text and reach here as `null` or
+  // `undefined`; both must collapse to an empty string rather than crash on
+  // `.filter` (issue #532 — the interrupt-boundary MessagesSnapshot).
+  if (content === null || content === undefined) return ''
   if (typeof content === 'string') return content
   return content
     .filter((part): part is TextPart => part.type === 'text')
