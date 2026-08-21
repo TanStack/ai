@@ -105,6 +105,11 @@ Or the `@tanstack/preact-ai-devtools` package for Preact:
 npm install -D @tanstack/preact-ai-devtools @tanstack/preact-devtools
 ```
 
+Or the `@tanstack/svelte-ai-devtools` package for Svelte:
+```bash
+npm install -D @tanstack/svelte-ai-devtools @tanstack/svelte-devtools
+```
+
 ## Usage
 
 Import and include the TanStackDevtools component in your application:
@@ -129,6 +134,24 @@ const App = () => {
     </>
   )
 }
+```
+
+For Svelte, register the plugin with the Svelte Devtools component:
+
+```svelte
+<script lang="ts">
+import { aiDevtoolsPlugin } from '@tanstack/svelte-ai-devtools'
+import { TanStackDevtools } from '@tanstack/svelte-devtools'
+
+const plugins = [aiDevtoolsPlugin()]
+</script>
+
+<TanStackDevtools
+  {plugins}
+  eventBusConfig={{
+    connectToServerBus: true,
+  }}
+/>
 ```
 
 ## Using with Next.js (or without a Vite plugin)
