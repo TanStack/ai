@@ -1,5 +1,35 @@
 # @tanstack/ai
 
+## 0.47.3
+
+### Patch Changes
+
+- [#938](https://github.com/TanStack/ai/pull/938) [`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac) - Reject non-streaming text calls when their event stream ends with a `RUN_ERROR`.
+
+- [#931](https://github.com/TanStack/ai/pull/931) [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e) - Preserve signed thinking blocks relative to tool calls when converting assistant UI messages. A thinking block that follows a provider-executed tool now starts a new assistant segment instead of being replayed before that tool.
+
+- [#1020](https://github.com/TanStack/ai/pull/1020) [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b) - Fix tool-call `input` corruption when a `TEXT_MESSAGE_CONTENT` event arrives between `TOOL_CALL_ARGS` events. Text events no longer force-complete in-flight tool calls, and `input` is only set when a strict `JSON.parse` of the accumulated arguments succeeds.
+
+- [#1016](https://github.com/TanStack/ai/pull/1016) [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4) - New provider adapter: `@tanstack/ai-llmgateway` connects TanStack AI to
+  [LLM Gateway](https://llmgateway.io), an open-source, self-hostable AI
+  gateway that routes one OpenAI-compatible endpoint to hundreds of models
+  across many providers.
+  - `llmGatewayText` / `createLLMGatewayText` — streaming chat with tool
+    calling, structured outputs, multimodal (image) input, and reasoning
+    deltas (`reasoning_content`) surfaced as AG-UI `REASONING_*` events
+  - `llmGatewaySummarize` / `createLLMGatewaySummarize` — summarization via
+    the shared `ChatStreamSummarizeAdapter`
+  - `LLMGATEWAY_CHAT_MODELS` — a curated list of flagship model ids, with
+    per-model input modalities and tool capabilities resolved at the type
+    level, and any other model id from llmgateway.io/models accepted and
+    typed against the generic provider options
+  - `provider/model` ids pin routing to a specific provider; bare ids let
+    the gateway choose
+
+  `@tanstack/ai` registers `llmgateway` in the summarize wrapper's
+  provider-native token-key map, so `summarize({ maxLength })` reaches the
+  gateway as `max_tokens` instead of being dropped with a warning.
+
 ## 0.47.2
 
 ### Patch Changes

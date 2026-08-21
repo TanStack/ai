@@ -1,5 +1,22 @@
 # @tanstack/ai-mistral
 
+## 0.4.0
+
+### Minor Changes
+
+- [#989](https://github.com/TanStack/ai/pull/989) [`75dbdfa`](https://github.com/TanStack/ai/commit/75dbdfa2fe4141cc240fe74307820fe43bd31e07) - Add Vertex AI factories for Grok (`grokVertexText`, `grokVertexSummarize`)
+  and Mistral (`mistralVertexText`) on `@tanstack/ai-grok/vertex` and
+  `@tanstack/ai-mistral/vertex`. Vertex factories accept only the chat
+  models in the Google partner catalog. `anthropicVertexText` now uses
+  the same Vertex Claude catalog.
+
+### Patch Changes
+
+- [#956](https://github.com/TanStack/ai/pull/956) [`eb774a9`](https://github.com/TanStack/ai/commit/eb774a90f452515ab9f444613bd3894f1ecbcee3) - Preserve genuine nullable values while removing nulls synthesized for optional strict tool inputs and structured outputs.
+
+- Updated dependencies [[`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac), [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e), [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b), [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4)]:
+  - @tanstack/ai@0.47.3
+
 ## 0.3.4
 
 ### Patch Changes

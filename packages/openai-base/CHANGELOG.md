@@ -1,5 +1,16 @@
 # @tanstack/openai-base
 
+## 0.10.2
+
+### Patch Changes
+
+- [#939](https://github.com/TanStack/ai/pull/939) [`ff27fde`](https://github.com/TanStack/ai/commit/ff27fdeb2e134cb4c2b69e6809774477ffdc26a0) - Undo strict-mode null widening before validating and executing OpenAI-compatible tool calls.
+
+- [#937](https://github.com/TanStack/ai/pull/937) [`66ba92c`](https://github.com/TanStack/ai/commit/66ba92cb5c2cfaf07ee2269306048e2fd4f788fe) - Recover successful OpenAI and OpenRouter Responses API text that is present only on the completed response event.
+
+- Updated dependencies [[`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac), [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e), [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b), [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4)]:
+  - @tanstack/ai@0.47.3
+
 ## 0.10.1
 
 ### Patch Changes
