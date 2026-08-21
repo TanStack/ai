@@ -1,3 +1,4 @@
+import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { normalizeToolResult } from '../../utilities/tool-result'
 import { tanstackMetadata } from '../../utilities/merge-metadata'
 import type { Message as AGUIMessage } from '@ag-ui/core'
@@ -319,14 +320,15 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     const content = collapseContentParts(current.contentParts)
     const hasContent = content !== null
     const hasToolCalls = current.toolCalls.length > 0
+    const hasThinking = pendingThinking.length > 0
 
-    if (hasContent || hasToolCalls) {
+    if (hasContent || hasToolCalls || hasThinking) {
       messageList.push({
         id: uiMessage.id,
         role: 'assistant',
         content,
         ...(hasToolCalls && { toolCalls: current.toolCalls }),
-        ...(pendingThinking.length > 0 && { thinking: pendingThinking }),
+        ...(hasThinking && { thinking: pendingThinking }),
         ...(current.structuredOutput && {
           structuredOutput: current.structuredOutput,
         }),
@@ -387,6 +389,11 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
 
       case 'thinking':
         if (part.content) {
+          // Provider-executed tools have no tool-result part, so thinking
+          // after them has to start the next segment or it replays first.
+          if (current.toolCalls.some(isProviderExecutedToolCall)) {
+            flushSegment()
+          }
           pendingThinking.push({
             content: part.content,
             ...(part.signature && { signature: part.signature }),

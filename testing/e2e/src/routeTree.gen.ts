@@ -44,6 +44,7 @@ import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
 import { Route as ApiOtelMediaRouteImport } from './routes/api.otel-media'
 import { Route as ApiOpenrouterWebToolsWireRouteImport } from './routes/api.openrouter-web-tools-wire'
+import { Route as ApiOpenrouterReasoningWireRouteImport } from './routes/api.openrouter-reasoning-wire'
 import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.openrouter-json-object-wire'
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
@@ -52,6 +53,7 @@ import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.opena
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
 import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
+import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.mistral-strict-tool-null-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
 import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
@@ -272,6 +274,12 @@ const ApiOpenrouterWebToolsWireRoute =
     path: '/api/openrouter-web-tools-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenrouterReasoningWireRoute =
+  ApiOpenrouterReasoningWireRouteImport.update({
+    id: '/api/openrouter-reasoning-wire',
+    path: '/api/openrouter-reasoning-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiOpenrouterJsonObjectWireRoute =
   ApiOpenrouterJsonObjectWireRouteImport.update({
     id: '/api/openrouter-json-object-wire',
@@ -315,6 +323,12 @@ const ApiMultimodalToolResultWireRoute =
   ApiMultimodalToolResultWireRouteImport.update({
     id: '/api/multimodal-tool-result-wire',
     path: '/api/multimodal-tool-result-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiMistralStrictToolNullWireRoute =
+  ApiMistralStrictToolNullWireRouteImport.update({
+    id: '/api/mistral-strict-tool-null-wire',
+    path: '/api/mistral-strict-tool-null-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
 const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
@@ -560,6 +574,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
@@ -568,6 +583,7 @@ export interface FileRoutesByFullPath {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
+  '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -642,6 +658,7 @@ export interface FileRoutesByTo {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
@@ -650,6 +667,7 @@ export interface FileRoutesByTo {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
+  '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -725,6 +743,7 @@ export interface FileRoutesById {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
@@ -733,6 +752,7 @@ export interface FileRoutesById {
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
   '/api/openrouter-json-object-wire': typeof ApiOpenrouterJsonObjectWireRoute
+  '/api/openrouter-reasoning-wire': typeof ApiOpenrouterReasoningWireRoute
   '/api/openrouter-web-tools-wire': typeof ApiOpenrouterWebToolsWireRoute
   '/api/otel-media': typeof ApiOtelMediaRoute
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
@@ -809,6 +829,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/message-ids'
     | '/api/middleware-test'
+    | '/api/mistral-strict-tool-null-wire'
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
@@ -817,6 +838,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
+    | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -891,6 +913,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/message-ids'
     | '/api/middleware-test'
+    | '/api/mistral-strict-tool-null-wire'
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
@@ -899,6 +922,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
+    | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -973,6 +997,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/message-ids'
     | '/api/middleware-test'
+    | '/api/mistral-strict-tool-null-wire'
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
@@ -981,6 +1006,7 @@ export interface FileRouteTypes {
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
     | '/api/openrouter-json-object-wire'
+    | '/api/openrouter-reasoning-wire'
     | '/api/openrouter-web-tools-wire'
     | '/api/otel-media'
     | '/api/otel-transcription'
@@ -1056,6 +1082,7 @@ export interface RootRouteChildren {
   ApiMcpTestRoute: typeof ApiMcpTestRoute
   ApiMessageIdsRoute: typeof ApiMessageIdsRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
+  ApiMistralStrictToolNullWireRoute: typeof ApiMistralStrictToolNullWireRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
@@ -1064,6 +1091,7 @@ export interface RootRouteChildren {
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
   ApiOpenrouterJsonObjectWireRoute: typeof ApiOpenrouterJsonObjectWireRoute
+  ApiOpenrouterReasoningWireRoute: typeof ApiOpenrouterReasoningWireRoute
   ApiOpenrouterWebToolsWireRoute: typeof ApiOpenrouterWebToolsWireRoute
   ApiOtelMediaRoute: typeof ApiOtelMediaRoute
   ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
@@ -1329,6 +1357,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiOpenrouterWebToolsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/openrouter-reasoning-wire': {
+      id: '/api/openrouter-reasoning-wire'
+      path: '/api/openrouter-reasoning-wire'
+      fullPath: '/api/openrouter-reasoning-wire'
+      preLoaderRoute: typeof ApiOpenrouterReasoningWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/openrouter-json-object-wire': {
       id: '/api/openrouter-json-object-wire'
       path: '/api/openrouter-json-object-wire'
@@ -1383,6 +1418,13 @@ declare module '@tanstack/react-router' {
       path: '/api/multimodal-tool-result-wire'
       fullPath: '/api/multimodal-tool-result-wire'
       preLoaderRoute: typeof ApiMultimodalToolResultWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mistral-strict-tool-null-wire': {
+      id: '/api/mistral-strict-tool-null-wire'
+      path: '/api/mistral-strict-tool-null-wire'
+      fullPath: '/api/mistral-strict-tool-null-wire'
+      preLoaderRoute: typeof ApiMistralStrictToolNullWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/middleware-test': {
@@ -1757,6 +1799,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpTestRoute: ApiMcpTestRoute,
   ApiMessageIdsRoute: ApiMessageIdsRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
+  ApiMistralStrictToolNullWireRoute: ApiMistralStrictToolNullWireRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
@@ -1765,6 +1808,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,
   ApiOpenrouterJsonObjectWireRoute: ApiOpenrouterJsonObjectWireRoute,
+  ApiOpenrouterReasoningWireRoute: ApiOpenrouterReasoningWireRoute,
   ApiOpenrouterWebToolsWireRoute: ApiOpenrouterWebToolsWireRoute,
   ApiOtelMediaRoute: ApiOtelMediaRoute,
   ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,

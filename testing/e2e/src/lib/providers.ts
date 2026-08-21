@@ -1,8 +1,13 @@
 import { createChatOptions } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
-import { createAnthropicChat } from '@tanstack/ai-anthropic'
+import Anthropic from '@anthropic-ai/sdk'
+import { createAnthropicChatWithClient } from '@tanstack/ai-anthropic'
 import { createGeminiChat } from '@tanstack/ai-gemini'
 import { createGeminiTextInteractions } from '@tanstack/ai-gemini/experimental'
+import { vertexText } from '@tanstack/ai-vertex'
+import { grokVertexText } from '@tanstack/ai-grok/vertex'
+import { mistralVertexText } from '@tanstack/ai-mistral/vertex'
+import { vertexE2eAuthClient, vertexE2eConfig } from '@/lib/vertex-e2e'
 import { createOllamaChat } from '@tanstack/ai-ollama'
 import { createGroqText } from '@tanstack/ai-groq'
 import { createGrokText } from '@tanstack/ai-grok'
@@ -28,6 +33,9 @@ const defaultModels: Record<Provider, string> = {
   openai: 'gpt-4o',
   anthropic: 'claude-sonnet-4-5',
   gemini: 'gemini-2.5-flash',
+  vertex: 'gemini-2.5-flash',
+  'vertex-grok': 'grok-4.3',
+  'vertex-mistral': 'mistral-medium-3',
   ollama: 'mistral',
   groq: 'llama-3.3-70b-versatile',
   grok: 'grok-build-0.1',
@@ -100,10 +108,14 @@ export function createTextAdapter(
       }),
     anthropic: () =>
       createChatOptions({
-        adapter: createAnthropicChat(model as 'claude-sonnet-4-5', DUMMY_KEY, {
-          baseURL: base,
-          defaultHeaders: testHeaders,
-        }),
+        adapter: createAnthropicChatWithClient(
+          model as 'claude-sonnet-4-5',
+          new Anthropic({
+            apiKey: DUMMY_KEY,
+            baseURL: base,
+            defaultHeaders: testHeaders,
+          }),
+        ),
       }),
     gemini: () =>
       createChatOptions({
@@ -112,6 +124,41 @@ export function createTextAdapter(
             baseUrl: base,
             headers: testHeaders,
           },
+        }),
+      }),
+    // Gemini on Vertex. Dummy ADC + project/location so the SDK posts
+    // `/v1/projects/{p}/locations/{l}/publishers/google/models/{m}:…`,
+    // which aimock already serves. See vertex-e2e.ts.
+    vertex: () =>
+      createChatOptions({
+        adapter: vertexText(
+          model as 'gemini-2.5-flash',
+          vertexE2eConfig(base, testHeaders),
+        ),
+      }),
+    // Grok on Vertex. Dummy ADC + aimock `/v1` so the OpenAI Responses
+    // client hits the same path as the xAI Grok row. The factory still
+    // prefixes the wire model with `xai/`.
+    'vertex-grok': () =>
+      createChatOptions({
+        adapter: grokVertexText(model as 'grok-4.3', {
+          project: 'e2e-project',
+          location: 'global',
+          baseURL: openaiUrl,
+          authClient: vertexE2eAuthClient(),
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    // Mistral on Vertex. `resolveRequestUrl` skips the publisher
+    // `:rawPredict` rewrite and posts to aimock `/v1/chat/completions`.
+    'vertex-mistral': () =>
+      createChatOptions({
+        adapter: mistralVertexText(model as 'mistral-medium-3', {
+          project: 'e2e-project',
+          location: 'us-central1',
+          authClient: vertexE2eAuthClient(),
+          defaultHeaders: testHeaders,
+          resolveRequestUrl: () => `${base}/v1/chat/completions`,
         }),
       }),
     ollama: () =>

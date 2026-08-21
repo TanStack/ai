@@ -1,0 +1,66 @@
+{
+  "name": "@tanstack/ai-vertex",
+  "version": "0.1.0",
+  "description": "Google Vertex AI adapter for TanStack AI. Runs Gemini models on Vertex with regional endpoints and Google Cloud credentials.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-vertex"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "vertex",
+    "vertex-ai",
+    "gemini",
+    "google",
+    "adapter"
+  ],
+  "dependencies": {
+    "@tanstack/ai-gemini": "workspace:^"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^"
+  },
+  "devDependencies": {
+    "@google/genai": "^2.10.0",
+    "@tanstack/ai": "workspace:*",
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "^8.2.1"
+  }
+}

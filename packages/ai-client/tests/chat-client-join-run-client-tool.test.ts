@@ -205,6 +205,11 @@ describe('joinRun client-tool continuation (issue #1058)', () => {
     ])
     expect(client.getInterruptState().interruptErrors).toEqual([])
 
+    await vi.waitFor(() => {
+      expect(client.getInterrupts()).toEqual([])
+      expect(client.getIsLoading()).toBe(false)
+    })
+
     await client.sendMessage('later')
     expect(connectCount).toBe(2)
   })

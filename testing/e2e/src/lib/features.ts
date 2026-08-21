@@ -91,14 +91,17 @@ export const featureConfigs: Record<Feature, FeatureConfig> = {
   // Pins #605 native-combined-mode: `outputSchema` + `tools` + `stream: true`
   // in a single chat call. Default openai (gpt-4o) and anthropic
   // (claude-sonnet-4-5) are already in their combined-mode-capable sets;
-  // gemini and grok need overrides to gated models so the engine takes the
-  // native path instead of the legacy `runStructuredFinalization` round-trip.
+  // gemini, vertex, and grok need overrides to gated models so the engine
+  // takes the native path instead of the legacy
+  // `runStructuredFinalization` round-trip.
   'agentic-structured-stream': {
     tools: [getGuitars],
     modelOptions: {},
     modelOverrides: {
       gemini: 'gemini-3-flash-preview',
+      vertex: 'gemini-3-flash-preview',
       grok: 'grok-build-0.1',
+      'vertex-grok': 'grok-4.3',
       // Reports combined tools+schema support, so the engine takes the
       // native path here too.
       byteplus: BYTEPLUS_STRUCTURED_MODEL,

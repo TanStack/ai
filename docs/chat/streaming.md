@@ -232,7 +232,7 @@ for (const message of messages) {
 }
 ```
 
-Thinking parts are UI-only. They are not sent back to the model. See [Thinking & Reasoning](./thinking-content) for the full rendering pattern.
+Thinking content is automatically converted to `ThinkingPart` in `UIMessage` objects. Unsigned thinking stays in the UI. Signed thinking is replayed to the model in original order. See [Thinking & Reasoning](./thinking-content) for the full rendering pattern.
 
 ## Connection Adapters
 

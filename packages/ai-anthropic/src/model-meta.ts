@@ -578,6 +578,28 @@ export const ANTHROPIC_MODELS = [
 ] as const
 
 /**
+ * Claude chat models on Vertex AI / Gemini Enterprise Agent Platform.
+ * This list is the Google partner catalog, not the full Anthropic API catalog.
+ * Source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/use-partner-models
+ */
+export const ANTHROPIC_VERTEX_CHAT_MODELS = [
+  CLAUDE_OPUS_5.id,
+  CLAUDE_SONNET_5.id,
+  CLAUDE_FABLE_5.id,
+  CLAUDE_OPUS_4_8.id,
+  CLAUDE_OPUS_4_7.id,
+  CLAUDE_OPUS_4_6.id,
+  CLAUDE_SONNET_4_6.id,
+  CLAUDE_OPUS_4_5.id,
+  CLAUDE_SONNET_4_5.id,
+  CLAUDE_OPUS_4_1.id,
+  CLAUDE_HAIKU_4_5.id,
+] as const
+
+export type AnthropicVertexChatModel =
+  (typeof ANTHROPIC_VERTEX_CHAT_MODELS)[number]
+
+/**
  * Fallback `max_tokens` ceiling for a model whose metadata carries no
  * `max_output_tokens` (e.g. an unrecognized model id). Anthropic's Messages
  * API *requires* `max_tokens`, so the adapter must always send a value. 64K is

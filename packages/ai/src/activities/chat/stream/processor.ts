@@ -871,6 +871,15 @@ export class StreamProcessor {
         // Update activeMessageIds
         this.activeMessageIds.delete(pendingId)
         this.activeMessageIds.add(messageId)
+
+        // TOOL_CALL_ARGS/END route through toolCallToMessage. Keep those
+        // entries on the remapped id so later args still accumulate
+        // (interleaved text can arrive as a full START/CONTENT/END block).
+        for (const [toolCallId, mappedMessageId] of this.toolCallToMessage) {
+          if (mappedMessageId === pendingId) {
+            this.toolCallToMessage.set(toolCallId, messageId)
+          }
+        }
       }
 
       // Ensure state exists
@@ -942,9 +951,6 @@ export class StreamProcessor {
     if (state.currentSegmentText !== state.lastEmittedText) {
       this.emitTextUpdateForMessage(messageId)
     }
-
-    // Complete all tool calls for this message
-    this.completeAllToolCallsForMessage(messageId)
   }
 
   /**
@@ -1254,9 +1260,6 @@ export class StreamProcessor {
   ): void {
     const { messageId, state } = this.ensureAssistantMessage(chunk.messageId)
     this.mergeMessageMetadata(messageId, chunk.metadata)
-
-    // Content arriving means all current tool calls for this message are complete
-    this.completeAllToolCallsForMessage(messageId)
 
     if (this.structuredMessageIds.has(messageId)) {
       // `chunk.delta` is incremental; `chunk.content` is sometimes cumulative
@@ -2055,8 +2058,17 @@ export class StreamProcessor {
     // counts as a completed tool call in getCompletedToolCalls()/getState().
     toolCall.state = 'input-complete'
 
-    // Try final parse
-    toolCall.parsedArguments = this.jsonParser.parse(toolCall.arguments)
+    // Only surface `input` from a strict parse. The streaming partial-JSON
+    // parser closes unterminated strings, so truncated arguments would become
+    // a plausible but wrong object (GitHub issue #1017). If parse fails,
+    // `input` stays unset and consumers use the raw `arguments` string.
+    let strictParseSucceeded = false
+    try {
+      toolCall.parsedArguments = JSON.parse(toolCall.arguments)
+      strictParseSucceeded = true
+    } catch {
+      toolCall.parsedArguments = undefined
+    }
 
     // Don't downgrade the rendered part of a call that already reached the
     // terminal 'error' state (e.g. an output-error TOOL_CALL_RESULT arrived
@@ -2080,9 +2092,7 @@ export class StreamProcessor {
       name: toolCall.name,
       arguments: toolCall.arguments,
       state: 'input-complete',
-      ...(toolCall.parsedArguments !== undefined && {
-        input: toolCall.parsedArguments,
-      }),
+      ...(strictParseSucceeded && { input: toolCall.parsedArguments }),
       ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
     })
     this.emitMessagesChange()

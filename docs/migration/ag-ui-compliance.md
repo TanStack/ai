@@ -429,5 +429,5 @@ you can now drop zod entirely.
 
 ## Out of scope (existing behavior preserved)
 
-- **Reasoning replay to LLM providers.** TanStack still drops `ThinkingPart` at the `UIMessage`→`ModelMessage` boundary (pre-existing behavior). Providers like Anthropic that require thinking blocks to be replayed for extended thinking continuation remain a separate concern, tracked outside this migration.
+- **Reasoning replay to LLM providers.** This migration does not change that path. Signed `ThinkingPart`s convert to `ModelMessage.thinking` and replay in original order, including around provider-executed tools. Unsigned thinking is not sent back.
 - **AG-UI `state` and `context` fields.** Surfaced on `chatParamsFromRequestBody`'s return value as `state` and `aguiContext`, with `context` kept as a deprecated alias of `aguiContext` for backward compatibility. They are protocol-level fields available for your endpoint to inspect/forward. TanStack AI's typed runtime context is the separate `chat({ context })` option; validate and map AG-UI values into it yourself if you want tools or middleware to read them.

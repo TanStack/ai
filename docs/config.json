@@ -13,12 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-07"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Quick Start: React",
           "to": "getting-started/quick-start",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Quick Start: React Native",
@@ -47,6 +48,11 @@
           "addedAt": "2026-06-15"
         },
         {
+          "label": "Quick Start: Octane",
+          "to": "getting-started/quick-start-octane",
+          "addedAt": "2026-08-21"
+        },
+        {
           "label": "Quick Start: Server Only",
           "to": "getting-started/quick-start-server",
           "addedAt": "2026-04-15"
@@ -66,7 +72,7 @@
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -813,7 +819,7 @@
           "label": "From Vercel AI SDK",
           "to": "migration/migration-from-vercel-ai",
           "addedAt": "2026-04-20",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "AG-UI Client Compliance",
@@ -878,6 +884,11 @@
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
           "updatedAt": "2026-08-20"
+        },
+        {
+          "label": "@tanstack/ai-octane",
+          "to": "api/ai-octane",
+          "addedAt": "2026-08-21"
         }
       ]
     },
@@ -894,13 +905,19 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-04"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "Google Vertex AI",
+          "to": "adapters/vertex",
+          "addedAt": "2026-08-19",
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Ollama",
@@ -924,7 +941,7 @@
           "label": "Mistral",
           "to": "adapters/mistral",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Cohere",
