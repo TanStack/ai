@@ -695,7 +695,9 @@ describe('StreamProcessor', () => {
 
       processor.processChunk(ev.runStarted())
       processor.processChunk(ev.textStart())
-      processor.processChunk(ev.toolStart('tc-1', 'offerTemplates'))
+      processor.processChunk(
+        ev.toolStart('tc-1', 'offerTemplates', 0, 'msg-1'),
+      )
       processor.processChunk(ev.toolArgs('tc-1', '{"templateIds":["mock-gsk-e'))
       processor.processChunk(ev.textContent('Let me look those up. '))
 
