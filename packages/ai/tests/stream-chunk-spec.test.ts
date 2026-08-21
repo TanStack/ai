@@ -15,14 +15,13 @@ type HasKey<T, K extends string> = K extends keyof T ? true : false
 
 describe('public StreamChunk is spec-only', () => {
   it('RunFinishedEvent has no model/finishReason', () => {
-    // AG-UI BaseEvent has `[k: string]: unknown`, so after extras are
-    // dropped these keys type as `unknown`, not `string` / finishReason.
-    expectTypeOf<RunFinishedEvent['model']>().toEqualTypeOf<unknown>()
-    expectTypeOf<RunFinishedEvent['finishReason']>().toEqualTypeOf<unknown>()
+    expectTypeOf<HasKey<RunFinishedEvent, 'model'>>().toEqualTypeOf<false>()
+    expectTypeOf<
+      HasKey<RunFinishedEvent, 'finishReason'>
+    >().toEqualTypeOf<false>()
   })
 
-  it('ToolCallEndEvent has no input/output/result/toolName', () => {
-    expectTypeOf<HasKey<ToolCallEndEvent, 'input'>>().toEqualTypeOf<false>()
+  it('ToolCallEndEvent has no output/result/toolName', () => {
     expectTypeOf<HasKey<ToolCallEndEvent, 'output'>>().toEqualTypeOf<false>()
     expectTypeOf<HasKey<ToolCallEndEvent, 'result'>>().toEqualTypeOf<false>()
     expectTypeOf<HasKey<ToolCallEndEvent, 'toolName'>>().toEqualTypeOf<false>()

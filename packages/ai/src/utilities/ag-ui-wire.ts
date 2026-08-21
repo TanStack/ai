@@ -32,6 +32,7 @@ type AGUIReasoningMessage = {
   role: 'reasoning'
   id: string
   content: string
+  metadata?: MetadataRecord
 }
 
 /** Spec AG-UI message. No `parts`, no `createdAt` Date. */
@@ -102,11 +103,19 @@ export function uiMessagesToWire(
     // assistant: emit reasoning fan-outs first, then anchor, then tool fan-outs
     for (const part of parts) {
       if (part.type === 'thinking') {
-        wire.push({
+        const reasoning: AGUIReasoningMessage = {
           role: 'reasoning',
           id: deriveReasoningId(msg.id, part),
           content: part.content,
-        })
+        }
+        if (part.signature) {
+          wire.push({
+            ...reasoning,
+            metadata: { tanstack: { signature: part.signature } },
+          })
+        } else {
+          wire.push(reasoning)
+        }
       }
     }
 
@@ -171,6 +180,16 @@ function messageMetadata(
 
   const leftover = unfinishedStructuredOutput(parts)
   if (leftover) tanstack.structuredOutput = leftover
+
+  const toolCallMetadata: Record<string, unknown> = {}
+  for (const part of parts) {
+    if (part.type === 'tool-call' && part.metadata !== undefined) {
+      toolCallMetadata[part.id] = part.metadata
+    }
+  }
+  if (Object.keys(toolCallMetadata).length > 0) {
+    tanstack.toolCallMetadata = toolCallMetadata
+  }
 
   const uiResources = parts.filter(
     (p): p is UIResourcePart => p.type === 'ui-resource',

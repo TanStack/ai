@@ -1,4 +1,5 @@
 import { normalizeToolResult } from '../../../utilities/tool-result'
+import { tanstackMetadata } from '../../../utilities/merge-metadata'
 import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type { ToolApprovalResolution } from '../../../interrupts'
@@ -232,6 +233,9 @@ export class ToolCallManager<
    * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
    */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
+    for (const existing of this.toolCallsMap.values()) {
+      if (existing.id === event.toolCallId) return
+    }
     const index = this.toolCallsMap.size
     const name = event.toolCallName
     this.toolCallsMap.set(index, {
@@ -381,8 +385,10 @@ export class ToolCallManager<
         toolCallId: toolCall.id,
         toolCallName: toolCall.function.name,
         toolName: toolCall.function.name,
-        model:
-          typeof finishEvent.model === 'string' ? finishEvent.model : undefined,
+        model: (() => {
+          const model = tanstackMetadata(finishEvent)?.model
+          return typeof model === 'string' ? model : undefined
+        })(),
         timestamp: Date.now(),
         // Typed parsed output (undefined for failed exec / client-only tools).
         ...(toolOutput !== undefined ? { output: toolOutput } : {}),

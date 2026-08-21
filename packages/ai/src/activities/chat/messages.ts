@@ -98,16 +98,15 @@ export function convertMessagesToModelMessages(
   }
 
   const modelMessages: Array<ModelMessage> = []
+  let pendingThinking: Array<{ content: string; signature?: string }> = []
   for (const msg of messages) {
     if ('parts' in msg) {
-      // UIMessage anchor — existing fan-out path
       modelMessages.push(...uiMessageToModelMessages(msg))
       continue
     }
 
     const role = (msg as { role: string }).role
 
-    // AG-UI tool fan-out duplicate — drop if anchor already covers it
     if (
       role === 'tool' &&
       msg.toolCallId &&
@@ -116,12 +115,24 @@ export function convertMessagesToModelMessages(
       continue
     }
 
-    // AG-UI reasoning and activity — no ModelMessage equivalent today
-    if (role === 'reasoning' || role === 'activity') {
+    if (role === 'reasoning') {
+      const content = (msg as { content?: string }).content
+      if (content) {
+        const signature = tanstackMetadata(msg)?.signature
+        pendingThinking.push({
+          content,
+          ...(typeof signature === 'string' && signature !== ''
+            ? { signature }
+            : {}),
+        })
+      }
       continue
     }
 
-    // AG-UI developer — collapse to system
+    if (role === 'activity') {
+      continue
+    }
+
     if (role === 'developer') {
       modelMessages.push({
         role: 'system' as ModelMessage['role'],
@@ -130,8 +141,66 @@ export function convertMessagesToModelMessages(
       continue
     }
 
-    // Already a ModelMessage (user, assistant, system, tool with no anchor) — pass through
-    modelMessages.push(msg)
+    if (
+      role === 'user' &&
+      Array.isArray((msg as { content?: unknown }).content)
+    ) {
+      const content = (msg as { content: Array<{ type: string }> }).content
+      // TanStack ModelMessage text parts use `{ content }`. AG-UI wire text
+      // parts use `{ text }`. Only rewrite the AG-UI shape.
+      if (
+        !content.some(
+          (part) =>
+            part.type === 'text' && 'text' in part && !('content' in part),
+        )
+      ) {
+        modelMessages.push(msg as ModelMessage)
+        continue
+      }
+      const parts = aguiUserContentToParts(
+        content as Extract<AGUIMessage, { role: 'user' }>['content'],
+      )
+      const contentParts = parts.filter(isContentPart)
+      modelMessages.push({
+        role: 'user',
+        content: collapseContentParts(contentParts),
+        ...((msg as { id?: string }).id !== undefined && {
+          id: (msg as { id: string }).id,
+        }),
+      })
+      continue
+    }
+
+    if (role === 'assistant') {
+      const source = msg as ModelMessage
+      const toolCallMetadata = tanstackMetadata(msg)?.toolCallMetadata
+      const toolCalls =
+        source.toolCalls &&
+        toolCallMetadata != null &&
+        typeof toolCallMetadata === 'object'
+          ? source.toolCalls.map((toolCall) => {
+              const metadata = (toolCallMetadata as Record<string, unknown>)[
+                toolCall.id
+              ]
+              return metadata !== undefined
+                ? { ...toolCall, metadata }
+                : toolCall
+            })
+          : source.toolCalls
+      modelMessages.push({
+        ...source,
+        ...(toolCalls !== undefined ? { toolCalls } : {}),
+        ...(pendingThinking.length > 0
+          ? {
+              thinking: [...(source.thinking ?? []), ...pendingThinking],
+            }
+          : {}),
+      })
+      pendingThinking = []
+      continue
+    }
+
+    modelMessages.push(msg as ModelMessage)
   }
   return modelMessages
 }
@@ -545,18 +614,27 @@ export function aguiSnapshotMessageToUIMessage(
         role: 'user',
         parts: aguiUserContentToParts(message.content),
       })
-    case 'assistant':
+    case 'assistant': {
+      const toolCallMetadata = tanstackMetadata(message)?.toolCallMetadata
+      const toolCalls = message.toolCalls?.map((toolCall) => {
+        const metadata =
+          toolCallMetadata != null && typeof toolCallMetadata === 'object'
+            ? (toolCallMetadata as Record<string, unknown>)[toolCall.id]
+            : undefined
+        return metadata !== undefined ? { ...toolCall, metadata } : toolCall
+      })
       return applySnapshotMetadata(
         message,
         modelMessageToUIMessage(
           {
             role: 'assistant',
             content: message.content ?? null,
-            ...(message.toolCalls && { toolCalls: message.toolCalls }),
+            ...(toolCalls && { toolCalls }),
           },
           id,
         ),
       )
+    }
     case 'tool':
       return applySnapshotMetadata(
         message,
@@ -579,14 +657,24 @@ export function aguiSnapshotMessageToUIMessage(
           ? [{ type: 'text', content: message.content }]
           : [],
       })
-    case 'reasoning':
+    case 'reasoning': {
+      const signature = tanstackMetadata(message)?.signature
       return applySnapshotMetadata(message, {
         id,
         role: 'assistant',
         parts: message.content
-          ? [{ type: 'thinking', content: message.content }]
+          ? [
+              {
+                type: 'thinking' as const,
+                content: message.content,
+                ...(typeof signature === 'string' && signature !== ''
+                  ? { signature }
+                  : {}),
+              },
+            ]
           : [],
       })
+    }
     case 'activity':
     default:
       // `activity` (and any future role) has no text/parts equivalent today.

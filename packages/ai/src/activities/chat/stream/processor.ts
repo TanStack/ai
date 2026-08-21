@@ -28,6 +28,7 @@ import {
   mergeMetadata,
   tanstackMetadata,
 } from '../../../utilities/merge-metadata'
+import { getChunkRunId } from '../../../utilities/chunk-ids'
 import { defaultJSONParser } from './json-parser'
 import {
   appendStructuredOutputDelta,
@@ -59,6 +60,7 @@ import type {
   MessagePart,
   ModelMessage,
   StreamChunk,
+  ThinkingPart,
   ToolCall,
   ToolCallPart,
   ToolResultPart,
@@ -632,6 +634,12 @@ export class StreamProcessor {
         )
         break
 
+      case 'REASONING_ENCRYPTED_VALUE':
+        this.handleReasoningEncryptedValueEvent(
+          chunk as Extract<StreamChunk, { type: 'REASONING_ENCRYPTED_VALUE' }>,
+        )
+        break
+
       case 'TOOL_CALL_RESULT':
         this.handleToolCallResultEvent(
           chunk as Extract<StreamChunk, { type: 'TOOL_CALL_RESULT' }>,
@@ -961,7 +969,9 @@ export class StreamProcessor {
     // the pre-snapshot state; see `reconcileSnapshotToolCalls`.
     const prevMessages = this.messages
     const prevById = new Map(prevMessages.map((msg) => [msg.id, msg]))
-    const normalized = chunk.messages.map(aguiSnapshotMessageToUIMessage)
+    const normalized = this.mergeReasoningFanOut(
+      chunk.messages.map(aguiSnapshotMessageToUIMessage),
+    )
     this.messages = this.reconcileSnapshotToolCalls(
       normalized,
       prevMessages,
@@ -997,6 +1007,54 @@ export class StreamProcessor {
    * matching `tool-call` (and prefer pre-snapshot complete/output when the
    * snapshot is poorer) so server tools keep the same UI shape as client tools.
    */
+  /**
+   * Wire order is reasoning fan-outs, then the assistant anchor.
+   * Snapshot conversion turns each reasoning row into its own assistant
+   * message. Fold leading thinking-only messages into the next real
+   * assistant. Do not fold into a tool-result-only message (`role: 'tool'`
+   * on the wire). `reconcileSnapshotToolCalls` anchors those results.
+   */
+  private mergeReasoningFanOut(messages: Array<UIMessage>): Array<UIMessage> {
+    const out: Array<UIMessage> = []
+    let pending: Array<UIMessage> = []
+    const thinkingParts = (msg: UIMessage) =>
+      msg.parts.filter((part): part is ThinkingPart => part.type === 'thinking')
+    const isThinkingOnly = (msg: UIMessage) =>
+      msg.role === 'assistant' &&
+      msg.parts.length > 0 &&
+      msg.parts.every((part) => part.type === 'thinking')
+    const isToolResultOnly = (msg: UIMessage) =>
+      msg.role === 'assistant' &&
+      msg.parts.length === 1 &&
+      msg.parts[0]?.type === 'tool-result'
+    const flushPending = () => {
+      out.push(...pending)
+      pending = []
+    }
+    for (const msg of messages) {
+      if (isThinkingOnly(msg)) {
+        pending.push(msg)
+        continue
+      }
+      if (
+        msg.role === 'assistant' &&
+        pending.length > 0 &&
+        !isToolResultOnly(msg)
+      ) {
+        out.push({
+          ...msg,
+          parts: [...pending.flatMap(thinkingParts), ...msg.parts],
+        })
+        pending = []
+        continue
+      }
+      flushPending()
+      out.push(msg)
+    }
+    flushPending()
+    return out
+  }
+
   private reconcileSnapshotToolCalls(
     snapshot: Array<UIMessage>,
     prevMessages: Array<UIMessage>,
@@ -1584,10 +1642,7 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.hasError = true
-    const runId =
-      'runId' in chunk && typeof chunk.runId === 'string'
-        ? chunk.runId
-        : undefined
+    const runId = getChunkRunId(chunk)
     if (runId) {
       this.activeRuns.delete(runId)
     } else {
@@ -1715,6 +1770,66 @@ export class StreamProcessor {
     this.emitMessagesChange()
 
     this.events.onThinkingUpdate?.(messageId, stepId, nextThinking)
+  }
+
+  /**
+   * Attach a provider signature blob from REASONING_ENCRYPTED_VALUE.
+   * `subtype: 'message'` updates ThinkingPart.signature.
+   * `subtype: 'tool-call'` stores Gemini thoughtSignature on the tool-call part.
+   */
+  private handleReasoningEncryptedValueEvent(
+    chunk: Extract<StreamChunk, { type: 'REASONING_ENCRYPTED_VALUE' }>,
+  ): void {
+    const encryptedValue = chunk.encryptedValue
+    if (typeof encryptedValue !== 'string' || encryptedValue === '') return
+
+    if (chunk.subtype === 'tool-call') {
+      this.attachToolCallSignature(chunk.entityId, encryptedValue)
+      return
+    }
+
+    const { messageId, state } = this.ensureAssistantMessage(
+      this.getActiveAssistantMessageId() ?? undefined,
+    )
+    const stepId = state.currentThinkingStepId ?? chunk.entityId
+    state.thinkingStepSignatures.set(stepId, encryptedValue)
+    const content = state.thinkingSteps.get(stepId) ?? ''
+    if (!state.thinkingSteps.has(stepId)) {
+      state.thinkingSteps.set(stepId, content)
+      state.thinkingStepOrder.push(stepId)
+    }
+    this.messages = updateThinkingPart(
+      this.messages,
+      messageId,
+      stepId,
+      content,
+      encryptedValue,
+    )
+    this.emitMessagesChange()
+  }
+
+  private attachToolCallSignature(
+    toolCallId: string,
+    thoughtSignature: string,
+  ): void {
+    this.messages = this.messages.map((msg) => {
+      let changed = false
+      const parts = msg.parts.map((part) => {
+        if (part.type !== 'tool-call' || part.id !== toolCallId) return part
+        changed = true
+        return {
+          ...part,
+          metadata: {
+            ...(part.metadata != null && typeof part.metadata === 'object'
+              ? part.metadata
+              : {}),
+            thoughtSignature,
+          },
+        }
+      })
+      return changed ? { ...msg, parts } : msg
+    })
+    this.emitMessagesChange()
   }
 
   /**
@@ -1893,7 +2008,7 @@ export class StreamProcessor {
     _chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
     _previous: string,
   ): boolean {
-    return false
+    return true
   }
 
   /**

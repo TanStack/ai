@@ -184,6 +184,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     yield {
       type: EventType.RUN_ERROR,
+      runId: aguiState.runId,
+      threadId: aguiState.threadId,
       model: options.model,
       timestamp: Date.now(),
       message: errorPayload.message,
@@ -373,6 +375,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             content: accumulatedReasoning,
           }
         }
+        reasoningMessageId = undefined
+        stepId = undefined
+        hasClosedReasoning = false
+        accumulatedReasoning = ''
       }
     }.bind(this)
 

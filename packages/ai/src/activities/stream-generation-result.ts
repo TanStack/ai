@@ -90,6 +90,8 @@ export async function* streamGenerationResult<TResult>(
       payload.code !== undefined ? { code: payload.code } : undefined
     yield* normalizeStreamChunk({
       type: EventType.RUN_ERROR,
+      runId,
+      threadId,
       message: payload.message,
       ...codeFields,
       timestamp: Date.now(),

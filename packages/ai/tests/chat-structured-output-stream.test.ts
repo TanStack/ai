@@ -21,6 +21,7 @@ import { EventType } from '../src/types'
 import { tanstackMetadata } from '../src/utilities/merge-metadata'
 import { collectChunks } from './test-utils'
 import type { StreamChunk, TokenUsage } from '../src/types'
+import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
 
 const PersonSchema = z.object({
@@ -86,7 +87,7 @@ function structuredStreamChunks(
   fullJson: string,
   object: unknown,
   reasoning?: string,
-): Array<StreamChunk> {
+): Array<AdapterYieldChunk> {
   return [
     {
       type: EventType.RUN_STARTED,
@@ -448,15 +449,12 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(finished).toBeDefined()
       expect(finished).not.toHaveProperty('finishReason')
       expect(tanstackMetadata(finished)?.finishReason).toBe('stop')
-      expect(finished!.usage).toEqual([
-        {
-          model: 'test-model',
-          inputTokens: 125,
-          outputTokens: 1346,
-          totalTokens: 1471,
-          cachedInputTokens: 5760,
-        },
-      ])
+      expect(finished!.usage).toEqual({
+        promptTokens: 125,
+        completionTokens: 1346,
+        totalTokens: 1471,
+        promptTokensDetails: { cachedTokens: 5760 },
+      })
     })
 
     it('omits usage on RUN_FINISHED when the adapter does not report it', async () => {

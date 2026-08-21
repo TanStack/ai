@@ -1,18 +1,60 @@
 import { EventType } from '../types'
-import type { StreamChunk, TokenUsage } from '../types'
+import type { StreamChunk, ToolCallResultEvent } from '../types'
 import type { AdapterYieldChunk } from './adapter-yield-chunk'
-import { toSpecTokenUsage } from './ag-ui-usage'
 import type { MetadataRecord } from './merge-metadata'
 import { withTanstackMetadata } from './merge-metadata'
+import { reasoningEncryptedValue } from './reasoning-encrypted-value'
 import { specKeysFor } from './spec-event-keys'
 
-function isTanstackUsage(usage: unknown): usage is TokenUsage {
-  return (
-    typeof usage === 'object' &&
-    usage != null &&
-    !Array.isArray(usage) &&
-    'promptTokens' in usage
-  )
+function stringField(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined
+}
+
+function encryptedValueExtras(chunk: AdapterYieldChunk): Array<StreamChunk> {
+  const extras: Array<StreamChunk> = []
+  const timestamp =
+    'timestamp' in chunk && typeof chunk.timestamp === 'number'
+      ? chunk.timestamp
+      : undefined
+
+  if (typeof chunk.signature === 'string' && chunk.signature !== '') {
+    const source = chunk as Record<string, unknown>
+    const toolCallId = stringField(source.toolCallId)
+    const entityId =
+      stringField(chunk.stepId) ??
+      stringField(source.stepName) ??
+      stringField(source.messageId) ??
+      toolCallId
+    if (entityId !== undefined) {
+      extras.push(
+        reasoningEncryptedValue({
+          subtype: toolCallId && !chunk.stepId ? 'tool-call' : 'message',
+          entityId,
+          encryptedValue: chunk.signature,
+          timestamp,
+        }),
+      )
+    }
+  }
+
+  if (chunk.type === EventType.TOOL_CALL_START) {
+    const thoughtSignature = stringField(
+      (chunk.metadata as { thoughtSignature?: unknown } | undefined)
+        ?.thoughtSignature,
+    )
+    if (thoughtSignature !== undefined && chunk.toolCallId) {
+      extras.push(
+        reasoningEncryptedValue({
+          subtype: 'tool-call',
+          entityId: chunk.toolCallId,
+          encryptedValue: thoughtSignature,
+          timestamp,
+        }),
+      )
+    }
+  }
+
+  return extras
 }
 
 export function normalizeStreamChunk(
@@ -30,17 +72,29 @@ export function normalizeStreamChunk(
     }
   }
 
-  const tanstack: MetadataRecord = {}
-
-  if (isTanstackUsage(specChunk.usage)) {
-    const { usage, leftover } = toSpecTokenUsage(specChunk.usage, {
-      model: chunk.model,
-    })
-    specChunk.usage = usage
-    if (leftover !== undefined) {
-      tanstack.usage = leftover
+  if (chunk.type === EventType.TOOL_CALL_START) {
+    if (specChunk.toolName === undefined && chunk.toolCallName) {
+      specChunk.toolName = chunk.toolCallName
+    }
+    if (specChunk.toolCallName === undefined && chunk.toolName) {
+      specChunk.toolCallName = chunk.toolName
     }
   }
+
+  if (chunk.type === EventType.TOOL_CALL_END && chunk.input !== undefined) {
+    specChunk.input = chunk.input
+  }
+
+  if (chunk.type === EventType.RUN_ERROR && chunk.error != null) {
+    if (specChunk.message === undefined && chunk.error.message) {
+      specChunk.message = chunk.error.message
+    }
+    if (specChunk.code === undefined && chunk.error.code !== undefined) {
+      specChunk.code = chunk.error.code
+    }
+  }
+
+  const tanstack: MetadataRecord = {}
 
   if (
     chunk.model !== undefined &&
@@ -73,11 +127,12 @@ export function normalizeStreamChunk(
       ? specChunk
       : withTanstackMetadata(specChunk, tanstack)
 
+  const extras = encryptedValueExtras(chunk)
+  const main: Array<StreamChunk> = [normalized as StreamChunk]
+
   if (chunk.type === EventType.TOOL_CALL_END && chunk.result !== undefined) {
     const parentMessageId = source.parentMessageId
-    const resultChunk: Record<string, unknown> & {
-      metadata?: MetadataRecord | null
-    } = {
+    const resultChunk: ToolCallResultEvent = {
       type: EventType.TOOL_CALL_RESULT,
       toolCallId: chunk.toolCallId,
       content: Array.isArray(chunk.result)
@@ -89,18 +144,14 @@ export function normalizeStreamChunk(
           : chunk.toolCallId,
     }
     if (chunk.state === 'output-error') {
-      return [
-        normalized as unknown as StreamChunk,
-        withTanstackMetadata(resultChunk, {
-          state: chunk.state,
-        }) as unknown as StreamChunk,
-      ]
+      main.push({
+        ...resultChunk,
+        metadata: { tanstack: { state: chunk.state } },
+      })
+    } else {
+      main.push(resultChunk)
     }
-    return [
-      normalized as unknown as StreamChunk,
-      resultChunk as unknown as StreamChunk,
-    ]
   }
 
-  return [normalized as unknown as StreamChunk]
+  return [...main, ...extras]
 }

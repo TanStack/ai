@@ -4,7 +4,7 @@ title: Migrating to AG-UI Client-to-Server Compliance
 
 # Migrating to AG-UI Client-to-Server Compliance
 
-> **TL;DR:** This release is fully backward compatible. Upgrade `@tanstack/ai` and `@tanstack/ai-client` together and existing code keeps working — both the legacy `body` client option and the legacy `data` server-side wire field continue to function unchanged. The HTTP wire format gained AG-UI `RunAgentInput` fields (`threadId`, `runId`, `tools`, `forwardedProps`, etc.) for full AG-UI compliance, and the legacy fields are emitted alongside them as a deprecation bridge. New helpers (`chatParamsFromRequest`, `mergeAgentTools`) are available for opt-in conveniences. Migrate to the new names when convenient — both `body` (client) and `data` (wire) will be removed in a future major release.
+> **TL;DR:** Upgrade `@tanstack/ai` and `@tanstack/ai-client` together. `useChat` messages, thinking, tools, and approvals keep working. Wire events put TanStack extras in `metadata.tanstack`. Wire messages use `content`, `toolCalls`, and fan-out `role: "tool"` / `role: "reasoning"` rows. They do not include `parts`. The legacy `body` client option and `data` wire field still work as a deprecation bridge.
 
 ## What changed
 
@@ -65,8 +65,8 @@ What that means:
 
 - **Wire events.** Spec fields stay at the top. Extra TanStack fields go in `metadata.tanstack`.
 - **Wire messages.** Use `content`, `toolCalls`, and fan-out `role: "tool"` / `role: "reasoning"`. There is no `parts` field on the wire.
-- **`chat()` chunks.** `chat()` yields spec `StreamChunk` events. Read tool input and output from `UIMessage` parts, not from `TOOL_CALL_END`.
-- **Usage.** `RUN_FINISHED` and `RUN_ERROR` carry the spec `usage` array (`inputTokens`, `outputTokens`). Middleware `onUsage` still receives TanStack `TokenUsage` (`promptTokens`, `completionTokens`).
+- **`chat()` chunks.** In-process `chat()` still yields `toolName`, `TOOL_CALL_END.input`, and TanStack `TokenUsage` (`promptTokens`). The SSE/HTTP wire converts `usage` to the spec array (`inputTokens`).
+- **Usage.** Middleware `onUsage` still receives TanStack `TokenUsage` (`promptTokens`, `completionTokens`).
 
 See [Streaming](../chat/streaming) for the `for await` branch, and [Middleware](../advanced/middleware) for `onUsage`.
 

@@ -517,6 +517,10 @@ export type MessagePart<TData = unknown> =
 export interface TanStackMessageMetadata {
   createdAt?: string
   model?: string
+  /** Thinking signature for a `role: 'reasoning'` fan-out message. */
+  signature?: string
+  /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */
+  toolCallMetadata?: Record<string, unknown>
   structuredOutput?: {
     status?: 'streaming' | 'complete' | 'error'
     raw?: string
@@ -1174,9 +1178,13 @@ export type RunAgentResumeItem = AGUIResumeEntry & {
  * Spec `usage[]` is provider/model token counts. TanStack leftovers live in
  * `metadata.tanstack`.
  */
-export interface RunFinishedEvent extends AGUIRunFinishedEvent {
-  usage?: Array<SpecTokenUsage>
-  metadata?: Record<string, any>
+export interface RunFinishedEvent extends Pick<
+  AGUIRunFinishedEvent,
+  'threadId' | 'runId' | 'result' | 'outcome' | 'timestamp' | 'rawEvent'
+> {
+  type: EventType.RUN_FINISHED
+  usage?: Array<SpecTokenUsage> | TokenUsage
+  metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
 /**
@@ -1186,9 +1194,15 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
  * Spec `usage[]` is provider/model token counts. Interrupt errors live in
  * `metadata.tanstack.interruptErrors`.
  */
-export interface RunErrorEvent extends AGUIRunErrorEvent {
-  usage?: Array<SpecTokenUsage>
-  metadata?: Record<string, any>
+export interface RunErrorEvent extends Pick<
+  AGUIRunErrorEvent,
+  'message' | 'code' | 'timestamp' | 'rawEvent'
+> {
+  type: EventType.RUN_ERROR
+  usage?: Array<SpecTokenUsage> | TokenUsage
+  /** Nested payload kept for in-process / durability consumers. */
+  error?: { message: string; code?: string }
+  metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
 /**
@@ -1226,6 +1240,8 @@ export interface ToolCallStartEvent extends Pick<
   'toolCallId' | 'toolCallName' | 'parentMessageId' | 'timestamp' | 'rawEvent'
 > {
   type: 'TOOL_CALL_START'
+  /** Alias of `toolCallName`. Kept so existing stream readers still compile. */
+  toolName?: string
   /** Provider-specific metadata to carry into the ToolCall. */
   metadata?: Record<string, any>
 }
@@ -1249,6 +1265,8 @@ export interface ToolCallEndEvent extends Pick<
   'toolCallId' | 'timestamp' | 'rawEvent'
 > {
   type: 'TOOL_CALL_END'
+  /** Parsed tool arguments when the adapter already parsed them. */
+  input?: unknown
   metadata?: Record<string, any>
 }
 

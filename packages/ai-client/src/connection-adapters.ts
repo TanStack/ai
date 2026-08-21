@@ -1,5 +1,7 @@
 import {
   EventType,
+  fromSpecTokenUsage,
+  getChunkRunId as getNormalizedChunkRunId,
   tanstackMetadata,
   uiMessagesToWire,
   withTanstackMetadata,
@@ -38,12 +40,7 @@ export function getChunkRunId(chunk: StreamChunk): string | undefined {
   // the client's run identity to win when a provider stamps its own id; for
   // resumable reconnect/join the two ids match, so precedence is moot there.
   const requestRunId = chunkRunIds.get(chunk)
-  return (
-    requestRunId ??
-    ('runId' in chunk && typeof chunk.runId === 'string'
-      ? chunk.runId
-      : undefined)
-  )
+  return requestRunId ?? getNormalizedChunkRunId(chunk)
 }
 
 /**
@@ -389,6 +386,21 @@ function isNdjsonEnvelope(
   )
 }
 
+/** Rebuild TanStack TokenUsage from spec `usage[]` after SSE/NDJSON ingest. */
+function restoreInboundUsage(chunk: StreamChunk): StreamChunk {
+  if (
+    chunk.type !== EventType.RUN_FINISHED &&
+    chunk.type !== EventType.RUN_ERROR
+  ) {
+    return chunk
+  }
+  const usage = chunk.usage
+  if (!Array.isArray(usage)) return chunk
+  const rebuilt = fromSpecTokenUsage(usage, tanstackMetadata(chunk)?.usage)
+  if (rebuilt === undefined) return chunk
+  return { ...chunk, usage: rebuilt }
+}
+
 function sseChunkModel(chunk: StreamChunk): string | undefined {
   const tanstackModel = tanstackMetadata(chunk)?.model
   if (typeof tanstackModel === 'string') return tanstackModel
@@ -462,7 +474,7 @@ async function* linesToSSEEvents(
       }
       return
     }
-    const chunk = JSON.parse(data) as StreamChunk
+    const chunk = restoreInboundUsage(JSON.parse(data) as StreamChunk)
     if ('threadId' in chunk && typeof chunk.threadId === 'string') {
       lastThreadId = chunk.threadId
     }
@@ -489,9 +501,9 @@ async function* linesToNdjsonEvents(
   for await (const line of lines) {
     const parsed = JSON.parse(line) as unknown
     if (isNdjsonEnvelope(parsed)) {
-      yield { chunk: parsed.chunk, id: parsed.id }
+      yield { chunk: restoreInboundUsage(parsed.chunk), id: parsed.id }
     } else {
-      yield { chunk: parsed as StreamChunk }
+      yield { chunk: restoreInboundUsage(parsed as StreamChunk) }
     }
   }
 }
@@ -2165,9 +2177,9 @@ export function webSocket(
       }
       if (isPingFrame(parsed)) return
       const envelopeId = isNdjsonEnvelope(parsed) ? parsed.id : undefined
-      const chunk = isNdjsonEnvelope(parsed)
-        ? parsed.chunk
-        : (parsed as StreamChunk)
+      const chunk = restoreInboundUsage(
+        isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
+      )
 
       // Thread durable chunks through the active run session's tracker (if
       // any) so a later reconnect knows the last offset and can skip a
@@ -2347,7 +2359,9 @@ export function webSocket(
         }
         if (isPingFrame(parsed)) return
         pipe.push(
-          isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
+          restoreInboundUsage(
+            isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
+          ),
         )
       }
       ws.onclose = (event?: CloseEvent) => {

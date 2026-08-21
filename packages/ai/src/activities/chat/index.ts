@@ -7,7 +7,6 @@
 
 import { devtoolsMiddleware } from '@tanstack/ai-event-client'
 import { undoNullWidening } from '@tanstack/ai-utils'
-import { stripToSpecMiddleware } from '../../strip-to-spec-middleware'
 import { streamToText } from '../../stream-to-response.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import { EventType } from '../../types'
@@ -114,8 +113,10 @@ import type {
   StructuredOutputStream,
   TextMessageContentEvent,
   TextOptions,
+  TokenUsage,
   ToolCall,
   ToolCallArgsEvent,
+  ReasoningEncryptedValueEvent,
   ToolCallEndEvent,
   ToolCallResultEvent,
   ToolCallStartEvent,
@@ -964,16 +965,12 @@ class TextEngine<
     this.runIdOverride = config.params.runId
     this.parentRunIdOverride = config.params.parentRunId
 
-    // Initialize middleware — devtools first, strip-to-spec always last.
-    // Adapter chunks are normalized before handleStreamChunk, so internal
-    // state sees spec fields plus metadata.tanstack extras.
+    // Initialize middleware — devtools first. Spec stripping for the AG-UI
+    // wire happens in toServerSentEventsStream, so in-process chat()
+    // consumers still see TokenUsage and tool aliases.
     const allMiddleware: Array<
       ChatMiddleware<TContext, InterruptDefinition<any, any, any, any>>
-    > = [
-      devtoolsMiddleware(),
-      ...(config.middleware || []),
-      stripToSpecMiddleware(),
-    ]
+    > = [devtoolsMiddleware(), ...(config.middleware || [])]
     this.middlewareRunner = new MiddlewareRunner(allMiddleware, logger)
     this.middlewareAbortController = new AbortController()
     this.toolAbortSignal = combineAbortSignals(
@@ -1718,6 +1715,10 @@ class TextEngine<
         this.handleReasoningMessageContentEvent(chunk)
         break
 
+      case 'REASONING_ENCRYPTED_VALUE':
+        this.handleReasoningEncryptedValueEvent(chunk)
+        break
+
       case 'REASONING_START':
       case 'REASONING_MESSAGE_START':
       case 'REASONING_MESSAGE_END':
@@ -1797,10 +1798,15 @@ class TextEngine<
 
   private async runOnUsageFromChunk(chunk: RunFinishedEvent): Promise<void> {
     const usage: unknown = chunk.usage
-    const rebuilt = fromSpecTokenUsage(
-      Array.isArray(usage) ? usage : undefined,
-      tanstackMetadata(chunk)?.usage,
-    )
+    const leftover = tanstackMetadata(chunk)?.usage
+    const rebuilt = Array.isArray(usage)
+      ? fromSpecTokenUsage(usage, leftover)
+      : usage != null &&
+          typeof usage === 'object' &&
+          !Array.isArray(usage) &&
+          'promptTokens' in usage
+        ? (usage as TokenUsage)
+        : fromSpecTokenUsage(undefined, leftover)
     if (rebuilt) {
       await this.middlewareRunner.runOnUsage(this.middlewareCtx, rebuilt)
     }
@@ -1844,6 +1850,26 @@ class TextEngine<
     chunk: Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }>,
   ): void {
     this.currentThinkingContent += chunk.delta
+  }
+
+  private handleReasoningEncryptedValueEvent(
+    chunk: ReasoningEncryptedValueEvent,
+  ): void {
+    if (chunk.subtype === 'tool-call') {
+      const call = this.messages
+        .flatMap((message) => message.toolCalls ?? [])
+        .find((toolCall) => toolCall.id === chunk.entityId)
+      if (call) {
+        call.metadata = {
+          ...(call.metadata != null && typeof call.metadata === 'object'
+            ? call.metadata
+            : {}),
+          thoughtSignature: chunk.encryptedValue,
+        }
+      }
+      return
+    }
+    this.currentThinkingSignature = chunk.encryptedValue
   }
 
   /**
@@ -2834,9 +2860,13 @@ class TextEngine<
     )
     let terminalOutputs: Array<StreamChunk>
     try {
+      const [normalizedTerminal] = normalizeStreamChunk(terminal)
+      if (normalizedTerminal === undefined) {
+        throw new Error('normalizeStreamChunk returned no events')
+      }
       terminalOutputs = await this.middlewareRunner.runOnChunk(
         this.middlewareCtx,
-        normalizeStreamChunk(terminal)[0]!,
+        normalizedTerminal,
       )
     } catch (error) {
       yield* this.emitInterruptRunError(error)
@@ -3039,10 +3069,13 @@ class TextEngine<
         })
       }
 
+      const parentMessageId = [...this.messages]
+        .reverse()
+        .find((message) => message.role === 'assistant')?.id
       const resultChunk = {
         type: EventType.TOOL_CALL_RESULT,
         timestamp: Date.now(),
-        messageId: this.createId('tool-result'),
+        messageId: parentMessageId || result.toolCallId,
         toolCallId: result.toolCallId,
         content: wireContent,
         role: 'tool' as const,

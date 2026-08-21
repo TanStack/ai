@@ -1740,8 +1740,17 @@ function tokenUsageFromChunk(chunk: StreamChunk): TokenUsage | undefined {
   if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
     return undefined
   }
+  const usage = chunk.usage
+  if (
+    usage != null &&
+    typeof usage === 'object' &&
+    !Array.isArray(usage) &&
+    'promptTokens' in usage
+  ) {
+    return usage
+  }
   return fromSpecTokenUsage(
-    Array.isArray(chunk.usage) ? chunk.usage : undefined,
+    Array.isArray(usage) ? usage : undefined,
     tanstackMetadata(chunk)?.usage,
   )
 }

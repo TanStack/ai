@@ -167,7 +167,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Connection Adapters",
@@ -179,7 +179,7 @@
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-21"
         }
       ]
     },
@@ -814,7 +814,7 @@
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
           "addedAt": "2026-05-16",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Sampling â†’ modelOptions",

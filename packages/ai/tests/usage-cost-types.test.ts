@@ -4,6 +4,7 @@ import type {
   UsageCostBreakdown,
   TokenUsage,
 } from '../src/types'
+import type { SpecTokenUsage } from '../src/utilities/ag-ui-usage'
 import type {
   FinishInfo,
   UsageInfo,
@@ -34,10 +35,10 @@ describe('usage cost type surface', () => {
     >()
   })
 
-  it('RunFinishedEvent.usage is spec usage[]', () => {
-    expectTypeOf<
-      NonNullable<RunFinishedEvent['usage']>[number]['inputTokens']
-    >().toEqualTypeOf<number | undefined>()
+  it('RunFinishedEvent.usage is TokenUsage or spec usage[]', () => {
+    expectTypeOf<NonNullable<RunFinishedEvent['usage']>>().toEqualTypeOf<
+      Array<SpecTokenUsage> | TokenUsage
+    >()
   })
 
   it('UsageInfo (onUsage) carries cost/costDetails', () => {

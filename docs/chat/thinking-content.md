@@ -16,7 +16,7 @@ keywords:
 
 Some models expose their internal reasoning as "thinking" content -- Claude with extended thinking, OpenAI o-series models with reasoning, and others. TanStack AI captures this as `ThinkingPart` in messages, streamed to your UI in real-time alongside text and tool calls.
 
-Thinking content is **UI-only**. It is never sent back to the model in subsequent requests.
+Thinking text is for the UI. Provider signatures on `ThinkingPart.signature` go back to the model on the next turn.
 
 ## How It Works
 

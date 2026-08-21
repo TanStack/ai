@@ -350,6 +350,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             content: accumulatedReasoning,
           }
         }
+        reasoningMessageId = undefined
+        stepId = undefined
+        hasClosedReasoning = false
+        accumulatedReasoning = ''
       }
     }.bind(this)
 
@@ -862,6 +866,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           content: accumulatedReasoning,
         }
       }
+      reasoningMessageId = undefined
+      stepId = undefined
+      hasClosedReasoning = false
+      accumulatedReasoning = ''
     }
 
     const emitReasoningDelta = function* (

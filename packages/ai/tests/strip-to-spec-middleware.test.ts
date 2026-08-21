@@ -36,6 +36,7 @@ describe('stripToSpec', () => {
       type: EventType.TOOL_CALL_START,
       toolCallId: 'tc-1',
       toolCallName: 'getTodos',
+      toolName: 'getTodos',
       metadata: { foo: 'bar' },
     })
   })
@@ -59,5 +60,25 @@ describe('stripToSpec', () => {
     for (const key of Object.keys(result)) {
       expect(isSpecTopLevelKey(EventType.RUN_FINISHED, key)).toBe(true)
     }
+  })
+
+  it('converts TanStack TokenUsage to spec usage[]', () => {
+    const result = stripToSpec({
+      type: EventType.RUN_FINISHED,
+      runId: 'run-1',
+      threadId: 'thread-1',
+      usage: {
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+        cost: 0.02,
+      },
+    } as never)
+    if (result.type !== EventType.RUN_FINISHED) {
+      throw new Error('expected RUN_FINISHED')
+    }
+    expect(result.usage).toEqual([
+      { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    ])
   })
 })

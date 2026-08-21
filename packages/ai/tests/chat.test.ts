@@ -3980,7 +3980,7 @@ describe('chat()', () => {
       const toolStartChunks = chunks.filter((c) => c.type === 'TOOL_CALL_START')
       for (const toolStart of toolStartChunks) {
         expect(toolStart.toolCallName).toBe('get_weather')
-        expect(toolStart).not.toHaveProperty('toolName')
+        expect(toolStart.toolName).toBe('get_weather')
       }
     })
 
@@ -4048,18 +4048,11 @@ describe('chat()', () => {
       expect(runFinished).toBeDefined()
       expect(runFinished).not.toHaveProperty('model')
       expect(runFinished).not.toHaveProperty('finishReason')
-      expect(Array.isArray(runFinished?.usage)).toBe(true)
-      expect(runFinished?.usage).toEqual([
-        {
-          model: 'test-model',
-          inputTokens: 10,
-          outputTokens: 5,
-          totalTokens: 15,
-        },
-      ])
-      expect(runFinished?.usage).not.toEqual(
-        expect.objectContaining({ promptTokens: 10 }),
-      )
+      expect(runFinished?.usage).toEqual({
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+      })
       expect(onUsage).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ promptTokens: 10 }),

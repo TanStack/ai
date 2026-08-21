@@ -122,9 +122,18 @@ function validateMessage(value: unknown, index: number): AGUIMessage {
   }
 
   // Hard cut: inbound `parts` from old clients are dropped. Content,
-  // toolCalls, and metadata stay on the record.
-  Reflect.deleteProperty(value, 'parts')
-  return value
+  // toolCalls, and metadata stay on the record. Copy so we do not mutate
+  // the caller's message object.
+  return dropInboundParts(value)
+}
+
+function dropInboundParts(
+  message: AGUIMessage & { parts?: unknown },
+): AGUIMessage {
+  if (!('parts' in message)) return message
+  const rest = { ...message }
+  delete rest.parts
+  return rest
 }
 
 function validateTool(

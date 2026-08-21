@@ -18,10 +18,10 @@ const SPEC_KEYS: ReadonlyMap<string, ReadonlySet<string>> = new Map([
   [EventType.TEXT_MESSAGE_CHUNK, keys('messageId', 'role', 'delta', 'name')],
   [
     EventType.TOOL_CALL_START,
-    keys('toolCallId', 'toolCallName', 'parentMessageId'),
+    keys('toolCallId', 'toolCallName', 'toolName', 'parentMessageId'),
   ],
   [EventType.TOOL_CALL_ARGS, keys('toolCallId', 'delta')],
-  [EventType.TOOL_CALL_END, keys('toolCallId')],
+  [EventType.TOOL_CALL_END, keys('toolCallId', 'input')],
   [
     EventType.TOOL_CALL_CHUNK,
     keys('toolCallId', 'toolCallName', 'parentMessageId', 'delta'),

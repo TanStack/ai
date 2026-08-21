@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { InterruptSubmissionError } from '../interrupts'
 import { EventType } from '../types'
+import type { StreamChunk } from '../types'
 import type { AdapterYieldChunk } from './adapter-yield-chunk'
 import { tanstackMetadata } from './merge-metadata'
 import { normalizeStreamChunk } from './normalize-stream-chunk'
@@ -20,14 +21,22 @@ function normalizeAll(chunk: AdapterYieldChunk) {
   return out
 }
 
+function chunkAt(out: Array<StreamChunk>, index: number) {
+  const chunk = out[index]
+  if (chunk === undefined) {
+    throw new Error(`expected stream chunk at ${String(index)}`)
+  }
+  return chunk
+}
+
 function normalizeOne(chunk: AdapterYieldChunk) {
   const out = normalizeAll(chunk)
   expect(out).toHaveLength(1)
-  return out[0]!
+  return chunkAt(out, 0)
 }
 
 describe('normalizeStreamChunk', () => {
-  it('maps RUN_FINISHED TokenUsage + model + finishReason onto spec usage[] and metadata.tanstack', () => {
+  it('maps RUN_FINISHED model + finishReason into metadata.tanstack and keeps TokenUsage', () => {
     const chunk = {
       type: EventType.RUN_FINISHED,
       threadId: 't1',
@@ -48,19 +57,16 @@ describe('normalizeStreamChunk', () => {
       type: EventType.RUN_FINISHED,
       threadId: 't1',
       runId: 'r1',
-      usage: [
-        {
-          model: 'gpt-5.5',
-          inputTokens: 10,
-          outputTokens: 5,
-          totalTokens: 15,
-        },
-      ],
+      usage: {
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+        cost: 0.02,
+      },
       metadata: {
         tanstack: {
           model: 'gpt-5.5',
           finishReason: 'stop',
-          usage: { cost: 0.02 },
         },
       },
     })
@@ -220,13 +226,13 @@ describe('normalizeStreamChunk', () => {
 
     const out = normalizeStreamChunk(chunk)
     expect(out).toHaveLength(1)
-    assertSpec(out[0]!)
+    assertSpec(chunkAt(out, 0))
     expect(out[0]).toEqual(chunk)
     expect(out[0]).not.toHaveProperty('metadata')
   })
 
-  it('drops TOOL_CALL_START toolName/index and keeps provider metadata', () => {
-    const out = normalizeOne({
+  it('keeps TOOL_CALL_START toolName alias and emits REASONING_ENCRYPTED_VALUE for thoughtSignature', () => {
+    const out = normalizeAll({
       type: EventType.TOOL_CALL_START,
       toolCallId: 'tc1',
       toolCallName: 'get_weather',
@@ -236,15 +242,22 @@ describe('normalizeStreamChunk', () => {
       metadata: { thoughtSignature: 'sig-1' },
     } as AdapterYieldChunk)
 
-    expect(out).toEqual({
+    expect(out).toHaveLength(2)
+    expect(out[0]).toEqual({
       type: EventType.TOOL_CALL_START,
       toolCallId: 'tc1',
       toolCallName: 'get_weather',
+      toolName: 'get_weather',
       parentMessageId: 'm1',
       metadata: { thoughtSignature: 'sig-1' },
     })
-    expect(out).not.toHaveProperty('toolName')
-    expect(out).not.toHaveProperty('index')
+    expect(out[0]).not.toHaveProperty('index')
+    expect(out[1]).toEqual({
+      type: EventType.REASONING_ENCRYPTED_VALUE,
+      subtype: 'tool-call',
+      entityId: 'tc1',
+      encryptedValue: 'sig-1',
+    })
   })
 
   it('drops TOOL_CALL_ARGS accumulated args', () => {
@@ -282,6 +295,7 @@ describe('normalizeStreamChunk', () => {
     expect(out[0]).toEqual({
       type: EventType.TOOL_CALL_END,
       toolCallId: 'tc1',
+      input: { q: 'sf' },
     })
     expect(out[1]).toEqual({
       type: EventType.TOOL_CALL_RESULT,
@@ -343,10 +357,12 @@ describe('normalizeStreamChunk', () => {
       messageId: 'tc1',
       metadata: { tanstack: { state: 'output-error' } },
     })
-    expect(tanstackMetadata(out[1]!)).toEqual({ state: 'output-error' })
+    expect(tanstackMetadata(chunkAt(out, 1))).toEqual({
+      state: 'output-error',
+    })
   })
 
-  it('strips STEP_FINISHED thinking extras and does not emit REASONING events', () => {
+  it('strips STEP_FINISHED thinking extras and emits REASONING_ENCRYPTED_VALUE for the signature', () => {
     const out = normalizeAll({
       type: EventType.STEP_FINISHED,
       stepName: 'thinking',
@@ -356,7 +372,7 @@ describe('normalizeStreamChunk', () => {
       signature: 'sig',
     } as AdapterYieldChunk)
 
-    expect(out).toHaveLength(1)
+    expect(out).toHaveLength(2)
     expect(out[0]).toEqual({
       type: EventType.STEP_FINISHED,
       stepName: 'thinking',
@@ -365,9 +381,11 @@ describe('normalizeStreamChunk', () => {
     expect(out[0]).not.toHaveProperty('content')
     expect(out[0]).not.toHaveProperty('signature')
     expect(out[0]).not.toHaveProperty('stepId')
-    expect(out.map((chunk) => chunk.type)).toEqual([EventType.STEP_FINISHED])
-    expect(
-      out.some((chunk) => String(chunk.type).startsWith('REASONING_')),
-    ).toBe(false)
+    expect(out[1]).toEqual({
+      type: EventType.REASONING_ENCRYPTED_VALUE,
+      subtype: 'message',
+      entityId: 's1',
+      encryptedValue: 'sig',
+    })
   })
 })

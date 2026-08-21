@@ -85,6 +85,34 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
     expect(result[0]?.role).toBe('user')
   })
 
+  it('keeps TanStack user content parts and their metadata identity', () => {
+    const metadata = new Map([['kind', 'typed']])
+    const providerBytes = new Uint8Array([1, 2, 3])
+    const part = {
+      type: 'text' as const,
+      content: 'hi',
+      metadata: { metadata, providerBytes },
+    }
+    const result = convertMessagesToModelMessages([
+      { role: 'user', content: [part] },
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0]?.content).toEqual([part])
+    const content = result[0]?.content
+    if (!Array.isArray(content)) throw new Error('expected content parts')
+    expect(content[0]).toBe(part)
+  })
+
+  it('rewrites AG-UI user `{ text }` parts to TanStack `{ content }`', () => {
+    const result = convertMessagesToModelMessages([
+      {
+        role: 'user',
+        content: [{ type: 'text', text: 'hello' }],
+      } as unknown as ModelMessage,
+    ])
+    expect(result[0]?.content).toBe('hello')
+  })
+
   it('collapses AG-UI developer messages to system role', () => {
     const messages = [
       {

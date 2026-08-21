@@ -83,7 +83,7 @@ TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction)
 
 ### AG-UI Events
 
-Public `StreamChunk` is spec-only. TanStack extras live under `metadata.tanstack`.
+Public `StreamChunk` follows AG-UI event types. TanStack extras live under `metadata.tanstack`.
 
 | `chunk.type` | What you read |
 | --- | --- |
@@ -93,7 +93,7 @@ Public `StreamChunk` is spec-only. TanStack extras live under `metadata.tanstack
 | `REASONING_*` / `REASONING_ENCRYPTED_VALUE` | Thinking content. See [Thinking & Reasoning](./thinking-content) |
 | `STEP_STARTED` / `STEP_FINISHED` | `stepName` only |
 | `CUSTOM` | `name` and `value` (sandbox files, Code Mode, `structured-output.*`, `*.session-id`, and your `emitCustomEvent` calls). See [Custom Events](../protocol/custom-events) |
-| `RUN_FINISHED` / `RUN_ERROR` | Spec `usage` array. `finishReason` is `metadata.tanstack.finishReason` |
+| `RUN_FINISHED` / `RUN_ERROR` | In-process `chat()` still uses TanStack `TokenUsage` (`promptTokens`). The SSE/HTTP wire uses the spec `usage` array (`inputTokens`). `finishReason` is `metadata.tanstack.finishReason` |
 
 ### Threads and runs
 

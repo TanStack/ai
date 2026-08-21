@@ -1,4 +1,9 @@
+import type { TanStackMessageMetadata, TanStackRunMetadata } from '../types'
+
 export type MetadataRecord = Record<string, any>
+
+/** `metadata.tanstack` on a message or run event. */
+export type TanStackMetadata = TanStackMessageMetadata & TanStackRunMetadata
 
 export function mergeMetadata(
   current: MetadataRecord | undefined,
@@ -11,7 +16,7 @@ export function mergeMetadata(
 
 export function tanstackMetadata(
   value: { metadata?: MetadataRecord | null } | MetadataRecord | undefined,
-): MetadataRecord | undefined {
+): TanStackMetadata | undefined {
   if (value == null) return undefined
   const nested = 'metadata' in value ? value.metadata : undefined
   const metadata =
@@ -26,7 +31,7 @@ export function tanstackMetadata(
   ) {
     return undefined
   }
-  return tanstack as MetadataRecord
+  return tanstack as TanStackMetadata
 }
 
 export function withTanstackMetadata<T>(
