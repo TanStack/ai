@@ -262,12 +262,12 @@ When multiple middleware define `onChunk`, chunks flow through them in order. If
 
 | `chunk.type` | Meaning | Key fields |
 |--------------|---------|-----------|
-| `RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` | Run lifecycle boundaries | `runId`. Spec `usage` array on finish/error. `finishReason` is `metadata.tanstack.finishReason`. `message` on error |
+| `RUN_STARTED` / `RUN_FINISHED` / `RUN_ERROR` | Run lifecycle boundaries | `runId`, `finishReason`, `usage` (on finish), `message` (on error) |
 | `TEXT_MESSAGE_START` / `TEXT_MESSAGE_CONTENT` / `TEXT_MESSAGE_END` | Assistant text streaming | `messageId`, `delta` (content) |
-| `TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END` | Tool invocation streaming | `toolCallId`, `toolCallName`, `delta` (args). Parsed input and output live on `UIMessage` parts |
-| `STEP_STARTED` / `STEP_FINISHED` | Step markers | `stepName` only |
+| `TOOL_CALL_START` / `TOOL_CALL_ARGS` / `TOOL_CALL_END` | Tool invocation streaming | `toolCallId`, `toolCallName`, `delta` (args), result on end |
+| `STEP_STARTED` / `STEP_FINISHED` | Thinking / reasoning steps | `delta`, `signature` |
 | `STATE_SNAPSHOT` / `STATE_DELTA` | Agent state sync | `snapshot`, `delta` |
-| `CUSTOM` | Extensibility events (including structured-output, see below) | `name`, `value` |
+| `CUSTOM` | Extensibility events (incl. structured-output — see below) | `name`, `value` |
 
 See the [AG-UI protocol docs](https://docs.ag-ui.com/introduction) for the full event catalogue and exact field shapes.
 
@@ -592,7 +592,7 @@ The `info` object provides:
 
 ### onUsage
 
-Called once per model iteration when the `RUN_FINISHED` chunk includes usage data. `onUsage` still receives TanStack `TokenUsage` (`promptTokens`, `completionTokens`, `totalTokens`). The wire `RUN_FINISHED.usage` field is the spec array (`inputTokens`, `outputTokens`). The engine rebuilds `TokenUsage` before this hook runs.
+Called once per model iteration when the `RUN_FINISHED` chunk includes usage data. Receives the usage object directly.
 
 ```typescript
 import { type ChatMiddleware } from "@tanstack/ai";
@@ -601,7 +601,7 @@ const usageTracker: ChatMiddleware = {
   name: "usage-tracker",
   onUsage: (ctx, usage) => {
     console.log(
-      `Iteration ${ctx.iteration}: ${usage.promptTokens} prompt tokens`,
+      `Iteration ${ctx.iteration}: ${usage.totalTokens} tokens`
     );
   },
 };
@@ -631,8 +631,8 @@ Exactly **one** terminal hook fires per `chat()` invocation. They are mutually e
 > - `onIteration` does **not** fire for finalization; it only fires for agent-loop iterations.
 > - `onFinish` fires after finalization completes. Its `info` object reflects the **agent loop's** terminal state.
 > - `info.content` — the agent loop's accumulated text. Separate-finalization JSON deltas are **not** included. Middleware can observe the completed result through the `structured-output.complete` CUSTOM event in `onChunk`.
-> - `info.usage` is rebuilt TanStack `TokenUsage` (`promptTokens`). For a tools-less structured-output run (no agent-loop `RUN_FINISHED`), this is `undefined`. To capture finalization tokens, use `onUsage`. That hook fires for every `RUN_FINISHED` that carries usage, including the finalization call.
-> - `info.finishReason` is the agent loop's last `metadata.tanstack.finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (for example a tools-less structured-output run).
+> - `info.usage` — the agent loop's last `RUN_FINISHED.usage`. For a tools-less structured-output run (no agent-loop iteration produces `RUN_FINISHED`), this is `undefined`. To capture finalization tokens, use `onUsage` — that hook fires for **every** `RUN_FINISHED` carrying usage, including the finalization call.
+> - `info.finishReason` — the agent loop's last `finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (e.g. a tools-less structured-output run).
 > - `info.duration` — wall-clock duration of the entire `chat()` invocation, including finalization.
 >
 > **Native-combined output:** Adapters with native-combined support produce the schema-constrained JSON in the regular agent-loop stream. `onStructuredOutputConfig` does not fire, `ctx.phase` remains `'modelStream'`, and `onIteration` fires for the iteration that produces the JSON. The JSON is agent-loop text, so `info.content` includes it. Middleware observes the `structured-output.complete` event in `onChunk` during the same phase.
@@ -669,7 +669,7 @@ The `info` object for `onFinish` (`FinishInfo`):
 | `finishReason` | `string \| null` | The agent loop's last `finishReason`. `null` when no agent-loop iteration produced `RUN_FINISHED` (e.g. a tools-less `chat({ outputSchema })` run). |
 | `duration` | `number` | Total run duration in milliseconds, including any structured-output finalization. |
 | `content` | `string` | The agent loop's accumulated text content. Includes native-combined structured JSON; excludes separate-finalization JSON. Observe the completed result through the `structured-output.complete` CUSTOM event via `onChunk`. |
-| `usage` | `{ promptTokens; completionTokens; totalTokens } \| undefined` | **Optional.** Rebuilt TanStack `TokenUsage` from the last agent-loop `RUN_FINISHED`. **Does not include finalization tokens.** Use `onUsage` to observe those. Always guard with `if (info.usage)` or `info.usage?.`. |
+| `usage` | `{ promptTokens; completionTokens; totalTokens } \| undefined` | **Optional.** The agent loop's last `RUN_FINISHED.usage`. **Does not include finalization tokens** — use `onUsage` to observe those. Always guard with `if (info.usage)` or `info.usage?.`. |
 
 ## Context Object
 
