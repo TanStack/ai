@@ -25,6 +25,7 @@ interface FakeOptions {
   previewPort?: number
   previewExpires?: string
   watchBase?: string
+  watchError?: Error
   waitResult?: BlaxelProcessLike
   waitGate?: Promise<BlaxelProcessLike>
   streamError?: Error
@@ -122,7 +123,7 @@ function fakeSandbox(options: FakeOptions = {}): {
             }
             return streams.join('\n')
           }
-          return String(result?.exitCode ?? 0)
+          return result?.exitCode === undefined ? '' : String(result.exitCode)
         }
         throw new Error(`no such file: ${path}`)
       },
@@ -133,7 +134,11 @@ function fakeSandbox(options: FakeOptions = {}): {
       ls: async () => options.directory ?? {},
       mkdir,
       rm,
-      watch: (_path, callback) => {
+      watch: (_path, callback, watchOptions) => {
+        if (options.watchError) {
+          watchOptions?.onError?.(options.watchError)
+          return { close: () => undefined }
+        }
         callback({
           op: 'WRITE',
           path: options.watchBase ?? '/workspace',
@@ -288,15 +293,22 @@ describe('BlaxelHandle filesystem', () => {
     ).rejects.toThrow(/not permitted/)
   })
 
-  it('answers exists from the test exit code without needing a stat call', async () => {
+  it('answers exists from a bare test probe without the capture supervisor', async () => {
     const present = makeHandle({ onExec: () => ({ exitCode: 0 }) })
     expect(await present.handle.fs.exists('/workspace/a')).toBe(true)
-    expect(present.fake.execCalls[0]?.command).toContain(
-      "test -e '/workspace/a'",
-    )
+    expect(present.fake.execCalls[0]?.command).toBe("test -e '/workspace/a'")
+    expect(present.fake.execCalls[0]?.name).toMatch(/^tanstack-ai-probe-/)
+    expect(present.fake.rm).not.toHaveBeenCalled()
 
     const absent = makeHandle({ onExec: () => ({ exitCode: 1 }) })
     expect(await absent.handle.fs.exists('/workspace/a')).toBe(false)
+  })
+
+  it('rejects exists when the probe reports no exit code', async () => {
+    const { handle } = makeHandle({ onExec: () => ({ status: 'killed' }) })
+    await expect(handle.fs.exists('/workspace/a')).rejects.toThrow(
+      /without an exit code/,
+    )
   })
 
   it('quotes paths that contain a single quote', async () => {
@@ -346,6 +358,14 @@ describe('BlaxelHandle filesystem', () => {
     )
     expect(events).toEqual([{ type: 'WRITE', path: '/workspace/note.txt' }])
     await subscription?.stop()
+  })
+
+  it('surfaces a swallowed SDK watch failure from stop()', async () => {
+    const { handle } = makeHandle({ watchError: new Error('stream reset') })
+    const subscription = await handle.fs.watch?.('/workspace', () => undefined)
+    await expect(subscription?.stop()).rejects.toThrow(
+      /file watch on \/workspace failed/,
+    )
   })
 
   it('re-roots native watch events when a custom workdir is used', async () => {
@@ -464,16 +484,47 @@ describe('BlaxelHandle process', () => {
     expect(fake.rm).toHaveBeenCalledTimes(3)
   })
 
-  it('surfaces a permanent bounded-capture cleanup failure', async () => {
+  it('keeps a captured result when scratch cleanup permanently fails', async () => {
     const { handle } = makeHandle({
       onExec: () => ({ exitCode: 0, stdout: 'ok', stderr: '' }),
       onRm: async () => {
         throw new Error('permanent rm failure')
       },
     })
-    await expect(handle.process.exec('printf ok')).rejects.toThrow(
-      /remote cleanup also failed/,
+    await expect(handle.process.exec('printf ok')).resolves.toEqual({
+      stdout: 'ok',
+      stderr: '',
+      exitCode: 0,
+    })
+  })
+
+  it('rejects exec when the supervisor never wrote an exit status', async () => {
+    const { handle } = makeHandle({
+      onExec: () => ({ status: 'killed', stdout: 'partial', stderr: '' }),
+    })
+    await expect(handle.process.exec('pnpm install')).rejects.toThrow(
+      /without a valid exit status/,
     )
+  })
+
+  it('resolves wait() with the kill exit code after kill()', async () => {
+    let resolveWait!: (value: BlaxelProcessLike) => void
+    const waitGate = new Promise<BlaxelProcessLike>((resolve) => {
+      resolveWait = resolve
+    })
+    const { handle, fake } = makeHandle({
+      onExec: () => ({ pid: '1' }),
+      waitGate,
+      onRm: async () => {
+        throw Object.assign(new Error('gone'), { status: 404 })
+      },
+    })
+    const spawned = await handle.process.spawn('sleep 30')
+    await spawned.kill()
+    expect(fake.kill).toHaveBeenCalledWith(fake.execCalls[0]?.name)
+    resolveWait({})
+    await expect(spawned.wait()).resolves.toBe(143)
+    await expect(spawned.kill()).resolves.toBeUndefined()
   })
 
   it('cleans up when abort races ahead of process registration', async () => {

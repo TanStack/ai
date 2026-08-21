@@ -4,8 +4,9 @@
  * sandbox paths (default workspace root `/workspace`).
  *
  * Filesystem data ops (read/readBytes/write/list/mkdir/remove) use Blaxel's
- * native filesystem endpoints; `rename` and `exists` desugar to `exec` because
- * the filesystem API has no move or stat call. Commands run through Blaxel's
+ * native filesystem endpoints; `rename` shells out through `exec` and `exists`
+ * through a bare `test -e` probe because the filesystem API has no move or
+ * stat call. Commands run through Blaxel's
  * process API, which reports stdout, stderr, and the exit code as separate
  * fields, so no output demultiplexing is needed.
  */
@@ -67,6 +68,8 @@ const PREVIEW_TTL_UNIT_MS: Record<string, number> = {
 /** Maximum unread stdout or stderr retained per spawned process. */
 const STREAM_BUFFER_LIMIT_BYTES = 8 * 1024 * 1024
 const PROCESS_REGISTRATION_RECONCILIATION_MS = 10_000
+/** Exit code `wait()` reports for a process ended by `kill()` (128 + SIGTERM). */
+const KILLED_EXIT_CODE = 143
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
@@ -284,22 +287,36 @@ export class BlaxelHandle implements SandboxHandle {
       },
       // No native stat call. `test -e` answers the contract's question directly
       // and does not need the parent directory to be listable.
-      exists: async (p) => {
-        const result = await this.exec(`test -e ${q(this.abs(p))}`)
-        return result.exitCode === 0
-      },
+      // The framework's watcher calls this once per file event, so it bypasses
+      // the capture supervisor: one process call instead of ~6 round trips.
+      exists: (p) => this.probe(`test -e ${q(this.abs(p))}`),
       watch: (p, onEvent) => {
+        // Without `onError` the SDK discards watch failures (404, auth, stream
+        // reset) and silently stops delivering events. The contract has no
+        // error channel, so hold the failure and surface it from `stop()`.
+        let watchError: Error | undefined
         const subscription = this.sandbox.fs.watch(
           this.abs(p),
           (event) => {
             onEvent({ type: event.op, path: this.virtual(eventPath(event)) })
           },
-          { withContent: false },
+          {
+            withContent: false,
+            onError: (error) => {
+              watchError ??= error
+            },
+          },
         )
         return Promise.resolve({
           stop: () => {
             subscription.close()
-            return Promise.resolve()
+            return watchError
+              ? Promise.reject(
+                  new Error(`blaxel: file watch on ${p} failed.`, {
+                    cause: watchError,
+                  }),
+                )
+              : Promise.resolve()
           },
         })
       },
@@ -564,7 +581,7 @@ export class BlaxelHandle implements SandboxHandle {
       waitForCompletion: true,
       timeout: 30,
     })
-    if ((result.exitCode ?? 0) !== 0) {
+    if (result.exitCode !== 0) {
       throw new Error(
         `blaxel: remote process-group reaper exited ${result.exitCode ?? 'without a status'}.`,
       )
@@ -690,6 +707,27 @@ export class BlaxelHandle implements SandboxHandle {
     )
   }
 
+  /**
+   * Run a tiny, output-free command directly and report whether it exited 0.
+   * No capture supervisor, so no scratch files or follow-up reads. Only for
+   * commands whose output is irrelevant.
+   */
+  private async probe(command: string): Promise<boolean> {
+    const result = await this.sandbox.process.exec({
+      name: this.processName('probe'),
+      command,
+      workingDir: this.workdir,
+      waitForCompletion: true,
+      timeout: 30,
+    })
+    if (result.exitCode === undefined) {
+      throw new Error(
+        `blaxel: probe ended without an exit code (status=${String(result.status)}).`,
+      )
+    }
+    return result.exitCode === 0
+  }
+
   private async exec(
     command: string,
     opts?: ProcessOptions,
@@ -708,48 +746,69 @@ export class BlaxelHandle implements SandboxHandle {
     let termination: Promise<void> | undefined
     const terminate = (): Promise<void> =>
       (termination ??= this.terminateProcess(name, bounded.outputDir))
+    // Memoized so the abort listener and the catch path below share one
+    // bounded reconciliation instead of racing two (a named kill by one makes
+    // the other's 404 forever, so it polls until its window expires).
+    let reconciliation: Promise<void> | undefined
+    const reconcile = (): Promise<void> =>
+      (reconciliation ??= this.reconcileAmbiguousProcessStart(
+        name,
+        bounded.outputDir,
+      ))
     let executionResolved = false
     const onAbort = (): void => {
-      const cleanup = executionResolved
-        ? terminate()
-        : this.reconcileAmbiguousProcessStart(name, bounded.outputDir)
-      void cleanup.catch(() => undefined)
+      void (executionResolved ? terminate() : reconcile()).catch(
+        () => undefined,
+      )
     }
     signal?.addEventListener('abort', onAbort, { once: true })
     try {
-      const result = await abortable(execution, signal)
+      await abortable(execution, signal)
       executionResolved = true
       if (signal?.aborted) {
-        await terminate().catch(() => undefined)
+        try {
+          await terminate()
+        } catch (cleanupError) {
+          throw this.cleanupFailure(signal.reason, cleanupError, name)
+        }
         signal.throwIfAborted()
       }
-      const [stdout, stderr] = await Promise.all([
+      // The supervisor's `status` file is the authority. The SDK's `exitCode`
+      // is optional and a server-side timeout kill leaves no status, which
+      // must read as failure, not as exit 0 with partial output.
+      const [stdout, stderr, statusText] = await Promise.all([
         this.readCapturedOutput(bounded.outputDir, 'stdout'),
         this.readCapturedOutput(bounded.outputDir, 'stderr'),
+        this.sandbox.fs.read(`${bounded.outputDir}/status`),
       ])
-      await this.cleanupCapturedOutput(bounded.outputDir)
-      return {
-        stdout,
-        stderr,
-        exitCode: result.exitCode ?? 0,
+      const exitCode = Number.parseInt(statusText, 10)
+      if (!Number.isInteger(exitCode)) {
+        throw new Error(
+          `blaxel: process ${name} ended without a valid exit status.`,
+        )
       }
+      // The result is in hand; a failed scratch-dir removal must not turn a
+      // successful command into an error.
+      await this.cleanupCapturedOutput(bounded.outputDir).catch(() => undefined)
+      return { stdout, stderr, exitCode }
     } catch (error) {
       if (signal?.aborted) {
         // The SDK POST cannot be aborted. When it settles, repeat cleanup and
         // use the registration window if the eventual rejection is ambiguous.
         void execution
           .then(
-            () => this.terminateProcess(name, bounded.outputDir),
+            () => terminate(),
             (startError: unknown) =>
-              mayHaveStartedProcess(startError)
-                ? this.reconcileAmbiguousProcessStart(name, bounded.outputDir)
-                : this.terminateProcess(name, bounded.outputDir),
+              mayHaveStartedProcess(startError) ? reconcile() : terminate(),
           )
           .catch(() => undefined)
       }
       try {
-        if (!executionResolved && mayHaveStartedProcess(error)) {
-          await this.reconcileAmbiguousProcessStart(name, bounded.outputDir)
+        if (!executionResolved && signal?.aborted) {
+          // `onAbort` already started the bounded reconciliation; it keeps
+          // running detached so the caller gets its AbortError promptly.
+        } else if (!executionResolved && mayHaveStartedProcess(error)) {
+          await reconcile()
         } else {
           await terminate()
         }
@@ -787,13 +846,17 @@ export class BlaxelHandle implements SandboxHandle {
       keepAlive: true,
       timeout: 0,
     })
+    let reconciliation: Promise<void> | undefined
+    const reconcile = (): Promise<void> =>
+      (reconciliation ??= this.reconcileAmbiguousProcessStart(
+        name,
+        bounded.outputDir,
+      ))
     const abortStart = (): void => {
       // The SDK POST cannot be aborted and its promise may never settle. Start
       // bounded registration reconciliation now; the settlement callback below
       // remains a later fallback if the process appears after this window.
-      void this.reconcileAmbiguousProcessStart(name, bounded.outputDir).catch(
-        () => undefined,
-      )
+      void reconcile().catch(() => undefined)
     }
     signal?.addEventListener('abort', abortStart, { once: true })
 
@@ -806,17 +869,18 @@ export class BlaxelHandle implements SandboxHandle {
       if (signal?.aborted) {
         void starting
           .then(
-            () => this.terminateProcess(name, bounded.outputDir),
+            () => terminate(),
             (startError: unknown) =>
-              mayHaveStartedProcess(startError)
-                ? this.reconcileAmbiguousProcessStart(name, bounded.outputDir)
-                : this.terminateProcess(name, bounded.outputDir),
+              mayHaveStartedProcess(startError) ? reconcile() : terminate(),
           )
           .catch(() => undefined)
       }
       try {
-        if (mayHaveStartedProcess(error)) {
-          await this.reconcileAmbiguousProcessStart(name, bounded.outputDir)
+        if (signal?.aborted) {
+          // `abortStart` already started the bounded reconciliation; it keeps
+          // running detached so the caller gets its AbortError promptly.
+        } else if (mayHaveStartedProcess(error)) {
+          await reconcile()
         } else {
           await terminate()
         }
@@ -903,6 +967,11 @@ export class BlaxelHandle implements SandboxHandle {
         if (transportError !== undefined) throw transportError
         const streamError = stdout.failure ?? stderr.failure
         if (streamError !== undefined) throw streamError
+        // `kill()` reaps the process group (the supervisor's TERM trap exits
+        // without writing `status`) and removes the capture directory, so the
+        // files below no longer exist. Report the kill as an exit code rather
+        // than surfacing a misleading file-not-found from the cleanup.
+        if (killPromise !== undefined) return KILLED_EXIT_CODE
         const [finalStdout, finalStderr, statusText] = await Promise.all([
           this.readCapturedOutput(bounded.outputDir, 'stdout'),
           this.readCapturedOutput(bounded.outputDir, 'stderr'),
@@ -919,6 +988,9 @@ export class BlaxelHandle implements SandboxHandle {
         return exitCode
       })
       .catch((error: unknown) => {
+        if (killPromise !== undefined && transportError === undefined) {
+          return KILLED_EXIT_CODE
+        }
         stdout.fail(error)
         stderr.fail(error)
         throw error
