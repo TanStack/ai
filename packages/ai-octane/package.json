@@ -1,0 +1,73 @@
+{
+  "name": "@tanstack/ai-octane",
+  "version": "0.1.0",
+  "description": "Octane bindings for TanStack AI streaming chat, structured outputs, and media generation.",
+  "author": "Dominic Gannaway",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-octane"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "octane",
+    "chat",
+    "streaming",
+    "tool-calling",
+    "structured-outputs",
+    "media-generation"
+  ],
+  "//": "Like Svelte packages shipping .svelte, this package publishes uncompiled source: the hook modules are .tsrx and are compiled by the consumer's Octane plugin. There is therefore no build/dist and no publint test:build target. The .tsrx.d.ts companions are checked declaration emits, so `tsc` still type-checks the full public surface.",
+  "main": "./src/index.ts",
+  "module": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "//lint": "The .tsrx.d.ts companions are generated declaration emits of the .tsrx implementations, so they are not hand-formatted and are excluded from lint rather than edited in place (a regeneration would undo any fix).",
+  "scripts": {
+    "lint:fix": "oxlint src --type-aware --ignore-pattern '**/*.tsrx.d.ts' --fix",
+    "test:oxlint": "oxlint src --type-aware --ignore-pattern '**/*.tsrx.d.ts'",
+    "test:lib": "vitest run",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc && tsc -p typetests/tsconfig.json"
+  },
+  "dependencies": {
+    "@tanstack/ai-client": "workspace:*"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "octane": "^0.1.17"
+  },
+  "devDependencies": {
+    "@octanejs/testing-library": "0.1.14",
+    "@standard-schema/spec": "^1.1.0",
+    "@tanstack/ai": "workspace:*",
+    "@types/node": "^24.10.1",
+    "@vitest/coverage-v8": "4.1.10",
+    "happy-dom": "^20.11.2",
+    "octane": "0.1.17",
+    "vite": "^8.2.1",
+    "zod": "^4.2.0"
+  }
+}

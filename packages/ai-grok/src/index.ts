@@ -94,6 +94,7 @@ export type {
   ResolveProviderOptions,
   ResolveInputModalities,
   GrokChatModel,
+  GrokVertexChatModel,
   GrokImageModel,
   GrokVideoModel,
   GrokTTSModel,
@@ -102,6 +103,7 @@ export type {
 } from './model-meta'
 export {
   GROK_CHAT_MODELS,
+  GROK_VERTEX_CHAT_MODELS,
   GROK_IMAGE_MODELS,
   GROK_VIDEO_MODELS,
   GROK_TTS_MODELS,

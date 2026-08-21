@@ -71,7 +71,7 @@ Per-provider quirks are handled via protected hooks:
   differences (extra fields, omitted fields, alternative encodings).
 - `extractReasoning` — surface a provider's reasoning channel into the
   shared `REASONING_*` AG-UI lifecycle.
-- `transformStructuredOutput`, `makeStructuredOutputCompatible` —
+- `transformStructuredOutput`, `makeStructuredOutputCompatibleWithMap` —
   adjust structured-output handling for provider quirks (e.g. Groq's
   schema-shape requirements).
 - `processStreamChunks` — wrap the shared chunk processor for last-mile
@@ -117,5 +117,5 @@ self-hosted gateway, …), import the abstract adapters from this package
 and subclass them. The existing providers are worked examples —
 `@tanstack/ai-grok` is the simplest (xAI's API is a near-direct OpenAI
 Chat Completions clone), `@tanstack/ai-groq` shows the
-`processStreamChunks` and `makeStructuredOutputCompatible` override
+`processStreamChunks` and `makeStructuredOutputCompatibleWithMap` override
 pattern.

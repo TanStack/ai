@@ -38,6 +38,7 @@ export interface ChatStreamCapable {
  * - Groq: `max_completion_tokens`
  * - Gemini: `maxOutputTokens`
  * - OpenRouter: `maxCompletionTokens`
+ * - LLM Gateway: `max_tokens`
  * - Ollama: nested `options.num_predict` (no entry — see `applyMaxLength`)
  */
 const MAX_TOKENS_KEY_BY_ADAPTER: Record<string, string> = {
@@ -47,6 +48,9 @@ const MAX_TOKENS_KEY_BY_ADAPTER: Record<string, string> = {
   groq: 'max_completion_tokens',
   gemini: 'maxOutputTokens',
   openrouter: 'maxCompletionTokens',
+  // LLM Gateway exposes an OpenAI-compatible Chat Completions surface whose
+  // only output cap is `max_tokens` — it does not read `max_completion_tokens`.
+  llmgateway: 'max_tokens',
 }
 
 /**

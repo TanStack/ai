@@ -101,6 +101,12 @@ Solid hooks for TanStack AI:
 - Tool approval flow support
 - Type-safe message handling with `InferChatMessages`
 
+### `@tanstack/ai-octane`
+Octane hooks for TanStack AI:
+- `useChat` hook for chat interfaces
+- Same hook names as `@tanstack/ai-react`
+- Compiled by the Octane plugin from `.tsrx` source
+
 ## Adapters
 
 With the help of adapters, TanStack AI can connect to various LLM providers. Available adapters include:
@@ -109,12 +115,14 @@ With the help of adapters, TanStack AI can connect to various LLM providers. Ava
 - **@tanstack/ai-openai** - OpenAI (GPT series)
 - **@tanstack/ai-anthropic** - Anthropic (Claude)
 - **@tanstack/ai-gemini** - Google Gemini
+- **@tanstack/ai-vertex** - Gemini on Google Vertex AI. Claude, Grok, and Mistral on Vertex live on `@tanstack/ai-anthropic/vertex`, `@tanstack/ai-grok/vertex`, and `@tanstack/ai-mistral/vertex`.
 - **@tanstack/ai-ollama** - Ollama (local models)
 - **@tanstack/ai-groq** - Groq
 - **@tanstack/ai-grok** - xAI Grok
 - **@tanstack/ai-bedrock** - Amazon Bedrock (Claude, Nova, Llama, and more via AWS)
 - **@tanstack/ai-byteplus** - BytePlus (Seed chat, Seedance video, Seedream image, Seed Speech)
 - **@tanstack/ai-fal** - fal (image & video generation)
+- **@tanstack/ai-llmgateway** - LLM Gateway (hundreds of models via one OpenAI-compatible endpoint, self-hostable)
 
 ## Next Steps
 

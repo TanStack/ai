@@ -165,7 +165,7 @@ The model returns text AND one tool call. This is the most common source of bugs
    The processor creates internal state (`InternalToolCallState`) in the `toolCalls` Map on `TOOL_CALL_START`. If `TOOL_CALL_ARGS` arrives for an unknown `toolCallId`, the args are **silently dropped** (the `existingToolCall` lookup fails).
 
 2. **`TOOL_CALL_END` MUST come after all `TOOL_CALL_ARGS` for that `toolCallId`.**
-   `TOOL_CALL_END` transitions the tool call to `input-complete` state and does a final JSON parse of accumulated arguments. Any `TOOL_CALL_ARGS` after `TOOL_CALL_END` for the same ID will still be processed (appending to arguments), but the state has already been set to `input-complete`.
+   `TOOL_CALL_END` transitions the tool call to `input-complete` state and does a final JSON parse of accumulated arguments. The part's `input` is set only when that parse is a strict `JSON.parse` success, or when `TOOL_CALL_END.input` supplies it. Incomplete or invalid arguments leave `input` unset; the raw `arguments` string is the fallback. Any `TOOL_CALL_ARGS` after `TOOL_CALL_END` for the same ID will still be processed (appending to arguments), but the state has already been set to `input-complete`. When text deltas arrive between `TOOL_CALL_ARGS` deltas, completion still waits for `TOOL_CALL_END` or the `RUN_FINISHED` / `finalizeStream` safety net.
 
 3. **`RUN_FINISHED` with `finishReason: "tool_calls"` MUST come last.**
    The TextEngine uses this to decide whether to enter the tool execution phase. The StreamProcessor uses it as a signal to force-complete any tool calls still not in `input-complete` state (safety net).

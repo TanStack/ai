@@ -216,6 +216,56 @@ const OPEN_MISTRAL_NEMO = {
   },
 } as const satisfies ModelMeta<MistralTextProviderOptions>
 
+// Vertex Model Garden IDs. These are not the Mistral API catalog.
+// Source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/mistral
+const MISTRAL_MEDIUM_3 = {
+  name: 'mistral-medium-3',
+  context_window: 131_072,
+  max_completion_tokens: 8_192,
+  pricing: {
+    input: { normal: 0.4 },
+    output: { normal: 2 },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
+  },
+} as const satisfies ModelMeta<MistralTextProviderOptions>
+
+const MISTRAL_SMALL_2503 = {
+  name: 'mistral-small-2503',
+  context_window: 131_072,
+  max_completion_tokens: 8_192,
+  pricing: {
+    input: { normal: 0.1 },
+    output: { normal: 0.3 },
+  },
+  supports: {
+    input: ['text', 'image', 'document'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
+  },
+} as const satisfies ModelMeta<MistralTextProviderOptions>
+
+const CODESTRAL_2 = {
+  name: 'codestral-2',
+  context_window: 131_072,
+  max_completion_tokens: 8_192,
+  pricing: {
+    input: { normal: 0.3 },
+    output: { normal: 0.9 },
+  },
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    endpoints: ['chat'],
+    features: ['streaming', 'tools', 'json_object', 'json_schema', 'code'],
+  },
+} as const satisfies ModelMeta<MistralTextProviderOptions>
+
 /**
  * All supported Mistral chat model identifiers.
  */
@@ -239,6 +289,20 @@ export const MISTRAL_CHAT_MODELS = [
 export type MistralChatModels = (typeof MISTRAL_CHAT_MODELS)[number]
 
 /**
+ * Mistral chat models on Vertex AI / Gemini Enterprise Agent Platform.
+ * This list is the Google partner catalog, not the Mistral API catalog.
+ * OCR (`mistral-ocr-2505`) is not a chat model.
+ */
+export const MISTRAL_VERTEX_CHAT_MODELS = [
+  MISTRAL_MEDIUM_3.name,
+  MISTRAL_SMALL_2503.name,
+  CODESTRAL_2.name,
+] as const
+
+export type MistralVertexChatModel = (typeof MISTRAL_VERTEX_CHAT_MODELS)[number]
+export type MistralTextAdapterModel = MistralChatModels | MistralVertexChatModel
+
+/**
  * Type-only map from Mistral chat model name to its supported input modalities.
  */
 export type MistralModelInputModalitiesByName = {
@@ -253,6 +317,9 @@ export type MistralModelInputModalitiesByName = {
   [MAGISTRAL_MEDIUM_LATEST.name]: typeof MAGISTRAL_MEDIUM_LATEST.supports.input
   [MAGISTRAL_SMALL_LATEST.name]: typeof MAGISTRAL_SMALL_LATEST.supports.input
   [OPEN_MISTRAL_NEMO.name]: typeof OPEN_MISTRAL_NEMO.supports.input
+  [MISTRAL_MEDIUM_3.name]: typeof MISTRAL_MEDIUM_3.supports.input
+  [MISTRAL_SMALL_2503.name]: typeof MISTRAL_SMALL_2503.supports.input
+  [CODESTRAL_2.name]: typeof CODESTRAL_2.supports.input
 }
 
 /**
@@ -270,6 +337,9 @@ export type MistralChatModelProviderOptionsByName = {
   [MAGISTRAL_MEDIUM_LATEST.name]: MistralReasoningProviderOptions
   [MAGISTRAL_SMALL_LATEST.name]: MistralReasoningProviderOptions
   [OPEN_MISTRAL_NEMO.name]: MistralTextProviderOptions
+  [MISTRAL_MEDIUM_3.name]: MistralVisionProviderOptions
+  [MISTRAL_SMALL_2503.name]: MistralVisionProviderOptions
+  [CODESTRAL_2.name]: MistralTextProviderOptions
 }
 
 /**

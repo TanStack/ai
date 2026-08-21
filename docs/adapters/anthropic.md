@@ -61,7 +61,68 @@ const config: Omit<AnthropicTextConfig, "apiKey"> = {
 
 const adapter = createAnthropicChat("claude-sonnet-4-6", process.env.ANTHROPIC_API_KEY!, config);
 ```
- 
+
+## Claude on Vertex
+
+Use `@tanstack/ai-anthropic/vertex` when Claude must run on Vertex AI. That
+is the path for regional endpoints and Google Cloud credentials.
+
+Install the Vertex SDK next to the Anthropic adapter:
+
+```bash
+npm install @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+```
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { anthropicVertexText } from "@tanstack/ai-anthropic/vertex";
+
+const stream = chat({
+  adapter: anthropicVertexText("claude-sonnet-5", {
+    project: "my-project",
+    location: "europe-west1",
+  }),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+`anthropicVertexText` accepts only the Claude models in the Vertex catalog.
+It does not accept Anthropic-only ids such as `claude-opus-5-fast`.
+
+`project` and `location` use the same names as `@tanstack/ai-vertex`, so one
+auth object works for Gemini and Claude.
+
+If you omit `project`, Application Default Credentials can still fill it.
+`location` is required. You can pass it on the factory or set
+`GOOGLE_CLOUD_LOCATION`, `GOOGLE_VERTEX_LOCATION`, or `CLOUD_ML_REGION`.
+
+Gemini on Vertex lives in [`@tanstack/ai-vertex`](./vertex).
+
+## Custom Anthropic client
+
+Use `createAnthropicChatWithClient` when you already have an
+Anthropic-compatible client. The adapter only needs `beta.messages.create`.
+Message mapping, streaming, tools, media, usage, and structured output stay
+on the same TanStack path.
+
+```bash
+npm install @tanstack/ai-anthropic @anthropic-ai/vertex-sdk
+```
+
+```typescript
+import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
+import { createAnthropicChatWithClient } from "@tanstack/ai-anthropic";
+
+const client = new AnthropicVertex({
+  projectId: "my-project",
+  region: "europe-west1",
+});
+
+const adapter = createAnthropicChatWithClient("claude-sonnet-5", client);
+```
+
+The injected client must implement the Anthropic Beta Messages protocol.
+Endpoint-specific model and feature support stays the caller's job.
 
 ## Example: Chat Completion
 
@@ -257,7 +318,7 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 ## API Reference
 
-Every factory pair follows the same shape: the short factory (`anthropicText`, `anthropicSummarize`) reads `ANTHROPIC_API_KEY` from the environment, while `createAnthropicChat` / `createAnthropicSummarize` take an explicit API key. Both take `model` as the first argument.
+Every factory pair follows the same shape: the short factory (`anthropicText`, `anthropicSummarize`) reads `ANTHROPIC_API_KEY` from the environment, while `createAnthropicChat` / `createAnthropicSummarize` take an explicit API key. Both take `model` as the first argument. For Claude on Vertex, use `anthropicVertexText` from `@tanstack/ai-anthropic/vertex`. For any other custom transport, `createAnthropicChatWithClient` accepts an Anthropic-compatible Messages client.
 
 ### `anthropicText(model, config?)` / `createAnthropicChat(model, apiKey, config?)`
 
@@ -267,6 +328,26 @@ Creates an Anthropic chat adapter.
 
 - `model` - Claude model id (e.g. `"claude-sonnet-5"`, `"claude-fable-5"`, `"claude-opus-4-8"`)
 - `config?.baseURL` - Custom base URL (optional)
+
+### `anthropicVertexText(model, config?)`
+
+Creates an Anthropic chat adapter on Vertex. Import it from
+`@tanstack/ai-anthropic/vertex`.
+
+**Parameters:**
+
+- `model` - Claude model id
+- `config.project` - GCP project id (optional if ADC can resolve it)
+- `config.location` - Vertex region (or set `GOOGLE_CLOUD_LOCATION`)
+
+### `createAnthropicChatWithClient(model, client)`
+
+Creates an Anthropic chat adapter using an injected client.
+
+**Parameters:**
+
+- `model` - Claude model id
+- `client` - Client exposing `beta.messages.create`
 
 ### `anthropicSummarize(model, config?)` / `createAnthropicSummarize(model, apiKey, config?)`
 

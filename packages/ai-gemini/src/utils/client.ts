@@ -2,18 +2,25 @@ import { GoogleGenAI } from '@google/genai'
 import { generateId as _generateId, getApiKeyFromEnv } from '@tanstack/ai-utils'
 import type { GoogleGenAIOptions } from '@google/genai'
 
-export interface GeminiClientConfig extends GoogleGenAIOptions {
-  apiKey: string
-}
+export type GeminiClientConfig = GoogleGenAIOptions
 
 /**
- * Creates a Google Generative AI client instance
+ * Creates a Google Generative AI client instance.
+ *
+ * AI Studio mode needs `apiKey`. Vertex / Enterprise mode (`vertexai` or
+ * `enterprise`) uses project, location, and Google Cloud credentials instead.
  */
 export function createGeminiClient(config: GeminiClientConfig): GoogleGenAI {
-  return new GoogleGenAI({
-    ...config,
-    apiKey: config.apiKey,
-  })
+  const vertexMode = config.vertexai === true || config.enterprise === true
+  if (
+    !vertexMode &&
+    (config.apiKey === undefined || config.apiKey.length === 0)
+  ) {
+    throw new Error(
+      'A Gemini API key is required when vertexai and enterprise are not set. Pass apiKey, or set GOOGLE_API_KEY or GEMINI_API_KEY.',
+    )
+  }
+  return new GoogleGenAI(config)
 }
 
 /**
