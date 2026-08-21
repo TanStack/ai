@@ -6,10 +6,10 @@ title: chat
 # Function: chat()
 
 ```ts
-function chat<TAdapter, TSchema, TStream, TTools, TMiddleware>(options): TextActivityResult<TSchema, TStream, TTools>;
+function chat<TAdapter, TSchema, TStream, TTools, TInterrupts, TContext, TMiddleware>(options): TextActivityResult<TSchema, TStream, TTools>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/index.ts:3795](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L3795)
+Defined in: [packages/ai/src/activities/chat/index.ts:4551](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/index.ts#L4551)
 
 Text activity - handles agentic text generation, one-shot text generation, and agentic structured output.
 
@@ -45,19 +45,23 @@ This activity supports four modes:
   \| [`ProviderTool`](../interfaces/ProviderTool.md)\<`string`, `TAdapter`\[`"~types"`\]\[`"toolCapabilities"`\]\[`number`\]\>)[]
   \| `undefined`
 
+### TInterrupts
+
+`TInterrupts` *extends* readonly [`InterruptDefinition`](../interfaces/InterruptDefinition.md)\<`any`, `any`, `any`, `any`, `any`\>[] = \[\]
+
+### TContext
+
+`TContext` = `unknown`
+
 ### TMiddleware
 
-`TMiddleware` *extends* 
-  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
-  \| `undefined` = 
-  \| [`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`any`\>[]
-  \| `undefined`
+`TMiddleware` *extends* `unknown`[] \| `undefined` = `undefined`
 
 ## Parameters
 
 ### options
 
-`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TMiddleware`\>
+`TextActivityOptionsWithContext`\<`TAdapter`, `TSchema`, `TStream`, `TTools`, `TInterrupts`, `TContext`, `TMiddleware`\>
 
 ## Returns
 

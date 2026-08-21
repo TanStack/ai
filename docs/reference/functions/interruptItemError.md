@@ -14,7 +14,7 @@ function interruptItemError(
    options?): InterruptSubmissionError;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:104](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L104)
+Defined in: [packages/ai/src/interrupt-resume.ts:112](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L112)
 
 ## Parameters
 
