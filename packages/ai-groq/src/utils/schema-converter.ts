@@ -1,4 +1,4 @@
-import { makeStructuredOutputCompatible } from '@tanstack/openai-base'
+import { makeStructuredOutputCompatibleWithMap } from '@tanstack/openai-base'
 
 /**
  * Recursively removes `required: []` from a schema object.
@@ -133,16 +133,27 @@ function normalizeObjectSchemas(
  * @param originalRequired - Original required array (to know which fields were optional)
  * @returns Transformed schema compatible with Groq structured output
  */
+export function makeGroqStructuredOutputCompatibleWithMap(
+  schema: Record<string, any>,
+  originalRequired: Array<string> = [],
+) {
+  // Recursively patch every `{ type: 'object' }` node so the ai-openai-base
+  // transformer descends into nested empty objects too.
+  const normalised = normalizeObjectSchemas(schema)
+  const { schema: converted, nullWideningMap } =
+    makeStructuredOutputCompatibleWithMap(normalised, originalRequired)
+
+  // Groq rejects `required` when it is an empty array
+  return {
+    schema: removeEmptyRequired(converted),
+    nullWideningMap,
+  }
+}
+
 export function makeGroqStructuredOutputCompatible(
   schema: Record<string, any>,
   originalRequired: Array<string> = [],
 ): Record<string, any> {
-  // Recursively patch every `{ type: 'object' }` node so the ai-openai-base
-  // transformer descends into nested empty objects too.
-  const normalised = normalizeObjectSchemas(schema)
-
-  const result = makeStructuredOutputCompatible(normalised, originalRequired)
-
-  // Groq rejects `required` when it is an empty array
-  return removeEmptyRequired(result)
+  return makeGroqStructuredOutputCompatibleWithMap(schema, originalRequired)
+    .schema
 }

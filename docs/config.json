@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-31"
+          "updatedAt": "2026-08-07"
         },
         {
           "label": "Quick Start: React",
@@ -77,7 +77,7 @@
           "label": "Tools",
           "to": "tools/tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Provider Tools",
@@ -959,6 +959,11 @@
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
           "updatedAt": "2026-08-13"
+        },
+        {
+          "label": "LLM Gateway",
+          "to": "adapters/llmgateway",
+          "addedAt": "2026-07-29"
         },
         {
           "label": "Claude Code",

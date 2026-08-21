@@ -15,6 +15,7 @@ import {
 import { createVercelGatewayText } from '@tanstack/ai-vercel-gateway'
 import { createMistralText } from '@tanstack/ai-mistral'
 import { createBytePlusText } from '@tanstack/ai-byteplus'
+import { createLLMGatewayText } from '@tanstack/ai-llmgateway'
 import { HTTPClient } from '@openrouter/sdk'
 import type { AnyTextAdapter } from '@tanstack/ai'
 import type { BytePlusChatModel } from '@tanstack/ai-byteplus'
@@ -46,6 +47,7 @@ const defaultModels: Record<Provider, string> = {
   // it out of text features, but we still need an entry to satisfy the
   // Record<Provider, …> constraint.
   elevenlabs: '',
+  llmgateway: 'gpt-5.6-terra',
 }
 
 export function createTextAdapter(
@@ -249,6 +251,13 @@ export function createTextAdapter(
         'ElevenLabs has no text/chat adapter — use createTTSAdapter or createTranscriptionAdapter.',
       )
     },
+    llmgateway: () =>
+      createChatOptions({
+        adapter: createLLMGatewayText(model as 'gpt-5.6-terra', DUMMY_KEY, {
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
   }
 
   return factories[provider]()

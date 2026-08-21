@@ -66,6 +66,8 @@ const inputSchema = z.object({
 });
 ```
 
+> **Note:** For OpenAI-compatible providers, an omitted `.optional()` tool field is absent when your tool runs. A `.nullable()` field keeps `null`.
+
 ### Option 2: JSON Schema Objects
 
 For cases where you already have JSON Schema definitions or prefer not to use Zod, you can pass raw JSON Schema objects directly:

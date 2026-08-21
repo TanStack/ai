@@ -79,6 +79,7 @@ solo.yml
 # Agent scratch output (gap-analysis reports, triage notes — generated locally)
 .agent/gap-analysis/
 .agent/triage/
+.agent/pr-sweep/
 
 /OpenCode.md
 .agentsroom/

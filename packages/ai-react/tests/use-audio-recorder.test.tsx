@@ -1,6 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  expectTypeOf,
+  it,
+  vi,
+} from 'vitest'
 import { act, renderHook } from '@testing-library/react'
 import { useAudioRecorder } from '../src/use-audio-recorder'
+import type { AudioRecording } from '@tanstack/ai-client'
 
 class FakeMediaRecorder {
   ondataavailable: ((e: { data: Blob }) => void) | null = null
@@ -149,5 +158,37 @@ describe('useAudioRecorder', () => {
     // the microphone tracks stop — a dropped cleanup would leak a live mic.
     unmount()
     expect(trackStop).toHaveBeenCalled()
+  })
+})
+
+describe('useAudioRecorder type inference (issue #1001)', () => {
+  it('keeps AudioRecording when options carry no onComplete', () => {
+    // Compile-time only: never invoked, so the recorder is never constructed.
+    const _types = () => {
+      // Only an unrelated option: must select the untransformed overload rather
+      // than inferring `TOnComplete` as `unknown` and collapsing types.
+      const { recording, stop } = useAudioRecorder({
+        onError: (_error: Error) => {},
+      })
+
+      expectTypeOf(recording).not.toBeUnknown()
+      expectTypeOf(recording).toEqualTypeOf<AudioRecording | null>()
+      expectTypeOf(stop).returns.toEqualTypeOf<Promise<AudioRecording>>()
+
+      if (recording) {
+        expectTypeOf(recording.base64).toBeString()
+      }
+
+      const withTransform = useAudioRecorder({
+        onComplete: (rec) => rec.base64,
+      })
+      expectTypeOf(withTransform.recording).toEqualTypeOf<string | null>()
+      expectTypeOf(withTransform.stop).returns.toEqualTypeOf<Promise<string>>()
+
+      const raw = useAudioRecorder()
+      expectTypeOf(raw.recording).toEqualTypeOf<AudioRecording | null>()
+      expectTypeOf(raw.stop).returns.toEqualTypeOf<Promise<AudioRecording>>()
+    }
+    expect(typeof _types).toBe('function')
   })
 })
