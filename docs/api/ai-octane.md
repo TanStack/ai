@@ -27,9 +27,11 @@ npm install @tanstack/ai-octane octane
 Manages chat state in an Octane component.
 
 ```tsx
-import { useState } from 'octane'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-octane'
-import { createChatClientOptions, type InferChatMessages } from '@tanstack/ai-client'
+import {
+  createChatClientOptions,
+  type InferChatMessages,
+} from '@tanstack/ai-client'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -39,26 +41,21 @@ const updateUIDef = toolDefinition({
   inputSchema: z.object({ message: z.string() }),
 })
 
-export function ChatComponent() @{
-  const [notification, setNotification] = useState<string | null>(null)
-  const updateUI = updateUIDef.client((input) => {
-    setNotification(input.message)
-    return { success: true }
-  })
-  const tools = [updateUI]
+const updateUI = updateUIDef.client((input) => {
+  console.log(input.message)
+  return { success: true }
+})
 
-  const chatOptions = createChatClientOptions({
-    connection: fetchServerSentEvents('/api/chat'),
-    tools,
-  })
+const tools = [updateUI]
 
-  type ChatMessages = InferChatMessages<typeof chatOptions>
+const chatOptions = createChatClientOptions({
+  connection: fetchServerSentEvents('/api/chat'),
+  tools,
+})
 
-  const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
-    useChat(chatOptions)
+type ChatMessages = InferChatMessages<typeof chatOptions>
 
-  <div>{notification}</div>
-}
+const chat = useChat(chatOptions)
 ```
 
 The matching server route still runs `chat({ adapter, messages })` and returns SSE. See [Quick Start: Octane](../getting-started/quick-start-octane).
@@ -151,7 +148,7 @@ import {
 
 ## Example: basic chat
 
-```tsx
+```tsx ignore
 import { useState } from 'octane'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-octane'
 
@@ -191,7 +188,7 @@ export function Chat() @{
 
 ## Example: tool approval
 
-```tsx
+```tsx ignore
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-octane'
 
 export function ChatWithApproval() @{

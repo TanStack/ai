@@ -84,7 +84,7 @@ app.listen(3000, () => console.log('Server running on port 3000'))
 
 ## 3. Call `useChat` in Octane
 
-```tsx
+```tsx ignore
 import { useState } from 'octane'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-octane'
 
