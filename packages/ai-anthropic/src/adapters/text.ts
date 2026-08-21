@@ -660,11 +660,14 @@ export class AnthropicTextAdapter<
         return {
           type: 'image',
           source: imageSource,
-          ...metadata,
+          ...(metadata?.cache_control !== undefined && {
+            cache_control: metadata.cache_control,
+          }),
         }
       }
       case 'document': {
         const metadata = part.metadata as AnthropicDocumentMetadata | undefined
+        const title = metadata?.title ?? metadata?.filename
         const docSource: Base64PDFSource | URLPDFSource =
           part.source.type === 'data'
             ? {
@@ -679,7 +682,16 @@ export class AnthropicTextAdapter<
         return {
           type: 'document',
           source: docSource,
-          ...metadata,
+          ...(metadata?.cache_control !== undefined && {
+            cache_control: metadata.cache_control,
+          }),
+          ...(metadata?.citations !== undefined && {
+            citations: metadata.citations,
+          }),
+          ...(metadata?.context !== undefined && {
+            context: metadata.context,
+          }),
+          ...(title !== undefined && { title }),
         }
       }
       case 'audio':
