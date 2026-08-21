@@ -6,6 +6,7 @@ import { createGeminiSummarize } from '@tanstack/ai-gemini'
 import { createOllamaSummarize } from '@tanstack/ai-ollama'
 import { createGroqSummarize } from '@tanstack/ai-groq'
 import { createGrokSummarize } from '@tanstack/ai-grok'
+import { createLLMGatewaySummarize } from '@tanstack/ai-llmgateway'
 import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
 import { createVercelGatewaySummarize } from '@tanstack/ai-vercel-gateway'
 import { HTTPClient } from '@openrouter/sdk'
@@ -76,6 +77,11 @@ function createSummarizeAdapter(
       }),
     grok: () =>
       createGrokSummarize('grok-build-0.1', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    llmgateway: () =>
+      createLLMGatewaySummarize('gpt-5.6-terra', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),

@@ -22,6 +22,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   'one-shot-text': new Set([
     'openai',
@@ -37,12 +38,21 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
-  // BytePlus streams its reasoning trace as `delta.reasoning_content`, which is
-  // exactly the field aimock's OpenAI-compatible chunk builder emits for a
-  // fixture's `reasoning` channel — so the adapter's `extractReasoning`
-  // override is exercised end-to-end against the shared fixture.
-  reasoning: new Set(['openai', 'anthropic', 'gemini', 'mistral', 'byteplus']),
+  // BytePlus and LLM Gateway both stream their reasoning trace as
+  // `delta.reasoning_content`, which is exactly the field aimock's
+  // OpenAI-compatible chunk builder emits for a fixture's `reasoning` channel —
+  // so each adapter's `extractReasoning` override is exercised end-to-end
+  // against the shared fixture.
+  reasoning: new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'mistral',
+    'byteplus',
+    'llmgateway',
+  ]),
   'multi-turn': new Set([
     'openai',
     'anthropic',
@@ -57,6 +67,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   'tool-calling': new Set([
     'openai',
@@ -74,6 +85,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
@@ -88,6 +100,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
   'tool-approval': new Set([
@@ -103,6 +116,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
@@ -118,6 +132,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   'structured-output': new Set([
     'openai',
@@ -133,6 +148,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
@@ -148,6 +164,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'vercel-gateway',
     'openai-compatible',
     'byteplus',
+    'llmgateway',
   ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
@@ -179,6 +196,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'vercel-gateway',
     'openai-compatible',
     'byteplus',
+    'llmgateway',
   ]),
   'agentic-structured': new Set([
     'openai',
@@ -194,6 +212,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
   // (or per-feature override in `features.ts`) must opt into combined mode
@@ -221,6 +240,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'byteplus',
+    'llmgateway',
   ]),
   // OpenAI only: this feature exercises the Responses adapter's PDF
   // `input_file` conversion (base64 `file_data` + filename).
@@ -233,6 +253,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'grok',
     'openrouter',
     'byteplus',
+    'llmgateway',
   ]),
   // byteplus excluded: @tanstack/ai-byteplus ships no summarize adapter —
   // Ark has no summarization endpoint, and api.summarize.ts builds a
@@ -250,6 +271,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openrouter',
     'vercel-gateway',
     'mistral',
+    'llmgateway',
   ]),
   'summarize-stream': new Set([
     'openai',
@@ -263,6 +285,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openrouter',
     'vercel-gateway',
     'mistral',
+    'llmgateway',
   ]),
   // Embedding (Promise-based `embed()` activity, no streaming). aimock 1.34
   // natively mocks OpenAI's /v1/embeddings (JSON fixture in
