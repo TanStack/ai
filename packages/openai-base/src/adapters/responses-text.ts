@@ -31,6 +31,31 @@ import type {
   TextOptions,
 } from '@tanstack/ai'
 
+// Base64 encoding of the '%PDF' file header — every PDF payload starts with
+// these bytes, so inline document data must begin with this prefix.
+const PDF_BASE64_MAGIC = 'JVBERi'
+
+/**
+ * Provider-specific metadata that preserves the Responses API output item ID.
+ *
+ * Responses function calls have two identifiers: `call_id` correlates the
+ * function output with the call, while `id` identifies the output item itself.
+ * TanStack AI uses `call_id` as the canonical tool-call ID and carries the
+ * item ID here so stateless follow-up requests can replay both values.
+ */
+export interface OpenAIResponsesToolCallMetadata {
+  itemId: string
+}
+
+interface StreamedFunctionCallMetadata {
+  callId: string
+  index: number
+  name: string
+  started: boolean
+  ended?: boolean
+  pendingArguments?: string | undefined
+}
+
 /**
  * Shared implementation of the OpenAI Responses API. Holds the stream-event
  * accumulator + AG-UI lifecycle and calls the OpenAI SDK directly. Subclasses
@@ -49,7 +74,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   TProviderOptions,
   TInputModalities,
   TMessageMetadata,
-  TToolCapabilities
+  TToolCapabilities,
+  OpenAIResponsesToolCallMetadata
 > {
   override readonly kind = 'text' as const
   readonly name: string
@@ -64,30 +90,17 @@ export abstract class OpenAIBaseResponsesTextAdapter<
   async *chatStream(
     options: TextOptions<TProviderOptions>,
   ): AsyncIterable<StreamChunk> {
-    // Track tool call metadata by unique ID
-    // Responses API streams tool calls with deltas — first chunk has ID/name,
-    // subsequent chunks only have args.
-    // We assign our own indices as we encounter unique tool call IDs.
-    const toolCallMetadata = new Map<
-      string,
-      {
-        index: number
-        name: string
-        started: boolean
-        // Set once TOOL_CALL_END has been emitted (via args.done or the
-        // output_item.done backfill) so the two paths don't double-emit.
-        ended?: boolean
-        // Set when args.done arrives before TOOL_CALL_START could fire
-        // (output_item.added lacked a name). output_item.done picks these
-        // up to emit the missing END. Allow explicit `undefined` so the
-        // emission paths can re-clear the slot after handing it off.
-        pendingArguments?: string
-      }
-    >()
+    // Key streamed state by output item ID because argument deltas reference
+    // `item_id`. The state separately retains `call_id`, which is the public
+    // tool-call ID and the correlation key for function_call_output.
+    const toolCallMetadata = new Map<string, StreamedFunctionCallMetadata>()
 
-    // AG-UI lifecycle tracking
+    // AG-UI lifecycle tracking. Honor a caller-supplied `runId` (as `threadId`
+    // already does) so the emitted RUN_STARTED matches the id the caller keys
+    // durability by — e.g. a summarize run threading the client's runId through
+    // for mid-run reload resumability. Falls back to a generated id.
     const aguiState = {
-      runId: generateId(this.name),
+      runId: options.runId ?? generateId(this.name),
       threadId: options.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
       hasEmittedRunStarted: false,
@@ -251,9 +264,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // from strict mode is undone by the engine, not here.
       const transformed = this.transformStructuredOutput(parsed)
 
+      // Surface usage so non-stream structured paths (and
+      // fallbackStructuredOutputStream) can forward tokens to middleware.
+      const usage = buildResponsesUsage(response.usage)
       return {
         data: transformed,
         rawText,
+        ...(usage && { usage }),
       }
     } catch (error: unknown) {
       // Narrow before logging: raw SDK errors can carry request metadata
@@ -290,12 +307,10 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       outputSchema.required,
     )
 
-    const timestamp = Date.now()
     const aguiState = {
       runId: generateId(this.name),
       threadId: chatOptions.threadId ?? generateId(this.name),
       messageId: generateId(this.name),
-      timestamp,
       hasEmittedRunStarted: false,
     }
 
@@ -317,13 +332,13 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.REASONING_MESSAGE_END,
           messageId: reasoningMessageId,
           model,
-          timestamp,
+          timestamp: Date.now(),
         }
         yield {
           type: EventType.REASONING_END,
           messageId: reasoningMessageId,
           model,
-          timestamp,
+          timestamp: Date.now(),
         }
         if (stepId) {
           yield {
@@ -331,7 +346,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             stepName: stepId,
             stepId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             content: accumulatedReasoning,
           }
         }
@@ -348,21 +363,21 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         type: EventType.REASONING_START,
         messageId: reasoningMessageId,
         model,
-        timestamp,
+        timestamp: Date.now(),
       }
       yield {
         type: EventType.REASONING_MESSAGE_START,
         messageId: reasoningMessageId,
         role: 'reasoning' as const,
         model,
-        timestamp,
+        timestamp: Date.now(),
       }
       yield {
         type: EventType.STEP_STARTED,
         stepName: stepId,
         stepId,
         model,
-        timestamp,
+        timestamp: Date.now(),
         stepType: 'thinking',
       }
     }.bind(this)
@@ -405,7 +420,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             runId: aguiState.runId,
             threadId: aguiState.threadId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             parentRunId: chatOptions.parentRunId,
           }
         }
@@ -429,7 +444,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             message: `Model refused: ${delta}`,
             code: 'refusal',
             error: { message: `Model refused: ${delta}`, code: 'refusal' },
@@ -458,7 +473,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             messageId: reasoningMessageId,
             delta: reasoningDelta,
             model,
-            timestamp,
+            timestamp: Date.now(),
           }
           continue
         }
@@ -480,7 +495,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               type: EventType.TEXT_MESSAGE_START,
               messageId: aguiState.messageId,
               model,
-              timestamp,
+              timestamp: Date.now(),
               role: 'assistant',
             }
           }
@@ -489,7 +504,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             type: EventType.TEXT_MESSAGE_CONTENT,
             messageId: aguiState.messageId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             delta: textDelta,
             content: accumulatedContent,
           }
@@ -518,7 +533,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             type: EventType.RUN_ERROR,
             runId: aguiState.runId,
             model,
-            timestamp,
+            timestamp: Date.now(),
             message,
             ...(code !== undefined && { code }),
             error: { message, ...(code !== undefined && { code }) },
@@ -534,7 +549,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.TEXT_MESSAGE_END,
           messageId: aguiState.messageId,
           model,
-          timestamp,
+          timestamp: Date.now(),
         }
       }
 
@@ -543,7 +558,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.RUN_ERROR,
           runId: aguiState.runId,
           model,
-          timestamp,
+          timestamp: Date.now(),
           message: `${this.name}.structuredOutputStream: response contained no content`,
           code: 'empty-response',
           error: {
@@ -562,7 +577,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: EventType.RUN_ERROR,
           runId: aguiState.runId,
           model,
-          timestamp,
+          timestamp: Date.now(),
           message: `Failed to parse structured output as JSON. Content: ${accumulatedContent.slice(0, 200)}${accumulatedContent.length > 200 ? '...' : ''}`,
           code: 'parse-error',
           error: {
@@ -587,7 +602,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           ...(accumulatedReasoning ? { reasoning: accumulatedReasoning } : {}),
         },
         model,
-        timestamp,
+        timestamp: Date.now(),
       }
 
       yield {
@@ -595,7 +610,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         runId: aguiState.runId,
         threadId: aguiState.threadId,
         model,
-        timestamp,
+        timestamp: Date.now(),
         finishReason: 'stop',
         ...(usage && {
           usage: buildResponsesUsage(usage),
@@ -609,7 +624,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           runId: aguiState.runId,
           threadId: aguiState.threadId,
           model,
-          timestamp,
+          timestamp: Date.now(),
           parentRunId: chatOptions.parentRunId,
         }
       }
@@ -628,7 +643,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         type: EventType.RUN_ERROR,
         runId: aguiState.runId,
         model,
-        timestamp,
+        timestamp: Date.now(),
         message: errorPayload.message,
         ...(resolvedCode !== undefined && { code: resolvedCode }),
         ...(rawEvent !== undefined && { rawEvent }),
@@ -759,16 +774,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    */
   protected async *processStreamChunks(
     stream: AsyncIterable<ResponseStreamEvent>,
-    toolCallMetadata: Map<
-      string,
-      {
-        index: number
-        name: string
-        started: boolean
-        ended?: boolean
-        pendingArguments?: string | undefined
-      }
-    >,
+    toolCallMetadata: Map<string, StreamedFunctionCallMetadata>,
     options: TextOptions<TProviderOptions>,
     aguiState: {
       runId: string
@@ -1184,26 +1190,33 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             let metadata = toolCallMetadata.get(item.id)
             if (!metadata) {
               metadata = {
+                callId: item.call_id || item.id,
                 index: chunk.output_index,
                 name: item.name || '',
                 started: false,
               }
               toolCallMetadata.set(item.id, metadata)
-            } else if (!metadata.name && item.name) {
-              // A later output_item.added for the same id finally carries
-              // the name. Update so the gated emission below can fire.
-              metadata.name = item.name
+            } else {
+              if (item.call_id) metadata.callId = item.call_id
+              if (!metadata.name && item.name) {
+                // A later output_item.added for the same id finally carries
+                // the name. Update so the gated emission below can fire.
+                metadata.name = item.name
+              }
             }
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: chunk.output_index,
+                metadata: {
+                  itemId: item.id,
+                } satisfies OpenAIResponsesToolCallMetadata,
               }
               metadata.started = true
             }
@@ -1232,7 +1245,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               `${this.name}.processStreamChunks orphan function_call_arguments.delta`,
               {
                 source: `${this.name}.processStreamChunks`,
-                toolCallId: chunk.item_id,
+                // No metadata yet, so the `call_id` is unknown here — only the
+                // output item id the delta referenced.
+                itemId: chunk.item_id,
                 rawDelta: chunk.delta,
               },
             )
@@ -1240,7 +1255,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }
           yield {
             type: EventType.TOOL_CALL_ARGS,
-            toolCallId: chunk.item_id,
+            toolCallId: metadata.callId,
             model: model || options.model,
             timestamp: Date.now(),
             delta: chunk.delta,
@@ -1267,7 +1282,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               `${this.name}.processStreamChunks deferring function_call_arguments.done — TOOL_CALL_START not yet emitted (waiting for name)`,
               {
                 source: `${this.name}.processStreamChunks`,
-                toolCallId: item_id,
+                ...(metadata && { toolCallId: metadata.callId }),
+                itemId: item_id,
                 rawArguments: chunk.arguments,
               },
             )
@@ -1294,10 +1310,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                 {
                   error: toRunErrorPayload(
                     parseError,
-                    `tool ${name} (${item_id}) returned malformed JSON arguments`,
+                    `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
                   ),
                   source: `${this.name}.processStreamChunks`,
-                  toolCallId: item_id,
+                  toolCallId: metadata.callId,
+                  itemId: item_id,
                   toolName: name,
                   rawArguments: chunk.arguments,
                 },
@@ -1308,7 +1325,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
           yield {
             type: EventType.TOOL_CALL_END,
-            toolCallId: item_id,
+            toolCallId: metadata.callId,
             toolCallName: name,
             toolName: name,
             model: model || options.model,
@@ -1326,26 +1343,31 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           const item = chunk.item
           if (item.type === 'function_call' && item.id) {
             const metadata = toolCallMetadata.get(item.id) ?? {
+              callId: item.call_id || item.id,
               index: chunk.output_index,
               name: item.name || '',
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
               toolCallMetadata.set(item.id, metadata)
-            } else if (!metadata.name && item.name) {
-              metadata.name = item.name
+            } else {
+              if (item.call_id) metadata.callId = item.call_id
+              if (!metadata.name && item.name) metadata.name = item.name
             }
             // Emit gated START if we now have a name and never started.
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
+                metadata: {
+                  itemId: item.id,
+                } satisfies OpenAIResponsesToolCallMetadata,
               }
               metadata.started = true
             }
@@ -1369,10 +1391,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                     {
                       error: toRunErrorPayload(
                         parseError,
-                        `tool ${name} (${item.id}) returned malformed JSON arguments`,
+                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
                       ),
                       source: `${this.name}.processStreamChunks`,
-                      toolCallId: item.id,
+                      toolCallId: metadata.callId,
+                      itemId: item.id,
                       toolName: name,
                       rawArguments: rawArgs,
                     },
@@ -1382,7 +1405,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               }
               yield {
                 type: EventType.TOOL_CALL_END,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: name,
                 toolName: name,
                 model: model || options.model,
@@ -1406,25 +1429,30 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           for (const item of chunk.response.output) {
             if (item.type !== 'function_call' || !item.id) continue
             const metadata = toolCallMetadata.get(item.id) ?? {
+              callId: item.call_id || item.id,
               index: 0,
               name: item.name || '',
               started: false,
             }
             if (!toolCallMetadata.has(item.id)) {
               toolCallMetadata.set(item.id, metadata)
-            } else if (!metadata.name && item.name) {
-              metadata.name = item.name
+            } else {
+              if (item.call_id) metadata.callId = item.call_id
+              if (!metadata.name && item.name) metadata.name = item.name
             }
             if (!metadata.started && metadata.name) {
               yield {
                 type: EventType.TOOL_CALL_START,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: metadata.name,
                 toolName: metadata.name,
                 parentMessageId: aguiState.messageId,
                 model: model || options.model,
                 timestamp: Date.now(),
                 index: metadata.index,
+                metadata: {
+                  itemId: item.id,
+                } satisfies OpenAIResponsesToolCallMetadata,
               }
               metadata.started = true
             }
@@ -1446,10 +1474,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
                     {
                       error: toRunErrorPayload(
                         parseError,
-                        `tool ${name} (${item.id}) returned malformed JSON arguments`,
+                        `tool ${name} (${metadata.callId}) returned malformed JSON arguments`,
                       ),
                       source: `${this.name}.processStreamChunks`,
-                      toolCallId: item.id,
+                      toolCallId: metadata.callId,
+                      itemId: item.id,
                       toolName: name,
                       rawArguments: rawArgs,
                     },
@@ -1459,7 +1488,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               }
               yield {
                 type: EventType.TOOL_CALL_END,
-                toolCallId: item.id,
+                toolCallId: metadata.callId,
                 toolCallName: name,
                 toolName: name,
                 model: model || options.model,
@@ -1725,10 +1754,14 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               typeof toolCall.function.arguments === 'string'
                 ? toolCall.function.arguments
                 : JSON.stringify(toolCall.function.arguments)
+            const itemId = (
+              toolCall.metadata as OpenAIResponsesToolCallMetadata | undefined
+            )?.itemId
 
             result.push({
               type: 'function_call',
               call_id: toolCall.id,
+              ...(itemId && { id: itemId }),
               name: toolCall.function.name,
               arguments: argumentsString,
             })
@@ -1766,7 +1799,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         throw new Error(
           `User message for ${this.name} has no content parts. ` +
             `Empty user messages would produce a paid request with no input; ` +
-            `provide at least one text/image/audio part or omit the message.`,
+            `provide at least one text/image/audio/document part or omit the message.`,
         )
       }
 
@@ -1782,7 +1815,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
   /**
    * Converts a ContentPart to Responses API input content item.
-   * Handles text, image, and audio content parts.
+   * Handles text, image, audio, and document (PDF) content parts.
    * Override this in subclasses for additional content types or provider-specific metadata.
    */
   protected convertContentPartToInput(part: ContentPart): ResponseInputContent {
@@ -1826,7 +1859,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           }
         }
         // Wrap raw base64 in a data URL — `input_file` rejects bare base64
-        // payloads (matches the image branch above which already does this).
+        // payloads (matches the image branch above).
         // Default the MIME if missing so we never interpolate `undefined`.
         const audioValue = part.source.value
         const audioMime = part.source.mimeType || 'application/octet-stream'
@@ -1839,12 +1872,87 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         }
       }
 
+      case 'document': {
+        const documentMetadata = part.metadata as
+          | { filename?: string; detail?: 'auto' | 'low' | 'high' }
+          | undefined
+        // Spread `detail` only when provided so the API applies its own
+        // default ('auto'). The Responses API accepts 'auto' | 'low' | 'high',
+        // but the pinned OpenAI SDK's `ResponseInputFile.detail` type still
+        // lists only 'low' | 'high' — cast so 'auto' (a valid API value) can
+        // pass through without a type error.
+        const documentDetail =
+          documentMetadata?.detail !== undefined
+            ? { detail: documentMetadata.detail as 'low' | 'high' }
+            : {}
+        if (part.source.type === 'url') {
+          // The Responses API fetches the PDF itself; filename and MIME
+          // type are inferred from the response.
+          return {
+            type: 'input_file',
+            file_url: part.source.value,
+            ...documentDetail,
+          }
+        }
+        // This adapter supports only PDF documents; anything else is
+        // rejected. MIME types are case-insensitive and can carry
+        // ;parameters (RFC 2045), so the type is normalized before comparing.
+        const documentValue = part.source.value
+        const documentMime = (
+          (part.source.mimeType || 'application/pdf').split(';')[0] ?? ''
+        )
+          .trim()
+          .toLowerCase()
+        if (documentMime !== 'application/pdf') {
+          throw new Error(
+            `${this.name} document parts only support application/pdf ` +
+              `(received ${documentMime})`,
+          )
+        }
+        // A pre-wrapped data URL carries its own media type — validate it too.
+        if (
+          documentValue.startsWith('data:') &&
+          !/^data:application\/pdf[;,]/i.test(documentValue)
+        ) {
+          throw new Error(
+            `${this.name} document parts only support application/pdf ` +
+              `(received data URL with non-PDF media type)`,
+          )
+        }
+        // Sniff the payload so a non-PDF labeled (or unlabeled) as PDF is
+        // caught locally instead of by an opaque provider 400. Only base64
+        // payloads are checked; a rare `data:` URL without `;base64` is left
+        // to the server.
+        const documentBase64 = documentValue.startsWith('data:')
+          ? /;base64,/i.test(documentValue)
+            ? documentValue.slice(documentValue.indexOf(',') + 1)
+            : ''
+          : documentValue
+        if (documentBase64 && !documentBase64.startsWith(PDF_BASE64_MAGIC)) {
+          throw new Error(
+            `${this.name} document parts only support application/pdf ` +
+              `(inline data does not start with the %PDF header)`,
+          )
+        }
+        // Wrap raw base64 in a data URL — `input_file` rejects bare base64
+        // payloads (matches the image and audio branches above).
+        const documentFileData = documentValue.startsWith('data:')
+          ? documentValue
+          : `data:${documentMime};base64,${documentValue}`
+        return {
+          type: 'input_file',
+          // The Responses API requires a filename alongside PDF `file_data`.
+          filename: documentMetadata?.filename || 'document.pdf',
+          file_data: documentFileData,
+          ...documentDetail,
+        }
+      }
+
       case 'video':
-      case 'document':
       default:
-        // OpenAI Responses API doesn't accept native video/document parts on
-        // this path — surface as explicit unsupported error so callers see
-        // the same message regardless of which content type leaked through.
+        // OpenAI Responses API doesn't accept native video parts on this
+        // path — surface as explicit unsupported error so callers see the
+        // same message regardless of which content type leaked through.
         throw new Error(`Unsupported content part type: ${part.type}`)
     }
   }

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-sandbox-cloudflare",
-  "version": "0.2.2",
+  "version": "0.3.5",
   "description": "Cloudflare sandbox provider for TanStack AI — run harness adapters inside Cloudflare Containers (edge) through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",
@@ -43,9 +43,9 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -65,7 +65,7 @@
     "@tanstack/ai-sandbox": "workspace:*",
     "@tanstack/ai-sandbox-local-process": "workspace:*",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.0.14",
+    "@vitest/coverage-v8": "4.1.10",
     "zod": "^4.2.0"
   }
 }

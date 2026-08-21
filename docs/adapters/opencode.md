@@ -30,7 +30,7 @@ npm install -g opencode-ai
 opencode auth login
 ```
 
-A runnable demo lives at [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) — switch the harness (Claude Code, Codex, OpenCode, Grok Build) and sandbox provider per run, with session resume, the harness tool timeline, permission modes, and tool bridging, wired into a TanStack Start app.
+A runnable demo lives at [`examples/sandbox-cloudflare`](https://github.com/TanStack/ai/tree/main/examples/sandbox-cloudflare) — pick Claude Code, Codex, or Grok Build in the UI, with session resume, the harness tool timeline, and tool bridging, wired into a TanStack Start app on Workers. For the same wiring on plain Node with durable, refresh-surviving runs (Claude Code on Docker), see [`examples/sandbox-web`](https://github.com/TanStack/ai/tree/main/examples/sandbox-web) — swapping in this adapter is a one-line change (`src/sandbox-agent.ts`).
 
 ## Models
 
@@ -175,7 +175,61 @@ const stream = chat({
 
 ## Structured Output
 
-`structuredOutput()` is best-effort: OpenCode's prompt API has no native JSON-schema channel, so the schema is embedded as a prompt instruction in a fresh, one-shot session and the final text is parsed (markdown fences are stripped when present). It works for finalization after a chat, but a plain provider adapter (e.g. `@tanstack/ai-openai`) is the better choice when structured extraction is the primary job — it's faster, deterministic, and doesn't spawn a harness.
+Pass `outputSchema` on `chat()`. OpenCode has no native schema flag. The adapter adds the JSON Schema to the prompt and parses the last assistant text (markdown fences are stripped). Tool activity still streams. The object arrives as `structured-output.complete`.
+
+```ts
+import { chat } from "@tanstack/ai"
+import { opencodeText } from "@tanstack/ai-opencode"
+import { defineSandbox, withSandbox } from "@tanstack/ai-sandbox"
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+const sandbox = defineSandbox({
+  id: "repo-report",
+  provider: dockerSandbox({ image: "node:22" }),
+})
+
+const report = await chat({
+  adapter: opencodeText("anthropic/claude-opus-4-5"),
+  messages: [{ role: "user", content: "Review this repo." }],
+  outputSchema: Report,
+  middleware: [withSandbox(sandbox)],
+})
+
+report.summary
+```
+
+This path parses JSON from the last assistant message. If extract-only is the job, use a model adapter such as `@tanstack/ai-openai`.
+
+On the client, pass the same schema to `useChat` and read `final`. `partial` stays empty until the end.
+
+```tsx
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+function ReportView() {
+  const { final, isLoading } = useChat({
+    connection: fetchServerSentEvents("/api/repo-report"),
+    outputSchema: Report,
+  })
+
+  if (isLoading) return <p>The agent is inspecting the repo.</p>
+  if (!final) return null
+  return <p>{final.summary}</p>
+}
+```
+
+Full walkthrough, including the client: [Harness Agents](../structured-outputs/harnesses).
 
 ## Limitations
 

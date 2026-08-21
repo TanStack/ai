@@ -42,7 +42,7 @@ const getRealtimeTokenFn = createServerFn({ method: 'POST' })
 
     if (data.provider === 'grok') {
       return realtimeToken({
-        adapter: grokRealtimeToken({ model: 'grok-voice-fast-1.0' }),
+        adapter: grokRealtimeToken({ model: 'grok-voice-think-fast-2.0' }),
       })
     }
 

@@ -9,6 +9,10 @@ const config = defineConfig({
     watch: false,
     globals: true,
     environment: 'node',
+    // MCP client/server handshake tests spin up transports; the first test
+    // absorbs cold module-import cost (~20s+ on CI), so give tests more than
+    // vitest's 5s default headroom to avoid flaky timeouts under CI load.
+    testTimeout: 30000,
     include: ['tests/**/*.test.ts'],
     coverage: {
       provider: 'v8',

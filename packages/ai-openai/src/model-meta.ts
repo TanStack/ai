@@ -7,11 +7,12 @@ import type {
   OpenAIStructuredOutputOptions,
   OpenAIToolsOptions,
 } from './text/text-provider-options'
+import type { OpenAIEmbeddingProviderOptions } from './embedding/embedding-provider-options'
 
 interface ModelMeta<TProviderOptions = unknown> {
   name: string
   supports: {
-    input: Array<'text' | 'image' | 'audio' | 'video'>
+    input: Array<'text' | 'image' | 'audio' | 'video' | 'document'>
     output: Array<'text' | 'image' | 'audio' | 'video'>
     endpoints: Array<
       | 'chat'
@@ -74,7 +75,7 @@ const GPT5_2 = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2025-08-31',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -119,7 +120,7 @@ const GPT5_2_PRO = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2025-08-31',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling'],
@@ -158,7 +159,7 @@ const GPT5_2_CHAT = {
   max_output_tokens: 16_384,
   knowledge_cutoff: '2025-08-31',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
@@ -194,7 +195,7 @@ const GPT5_1 = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2024-09-30',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text', 'image'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -240,7 +241,7 @@ const GPT5_1_CODEX = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2024-09-30',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text', 'image'],
     endpoints: ['chat'],
     features: ['streaming', 'function_calling', 'structured_outputs'],
@@ -277,7 +278,7 @@ const GPT5 = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2024-09-30',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions', 'batch'],
     features: [
@@ -323,7 +324,7 @@ const GPT5_MINI = {
   max_output_tokens: 128_000,
   knowledge_cutoff: '2024-05-31',
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions', 'batch'],
     features: ['streaming', 'structured_outputs', 'function_calling'],
@@ -373,7 +374,7 @@ const GPT5_NANO = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions', 'batch'],
     features: ['streaming', 'structured_outputs', 'function_calling'],
@@ -413,7 +414,7 @@ const GPT5_PRO = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['streaming', 'structured_outputs', 'function_calling'],
@@ -454,7 +455,7 @@ const GPT5_CODEX = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text', 'image'],
     endpoints: ['chat'],
     features: ['streaming', 'structured_outputs', 'function_calling'],
@@ -686,7 +687,7 @@ const O3_PRO = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['function_calling', 'structured_outputs'],
@@ -839,7 +840,7 @@ const O3 = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch', 'chat-completions'],
     features: ['function_calling', 'structured_outputs', 'streaming'],
@@ -880,7 +881,7 @@ const O4_MINI = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch', 'chat-completions', 'fine-tuning'],
     features: [
@@ -925,7 +926,7 @@ const GPT4_1 = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: [
       'chat',
@@ -978,7 +979,7 @@ const GPT4_1_MINI = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: [
       'chat',
@@ -1029,7 +1030,7 @@ const GPT4_1_NANO = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: [
       'chat',
@@ -1080,7 +1081,7 @@ const O1_PRO = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch'],
     features: ['function_calling', 'structured_outputs'],
@@ -1283,7 +1284,7 @@ const O1 = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'batch', 'chat-completions', 'assistants'],
     features: ['function_calling', 'structured_outputs', 'streaming'],
@@ -1333,7 +1334,7 @@ const GPT_4O = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: [
       'chat',
@@ -1410,7 +1411,7 @@ const GPT_4O_MINI = {
     },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: [
       'chat',
@@ -1697,7 +1698,7 @@ const GPT_4 = {
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 >
-/* 
+/*
 const GPT_4O_MINI_TRANSCRIBE = {
   name: 'gpt-4o-mini-transcribe',
   context_window: 16_000,
@@ -1766,7 +1767,7 @@ const GPT_4O_TRANSCRIBE = {
 } as const satisfies ModelMeta<
   OpenAIBaseOptions & OpenAIStreamingOptions & OpenAIMetadataOptions
 > */
-/* 
+/*
 const GPT_4O_TRANSCRIBE_DIARIZE = {
   name: 'gpt-4o-transcribe-diarize',
   context_window: 16_000,
@@ -2043,12 +2044,196 @@ const GPT_5_4_IMAGE_2 = {
     OpenAIMetadataOptions
 >
 
+const GPT_5_6 = {
+  name: 'gpt-5.6',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2026-02-16',
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: [
+      'streaming',
+      'function_calling',
+      'structured_outputs',
+      'distillation',
+    ],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 30,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_5_6_SOL = {
+  name: 'gpt-5.6-sol',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2026-02-16',
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: [
+      'streaming',
+      'function_calling',
+      'structured_outputs',
+      'distillation',
+    ],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 5,
+      cached: 0.5,
+    },
+    output: {
+      normal: 30,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_5_6_TERRA = {
+  name: 'gpt-5.6-terra',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2026-02-16',
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: [
+      'streaming',
+      'function_calling',
+      'structured_outputs',
+      'distillation',
+    ],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 12,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_5_6_LUNA = {
+  name: 'gpt-5.6-luna',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  knowledge_cutoff: '2026-02-16',
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: [
+      'streaming',
+      'function_calling',
+      'structured_outputs',
+      'distillation',
+    ],
+    tools: [
+      'web_search',
+      'web_search_preview',
+      'file_search',
+      'image_generation',
+      'code_interpreter',
+      'mcp',
+      'computer_use',
+      'local_shell',
+      'shell',
+      'apply_patch',
+    ],
+  },
+  pricing: {
+    input: {
+      normal: 0.2,
+      cached: 0.02,
+    },
+    output: {
+      normal: 1.2,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
 const GPT_5_5 = {
   name: 'gpt-5.5',
   context_window: 1_050_000,
   max_output_tokens: 128_000,
   supports: {
-    input: ['image', 'text'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2093,7 +2278,7 @@ const GPT_5_5_PRO = {
   context_window: 1_050_000,
   max_output_tokens: 128_000,
   supports: {
-    input: ['image', 'text'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat', 'chat-completions'],
     features: [
@@ -2177,7 +2362,97 @@ const GPT_CHAT_LATEST = {
     OpenAIMetadataOptions
 >
 
+const GPT_5_6_LUNA_PRO = {
+  name: 'gpt-5.6-luna-pro',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [],
+  },
+  pricing: {
+    input: {
+      normal: 0.2,
+      cached: 0.02,
+    },
+    output: {
+      normal: 1.2,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_5_6_SOL_PRO = {
+  name: 'gpt-5.6-sol-pro',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [],
+  },
+  pricing: {
+    input: {
+      normal: 2.5,
+      cached: 0.25,
+    },
+    output: {
+      normal: 15,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
+const GPT_5_6_TERRA_PRO = {
+  name: 'gpt-5.6-terra-pro',
+  context_window: 1_050_000,
+  max_output_tokens: 128_000,
+  supports: {
+    input: ['image', 'text'],
+    output: ['text'],
+    endpoints: ['chat', 'chat-completions'],
+    features: ['streaming', 'function_calling', 'structured_outputs'],
+    tools: [],
+  },
+  pricing: {
+    input: {
+      normal: 2,
+      cached: 0.2,
+    },
+    output: {
+      normal: 12,
+    },
+  },
+} as const satisfies ModelMeta<
+  OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+>
+
 export const OPENAI_CHAT_MODELS = [
+  GPT_5_6_LUNA_PRO.name,
+  GPT_5_6_SOL_PRO.name,
+  GPT_5_6_TERRA_PRO.name,
   // Frontier models
   GPT5_2.name,
   GPT5_2_PRO.name,
@@ -2226,16 +2501,37 @@ export const OPENAI_CHAT_MODELS = [
   O1.name,
   O1_PRO.name,
 
-  GPT_5_4_MINI.name,
-  GPT_5_4_NANO.name,
-
-  GPT_5_4_IMAGE_2.name,
+  // GPT-5.6 / 5.5 / 5.4 extended family
+  GPT_5_6.name,
+  GPT_5_6_SOL.name,
+  GPT_5_6_TERRA.name,
+  GPT_5_6_LUNA.name,
   GPT_5_5.name,
   GPT_5_5_PRO.name,
+  GPT_5_4_MINI.name,
+  GPT_5_4_NANO.name,
+  GPT_5_4_IMAGE_2.name,
   GPT_CHAT_LATEST.name,
 ] as const
 
 export type OpenAIChatModel = (typeof OPENAI_CHAT_MODELS)[number]
+
+/**
+ * Whether a model rejects the `temperature` / `top_p` sampling knobs.
+ *
+ * OpenAI's reasoning models — the o-series (`o1`, `o3`, `o4`, …) and the GPT-5
+ * reasoning family — return `400 Unsupported parameter: 'temperature'` if either
+ * is sent. Their `*-chat-latest` counterparts are ordinary chat models that
+ * still accept them, so those are excluded. Matching by name (rather than a
+ * per-model flag) keeps future `gpt-5.x` reasoning models covered automatically.
+ * See the note in `text/text-provider-options.ts`.
+ */
+export function openAIModelRejectsSamplingParams(model: string): boolean {
+  if (/^o\d/.test(model)) return true
+  if (model.startsWith('gpt-5') && !model.endsWith('-chat-latest')) return true
+  if (model === 'codex-mini-latest') return true
+  return false
+}
 
 // Image generation models (based on endpoints: "image-generation" or "image-edit")
 export const OPENAI_IMAGE_MODELS = [
@@ -2303,6 +2599,33 @@ export const OPENAI_TRANSCRIPTION_MODELS = [
 
 export type OpenAITranscriptionModel =
   (typeof OPENAI_TRANSCRIPTION_MODELS)[number]
+
+/**
+ * Embedding models (based on endpoints: "embeddings")
+ */
+export const OPENAI_EMBEDDING_MODELS = [
+  'text-embedding-3-small',
+  'text-embedding-3-large',
+] as const
+
+export type OpenAIEmbeddingModel = (typeof OPENAI_EMBEDDING_MODELS)[number]
+
+/**
+ * Type-only map from embedding model name to its provider options type.
+ */
+export type OpenAIEmbeddingModelProviderOptionsByName = {
+  'text-embedding-3-small': OpenAIEmbeddingProviderOptions
+  'text-embedding-3-large': OpenAIEmbeddingProviderOptions
+}
+
+/**
+ * Per-model input modalities for embedding models. OpenAI embedding models
+ * are text-only, so image inputs fail at compile time.
+ */
+export type OpenAIEmbeddingModelInputModalitiesByName = {
+  'text-embedding-3-small': readonly ['text']
+  'text-embedding-3-large': readonly ['text']
+}
 
 /**
  * Type-only map from chat model name to its provider options type.
@@ -2505,6 +2828,30 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIToolsOptions &
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
+  [GPT_5_6.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_5_6_SOL.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_5_6_TERRA.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_5_6_LUNA.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
   [GPT_5_5.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
@@ -2518,6 +2865,24 @@ export type OpenAIChatModelProviderOptionsByName = {
     OpenAIStreamingOptions &
     OpenAIMetadataOptions
   [GPT_CHAT_LATEST.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_5_6_LUNA_PRO.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_5_6_SOL_PRO.name]: OpenAIBaseOptions &
+    OpenAIReasoningOptions &
+    OpenAIStructuredOutputOptions &
+    OpenAIToolsOptions &
+    OpenAIStreamingOptions &
+    OpenAIMetadataOptions
+  [GPT_5_6_TERRA_PRO.name]: OpenAIBaseOptions &
     OpenAIReasoningOptions &
     OpenAIStructuredOutputOptions &
     OpenAIToolsOptions &
@@ -2571,6 +2936,14 @@ export type OpenAIChatModelToolCapabilitiesByName = {
   [O1_PRO.name]: typeof O1_PRO.supports.tools
   [GPT_5_4_MINI.name]: typeof GPT_5_4_MINI.supports.tools
   [GPT_5_4_NANO.name]: typeof GPT_5_4_NANO.supports.tools
+  [GPT_5_4_IMAGE_2.name]: typeof GPT_5_4_IMAGE_2.supports.tools
+  [GPT_5_6.name]: typeof GPT_5_6.supports.tools
+  [GPT_5_6_SOL.name]: typeof GPT_5_6_SOL.supports.tools
+  [GPT_5_6_TERRA.name]: typeof GPT_5_6_TERRA.supports.tools
+  [GPT_5_6_LUNA.name]: typeof GPT_5_6_LUNA.supports.tools
+  [GPT_5_5.name]: typeof GPT_5_5.supports.tools
+  [GPT_5_5_PRO.name]: typeof GPT_5_5_PRO.supports.tools
+  [GPT_CHAT_LATEST.name]: typeof GPT_CHAT_LATEST.supports.tools
 }
 
 /**
@@ -2629,7 +3002,14 @@ export type OpenAIModelInputModalitiesByName = {
   [GPT_5_4_MINI.name]: typeof GPT_5_4_MINI.supports.input
   [GPT_5_4_NANO.name]: typeof GPT_5_4_NANO.supports.input
   [GPT_5_4_IMAGE_2.name]: typeof GPT_5_4_IMAGE_2.supports.input
+  [GPT_5_6.name]: typeof GPT_5_6.supports.input
+  [GPT_5_6_SOL.name]: typeof GPT_5_6_SOL.supports.input
+  [GPT_5_6_TERRA.name]: typeof GPT_5_6_TERRA.supports.input
+  [GPT_5_6_LUNA.name]: typeof GPT_5_6_LUNA.supports.input
   [GPT_5_5.name]: typeof GPT_5_5.supports.input
   [GPT_5_5_PRO.name]: typeof GPT_5_5_PRO.supports.input
   [GPT_CHAT_LATEST.name]: typeof GPT_CHAT_LATEST.supports.input
+  [GPT_5_6_LUNA_PRO.name]: typeof GPT_5_6_LUNA_PRO.supports.input
+  [GPT_5_6_SOL_PRO.name]: typeof GPT_5_6_SOL_PRO.supports.input
+  [GPT_5_6_TERRA_PRO.name]: typeof GPT_5_6_TERRA_PRO.supports.input
 }

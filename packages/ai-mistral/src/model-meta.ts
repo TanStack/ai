@@ -1,4 +1,8 @@
 import type { MistralTextProviderOptions } from './text/text-provider-options'
+import type {
+  CodestralEmbedProviderOptions,
+  MistralEmbedProviderOptions,
+} from './embedding/embedding-provider-options'
 
 /** Provider options for vision-capable Mistral models (pixtral-*). */
 export type MistralVisionProviderOptions = MistralTextProviderOptions
@@ -19,7 +23,7 @@ interface ModelMeta<TProviderOptions = unknown> {
     output?: { normal: number }
   }
   supports: {
-    input: Array<'text' | 'image' | 'audio'>
+    input: Array<'text' | 'image' | 'audio' | 'document'>
     output: Array<'text'>
     endpoints: Array<'chat' | 'embeddings'>
 
@@ -61,7 +65,7 @@ const MISTRAL_MEDIUM_LATEST = {
     output: { normal: 2 },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
@@ -77,7 +81,7 @@ const MISTRAL_SMALL_LATEST = {
     output: { normal: 0.3 },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
@@ -141,7 +145,7 @@ const PIXTRAL_LARGE_LATEST = {
     output: { normal: 6 },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'json_schema', 'vision'],
@@ -157,7 +161,7 @@ const PIXTRAL_12B_2409 = {
     output: { normal: 0.15 },
   },
   supports: {
-    input: ['text', 'image'],
+    input: ['text', 'image', 'document'],
     output: ['text'],
     endpoints: ['chat'],
     features: ['streaming', 'tools', 'json_object', 'vision'],
@@ -266,6 +270,39 @@ export type MistralChatModelProviderOptionsByName = {
   [MAGISTRAL_MEDIUM_LATEST.name]: MistralReasoningProviderOptions
   [MAGISTRAL_SMALL_LATEST.name]: MistralReasoningProviderOptions
   [OPEN_MISTRAL_NEMO.name]: MistralTextProviderOptions
+}
+
+/**
+ * Embedding models (based on endpoints: "embeddings")
+ */
+export const MISTRAL_EMBEDDING_MODELS = [
+  'mistral-embed',
+  'codestral-embed',
+] as const
+
+/**
+ * Union type of all supported Mistral embedding model names.
+ */
+export type MistralEmbeddingModel = (typeof MISTRAL_EMBEDDING_MODELS)[number]
+
+/**
+ * Type-only map from embedding model name to its provider options type.
+ *
+ * `mistral-embed` accepts no provider options (fixed 1024-dim output);
+ * `codestral-embed` additionally supports `outputDtype`.
+ */
+export type MistralEmbeddingModelProviderOptionsByName = {
+  'mistral-embed': MistralEmbedProviderOptions
+  'codestral-embed': CodestralEmbedProviderOptions
+}
+
+/**
+ * Per-model input modalities for embedding models. Mistral embedding models
+ * are text-only, so image inputs fail at compile time.
+ */
+export type MistralEmbeddingModelInputModalitiesByName = {
+  'mistral-embed': readonly ['text']
+  'codestral-embed': readonly ['text']
 }
 
 /**

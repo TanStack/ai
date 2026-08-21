@@ -3,6 +3,7 @@ import { OpenAIBaseResponsesTextAdapter } from '@tanstack/openai-base'
 import { validateTextProviderOptions } from '../text/text-provider-options'
 import { convertToolsToProviderFormat } from '../tools'
 import { getOpenAIApiKeyFromEnv } from '../utils/client'
+import { openAIModelRejectsSamplingParams } from '../model-meta'
 import type {
   OPENAI_CHAT_MODELS,
   OpenAIChatModel,
@@ -133,10 +134,21 @@ export class OpenAITextAdapter<
       ? convertToolsToProviderFormat(options.tools)
       : undefined
 
-    return {
+    const request: Omit<ResponseCreateParams, 'stream'> = {
       ...baseRequest,
       ...(tools && tools.length > 0 && { tools }),
     }
+
+    // Reasoning models 400 on `temperature`/`top_p`. Callers (and the summarize
+    // adapter's low-temperature default) can't know a given model rejects them,
+    // so drop the pair here — stripping only ever averts a guaranteed 400, never
+    // changes an otherwise-valid request.
+    if (openAIModelRejectsSamplingParams(options.model)) {
+      delete request.temperature
+      delete request.top_p
+    }
+
+    return request
   }
 }
 

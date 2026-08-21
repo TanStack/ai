@@ -3,25 +3,25 @@ id: ServerTool
 title: ServerTool
 ---
 
-# Interface: ServerTool\<TInput, TOutput, TName, TContext\>
+# Interface: ServerTool\<TInput, TOutput, TName, TContext, TNeedsApproval, TApprovalSchema\>
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:12](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L12)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:86](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L86)
 
 Marker type for server-side tools
 
 ## Extends
 
-- [`Tool`](Tool.md)\<`TInput`, `TOutput`, `TName`, `TContext`\>
+- [`Tool`](Tool.md)\<`TInput`, `TOutput`, `TName`, `TContext`\>.`ToolApprovalCapabilityMarker`\<`TNeedsApproval`, `TApprovalSchema`\>
 
 ## Type Parameters
 
 ### TInput
 
-`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = `undefined`
 
 ### TOutput
 
-`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = `undefined`
 
 ### TName
 
@@ -31,6 +31,16 @@ Marker type for server-side tools
 
 `TContext` = `unknown`
 
+### TNeedsApproval
+
+`TNeedsApproval` *extends* `boolean` = `false`
+
+### TApprovalSchema
+
+`TApprovalSchema` *extends* 
+  \| [`ApprovalSchemaConfig`](../type-aliases/ApprovalSchemaConfig.md)
+  \| `undefined` = `undefined`
+
 ## Properties
 
 ### \_\_toolSide
@@ -39,7 +49,45 @@ Marker type for server-side tools
 __toolSide: "server";
 ```
 
-Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:18](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L18)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:97](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L97)
+
+***
+
+### \[toolApprovalCapability\]?
+
+```ts
+readonly optional [toolApprovalCapability]?: object;
+```
+
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:26](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L26)
+
+#### approvalSchema
+
+```ts
+approvalSchema: TApprovalSchema;
+```
+
+#### needsApproval
+
+```ts
+needsApproval: TNeedsApproval;
+```
+
+#### Inherited from
+
+```ts
+ToolApprovalCapabilityMarker.[toolApprovalCapability]
+```
+
+***
+
+### approvalSchema?
+
+```ts
+optional approvalSchema?: TApprovalSchema;
+```
+
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:101](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L101)
 
 ***
 
@@ -49,7 +97,7 @@ Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:18](https:
 description: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:613](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L613)
+Defined in: [packages/ai/src/types.ts:649](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L649)
 
 Clear description of what the tool does.
 
@@ -71,10 +119,10 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 ### execute?
 
 ```ts
-optional execute: ToolExecuteFunction<TInput, TOutput, TContext>;
+optional execute?: ToolExecuteFunction<TInput, TOutput, TContext>;
 ```
 
-Defined in: [packages/ai/src/types.ts:693](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L693)
+Defined in: [packages/ai/src/types.ts:729](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L729)
 
 Optional function to execute when the model calls this tool.
 
@@ -84,6 +132,8 @@ and feed the result back to the model. This enables autonomous tool use loops.
 Can return any value - will be automatically stringified if needed.
 
 #### Param
+
+**args**
 
 The arguments parsed from the model's tool call (validated against inputSchema)
 
@@ -109,10 +159,10 @@ execute: async (args) => {
 ### inputSchema?
 
 ```ts
-optional inputSchema: TInput;
+optional inputSchema?: TInput;
 ```
 
-Defined in: [packages/ai/src/types.ts:653](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L653)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:98](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L98)
 
 Schema describing the tool's input parameters.
 
@@ -158,7 +208,7 @@ type({
 }
 ```
 
-#### Inherited from
+#### Overrides
 
 [`Tool`](Tool.md).[`inputSchema`](Tool.md#inputschema)
 
@@ -167,10 +217,10 @@ type({
 ### lazy?
 
 ```ts
-optional lazy: boolean;
+optional lazy?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:699](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L699)
+Defined in: [packages/ai/src/types.ts:735](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L735)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools).
 
@@ -183,10 +233,10 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 ### metadata?
 
 ```ts
-optional metadata: Record<string, any>;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:702](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L702)
+Defined in: [packages/ai/src/types.ts:738](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L738)
 
 Additional metadata for adapters or custom extensions
 
@@ -202,7 +252,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [packages/ai/src/types.ts:603](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L603)
+Defined in: [packages/ai/src/types.ts:639](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L639)
 
 Unique name of the tool (used by the model to call it).
 
@@ -224,14 +274,14 @@ Must be unique within the tools array.
 ### needsApproval?
 
 ```ts
-optional needsApproval: boolean;
+optional needsApproval?: TNeedsApproval;
 ```
 
-Defined in: [packages/ai/src/types.ts:696](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L696)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:100](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L100)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
-#### Inherited from
+#### Overrides
 
 [`Tool`](Tool.md).[`needsApproval`](Tool.md#needsapproval)
 
@@ -240,10 +290,10 @@ If true, tool execution requires user approval before running. Works with both s
 ### outputSchema?
 
 ```ts
-optional outputSchema: TOutput;
+optional outputSchema?: TOutput;
 ```
 
-Defined in: [packages/ai/src/types.ts:674](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L674)
+Defined in: [packages/ai/src/activities/chat/tools/tool-definition.ts:99](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/tools/tool-definition.ts#L99)
 
 Optional schema for validating tool output.
 
@@ -266,6 +316,6 @@ z.object({
 })
 ```
 
-#### Inherited from
+#### Overrides
 
 [`Tool`](Tool.md).[`outputSchema`](Tool.md#outputschema)

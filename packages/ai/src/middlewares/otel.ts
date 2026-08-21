@@ -28,12 +28,15 @@ import type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
 } from '../activities/middleware/types'
+import type { TokenUsage } from '../types'
 
 /**
  * Scope (role) of an OTel span emitted by this middleware.
  *
  * - `chat` — the root span for a single `chat()` call
- * - `iteration` — one per agent-loop iteration (one model call)
+ * - `iteration` — one per provider model call (agent-loop `beforeModel`
+ *   turn, or the separate `structuredOutput` finalization when
+ *   `outputSchema` skips the agent loop — see #1054)
  * - `tool` — one per tool execution inside an iteration
  * - `generation` — the single span for a media activity call
  *   (`generateImage`, `generateVideo`, `generateSpeech`, …)
@@ -83,6 +86,9 @@ const OPERATION_NAME: Record<GenerationActivity, string> = {
   audio: 'audio_generation',
   tts: 'text_to_speech',
   transcription: 'transcription',
+  embedding: 'embeddings',
+  rerank: 'rerank',
+  summarize: 'summarize',
 }
 
 export interface OtelMiddlewareOptions {
@@ -138,12 +144,37 @@ interface RequestState {
    * from the (base-shaped) finish info, which doesn't carry it.
    */
   lastFinishReason: string | null
+  rootUsageAttributes: Record<string, number> | null
+  rootUsageApplied: boolean
 }
 
 const stateByCtx = new WeakMap<ChatMiddlewareContext, RequestState>()
 
 const DEFAULT_MAX_CONTENT_LENGTH = 100_000
 const REDACTION_FAILED_SENTINEL = '[redaction_failed]'
+
+function accumulateUsageAttributes(
+  current: Record<string, number> | null,
+  usage: TokenUsage,
+): Record<string, number> {
+  const accumulated = current ?? {}
+  for (const [key, value] of Object.entries(usageAttributes(usage))) {
+    if (typeof value === 'number') {
+      accumulated[key] = (accumulated[key] ?? 0) + value
+    }
+  }
+  return accumulated
+}
+
+function applyRootUsage(state: RequestState, fallbackUsage?: TokenUsage): void {
+  if (state.rootUsageApplied) return
+
+  const attributes =
+    state.rootUsageAttributes ??
+    (fallbackUsage ? usageAttributes(fallbackUsage) : null)
+  if (attributes) state.rootSpan.setAttributes(attributes)
+  state.rootUsageApplied = true
+}
 
 function serializeContent(content: unknown): string {
   if (typeof content === 'string') return content
@@ -395,12 +426,23 @@ export function otelMiddleware(
           assistantTextBufferTruncated: false,
           startTime: Date.now(),
           lastFinishReason: null,
+          rootUsageAttributes: null,
+          rootUsageApplied: false,
         })
       })
     },
 
     onConfig(ctx, config) {
-      if (ctx.phase !== 'beforeModel') return
+      // Open an iteration span for every provider model call:
+      // - `beforeModel`: agent-loop chatStream turns
+      // - `structuredOutput`: separate structured-output finalization
+      //   (no-tools + outputSchema skips the agent loop, so without this
+      //   phase there is no generation span and captureContent is a silent
+      //   no-op — see #1054).
+      // Native-combined mode never fires `structuredOutput`, so a run that
+      // already opened spans via `beforeModel` is not double-counted.
+      if (ctx.phase !== 'beforeModel' && ctx.phase !== 'structuredOutput')
+        return
       safeCall('otel.onConfig', () => {
         const state = stateByCtx.get(ctx)
         if (!state) return
@@ -410,20 +452,26 @@ export function otelMiddleware(
         // on it. Close it here, just before opening the next iteration.
         closeIterationSpan(state, ctx)
 
+        // Number spans by the order of model calls this middleware has seen,
+        // not by `ctx.iteration`. After an agent-loop turn, structured-output
+        // finalization reuses the engine's last iteration index; using our
+        // own counter keeps finalization as a distinct leaf (#N+1).
+        const iteration = state.iterationCount
+
         const info: OtelSpanInfo<'iteration'> = {
           kind: 'iteration',
           ctx,
-          iteration: ctx.iteration,
+          iteration,
         }
         const name =
           safeCall('otel.spanNameFormatter', () => spanNameFormatter?.(info)) ??
-          `chat ${ctx.model} #${ctx.iteration}`
+          `chat ${ctx.model} #${iteration}`
 
         const baseAttrs: Record<string, AttributeValue> = {
           'gen_ai.system': ctx.provider,
           'gen_ai.operation.name': 'chat',
           'gen_ai.request.model': ctx.model,
-          'tanstack.ai.iteration': ctx.iteration,
+          'tanstack.ai.iteration': iteration,
         }
         // Sampling options now live in provider-native `modelOptions`, and
         // providers spell them differently (e.g. `max_output_tokens`,
@@ -649,6 +697,11 @@ export function otelMiddleware(
       safeCall('otel.onUsage', () => {
         const state = stateByCtx.get(chatCtx)
         if (!state) return
+
+        state.rootUsageAttributes = accumulateUsageAttributes(
+          state.rootUsageAttributes,
+          usage,
+        )
 
         // Always record the token histogram — metrics don't depend on having
         // an iteration span, and skipping here would drop metric data if an
@@ -889,6 +942,7 @@ export function otelMiddleware(
           })
         }
 
+        applyRootUsage(state)
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx: chatCtx }, state.rootSpan),
         )
@@ -970,6 +1024,7 @@ export function otelMiddleware(
           })
         }
 
+        applyRootUsage(state)
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx: chatCtx }, state.rootSpan),
         )
@@ -1027,9 +1082,6 @@ export function otelMiddleware(
           })
         }
 
-        if (info.usage) {
-          state.rootSpan.setAttributes(usageAttributes(info.usage))
-        }
         if (state.lastFinishReason) {
           state.rootSpan.setAttribute('gen_ai.response.finish_reasons', [
             state.lastFinishReason,
@@ -1040,6 +1092,7 @@ export function otelMiddleware(
           state.iterationCount,
         )
 
+        applyRootUsage(state, info.usage)
         safeCall('otel.onSpanEnd', () =>
           onSpanEnd?.({ kind: 'chat', ctx: chatCtx }, state.rootSpan),
         )

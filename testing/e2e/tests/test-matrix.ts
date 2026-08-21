@@ -24,8 +24,11 @@ export const providers: Provider[] = [
   'bedrock-responses',
   'openrouter',
   'openrouter-responses',
+  'vercel-gateway',
+  'vercel-gateway-responses',
   'openai-compatible',
   'mistral',
+  'byteplus',
   'elevenlabs',
 ]
 

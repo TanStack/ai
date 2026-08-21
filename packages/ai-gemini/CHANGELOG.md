@@ -1,5 +1,190 @@
 # @tanstack/ai-gemini
 
+## 0.24.2
+
+### Patch Changes
+
+- Updated dependencies [[`5f68cbc`](https://github.com/TanStack/ai/commit/5f68cbccf3621b48dae73cedcb1e59cb4cbe72b4), [`32e62ab`](https://github.com/TanStack/ai/commit/32e62ab8b7dc6a8a13ca3851c8925ab806e08f29)]:
+  - @tanstack/ai@0.47.0
+
+## 0.24.1
+
+### Patch Changes
+
+- [#932](https://github.com/TanStack/ai/pull/932) [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b) - Classify Anthropic, Gemini, and OpenAI native tools with stable runtime discriminators so ordinary functions can use the same public names without selecting provider-native behavior. Native tools must come from the adapter factory (`webSearchTool()`, `googleSearchTool()`, and the rest). A reserved `name` alone does not select a native converter. `chat()` throws `DuplicateToolNameError` when a factory tool and a custom function share the same public name.
+
+  Previously the converters picked provider-native behavior by `tool.name`. Tool names are public application identifiers, so a plain function called `web_search`, `google_search`, or `code_execution` was routed into a native converter: it lost its `inputSchema` and was sent as a provider-only payload (and on Anthropic could also flip on `code_execution` / skills beta headers). Native tools are now identified by adapter-owned metadata, which converters strip before building the wire payload, so provider API versions stay confined to the wire converters.
+
+  Also preserves Anthropic `webSearchTool` options (`max_uses`, `allowed_domains`, `blocked_domains`, `user_location`, `cache_control`) on the wire payload.
+
+  Also fixes `googleSearchTool({ searchTypes: … })` being silently dropped on the experimental `geminiTextInteractions()` adapter. The Interactions converter read a snake_case `search_types` array, but the public factory takes the Generate Content shape (`GoogleSearch.searchTypes: { webSearch?, imageSearch? }`), so the field never matched and every request fell back to the provider default of web-search-only. The camelCase config is now translated to the Interactions wire list.
+
+- Updated dependencies [[`41a5d18`](https://github.com/TanStack/ai/commit/41a5d189082331e052e1f2f5e987848501ffd08b), [`4599019`](https://github.com/TanStack/ai/commit/4599019eb02f72562ef155b69b8f61f9d25d187a), [`3eda66c`](https://github.com/TanStack/ai/commit/3eda66cb132def6346829ba113f315ffdd4edf6b), [`ecd12a4`](https://github.com/TanStack/ai/commit/ecd12a408987bc75649c21aada6948282a2a66dd)]:
+  - @tanstack/ai@0.46.0
+
+## 0.24.0
+
+### Minor Changes
+
+- [#1104](https://github.com/TanStack/ai/pull/1104) [`a8454a7`](https://github.com/TanStack/ai/commit/a8454a7c90b04e4a68b9b3f26de23ed55d391525) - Add the GA Gemini native image model ids and give each native image model its own size type.
+
+  `gemini-3.1-flash-image-preview` and `gemini-3-pro-image-preview` were shut down on 2026-06-25 and now 404. Their GA replacements — `gemini-3.1-flash-image` and `gemini-3-pro-image` — are now the primary ids. The `-preview` ids remain in the model union as aliases so existing code keeps compiling; `gemini-2.5-flash-image` stays fully supported ahead of its 2026-10-02 shutdown.
+
+  Sizes were a single flat union (`{8 ratios}_{1K|2K|4K}`) applied to every native model. Google documents four different sets, so each model now maps to its own:
+
+  | model                                   | aspect ratios | resolutions                      |
+  | --------------------------------------- | ------------- | -------------------------------- |
+  | `gemini-3.1-flash-image` (+ `-preview`) | 14            | `512` `1K` `2K` `4K`             |
+  | `gemini-3.1-flash-lite-image`           | 14            | `1K`                             |
+  | `gemini-3-pro-image` (+ `-preview`)     | 10            | `1K` `2K` `4K`                   |
+  | `gemini-2.5-flash-image`                | 10            | none — bare ratio, e.g. `'16:9'` |
+
+  `4:5` and `5:4` are now accepted on every native model (Google lists them for all four; the old union omitted them). `9:21` is deliberately still rejected — it exists on Vertex/Cloud only and the Gemini API rejects it.
+
+  **Runtime behaviour changes in two places.** The rest of the change is types-only, but these two are real wire-format deltas:
+  - `parseNativeImageSize()` now accepts a bare aspect ratio. Previously `'16:9'` failed to parse, so the adapter omitted `imageConfig` entirely and the model picked its own aspect ratio; it now parses to `{ aspectRatio: '16:9' }` and the adapter sends `imageConfig.aspectRatio = '16:9'`. A JavaScript caller — or a TypeScript caller whose `size` is computed at runtime and widened to `string` — that already passed a bare ratio will get a differently-framed image after upgrading, with no compile or runtime error.
+  - Migrating a `gemini-2.5-flash-image` call from `'16:9_1K'` to the now-required bare `'16:9'` drops `imageSize` from the `generateContent` request. That is intended: Google publishes no `image_size` value or default for this model, so the adapter no longer guesses a tier the API never documented.
+
+  **BREAKING (types only):** size combinations the selected model never supported no longer compile. No model id was removed.
+  - `gemini-3.1-flash-lite-image`: `2K` and `4K` are rejected (the model only emits 1K). Use `'<ratio>_1K'`.
+  - `gemini-3-pro-image` / `gemini-3-pro-image-preview`: the extreme banner ratios `1:4` `4:1` `1:8` `8:1` are rejected (Gemini 3.1 Flash Image only), as is the `512` tier.
+  - `gemini-2.5-flash-image`: any `_1K` / `_2K` / `_4K` suffix is rejected — pass the bare ratio (`'16:9'`, not `'16:9_1K'`) — as are the four extreme banner ratios.
+  - `GeminiNativeImageSize` is now the union of the per-model types rather than one flat template literal. It was not previously reachable from the package entry point, so this is a new export rather than a changed one.
+
+  **New type exports**, so the per-model narrowing is nameable and not just inferred at the call site: `GeminiImageModelSizeByName`, `GeminiStandardImageAspectRatio`, `GeminiExtendedImageAspectRatio`, `Gemini31FlashImageSize`, `Gemini31FlashLiteImageSize`, `Gemini3ProImageSize`, `Gemini25FlashImageSize`, `GeminiNativeImageSize`.
+
+  **Two caveats worth knowing before you rely on this.**
+  - _No in-editor deprecation warning on the dead `-preview` ids._ The `@deprecated` tags live on module-private model-metadata consts, and `GeminiImageModels` is projected out of a const array (`(typeof GEMINI_IMAGE_MODELS)[number]`), which collapses to bare string literals — JSDoc does not survive that projection. So `geminiImage('gemini-3-pro-image-preview')` still compiles cleanly with no strikethrough and no hint, and fails only at request time. Grep your codebase for `-image-preview` rather than expecting the compiler to flag it.
+  - _`gemini-3.1-flash-lite-image`'s four extreme ratios (`1:4` `4:1` `1:8` `8:1`) are partially inferred._ Unlike the other three native models, Flash Lite has no per-model ratio table on the Gemini API guide. The 14-value set rests on the Cloud model page's explicit enumeration plus `ai.google.dev`'s bare "a discrete set of 14 aspect ratios" assertion; the only Gemini-API enumeration for this model is a 10-item bullet prefixed "New aspect ratios", read here as a what's-new list rather than an exhaustive set. If the API rejects those four in practice, this type over-accepts and should narrow to the 10-ratio set.
+
+- [#1103](https://github.com/TanStack/ai/pull/1103) [`4f02789`](https://github.com/TanStack/ai/commit/4f027898a8e957353c29dcf423e59daa54868aee) - Type Gemini-native image models with their own provider options. `GeminiImageModelProviderOptionsByName` mapped **every** image model to the Imagen-shaped `GeminiImageProviderOptions`, so `modelOptions: { safetySettings, thinkingConfig, imageConfig, systemInstruction }` was a compile error on `gemini-3.1-flash-image-preview`, `gemini-3.1-flash-lite-image`, `gemini-3-pro-image-preview`, and `gemini-2.5-flash-image` — even though those models are served by `generateContent`, whose `GenerateContentConfig` accepts all of them. The adapter compensated by forwarding only `seed`, silently dropping anything else.
+
+  The map now splits native vs Imagen, mirroring the split already used by `GeminiImageModelSizeByName` and `GeminiImageModelInputModalitiesByName`: native models get the new `GeminiNativeImageProviderOptions` (`seed`, `safetySettings`, `thinkingConfig`, `imageConfig`, `systemInstruction`), Imagen models keep `GeminiImageProviderOptions`. Both API paths now pick their config fields by name — never a wholesale spread — so neither shape's fields can reach the other's endpoint. Runtime routing moves the same way, off a `gemini-` prefix test onto membership in `GEMINI_NATIVE_IMAGE_MODELS`: a `gemini-*` image model not present in that list now routes to `generateImages` instead of `generateContent`, so it fails against that endpoint rather than silently taking the native path.
+
+  `responseModalities` stays a protected adapter default (`['TEXT', 'IMAGE']`) and is deliberately absent from the new type. `modelOptions.imageConfig` merges **over** the `imageConfig` derived from the portable `size` option, per field — passing only `imageConfig.imageSize` keeps the `aspectRatio` that `size` implied. `HarmCategory` and `HarmBlockThreshold` are now re-exported so `safetySettings` can be written without adding `@google/genai` to your own dependencies.
+
+  `GEMINI_NATIVE_IMAGE_MODELS` and `isGeminiNativeImageModel` are exported so callers can read the same list the adapter uses for routing.
+
+  Native `imageConfig` is now `GeminiNativeImageConfig`: only `aspectRatio` and `imageSize`. Other `@google/genai` `ImageConfig` keys type-checked and then threw on the Gemini Developer API.
+
+  **BREAKING (types only):** Imagen fields no longer compile on Gemini-native image models — `aspectRatio`, `negativePrompt`, `personGeneration`, `safetyFilterLevel`, `addWatermark`, `language`, `outputMimeType`, `outputCompressionQuality`, `guidanceScale`, `enhancePrompt`, `includeSafetyAttributes`, `includeRaiReason`, `outputGcsUri`, `labels`. They previously type-checked but were already dropped at runtime (only `seed` was ever forwarded to `generateContent`), so no request behaviour changes. The compiler now reports what was already happening. Migrate `aspectRatio` to the portable `size` option (`'16:9_4K'`) or to `modelOptions.imageConfig`, and drop the rest. Native `imageConfig` also no longer accepts Vertex-only SDK keys such as `personGeneration` and `outputMimeType`. `GeminiImageAdapter.generateImages` (and its `~types.providerOptions`) also widens from `ImageGenerationOptions<GeminiImageProviderOptions>` to `ImageGenerationOptions<GeminiAnyImageProviderOptions>`, which affects code structurally annotated against the old signature.
+
+### Patch Changes
+
+- Updated dependencies [[`d10dfe6`](https://github.com/TanStack/ai/commit/d10dfe6eca788ae52631d45e5599aa0c45e9ba37), [`eda82cc`](https://github.com/TanStack/ai/commit/eda82cc8a86923afd604a663d050c6edfa6b829b), [`c63319e`](https://github.com/TanStack/ai/commit/c63319e34a2ca2f1d56b90addf28784f7c3e13ad), [`b09e010`](https://github.com/TanStack/ai/commit/b09e010b32932c812e65b1e14f6faa2b0e6d5cb8), [`0fb8263`](https://github.com/TanStack/ai/commit/0fb826321c9ba7bd5d8ba0062be2a00b6178726d)]:
+  - @tanstack/ai@0.45.0
+
+## 0.23.0
+
+### Minor Changes
+
+- [#1105](https://github.com/TanStack/ai/pull/1105) [`03f0f5d`](https://github.com/TanStack/ai/commit/03f0f5dde47f92219a4e23b2d81f0b631a74b4ec) - Add Gemini 3.7 Flash (`gemini-3.7-flash`) with full multimodal input, thinking, structured output, caching, and the same built-in tools as Gemini 3.6 Flash.
+
+### Patch Changes
+
+- Updated dependencies [[`99fb2b7`](https://github.com/TanStack/ai/commit/99fb2b7b113548b20afa894e014bd03773815a41)]:
+  - @tanstack/ai@0.44.1
+
+## 0.22.0
+
+### Minor Changes
+
+- [#926](https://github.com/TanStack/ai/pull/926) [`ee07854`](https://github.com/TanStack/ai/commit/ee07854fd3d2d4bb279e6e4748802f7f9a5a7167) - Add a multimodal `embed()` activity. A single primitive covers one input or a batch — `input` accepts a string, a text part, an image part, or a fused text+image item written as a nested `Array<ContentPart>` (`[textPart, imagePart]`, the same shape chat messages use), one vector per item, with the accepted item types narrowed per model at compile time. Top-level `dimensions` requests Matryoshka output sizes where supported. Results carry `embeddings: [{ vector, index }]` plus `usage` when the provider reports it, and `embed()` participates in generation middleware, debug logging, OTel (`gen_ai.operation.name: embeddings`), and devtools events like every other activity.
+
+  Provider adapters: `openaiEmbedding` (text-embedding-3-small/large), `geminiEmbedding` (gemini-embedding-001), `mistralEmbedding` (mistral-embed, codestral-embed), `ollamaEmbedding` (nomic-embed-text and any local model), `bedrockEmbedding` (Titan Text V2, Titan Multimodal G1 with fused text+image, Cohere Embed v3 on Bedrock), and `@tanstack/ai-cohere`'s `cohereEmbedding` (embed-v4.0, multimodal text+image with required `inputType`).
+
+### Patch Changes
+
+- [#1071](https://github.com/TanStack/ai/pull/1071) [`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e) - fix: publish internal dependency ranges as `^x.y.z` instead of exact pins
+
+  Internal dependencies on other TanStack AI packages used `workspace:*` in
+  `dependencies` and `peerDependencies`. pnpm rewrites that to an **exact** version
+  at publish time, so a released package asked for e.g. `@tanstack/ai-utils@0.4.0`
+  rather than `^0.4.0`.
+
+  Two consequences for consumers:
+  - **Duplicate copies.** An exact pin cannot dedupe. Installing a newer
+    `@tanstack/ai` alongside a package pinned to the previous patch produced two
+    copies in the tree, which breaks `instanceof` checks and module-level state,
+    and inflates bundles.
+  - **Unsatisfiable peers.** An exactly pinned `peerDependency` conflicts the
+    moment the internal package ships its next patch, forcing consumers into
+    overrides or `--legacy-peer-deps`.
+
+  These fields now use `workspace:^`, which publishes as `^x.y.z`. Every package
+  here is still `0.x`, so `^0.43.1` resolves to `0.43.x` only — patches dedupe
+  cleanly and no breaking minor is ever pulled in.
+
+  `devDependencies` deliberately keep `workspace:*`: they are never published, and
+  `*` correctly means "always build against the local copy".
+
+- Updated dependencies [[`59aa8b5`](https://github.com/TanStack/ai/commit/59aa8b5049549246227c8f2cf736ce50d05205a5), [`ee07854`](https://github.com/TanStack/ai/commit/ee07854fd3d2d4bb279e6e4748802f7f9a5a7167), [`b785cc4`](https://github.com/TanStack/ai/commit/b785cc4ae382fb0e2a337199d192bd9335ac9249), [`47e2464`](https://github.com/TanStack/ai/commit/47e246480d29e2ab5a83ca684e047670e75ba66c), [`dd7ddf1`](https://github.com/TanStack/ai/commit/dd7ddf19283358adfbf61d057321d7daee3ca50d), [`6903978`](https://github.com/TanStack/ai/commit/690397804254dca638961c79b7941555edc52c02), [`fdb791a`](https://github.com/TanStack/ai/commit/fdb791a1c9c8de906eecf76f59743f697621b027), [`7aa4ae9`](https://github.com/TanStack/ai/commit/7aa4ae9d07d21195dd3d62598ac503f1dfdc79e4), [`ea9c077`](https://github.com/TanStack/ai/commit/ea9c07724bd6992480238a699fbb18835eab743e)]:
+  - @tanstack/ai@0.44.0
+
+## 0.21.0
+
+### Minor Changes
+
+- [#1041](https://github.com/TanStack/ai/pull/1041) [`399b4b1`](https://github.com/TanStack/ai/commit/399b4b1855a5fb93dfc37a2afa71cedb092ac36e) - Add Gemini 3.6 Flash (`gemini-3.6-flash`) and Gemini 3.5 Flash-Lite (`gemini-3.5-flash-lite`) chat models.
+
+  Both are stable GA text models with full multimodal input, thinking, structured output, batch/caching, and the native combined tools + `responseSchema` path. Tool surface includes code execution, file search, Google Search, Google Maps, and URL context. Computer Use (Preview) is listed for 3.6 Flash (and corrected onto existing 3.5 Flash); 3.5 Flash-Lite does not support Computer Use.
+
+### Patch Changes
+
+- Updated dependencies [[`7499171`](https://github.com/TanStack/ai/commit/74991716aea4d90a5d0363676a1e3349689a48e8)]:
+  - @tanstack/ai@0.43.0
+  - @tanstack/ai-utils@0.4.0
+
+## 0.20.1
+
+### Patch Changes
+
+- Updated dependencies [[`3e1b510`](https://github.com/TanStack/ai/commit/3e1b510e4fdd2334af468c47b7c37b572805200e)]:
+  - @tanstack/ai@0.42.0
+
+## 0.20.0
+
+### Minor Changes
+
+- [#886](https://github.com/TanStack/ai/pull/886) [`de5fbb5`](https://github.com/TanStack/ai/commit/de5fbb52a916826cdc0ef31d18df402cd611b9d4) - Add Gemini Omni Flash (`gemini-omni-flash-preview`) video generation via the Interactions API. Omni only serves the Interactions API (`generateContent` rejects it), so the video adapter now routes by model: Veo models keep the `:predictLongRunning` operations flow, while `geminiVideo('gemini-omni-flash-preview')` creates a background interaction with `response_modalities: ['video']`, polls it by id, and returns the inline base64 MP4 as a `data:` URL (Files-API URI delivery passes through). Usage is mapped from the interaction's `output_tokens_by_modality`. Image and video prompt parts are sent as interaction content blocks, and `modelOptions.previous_interaction_id` chains a new prompt onto a prior Omni generation for conversational video editing. The top-level `size` option maps onto `response_format.aspect_ratio` (`'16:9' | '9:16'`) and `duration` onto `response_format.duration` — any value in the 3–10 second range (fractional seconds included, verified against the live API), defaulting to a 10-second clip when omitted. Raises the `@google/genai` floor to `^2.10.0` for the Interactions API surface.
+
+- [#908](https://github.com/TanStack/ai/pull/908) [`dcc7407`](https://github.com/TanStack/ai/commit/dcc74077dc9f27ca3b88b0c349159728f7868fbe) - fix(ai-gemini, ai-openai): don't buffer arbitrary HTTP(S) URL image inputs by default on paths that require uploaded bytes.
+
+  Gemini **Veo** (`createGeminiVideo`), OpenAI image **edits** (`createOpenaiImage`), and OpenAI **Sora** `input_reference` (`createOpenaiVideo`) have no URL passthrough — the provider only accepts inline bytes (or, for Veo, a `gs://` reference). Previously an HTTP(S) URL image input was silently fetched and buffered in memory, which can OOM memory-constrained runtimes (e.g. Cloudflare Workers).
+
+  These paths now **throw** on an HTTP(S) URL image input by default, with an error pointing to the alternatives. `data:` URIs (and `gs://` for Veo) still work without any flag. To opt back into fetching + buffering, set `allowUrlFetch: true` on the adapter config:
+
+  ```ts
+  createOpenaiImage('gpt-image-1', apiKey, { allowUrlFetch: true })
+  createOpenaiVideo('sora-2', apiKey, { allowUrlFetch: true })
+  createGeminiVideo('veo-3.1-generate-preview', apiKey, {
+    allowUrlFetch: true,
+  })
+  ```
+
+  Migration: if you passed HTTP(S) URL image inputs to these adapters, either fetch the bytes yourself and pass a `data:` URI, pass a `gs://` reference (Veo), or set `allowUrlFetch: true`.
+
+- [#405](https://github.com/TanStack/ai/pull/405) [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1) - Added Gemini Realtime Adapter
+
+### Patch Changes
+
+- [#924](https://github.com/TanStack/ai/pull/924) [`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5) - fix: resolve directory-barrel imports in published `.d.ts` files. Bare imports of `utils`/`tools`/`middleware` barrels were emitted as `../utils.js` (etc.), which do not resolve under bundler/node16/nodenext (no `/index` fallback for explicit `.js`). With consumer `skipLibCheck: true` those symbols silently became `any`. Imports now target concrete modules (e.g. `utils/client`, `middleware/types`) or explicit `/index` paths so public types resolve correctly.
+
+- [#919](https://github.com/TanStack/ai/pull/919) [`d453647`](https://github.com/TanStack/ai/commit/d453647500e33a1412f84a2cc91d486a11265b9b) - fix(ai-gemini): fix `GeminiClientConfig` type import in the published adapter declarations. The emitted `.d.ts` files imported `GeminiClientConfig` from a non-existent `'../utils.js'` (the barrel builds to `utils/index.js`), so under `skipLibCheck` it silently resolved to `any` in consumers — masking client-config type-checking for every adapter and producing a spurious "`httpOptions` does not exist" error on `createGeminiVideo`. Adapters now import the type from the concrete `'../utils/client'` module so the declarations resolve to the real type.
+
+- [#908](https://github.com/TanStack/ai/pull/908) [`dcc7407`](https://github.com/TanStack/ai/commit/dcc74077dc9f27ca3b88b0c349159728f7868fbe) - fix(ai-gemini): stop fetching arbitrary HTTPS image URLs in `createGeminiImage`. URL sources in multimodal image-generation prompts now pass through as `fileData.fileUri` (Gemini fetches them server-side), matching the chat adapter. This avoids fetch + base64 double-buffering that could OOM on memory-constrained runtimes such as Cloudflare Workers.
+
+- [#922](https://github.com/TanStack/ai/pull/922) [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669) - fix: resolve dangling relative imports in published declaration files
+
+  Switch directory-barrel imports (`../utils`, `../tools`, `../middleware`) to
+  concrete module paths so emitted `.d.ts` specifiers resolve under
+  `bundler`/`node16`/`nodenext` resolution. Adds a `test:dts` scanner guardrail.
+
+  Fixes [#920](https://github.com/TanStack/ai/issues/920)
+
+- Updated dependencies [[`5fcaf90`](https://github.com/TanStack/ai/commit/5fcaf90dc82bc20b8c7a75faa3c129da04858af5), [`2665085`](https://github.com/TanStack/ai/commit/2665085970ab4d792778bb2b635ef27fbdcb6be1), [`e0bbbdd`](https://github.com/TanStack/ai/commit/e0bbbdd9608892293e09135aab4a3c77c8d65669), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`f830d9e`](https://github.com/TanStack/ai/commit/f830d9e7a41e3554c424c3e41ba847dfd1577589), [`de5fbb5`](https://github.com/TanStack/ai/commit/de5fbb52a916826cdc0ef31d18df402cd611b9d4)]:
+  - @tanstack/ai@0.41.0
+
 ## 0.19.1
 
 ### Patch Changes
@@ -738,8 +923,7 @@
 
   ```ts
   type GeneratedMediaSource =
-    | { url: string; b64Json?: never }
-    | { b64Json: string; url?: never }
+    { url: string; b64Json?: never } | { b64Json: string; url?: never }
   ```
 
   Existing read patterns like `img.url || \`data:image/png;base64,${img.b64Json}\``continue to work unchanged. The only runtime-visible change is that the`@tanstack/ai-openrouter`and`@tanstack/ai-fal`image adapters no longer populate`url`with a synthesized`data:image/png;base64,...`URI when the provider returns base64 — they return`{ b64Json }`only. Consumers that want a data URI should build it from`b64Json` at render time.

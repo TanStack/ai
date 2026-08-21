@@ -7,7 +7,7 @@ description: >
   with the bundled CLI, and manage lifecycle with close()/await using.
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.2.5'
 sources:
   - 'TanStack/ai:docs/tools/mcp.md'
   - 'TanStack/ai:packages/ai-mcp/src/client.ts'

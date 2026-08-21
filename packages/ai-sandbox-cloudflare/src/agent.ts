@@ -64,3 +64,29 @@ export type { ResolveCoordinator } from './worker'
 // The durable run-log + the Web Crypto bearer helper (for direct composition).
 export { DurableObjectRunEventLog } from './run-log-do'
 export { timingSafeBearerEqualWeb } from './web-crypto'
+
+// The run event-log surface, for apps bringing their own backend.
+// `DurableObjectRunEventLog` (above) is this log's DO-storage-backed mirror;
+// `InMemoryRunEventLog` is the single-process reference implementation.
+//
+// The vocabulary is core's: statuses, `RunError`, and `isTerminalRunStatus`
+// come from `@tanstack/ai` (the pre-1.0 `Legacy*`-prefixed types are gone —
+// see the CONVERGED VOCABULARY note in `./run-log` for the storage
+// migration). `RunLogRecord` is core's `RunRecord` plus the log's own
+// `lastSeq` cursor and `updatedAt` activity clock.
+export { InMemoryRunEventLog, migrateStoredRunRecord } from './run-log'
+export type {
+  RunEventLog,
+  RunEvent,
+  RunEventLogReadOptions,
+  RunLogRecord,
+  RunRecordPatch,
+} from './run-log'
+
+// The portable seams the coordinator itself is built on: a `RunEventLog` as
+// core's `RunStore` (`runLogStore`) and one of its runs as core's
+// `StreamDurability` (`runLogStream`). Apps composing directly bind core's
+// `RunController` from `@tanstack/ai-sandbox` with these, exactly as
+// `SandboxCoordinator` does.
+export { runLogStore, runLogStream } from './durability'
+export type { RunLogStreamInit } from './durability'

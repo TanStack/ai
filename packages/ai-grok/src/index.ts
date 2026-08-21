@@ -28,6 +28,8 @@ export {
 } from './adapters/image'
 export type {
   GrokImageProviderOptions,
+  GrokImagineImageProviderOptions,
+  GrokImagineImage2ProviderOptions,
   GrokImageModelProviderOptionsByName,
 } from './image/image-provider-options'
 
@@ -44,7 +46,11 @@ export {
   getGrokVideoDurationOptions,
 } from './video/video-provider-options'
 export type {
+  GrokVideoMode,
+  GrokVideoBaseProviderOptions,
+  GrokVideoSourceProviderOptions,
   GrokVideoProviderOptions,
+  GrokVideoRuntimeOptions,
   GrokVideoModelProviderOptionsByName,
   GrokVideoModelSizeByName,
   GrokVideoModelDurationByName,
@@ -103,6 +109,7 @@ export {
   GROK_TTS_MODELS,
   GROK_TRANSCRIPTION_MODELS,
   GROK_REALTIME_MODELS,
+  GROK_DEFAULT_REALTIME_MODEL,
 } from './model-meta'
 export type {
   GrokTextMetadata,

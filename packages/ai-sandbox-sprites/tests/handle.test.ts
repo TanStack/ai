@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/require-await -- trivial fixed-value fakes */
 import { describe, expect, it, vi } from 'vitest'
+import { journalReadStrategy } from '@tanstack/ai-sandbox'
 import { SpritesHandle } from '../src/handle'
 import type {
   SpriteCheckpoint,
@@ -241,6 +242,29 @@ describe('SpritesHandle lifecycle + capabilities', () => {
     const { handle } = makeHandle({})
     expect(handle.capabilities.fork).toBe(false)
     expect(() => handle.fork()).toThrow(/fork/)
+  })
+
+  it('advertises killableProcesses, so journal reads take the follow strategy', () => {
+    const { handle } = makeHandle({})
+    expect(handle.capabilities.killableProcesses).toBe(true)
+    // The capability is not cosmetic — it selects the read strategy. This `true`
+    // is UNVERIFIED against a live Sprite (see `src/handle.ts`); what keeps it
+    // falsifiable is `tests/journal.conformance.test.ts`, which runs the follow
+    // cases as soon as SPRITES_API_KEY exists.
+    expect(journalReadStrategy(handle)).toBe('follow')
+  })
+
+  it('spawn kill() reaches the exec stream rather than only dropping it locally', async () => {
+    const kill = vi.fn(() => Promise.resolve())
+    const { handle } = makeHandle({
+      onExec: () => ({ ...fakeStream({ exit: 0 }), kill }),
+    })
+    const proc = await handle.process.spawn('sleep 987654321')
+    await proc.kill()
+    // The docker/local-process defects were both "the client detached and the
+    // remote process kept running". This handle must delegate to the stream's
+    // kill, which issues the server-side kill endpoint (see client.test.ts).
+    expect(kill).toHaveBeenCalledTimes(1)
   })
 
   it('exposes a spawn handle with non-writable stdin', async () => {

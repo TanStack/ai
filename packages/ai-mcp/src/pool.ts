@@ -1,9 +1,14 @@
 import { createMCPClient } from './client'
 import { DuplicateToolNameError, MCPConnectionError } from './errors'
 import type { MCPClient } from './client'
-import type { MCPClientOptions, ServerDescriptor, ToolsOptions } from './types'
+import type {
+  MCPClientOptions,
+  McpServerTool,
+  ServerDescriptor,
+  ToolsOptions,
+} from './types'
+import type { ClientOptions } from '@modelcontextprotocol/sdk/client/index.js'
 import type { TransportConfig } from './transport'
-import type { ServerTool } from '@tanstack/ai'
 import type { ReadResourceResult } from '@modelcontextprotocol/sdk/types.js'
 
 export type MCPClientsConfig = Record<string, MCPClientOptions>
@@ -20,7 +25,7 @@ export interface MCPClients<
    * All servers' tools, flattened and auto-prefixed by config key.
    * `options` (including `lazy`) is forwarded to every client's `tools()`.
    */
-  tools: (options?: ToolsOptions) => Promise<Array<ServerTool>>
+  tools: (options?: ToolsOptions) => Promise<Array<McpServerTool>>
   /**
    * Reads an MCP resource by URI, routing to the owning client. A `ui://`
    * resource read must hit the server that owns it; since the pool does not
@@ -42,6 +47,7 @@ export interface MCPClients<
     {
       transport: TransportConfig | undefined
       prefix: string | undefined
+      clientOptions?: ClientOptions
     }
   >
   /** Close every client. */
@@ -104,14 +110,14 @@ export async function createMCPClients<
   // because `tools()` is now descriptor-typed (`DescriptorTools<TServer>`), yet
   // the generated descriptor is a compile-time overlay only — the runtime
   // values are identical, so the through-`unknown` cast is sound here.
-  // eslint-disable-next-line no-restricted-syntax -- descriptor is a compile-time overlay; runtime MCPClient values are identical regardless of TServer
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- descriptor is a compile-time overlay; runtime MCPClient values are identical regardless of TServer
   const clients = Object.fromEntries(ok.map((r) => r.value)) as unknown as {
     [K in keyof TServers]: MCPClient<TServers[K]>
   }
 
   const pool: MCPClients<TServers> = {
     clients,
-    async tools(options?: ToolsOptions): Promise<Array<ServerTool>> {
+    async tools(options?: ToolsOptions): Promise<Array<McpServerTool>> {
       // Settle (like the connect path) so a single failing server is reported
       // by config key instead of rejecting with an unattributed SDK error.
       const entries = Object.entries(clients)
@@ -147,6 +153,7 @@ export async function createMCPClients<
       {
         transport: TransportConfig | undefined
         prefix: string | undefined
+        clientOptions?: ClientOptions
       }
     > {
       // Keyed by config key (serverId / default prefix). Read each underlying

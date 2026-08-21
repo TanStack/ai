@@ -33,6 +33,17 @@ test.describe('Race Condition Tests', () => {
     testId,
     aimockPort,
   }) => {
+    const requestBodies: Array<any> = []
+    page.on('request', (request) => {
+      if (
+        request.url().includes('/api/tools-test') &&
+        request.method() === 'POST'
+      ) {
+        const body = request.postDataJSON()
+        if (body) requestBodies.push(body)
+      }
+    })
+
     await selectScenario(page, 'sequential-client-tools', testId, aimockPort)
 
     const startTime = Date.now()
@@ -73,6 +84,16 @@ test.describe('Race Condition Tests', () => {
     expect(executionEvents[1]?.type).toBe('execution-complete')
     expect(executionEvents[2]?.type).toBe('execution-start')
     expect(executionEvents[3]?.type).toBe('execution-complete')
+
+    await expect(page.locator('#messages-json-content')).toContainText(
+      'Both notifications have been shown.',
+    )
+    expect(requestBodies).toHaveLength(3)
+    expect(requestBodies[0]?.resume).toBeUndefined()
+    expect(requestBodies[1]?.parentRunId).toBe(requestBodies[0]?.runId)
+    expect(requestBodies[1]?.resume).toHaveLength(1)
+    expect(requestBodies[2]?.parentRunId).toBe(requestBodies[1]?.runId)
+    expect(requestBodies[2]?.resume).toHaveLength(1)
 
     // If it takes too long (e.g., > 10 seconds), it might indicate blocking
     // (each tool takes ~50ms, so total should be well under 5 seconds)

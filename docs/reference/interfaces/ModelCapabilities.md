@@ -32,7 +32,7 @@ Capability bag accepted by the object form of `createModel`.
 ### features?
 
 ```ts
-optional features: TFeatures;
+optional features?: TFeatures;
 ```
 
 Defined in: [packages/ai/src/extend-adapter.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L48)
@@ -42,7 +42,7 @@ Defined in: [packages/ai/src/extend-adapter.ts:48](https://github.com/TanStack/a
 ### input?
 
 ```ts
-optional input: TInput;
+optional input?: TInput;
 ```
 
 Defined in: [packages/ai/src/extend-adapter.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L47)
@@ -52,7 +52,7 @@ Defined in: [packages/ai/src/extend-adapter.ts:47](https://github.com/TanStack/a
 ### modelOptions?
 
 ```ts
-optional modelOptions: TOptions;
+optional modelOptions?: TOptions;
 ```
 
 Defined in: [packages/ai/src/extend-adapter.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L50)
@@ -62,7 +62,7 @@ Defined in: [packages/ai/src/extend-adapter.ts:50](https://github.com/TanStack/a
 ### tools?
 
 ```ts
-optional tools: TTools;
+optional tools?: TTools;
 ```
 
 Defined in: [packages/ai/src/extend-adapter.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/extend-adapter.ts#L49)

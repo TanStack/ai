@@ -5,7 +5,7 @@ title: ResponseFormat
 
 # Interface: ResponseFormat\<TData\>
 
-Defined in: [packages/ai/src/types.ts:740](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L740)
+Defined in: [packages/ai/src/types.ts:776](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L776)
 
 Structured output format specification.
 
@@ -30,10 +30,10 @@ TypeScript type of the expected data structure (for type safety)
 ### \_\_data?
 
 ```ts
-optional __data: TData;
+optional __data?: TData;
 ```
 
-Defined in: [packages/ai/src/types.ts:818](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L818)
+Defined in: [packages/ai/src/types.ts:854](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L854)
 
 **`Internal`**
 
@@ -47,10 +47,10 @@ Allows the SDK to know what type to expect when parsing the response.
 ### json\_schema?
 
 ```ts
-optional json_schema: object;
+optional json_schema?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:757](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L757)
+Defined in: [packages/ai/src/types.ts:793](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L793)
 
 JSON schema specification (required when type is "json_schema").
 
@@ -60,7 +60,7 @@ OpenAI's structured outputs will guarantee the output matches this schema.
 #### description?
 
 ```ts
-optional description: string;
+optional description?: string;
 ```
 
 Optional description of what the schema represents.
@@ -117,7 +117,7 @@ https://json-schema.org/
 #### strict?
 
 ```ts
-optional strict: boolean;
+optional strict?: boolean;
 ```
 
 Whether to enforce strict schema validation.
@@ -139,7 +139,7 @@ https://platform.openai.com/docs/guides/structured-outputs#strict-mode
 type: "json_object" | "json_schema";
 ```
 
-Defined in: [packages/ai/src/types.ts:749](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L749)
+Defined in: [packages/ai/src/types.ts:785](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L785)
 
 Type of structured output.
 

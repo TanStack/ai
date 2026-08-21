@@ -9,7 +9,7 @@ title: generateVideo
 function generateVideo<TAdapter, TStream>(options): TStream extends true ? AsyncIterable<AGUIEvent, any, any> : Promise<VideoJobResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/index.ts:298](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L298)
+Defined in: [packages/ai/src/activities/generateVideo/index.ts:389](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L389)
 
 **`Experimental`**
 
@@ -27,7 +27,7 @@ create job → poll for status → stream updates → yield final result.
 
 ### TAdapter
 
-`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `any`, `any`, `any`, [`ModelInputModalitiesByName`](../type-aliases/ModelInputModalitiesByName.md), `Record`\<`string`, `number`\>\>
+`TAdapter` *extends* [`VideoAdapter`](../interfaces/VideoAdapter.md)\<`string`, `any`, `any`, `any`, `any`, `any`\>
 
 ### TStream
 
@@ -45,8 +45,10 @@ create job → poll for status → stream updates → yield final result.
 
 ## Examples
 
+**Create a video generation job**
+
 ```ts
-import { generateVideo } from '@tanstack/ai'
+import { generateVideo, getVideoJobStatus } from '@tanstack/ai'
 import { openaiVideo } from '@tanstack/ai-openai'
 
 // Start a video generation job
@@ -56,7 +58,17 @@ const { jobId } = await generateVideo({
 })
 
 console.log('Job started:', jobId)
+
+// The submission only OPENS the run; the poll that sees a terminal state is
+// what completes it. The `jobId` is the whole correlation — pass the same
+// `middleware` and `threadId` when you use them.
+const status = await getVideoJobStatus({
+  adapter: openaiVideo('sora-2'),
+  jobId,
+})
 ```
+
+**Stream the full video generation lifecycle**
 
 ```ts
 import { generateVideo, toServerSentEventsResponse } from '@tanstack/ai'

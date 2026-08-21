@@ -5,7 +5,7 @@ title: StepStartedEvent
 
 # Interface: StepStartedEvent
 
-Defined in: [packages/ai/src/types.ts:1212](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1212)
+Defined in: [packages/ai/src/types.ts:1320](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1320)
 
 Emitted when a thinking/reasoning step starts.
 
@@ -27,10 +27,10 @@ TanStack AI adds: `model?`, `stepId?` (deprecated alias), `stepType?`
 ### model?
 
 ```ts
-optional model: string;
+optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1214](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1214)
+Defined in: [packages/ai/src/types.ts:1322](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1322)
 
 Model identifier for multi-model support
 
@@ -39,10 +39,10 @@ Model identifier for multi-model support
 ### ~~stepId?~~
 
 ```ts
-optional stepId: string;
+optional stepId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1219](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1219)
+Defined in: [packages/ai/src/types.ts:1327](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1327)
 
 #### Deprecated
 
@@ -54,9 +54,9 @@ Kept for backward compatibility.
 ### stepType?
 
 ```ts
-optional stepType: string;
+optional stepType?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1221](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1221)
+Defined in: [packages/ai/src/types.ts:1329](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1329)
 
 Type of step (e.g., 'thinking', 'planning')

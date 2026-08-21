@@ -8,7 +8,7 @@ description: >
   NDJSON format. For backends serving AG-UI events without client packages.
 type: sub-skill
 library: tanstack-ai
-library_version: '0.10.0'
+library_version: '0.42.0'
 sources:
   - 'TanStack/ai:docs/protocol/chunk-definitions.md'
   - 'TanStack/ai:docs/protocol/sse-protocol.md'

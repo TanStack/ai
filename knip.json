@@ -1,6 +1,11 @@
 {
   "$schema": "https://unpkg.com/knip@5/schema.json",
-  "ignoreDependencies": ["@faker-js/faker", "@aws-sdk/client-bedrock"],
+  "ignoreDependencies": [
+    "@faker-js/faker",
+    "@aws-sdk/client-bedrock",
+    "@typescript/typescript6"
+  ],
+  "ignoreBinaries": ["taskkill"],
   "ignoreWorkspaces": [
     "examples/**",
     "testing/**",
@@ -10,8 +15,9 @@
     "kiira.config.ts",
     "scripts/**",
     "**/*.test-d.ts",
-    "packages/ai-code-mode-skills/test-cli/**",
+    "packages/ai-code-mode-snippets/test-cli/**",
     ".claude/worktrees/**",
+    "worktrees/**",
     "packages/ai-openai/live-tests/**",
     "packages/ai-openai/src/**/*.test.ts",
     "packages/ai-openai/src/audio/audio-provider-options.ts",
@@ -39,6 +45,12 @@
     "packages/ai-client": {
       "ignoreDependencies": ["@standard-schema/spec"]
     },
+    "packages/ai-memory": {
+      "ignoreDependencies": ["ioredis", "redis"]
+    },
+    "packages/ai-isolate-quickjs-bun": {
+      "entry": ["src/index.ts", "benchmarks/*.ts"]
+    },
     "packages/ai-sandbox": {
       "ignoreDependencies": ["@ngrok/ngrok"]
     },
@@ -57,6 +69,9 @@
     "packages/ai-vue-ui": {
       "ignore": ["src/use-chat-context.ts"]
     },
-    "packages/ai-bedrock": {}
+    "packages/ai-bedrock": {},
+    "packages/ai-grok-build": {
+      "ignoreDependencies": ["@tanstack/ai-acp"]
+    }
   }
 }

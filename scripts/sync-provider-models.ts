@@ -9,12 +9,37 @@
  *
  * Usage:
  *   pnpm tsx scripts/sync-provider-models.ts
+ *
+ * ## Providers deliberately NOT synced
+ *
+ * The sync is only safe when the provider's own model ids can be derived from
+ * OpenRouter's. Adding an entry to `PROVIDER_MAP` for a provider where that
+ * doesn't hold generates ids that 404 at request time, which is worse than no
+ * automation. These are excluded on purpose:
+ *
+ * - **byteplus** (`@tanstack/ai-byteplus`) — OpenRouter lists the same models
+ *   under undated slugs (`bytedance-seed/seed-1.6`), but BytePlus Ark
+ *   addresses them by *date-suffixed* id (`seed-1-6-250615`), and the suffix
+ *   is not derivable from anything OpenRouter publishes. Ark's own `GET
+ *   /models` is the catalog, and it is not exhaustive. On top of that the
+ *   package's capability tables are live-probe-verified specifically because
+ *   the published metadata is wrong in both directions, so a metadata-driven
+ *   sync would overwrite probed facts with worse ones. Use `/gap-analysis
+ *   byteplus` instead; the probe recipe is in that package's `model-meta.ts`.
+ * - **fal**, **elevenlabs** — media-only providers whose endpoint ids are not
+ *   OpenRouter models at all. fal image fields have their own generator
+ *   (`scripts/generate-fal-image-field-map.ts`).
+ * - **bedrock** — ids are AWS-region-qualified; see
+ *   `scripts/fetch-bedrock-models.ts`.
  */
 
 import { execFileSync } from 'node:child_process'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isRoutingAlias, toModelConstName } from './model-sync/ids'
+import { buildProviderSupportsBody } from './model-sync/provider-supports'
+import type { SyncedProvider } from './model-sync/provider-supports'
 import { models } from './openrouter.models'
 import type { OpenRouterModel } from './openrouter.models'
 
@@ -50,8 +75,8 @@ interface ProviderConfig {
    * (issue #849); other providers treat token limits as optional and omit it.
    */
   maxOutputTokensMapName?: string
-  /** The supports block template (minus input modalities, which come from OpenRouter) */
-  referenceSupportsBody: string
+  /** Provider key for conservative supports generation */
+  kind: SyncedProvider
   /** Valid input modality types for this provider's ModelMeta interface */
   validInputModalities: Array<InputModality>
   /** The satisfies type clause (after 'as const satisfies') */
@@ -76,10 +101,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     providerOptionsTypeName: 'OpenAIChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'OpenAIModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video'],
-    referenceSupportsBody: `    output: ['text'],
-    endpoints: ['chat', 'chat-completions'],
-    features: ['streaming', 'function_calling', 'structured_outputs', 'distillation'],
-    tools: ['web_search', 'web_search_preview', 'file_search', 'image_generation', 'code_interpreter', 'mcp', 'computer_use', 'local_shell', 'shell', 'apply_patch'],`,
+    kind: 'openai',
     referenceSatisfies:
       'ModelMeta<OpenAIBaseOptions & OpenAIReasoningOptions & OpenAIStructuredOutputOptions & OpenAIToolsOptions & OpenAIStreamingOptions & OpenAIMetadataOptions>',
     referenceProviderOptionsEntry:
@@ -104,9 +126,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     inputModalitiesTypeName: 'AnthropicModelInputModalitiesByName',
     maxOutputTokensMapName: 'ANTHROPIC_MODEL_MAX_OUTPUT_TOKENS',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    referenceSupportsBody: `    extended_thinking: true,
-    priority_tier: true,
-    tools: ['web_search', 'web_fetch', 'code_execution', 'computer_use', 'bash', 'text_editor', 'memory'],`,
+    kind: 'anthropic',
     referenceSatisfies:
       'ModelMeta<AnthropicContainerOptions & AnthropicContextManagementOptions & AnthropicMCPOptions & AnthropicServiceTierOptions & AnthropicStopSequencesOptions & AnthropicThinkingOptions & AnthropicToolChoiceOptions & AnthropicSamplingOptions>',
     referenceProviderOptionsEntry:
@@ -124,9 +144,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     providerOptionsTypeName: 'GeminiChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'GeminiModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    referenceSupportsBody: `    output: ['text'],
-    capabilities: ['batch_api', 'caching', 'function_calling', 'structured_output', 'thinking'],
-    tools: ['code_execution', 'file_search', 'google_search', 'url_context'],`,
+    kind: 'gemini',
     referenceSatisfies:
       'ModelMeta<GeminiToolConfigOptions & GeminiSafetyOptions & GeminiCommonConfigOptions & GeminiCachedContentOptions & GeminiStructuredOutputOptions & GeminiThinkingOptions>',
     referenceProviderOptionsEntry:
@@ -146,9 +164,7 @@ const PROVIDER_MAP: Record<string, ProviderConfig> = {
     providerOptionsTypeName: 'GrokChatModelProviderOptionsByName',
     inputModalitiesTypeName: 'GrokModelInputModalitiesByName',
     validInputModalities: ['text', 'image', 'audio', 'video', 'document'],
-    referenceSupportsBody: `    output: ['text'],
-    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
-    tools: [],`,
+    kind: 'grok',
     referenceSatisfies: 'ModelMeta',
     referenceProviderOptionsEntry: 'GrokProviderOptions',
     hasBothNameAndId: false,
@@ -197,13 +213,7 @@ function stripPrefix(prefix: string, modelId: string): string {
  * E.g. 'gpt-6' -> 'GPT_6', 'grok-4.20-multi-agent' -> 'GROK_4_20_MULTI_AGENT'
  */
 function toConstName(prefix: string, modelId: string): string {
-  const stripped = stripPrefix(prefix, modelId)
-  return stripped
-    .replace(/[-]/g, '_')
-    .replace(/[.]/g, '_')
-    .replace(/[:]/g, '_')
-    .replace(/[/]/g, '_')
-    .toUpperCase()
+  return toModelConstName(stripPrefix(prefix, modelId))
 }
 
 /**
@@ -364,7 +374,6 @@ function generateModelConstant(
   const inputModalities = mapInputModalities(
     model.architecture.input_modalities,
   ).filter((m) => config.validInputModalities.includes(m))
-  const inputModalitiesStr = inputModalities.map((m) => `'${m}'`).join(', ')
 
   const lines: Array<string> = []
   lines.push(`const ${constName} = {`)
@@ -391,10 +400,14 @@ function generateModelConstant(
     )
   }
 
-  // supports block (actual input modalities + reference capabilities)
   lines.push(`  supports: {`)
-  lines.push(`    input: [${inputModalitiesStr}],`)
-  lines.push(config.referenceSupportsBody)
+  lines.push(
+    buildProviderSupportsBody({
+      provider: config.kind,
+      inputModalities,
+      supportedParameters: model.supported_parameters,
+    }),
+  )
   lines.push(`  },`)
 
   // pricing
@@ -453,7 +466,16 @@ function insertConstants(content: string, constants: Array<string>): string {
 
 /**
  * Add entries to an array like: export const ARRAY_NAME = [ ... ] as const
- * Uses a regex with the `s` flag (dotAll) to match across newlines.
+ *
+ * New entries are inserted immediately AFTER the opening bracket, so this
+ * only ever writes separators it owns: each inserted line carries its own
+ * trailing comma, and the existing body — multi-line with trailing commas, a
+ * short single-line array, comment lines, or nothing at all — follows
+ * unchanged. Inserting before the CLOSING bracket instead means guessing
+ * whether the last existing entry already has a comma, which is how a
+ * single-line `GROK_CHAT_MODELS` produced a syntax error (and a dead daily
+ * sync) the day grok-4.5 arrived. `pnpm format` reflows the result, so the
+ * inserted lines only need to parse, not to be pretty.
  */
 function addToArray(
   content: string,
@@ -461,13 +483,9 @@ function addToArray(
   entries: Array<string>,
   arrayRef: string,
 ): string {
-  // Match the array declaration: export const ARRAY_NAME = [...] as const
-  // Uses [\s\S]*? (non-greedy) instead of [^\]]* to handle ] inside comments
-  const pattern = new RegExp(
-    `(export const ${arrayName} = \\[\\s*[\\s\\S]*?)(\\] as const)`,
-  )
-  const match = pattern.exec(content)
-  if (!match) {
+  const open = `export const ${arrayName} = [`
+  const openIndex = content.indexOf(open)
+  if (openIndex === -1) {
     console.warn(`  Warning: Could not find array '${arrayName}' in file`)
     return content
   }
@@ -475,11 +493,8 @@ function addToArray(
   const newEntries = entries
     .map((constName) => `  ${constName}${arrayRef},`)
     .join('\n')
-  // Use replacer function to prevent $-character interpretation in replacement string
-  return content.replace(
-    pattern,
-    () => `${match[1]}\n${newEntries}\n${match[2]}`,
-  )
+  const insertAt = openIndex + open.length
+  return `${content.slice(0, insertAt)}\n${newEntries}${content.slice(insertAt)}`
 }
 
 /**
@@ -621,6 +636,10 @@ async function main() {
     }> = []
 
     for (const model of providerModels) {
+      if (isRoutingAlias(model.id)) {
+        continue
+      }
+
       const strippedId = stripPrefix(prefix, model.id)
       const constName = toConstName(prefix, model.id)
 

@@ -24,6 +24,11 @@ test.describe('mcp — resource/prompt discovery + conversion', () => {
 
     const json = JSON.parse(body) as {
       tools: Array<string>
+      toolMeta: Array<{
+        name: string
+        title?: string
+        annotations?: Record<string, unknown>
+      }>
       resources: Array<string>
       prompts: Array<string>
       resourceContent: Array<{ type: string; content: string }>
@@ -32,6 +37,18 @@ test.describe('mcp — resource/prompt discovery + conversion', () => {
 
     // Tool discovered.
     expect(json.tools).toContain('get_guitar_price')
+
+    // The server's display title + behavior annotations are forwarded onto the
+    // discovered tool's `metadata.mcp` — a host can label the tool and shape
+    // its approval UI without a second tools/list round-trip.
+    const priceMeta = json.toolMeta.find((t) => t.name === 'get_guitar_price')
+    expect(priceMeta?.title).toBe('Guitar Price Lookup')
+    expect(priceMeta?.annotations).toEqual({
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    })
 
     // Task-required tool (execution.taskSupport: 'required') is excluded from
     // discovery — plain callTool can never execute it (-32600).

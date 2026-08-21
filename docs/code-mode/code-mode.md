@@ -35,7 +35,7 @@ Tools you pass to Code Mode are converted to typed function stubs that appear in
 
 ### Secure sandboxing
 
-Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, or Cloudflare Worker) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
+Generated code runs in an isolated environment (V8 isolate, QuickJS WASM, native QuickJS on Bun, Cloudflare Worker, or Daytona sandbox) with no access to the host file system, network, or process. The sandbox has configurable timeouts and memory limits.
 
 ## Getting Started
 
@@ -54,8 +54,14 @@ pnpm add @tanstack/ai-isolate-node
 # QuickJS WASM — no native deps, works in browsers and edge runtimes
 pnpm add @tanstack/ai-isolate-quickjs
 
+# QuickJS Bun — native QuickJS via bun:ffi, fastest option on Bun
+bun add @tanstack/ai-isolate-quickjs-bun
+
 # Cloudflare Workers — run on the edge
 pnpm add @tanstack/ai-isolate-cloudflare
+
+# Daytona sandboxes — run in a remote Daytona sandbox
+pnpm add @tanstack/ai-isolate-daytona @daytona/sdk
 ```
 
 ### 2. Define tools
@@ -151,7 +157,7 @@ const { tool, systemPrompt } = createCodeMode({
   tools,           // Array<ServerTool | ToolDefinition> — required, at least one
   timeout,         // number — execution timeout in ms (default: 30000)
   memoryLimit,     // number — memory limit in MB (default: 128, Node + QuickJS drivers)
-  getSkillBindings, // () => Promise<Record<string, ToolBinding>> — optional dynamic bindings
+  getSnippetBindings, // () => Promise<Record<string, ToolBinding>> — optional dynamic bindings
 });
 ```
 
@@ -163,7 +169,7 @@ const { tool, systemPrompt } = createCodeMode({
 | `tools` | `Array<ServerTool \| ToolDefinition>` | Tools exposed as `external_*` functions. Must have `.server()` implementations |
 | `timeout` | `number` | Execution timeout in milliseconds (default: 30000) |
 | `memoryLimit` | `number` | Memory limit in MB (default: 128). Supported by Node and QuickJS drivers |
-| `getSkillBindings` | `() => Promise<Record<string, ToolBinding>>` | Optional function returning additional bindings at execution time |
+| `getSnippetBindings` | `() => Promise<Record<string, ToolBinding>>` | Optional function returning additional bindings at execution time |
 
 The tool returns a `CodeModeToolResult`:
 
@@ -210,7 +216,9 @@ interface IsolateDriver {
 |---------|-----------------|-------------|
 | `@tanstack/ai-isolate-node` | `createNodeIsolateDriver()` | Node.js |
 | `@tanstack/ai-isolate-quickjs` | `createQuickJSIsolateDriver()` | Node.js, browser, edge |
+| `@tanstack/ai-isolate-quickjs-bun` | `createQuickJSBunIsolateDriver()` | Bun |
 | `@tanstack/ai-isolate-cloudflare` | `createCloudflareIsolateDriver()` | Cloudflare Workers |
+| `@tanstack/ai-isolate-daytona` | `createDaytonaIsolateDriver()` | Daytona sandboxes |
 
 For full configuration options for each driver, see [Isolate Drivers](./code-mode-isolates.md).
 
@@ -226,7 +234,7 @@ These utilities are used internally and are exported for custom pipelines:
 
 For a full comparison of drivers with all configuration options, see [Isolate Drivers](./code-mode-isolates.md).
 
-In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), and the **Cloudflare driver** when you deploy to Cloudflare Workers.
+In brief: use the **Node driver** for server-side Node.js (fastest, V8 JIT), **QuickJS** for browsers or portable edge deployments (no native deps), **QuickJS Bun** for Bun servers (native QuickJS via `bun:ffi`), the **Cloudflare driver** when you deploy to Cloudflare Workers, and the **Daytona driver** when you want execution inside a full remote Linux sandbox.
 
 ## Custom Events
 
@@ -291,5 +299,5 @@ pnpm eval -- --no-judge      # skip Anthropic-based judging
 ## Next Steps
 
 - [Showing Code Mode in the UI](./client-integration) — Display execution progress in your React app
-- [Code Mode with Skills](./code-mode-with-skills) — Add persistent, reusable skill libraries
-- [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, and Cloudflare sandbox runtimes
+- [Code Mode with Snippets](./code-mode-with-snippets) — Add persistent, reusable snippet libraries
+- [Isolate Drivers](./code-mode-isolates) — Compare Node, QuickJS, QuickJS Bun, Cloudflare, and Daytona sandbox runtimes

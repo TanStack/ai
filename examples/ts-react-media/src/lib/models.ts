@@ -27,6 +27,14 @@ export const IMAGE_MODELS = [
     editable: true as const,
   },
   {
+    id: 'grok-imagine-image-2.0',
+    name: 'Grok Imagine 2.0 (xAI Direct)',
+    description: 'xAI recommended Imagine model with the quality option',
+    defaultSize: '16:9' as const,
+    sizeType: 'aspect_ratio' as const,
+    provider: 'xai' as const,
+  },
+  {
     id: 'grok-imagine-image-quality',
     name: 'Grok Imagine Quality (xAI Direct)',
     description: 'Higher-quality xAI Imagine images via the native adapter',
@@ -54,7 +62,7 @@ export const IMAGE_MODELS = [
     editable: false as const,
   },
   {
-    id: 'gemini-3.1-flash-image-preview',
+    id: 'gemini-3.1-flash-image',
     name: 'NanoBanana 2 (Gemini 3.1 Flash)',
     description: 'Latest and fastest Gemini native image generation',
     defaultSize: '16:9_4K' as const,
@@ -63,7 +71,7 @@ export const IMAGE_MODELS = [
     editable: true as const,
   },
   {
-    id: 'gemini-3-pro-image-preview',
+    id: 'gemini-3-pro-image',
     name: 'NanoBanana Pro (Gemini 3 Pro)',
     description: 'Higher quality Gemini native image generation',
     defaultSize: '16:9_4K' as const,
@@ -97,6 +105,15 @@ export const IMAGE_MODELS = [
     sizeType: 'standard' as const,
     provider: 'gemini' as const,
     editable: false as const,
+  },
+  {
+    id: 'dola-seedream-5-0-pro-260628',
+    name: 'Seedream 5.0 Pro',
+    description:
+      'BytePlus Seedream image generation, sized with a 1K/2K/4K token',
+    defaultSize: '2K' as const,
+    sizeType: 'standard' as const,
+    provider: 'byteplus' as const,
   },
 ] as const
 
@@ -159,10 +176,17 @@ export const VIDEO_MODELS = [
     editable: true as const,
   },
   {
+    id: 'grok-imagine-video-1.5',
+    name: 'Grok Imagine Video 1.5 (Text-to-Video)',
+    description:
+      'xAI recommended video model via the native grokVideo adapter (native 1080p text-to-video)',
+    mode: 'text-to-video' as const,
+    provider: 'xai' as const,
+  },
+  {
     id: 'grok-imagine-video-1.5/image-to-video',
     name: 'Grok Imagine Video 1.5 (Image-to-Video)',
-    description:
-      'Animate a starting frame via the native grokVideo adapter (1.5 is image-to-video only)',
+    description: 'Animate a starting frame via the native grokVideo adapter',
     mode: 'image-to-video' as const,
     provider: 'xai' as const,
     editable: false as const,
@@ -200,6 +224,30 @@ export const VIDEO_MODELS = [
     mode: 'image-to-video' as const,
     provider: 'gemini' as const,
     editable: true as const,
+  },
+  {
+    id: 'dreamina-seedance-2-0-260128',
+    name: 'Seedance 2.0 (Text-to-Video)',
+    description:
+      'BytePlus Seedance text-to-video (4-15s, 480p/720p/1080p/4k) via ModelArk',
+    mode: 'text-to-video' as const,
+    provider: 'byteplus' as const,
+  },
+  {
+    id: 'bytedance/seedance-2.0',
+    name: 'Seedance 2.0 (Text-to-Video, OpenRouter)',
+    description:
+      "OpenRouter's async video API; duration typed 4–15s with snapDuration()",
+    mode: 'text-to-video' as const,
+    provider: 'openrouter' as const,
+  },
+  {
+    id: 'google/veo-3.1',
+    name: 'Veo 3.1 (Image-to-Video, OpenRouter)',
+    description:
+      'OpenRouter async video; duration snaps to the nearest of 4/6/8s',
+    mode: 'image-to-video' as const,
+    provider: 'openrouter' as const,
   },
 ] as const
 

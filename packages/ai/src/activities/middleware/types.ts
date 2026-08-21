@@ -25,11 +25,14 @@ import type { TokenUsage } from '../../types'
 /**
  * The activity an observability event describes.
  *
- * Mirrors the public surface a caller reaches for: `'chat'` for `chat()`, and
- * the media kinds for the `generate*` activities. `'tts'` matches the speech
- * adapter's kind (the public discriminator avoids inventing a parallel
- * `'speech'`/`'text'` vocabulary). `otelMiddleware` maps each to its
- * `gen_ai.operation.name`.
+ * Mirrors the public surface a caller reaches for: `'chat'` for `chat()`,
+ * `'summarize'` for `summarize()`, and the media kinds for the `generate*`
+ * activities. `'tts'` matches the speech adapter's kind (the public
+ * discriminator avoids inventing a parallel `'speech'`/`'text'` vocabulary).
+ * `otelMiddleware` maps each to its `gen_ai.operation.name`.
+ *
+ * `'summarize'` produces text, not media, so it has no artifacts — a
+ * persistence middleware stores its run record and result and nothing else.
  */
 export type GenerationActivity =
   | 'chat'
@@ -38,6 +41,9 @@ export type GenerationActivity =
   | 'audio'
   | 'tts'
   | 'transcription'
+  | 'embedding'
+  | 'rerank'
+  | 'summarize'
 
 /**
  * Stable context passed to every {@link GenerationMiddleware} hook. Created
@@ -60,6 +66,10 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   provider: string
   /** Model id. Emitted as `gen_ai.request.model`. */
   model: string
+  /** Stable conversation/thread id, when supplied by the caller. */
+  threadId?: string
+  /** Stable run id, when supplied by the caller. */
+  runId?: string
   /**
    * Provider-specific options passed to the activity, if any. Typed `unknown`
    * because each activity's options are strongly typed per model; a supertype
@@ -72,7 +82,43 @@ export interface GenerationMiddlewareContext<TContext = unknown> {
   createId: (prefix: string) => string
   /** Runtime context provided by the activity options, if any. */
   context: TContext
+  /**
+   * Result transforms registered by middleware during this activity call.
+   * Transforms run after the raw adapter result exists and before the final
+   * result is returned or streamed. Push multiple transforms to run them in
+   * registration order.
+   *
+   * REQUIRED (always an array, empty when nothing registered): middleware
+   * registers by pushing onto it, so an optional array would let a host that
+   * builds its own context omit it and silently no-op every registration —
+   * generation persistence would then mark a run completed with neither its
+   * result nor its artifacts written, with nothing to observe but the missing
+   * data. Every context the library builds comes from
+   * `createGenerationContext`, which always sets `[]`.
+   */
+  resultTransforms: Array<GenerationResultTransform<any, TContext>>
+  /**
+   * Activity inputs captured for middleware that needs to transform or persist
+   * the result together with reconstructable request metadata.
+   */
+  artifactInputs?: unknown
 }
+
+/** Stable context handed to each {@link GenerationResultTransform}. */
+export interface GenerationResultTransformContext<TContext = unknown> {
+  /** The activity call being transformed. */
+  middleware: GenerationMiddlewareContext<TContext>
+}
+
+/**
+ * A transform middleware registers on `ctx.resultTransforms` to rewrite the raw
+ * adapter result before it is returned or streamed. Return a new result to
+ * replace it, or `undefined` to leave it unchanged.
+ */
+export type GenerationResultTransform<TResult = unknown, TContext = unknown> = (
+  result: TResult,
+  ctx: GenerationResultTransformContext<TContext>,
+) => TResult | undefined | Promise<TResult | undefined>
 
 // ===========================
 // Hook payloads

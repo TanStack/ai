@@ -27,12 +27,12 @@ const IMAGE_MODELS = [
     label: 'Gemini 2.5 Flash Image',
   },
   {
-    value: 'google/gemini-2.5-flash-image-preview',
-    label: 'Gemini 2.5 Flash Image Preview',
+    value: 'google/gemini-3.1-flash-image',
+    label: 'Gemini 3.1 Flash Image (Nano Banana 2)',
   },
   {
-    value: 'google/gemini-3-pro-image-preview',
-    label: 'Gemini 3 Pro Image Preview',
+    value: 'google/gemini-3-pro-image',
+    label: 'Gemini 3 Pro Image (Nano Banana Pro)',
   },
 ] as const
 

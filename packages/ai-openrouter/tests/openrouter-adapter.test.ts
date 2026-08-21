@@ -1272,6 +1272,114 @@ describe('OpenRouter structured output', () => {
     expect(params.stream).toBe(false)
   })
 
+  it('forwards response.usage tokens and cost on structuredOutput (#1076)', async () => {
+    // Regression: structuredOutput used to return only { data, rawText },
+    // dropping OpenRouter usage/cost so middleware onFinish/onUsage saw
+    // nothing after non-stream structured calls.
+    const nonStreamResponse = {
+      choices: [
+        {
+          message: {
+            content: '{"title":"Hello"}',
+          },
+        },
+      ],
+      usage: {
+        promptTokens: 12,
+        completionTokens: 4,
+        totalTokens: 16,
+        cost: 0.00042,
+        costDetails: { upstreamInferenceCost: 0.0003 },
+      },
+    }
+
+    setupMockSdkClient([], nonStreamResponse)
+    const adapter = createAdapter()
+
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Return a short title as JSON.' }],
+        logger: testLogger,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { title: { type: 'string' } },
+        required: ['title'],
+      },
+    })
+
+    expect(result.data).toEqual({ title: 'Hello' })
+    expect(result.usage).toEqual({
+      promptTokens: 12,
+      completionTokens: 4,
+      totalTokens: 16,
+      cost: 0.00042,
+      costDetails: { upstreamCost: 0.0003 },
+    })
+  })
+
+  it('omits usage when the provider reports none on structuredOutput', async () => {
+    setupMockSdkClient([], {
+      choices: [{ message: { content: '{"title":"x"}' } }],
+    })
+    const adapter = createAdapter()
+
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'title' }],
+        logger: testLogger,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { title: { type: 'string' } },
+        required: ['title'],
+      },
+    })
+
+    expect(result.usage).toBeUndefined()
+  })
+
+  it('honors json_object for non-streaming structured output', async () => {
+    setupMockSdkClient([], {
+      choices: [
+        {
+          message: {
+            content: '{"name":"Alice","age":30}',
+          },
+        },
+      ],
+    })
+    const adapter = createAdapter()
+
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini',
+        messages: [{ role: 'user', content: 'Give me a person as json' }],
+        logger: testLogger,
+        modelOptions: {
+          responseFormat: { type: 'json_object' },
+        },
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+        },
+        required: ['name', 'age'],
+      },
+    })
+
+    expect(result.data).toEqual({ name: 'Alice', age: 30 })
+    const [rawParams] = mockSend.mock.calls[0]!
+    expect(rawParams.chatRequest.responseFormat).toEqual({
+      type: 'json_object',
+    })
+    expect(rawParams.chatRequest.stream).toBe(false)
+  })
+
   it('makes schema OpenAI-strict compatible before sending', async () => {
     // Regression: upstream providers (OpenAI) reject json_schema requests with
     // strict: true unless every object sets additionalProperties: false and
@@ -1434,6 +1542,45 @@ describe('OpenRouter structured output', () => {
     expect(sentSchema.additionalProperties).toBe(false)
     expect(sentSchema.required).toEqual(['name', 'age', 'nickname'])
     expect(sentSchema.properties.nickname.type).toEqual(['string', 'null'])
+  })
+
+  it('honors json_object through core chat() structured streaming', async () => {
+    setupMockSdkClient([
+      {
+        id: 'c-json-object',
+        model: 'openai/gpt-4o-mini',
+        choices: [
+          {
+            delta: { content: '{"name":"Alice","age":30}' },
+            finishReason: 'stop',
+          },
+        ],
+      },
+    ])
+    const adapter = createAdapter()
+
+    const result = await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Give me a person as json' }],
+      modelOptions: {
+        responseFormat: { type: 'json_object' },
+      },
+      outputSchema: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' },
+          age: { type: 'number' },
+        },
+        required: ['name', 'age'],
+      },
+    })
+
+    expect(result).toEqual({ name: 'Alice', age: 30 })
+    const [rawParams] = mockSend.mock.calls[0]!
+    expect(rawParams.chatRequest.responseFormat).toEqual({
+      type: 'json_object',
+    })
+    expect(rawParams.chatRequest.stream).toBe(true)
   })
 
   it('parses JSON response content correctly', async () => {

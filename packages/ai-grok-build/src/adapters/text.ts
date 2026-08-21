@@ -1,5 +1,11 @@
 import { EventType, normalizeSystemPrompts } from '@tanstack/ai'
-import { toRunErrorRawEvent } from '@tanstack/ai/adapter-internals'
+import {
+  appendOutputSchemaInstruction,
+  parseJsonFromAssistantText,
+  structuredOutputCompleteChunk,
+  structuredOutputStartChunk,
+  toRunErrorRawEvent,
+} from '@tanstack/ai/adapter-internals'
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
 import {
   AsyncQueue,
@@ -8,19 +14,27 @@ import {
   translateAcpStream,
 } from '@tanstack/ai-acp'
 import {
+  DurableAttachNotSupportedError,
   SandboxCapability,
   createBridgeEventChannel,
+  alignedIfAttaching,
+  createRunScopedIdGen,
   getSandbox,
+  getSandboxDurability,
   getSandboxPolicy,
   getToolBridgeProvisioner,
   getWorkspaceProjection,
+  journalOptionsFor,
   mergeChunkStreams,
   nodeHttpBridgeProvisioner,
+  resolveDurableRunId,
+  resolveDurableThreadId,
   resolveHarnessCwd,
   spawnNdjson,
 } from '@tanstack/ai-sandbox'
 import { buildPrompt } from '../messages/prompt'
-import { resolveGrokAcpAuthMethod } from '../auth'
+import { formatAcpRequestError, resolveGrokSessionAuthMethod } from '../auth'
+import type { GrokBuildAuthMode } from '../auth'
 import { createGrokAcpNotificationHandler } from '../process/grok-acp-notifications'
 import { openGrokAcpConnection } from '../process/acp'
 import { resolveGrokExecutable } from '../process/resolve-executable'
@@ -68,16 +82,21 @@ export interface GrokBuildTextConfig {
   /** Extra raw CLI flags appended verbatim (advanced). */
   extraArgs?: Array<string>
   /**
-   * Harness wire protocol. Defaults to `'acp'`. Use `'streaming-json'` for the
-   * legacy headless NDJSON path.
+   * Harness wire protocol. Defaults to `'acp'`. A durable sandbox run
+   * (durability wired, no explicit protocol) uses `'streaming-json'` so the
+   * run can journal and recover. Set `'streaming-json'` yourself for the
+   * headless NDJSON path without durability.
    */
   protocol?: GrokBuildProtocol
   /** ACP transport when `protocol` is `'acp'`. Defaults to `'auto'`. */
   transport?: AcpTransportPreference
   /**
-   * ACP auth method (`xai.api_key` for API-key runs, `grok.com` for host login).
-   * Defaults via {@link resolveGrokAcpAuthMethod}.
+   * `'api-key'` (default) calls authenticate with `xai.api_key`.
+   * `'host'` skips ACP authenticate (use `grok login`).
+   * Not inferred from the sandbox.
    */
+  authMode?: GrokBuildAuthMode
+  /** Explicit ACP auth method. Wins over {@link authMode}. */
   authMethodId?: string
   /** ACP permission policy. Defaults to `'bypassPermissions'`. */
   permissionMode?: AcpPermissionMode
@@ -167,7 +186,9 @@ export class GrokBuildTextAdapter<
     const alwaysApprove = !policyFlags.readOnly && !policyFlags.conservative
     if (alwaysApprove) {
       // Headless runs auto-approve tool calls only when sandbox policy is permissive.
-      args.push('--always-approve')
+      // `--no-plan` and `--no-auto-update` keep Plan Mode and the CLI update
+      // check from blocking an unattended run. Issue #1081 item 6.
+      args.push('--always-approve', '--no-plan', '--no-auto-update')
     } else {
       // Restrictive policy: headless `-p` auto-denies prompts under `default` mode.
       args.push('--permission-mode', 'default')
@@ -186,12 +207,27 @@ export class GrokBuildTextAdapter<
     return `${exe} ${args.join(' ')}`
   }
 
+  supportsCombinedToolsAndSchema(): boolean {
+    return true
+  }
+
+  combinedStructuredOutputSource(): 'event' {
+    return 'event'
+  }
+
   private protocol(
     options: TextOptions<GrokBuildTextProviderOptions>,
   ): GrokBuildProtocol {
-    return (
-      options.modelOptions?.protocol ?? this.adapterConfig.protocol ?? 'acp'
-    )
+    const explicit =
+      options.modelOptions?.protocol ?? this.adapterConfig.protocol
+    if (explicit !== undefined) return explicit
+    // ACP never journals. A durable run with no protocol must take the
+    // NDJSON path so a host restart can recover. Issue #1081 item 5.
+    const durability = options.capabilities
+      ? getSandboxDurability(options.capabilities, { optional: true })
+      : undefined
+    if (durability !== undefined) return 'streaming-json'
+    return 'acp'
   }
 
   async *chatStream(
@@ -218,8 +254,73 @@ export class GrokBuildTextAdapter<
       const sandbox = this.sandboxFrom(options)
       const cwd = this.workdir(options)
       const harnessCwd = this.harnessCwd(sandbox, options)
-      const runId = options.runId ?? this.generateId()
-      const threadId = options.threadId ?? this.generateId()
+      // `durable: false`, deliberately, even when the durability capability IS
+      // wired. This is the ACP path: it drives the harness over a bidirectional
+      // ACP connection and never calls `spawnNdjson`, so there is no journal to
+      // derive from `runId` and no stored log to replay against — a successor
+      // host cannot resume an ACP run no matter what id it can recompute.
+      // Throwing `DurableRunIdRequiredError` here would therefore promise a
+      // recoverability this path does not implement. Routed through the helper
+      // anyway (same as `ai-acp` / `ai-opencode`) so that if this path ever
+      // gains a journal it inherits the caller-supplied-runId requirement
+      // instead of re-deriving it. See `chatStreamNdjson` for the journaled path.
+      const runId = resolveDurableRunId(options.runId, {
+        durable: false,
+        adapter: 'grok-build',
+        fallback: () => this.generateId(),
+      })
+      // `durable: false` / `attaching: false` for the same reason `runId` above
+      // is `durable: false`: this is the ACP path, which never journals and has
+      // no stored log, so it has no attach route and no `threadId` it is
+      // required to reuse. Routed through the helper anyway so that if this path
+      // ever gains a journal it inherits the requirement instead of re-deriving
+      // it. See `chatStreamNdjson` for the journaled path.
+      const threadId = resolveDurableThreadId(options.threadId, {
+        durable: false,
+        attaching: false,
+        adapter: 'grok-build',
+        fallback: () => this.generateId(),
+      })
+
+      // Same misconfiguration class `DurableRunIdRequiredError` guards
+      // against: durability wired but silently not delivered. Throwing here
+      // would be wrong, though — an app can legitimately wire `withSandbox({
+      // runs, durability })` once at the middleware level and still choose
+      // `protocol: 'acp'` for runs it deliberately never needs to recover.
+      // So this is a warn, not a throw: audible, not fatal. One check per
+      // run (not per chunk) — a per-chunk warning would be worse than none.
+      const durability = options.capabilities
+        ? getSandboxDurability(options.capabilities, { optional: true })
+        : undefined
+      if (durability !== undefined) {
+        // An ATTACH, however, IS fatal, and the asymmetry with the warn below
+        // is the whole point. A FRESH durable ACP run merely fails to record
+        // something recoverable later — bad, but the run itself is correct, and
+        // an app may have accepted that trade knowingly. An attach has already
+        // spent its first attempt: `sandboxRunDriver`'s `drive()` only sets
+        // `attach: true` when a previous host was streaming this run. Continuing
+        // past here reaches `openGrokAcpConnection` + `session.prompt(...)`,
+        // which re-runs the agent from scratch against the workspace that
+        // attempt already mutated and appends its whole output to a log that
+        // still holds the first attempt's. Neither `awaitAttachableJournal` nor
+        // `alignedIfAttaching` is on this path to prevent either. Refusing
+        // loudly is the only outcome that does not corrupt something.
+        if (durability.attach) {
+          throw new DurableAttachNotSupportedError(
+            'grok-build',
+            "protocol: 'acp' drives the harness over a bidirectional ACP " +
+              'connection and never calls spawnNdjson',
+          )
+        }
+        logger.warn(
+          'grok-build: sandbox durability is wired but this run is using the ' +
+            "'acp' protocol, which never journals — this run will not be " +
+            "recoverable on reconnect. Set protocol: 'streaming-json' to " +
+            'journal this run, or drop durability if ACP runs are not meant ' +
+            'to survive a host restart.',
+          { runId, adapter: 'grok-build', protocol: 'acp' },
+        )
+      }
       const channel = createBridgeEventChannel({
         model: this.model,
         threadId,
@@ -273,13 +374,14 @@ export class GrokBuildTextAdapter<
         modelOptions?.permissionMode ??
         this.adapterConfig.permissionMode ??
         'bypassPermissions'
-      const authMethodId =
-        modelOptions?.authMethodId ??
-        this.adapterConfig.authMethodId ??
-        resolveGrokAcpAuthMethod({
+      const authMethodId = resolveGrokSessionAuthMethod(
+        modelOptions?.authMode ?? this.adapterConfig.authMode,
+        modelOptions?.authMethodId ?? this.adapterConfig.authMethodId,
+        {
           ...process.env,
           ...this.adapterConfig.env,
-        })
+        },
+      )
 
       const queue = new AsyncQueue<AcpStreamEvent>()
 
@@ -293,7 +395,7 @@ export class GrokBuildTextAdapter<
       handle = await startAcpSession({
         transport: connection.transport,
         cwd: harnessCwd,
-        authMethodId,
+        ...(authMethodId !== undefined && { authMethodId }),
         ...(sessionId !== undefined && { resumeSessionId: sessionId }),
         ...(bridge !== undefined && {
           mcpServers: [
@@ -324,12 +426,18 @@ export class GrokBuildTextAdapter<
       const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
         .map((p) => p.content)
         .filter((c) => c.trim() !== '')
-      const promptText = this.applySystemPrompts(
+      let promptText = this.applySystemPrompts(
         systemPrompts,
         session.resumed || sessionId === undefined
           ? resumePrompt
           : buildPrompt(options.messages, undefined).prompt,
       )
+      if (options.outputSchema) {
+        promptText = appendOutputSchemaInstruction(
+          promptText,
+          options.outputSchema,
+        )
+      }
 
       session
         .prompt(promptText)
@@ -343,7 +451,11 @@ export class GrokBuildTextAdapter<
         })
         .catch((error: unknown) => queue.fail(error))
 
-      yield* mergeChunkStreams(
+      const wantsStructured = options.outputSchema !== undefined
+      let lastAssistantText = ''
+      let lastTextMessageId: string | undefined
+      let heldFinished: StreamChunk | undefined
+      for await (const chunk of mergeChunkStreams(
         translateAcpStream(queue, {
           model: this.model,
           runId,
@@ -363,7 +475,36 @@ export class GrokBuildTextAdapter<
             }),
         }),
         channel.stream,
-      )
+      )) {
+        if (wantsStructured && chunk.type === EventType.RUN_FINISHED) {
+          heldFinished = chunk
+          continue
+        }
+        if (wantsStructured) {
+          if (chunk.type === EventType.TEXT_MESSAGE_START) {
+            lastAssistantText = ''
+            if (typeof chunk.messageId === 'string' && chunk.messageId !== '') {
+              lastTextMessageId = chunk.messageId
+            }
+          } else if (
+            chunk.type === EventType.TEXT_MESSAGE_CONTENT &&
+            typeof chunk.delta === 'string'
+          ) {
+            lastAssistantText += chunk.delta
+          }
+        }
+        yield chunk
+      }
+
+      if (options.outputSchema) {
+        yield* this.emitParsedStructuredOutput(
+          lastAssistantText,
+          threadId,
+          runId,
+          lastTextMessageId,
+        )
+      }
+      if (heldFinished) yield heldFinished
 
       if (this.adapterConfig.emitDiff !== false) {
         yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
@@ -371,6 +512,7 @@ export class GrokBuildTextAdapter<
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const message = formatAcpRequestError(error)
       logger.errors('grok-build.chatStream fatal', {
         error,
         source: 'grok-build.chatStream',
@@ -379,11 +521,11 @@ export class GrokBuildTextAdapter<
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
+        message,
         ...(err.code !== undefined && { code: err.code }),
         ...(rawEvent !== undefined && { rawEvent }),
         error: {
-          message: err.message || 'Unknown error occurred',
+          message,
           ...(err.code !== undefined && { code: err.code }),
         },
       }
@@ -402,6 +544,43 @@ export class GrokBuildTextAdapter<
   ): string {
     if (systemPrompts.length === 0) return prompt
     return `${systemPrompts.join('\n\n')}\n\n${prompt}`
+  }
+
+  private *emitParsedStructuredOutput(
+    raw: string,
+    threadId: string,
+    runId: string,
+    messageId = this.generateId(),
+  ): Generator<StreamChunk> {
+    try {
+      const object = parseJsonFromAssistantText(raw)
+      yield structuredOutputStartChunk({
+        messageId,
+        model: this.model,
+        threadId,
+        runId,
+      })
+      yield structuredOutputCompleteChunk({
+        messageId,
+        model: this.model,
+        threadId,
+        runId,
+        object,
+        raw,
+      })
+    } catch (error: unknown) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : 'Failed to parse structured output'
+      yield {
+        type: EventType.RUN_ERROR,
+        model: this.model,
+        timestamp: Date.now(),
+        message,
+        error: { message },
+      }
+    }
   }
 
   private async *emitDiffChunks(
@@ -436,8 +615,32 @@ export class GrokBuildTextAdapter<
       const sandbox = this.sandboxFrom(options)
       const cwd = this.workdir(options)
       const harnessCwd = this.harnessCwd(sandbox, options)
-      const runId = options.runId ?? this.generateId()
-      const threadId = options.threadId ?? this.generateId()
+      // This is the journaled path, so a durable run's `runId` is load bearing
+      // twice over: the journal file path AND the deterministic message-id
+      // generator are both derived from it, and a successor host can only take
+      // over a run whose `runId` it can recompute. `resolveDurableRunId` makes
+      // that a loud failure when durability is wired, and preserves the
+      // generated fallback exactly as before when it is not — several `chat()`
+      // paths pass `runId` as a conditional spread, so `undefined` is reachable.
+      const durability = options.capabilities
+        ? getSandboxDurability(options.capabilities, { optional: true })
+        : undefined
+      const runId = resolveDurableRunId(options.runId, {
+        durable: durability !== undefined,
+        adapter: 'grok-build',
+        fallback: () => this.generateId(),
+      })
+      // `threadId` is stamped on every chunk `translateThreadEvents` emits, so an
+      // ATTACHING run that mints a fresh one replays a stream the stored log
+      // cannot match at index 0. `resolveDurableThreadId` refuses that up front
+      // instead of letting alignment discover it mid-stream; a durable FRESH run
+      // and a non-durable run both keep the generated fallback untouched.
+      const threadId = resolveDurableThreadId(options.threadId, {
+        durable: durability !== undefined,
+        attaching: durability?.attach === true,
+        adapter: 'grok-build',
+        fallback: () => this.generateId(),
+      })
 
       const projection = options.capabilities
         ? getWorkspaceProjection(options.capabilities, { optional: true })
@@ -472,10 +675,16 @@ export class GrokBuildTextAdapter<
       const systemPrompts = normalizeSystemPrompts(options.systemPrompts)
         .map((p) => p.content)
         .filter((c) => c.trim() !== '')
-      const fullPrompt =
+      let fullPrompt =
         systemPrompts.length > 0
           ? `${systemPrompts.join('\n\n')}\n\n${prompt}`
           : prompt
+      if (options.outputSchema) {
+        fullPrompt = appendOutputSchemaInstruction(
+          fullPrompt,
+          options.outputSchema,
+        )
+      }
 
       const exe = await resolveGrokExecutable(
         sandbox,
@@ -495,6 +704,14 @@ export class GrokBuildTextAdapter<
         { provider: 'grok-build', model: this.model },
       )
 
+      // `journal`, `dir`, `attach` and `pollIntervalMs` all come from the
+      // sandbox durability capability, so the attach route configures takeover
+      // by passing `attach: true` to `withSandbox` — `chat()` stays free of
+      // sandbox vocabulary. `undefined` for a non-durable run, which is spread
+      // away below so `spawnNdjson` receives the same object shape it does
+      // today and takes its original, unjournaled path.
+      const journalOptions = journalOptionsFor(durability, runId)
+
       const rawEvents = spawnNdjson(sandbox, runCommand, {
         cwd,
         ...(this.adapterConfig.env ? { env: this.adapterConfig.env } : {}),
@@ -507,32 +724,75 @@ export class GrokBuildTextAdapter<
           logger.provider(`provider=grok-build non-json line: ${line}`, {
             chunk: line,
           }),
+        ...(journalOptions === undefined ? {} : { journal: journalOptions }),
       })
 
       async function* asEvents(): AsyncIterable<GrokBuildStreamEvent> {
         for await (const event of rawEvents) yield event as GrokBuildStreamEvent
       }
 
-      yield* translateThreadEvents(asEvents(), {
-        model: this.model,
-        runId,
-        threadId,
-        ...(options.parentRunId !== undefined && {
-          parentRunId: options.parentRunId,
-        }),
-        genId: () => this.generateId(),
-        onThreadEvent: (event) =>
-          logger.provider(`provider=grok-build type=${event.type}`, {
-            chunk: event,
-          }),
-      })
+      // Deterministic message ids (no clock, no randomness) so that
+      // re-translating the same journaled bytes on a resuming host produces
+      // the same chunk sequence. See `chunk-identity.ts` for why this matters.
+      const genId = createRunScopedIdGen(runId)
 
+      // THE ALIGNMENT SEAM. `alignedIfAttaching` wraps `translateThreadEvents`
+      // — the point where this path's outgoing chunk sequence is FINAL — and on
+      // an attach it compares the replayed chunks against the stored event log
+      // by fingerprint, suppressing the prefix a previous host already
+      // delivered. That only works because the two sides are the same shape:
+      // the log holds translated chunks, and this is the translator's output.
+      //
+      // Do NOT move this to `chatStreamAcp`'s `mergeChunkStreams` call. That is
+      // a different method on a different protocol: it never calls
+      // `spawnNdjson`, so it writes no journal and has nothing to replay, and
+      // aligning there would compare against a log that path never produced.
+      // (This is where `ai-grok-build` diverges structurally from `ai-codex` and
+      // `ai-claude-code`, whose bridge merge sits downstream of `spawnNdjson` in
+      // the same method and therefore IS their final seam.)
+      //
+      // There is no `channel.stream` merge to worry about on this path — the
+      // NDJSON protocol bridges tools over MCP through `<cwd>/.grok/config.toml`
+      // rather than through `createBridgeEventChannel` — so the translated
+      // sequence is the whole of it. `isBridgeCustomChunk` tolerance inside
+      // `alignedIfAttaching` is therefore slack this path does not need, not a
+      // dependency of it.
+      yield* alignedIfAttaching(
+        translateThreadEvents(asEvents(), {
+          model: this.model,
+          runId,
+          threadId,
+          ...(options.parentRunId !== undefined && {
+            parentRunId: options.parentRunId,
+          }),
+          genId,
+          ...(options.outputSchema ? { expectStructuredOutput: true } : {}),
+          onThreadEvent: (event) =>
+            logger.provider(`provider=grok-build type=${event.type}`, {
+              chunk: event,
+            }),
+        }),
+        durability,
+        logger,
+      )
+
+      // Deliberately OUTSIDE the alignment wrap. `emitDiffChunks` shells out for
+      // a live `git diff` after the translated stream ends, so it is new output
+      // from THIS host rather than a replay of journaled bytes and has no
+      // business in a positional comparison against the stored log. Inside the
+      // wrap, a stored `file.changed` whose diff happened to match would
+      // SUPPRESS the fresh one (the worktree state a takeover reports is not
+      // necessarily the state the dead host reported, and the client asked this
+      // host for it), and one whose diff differed would silently burn an
+      // out-of-band skip. Outside, the diff is always delivered — which is the
+      // whole contract of `emitDiff`.
       if (this.adapterConfig.emitDiff !== false) {
         yield* this.emitDiffChunks(sandbox, cwd, threadId, runId)
       }
     } catch (error: unknown) {
       const err = error as Error & { code?: string }
       const rawEvent = toRunErrorRawEvent(error)
+      const message = formatAcpRequestError(error)
       logger.errors('grok-build.chatStream fatal', {
         error,
         source: 'grok-build.chatStream',
@@ -541,11 +801,11 @@ export class GrokBuildTextAdapter<
         type: EventType.RUN_ERROR,
         model: options.model,
         timestamp: Date.now(),
-        message: err.message || 'Unknown error occurred',
+        message,
         ...(err.code !== undefined && { code: err.code }),
         ...(rawEvent !== undefined && { rawEvent }),
         error: {
-          message: err.message || 'Unknown error occurred',
+          message,
           ...(err.code !== undefined && { code: err.code }),
         },
       }
@@ -559,8 +819,8 @@ export class GrokBuildTextAdapter<
   ): Promise<StructuredOutputResult<unknown>> {
     return Promise.reject(
       new Error(
-        'Structured output is not yet supported by the in-sandbox Grok Build adapter. ' +
-          'Use a model adapter (e.g. grok) for structured output, or omit outputSchema.',
+        'This harness honors outputSchema on chat() in the same turn. ' +
+          'Pass outputSchema to chat(), or use a model adapter for a one-shot extract.',
       ),
     )
   }

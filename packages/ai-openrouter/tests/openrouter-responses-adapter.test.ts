@@ -698,19 +698,204 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     const start = chunks.find((c) => c.type === 'TOOL_CALL_START') as any
     expect(start).toMatchObject({
       type: 'TOOL_CALL_START',
-      toolCallId: 'item_1',
+      toolCallId: 'call_abc',
       toolCallName: 'lookup_weather',
+      metadata: { itemId: 'item_1' },
     })
 
     const args = chunks.filter((c) => c.type === 'TOOL_CALL_ARGS') as any[]
     expect(args.length).toBe(1)
+    expect(args[0]!.toolCallId).toBe('call_abc')
     expect(args[0]!.delta).toBe('{"location":"Berlin"}')
 
     const end = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
+    expect(end.toolCallId).toBe('call_abc')
     expect(end.input).toEqual({ location: 'Berlin' })
 
     const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
     expect(finished.finishReason).toBe('tool_calls')
+  })
+
+  it('preserves a streamed function-call name when later items omit it', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 0,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          arguments: '',
+        },
+      },
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          name: 'lookup_weather',
+          arguments: '',
+        },
+      },
+      {
+        type: 'response.output_item.done',
+        sequenceNumber: 2,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          arguments: '{"location":"Berlin"}',
+        },
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 3,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+        },
+      },
+    ])
+
+    const chunks: Array<StreamChunk> = []
+    for await (const chunk of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'hi' }],
+      tools: [weatherTool],
+    })) {
+      chunks.push(chunk)
+    }
+
+    expect(
+      chunks.find((chunk) => chunk.type === 'TOOL_CALL_START'),
+    ).toMatchObject({
+      toolCallName: 'lookup_weather',
+    })
+    expect(
+      chunks.find((chunk) => chunk.type === 'TOOL_CALL_END'),
+    ).toMatchObject({
+      toolCallName: 'lookup_weather',
+    })
+  })
+
+  it('round-trips distinct Responses item and call IDs through a server tool', async () => {
+    const firstTurn = [
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_item.added',
+        sequenceNumber: 1,
+        outputIndex: 0,
+        item: {
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+          name: 'lookup_weather',
+          arguments: '',
+        },
+      },
+      {
+        type: 'response.function_call_arguments.done',
+        sequenceNumber: 2,
+        itemId: 'item_1',
+        outputIndex: 0,
+        arguments: '{"location":"Berlin"}',
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 3,
+        response: {
+          model: 'm',
+          output: [
+            {
+              type: 'function_call',
+              id: 'item_1',
+              callId: 'call_abc',
+              name: 'lookup_weather',
+              arguments: '{"location":"Berlin"}',
+            },
+          ],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        },
+      },
+    ]
+    const secondTurn = [
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.output_text.delta',
+        sequenceNumber: 1,
+        itemId: 'msg_1',
+        outputIndex: 0,
+        contentIndex: 0,
+        delta: 'Sunny',
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 2,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 },
+        },
+      },
+    ]
+    mockSend = vi
+      .fn()
+      .mockResolvedValueOnce(createAsyncIterable(firstTurn))
+      .mockResolvedValueOnce(createAsyncIterable(secondTurn))
+    const execute = vi.fn().mockReturnValue({ temperature: 72 })
+
+    for await (const _ of chat({
+      adapter: createAdapter(),
+      messages: [{ role: 'user', content: 'How is the weather?' }],
+      tools: [{ ...weatherTool, execute }],
+    })) {
+      // consume both agent-loop turns
+    }
+
+    expect(execute).toHaveBeenCalledOnce()
+    expect(mockSend).toHaveBeenCalledTimes(2)
+    const secondRequest = mockSend.mock.calls[1]![0].responsesRequest
+    expect(secondRequest.input).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'function_call',
+          id: 'item_1',
+          callId: 'call_abc',
+        }),
+        expect.objectContaining({
+          type: 'function_call_output',
+          callId: 'call_abc',
+        }),
+      ]),
+    )
+    const serialized = ResponsesRequest$outboundSchema.parse(secondRequest)
+    expect(serialized.input).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: 'function_call',
+          id: 'item_1',
+          call_id: 'call_abc',
+        }),
+        expect.objectContaining({
+          type: 'function_call_output',
+          call_id: 'call_abc',
+        }),
+      ]),
+    )
   })
 
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
@@ -1090,6 +1275,99 @@ describe('OpenRouter responses adapter — structured output', () => {
     })
     // Critical: nickname should be `null`, not `undefined`.
     expect((result.data as any).nickname).toBeNull()
+  })
+
+  it('forwards response.usage tokens and cost on structuredOutput (#1076)', async () => {
+    // Regression: non-stream structuredOutput dropped Responses usage/cost,
+    // so consumers never saw TokenUsage after outputSchema finalization.
+    setupMockSdkClient([], {
+      output: [
+        {
+          type: 'message',
+          content: [
+            {
+              type: 'output_text',
+              text: JSON.stringify({ title: 'Hello' }),
+            },
+          ],
+        },
+      ],
+      usage: {
+        inputTokens: 10,
+        outputTokens: 3,
+        totalTokens: 13,
+        cost: 0.0011,
+        costDetails: { upstreamInferenceCost: 0.0009 },
+      },
+    })
+
+    const adapter = createAdapter()
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini' as any,
+        messages: [{ role: 'user', content: 'title?' }],
+        logger: testLogger,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { title: { type: 'string' } },
+        required: ['title'],
+      },
+    })
+
+    expect(result.data).toEqual({ title: 'Hello' })
+    expect(result.usage).toEqual({
+      promptTokens: 10,
+      completionTokens: 3,
+      totalTokens: 13,
+      cost: 0.0011,
+      costDetails: { upstreamCost: 0.0009 },
+    })
+  })
+
+  it('forwards cost-only usage on structuredOutput (no token fields)', async () => {
+    // Regression: hasUsage used to require input/output/total tokens, so a
+    // usage object with only OpenRouter cost was dropped entirely.
+    setupMockSdkClient([], {
+      output: [
+        {
+          type: 'message',
+          content: [
+            {
+              type: 'output_text',
+              text: JSON.stringify({ title: 'Hello' }),
+            },
+          ],
+        },
+      ],
+      usage: {
+        cost: 0.0025,
+        costDetails: { upstreamInferenceCost: 0.002 },
+      },
+    })
+
+    const adapter = createAdapter()
+    const result = await adapter.structuredOutput({
+      chatOptions: {
+        model: 'openai/gpt-4o-mini' as any,
+        messages: [{ role: 'user', content: 'title?' }],
+        logger: testLogger,
+      },
+      outputSchema: {
+        type: 'object',
+        properties: { title: { type: 'string' } },
+        required: ['title'],
+      },
+    })
+
+    expect(result.data).toEqual({ title: 'Hello' })
+    expect(result.usage).toEqual({
+      promptTokens: 0,
+      completionTokens: 0,
+      totalTokens: 0,
+      cost: 0.0025,
+      costDetails: { upstreamCost: 0.002 },
+    })
   })
 })
 

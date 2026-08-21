@@ -9,12 +9,20 @@ import { aiEventClient } from '@tanstack/ai-event-client'
 import { streamGenerationResult } from '../stream-generation-result.js'
 import { resolveDebugOption } from '../../logger/resolve'
 import {
+  applyGenerationResultTransforms,
   createGenerationContext,
+  runGenerationAbort,
   runGenerationError,
   runGenerationFinish,
   runGenerationStart,
   runGenerationUsage,
 } from '../middleware/run'
+import {
+  abortReasonMessage,
+  createActivityAbortControls,
+  isActivityAbortError,
+  raceWithAbort,
+} from '../../utilities/activity-abort'
 import {
   generatedImageToImagePart,
   resolveMediaPrompt,
@@ -171,6 +179,22 @@ export type ImageActivityOptions<
    * `GenerationMiddleware` contract for a custom backend.
    */
   middleware?: Array<GenerationMiddleware>
+  /** Stable conversation/thread id for correlating this run when persisted. */
+  threadId?: string
+  /** Stable run id for correlating this run when persisted. */
+  runId?: string
+  /**
+   * Maximum duration of this activity invocation in milliseconds.
+   * No SDK-wide default — choose a value suitable for the provider and job.
+   * Composed with {@link abortSignal}; the first abort wins.
+   */
+  timeout?: number
+  /**
+   * Caller cancellation signal (request disconnects, job/runtime cancellation).
+   * Composed with {@link timeout} into an effective signal forwarded to the
+   * adapter. Request-specific — not stored on global provider client config.
+   */
+  abortSignal?: AbortSignal
 } & ({} extends ImageProviderOptionsForModel<TAdapter, TAdapter['model']>
   ? {
       /** Provider-specific options for image generation */ modelOptions?: ImageProviderOptionsForModel<
@@ -274,8 +298,14 @@ export function generateImage<
   options: ImageActivityOptions<TAdapter, TStream>,
 ): ImageActivityResult<TStream> {
   if (options.stream) {
-    return streamGenerationResult(() =>
-      runGenerateImage(options),
+    return streamGenerationResult(
+      // Only `runId` is taken from the resolved wire identity. `threadId` stays
+      // the CALLER's: `streamGenerationResult` mints one for the RUN_* chunks
+      // when none was passed, and spreading that over the options would hand
+      // middleware a thread id known to nobody, which persistence would then
+      // file the run under. Matches `generateVideo`.
+      (resolved) => runGenerateImage({ ...options, runId: resolved.runId }),
+      options,
     ) as ImageActivityResult<TStream>
   }
 
@@ -321,6 +351,10 @@ async function runGenerateImage<
     debug: _debug,
     middleware,
     previousImage,
+    threadId,
+    runId,
+    timeout,
+    abortSignal: callerAbortSignal,
     ...rest
   } = options
   const prompt: MediaPrompt = previousImage
@@ -330,6 +364,10 @@ async function runGenerateImage<
   const requestId = createId('image')
   const startTime = Date.now()
   const logger: InternalLogger = resolveDebugOption(options.debug)
+  const abortControls = createActivityAbortControls({
+    timeout,
+    abortSignal: callerAbortSignal,
+  })
 
   const mwCtx = createGenerationContext({
     requestId,
@@ -337,6 +375,9 @@ async function runGenerateImage<
     provider: adapter.name,
     model,
     modelOptions: rest.modelOptions,
+    threadId,
+    runId,
+    artifactInputs: { prompt: rest.prompt },
     createId,
   })
 
@@ -372,12 +413,18 @@ async function runGenerateImage<
   })
 
   try {
-    const result = await adapter.generateImages({
-      ...rest,
-      prompt,
-      model,
-      logger,
-    })
+    const rawResult = await raceWithAbort(
+      adapter.generateImages({
+        ...rest,
+        prompt,
+        model,
+        logger,
+        ...(abortControls.signal ? { abortSignal: abortControls.signal } : {}),
+      }),
+      abortControls.signal,
+    )
+    abortControls.clear()
+    const result = await applyGenerationResultTransforms(mwCtx, rawResult)
     const duration = Date.now() - startTime
 
     aiEventClient.emit('image:request:completed', {
@@ -420,10 +467,19 @@ async function runGenerateImage<
 
     return result
   } catch (error) {
-    await runGenerationError(middleware, mwCtx, {
-      error,
-      duration: Date.now() - startTime,
-    })
+    abortControls.clear()
+    const duration = Date.now() - startTime
+    if (isActivityAbortError(error, abortControls.signal)) {
+      await runGenerationAbort(middleware, mwCtx, {
+        reason: abortReasonMessage(error, abortControls.signal),
+        duration,
+      })
+    } else {
+      await runGenerationError(middleware, mwCtx, {
+        error,
+        duration,
+      })
+    }
     logger.errors('generateImage activity failed', {
       error,
       source: 'generateImage',

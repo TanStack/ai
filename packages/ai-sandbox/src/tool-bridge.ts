@@ -38,7 +38,9 @@ export const BRIDGED_MCP_SERVER_NAME = 'tanstack'
 
 /** Hostname the sandbox uses to reach the bridge endpoint, per provider. */
 export function hostForSandbox(provider: string): string {
-  return provider === 'docker' ? 'host.docker.internal' : '127.0.0.1'
+  return provider === 'docker' || provider === 'sbx'
+    ? 'host.docker.internal'
+    : '127.0.0.1'
 }
 
 /** Result of a permission decision returned to the harness's prompt tool. */

@@ -129,7 +129,8 @@ export class GrokImageAdapter<
         throw new Error(
           `grok: model "${model}" does not support image prompt parts. ` +
             `Image-conditioned generation requires an Imagine API model ` +
-            `('grok-imagine-image' or 'grok-imagine-image-quality').`,
+            `('grok-imagine-image', 'grok-imagine-image-2.0' or ` +
+            `'grok-imagine-image-quality').`,
         )
       }
       return await this.editImages(options, resolved)

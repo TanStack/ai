@@ -39,6 +39,26 @@ scripts/                # Repo-level scripts (doc generation, model sync, link v
 
 For deeper architecture details (adapter system, isomorphic tools, framework integrations), see `CLAUDE.md` at the repo root.
 
+## Syncing model metadata
+
+`pnpm generate:models` is the maintainer command behind the daily **Sync Model Metadata** workflow (branch `automated/sync-models`). It:
+
+1. Fetches OpenRouter and Vercel AI Gateway catalogs.
+2. Regenerates `packages/ai-openrouter/src/model-meta.ts` and the Vercel Gateway model list.
+3. Inserts **new** native-provider models into `packages/ai-openai`, `ai-anthropic`, `ai-gemini`, and `ai-grok`.
+4. Writes a patch changeset for the packages that changed.
+
+Rules the generator follows:
+
+- Keep OpenRouter routing aliases (ids that start with `~`) in the OpenRouter catalog. Users can pass `chat({ model: '~anthropic/claude-haiku-latest' })`. The generated constant name maps `~` to `_`.
+- Do **not** copy those aliases into native provider files (`ai-openai`, `ai-anthropic`, `ai-gemini`, `ai-grok`). Those adapters only accept the provider's own ids.
+- For a new native-provider model, write id, modalities, and pricing. Infer features from OpenRouter `supported_parameters` when that field exists. Do **not** copy another model's tool list (`computer_use`, `google_search`, `x_search`, and similar).
+- Leave curated tools and flags on existing models alone. Edit those by hand after the sync PR opens.
+
+Do not rebase or hand-edit `automated/sync-models`. The next scheduled run force-pushes that branch from `main`. Merge generator fixes to `main` first, then let the workflow rebuild the sync PR.
+
+The workflow pushes with `GITHUB_TOKEN`, so GitHub does not start Test / E2E on that push. After a sync, a maintainer with write access can run the PR checks from the Actions tab, or push an empty commit to `automated/sync-models`.
+
 ## Day-to-day commands
 
 All commands are run from the repo root. Nx handles affected detection and caching.
@@ -101,9 +121,22 @@ Tests are included in typecheck. `vite.config.ts` / `vitest.config.ts` are not �
 
 Run the suite locally with `pnpm test:e2e`. Record real LLM fixtures with `OPENAI_API_KEY=sk-... pnpm --filter @tanstack/ai-e2e record`.
 
-## Changesets
+## Documentation (required when relevant)
 
-Any change that ships in a published package requires a changeset. Examples, internal test harnesses, codemods, and docs do not.
+If the change is user-facing, update `docs/` in the same PR. Do not ship the code now and the docs later.
+
+User-facing means a caller can see or do something new or different:
+
+- New or changed public API (exports, types, flags, env vars)
+- New or changed behaviour
+- New adapter capability
+- Changed defaults, errors, or documented contracts
+
+Skip docs only when nothing user-facing changed (CI, internal tests, same-behaviour refactors, agent files). Write that reason in the PR body.
+
+## Changesets (required on the PR)
+
+Any PR that changes a published package MUST include a changeset file on that PR. Run this before you open the PR:
 
 ```bash
 pnpm changeset
@@ -114,6 +147,10 @@ Pick the affected packages and the bump type:
 - **patch**: bug fix, internal refactor, perf, docs in package, no API change.
 - **minor**: new public API, new opt-in behaviour, backwards-compatible enhancement.
 - **major**: breaking change to a published API surface. Coordinate with maintainers first.
+
+Do not add the changeset after review as a follow-up. It belongs in the first push of the PR.
+
+Skip a changeset only when the PR does not change published packages (docs, CI, examples, testing, contributing). Tick the docs/CI/dev-only box on the PR template.
 
 The defensive `ignore` list in `.changeset/config.json` blocks accidental publication from examples/testing/codemods even if `"private": true` is ever dropped.
 
@@ -126,11 +163,10 @@ The defensive `ignore` list in `.changeset/config.json` blocks accidental public
 ## Pull request flow
 
 1. Push your branch and open a PR against `main`.
-2. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, ESLint, unit tests, typecheck, build artifacts, build) + the full E2E suite.
-3. Address review comments.
-4. A maintainer merges. Releases are cut via Changesets — your changeset entry lands in the next release.
-
-The PR template lists the steps. The `Test plan` section is required — describe how a reviewer can verify your change.
+2. Fill the PR template. Tick **docs** and **changeset** honestly, or say why you skipped them.
+3. CI runs: `pnpm test:pr` (sherif workspace check, knip dead-code, docs link verification, ESLint, unit tests, typecheck, build artifacts, build) + the full E2E suite.
+4. Address review comments.
+5. A maintainer merges. Releases are cut via Changesets. Your changeset entry lands in the next release.
 
 ## Adding a new provider adapter
 
@@ -141,7 +177,7 @@ The pattern lives in `packages/ai-openai/`, `packages/ai-anthropic/`, `packages/
 3. Add `model-meta.ts` so per-model type safety works.
 4. Wire the provider into `testing/e2e/feature-support.ts` and `testing/e2e/test-matrix.ts`. Existing provider-coverage tests pick it up automatically.
 5. Record fixtures (`OPENAI_API_KEY=... pnpm --filter @tanstack/ai-e2e record`) — or write deterministic ones by hand. **No real API keys at test time.**
-6. Add a `pnpm changeset` entry.
+6. Update `docs/` for the adapter, and add a `pnpm changeset` entry on the same PR.
 
 If you're building a community/third-party adapter that lives outside this repo, follow `docs/community-adapters/guide.md` instead.
 

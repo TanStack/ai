@@ -59,14 +59,10 @@ chat({
       },
     ],
     // Tool config
-    toolConfig: {
-      /* ToolConfig */
-    },
+    toolConfig: {/* ToolConfig */},
     // Structured output
     responseMimeType: 'application/json',
-    responseSchema: {
-      /* Schema */
-    },
+    responseSchema: {/* Schema */},
     // Cached content
     cachedContent: 'cachedContents/abc123',
     // Response modalities
@@ -98,8 +94,12 @@ Note: `GOOGLE_GENAI_API_KEY` does NOT work.
 ## Gotchas
 
 - All Gemini models are multimodal (text, image, audio, video, document input).
-- Image generation models (`gemini-3-pro-image-preview`, etc.) have smaller
-  input limits (65K tokens) compared to text models (1M tokens).
+- Image generation models (`gemini-3-pro-image`, `gemini-3.1-flash-image`, etc.)
+  have smaller input limits (65K tokens) compared to text models (1M tokens).
+- Use the GA image ids. `gemini-3-pro-image-preview` and
+  `gemini-3.1-flash-image-preview` were shut down on 2026-06-25 and now 404;
+  they remain in the type union only as deprecated aliases, so a call to them
+  compiles and then fails at runtime.
 - `thinkingConfig.thinkingLevel` (level-based) and `thinkingConfig.thinkingBudget`
   (budget-based) serve different models. Check which your model supports.
 - `cachedContent` must follow the format `cachedContents/{id}`.

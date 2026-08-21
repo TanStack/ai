@@ -62,6 +62,7 @@ function caps(overrides: Partial<SandboxCapabilities>): {
       ports: false,
       backgroundProcesses: true,
       writableStdin: true,
+      killableProcesses: true,
       snapshots: false,
       networkPolicy: false,
       durableFilesystem: false,

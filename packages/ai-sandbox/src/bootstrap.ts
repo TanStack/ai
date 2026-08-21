@@ -8,6 +8,7 @@
  * here — that's each adapter's `projectWorkspace()` hook, since the format
  * differs per harness.
  */
+import { resolveHarnessCwd } from './harness-cwd'
 import { buildSetupPlan } from './setup-plan'
 import { createBootstrapShell } from './shell'
 import {
@@ -98,7 +99,10 @@ export async function bootstrapWorkspace(
       const url = skill.repo.startsWith('http')
         ? skill.repo
         : `https://github.com/${skill.repo}.git`
-      const dir = skill.into ?? resolveGitSkillDir(root, skill)
+      const dir = resolveHarnessCwd(
+        handle,
+        skill.into ?? resolveGitSkillDir(root, skill),
+      )
       const auth =
         skill.secret !== undefined && workspace.secrets !== undefined
           ? { token: resolveSecret(workspace.secrets, skill.secret) }

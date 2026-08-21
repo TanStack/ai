@@ -5,7 +5,7 @@ title: ToolCallPart
 
 # Interface: ToolCallPart\<TMetadata\>
 
-Defined in: [packages/ai/src/types.ts:370](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L370)
+Defined in: [packages/ai/src/types.ts:397](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L397)
 
 ## Type Parameters
 
@@ -18,17 +18,17 @@ Defined in: [packages/ai/src/types.ts:370](https://github.com/TanStack/ai/blob/m
 ### approval?
 
 ```ts
-optional approval: object;
+optional approval?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:377](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L377)
+Defined in: [packages/ai/src/types.ts:413](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L413)
 
 Approval metadata if tool requires user approval
 
 #### approved?
 
 ```ts
-optional approved: boolean;
+optional approved?: boolean;
 ```
 
 #### id
@@ -51,7 +51,7 @@ needsApproval: boolean;
 arguments: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:374](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L374)
+Defined in: [packages/ai/src/types.ts:401](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L401)
 
 ***
 
@@ -61,17 +61,34 @@ Defined in: [packages/ai/src/types.ts:374](https://github.com/TanStack/ai/blob/m
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:372](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L372)
+Defined in: [packages/ai/src/types.ts:399](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L399)
+
+***
+
+### input?
+
+```ts
+optional input?: unknown;
+```
+
+Defined in: [packages/ai/src/types.ts:410](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L410)
+
+Parsed tool input. Set from the parsed arguments once they are complete
+(`state: 'input-complete'` and later). `undefined` while the raw
+`arguments` string is still streaming, and may stay `undefined` for a call
+that terminates in an error state — the raw `arguments` string is always
+available as a fallback. Typed per-tool on the client `ToolCallPart` (see
+`@tanstack/ai-client`); `unknown` on this base type.
 
 ***
 
 ### metadata?
 
 ```ts
-optional metadata: TMetadata;
+optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:388](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L388)
+Defined in: [packages/ai/src/types.ts:424](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L424)
 
 Provider-specific metadata that round-trips with the tool call.
 Typed per-adapter via `TToolCallMetadata`. May follow the
@@ -86,17 +103,17 @@ server tools (e.g. Anthropic `web_search`).
 name: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:373](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L373)
+Defined in: [packages/ai/src/types.ts:400](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L400)
 
 ***
 
 ### output?
 
 ```ts
-optional output: any;
+optional output?: any;
 ```
 
-Defined in: [packages/ai/src/types.ts:383](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L383)
+Defined in: [packages/ai/src/types.ts:419](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L419)
 
 Tool execution output (for client tools or after approval)
 
@@ -108,7 +125,7 @@ Tool execution output (for client tools or after approval)
 state: ToolCallState;
 ```
 
-Defined in: [packages/ai/src/types.ts:375](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L375)
+Defined in: [packages/ai/src/types.ts:411](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L411)
 
 ***
 
@@ -118,4 +135,4 @@ Defined in: [packages/ai/src/types.ts:375](https://github.com/TanStack/ai/blob/m
 type: "tool-call";
 ```
 
-Defined in: [packages/ai/src/types.ts:371](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L371)
+Defined in: [packages/ai/src/types.ts:398](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L398)

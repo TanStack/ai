@@ -99,7 +99,7 @@ providerOptions: TProviderOptions;
 
 ***
 
-### availableDurations()
+### availableDurations
 
 ```ts
 availableDurations: () => DurationOptions<TModelDurationByName[TModel]>;
@@ -119,7 +119,7 @@ knowledge.
 
 ***
 
-### createVideoJob()
+### createVideoJob
 
 ```ts
 createVideoJob: (options) => Promise<VideoJobResult>;
@@ -144,7 +144,7 @@ Returns a job ID that can be used to poll for status and retrieve the video.
 
 ***
 
-### getVideoStatus()
+### getVideoStatus
 
 ```ts
 getVideoStatus: (jobId) => Promise<VideoStatusResult>;
@@ -168,7 +168,7 @@ Get the current status of a video generation job.
 
 ***
 
-### getVideoUrl()
+### getVideoUrl
 
 ```ts
 getVideoUrl: (jobId) => Promise<VideoUrlResult>;
@@ -235,7 +235,7 @@ Adapter name identifier
 
 ***
 
-### snapDuration()
+### snapDuration
 
 ```ts
 snapDuration: (seconds) => TModelDurationByName[TModel] | undefined;

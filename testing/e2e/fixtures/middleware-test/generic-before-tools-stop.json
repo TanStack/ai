@@ -1,0 +1,22 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[generic-before-tools-stop] run test",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "delete_review",
+            "arguments": "{\"reviewId\":\"review-3\"}"
+          },
+          {
+            "name": "render_review",
+            "arguments": "{\"reviewId\":\"review-3\"}"
+          }
+        ]
+      }
+    }
+  ]
+}

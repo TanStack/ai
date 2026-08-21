@@ -5,6 +5,8 @@ import {
   generateSpeech,
   generateTranscription,
   generateVideo,
+  getVideoJobStatus,
+  summarize,
 } from '../../src/index'
 import { otelMiddleware } from '../../src/middlewares/otel'
 import { createFakeTracer } from './fake-otel'
@@ -235,7 +237,11 @@ describe('generation middleware — wiring', () => {
     expect(events.finish[0]!.info.usage?.unitsBilled).toBe(1)
   })
 
-  it('generateVideo (non-streaming) fires start/finish for the submit', async () => {
+  // Regression: the submit used to fire onFinish, so persistence stamped a run
+  // `completed` the moment the job was QUEUED — no url, no blob, no artifacts —
+  // and the eventual result had nowhere to land. Submitting opens the run; the
+  // poll that sees a terminal job state closes it.
+  it('generateVideo (non-streaming) opens the run without finishing it', async () => {
     const { middleware, events } = recordingMiddleware()
     const adapter = {
       kind: 'video' as const,
@@ -249,13 +255,372 @@ describe('generation middleware — wiring', () => {
     const job = await generateVideo({
       adapter: adapter as any,
       prompt: 'a cat',
+      threadId: 'video:slot',
       middleware: [middleware],
     })
 
     expect(job.jobId).toBe('job-1')
     expect(events.start[0]!.activity).toBe('video')
+    // The identity persistence keys on reached the middleware — without it,
+    // `withGenerationPersistence` throws for want of a scope.
+    expect(events.start[0]!.threadId).toBe('video:slot')
+    // Keyed on the provider job, so a later poll can recompute it from the
+    // jobId alone. Nothing about the run has to be carried by the caller.
+    expect(events.start[0]!.runId).toBe('video:openai:job-1')
+    expect(events.finish).toHaveLength(0)
+    expect(events.error).toHaveLength(0)
+    // Correlation rides the jobId; nothing extra is bolted onto the result.
+    expect(job).not.toHaveProperty('runId')
+  })
+
+  // The submit is not free to pick its own id: the poll can only recompute one
+  // derived from the job, so honoring a custom id here would resurrect exactly
+  // the "forgot to pass it through" split-record bug this design removes.
+  it('generateVideo (non-streaming) ignores a caller-supplied runId', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
+      getVideoStatus: vi.fn(),
+      getVideoUrl: vi.fn(),
+    }
+
+    await generateVideo({
+      adapter: adapter as any,
+      prompt: 'a cat',
+      threadId: 'video:slot',
+      runId: 'run-fixed',
+      middleware: [middleware],
+    })
+
+    expect(events.start[0]!.runId).toBe('video:openai:job-1')
+  })
+
+  it('generateVideo (non-streaming) keys the run per provider', async () => {
+    const jobFor = (name: string) => ({
+      kind: 'video' as const,
+      name,
+      model: 'sora-2',
+      createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
+      getVideoStatus: vi.fn(),
+      getVideoUrl: vi.fn(),
+    })
+    const { middleware, events } = recordingMiddleware()
+
+    await generateVideo({
+      adapter: jobFor('openai') as any,
+      prompt: 'a cat',
+      threadId: 'video:slot',
+      middleware: [middleware],
+    })
+    await generateVideo({
+      adapter: jobFor('fal') as any,
+      prompt: 'a cat',
+      threadId: 'video:slot',
+      middleware: [middleware],
+    })
+
+    // Two providers can hand out the same job id; their runs must not collide.
+    expect(events.start[0]!.runId).not.toBe(events.start[1]!.runId)
+  })
+
+  it('generateVideo (non-streaming) applies result transforms to the submission', async () => {
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
+      getVideoStatus: vi.fn(),
+      getVideoUrl: vi.fn(),
+    }
+
+    const recorded: Array<unknown> = []
+    const transforming: GenerationMiddleware = {
+      name: 'transform',
+      onStart: (ctx) => {
+        ctx.resultTransforms.push((result) => {
+          recorded.push(result)
+          return undefined
+        })
+      },
+    }
+
+    await generateVideo({
+      adapter: adapter as any,
+      prompt: 'a cat',
+      threadId: 'video:slot',
+      middleware: [transforming],
+    })
+
+    // The jobId reaches the run record at submission time, which is what makes
+    // a job resumable from a later request.
+    expect(recorded[0]).toMatchObject({ jobId: 'job-1' })
+  })
+
+  // A failed submit has no job to key on, so it opens and immediately fails a
+  // run under the request id: `generationRuns.update` on an unknown run id is a
+  // documented no-op, so without the start the failure would persist nowhere and
+  // the thread would hydrate as if nothing had been asked for.
+  it('generateVideo (non-streaming) opens and fails a run when submission fails', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(async () => {
+        throw new Error('submit boom')
+      }),
+      getVideoStatus: vi.fn(),
+      getVideoUrl: vi.fn(),
+    }
+
+    await expect(
+      generateVideo({
+        adapter: adapter as any,
+        prompt: 'a cat',
+        threadId: 'video:slot',
+        middleware: [middleware],
+        debug: false,
+      }),
+    ).rejects.toThrow('submit boom')
+
+    expect(events.start).toHaveLength(1)
+    expect(events.error).toHaveLength(1)
+    expect(events.finish).toHaveLength(0)
+    // No job, so no derived id — persistence falls back to the request id. The
+    // record is terminal and unresumable by construction, but it is filed under
+    // the thread, so a hydrating client sees the failure.
+    expect(events.start[0]!.runId).toBeUndefined()
+    expect(events.start[0]!.threadId).toBe('video:slot')
+  })
+
+  it('getVideoJobStatus finishes the submitted run, transforming the result', async () => {
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
+      getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
+      getVideoUrl: vi.fn(async () => ({
+        url: 'https://provider.test/v.mp4',
+        usage: {
+          promptTokens: 0,
+          completionTokens: 0,
+          totalTokens: 0,
+          unitsBilled: 1,
+        },
+      })),
+    }
+
+    const { middleware, events } = recordingMiddleware()
+    const transforming: GenerationMiddleware = {
+      name: 'transform',
+      onStart: (ctx) => {
+        ctx.resultTransforms.push((result) => ({
+          ...(result as Record<string, unknown>),
+          url: 'https://app.test/api/artifacts?id=a1',
+        }))
+      },
+    }
+
+    const job = await generateVideo({
+      adapter: adapter as any,
+      prompt: 'a cat',
+      threadId: 'video:slot',
+      middleware: [middleware, transforming],
+    })
+
+    // Only the jobId crosses from the submit to the poll — the run id is
+    // recomputed from it, so the two halves cannot drift apart.
+    const status = await getVideoJobStatus({
+      adapter: adapter as any,
+      jobId: job.jobId,
+      threadId: 'video:slot',
+      middleware: [middleware, transforming],
+    })
+
+    // The durable url the transform stamped is what the caller gets back, so
+    // the live result and the stored record cannot disagree.
+    expect(status).toMatchObject({
+      jobId: 'job-1',
+      status: 'completed',
+      url: 'https://app.test/api/artifacts?id=a1',
+    })
+    // One run, closed exactly once, under the submission's identity.
     expect(events.finish).toHaveLength(1)
-    expect(events.finish[0]!.info.usage).toBeUndefined()
+    expect(events.finish[0]!.ctx.runId).toBe(events.start[0]!.runId)
+    expect(events.finish[0]!.ctx.runId).toBe('video:openai:job-1')
+    expect(events.finish[0]!.ctx.threadId).toBe('video:slot')
+    expect(events.finish[0]!.info.usage?.unitsBilled).toBe(1)
+    expect(events.usage).toHaveLength(1)
+    expect(events.error).toHaveLength(0)
+  })
+
+  // The point of deriving the id: the poll typically happens in a LATER request
+  // with a freshly constructed adapter and no memory of the submit.
+  it('getVideoJobStatus rejoins the run from a separate adapter instance', async () => {
+    const makeAdapter = () => ({
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(async () => ({ jobId: 'job-9', model: 'sora-2' })),
+      getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
+      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
+    })
+
+    const { middleware, events } = recordingMiddleware()
+    const { jobId } = await generateVideo({
+      adapter: makeAdapter() as any,
+      prompt: 'a cat',
+      threadId: 'video:slot',
+      middleware: [middleware],
+    })
+
+    await getVideoJobStatus({
+      adapter: makeAdapter() as any,
+      jobId,
+      threadId: 'video:slot',
+      middleware: [middleware],
+    })
+
+    expect(events.finish[0]!.ctx.runId).toBe(events.start[0]!.runId)
+  })
+
+  // Generation persistence refuses a run with no scope (one filed under none can
+  // never be hydrated by one), so a poll that drops the threadId must fail loudly
+  // instead of filing the finished video somewhere unreachable. Modelled here
+  // with a middleware that refuses the same way `generationScope` does.
+  it('getVideoJobStatus surfaces a scope-less poll instead of degrading', async () => {
+    const scopeRequiring: GenerationMiddleware = {
+      name: 'scope-required',
+      onStart: (ctx) => {
+        if (!ctx.threadId) throw new Error('Generation persistence requires a')
+      },
+    }
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(),
+      getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
+      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
+    }
+
+    await expect(
+      getVideoJobStatus({
+        adapter: adapter as any,
+        jobId: 'job-1',
+        middleware: [scopeRequiring],
+      }),
+    ).rejects.toThrow('Generation persistence requires a')
+  })
+
+  it('getVideoJobStatus leaves the run open while the job is still running', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(),
+      getVideoStatus: vi.fn(async () => ({
+        status: 'processing' as const,
+        progress: 42,
+      })),
+      getVideoUrl: vi.fn(),
+    }
+
+    const status = await getVideoJobStatus({
+      adapter: adapter as any,
+      jobId: 'job-1',
+      threadId: 'video:slot',
+      middleware: [middleware],
+    })
+
+    expect(status).toMatchObject({ status: 'processing', progress: 42 })
+    // An in-progress poll is not a lifecycle event: firing hooks here would
+    // open a span (and re-resume the run) on every tick of a poll loop.
+    expect(events.start).toHaveLength(0)
+    expect(events.finish).toHaveLength(0)
+    expect(events.error).toHaveLength(0)
+    expect(adapter.getVideoUrl).not.toHaveBeenCalled()
+  })
+
+  it('getVideoJobStatus fails the run when the job failed', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(),
+      getVideoStatus: vi.fn(async () => ({
+        status: 'failed' as const,
+        error: 'moderation',
+      })),
+      getVideoUrl: vi.fn(),
+    }
+
+    const status = await getVideoJobStatus({
+      adapter: adapter as any,
+      jobId: 'job-1',
+      threadId: 'video:slot',
+      middleware: [middleware],
+    })
+
+    expect(status.status).toBe('failed')
+    // Otherwise the record sits at `running` forever, indistinguishable from a
+    // job still being worked on.
+    expect(events.error).toHaveLength(1)
+    expect(events.error[0]!.ctx.runId).toBe('video:openai:job-1')
+    expect(events.finish).toHaveLength(0)
+  })
+
+  it('getVideoJobStatus fails the run when the url fetch fails', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(),
+      getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
+      getVideoUrl: vi.fn(async () => {
+        throw new Error('url boom')
+      }),
+    }
+
+    const status = await getVideoJobStatus({
+      adapter: adapter as any,
+      jobId: 'job-1',
+      threadId: 'video:slot',
+      middleware: [middleware],
+    })
+
+    expect(status).toMatchObject({ status: 'failed', error: 'url boom' })
+    expect(events.error).toHaveLength(1)
+    expect(events.finish).toHaveLength(0)
+  })
+
+  it('getVideoJobStatus works without middleware', async () => {
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(),
+      getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
+      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
+    }
+
+    const status = await getVideoJobStatus({
+      adapter: adapter as any,
+      jobId: 'job-1',
+    })
+
+    expect(status).toMatchObject({
+      jobId: 'job-1',
+      status: 'completed',
+      url: 'https://provider.test/v.mp4',
+    })
   })
 
   it('generateVideo (streaming) fires finish with usage at completion', async () => {
@@ -292,6 +657,93 @@ describe('generation middleware — wiring', () => {
     expect(events.finish).toHaveLength(1)
     expect(events.finish[0]!.info.usage?.unitsBilled).toBe(1)
     expect(events.error).toHaveLength(0)
+  })
+
+  // Regression: video was the only media activity that never applied result
+  // transforms, and never put the caller's threadId/runId on the middleware
+  // context. Persistence registers artifact capture AND the run-record result
+  // write as result transforms, so both silently no-opped — a completed video
+  // stored no result, no artifacts, and no thread link, and therefore restored
+  // as nothing on reload.
+  it('generateVideo (streaming) applies result transforms and carries identity', async () => {
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
+      getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
+      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
+    }
+
+    const seen: Array<GenerationMiddlewareContext> = []
+    const transforming: GenerationMiddleware = {
+      name: 'transform',
+      onStart: (ctx) => {
+        seen.push(ctx)
+        ctx.resultTransforms?.push((result) => ({
+          ...(result as Record<string, unknown>),
+          url: 'https://app.test/api/artifacts?id=a1',
+        }))
+      },
+    }
+
+    const chunks: Array<{ type: string; name?: string; value?: unknown }> = []
+    for await (const chunk of generateVideo({
+      adapter: adapter as any,
+      prompt: 'a cat',
+      stream: true,
+      pollingInterval: 1,
+      threadId: 'video:slot',
+      runId: 'run-abc',
+      middleware: [transforming],
+    })) {
+      chunks.push(chunk as { type: string; name?: string; value?: unknown })
+    }
+
+    // The transform rewrote the terminal result the consumer actually sees.
+    const terminal = chunks.find((c) => c.name === 'generation:result')
+    expect(terminal?.value).toMatchObject({
+      jobId: 'job-1',
+      status: 'completed',
+      url: 'https://app.test/api/artifacts?id=a1',
+    })
+
+    // Identity reached the middleware, not just the wire chunks.
+    expect(seen[0]).toMatchObject({
+      activity: 'video',
+      threadId: 'video:slot',
+      runId: 'run-abc',
+    })
+  })
+
+  it('generateVideo (streaming) records no thread link when the caller passes none', async () => {
+    const adapter = {
+      kind: 'video' as const,
+      name: 'openai',
+      model: 'sora-2',
+      createVideoJob: vi.fn(async () => ({ jobId: 'job-1', model: 'sora-2' })),
+      getVideoStatus: vi.fn(async () => ({ status: 'completed' as const })),
+      getVideoUrl: vi.fn(async () => ({ url: 'https://provider.test/v.mp4' })),
+    }
+
+    const { middleware, events } = recordingMiddleware()
+    const chunks: Array<{ type: string; threadId?: string }> = []
+    for await (const chunk of generateVideo({
+      adapter: adapter as any,
+      prompt: 'a cat',
+      stream: true,
+      pollingInterval: 1,
+      middleware: [middleware],
+    })) {
+      chunks.push(chunk as { type: string; threadId?: string })
+    }
+
+    // The wire still needs a thread id on RUN_* chunks...
+    const started = chunks.find((c) => c.type === 'RUN_STARTED')
+    expect(typeof started?.threadId).toBe('string')
+    // ...but the minted one must NOT reach persistence: a fabricated id is a
+    // slot no client can hydrate, which is worse than recording no link.
+    expect(events.start[0]!.threadId).toBeUndefined()
   })
 
   it('generateVideo (streaming) fires error when the job fails', async () => {
@@ -444,6 +896,217 @@ describe('generation middleware — wiring', () => {
     // Abandoning after success must not be reported as a cancellation.
     expect(events.abort).toHaveLength(0)
     expect(events.error).toHaveLength(0)
+  })
+
+  // `summarize` used to accept no middleware at all, so `useSummarize({
+  // persistence: true })` type-checked but no library path could ever write its
+  // run record — a promise nothing could keep.
+  it('summarize (non-streaming) fires start/usage/finish and transforms the result', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const transforming: GenerationMiddleware = {
+      name: 'transform',
+      onStart: (ctx) => {
+        ctx.resultTransforms.push((result) => ({
+          ...(result as Record<string, unknown>),
+          summary: 'rewritten',
+        }))
+      },
+    }
+    const adapter = {
+      kind: 'summarize' as const,
+      name: 'openai',
+      model: 'gpt-5.5',
+      summarize: vi.fn(async () => ({
+        id: 'sum-1',
+        model: 'gpt-5.5',
+        summary: 'the original',
+        usage: { promptTokens: 10, completionTokens: 3, totalTokens: 13 },
+      })),
+    }
+
+    const result = await summarize({
+      adapter: adapter as any,
+      text: 'a long article',
+      threadId: 'summary:slot',
+      runId: 'run-1',
+      middleware: [middleware, transforming],
+    })
+
+    expect(result.summary).toBe('rewritten')
+    expect(events.start).toHaveLength(1)
+    expect(events.start[0]!.activity).toBe('summarize')
+    expect(events.start[0]!.threadId).toBe('summary:slot')
+    expect(events.start[0]!.runId).toBe('run-1')
+    expect(events.usage[0]!.info.totalTokens).toBe(13)
+    expect(events.finish).toHaveLength(1)
+    expect(events.error).toHaveLength(0)
+  })
+
+  it('summarize (non-streaming) fires error and rethrows', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'summarize' as const,
+      name: 'openai',
+      model: 'gpt-5.5',
+      summarize: vi.fn(async () => {
+        throw new Error('summarize boom')
+      }),
+    }
+
+    await expect(
+      summarize({
+        adapter: adapter as any,
+        text: 'a long article',
+        threadId: 'summary:slot',
+        middleware: [middleware],
+        debug: false,
+      }),
+    ).rejects.toThrow('summarize boom')
+
+    expect(events.error).toHaveLength(1)
+    expect(events.finish).toHaveLength(0)
+  })
+
+  it('summarize (streaming, native) transforms the terminal result chunk', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const transforming: GenerationMiddleware = {
+      name: 'transform',
+      onStart: (ctx) => {
+        ctx.resultTransforms.push((result) => ({
+          ...(result as Record<string, unknown>),
+          summary: 'rewritten',
+        }))
+      },
+    }
+    const adapter = {
+      kind: 'summarize' as const,
+      name: 'openai',
+      model: 'gpt-5.5',
+      summarize: vi.fn(),
+      summarizeStream: vi.fn(async function* () {
+        yield { type: 'TEXT_MESSAGE_CONTENT', delta: 'the ', timestamp: 1 }
+        yield { type: 'TEXT_MESSAGE_CONTENT', delta: 'original', timestamp: 2 }
+        yield {
+          type: 'CUSTOM',
+          name: 'generation:result',
+          value: {
+            id: 'sum-1',
+            model: 'gpt-5.5',
+            summary: 'the original',
+            usage: { promptTokens: 10, completionTokens: 3, totalTokens: 13 },
+          },
+          timestamp: 3,
+        }
+        yield { type: 'RUN_FINISHED', runId: 'run-1', timestamp: 4 }
+      }),
+    }
+
+    const chunks: Array<{ type: string; name?: string; value?: unknown }> = []
+    for await (const chunk of summarize({
+      adapter: adapter as any,
+      text: 'a long article',
+      stream: true,
+      threadId: 'summary:slot',
+      runId: 'run-1',
+      middleware: [middleware, transforming],
+    })) {
+      chunks.push(chunk as { type: string; name?: string; value?: unknown })
+    }
+
+    // The rewritten result is what the client sees, so it matches the record.
+    const terminal = chunks.find((c) => c.name === 'generation:result')
+    expect(terminal?.value).toMatchObject({ summary: 'rewritten' })
+    expect(events.start[0]!.activity).toBe('summarize')
+    expect(events.start[0]!.threadId).toBe('summary:slot')
+    expect(events.finish).toHaveLength(1)
+    expect(events.finish[0]!.info.usage?.totalTokens).toBe(13)
+    expect(events.abort).toHaveLength(0)
+  })
+
+  it('summarize (streaming, native) fires abort when the consumer walks away', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'summarize' as const,
+      name: 'openai',
+      model: 'gpt-5.5',
+      summarize: vi.fn(),
+      summarizeStream: vi.fn(async function* () {
+        yield { type: 'TEXT_MESSAGE_CONTENT', delta: 'partial', timestamp: 1 }
+        yield { type: 'TEXT_MESSAGE_CONTENT', delta: ' more', timestamp: 2 }
+      }),
+    }
+
+    for await (const _chunk of summarize({
+      adapter: adapter as any,
+      text: 'a long article',
+      stream: true,
+      threadId: 'summary:slot',
+      middleware: [middleware],
+    })) {
+      break
+    }
+
+    expect(events.abort).toHaveLength(1)
+    expect(events.finish).toHaveLength(0)
+  })
+
+  it('summarize (streaming, fallback) runs middleware around the one-shot call', async () => {
+    const { middleware, events } = recordingMiddleware()
+    const adapter = {
+      kind: 'summarize' as const,
+      name: 'openai',
+      model: 'gpt-5.5',
+      summarize: vi.fn(async () => ({
+        id: 'sum-1',
+        model: 'gpt-5.5',
+        summary: 'the original',
+        usage: { promptTokens: 10, completionTokens: 3, totalTokens: 13 },
+      })),
+    }
+
+    const chunks: Array<{ type: string; name?: string }> = []
+    for await (const chunk of summarize({
+      adapter: adapter as any,
+      text: 'a long article',
+      stream: true,
+      threadId: 'summary:slot',
+      middleware: [middleware],
+    })) {
+      chunks.push(chunk as { type: string; name?: string })
+    }
+
+    expect(chunks.map((c) => c.type)).toContain('RUN_FINISHED')
+    expect(events.start).toHaveLength(1)
+    expect(events.finish).toHaveLength(1)
+    // `threadId` stays the caller's; only `runId` comes from the wire identity,
+    // so the run is filed in a slot a client can actually hydrate.
+    expect(events.start[0]!.threadId).toBe('summary:slot')
+    expect(typeof events.start[0]!.runId).toBe('string')
+  })
+
+  it('summarize with otelMiddleware produces a summarize span', async () => {
+    const { tracer, spans } = createFakeTracer()
+    const adapter = {
+      kind: 'summarize' as const,
+      name: 'openai',
+      model: 'gpt-5.5',
+      summarize: vi.fn(async () => ({
+        id: 'sum-1',
+        model: 'gpt-5.5',
+        summary: 'short',
+        usage: { promptTokens: 10, completionTokens: 3, totalTokens: 13 },
+      })),
+    }
+
+    await summarize({
+      adapter: adapter as any,
+      text: 'a long article',
+      middleware: [otelMiddleware({ tracer })],
+    })
+
+    expect(spans).toHaveLength(1)
+    expect(spans[0]!.attributes['gen_ai.operation.name']).toBe('summarize')
+    expect(spans[0]!.ended).toBe(true)
   })
 
   it('a throwing middleware hook propagates (matches chat semantics)', async () => {

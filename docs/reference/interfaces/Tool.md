@@ -5,7 +5,7 @@ title: Tool
 
 # Interface: Tool\<TInput, TOutput, TName, TContext\>
 
-Defined in: [packages/ai/src/types.ts:589](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L589)
+Defined in: [packages/ai/src/types.ts:625](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L625)
 
 Tool/Function definition for function calling.
 
@@ -31,11 +31,11 @@ or plain JSON Schema objects for runtime validation and type safety.
 
 ### TInput
 
-`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+`TInput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = [`SchemaInput`](../type-aliases/SchemaInput.md)
 
 ### TOutput
 
-`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) = [`SchemaInput`](../type-aliases/SchemaInput.md)
+`TOutput` *extends* [`SchemaInput`](../type-aliases/SchemaInput.md) \| `undefined` = [`SchemaInput`](../type-aliases/SchemaInput.md)
 
 ### TName
 
@@ -53,7 +53,7 @@ or plain JSON Schema objects for runtime validation and type safety.
 description: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:613](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L613)
+Defined in: [packages/ai/src/types.ts:649](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L649)
 
 Clear description of what the tool does.
 
@@ -71,10 +71,10 @@ Be specific about what the tool does, what parameters it needs, and what it retu
 ### execute?
 
 ```ts
-optional execute: ToolExecuteFunction<TInput, TOutput, TContext>;
+optional execute?: ToolExecuteFunction<TInput, TOutput, TContext>;
 ```
 
-Defined in: [packages/ai/src/types.ts:693](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L693)
+Defined in: [packages/ai/src/types.ts:729](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L729)
 
 Optional function to execute when the model calls this tool.
 
@@ -84,6 +84,8 @@ and feed the result back to the model. This enables autonomous tool use loops.
 Can return any value - will be automatically stringified if needed.
 
 #### Param
+
+**args**
 
 The arguments parsed from the model's tool call (validated against inputSchema)
 
@@ -105,10 +107,10 @@ execute: async (args) => {
 ### inputSchema?
 
 ```ts
-optional inputSchema: TInput;
+optional inputSchema?: TInput;
 ```
 
-Defined in: [packages/ai/src/types.ts:653](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L653)
+Defined in: [packages/ai/src/types.ts:689](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L689)
 
 Schema describing the tool's input parameters.
 
@@ -159,10 +161,10 @@ type({
 ### lazy?
 
 ```ts
-optional lazy: boolean;
+optional lazy?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:699](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L699)
+Defined in: [packages/ai/src/types.ts:735](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L735)
 
 If true, this tool is lazy and will only be sent to the LLM after being discovered via the lazy tool discovery mechanism. Works with both chat() (the synthetic discovery tool) and Code Mode (kept out of the system prompt and revealed via discover_tools).
 
@@ -171,10 +173,10 @@ If true, this tool is lazy and will only be sent to the LLM after being discover
 ### metadata?
 
 ```ts
-optional metadata: Record<string, any>;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:702](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L702)
+Defined in: [packages/ai/src/types.ts:738](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L738)
 
 Additional metadata for adapters or custom extensions
 
@@ -186,7 +188,7 @@ Additional metadata for adapters or custom extensions
 name: TName;
 ```
 
-Defined in: [packages/ai/src/types.ts:603](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L603)
+Defined in: [packages/ai/src/types.ts:639](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L639)
 
 Unique name of the tool (used by the model to call it).
 
@@ -204,10 +206,10 @@ Must be unique within the tools array.
 ### needsApproval?
 
 ```ts
-optional needsApproval: boolean;
+optional needsApproval?: boolean;
 ```
 
-Defined in: [packages/ai/src/types.ts:696](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L696)
+Defined in: [packages/ai/src/types.ts:732](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L732)
 
 If true, tool execution requires user approval before running. Works with both server and client tools.
 
@@ -216,10 +218,10 @@ If true, tool execution requires user approval before running. Works with both s
 ### outputSchema?
 
 ```ts
-optional outputSchema: TOutput;
+optional outputSchema?: TOutput;
 ```
 
-Defined in: [packages/ai/src/types.ts:674](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L674)
+Defined in: [packages/ai/src/types.ts:710](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L710)
 
 Optional schema for validating tool output.
 

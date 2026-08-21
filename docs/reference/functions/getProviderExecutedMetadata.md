@@ -20,9 +20,11 @@ Returns the typed metadata when the call is provider-executed, else `null`.
 
 ### toolCall
 
-\{
-`metadata?`: `unknown`;
-\} | `null` | `undefined`
+  \| \{
+  `metadata?`: `unknown`;
+\}
+  \| `null`
+  \| `undefined`
 
 ## Returns
 

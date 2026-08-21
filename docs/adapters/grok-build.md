@@ -38,14 +38,23 @@ You also need a sandbox provider (e.g. `@tanstack/ai-sandbox-docker`) and the
 
 ## Authentication
 
-Grok Build resolves credentials the same way the `grok` CLI does:
+Your laptop can already have `grok login`. A CI runner only has `XAI_API_KEY`.
+Both can use the same sandbox provider. The default `authMode` is `'api-key'`.
+Set `'host'` when you want `grok login`. See [Harness Auth](../sandbox/auth).
 
-- the `XAI_API_KEY` environment variable (headless / sandbox — inject it as a
-  workspace secret), or
-- an existing grok.com browser login on the machine (local dev).
+```ts
+import { grokBuildText } from "@tanstack/ai-grok-build"
 
-The two auth modes expose the model under slightly different ids; the adapter
-maps the short alias for you (see [Models](#models)).
+grokBuildText("composer-2.5")
+grokBuildText("composer-2.5", { authMode: "host" })
+```
+
+- `'api-key'` (default): inject `XAI_API_KEY` and authenticate with it.
+- `'host'`: skip ACP `authenticate`. Use `grok login`. Do not inject
+  `XAI_API_KEY` into that process.
+
+The two modes list the model under slightly different ids. The adapter maps
+the short alias for you (see [Models](#models)).
 
 ## Basic Usage
 
@@ -74,7 +83,7 @@ const sandbox = defineSandbox({
 
 const stream = chat({
   threadId,
-  adapter: grokBuildText('grok-build'),
+  adapter: grokBuildText('composer-2.5'),
   messages,
   middleware: [withSandbox(sandbox)],
 })
@@ -105,6 +114,9 @@ Adapter config (second argument to `grokBuildText`):
 | `grokExecutable` | Path/name of the `grok` executable inside the sandbox. Defaults to `grok`.  |
 | `env`            | Extra environment variables for the `grok` process inside the sandbox.      |
 | `emitDiff`       | Emit a `file.changed` CUSTOM event with the working-tree `git diff` after the run. Defaults to `true`. |
+| `protocol`       | Harness wire protocol: `'acp'` or `'streaming-json'`. Defaults to `'acp'`. A durable sandbox run with no protocol set uses `'streaming-json'` so the run can journal. |
+| `authMode`       | `'api-key'` (default) uses `XAI_API_KEY`. `'host'` uses `grok login`. See [Harness Auth](../sandbox/auth). |
+| `authMethodId`   | Explicit ACP auth method. Wins over `authMode`.                             |
 | `extraArgs`      | Extra raw CLI flags appended verbatim (advanced).                           |
 
 Per-call overrides go through `modelOptions`:
@@ -114,6 +126,9 @@ Per-call overrides go through `modelOptions`:
 | `sessionId`     | Resume an existing Grok Build session (see below).           |
 | `cwd`           | Per-call override of the harness working directory.          |
 | `maxTurns`      | Per-call cap on the number of harness turns.                 |
+| `protocol`      | Per-call override of the harness wire protocol.              |
+| `authMode`      | Per-call `'host'` or `'api-key'`. Default `'api-key'`.       |
+| `authMethodId`  | Per-call ACP auth method. Wins over `authMode`.              |
 
 ## Stateful Sessions
 
@@ -165,6 +180,81 @@ Two kinds of tools flow through this adapter:
 tools inside a live process and can't pause across an HTTP round-trip. A tool
 without a server `execute()` (or marked `needsApproval`) fails fast; run those
 with a regular provider adapter.
+
+## Durable runs
+
+A durable sandbox run (you pass `runs` and `durability` to `withSandbox`)
+journals the agent output so a later request can take the run over. ACP does
+not journal. When durability is wired and you do not set `protocol`, the
+adapter uses `'streaming-json'`.
+
+Set `protocol: 'acp'` only when you want ACP on that call. A fresh ACP run
+with durability wired logs a warning. An attach against ACP throws
+`DurableAttachNotSupportedError`.
+
+## Headless NDJSON flags
+
+On the `'streaming-json'` path with auto-approve, the adapter adds
+`--always-approve --no-plan --no-auto-update`. Those flags keep Plan Mode and
+the CLI update check from blocking a headless run.
+
+## Structured Output
+
+Pass `outputSchema` on `chat()`. Grok Build has no native schema flag. The adapter adds the JSON Schema to the prompt (ACP and `streaming-json`) and parses the last assistant text. Tool activity still streams. The object arrives as `structured-output.complete`.
+
+```ts
+import { chat } from "@tanstack/ai"
+import { grokBuildText } from "@tanstack/ai-grok-build"
+import { defineSandbox, withSandbox } from "@tanstack/ai-sandbox"
+import { dockerSandbox } from "@tanstack/ai-sandbox-docker"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+const sandbox = defineSandbox({
+  id: "repo-report",
+  provider: dockerSandbox({ image: "node:22" }),
+})
+
+const report = await chat({
+  adapter: grokBuildText("grok-build"),
+  messages: [{ role: "user", content: "Review this repo." }],
+  outputSchema: Report,
+  middleware: [withSandbox(sandbox)],
+})
+
+report.summary
+```
+
+This path parses JSON from the last assistant message. If extract-only is the job, use `@tanstack/ai-grok`.
+
+On the client, pass the same schema to `useChat` and read `final`. `partial` stays empty until the end.
+
+```tsx
+import { fetchServerSentEvents, useChat } from "@tanstack/ai-react"
+import { z } from "zod"
+
+const Report = z.object({
+  summary: z.string(),
+  filesChanged: z.array(z.string()),
+})
+
+function ReportView() {
+  const { final, isLoading } = useChat({
+    connection: fetchServerSentEvents("/api/repo-report"),
+    outputSchema: Report,
+  })
+
+  if (isLoading) return <p>The agent is inspecting the repo.</p>
+  if (!final) return null
+  return <p>{final.summary}</p>
+}
+```
+
+Full walkthrough, including the client: [Harness Agents](../structured-outputs/harnesses).
 
 ## Limitations
 

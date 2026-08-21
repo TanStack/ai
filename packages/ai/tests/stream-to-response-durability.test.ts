@@ -1,0 +1,835 @@
+import { describe, expect, it, vi } from 'vitest'
+import { memoryStream } from '../src/stream-durability'
+import {
+  RUN_ACCEPTED_EVENT,
+  resumeHttpResponse,
+  resumeServerSentEventsResponse,
+  toHttpResponse,
+  toServerSentEventsResponse,
+} from '../src/stream-to-response'
+import { EventType } from '../src/types'
+import { chat } from '../src/activities/chat/index'
+import { createMockAdapter, ev } from './test-utils'
+import type { StreamDurability } from '../src/stream-durability'
+import type { StreamChunk } from '../src/types'
+
+function fiveChunkStream(): {
+  stream: AsyncIterable<StreamChunk>
+  iterated: () => boolean
+} {
+  let started = false
+  const stream: AsyncIterable<StreamChunk> = {
+    async *[Symbol.asyncIterator]() {
+      started = true
+      for (const delta of ['1', '2', '3', '4', '5']) {
+        yield ev.textContent(delta)
+      }
+    },
+  }
+  return { stream, iterated: () => started }
+}
+
+async function readBody(response: Response): Promise<string> {
+  if (!response.body) throw new Error('Expected a response body')
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let body = ''
+  for (;;) {
+    const result = await reader.read()
+    if (result.done) return body
+    body += decoder.decode(result.value)
+  }
+}
+
+interface ParsedSseEvent {
+  id?: string
+  data: unknown
+}
+
+function parseSseEvents(body: string): Array<ParsedSseEvent> {
+  return body
+    .split('\n\n')
+    .filter((block) => block.trim().length > 0)
+    .map((block) => {
+      const lines = block.split('\n')
+      const id = lines.find((line) => line.startsWith('id: '))?.slice(4)
+      const data = lines.find((line) => line.startsWith('data: '))?.slice(6)
+      if (!data) throw new Error(`Missing SSE data line in ${block}`)
+      return { ...(id === undefined ? {} : { id }), data: JSON.parse(data) }
+    })
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null
+}
+
+function field(event: ParsedSseEvent, name: string): unknown {
+  if (!isRecord(event.data)) throw new Error('Expected an object SSE payload')
+  return event.data[name]
+}
+
+function label(chunk: StreamChunk): string {
+  return chunk.type === EventType.TEXT_MESSAGE_CONTENT
+    ? chunk.delta
+    : `[${chunk.type}]`
+}
+
+function fixedOffsetDurability(
+  offsets: Array<string>,
+): StreamDurability<string> {
+  return {
+    resumeFrom: () => null,
+    // Hand out `offsets` across calls, one per appended chunk, so the batch
+    // shape (the run-accepted marker flushes alone) cannot cause a
+    // count-mismatch error before the offset under test is ever validated.
+    append: async (chunks) => offsets.splice(0, chunks.length),
+    close: async () => undefined,
+    async *read() {
+      // No replay is needed by these validation tests.
+    },
+    // The fixed `offsets` are handed back verbatim by `append` and never
+    // stored, so there is nothing to report for a point-in-time read.
+    snapshot: () => Promise.resolve([]),
+  }
+}
+
+describe('toServerSentEventsResponse with durability', () => {
+  it('appends a fresh run and tags every event with its adapter offset', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=response-fresh', {
+        method: 'POST',
+      }),
+    )
+    const { stream, iterated } = fiveChunkStream()
+
+    const events = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability },
+        }),
+      ),
+    )
+    const eventOffsets = events.map((event) => event.id)
+
+    expect(iterated()).toBe(true)
+    // Six, not five: a fresh durable producer appends (and forwards) the
+    // synthetic run-accepted marker before the first real chunk, so a joiner
+    // never observes an empty log for an accepted run.
+    expect(events).toHaveLength(6)
+    expect(field(events[0]!, 'type')).toBe(EventType.CUSTOM)
+    expect(field(events[0]!, 'name')).toBe(RUN_ACCEPTED_EVENT)
+    expect(eventOffsets.every((offset) => offset !== undefined)).toBe(true)
+    expect(new Set(eventOffsets).size).toBe(6)
+
+    const loggedOffsets: Array<string> = []
+    const loggedLabels: Array<string> = []
+    for await (const entry of durability.read('-1')) {
+      loggedOffsets.push(entry.offset)
+      loggedLabels.push(label(entry.chunk))
+    }
+    expect(loggedOffsets).toEqual(eventOffsets)
+    expect(loggedLabels).toEqual(['[CUSTOM]', '1', '2', '3', '4', '5'])
+  })
+
+  it('logs a durability close failure server-side when debug is enabled', async () => {
+    const closeError = new Error('close boom')
+    let seq = 0
+    const durability: StreamDurability<string> = {
+      resumeFrom: () => null,
+      append: async (chunks) => chunks.map(() => `off-${seq++}`),
+      close: async () => {
+        throw closeError
+      },
+      async *read() {
+        // Not exercised by this test.
+      },
+      // `append` synthesizes offsets and never stores the chunks, so there
+      // is no state to snapshot.
+      snapshot: () => Promise.resolve([]),
+    }
+    const errorLog = vi.fn()
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: errorLog,
+    }
+    const { stream } = fiveChunkStream()
+
+    // The rethrown close failure lands in-band as an error event; the consumer
+    // drains cleanly. The point is that the cause is recorded server-side, where
+    // a joiner (who only sees a generic incomplete error) cannot observe it.
+    await readBody(
+      toServerSentEventsResponse(stream, {
+        durability: { adapter: durability },
+        debug: { logger },
+      }),
+    )
+
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining('closing durability stream failed'),
+      expect.objectContaining({ error: closeError }),
+    )
+  })
+
+  it('replays opaque IDs from the log without iterating the input stream', async () => {
+    const { stream } = fiveChunkStream()
+    const produced = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(stream, {
+          durability: {
+            adapter: memoryStream(
+              new Request(
+                'https://example.test/api/chat?runId=response-replay',
+                {
+                  method: 'POST',
+                },
+              ),
+            ),
+          },
+        }),
+      ),
+    )
+    const resumeOffset = produced[1]?.id
+    if (!resumeOffset) throw new Error('Expected a replay offset')
+    const exploding: AsyncIterable<StreamChunk> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next() {
+            throw new Error('input stream must not be iterated on resume')
+          },
+        }
+      },
+    }
+
+    const replayed = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(exploding, {
+          durability: {
+            adapter: memoryStream(
+              new Request('https://example.test/api/chat', {
+                method: 'POST',
+                headers: { 'Last-Event-ID': resumeOffset },
+              }),
+            ),
+          },
+        }),
+      ),
+    )
+
+    expect(replayed.map((event) => event.id)).toEqual(
+      produced.slice(2).map((event) => event.id),
+    )
+    // produced[0] is the run-accepted marker, so produced[1] is chunk '1' and
+    // the replay strictly after it is '2'..'5'.
+    expect(replayed.map((event) => field(event, 'delta'))).toEqual([
+      '2',
+      '3',
+      '4',
+      '5',
+    ])
+  })
+
+  it('batches appends to at most the configured batch size', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=response-batch', {
+        method: 'POST',
+      }),
+    )
+    const appendSpy = vi.spyOn(durability, 'append')
+    const { stream } = fiveChunkStream()
+
+    await readBody(
+      toServerSentEventsResponse(stream, {
+        durability: { adapter: durability, batch: 2 },
+      }),
+    )
+
+    const batchSizes = appendSpy.mock.calls.map(([chunks]) => chunks.length)
+    expect(batchSizes.every((size) => size <= 2)).toBe(true)
+    // 5 stream chunks + the run-accepted marker.
+    expect(batchSizes.reduce((sum, size) => sum + size, 0)).toBe(6)
+  })
+
+  it('rejects a non-positive-integer batch size', () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=response-bad-batch', {
+        method: 'POST',
+      }),
+    )
+    const { stream } = fiveChunkStream()
+    for (const batch of [0, -1, 1.5, NaN]) {
+      expect(() =>
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability, batch },
+        }),
+      ).toThrow(/Invalid durability batch size/)
+    }
+  })
+
+  it('rejects duplicate offsets before emitting distinct chunks', async () => {
+    const { stream } = fiveChunkStream()
+    const response = toServerSentEventsResponse(stream, {
+      durability: {
+        adapter: fixedOffsetDurability(Array.from({ length: 6 }, () => 'same')),
+      },
+    })
+
+    const events = parseSseEvents(await readBody(response))
+    // The run-accepted marker took the first 'same' offset and was forwarded;
+    // the first REAL chunk's duplicate offset is what fails.
+    expect(events).toHaveLength(2)
+    expect(field(events[1]!, 'type')).toBe(EventType.RUN_ERROR)
+    expect(field(events[1]!, 'message')).toMatch(/unique.*offset/i)
+  })
+
+  it('rejects SSE offsets containing U+0000', async () => {
+    const response = toServerSentEventsResponse(textStreamWithOneChunk(), {
+      durability: { adapter: fixedOffsetDurability(['bad\0offset']) },
+    })
+
+    const events = parseSseEvents(await readBody(response))
+    expect(events).toHaveLength(1)
+    expect(events[0]?.id).toBeUndefined()
+    expect(field(events[0]!, 'type')).toBe(EventType.RUN_ERROR)
+    expect(field(events[0]!, 'message')).toMatch(/Invalid durability offset/)
+  })
+
+  it('persists a terminal RUN_ERROR before closing when the source throws', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=response-error', {
+        method: 'POST',
+      }),
+    )
+    const throwing: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield ev.textContent('1')
+        throw new Error('provider exploded')
+      },
+    }
+
+    const liveEvents = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(throwing, {
+          durability: { adapter: durability },
+        }),
+      ),
+    )
+    expect(liveEvents.map((event) => field(event, 'type'))).toContain(
+      'RUN_ERROR',
+    )
+
+    const logged: Array<StreamChunk> = []
+    for await (const { chunk } of durability.read('-1')) logged.push(chunk)
+    expect(logged.map((chunk) => chunk.type)).toEqual([
+      'CUSTOM',
+      'TEXT_MESSAGE_CONTENT',
+      'RUN_ERROR',
+    ])
+    expect(logged.at(-1)).toMatchObject({
+      message: 'provider exploded',
+    })
+  })
+})
+
+/**
+ * Parse an NDJSON body into the same `{ id?, data }` shape as `parseSseEvents`.
+ * A durable line is an `{ id, chunk }` envelope; a non-durable line is a bare
+ * chunk — both are auto-detected, mirroring the client parser.
+ */
+function parseNdjsonEvents(body: string): Array<ParsedSseEvent> {
+  return body
+    .split('\n')
+    .filter((line) => line.trim().length > 0)
+    .map((line) => {
+      const parsed = JSON.parse(line) as Record<string, unknown>
+      // Mirror the production `isNdjsonEnvelope` discriminator exactly: an
+      // envelope carries `id` + `chunk` and no top-level `type`.
+      if (
+        'chunk' in parsed &&
+        'id' in parsed &&
+        typeof parsed.id === 'string' &&
+        !('type' in parsed)
+      ) {
+        return { id: parsed.id, data: parsed.chunk }
+      }
+      return { data: parsed }
+    })
+}
+
+describe('toHttpResponse with durability', () => {
+  it('appends a fresh run and envelopes every line with its adapter offset', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=ndjson-fresh', {
+        method: 'POST',
+      }),
+    )
+    const { stream, iterated } = fiveChunkStream()
+
+    const events = parseNdjsonEvents(
+      await readBody(
+        toHttpResponse(stream, { durability: { adapter: durability } }),
+      ),
+    )
+    const eventOffsets = events.map((event) => event.id)
+
+    expect(iterated()).toBe(true)
+    expect(events).toHaveLength(6)
+    expect(field(events[0]!, 'name')).toBe(RUN_ACCEPTED_EVENT)
+    expect(eventOffsets.every((offset) => offset !== undefined)).toBe(true)
+    expect(new Set(eventOffsets).size).toBe(6)
+    expect(events.slice(1).map((event) => field(event, 'delta'))).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+    ])
+
+    const loggedOffsets: Array<string> = []
+    for await (const entry of durability.read('-1')) {
+      loggedOffsets.push(entry.offset)
+    }
+    expect(loggedOffsets).toEqual(eventOffsets)
+  })
+
+  it('replays opaque IDs from the log without iterating the input stream', async () => {
+    const { stream } = fiveChunkStream()
+    const produced = parseNdjsonEvents(
+      await readBody(
+        toHttpResponse(stream, {
+          durability: {
+            adapter: memoryStream(
+              new Request('https://example.test/api/chat?runId=ndjson-replay', {
+                method: 'POST',
+              }),
+            ),
+          },
+        }),
+      ),
+    )
+    const resumeOffset = produced[1]?.id
+    if (!resumeOffset) throw new Error('Expected a replay offset')
+    const exploding: AsyncIterable<StreamChunk> = {
+      [Symbol.asyncIterator]() {
+        return {
+          next() {
+            throw new Error('input stream must not be iterated on resume')
+          },
+        }
+      },
+    }
+
+    const replayed = parseNdjsonEvents(
+      await readBody(
+        toHttpResponse(exploding, {
+          durability: {
+            adapter: memoryStream(
+              new Request('https://example.test/api/chat', {
+                method: 'POST',
+                headers: { 'Last-Event-ID': resumeOffset },
+              }),
+            ),
+          },
+        }),
+      ),
+    )
+
+    expect(replayed.map((event) => event.id)).toEqual(
+      produced.slice(2).map((event) => event.id),
+    )
+    // produced[0] is the run-accepted marker, so produced[1] is chunk '1'.
+    expect(replayed.map((event) => field(event, 'delta'))).toEqual([
+      '2',
+      '3',
+      '4',
+      '5',
+    ])
+  })
+
+  it('persists a terminal RUN_ERROR before closing when the source throws', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=ndjson-error', {
+        method: 'POST',
+      }),
+    )
+    const throwing: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield ev.textContent('1')
+        throw new Error('provider exploded')
+      },
+    }
+
+    const liveEvents = parseNdjsonEvents(
+      await readBody(
+        toHttpResponse(throwing, { durability: { adapter: durability } }),
+      ),
+    )
+    expect(liveEvents.map((event) => field(event, 'type'))).toContain(
+      'RUN_ERROR',
+    )
+
+    const logged: Array<StreamChunk> = []
+    for await (const { chunk } of durability.read('-1')) logged.push(chunk)
+    expect(logged.map((chunk) => chunk.type)).toEqual([
+      'CUSTOM',
+      'TEXT_MESSAGE_CONTENT',
+      'RUN_ERROR',
+    ])
+    expect(logged.at(-1)).toMatchObject({ message: 'provider exploded' })
+  })
+
+  it('emits bare chunk lines (no envelope) when no durability is configured', async () => {
+    const { stream } = fiveChunkStream()
+    const events = parseNdjsonEvents(await readBody(toHttpResponse(stream)))
+
+    expect(events).toHaveLength(5)
+    expect(events.every((event) => event.id === undefined)).toBe(true)
+    expect(events.map((event) => field(event, 'delta'))).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+    ])
+  })
+})
+
+function runFinished(): StreamChunk {
+  return {
+    type: EventType.RUN_FINISHED,
+    threadId: 't',
+    runId: 'r',
+    model: 'm',
+    finishReason: 'stop',
+    timestamp: 0,
+  }
+}
+
+describe('durability producer robustness', () => {
+  it('flushes buffered chunks to the durable log before the terminal on abort', async () => {
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=h1-abort', {
+        method: 'POST',
+      }),
+    )
+    const abortController = new AbortController()
+    // Yields 3 chunks (buffered under the default batch), then aborts before
+    // ending. produce breaks on the abort check before buffering '4', so '4' is
+    // dropped but '1'..'3' must still be persisted to the log on the exit path.
+    const stream: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield ev.textContent('1')
+        yield ev.textContent('2')
+        yield ev.textContent('3')
+        abortController.abort()
+        yield ev.textContent('4')
+      },
+    }
+
+    await readBody(
+      toServerSentEventsResponse(stream, {
+        durability: { adapter: durability, batch: 32 },
+        abortController,
+      }),
+    )
+
+    const logged: Array<StreamChunk> = []
+    for await (const { chunk } of durability.read('-1')) logged.push(chunk)
+    const deltas = logged.flatMap((chunk) =>
+      chunk.type === EventType.TEXT_MESSAGE_CONTENT ? [chunk.delta] : [],
+    )
+    expect(deltas).toEqual(['1', '2', '3'])
+    expect(logged.at(-1)?.type).toBe(EventType.RUN_ERROR)
+  })
+
+  it('does not emit a second contradictory terminal when close() fails after a forwarded RUN_FINISHED', async () => {
+    let seq = 0
+    const durability: StreamDurability<string> = {
+      resumeFrom: () => null,
+      append: async (chunks) => chunks.map(() => `off-${seq++}`),
+      close: async () => {
+        throw new Error('close boom')
+      },
+      async *read() {
+        // Not exercised.
+      },
+      // `append` synthesizes offsets and never stores the chunks, so there
+      // is no state to snapshot.
+      snapshot: () => Promise.resolve([]),
+    }
+    const stream: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield ev.textContent('hi')
+        yield runFinished()
+      },
+    }
+
+    const events = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability },
+        }),
+      ),
+    )
+    const terminals = events.filter((event) => {
+      const type = field(event, 'type')
+      return type === EventType.RUN_FINISHED || type === EventType.RUN_ERROR
+    })
+    // Exactly one terminal (the forwarded RUN_FINISHED). The close() failure is
+    // recorded server-side, not appended as a contradictory RUN_ERROR.
+    expect(terminals).toHaveLength(1)
+    expect(field(terminals[0]!, 'type')).toBe(EventType.RUN_FINISHED)
+  })
+
+  it('logs (does not rethrow) a producer error thrown after a terminal was forwarded', async () => {
+    const errorLog = vi.fn()
+    const logger = {
+      debug: vi.fn(),
+      info: vi.fn(),
+      warn: vi.fn(),
+      error: errorLog,
+    }
+    let seq = 0
+    const durability: StreamDurability<string> = {
+      resumeFrom: () => null,
+      append: async (chunks) => chunks.map(() => `off-${seq++}`),
+      close: async () => undefined,
+      async *read() {
+        // Not exercised.
+      },
+      // `append` synthesizes offsets and never stores the chunks, so there
+      // is no state to snapshot.
+      snapshot: () => Promise.resolve([]),
+    }
+    const stream: AsyncIterable<StreamChunk> = {
+      async *[Symbol.asyncIterator]() {
+        yield runFinished()
+        throw new Error('provider exploded after terminal')
+      },
+    }
+
+    const events = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(stream, {
+          durability: { adapter: durability },
+          debug: { logger },
+        }),
+      ),
+    )
+    // Exactly one terminal on the wire (the forwarded RUN_FINISHED) — the
+    // post-terminal producer error is NOT re-emitted as a contradictory
+    // RUN_ERROR...
+    const terminals = events.filter((event) => {
+      const type = field(event, 'type')
+      return type === EventType.RUN_FINISHED || type === EventType.RUN_ERROR
+    })
+    expect(terminals).toHaveLength(1)
+    expect(field(terminals[0]!, 'type')).toBe(EventType.RUN_FINISHED)
+    // ...but it must still be recorded server-side rather than vanishing.
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining('after a terminal event was forwarded'),
+      expect.objectContaining({ error: expect.any(Error) }),
+    )
+  })
+
+  it('rejects SSE offsets with surrounding whitespace', async () => {
+    const response = toServerSentEventsResponse(textStreamWithOneChunk(), {
+      durability: { adapter: fixedOffsetDurability(['  padded  ']) },
+    })
+    const events = parseSseEvents(await readBody(response))
+    expect(events).toHaveLength(1)
+    expect(field(events[0]!, 'type')).toBe(EventType.RUN_ERROR)
+    expect(field(events[0]!, 'message')).toMatch(/Invalid durability offset/)
+  })
+
+  it('toHttpResponse defaults Content-Type to application/x-ndjson, overridable by the caller', async () => {
+    const res = toHttpResponse(fiveChunkStream().stream)
+    expect(res.headers.get('Content-Type')).toBe('application/x-ndjson')
+    expect(res.headers.get('Cache-Control')).toBe('no-cache')
+
+    const overridden = toHttpResponse(fiveChunkStream().stream, {
+      headers: { 'Content-Type': 'application/json' },
+    })
+    expect(overridden.headers.get('Content-Type')).toBe('application/json')
+  })
+})
+
+function textStreamWithOneChunk(): AsyncIterable<StreamChunk> {
+  return {
+    async *[Symbol.asyncIterator]() {
+      yield ev.textContent('one')
+    },
+  }
+}
+
+// Produce a fresh run into the process-global memory log under `runId`, so a
+// later resume/join can replay it.
+async function seedRun(runId: string): Promise<void> {
+  const producer = memoryStream(
+    new Request(`https://example.test/api/chat?runId=${runId}`, {
+      method: 'POST',
+    }),
+  )
+  await readBody(
+    toServerSentEventsResponse(fiveChunkStream().stream, {
+      durability: { adapter: producer },
+    }),
+  )
+}
+
+describe('resume response helpers', () => {
+  it('resumeServerSentEventsResponse replays a run from its log without a producer', async () => {
+    await seedRun('resume-sse')
+    const join = memoryStream(
+      new Request('https://example.test/api/chat?runId=resume-sse&offset=-1'),
+    )
+
+    const events = parseSseEvents(
+      await readBody(resumeServerSentEventsResponse({ adapter: join })),
+    )
+
+    // A from-start join replays the run-accepted marker first — the chunk that
+    // makes a boot-window join attach instead of fast-failing on an empty log.
+    expect(field(events[0]!, 'name')).toBe(RUN_ACCEPTED_EVENT)
+    expect(events.slice(1).map((event) => field(event, 'delta'))).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+    ])
+    expect(events.every((event) => event.id !== undefined)).toBe(true)
+  })
+
+  it('resumeHttpResponse replays a run over NDJSON', async () => {
+    await seedRun('resume-ndjson')
+    const join = memoryStream(
+      new Request(
+        'https://example.test/api/chat?runId=resume-ndjson&offset=-1',
+      ),
+    )
+
+    const events = parseNdjsonEvents(
+      await readBody(resumeHttpResponse({ adapter: join })),
+    )
+
+    expect(field(events[0]!, 'name')).toBe(RUN_ACCEPTED_EVENT)
+    expect(events.slice(1).map((event) => field(event, 'delta'))).toEqual([
+      '1',
+      '2',
+      '3',
+      '4',
+      '5',
+    ])
+  })
+
+  it('returns 400 when the request carries no resume offset', async () => {
+    const noOffset = memoryStream(
+      new Request('https://example.test/api/chat?runId=no-offset'),
+    )
+    const sse = resumeServerSentEventsResponse({ adapter: noOffset })
+    const ndjson = resumeHttpResponse({
+      adapter: memoryStream(
+        new Request('https://example.test/api/chat?runId=no-offset-2'),
+      ),
+    })
+
+    expect(sse.status).toBe(400)
+    expect(ndjson.status).toBe(400)
+    expect(await sse.text()).toMatch(/No resume offset/)
+  })
+})
+
+/**
+ * The user-visible consequence of `runOnFinish` REPORTING rather than swallowing
+ * (see `middleware-terminal-hook-isolation.test.ts` for the unit-level contract).
+ * `withPersistence.onFinish` is what writes the assistant turn; if it fails, the
+ * client must not be left believing the run succeeded, or its next turn sends a
+ * history the server has no record of.
+ */
+function failingPersistenceRun(): AsyncIterable<StreamChunk> {
+  const { adapter } = createMockAdapter({
+    iterations: [
+      [
+        ev.runStarted(),
+        ev.textStart(),
+        ev.textContent('saved?'),
+        ev.textEnd(),
+        ev.runFinished('stop'),
+      ],
+    ],
+  })
+
+  return chat({
+    adapter,
+    messages: [{ role: 'user', content: 'Hi' }],
+    middleware: [
+      {
+        name: 'flaky-persistence',
+        onFinish: () => Promise.reject(new Error('messages.append failed')),
+      },
+    ],
+  }) as AsyncIterable<StreamChunk>
+}
+
+describe('a failing middleware onFinish surfaces past the transport', () => {
+  it('ends the client SSE stream with RUN_ERROR carrying the store failure', async () => {
+    const events = parseSseEvents(
+      await readBody(toServerSentEventsResponse(failingPersistenceRun())),
+    )
+
+    const last = events.at(-1)
+    if (last === undefined) throw new Error('Expected at least one SSE event')
+    expect(field(last, 'type')).toBe(EventType.RUN_ERROR)
+    expect(field(last, 'message')).toBe('messages.append failed')
+  })
+
+  it('reaches the durability sink, which RECORDS it server-side and does NOT terminalize the run', async () => {
+    // The weaker assertion below is deliberate, not an oversight. On the durable
+    // path the failure does NOT become a RUN_ERROR: `runOnFinish` is awaited
+    // after the RUN_FINISHED was already persisted and forwarded, so
+    // `needsTerminalPersistence` is false (nothing extra is appended to the log)
+    // and `terminalForwarded` suppresses the rethrow to the live consumer (both
+    // in stream-to-response.ts) — the RUN_FINISHED stands. That is correct: the
+    // SAVE failed, not the run, and the consumer did receive the whole stream.
+    // What this fix buys is that the failure ARRIVES at the sink at all, which is
+    // why the only assertion available is the server-side record: while
+    // `runOnFinish` swallowed, the sink never saw it and the only trace anywhere
+    // was a middleware log line.
+    const errorLog = vi.fn()
+    const durability = memoryStream(
+      new Request('https://example.test/api/chat?runId=finish-hook-failure', {
+        method: 'POST',
+      }),
+    )
+
+    const events = parseSseEvents(
+      await readBody(
+        toServerSentEventsResponse(failingPersistenceRun(), {
+          durability: { adapter: durability },
+          debug: {
+            logger: {
+              debug: vi.fn(),
+              info: vi.fn(),
+              warn: vi.fn(),
+              error: errorLog,
+            },
+          },
+        }),
+      ),
+    )
+
+    expect(events.map((event) => field(event, 'type'))).toContain(
+      EventType.RUN_FINISHED,
+    )
+    expect(errorLog).toHaveBeenCalledWith(
+      expect.stringContaining(
+        'durability failure after a terminal event was forwarded',
+      ),
+      expect.objectContaining({
+        error: expect.objectContaining({ message: 'messages.append failed' }),
+      }),
+    )
+  })
+})

@@ -46,6 +46,7 @@ export {
   type FalModelOutput,
   type FalModelImageSize,
   type FalModelVideoSize,
+  type FalModelVideoDuration,
   type FalVideoEditKindFor,
   type FalVideoEditSourceModel,
   FAL_VIDEO_EDIT_BY_SOURCE,

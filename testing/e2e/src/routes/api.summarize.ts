@@ -4,8 +4,10 @@ import { createOpenaiSummarize } from '@tanstack/ai-openai'
 import { createAnthropicSummarize } from '@tanstack/ai-anthropic'
 import { createGeminiSummarize } from '@tanstack/ai-gemini'
 import { createOllamaSummarize } from '@tanstack/ai-ollama'
+import { createGroqSummarize } from '@tanstack/ai-groq'
 import { createGrokSummarize } from '@tanstack/ai-grok'
 import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
+import { createVercelGatewaySummarize } from '@tanstack/ai-vercel-gateway'
 import { HTTPClient } from '@openrouter/sdk'
 import type { Provider } from '@/lib/types'
 
@@ -67,6 +69,11 @@ function createSummarizeAdapter(
         httpOptions: { baseUrl: llmockBase(aimockPort), headers },
       }),
     ollama: () => createOllamaSummarize('mistral', llmockBase(aimockPort)),
+    groq: () =>
+      createGroqSummarize('llama-3.3-70b-versatile', DUMMY_KEY, {
+        baseURL: `${llmockBase(aimockPort)}/openai/v1`,
+        defaultHeaders: headers,
+      }),
     grok: () =>
       createGrokSummarize('grok-build-0.1', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
@@ -86,6 +93,11 @@ function createSummarizeAdapter(
       createOpenRouterSummarize('openai/gpt-4o', DUMMY_KEY, {
         serverURL: openaiUrl(aimockPort),
         httpClient: openRouterHttpClient(headers),
+      }),
+    'vercel-gateway': () =>
+      createVercelGatewaySummarize('openai/gpt-5.5', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
       }),
   }
   return factories[provider]?.()

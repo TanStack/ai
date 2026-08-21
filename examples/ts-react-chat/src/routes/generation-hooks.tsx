@@ -153,33 +153,39 @@ function GenerationHooksPage() {
   const [audioDuration, setAudioDuration] = useState(3)
 
   const image = useGenerateImage({
-    id: 'generation-hooks:useGenerateImage',
+    threadId: 'generation-hooks:useGenerateImage',
     connection: imageConnection,
+    persistence: true,
   })
 
   const audio = useGenerateAudio({
-    id: 'generation-hooks:useGenerateAudio',
+    threadId: 'generation-hooks:useGenerateAudio',
     connection: audioConnection,
+    persistence: true,
   })
 
   const speech = useGenerateSpeech({
-    id: 'generation-hooks:useGenerateSpeech',
+    threadId: 'generation-hooks:useGenerateSpeech',
     connection: speechConnection,
+    persistence: true,
   })
 
   const transcription = useTranscription({
-    id: 'generation-hooks:useTranscription',
+    threadId: 'generation-hooks:useTranscription',
     connection: transcriptionConnection,
+    persistence: true,
   })
 
   const summarize = useSummarize({
-    id: 'generation-hooks:useSummarize',
+    threadId: 'generation-hooks:useSummarize',
     connection: summarizeConnection,
+    persistence: true,
   })
 
   const video = useGenerateVideo({
-    id: 'generation-hooks:useGenerateVideo',
+    threadId: 'generation-hooks:useGenerateVideo',
     connection: videoConnection,
+    persistence: true,
   })
 
   const loadingCount = [
@@ -191,20 +197,30 @@ function GenerationHooksPage() {
     video.isLoading,
   ].filter(Boolean).length
 
-  const runImage = () => image.generate({ prompt, numberOfImages: imageCount })
-  const runAudio = () => audio.generate({ prompt, duration: audioDuration })
-  const runSpeech = () => speech.generate({ text: speechText, voice: 'local' })
-  const runTranscription = () =>
-    transcription.generate({
+  const runImage = () => {
+    return image.generate({ prompt, numberOfImages: imageCount })
+  }
+  const runAudio = () => {
+    return audio.generate({ prompt, duration: audioDuration })
+  }
+  const runSpeech = () => {
+    return speech.generate({ text: speechText, voice: 'local' })
+  }
+  const runTranscription = () => {
+    return transcription.generate({
       audio: SAMPLE_TRANSCRIPTION_AUDIO,
       language: 'en',
     })
-  const runSummarize = () =>
-    summarize.generate({
+  }
+  const runSummarize = () => {
+    return summarize.generate({
       text: summaryText,
       style: 'bullet-points',
     })
-  const runVideo = () => video.generate({ prompt })
+  }
+  const runVideo = () => {
+    return video.generate({ prompt })
+  }
 
   const runAll = async () => {
     await Promise.all([

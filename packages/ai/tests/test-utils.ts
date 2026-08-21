@@ -162,6 +162,9 @@ export function createMockAdapter(options: {
    *  The engine then forwards `outputSchema` into `chatStream` and skips
    *  the separate finalization round-trip. */
   supportsCombinedToolsAndSchema?: boolean
+  /** When `'event'`, the engine harvests `structured-output.complete`
+   *  from `chatStream` instead of parsing accumulated assistant text. */
+  combinedStructuredOutputSource?: 'text' | 'event'
 }) {
   const calls: Array<TextOptions<any, any>> = []
   let callIndex = 0
@@ -211,6 +214,10 @@ export function createMockAdapter(options: {
 
   if (options.supportsCombinedToolsAndSchema) {
     adapter.supportsCombinedToolsAndSchema = () => true
+  }
+
+  if (options.combinedStructuredOutputSource === 'event') {
+    adapter.combinedStructuredOutputSource = () => 'event'
   }
 
   return { adapter, calls }

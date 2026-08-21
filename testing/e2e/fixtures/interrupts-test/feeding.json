@@ -1,0 +1,24 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[feeding] run test", "sequenceIndex": 0 },
+      "response": {
+        "content": "Let me help you set up a feeding schedule."
+      }
+    },
+    {
+      "match": {
+        "userMessage": "The keeper set a feeding schedule. Confirm it briefly.",
+        "sequenceIndex": 0
+      },
+      "response": { "content": "Confirmed — the feeding schedule is set." }
+    },
+    {
+      "match": {
+        "userMessage": "The keeper cancelled the feeding schedule. Acknowledge briefly.",
+        "sequenceIndex": 0
+      },
+      "response": { "content": "Okay — the feeding schedule was cancelled." }
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-fal",
-  "version": "0.9.10",
+  "version": "0.12.0",
   "description": "fal.ai adapter for TanStack AI image, video, audio, speech, and transcription generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -33,9 +33,9 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest run",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -59,14 +59,14 @@
   ],
   "dependencies": {
     "@fal-ai/client": "^1.10.1",
-    "@tanstack/ai-utils": "workspace:*"
+    "@tanstack/ai-utils": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14",
-    "vite": "^7.3.3"
+    "@vitest/coverage-v8": "4.1.10",
+    "vite": "^8.2.1"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:*"
+    "@tanstack/ai": "workspace:^"
   }
 }

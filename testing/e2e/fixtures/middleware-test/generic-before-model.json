@@ -1,0 +1,11 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[generic-before-model] run test",
+        "sequenceIndex": 0
+      },
+      "response": { "content": "BEFORE_MODEL_RESOLVED" }
+    }
+  ]
+}

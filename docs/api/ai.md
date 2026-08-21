@@ -46,7 +46,8 @@ const stream = chat({
 - `tools?` - Array of tools for function calling
 - `context?` - Typed runtime context passed to server tools and middleware. If a tool or middleware declares a concrete context type, `chat()` requires a compatible value here
 - `systemPrompts?` - System prompts to prepend to messages
-- `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`)
+- `agentLoopStrategy?` - Strategy for agent loops (default: `maxIterations(5)`). Strategies receive `{ iterationCount, finishReason, messages, toolCallCount, lastTurnToolCallCount }` and run between model turns. Iterations are model turns, not tool calls — for tool-call budgets use middleware (`onBeforeToolCall` + `onShouldContinue`); see [Tool-call budgets](../chat/agentic-cycle#tool-call-budgets-middleware-recipe).
+- `middleware?` - Array of chat middleware. Use `onShouldContinue` / `onBeforeToolCall` for app-owned tool budgets.
 - `abortController?` - AbortController for cancellation
 - `modelOptions?` - Provider-native model options. This is where sampling parameters live — `temperature`, `top_p`/`topP`, and the provider's token-limit key (`max_output_tokens`, `max_tokens`, `maxOutputTokens`, …) — under each provider's canonical name, rather than as generic root-level props. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). (Renamed from `providerOptions`.)
 - `threadId?` - AG-UI thread identifier propagated into `RUN_STARTED` events for run correlation
@@ -314,7 +315,7 @@ A merged tool record suitable for `chat({ tools })`.
 
 ## `maxIterations(count)`
 
-Creates an agent loop strategy that limits iterations.
+Creates an agent loop strategy that limits **model turns** (iterations), not tool calls. One turn can still emit many parallel tool calls — use middleware for tool-call budgets ([recipe](../chat/agentic-cycle#tool-call-budgets-middleware-recipe)).
 
 ```typescript
 import { chat, maxIterations } from "@tanstack/ai";
@@ -329,21 +330,38 @@ const stream = chat({
 
 ### Parameters
 
-- `count` - Maximum number of tool execution iterations
+- `count` - Maximum number of model turns
 
 ### Returns
 
-An `AgentLoopStrategy` object.
+An `AgentLoopStrategy` function.
 
 ## Types
 
 ### `ModelMessage`
 
 ```typescript
-interface ModelMessage {
-  role: "user" | "assistant" | "system" | "tool";
-  content: string;
+import type {
+  ContentPart,
+  StructuredOutputPart,
+  ToolCall,
+} from "@tanstack/ai";
+
+interface ModelMessage<
+  TContent extends string | null | ContentPart[] =
+    | string
+    | null
+    | ContentPart[],
+> {
+  role: "user" | "assistant" | "tool";
+  content: TContent;
+  name?: string;
+  toolCalls?: ToolCall[];
   toolCallId?: string;
+  thinking?: Array<{ content: string; signature?: string }>;
+  structuredOutput?: StructuredOutputPart;
+  id?: string;
+  createdAt?: Date;
 }
 ```
 

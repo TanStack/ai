@@ -5,7 +5,7 @@ title: ToolCallResultEvent
 
 # Interface: ToolCallResultEvent
 
-Defined in: [packages/ai/src/types.ts:1199](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1199)
+Defined in: [packages/ai/src/types.ts:1307](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1307)
 
 Emitted when a tool call result is available.
 
@@ -27,10 +27,10 @@ TanStack AI adds: `model?`
 ### model?
 
 ```ts
-optional model: string;
+optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1201](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1201)
+Defined in: [packages/ai/src/types.ts:1309](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1309)
 
 Model identifier for multi-model support
 
@@ -39,9 +39,9 @@ Model identifier for multi-model support
 ### state?
 
 ```ts
-optional state: ToolOutputState;
+optional state?: ToolOutputState;
 ```
 
-Defined in: [packages/ai/src/types.ts:1203](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1203)
+Defined in: [packages/ai/src/types.ts:1311](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1311)
 
 Tool execution output state (TanStack AI internal)

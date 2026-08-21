@@ -7,6 +7,7 @@ import {
   convertWebFetchToolToAdapterFormat,
   isWebFetchTool,
 } from './web-fetch-tool'
+import { assertUniqueToolNames } from '@tanstack/ai/adapter-internals'
 import type { Tool } from '@tanstack/ai'
 import type { FunctionTool } from './function-tool'
 import type { WebSearchToolConfig } from './web-search-tool'
@@ -20,6 +21,7 @@ export type OpenRouterTool =
 export function convertToolsToProviderFormat(
   tools: Array<Tool>,
 ): Array<OpenRouterTool> {
+  assertUniqueToolNames(tools)
   return tools.map((tool) => {
     // Dispatch on the stable `__kind` brand set by webSearchTool() /
     // webFetchTool() — not on `tool.name`, which a user can reuse with

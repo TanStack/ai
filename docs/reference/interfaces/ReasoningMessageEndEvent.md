@@ -5,7 +5,7 @@ title: ReasoningMessageEndEvent
 
 # Interface: ReasoningMessageEndEvent
 
-Defined in: [packages/ai/src/types.ts:1564](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1564)
+Defined in: [packages/ai/src/types.ts:1703](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1703)
 
 Emitted when a reasoning message ends.
 
@@ -27,9 +27,9 @@ TanStack AI adds: `model?`
 ### model?
 
 ```ts
-optional model: string;
+optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1566](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1566)
+Defined in: [packages/ai/src/types.ts:1705](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1705)
 
 Model identifier for multi-model support

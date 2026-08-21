@@ -70,8 +70,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 - `connection` - Connection adapter (required)
 - `tools?` - Array of client tool implementations (with `.client()` method)
 - `initialMessages?` - Initial messages array
-- `id?` - Unique identifier for this chat instance
-- `threadId?` - Thread ID for AG-UI run correlation. Persists across sends; auto-generated if omitted
+- `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (reactive -- changes are synced automatically via `watch`)
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire (reactive)
 - `context?` - Typed client-local runtime context passed to client tool implementations (reactive). This value is not serialized to the server
@@ -80,6 +79,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 - `onChunk?` - Callback when stream chunk is received
 - `onFinish?` - Callback when response finishes
 - `onError?` - Callback when error occurs
+- `onInterruptStateChange?` - Callback when interrupt state changes; context source is `hydrate` for restored state and `live` for streamed or client-initiated updates
 - `onCustomEvent?` - Callback for custom stream events
 - `streamProcessor?` - Stream processing configuration
 
@@ -314,9 +314,9 @@ const { generate, result, isLoading, error, status, stop, reset } =
   });
 ```
 
-**Options:** `connection?`, `fetcher?`, `id?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
+**Options:** `connection?`, `fetcher?`, `threadId?`, `body?`, `onResult?`, `onError?`, `onProgress?`, `onChunk?`
 
-**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset` -- all reactive state is `DeepReadonly<ShallowRef<T>>`.
+**Returns:** `generate`, `result`, `isLoading`, `error`, `status`, `stop`, `reset`, `runId` -- all reactive state is `DeepReadonly<ShallowRef<T>>`.
 
 ### `useGenerateImage(options)`
 

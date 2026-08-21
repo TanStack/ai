@@ -67,6 +67,13 @@ export const Route = createFileRoute('/_npm-github-chat/api/codemode')({
         const provider: Provider = data?.provider || 'anthropic'
         const model: string | undefined = data?.model
         const vm: IsolateVM = data?.vm || 'node'
+        const serverRuntime =
+          typeof (globalThis as { Bun?: unknown }).Bun !== 'undefined'
+            ? 'bun'
+            : 'node'
+        console.info(
+          `[api/codemode] request provider=${provider} model=${model ?? 'default'} vm=${vm} serverRuntime=${serverRuntime}`,
+        )
 
         const adapter = getAdapter(provider, model)
         const baseChatStream = adapter.chatStream.bind(adapter)

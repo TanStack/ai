@@ -45,6 +45,10 @@ const stream = chat({
 })
 ```
 
+The factory is what selects native provider behavior, not the public name. A plain function named `web_search`, `google_search`, or `code_execution` stays a custom function. Do not hand-build `{ name: 'web_search', metadata: ... }` and expect a native payload.
+
+You can put a factory tool and your own function in the same `chat({ tools })` call if the names differ. Tool names in one `tools` array must be unique. If you pass both `webSearchTool()` and your own function named `web_search`, `chat()` throws `DuplicateToolNameError` before it talks to the provider.
+
 ## Multi-turn persistence
 
 Provider tools run on the provider's own infrastructure, so their results

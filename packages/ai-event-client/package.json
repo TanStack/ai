@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-event-client",
-  "version": "0.6.8",
+  "version": "0.9.0",
   "description": "Typed event client for TanStack AI devtools, observability, and streamed runtime events.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -34,9 +34,9 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest --passWithNoTests",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
@@ -45,7 +45,7 @@
     "@tanstack/devtools-event-client": "^0.4.1"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.1.10"
   },
   "keywords": [
     "ai",
