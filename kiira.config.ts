@@ -56,6 +56,8 @@ export default defineConfig({
     '@mynthio/tanstack-ai-adapter': '^0.0.14',
     '@cencori/ai-sdk': '^0.4.0',
     '@soniox/tanstack-ai-adapter': '^0.1.2',
+    // Octane is a peer of @tanstack/ai-octane, not a root workspace dep.
+    octane: '^0.1.17',
   },
   overrides: [
     // React (and anything not overridden below) uses the automatic JSX
@@ -81,6 +83,19 @@ export default defineConfig({
       include: ['docs/api/ai-preact.md'],
       jsx: 'react-jsx',
       jsxImportSource: 'preact',
+    },
+    // Octane snippets compile JSX through octane. Standard TSX works;
+    // TSRX (`@{`, `@for`) is not TypeScript, so docs use TSX here.
+    // `octane/jsx-runtime` is types-only via package.json exports;
+    // kiira's paths["*"] does not read exports, so `octane/dist` points
+    // at dist/jsx-runtime.d.ts, which exists on disk.
+    {
+      include: [
+        'docs/api/ai-octane.md',
+        'docs/getting-started/quick-start-octane.md',
+      ],
+      jsx: 'react-jsx',
+      jsxImportSource: 'octane/dist',
     },
   ],
 })

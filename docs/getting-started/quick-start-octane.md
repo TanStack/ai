@@ -84,11 +84,11 @@ app.listen(3000, () => console.log('Server running on port 3000'))
 
 ## 3. Call `useChat` in Octane
 
-```tsx ignore
+```tsx
 import { useState } from 'octane'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-octane'
 
-export function Chat() @{
+export function Chat() {
   const [input, setInput] = useState('')
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
@@ -101,35 +101,37 @@ export function Chat() @{
     }
   }
 
-  <div>
-    @for (const message of messages; key message.id) {
-      <div>
-        <strong>{message.role === 'assistant' ? 'Assistant' : 'You'}</strong>
-        <p>
-          {message.parts
-            .filter((part) => part.type === 'text')
-            .map((part) => part.content)
-            .join('')}
-        </p>
-      </div>
-    }
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
-        handleSubmit()
-      }}
-    >
-      <input
-        value={input}
-        placeholder="Type a message..."
-        disabled={isLoading}
-        onInput={(event) => setInput(event.currentTarget.value)}
-      />
-      <button type="submit" disabled={!input.trim() || isLoading}>
-        Send
-      </button>
-    </form>
-  </div>
+  return (
+    <div>
+      {messages.map((message) => (
+        <div key={message.id}>
+          <strong>{message.role === 'assistant' ? 'Assistant' : 'You'}</strong>
+          <p>
+            {message.parts
+              .filter((part) => part.type === 'text')
+              .map((part) => part.content)
+              .join('')}
+          </p>
+        </div>
+      ))}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          handleSubmit()
+        }}
+      >
+        <input
+          value={input}
+          placeholder="Type a message..."
+          disabled={isLoading}
+          onInput={(event) => setInput(event.currentTarget.value)}
+        />
+        <button type="submit" disabled={!input.trim() || isLoading}>
+          Send
+        </button>
+      </form>
+    </div>
+  )
 }
 ```
 

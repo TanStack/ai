@@ -27,6 +27,7 @@ npm install @tanstack/ai-octane octane
 Manages chat state in an Octane component.
 
 ```tsx
+import { useState } from 'octane'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-octane'
 import {
   createChatClientOptions,
@@ -41,21 +42,44 @@ const updateUIDef = toolDefinition({
   inputSchema: z.object({ message: z.string() }),
 })
 
-const updateUI = updateUIDef.client((input) => {
-  console.log(input.message)
-  return { success: true }
-})
+export function ChatComponent() {
+  const [notification, setNotification] = useState<string | null>(null)
+  const updateUI = updateUIDef.client((input) => {
+    setNotification(input.message)
+    return { success: true }
+  })
+  const tools = [updateUI]
 
-const tools = [updateUI]
+  const chatOptions = createChatClientOptions({
+    connection: fetchServerSentEvents('/api/chat'),
+    tools,
+  })
 
-const chatOptions = createChatClientOptions({
-  connection: fetchServerSentEvents('/api/chat'),
-  tools,
-})
+  type ChatMessages = InferChatMessages<typeof chatOptions>
 
-type ChatMessages = InferChatMessages<typeof chatOptions>
+  const { messages, sendMessage, isLoading, error, addToolApprovalResponse } =
+    useChat(chatOptions)
 
-const chat = useChat(chatOptions)
+  return (
+    <div>
+      {notification}
+      {isLoading ? 'Loading' : null}
+      {error ? error.message : null}
+      <button onClick={() => void sendMessage('hi')} type="button">
+        Send
+      </button>
+      <button
+        onClick={() =>
+          void addToolApprovalResponse({ id: 'approval-1', approved: true })
+        }
+        type="button"
+      >
+        Approve
+      </button>
+      {messages.length}
+    </div>
+  )
+}
 ```
 
 The matching server route still runs `chat({ adapter, messages })` and returns SSE. See [Quick Start: Octane](../getting-started/quick-start-octane).
@@ -148,93 +172,103 @@ import {
 
 ## Example: basic chat
 
-```tsx ignore
+```tsx
 import { useState } from 'octane'
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-octane'
 
-export function Chat() @{
+export function Chat() {
   const [input, setInput] = useState('')
   const { messages, sendMessage, isLoading } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
   })
 
-  <div>
-    @for (const message of messages; key message.id) {
-      <div>
-        <strong>{message.role}:</strong>
-        {message.parts
-          .filter((part) => part.type === 'text')
-          .map((part) => part.content)
-          .join('')}
-      </div>
-    }
-    <input
-      value={input}
-      disabled={isLoading}
-      onInput={(event) => setInput(event.currentTarget.value)}
-    />
-    <button
-      disabled={isLoading}
-      onClick={() => {
-        void sendMessage(input)
-        setInput('')
-      }}
-    >
-      Send
-    </button>
-  </div>
+  return (
+    <div>
+      {messages.map((message) => (
+        <div key={message.id}>
+          <strong>{message.role}:</strong>
+          {message.parts
+            .filter((part) => part.type === 'text')
+            .map((part) => part.content)
+            .join('')}
+        </div>
+      ))}
+      <input
+        value={input}
+        disabled={isLoading}
+        onInput={(event) => setInput(event.currentTarget.value)}
+      />
+      <button
+        disabled={isLoading}
+        onClick={() => {
+          void sendMessage(input)
+          setInput('')
+        }}
+        type="button"
+      >
+        Send
+      </button>
+    </div>
+  )
 }
 ```
 
 ## Example: tool approval
 
-```tsx ignore
+```tsx
 import { useChat, fetchServerSentEvents } from '@tanstack/ai-octane'
 
-export function ChatWithApproval() @{
+export function ChatWithApproval() {
   const { messages, sendMessage, addToolApprovalResponse } = useChat({
     connection: fetchServerSentEvents('/api/chat'),
   })
 
-  <div>
-    @for (const message of messages; key message.id) {
-      {message.parts.map((part) => {
-        if (
-          part.type !== 'tool-call' ||
-          part.state !== 'approval-requested' ||
-          !part.approval
-        ) {
-          return null
-        }
-        const approvalId = part.approval.id
-        return (
-          <div>
-            <p>Approve: {part.name}</p>
-            <button
-              onClick={() =>
-                void addToolApprovalResponse({
-                  id: approvalId,
-                  approved: true,
-                })
-              }
-            >
-              Approve
-            </button>
-            <button
-              onClick={() =>
-                void addToolApprovalResponse({
-                  id: approvalId,
-                  approved: false,
-                })
-              }
-            >
-              Deny
-            </button>
-          </div>
-        )
-      })}
-    }
-  </div>
+  return (
+    <div>
+      <button onClick={() => void sendMessage('run the tool')} type="button">
+        Send
+      </button>
+      {messages.map((message) =>
+        message.parts.map((part) => {
+          if (
+            part.type !== 'tool-call' ||
+            part.state !== 'approval-requested' ||
+            !part.approval
+          ) {
+            return null
+          }
+          const approvalId = part.approval.id
+          return (
+            <div key={part.id}>
+              <p>Approve: {part.name}</p>
+              <button
+                onClick={() =>
+                  void addToolApprovalResponse({
+                    id: approvalId,
+                    approved: true,
+                  })
+                }
+                type="button"
+              >
+                Approve
+              </button>
+              <button
+                onClick={() =>
+                  void addToolApprovalResponse({
+                    id: approvalId,
+                    approved: false,
+                  })
+                }
+                type="button"
+              >
+                Deny
+              </button>
+            </div>
+          )
+        }),
+      )}
+    </div>
+  )
 }
 ```
 
