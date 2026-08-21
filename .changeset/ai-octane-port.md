@@ -39,10 +39,7 @@ Two other things to know:
   Octane plugin, so there is no `dist` and `octane` is a required peer. The
   `.tsrx.d.ts` companions are checked declaration emits, so the full generic
   surface is preserved for TypeScript consumers.
-- It is baselined against `@tanstack/ai-react@0.17.0`, while this repo is at
-  0.18.1. The interrupts overhaul (#970) and server-persistence / browser-refresh
-  durability work (#984) are **not** yet reflected in the Octane hooks; the
-  `./mcp-apps` subpath is intentionally not ported (it renders a React-only
-  component). See `packages/ai-octane/status.json` for the full scope,
-  divergence list, and the exact type-surface gap. Catching up to current parity
-  is follow-up work.
+- `useChat` matches the current ChatClient shape: `threadId` identity, queue,
+  `runId`, interrupts, `attach`/`detach`, and `SendMessageOptions`. The
+  `./mcp-apps` subpath is not ported (it renders a React-only component). See
+  `packages/ai-octane/status.json` for the full scope and divergence list.

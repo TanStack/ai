@@ -47,11 +47,11 @@ export function Chat() @{
   <div>
     @for (const message of chat.messages; key message.id) {
       <p>
-        {(message.role +
-          ': ' +
-          message.parts
-            .map((part) => (part.type === 'text' ? part.content : ''))
-            .join('')) as string}
+        {message.role}:
+        {message.parts
+          .filter((part) => part.type === 'text')
+          .map((part) => part.content)
+          .join('')}
       </p>
     }
     <input
@@ -104,10 +104,10 @@ initial message snapshot without browser-only setup.
 - Realtime reconnects and token refreshes use the latest `getToken` and adapter
   supplied to the hook; upstream captures the first render's callbacks.
 - The declared realtime `onStatusChange` callback is invoked alongside the
-  hook's state update; upstream 0.17.0 currently drops the external callback.
+  hook's state update; upstream `@tanstack/ai-react` currently drops the
+  external callback.
 - Changing `useChat`'s connection or fetcher updates the active `ChatClient` in
-  place and preserves conversation state; upstream 0.17.0 captures the initial
-  transport.
+  place and preserves conversation state.
 
 ### Fixed here, still present upstream
 
@@ -139,9 +139,9 @@ This binding was developed as `@octanejs/tanstack-ai` in the
 stopgap, and moved here — apart from the rename, the only changes are the three
 fixes listed above and the test-helper hardening noted in `status.json`.
 
-It is baselined against `@tanstack/ai-react@0.17.0`. Current scope, divergences,
-and verification state are tracked in [`status.json`](./status.json) — including
-the upstream changes not yet reflected here.
+Current scope, divergences, and verification state are tracked in
+[`status.json`](./status.json). `useChat` matches the current ChatClient shape
+(`threadId` identity, queue, interrupts, `attach`/`detach`).
 
 The port runs TanStack AI's React adapter tests against Octane across all eleven
 hooks, with no skipped, todo, or expected-failure cases (except the untestable

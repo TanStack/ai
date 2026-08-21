@@ -3,7 +3,13 @@ import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
 import { useChat } from '../src/index'
-import type { DeepPartial, UseChatOptions, UseChatReturn } from '../src/index'
+import type {
+  DeepPartial,
+  QueuedMessage,
+  SendMessageOptions,
+  UseChatOptions,
+  UseChatReturn,
+} from '../src/index'
 
 type Person = { name: string; age: number; email: string }
 
@@ -71,6 +77,29 @@ describe('useChat() return type', () => {
       type R = UseChatReturn<any>
       expectTypeOf<R['sendMessage']>().toBeFunction()
       expectTypeOf<R['isLoading']>().toBeBoolean()
+    })
+
+    it('exposes queue, runId, and interrupt controls', () => {
+      type R = UseChatReturn<any>
+      expectTypeOf<R['queue']>().toEqualTypeOf<Array<QueuedMessage>>()
+      expectTypeOf<R['cancelQueued']>().toEqualTypeOf<(id: string) => void>()
+      expectTypeOf<R['runId']>().toEqualTypeOf<string | null>()
+      expectTypeOf<R['resuming']>().toBeBoolean()
+      expectTypeOf<R['resolveInterrupts']>().toBeFunction()
+      expectTypeOf<R['cancelInterrupts']>().toBeFunction()
+      expectTypeOf<R['retryInterrupts']>().toBeFunction()
+      expectTypeOf<R['resumeInterrupts']>().toBeFunction()
+      expectTypeOf<R['resumeInterruptsUnsafe']>().toBeFunction()
+      expectTypeOf<R['sendMessage']>().toMatchTypeOf<
+        (content: string, options?: SendMessageOptions) => Promise<void>
+      >()
+    })
+
+    it('uses threadId as hook identity, not id', () => {
+      type O = UseChatOptions<any>
+      expectTypeOf<O['threadId']>().toEqualTypeOf<string | undefined>()
+      // @ts-expect-error - identity is threadId; hook-level `id` was dropped
+      type _Id = O['id']
     })
   })
 

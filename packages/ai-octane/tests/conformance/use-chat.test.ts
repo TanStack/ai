@@ -1,12 +1,19 @@
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
-import type { SubscribeConnectionAdapter } from '@tanstack/ai-client'
+import { ChatClient } from '@tanstack/ai-client'
+import type {
+  ChatClientPersistence,
+  ConnectConnectionAdapter,
+  ResumableConnectConnectionAdapter,
+  SubscribeConnectionAdapter,
+} from '@tanstack/ai-client'
 import { act, renderHook, waitFor } from '@octanejs/testing-library'
 import { useState } from 'octane'
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { UIMessage, UseChatOptions } from '../../src/types'
 import { useChat } from '../../src/use-chat.tsrx'
 import {
+  createInterruptResumeSnapshot,
   createMockConnectionAdapter,
   createTextChunks,
   createToolCallChunks,
@@ -21,6 +28,131 @@ describe('useChat', () => {
     })
     return { promise, resolve }
   }
+
+  describe('interrupt state', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('projects one immutable snapshot with the deprecated pending alias', async () => {
+      const onInterruptStateChange = vi.fn()
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+        initialResumeSnapshot: createInterruptResumeSnapshot(),
+        onInterruptStateChange,
+      })
+
+      expect(onInterruptStateChange).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ interrupts: result.current.interrupts }),
+        { source: 'hydrate' },
+      )
+      expect(Object.isFrozen(result.current.interrupts)).toBe(true)
+      expect(result.current.pendingInterrupts).toBe(result.current.interrupts)
+      expect(result.current.interrupts[0]).toMatchObject({
+        id: 'staged-interrupt',
+        status: 'pending',
+      })
+      expect(result.current.interrupts[1]).toMatchObject({
+        id: 'invalid-interrupt',
+        status: 'pending',
+      })
+      expect(result.current.interruptErrors).toEqual([])
+      expect(result.current.resuming).toBe(false)
+      expect(result.current.interrupts[0]).toEqual(
+        expect.objectContaining({
+          resolveInterrupt: expect.any(Function),
+          cancel: expect.any(Function),
+          clearResolution: expect.any(Function),
+        }),
+      )
+
+      act(() => result.current.resolveInterrupts(false))
+      await waitFor(() => {
+        expect(result.current.interruptErrors[0]?.code).toBe(
+          'unsupported-bulk-operation',
+        )
+      })
+      expect(onInterruptStateChange).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          interrupts: result.current.interrupts,
+          interruptErrors: result.current.interruptErrors,
+        }),
+        { source: 'live' },
+      )
+    })
+
+    it('awaits onResponse when hydration resumes during activation', async () => {
+      const response = createDeferred<void>()
+      const onResponse = vi.fn(() => response.promise)
+      const onConnect = vi.fn()
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('resumed'),
+          onConnect,
+        }),
+        initialResumeSnapshot: createInterruptResumeSnapshot(),
+        live: true,
+        onResponse,
+        onInterruptStateChange: (state, context) => {
+          if (context.source !== 'hydrate') return
+          for (const interrupt of state.interrupts) {
+            if (interrupt.kind === 'unbound') continue
+            interrupt.cancel()
+          }
+        },
+      })
+
+      await waitFor(() => {
+        expect(onResponse).toHaveBeenCalledOnce()
+      })
+      expect(onConnect).not.toHaveBeenCalled()
+
+      await act(async () => {
+        response.resolve()
+        await response.promise
+      })
+
+      await waitFor(() => {
+        expect(onConnect).toHaveBeenCalledOnce()
+        expect(result.current.resuming).toBe(false)
+      })
+    })
+
+    it('delegates every root interrupt control to ChatClient', async () => {
+      const resolve = vi
+        .spyOn(ChatClient.prototype, 'resolveInterrupts')
+        .mockImplementation(() => {})
+      const cancel = vi
+        .spyOn(ChatClient.prototype, 'cancelInterrupts')
+        .mockImplementation(() => {})
+      const retry = vi
+        .spyOn(ChatClient.prototype, 'retryInterrupts')
+        .mockImplementation(() => {})
+      const unsafe = vi
+        .spyOn(ChatClient.prototype, 'resumeInterruptsUnsafe')
+        .mockResolvedValue(true)
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+      })
+      const resolver = () => undefined
+      const resume = [{ interruptId: 'one', status: 'cancelled' as const }]
+
+      act(() => {
+        result.current.resolveInterrupts(resolver)
+        result.current.cancelInterrupts()
+        result.current.retryInterrupts()
+      })
+      await expect(result.current.resumeInterruptsUnsafe(resume)).resolves.toBe(
+        true,
+      )
+
+      expect(resolve).toHaveBeenCalledWith(resolver)
+      expect(cancel).toHaveBeenCalledOnce()
+      expect(retry).toHaveBeenCalledOnce()
+      expect(unsafe).toHaveBeenCalledWith(resume, undefined)
+    })
+  })
 
   describe('initialization', () => {
     it('should initialize with default state', () => {
@@ -85,7 +217,7 @@ describe('useChat', () => {
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'persisted-chat',
+        threadId: 'persisted-chat',
         persistence,
       })
 
@@ -93,6 +225,32 @@ describe('useChat', () => {
         expect(result.current.messages).toEqual(persistedMessages)
       })
       expect(persistence.getItem).toHaveBeenCalledWith('persisted-chat')
+    })
+
+    it('should forward synchronous persisted interrupt hydration', () => {
+      const onInterruptStateChange = vi.fn()
+      const persistence = {
+        getItem: vi.fn(() => ({
+          messages: [],
+          resume: createInterruptResumeSnapshot(),
+        })),
+        setItem: vi.fn(),
+        removeItem: vi.fn(),
+      }
+
+      const { result } = renderUseChat({
+        connection: createMockConnectionAdapter(),
+        threadId: 'persisted-interrupt-chat',
+        persistence,
+        onInterruptStateChange,
+      })
+
+      expect(result.current.interrupts).toHaveLength(2)
+      expect(onInterruptStateChange).toHaveBeenCalledOnce()
+      expect(onInterruptStateChange).toHaveBeenCalledWith(
+        expect.objectContaining({ interrupts: result.current.interrupts }),
+        { source: 'hydrate' },
+      )
     })
 
     it('should preserve persisted empty messages over provided initial messages', async () => {
@@ -113,7 +271,7 @@ describe('useChat', () => {
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'persisted-empty-chat',
+        threadId: 'persisted-empty-chat',
         initialMessages,
         persistence,
       })
@@ -151,10 +309,10 @@ describe('useChat', () => {
       }
 
       function useChangingChat() {
-        const [id, setId] = useState('old-chat')
+        const [threadId, setId] = useState('old-chat')
         const chat = useChat({
           connection: createMockConnectionAdapter(),
-          id,
+          threadId,
           persistence,
         })
 
@@ -179,13 +337,13 @@ describe('useChat', () => {
       expect(result.current.messages).toEqual(newMessages)
     })
 
-    it('should use provided id', async () => {
+    it('should use provided threadId', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })
 
       const { result } = renderUseChat({
         connection: adapter,
-        id: 'custom-id',
+        threadId: 'custom-id',
       })
 
       await result.current.sendMessage('Test')
@@ -217,6 +375,158 @@ describe('useChat', () => {
       const messageId = result.current.messages[0]!.id
       expect(messageId).toBeTruthy()
       expect(messageId).not.toMatch(/^custom-id-/)
+    })
+
+    it('does not call crypto.randomUUID while rendering useChat', () => {
+      const randomUUID = vi.fn(() => {
+        throw new Error('crypto.randomUUID during render')
+      })
+      vi.stubGlobal('crypto', { randomUUID })
+
+      expect(() => {
+        renderUseChat({
+          connection: createMockConnectionAdapter(),
+        })
+      }).not.toThrow()
+
+      expect(randomUUID).not.toHaveBeenCalled()
+      vi.unstubAllGlobals()
+    })
+
+    it('sends a minted threadId that is not an Octane useId string', async () => {
+      const threadIds: Array<string> = []
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, abortSignal, runContext) {
+          if (runContext) {
+            threadIds.push(runContext.threadId)
+          }
+          for (const chunk of createTextChunks('Response')) {
+            if (abortSignal?.aborted) {
+              return
+            }
+            yield chunk
+          }
+        },
+      }
+
+      const { result } = renderUseChat({ connection: adapter })
+      await result.current.sendMessage('Test')
+
+      await waitFor(() => {
+        expect(threadIds).toHaveLength(1)
+      })
+      expect(threadIds[0]).toMatch(/^thread-/)
+      expect(threadIds[0]).not.toMatch(/^[:_]/)
+    })
+
+    it('does not expose delivery-cursor resume/autoResume machinery', () => {
+      const adapter = createMockConnectionAdapter()
+      const { result } = renderUseChat({ connection: adapter })
+
+      expect(result.current).not.toHaveProperty('resume')
+      expect(result.current).not.toHaveProperty('resumeState')
+      expect(typeof result.current.resumeInterrupts).toBe('function')
+      expect(result.current.runId).toBeNull()
+    })
+
+    it('exposes the run id while a send is in flight and clears it after', async () => {
+      let release: (() => void) | undefined
+      const held = new Promise<void>((resolve) => {
+        release = resolve
+      })
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, _signal, runContext) {
+          yield {
+            type: EventType.RUN_STARTED,
+            runId: runContext?.runId ?? 'r1',
+            threadId: runContext?.threadId ?? 't1',
+            timestamp: 1,
+          }
+          await held
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId: runContext?.runId ?? 'r1',
+            threadId: runContext?.threadId ?? 't1',
+            finishReason: 'stop',
+            timestamp: 2,
+          }
+        },
+      }
+      const { result } = renderUseChat({ connection: adapter })
+
+      const send = result.current.sendMessage('hi')
+      await waitFor(() => {
+        expect(result.current.runId).toMatch(/^run-/)
+      })
+
+      await act(async () => {
+        release?.()
+        await send
+      })
+      expect(result.current.runId).toBeNull()
+    })
+
+    it('rejoins an in-flight run on mount without aborting it (live off)', async () => {
+      const runChunks: Array<StreamChunk> = [
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'r1',
+          threadId: 't1',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'a1',
+          role: 'assistant',
+          timestamp: 2,
+        },
+        {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: 'a1',
+          delta: 'resumed reply',
+          timestamp: 3,
+        },
+        { type: EventType.TEXT_MESSAGE_END, messageId: 'a1', timestamp: 4 },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'stop',
+          timestamp: 5,
+        },
+      ]
+      const joinRun = vi.fn(async function* (_runId: string) {
+        for (const chunk of runChunks) yield chunk
+      })
+      const connection: ResumableConnectConnectionAdapter = {
+        connect: async function* () {},
+        joinRun,
+      }
+      const persistence: ChatClientPersistence = {
+        getItem: () => ({
+          messages: [],
+          resume: {
+            schemaVersion: 2,
+            resumeState: { threadId: 't1', runId: 'r1' },
+          },
+        }),
+        setItem: () => {},
+        removeItem: () => {},
+      }
+
+      const { result } = renderUseChat({
+        connection,
+        threadId: 't1',
+        persistence,
+      })
+
+      await waitFor(() => {
+        const assistant = result.current.messages.find(
+          (m) => m.role === 'assistant',
+        )
+        const text = assistant?.parts.find((p) => p.type === 'text')
+        expect(text && 'content' in text && text.content).toBe('resumed reply')
+      })
     })
 
     it('should maintain client instance across re-renders', () => {
@@ -407,6 +717,58 @@ describe('useChat', () => {
         { type: 'text', content: 'First' },
         { type: 'text', content: 'Second' },
       ])
+    })
+
+    it('honors sendMessage whenBusy: drop', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+        chunkDelay: 100,
+      })
+      const { result } = renderUseChat({ connection: adapter })
+
+      const promise1 = result.current.sendMessage('First')
+      const promise2 = result.current.sendMessage('Second', {
+        whenBusy: 'drop',
+      })
+
+      await Promise.all([promise1, promise2])
+
+      const userMessages = result.current.messages.filter(
+        (m) => m.role === 'user',
+      )
+      expect(userMessages.map((m) => m.parts[0])).toEqual([
+        { type: 'text', content: 'First' },
+      ])
+    })
+
+    it('exposes the queue and cancelQueued', async () => {
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+        chunkDelay: 100,
+      })
+      const { result } = renderUseChat({ connection: adapter })
+
+      const first = result.current.sendMessage('First')
+      await waitFor(() => {
+        expect(result.current.isLoading).toBe(true)
+      })
+      const second = result.current.sendMessage('Second')
+      await waitFor(() => {
+        expect(result.current.queue).toHaveLength(1)
+      })
+      act(() => {
+        result.current.cancelQueued(result.current.queue[0]!.id)
+      })
+      await first
+      await second
+
+      const userMessages = result.current.messages.filter(
+        (m) => m.role === 'user',
+      )
+      expect(userMessages.map((m) => m.parts[0])).toEqual([
+        { type: 'text', content: 'First' },
+      ])
+      expect(result.current.queue).toEqual([])
     })
 
     it('should handle errors during sendMessage', async () => {
@@ -964,7 +1326,7 @@ describe('useChat', () => {
         {
           initialProps: {
             connection: adapter,
-            id: 'old-client',
+            threadId: 'old-client',
             onChunk: oldOnChunk,
           },
         },
@@ -977,7 +1339,7 @@ describe('useChat', () => {
 
       rerender({
         connection: adapter,
-        id: 'new-client',
+        threadId: 'new-client',
         onChunk: newOnChunk,
       })
 
@@ -1097,8 +1459,8 @@ describe('useChat', () => {
         // Control id via state so setMessages and setId are both React
         // state updates that get batched into a single render.
         const { result } = renderHook(() => {
-          const [id, setId] = useState('client-A')
-          const chat = useChat({ connection: adapter, id })
+          const [threadId, setId] = useState('client-A')
+          const chat = useChat({ connection: adapter, threadId })
           return { ...chat, switchId: setId }
         })
 
@@ -1160,8 +1522,8 @@ describe('useChat', () => {
         ]
 
         const { result } = renderHook(() => {
-          const [id, setId] = useState('client-A')
-          const chat = useChat({ connection: adapter, id })
+          const [threadId, setId] = useState('client-A')
+          const chat = useChat({ connection: adapter, threadId })
           return { ...chat, switchId: setId }
         })
 
@@ -1389,11 +1751,11 @@ describe('useChat', () => {
 
         const { result: result1 } = renderUseChat({
           connection: adapter1,
-          id: 'chat-1',
+          threadId: 'chat-1',
         })
         const { result: result2 } = renderUseChat({
           connection: adapter2,
-          id: 'chat-2',
+          threadId: 'chat-2',
         })
 
         await result1.current.sendMessage('Hello 1')
@@ -1417,11 +1779,11 @@ describe('useChat', () => {
         const adapter = createMockConnectionAdapter()
         const { result: result1 } = renderUseChat({
           connection: adapter,
-          id: 'chat-1',
+          threadId: 'chat-1',
         })
         const { result: result2 } = renderUseChat({
           connection: adapter,
-          id: 'chat-2',
+          threadId: 'chat-2',
         })
 
         // Should not interfere with each other
