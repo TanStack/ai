@@ -17,19 +17,19 @@ Prep PRs for review. Fan out one subagent per PR (cap 100). Default is **dry-run
 
 ## Args
 
-| Invocation | Behavior |
-|------------|----------|
-| `/pr-sweep` | All open non-draft PRs (full audit) |
-| `/pr-sweep 12 34 56` | Only those PR numbers |
-| `/pr-sweep --apply` | Full set, then rebase **and push** (`--force-with-lease`) |
-| `/pr-sweep --apply 12 34` | Rebase **and push** listed PRs only |
-| `/pr-sweep --outside-only` | Action target = outside authors only (default for mutations) |
-| `/pr-sweep --include-in-house` | Also rebase/update **in-house** branches (still never merge) |
-| `/pr-sweep --behind` | Only PRs behind base / BEHIND / not up to date |
-| `/pr-sweep --conflicts` | Only CONFLICTING / DIRTY / dirty merge state |
-| `/pr-sweep --changed` | Only PRs changed since last snapshot (or `updatedAt` within 24h if no snapshot) |
-| `/pr-sweep --daily` | Recommended daily recipe: `--changed` ∪ `--behind` ∪ `--conflicts` ∪ new outside PRs; security-scan new outside; lighter pass on the rest |
-| `/pr-sweep --apply --daily --include-in-house` | Daily apply: prep outside + rebase ours when behind/conflicting |
+| Invocation                                     | Behavior                                                                                                                                  |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `/pr-sweep`                                    | All open non-draft PRs (full audit)                                                                                                       |
+| `/pr-sweep 12 34 56`                           | Only those PR numbers                                                                                                                     |
+| `/pr-sweep --apply`                            | Full set, then rebase **and push** (`--force-with-lease`)                                                                                 |
+| `/pr-sweep --apply 12 34`                      | Rebase **and push** listed PRs only                                                                                                       |
+| `/pr-sweep --outside-only`                     | Action target = outside authors only (default for mutations)                                                                              |
+| `/pr-sweep --include-in-house`                 | Also rebase/update **in-house** branches (still never merge)                                                                              |
+| `/pr-sweep --behind`                           | Only PRs behind base / BEHIND / not up to date                                                                                            |
+| `/pr-sweep --conflicts`                        | Only CONFLICTING / DIRTY / dirty merge state                                                                                              |
+| `/pr-sweep --changed`                          | Only PRs changed since last snapshot (or `updatedAt` within 24h if no snapshot)                                                           |
+| `/pr-sweep --daily`                            | Recommended daily recipe: `--changed` ∪ `--behind` ∪ `--conflicts` ∪ new outside PRs; security-scan new outside; lighter pass on the rest |
+| `/pr-sweep --apply --daily --include-in-house` | Daily apply: prep outside + rebase ours when behind/conflicting                                                                           |
 
 Combine freely: `--apply --daily --include-in-house`. Explicit PR numbers always win over filters.
 
@@ -212,7 +212,13 @@ Each agent returns **one JSON object only**:
   "assignForReview": true,
   "assignTo": ["login-or-team"],
   "priority": "P0|P1|P2|P3",
-  "actionsPlanned": ["security-alert", "rebase", "push-force-with-lease", "approve-ci", "none"],
+  "actionsPlanned": [
+    "security-alert",
+    "rebase",
+    "push-force-with-lease",
+    "approve-ci",
+    "none"
+  ],
   "blockers": "<=120 chars or empty",
   "summary": "<=160 chars"
 }
@@ -259,10 +265,15 @@ Write `.agent/pr-sweep/SWEEP-YYYY-MM-DD.md` (create dirs). Structure:
 # PR Sweep — <OWNER/REPO> — <date> — mode: dry-run|apply — scope: full|daily|behind|conflicts|changed
 
 ## Security alerts
+
 ## Needs human eyes
+
 ## Outside PRs — recommended actions
-## In-house PRs — recommended actions   # when --include-in-house
+
+## In-house PRs — recommended actions # when --include-in-house
+
 ## Skipped
+
 ## Apply plan
 ```
 
@@ -280,14 +291,15 @@ Print a short chat summary: alert count, would-rebase count (outside / in-house)
 
 Process PRs that are actionable:
 
-| Author | Security | Flag | Mutate? |
-|--------|----------|------|---------|
-| outside | clean | default | yes (rebase, approve-ci) |
-| outside | alert/review | any | **no** (report only) |
-| in-house | clean | `--include-in-house` | yes (rebase only; CI approve usually N/A) |
-| in-house | — | no flag | **no** |
+| Author   | Security     | Flag                 | Mutate?                                   |
+| -------- | ------------ | -------------------- | ----------------------------------------- |
+| outside  | clean        | default              | yes (rebase, approve-ci)                  |
+| outside  | alert/review | any                  | **no** (report only)                      |
+| in-house | clean        | `--include-in-house` | yes (rebase only; CI approve usually N/A) |
+| in-house | —            | no flag              | **no**                                    |
 
 #### 5a. Security gate
+
 If `security != "clean"` → skip mutations.
 
 #### 5b. Rebase / update base (worktree subagent)

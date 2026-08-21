@@ -44,7 +44,7 @@ Any of:
 ## What not to cry wolf on
 
 - Normal `fetch` to documented APIs in application code.
-- Test fixtures that *look* like secrets but are clearly fake (`sk-test-...`, `example.com`).
+- Test fixtures that _look_ like secrets but are clearly fake (`sk-test-...`, `example.com`).
 - Vendored third-party code already used by the project when the PR is a version bump with a known release.
 
 ## Output
