@@ -2451,7 +2451,9 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       },
     ]
 
-    async function runChat(content: Array<any>): Promise<Array<AdapterYieldChunk>> {
+    async function runChat(
+      content: Array<any>,
+    ): Promise<Array<AdapterYieldChunk>> {
       setupMockResponsesClient(minimalStreamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
       const chunks: Array<AdapterYieldChunk> = []
