@@ -23,15 +23,18 @@ export type AnthropicVertexConfig = Omit<
   location?: string
 }
 
-function readEnv(name: string): string | undefined {
-  if (typeof process === 'undefined' || process.env === undefined) {
-    return undefined
-  }
-  const value = process.env[name]
+function nonEmpty(value: string | undefined): string | undefined {
   if (value === undefined || value.length === 0) {
     return undefined
   }
   return value
+}
+
+function readEnv(name: string): string | undefined {
+  if (typeof process === 'undefined' || process.env === undefined) {
+    return undefined
+  }
+  return nonEmpty(process.env[name])
 }
 
 export function resolveAnthropicVertexOptions(
@@ -39,12 +42,12 @@ export function resolveAnthropicVertexOptions(
 ): VertexSdkOptions {
   const { project, location, ...rest } = config
   const projectId =
-    project ??
+    nonEmpty(project) ??
     readEnv('GOOGLE_CLOUD_PROJECT') ??
     readEnv('GOOGLE_VERTEX_PROJECT') ??
     readEnv('ANTHROPIC_VERTEX_PROJECT_ID')
   const region =
-    location ??
+    nonEmpty(location) ??
     readEnv('GOOGLE_CLOUD_LOCATION') ??
     readEnv('GOOGLE_VERTEX_LOCATION') ??
     readEnv('CLOUD_ML_REGION')

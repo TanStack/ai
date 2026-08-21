@@ -1,10 +1,25 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   AnthropicVertexAuthError,
   resolveAnthropicVertexOptions,
 } from '../src/vertex/auth'
 
+const VERTEX_ENV = [
+  'GOOGLE_CLOUD_PROJECT',
+  'GOOGLE_VERTEX_PROJECT',
+  'ANTHROPIC_VERTEX_PROJECT_ID',
+  'GOOGLE_CLOUD_LOCATION',
+  'GOOGLE_VERTEX_LOCATION',
+  'CLOUD_ML_REGION',
+] as const
+
 describe('resolveAnthropicVertexOptions', () => {
+  beforeEach(() => {
+    for (const name of VERTEX_ENV) {
+      vi.stubEnv(name, '')
+    }
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })
@@ -37,6 +52,26 @@ describe('resolveAnthropicVertexOptions', () => {
     ).toThrow(AnthropicVertexAuthError)
     expect(() =>
       resolveAnthropicVertexOptions({ project: 'my-project' }),
+    ).toThrow(/needs a location/)
+  })
+
+  it('treats empty factory location as absent and falls back to env', () => {
+    vi.stubEnv('GOOGLE_CLOUD_LOCATION', 'us-east5')
+
+    const options = resolveAnthropicVertexOptions({
+      project: 'my-project',
+      location: '',
+    })
+
+    expect(options.region).toBe('us-east5')
+  })
+
+  it('throws when factory location is empty and env is empty', () => {
+    expect(() =>
+      resolveAnthropicVertexOptions({
+        project: 'my-project',
+        location: '',
+      }),
     ).toThrow(/needs a location/)
   })
 

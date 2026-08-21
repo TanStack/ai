@@ -1,13 +1,31 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   GrokVertexAuthError,
   resolveGrokVertexAccessToken,
   resolveGrokVertexBaseURL,
+  resolveGrokVertexLocation,
   resolveGrokVertexProject,
   toVertexGrokModelId,
 } from '../src/vertex/auth'
 
+const VERTEX_ENV = [
+  'GOOGLE_CLOUD_PROJECT',
+  'GOOGLE_VERTEX_PROJECT',
+  'GOOGLE_CLOUD_LOCATION',
+  'GOOGLE_VERTEX_LOCATION',
+] as const
+
+function clearVertexEnv() {
+  for (const name of VERTEX_ENV) {
+    vi.stubEnv(name, '')
+  }
+}
+
 describe('resolveGrokVertexBaseURL', () => {
+  beforeEach(() => {
+    clearVertexEnv()
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })
@@ -98,6 +116,10 @@ describe('resolveGrokVertexAccessToken', () => {
 })
 
 describe('resolveGrokVertexProject', () => {
+  beforeEach(() => {
+    clearVertexEnv()
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })
@@ -105,5 +127,24 @@ describe('resolveGrokVertexProject', () => {
   it('reads GOOGLE_CLOUD_PROJECT when project is omitted', () => {
     vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'env-project')
     expect(resolveGrokVertexProject({})).toBe('env-project')
+  })
+
+  it('treats empty factory project as absent and falls back to env', () => {
+    vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'env-project')
+    expect(resolveGrokVertexProject({ project: '' })).toBe('env-project')
+  })
+})
+
+describe('resolveGrokVertexLocation', () => {
+  beforeEach(() => {
+    clearVertexEnv()
+  })
+
+  afterEach(() => {
+    vi.unstubAllEnvs()
+  })
+
+  it('defaults to global when factory location is empty', () => {
+    expect(resolveGrokVertexLocation({ location: '' })).toBe('global')
   })
 })

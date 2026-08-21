@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MistralVertexAuthError,
   resolveMistralVertexAccessToken,
@@ -7,7 +7,24 @@ import {
   resolveMistralVertexProject,
 } from '../src/vertex/auth'
 
+const VERTEX_ENV = [
+  'GOOGLE_CLOUD_PROJECT',
+  'GOOGLE_VERTEX_PROJECT',
+  'GOOGLE_CLOUD_LOCATION',
+  'GOOGLE_VERTEX_LOCATION',
+] as const
+
+function clearVertexEnv() {
+  for (const name of VERTEX_ENV) {
+    vi.stubEnv(name, '')
+  }
+}
+
 describe('resolveMistralVertexLocation', () => {
+  beforeEach(() => {
+    clearVertexEnv()
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })
@@ -25,6 +42,16 @@ describe('resolveMistralVertexLocation', () => {
     expect(() =>
       resolveMistralVertexLocation({ project: 'my-project' }),
     ).toThrow(MistralVertexAuthError)
+  })
+
+  it('treats empty factory location as absent and falls back to env', () => {
+    vi.stubEnv('GOOGLE_CLOUD_LOCATION', 'europe-west4')
+    expect(
+      resolveMistralVertexLocation({
+        project: 'my-project',
+        location: '',
+      }),
+    ).toBe('europe-west4')
   })
 
   it('throws for global and other non-Mistral regions', () => {
@@ -57,6 +84,10 @@ describe('resolveMistralVertexModelUrl', () => {
 })
 
 describe('resolveMistralVertexProject', () => {
+  beforeEach(() => {
+    clearVertexEnv()
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })
@@ -74,6 +105,16 @@ describe('resolveMistralVertexProject', () => {
     expect(resolveMistralVertexProject({ location: 'us-central1' })).toBe(
       'env-project',
     )
+  })
+
+  it('treats empty factory project as absent and falls back to env', () => {
+    vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'env-project')
+    expect(
+      resolveMistralVertexProject({
+        project: '',
+        location: 'us-central1',
+      }),
+    ).toBe('env-project')
   })
 })
 

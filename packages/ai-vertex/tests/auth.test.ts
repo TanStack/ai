@@ -1,8 +1,22 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { resolveVertexGeminiOptions } from '../src/auth'
 import { VertexAuthError } from '../src/errors'
 
+const VERTEX_ENV = [
+  'GOOGLE_CLOUD_PROJECT',
+  'GOOGLE_VERTEX_PROJECT',
+  'GOOGLE_CLOUD_LOCATION',
+  'GOOGLE_VERTEX_LOCATION',
+  'GOOGLE_VERTEX_API_KEY',
+] as const
+
 describe('resolveVertexGeminiOptions', () => {
+  beforeEach(() => {
+    for (const name of VERTEX_ENV) {
+      vi.stubEnv(name, '')
+    }
+  })
+
   afterEach(() => {
     vi.unstubAllEnvs()
   })
@@ -77,6 +91,35 @@ describe('resolveVertexGeminiOptions', () => {
     expect(() => resolveVertexGeminiOptions()).toThrow(
       /project and location, or an express apiKey/,
     )
+  })
+
+  it('treats empty factory credentials as absent and falls back to env', () => {
+    vi.stubEnv('GOOGLE_CLOUD_PROJECT', 'env-project')
+    vi.stubEnv('GOOGLE_CLOUD_LOCATION', 'us-central1')
+    vi.stubEnv('GOOGLE_VERTEX_API_KEY', 'env-express-key')
+
+    const options = resolveVertexGeminiOptions({
+      project: '',
+      location: '',
+      apiKey: '',
+    })
+
+    expect(options).toEqual({
+      project: 'env-project',
+      location: 'us-central1',
+      apiKey: 'env-express-key',
+      vertexai: true,
+    })
+  })
+
+  it('throws when factory credentials are empty and env is empty', () => {
+    expect(() =>
+      resolveVertexGeminiOptions({
+        project: '',
+        location: '',
+        apiKey: '',
+      }),
+    ).toThrow(VertexAuthError)
   })
 
   it('forwards googleAuthOptions', () => {

@@ -10,15 +10,18 @@ export type VertexVideoConfig = VertexClientConfig & {
   allowUrlFetch?: boolean
 }
 
-function readEnv(name: string): string | undefined {
-  if (typeof process === 'undefined' || process.env === undefined) {
-    return undefined
-  }
-  const value = process.env[name]
+function nonEmpty(value: string | undefined): string | undefined {
   if (value === undefined || value.length === 0) {
     return undefined
   }
   return value
+}
+
+function readEnv(name: string): string | undefined {
+  if (typeof process === 'undefined' || process.env === undefined) {
+    return undefined
+  }
+  return nonEmpty(process.env[name])
 }
 
 /**
@@ -31,14 +34,14 @@ export function resolveVertexGeminiOptions(
   config: VertexClientConfig = {},
 ): GeminiClientConfig {
   const project =
-    config.project ??
+    nonEmpty(config.project) ??
     readEnv('GOOGLE_CLOUD_PROJECT') ??
     readEnv('GOOGLE_VERTEX_PROJECT')
   const location =
-    config.location ??
+    nonEmpty(config.location) ??
     readEnv('GOOGLE_CLOUD_LOCATION') ??
     readEnv('GOOGLE_VERTEX_LOCATION')
-  const apiKey = config.apiKey ?? readEnv('GOOGLE_VERTEX_API_KEY')
+  const apiKey = nonEmpty(config.apiKey) ?? readEnv('GOOGLE_VERTEX_API_KEY')
 
   if (
     apiKey === undefined &&
