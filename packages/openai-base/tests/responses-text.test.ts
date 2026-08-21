@@ -676,6 +676,90 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
   })
 
   describe('tool call events', () => {
+    it('undoes strict null-widening before emitting the completed tool input', async () => {
+      const strictTool: Tool = {
+        name: 'ask_user',
+        description: 'Ask a question',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            question: { type: 'string' },
+            options: { type: 'array', items: { type: 'string' } },
+            nullableNote: { type: ['string', 'null'] },
+          },
+          required: ['question', 'nullableNote'],
+        },
+      }
+      const argumentsJson =
+        '{"question":"Which one?","options":null,"nullableNote":null}'
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-null-input',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'call-null-input',
+            name: 'ask_user',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'call-null-input',
+          delta: argumentsJson,
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call-null-input',
+          arguments: argumentsJson,
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-null-input',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'call-null-input',
+                name: 'ask_user',
+                arguments: argumentsJson,
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Ask me' }],
+        tools: [strictTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+      if (toolCallEnd?.type !== 'TOOL_CALL_END') {
+        throw new Error('expected TOOL_CALL_END')
+      }
+      expect(toolCallEnd.input).toEqual({
+        question: 'Which one?',
+        nullableNote: null,
+      })
+    })
+
     it('emits TOOL_CALL_START -> TOOL_CALL_ARGS -> TOOL_CALL_END', async () => {
       const streamChunks = [
         {
@@ -1402,6 +1486,77 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const startIdx = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
       const contentIdx = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
       expect(startIdx).toBeLessThan(contentIdx)
+    })
+
+    it('recovers final text from response.completed when no text was streamed', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-completed-text',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.content_part.added',
+          part: { type: 'output_text', text: '' },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-completed-text',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                id: 'msg-completed-text',
+                type: 'message',
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Recovered final answer',
+                    annotations: [],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 5, output_tokens: 3, total_tokens: 8 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Answer carefully' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const contentChunks = chunks.filter(
+        (chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT,
+      )
+      expect(contentChunks).toHaveLength(1)
+      expect(contentChunks[0]).toMatchObject({
+        delta: 'Recovered final answer',
+        content: 'Recovered final answer',
+      })
+
+      const eventTypes = chunks.map((chunk) => chunk.type)
+      const startIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+      const contentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
+      const endIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+      const finishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
+      expect(startIndex).toBeGreaterThanOrEqual(0)
+      expect(contentIndex).toBeGreaterThan(startIndex)
+      expect(endIndex).toBeGreaterThan(contentIndex)
+      expect(finishedIndex).toBeGreaterThan(endIndex)
     })
 
     it('skips content_part.done when deltas were already streamed', async () => {

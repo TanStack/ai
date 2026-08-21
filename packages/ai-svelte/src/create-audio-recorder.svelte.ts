@@ -41,10 +41,18 @@ export interface CreateAudioRecorderReturn<TOutput> {
  * failure (and `stop()` rejects with `Recording cancelled` if `cancel()` runs
  * while a stop is in flight) — handle one channel, not both.
  */
+// The transforming overload requires `onComplete`. Without that constraint an
+// options object carrying only unrelated keys (`createAudioRecorder({ onError })`)
+// still matches it, `TOnComplete` infers as `unknown`, and `recording`/`stop()`
+// collapse to `unknown` — so passing any option would silently cost you the
+// `AudioRecording` type. Requiring it here sends those calls to the second
+// overload instead (issue #1001).
 export function createAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(
-  options: CreateAudioRecorderOptions<TOnComplete>,
+  options: CreateAudioRecorderOptions<TOnComplete> & {
+    onComplete: TOnComplete
+  },
 ): CreateAudioRecorderReturn<InferAudioRecordingOutput<TOnComplete>>
 export function createAudioRecorder(
   options?: CreateAudioRecorderOptions<undefined>,

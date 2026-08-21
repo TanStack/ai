@@ -6,7 +6,9 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
-import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import { makeStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
+import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
+import type { StructuredOutputCompatibility } from '../utils/schema-converter'
 import { buildChatCompletionsUsage } from '../usage'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
@@ -650,14 +652,28 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   }
 
   /**
+   * Strict conversion plus the inverse null-widening map for this request.
+   * Override this when schema conversion changes, so tool-input undo matches
+   * the wire schema.
+   */
+  protected makeStructuredOutputCompatibleWithMap(
+    schema: Record<string, any>,
+    originalRequired?: Array<string>,
+  ): StructuredOutputCompatibility {
+    return makeStructuredOutputCompatibleWithMap(schema, originalRequired)
+  }
+
+  /**
    * Applies provider-specific transformations for structured output compatibility.
-   * Override this in subclasses to handle provider-specific quirks.
+   * Override `makeStructuredOutputCompatibleWithMap` when you need the inverse map
+   * to match the wire schema.
    */
   protected makeStructuredOutputCompatible(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
   ): Record<string, any> {
-    return makeStructuredOutputCompatible(schema, originalRequired)
+    return this.makeStructuredOutputCompatibleWithMap(schema, originalRequired)
+      .schema
   }
 
   /**
@@ -695,6 +711,11 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     options: TextOptions,
     aguiState: ChatStreamState,
   ): AsyncIterable<AdapterYieldChunk> {
+    const normalizeToolInput = createToolInputNormalizer(
+      options.tools,
+      (schema, required) =>
+        this.makeStructuredOutputCompatibleWithMap(schema, required),
+    )
     let accumulatedContent = ''
     let hasEmittedTextMessageStart = false
     let lastModel: string | undefined
@@ -963,8 +984,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               if (toolCall.arguments) {
                 try {
                   const parsed: unknown = JSON.parse(toolCall.arguments)
-                  parsedInput =
-                    parsed && typeof parsed === 'object' ? parsed : {}
+                  parsedInput = normalizeToolInput(
+                    toolCall.name,
+                    parsed && typeof parsed === 'object' ? parsed : {},
+                  )
                 } catch (parseError) {
                   options.logger.errors(
                     `${this.name}.processStreamChunks tool-args JSON parse failed`,
@@ -1035,7 +1058,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           if (toolCall.arguments) {
             try {
               const parsed: unknown = JSON.parse(toolCall.arguments)
-              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              parsedInput = normalizeToolInput(
+                toolCall.name,
+                parsed && typeof parsed === 'object' ? parsed : {},
+              )
             } catch (parseError) {
               // Mirror the finish_reason path's logger call — a truncated
               // stream emitting malformed tool-call JSON would otherwise

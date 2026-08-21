@@ -121,4 +121,22 @@ describe('useAudioRecorder (solid) type inference', () => {
     }
     expect(typeof _types).toBe('function')
   })
+
+  it('keeps AudioRecording when options carry no onComplete (issue #1001)', () => {
+    const _types = () => {
+      const { recording, stop } = useAudioRecorder({
+        onError: (_error: Error) => {},
+      })
+
+      expectTypeOf(recording()).not.toBeUnknown()
+      expectTypeOf(recording()).toEqualTypeOf<AudioRecording | null>()
+      expectTypeOf(stop).returns.toEqualTypeOf<Promise<AudioRecording>>()
+
+      const value = recording()
+      if (value) {
+        expectTypeOf(value.base64).toBeString()
+      }
+    }
+    expect(typeof _types).toBe('function')
+  })
 })

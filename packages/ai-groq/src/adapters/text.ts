@@ -1,7 +1,7 @@
 import OpenAI from 'openai'
 import { OpenAIBaseChatCompletionsTextAdapter } from '@tanstack/openai-base'
 import { getGroqApiKeyFromEnv, withGroqDefaults } from '../utils/client'
-import { makeGroqStructuredOutputCompatible } from '../utils/schema-converter'
+import { makeGroqStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
 import type { Modality, TextOptions } from '@tanstack/ai'
 import type {
   GROQ_CHAT_MODELS,
@@ -123,11 +123,11 @@ export class GroqTextAdapter<
     }
   }
 
-  protected override makeStructuredOutputCompatible(
+  protected override makeStructuredOutputCompatibleWithMap(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
-  ): Record<string, any> {
-    return makeGroqStructuredOutputCompatible(schema, originalRequired)
+  ) {
+    return makeGroqStructuredOutputCompatibleWithMap(schema, originalRequired)
   }
 
   protected override async *processStreamChunks(

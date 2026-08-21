@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
+  streamToText,
   toServerSentEventsStream,
   toServerSentEventsResponse,
 } from '../src/stream-to-response'
@@ -33,6 +34,36 @@ async function readStream(stream: ReadableStream<Uint8Array>): Promise<string> {
 
   return result
 }
+
+describe('streamToText', () => {
+  it('rejects on RUN_ERROR instead of returning accumulated text', async () => {
+    const rawEvent = {
+      provider_name: 'test-provider',
+      raw: { reason: 'upstream overloaded' },
+    }
+    const stream = createMockStream([
+      {
+        type: 'TEXT_MESSAGE_CONTENT',
+        messageId: 'msg-1',
+        timestamp: Date.now(),
+        delta: 'partial text',
+      },
+      {
+        type: 'RUN_ERROR',
+        timestamp: Date.now(),
+        message: 'Provider request failed',
+        code: 'rate_limit_exceeded',
+        rawEvent,
+      },
+    ])
+
+    await expect(streamToText(stream)).rejects.toMatchObject({
+      message: 'Provider request failed',
+      code: 'rate_limit_exceeded',
+      rawEvent,
+    })
+  })
+})
 
 describe('toServerSentEventsStream', () => {
   it('should convert chunks to SSE format', async () => {
