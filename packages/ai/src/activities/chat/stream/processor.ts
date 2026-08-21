@@ -804,7 +804,9 @@ export class StreamProcessor {
   // ============================================
 
   /**
-   * Shallow-merge event metadata onto a UIMessage (last-write-wins per key).
+   * Merge event metadata onto a UIMessage. `tanstack` is deep-merged so a
+   * later delta does not wipe `tanstack.model`. High-frequency leftover
+   * keys (`content`, `args`) never stamp onto the message.
    * Rebuilds `createdAt` when `tanstack.createdAt` is an ISO string.
    */
   private mergeMessageMetadata(messageId: string, incoming: unknown): void {
@@ -819,7 +821,20 @@ export class StreamProcessor {
     if (!message) return
 
     const incomingRecord = incoming as NonNullable<UIMessage['metadata']>
-    const metadata = mergeMetadata(message.metadata, incomingRecord)
+    const incomingTanstack = tanstackMetadata(incomingRecord)
+    const toMerge =
+      incomingTanstack != null &&
+      ('content' in incomingTanstack || 'args' in incomingTanstack)
+        ? {
+            ...incomingRecord,
+            tanstack: Object.fromEntries(
+              Object.entries(incomingTanstack).filter(
+                ([key]) => key !== 'content' && key !== 'args',
+              ),
+            ),
+          }
+        : incomingRecord
+    const metadata = mergeMetadata(message.metadata, toMerge)
     const createdAtRaw = tanstackMetadata(incomingRecord)?.createdAt
     const createdAt =
       typeof createdAtRaw === 'string' ? new Date(createdAtRaw) : undefined
@@ -1264,10 +1279,6 @@ export class StreamProcessor {
     this.mergeMessageMetadata(messageId, chunk.metadata)
 
     if (this.structuredMessageIds.has(messageId)) {
-      // `chunk.delta` is incremental; `chunk.content` is sometimes cumulative
-      // (mirrors what the plain-text branch handles below). Reconcile against
-      // the existing raw buffer so adapters that emit cumulative content
-      // don't duplicate the JSON.
       const delta = chunk.delta || ''
       if (delta !== '') {
         this.messages = appendStructuredOutputDelta(

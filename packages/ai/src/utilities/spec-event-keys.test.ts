@@ -15,13 +15,13 @@ describe('specKeysFor', () => {
       false,
     )
     expect(isSpecTopLevelKey(EventType.RUN_FINISHED, 'model')).toBe(false)
-    expect(isSpecTopLevelKey(EventType.TOOL_CALL_START, 'toolName')).toBe(true)
+    expect(isSpecTopLevelKey(EventType.TOOL_CALL_START, 'toolName')).toBe(false)
     expect(isSpecTopLevelKey(EventType.TOOL_CALL_START, 'index')).toBe(false)
     expect(isSpecTopLevelKey(EventType.TEXT_MESSAGE_CONTENT, 'content')).toBe(
       false,
     )
     expect(isSpecTopLevelKey(EventType.TOOL_CALL_ARGS, 'args')).toBe(false)
-    expect(isSpecTopLevelKey(EventType.TOOL_CALL_END, 'input')).toBe(true)
+    expect(isSpecTopLevelKey(EventType.TOOL_CALL_END, 'input')).toBe(false)
     expect(isSpecTopLevelKey(EventType.TOOL_CALL_END, 'result')).toBe(false)
     expect(isSpecTopLevelKey(EventType.RUN_ERROR, 'error')).toBe(false)
     expect(

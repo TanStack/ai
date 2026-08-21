@@ -62,16 +62,44 @@ describe('convertMessagesToModelMessages — AG-UI dedup pre-pass', () => {
     expect(toolMessages[0]?.toolCallId).toBe('tc1')
   })
 
-  it('drops AG-UI reasoning messages (no ModelMessage equivalent today)', () => {
+  it('drops a lone AG-UI reasoning row that is not followed by an assistant', () => {
     const messages = [
       { role: 'reasoning', content: 'thinking...' } as unknown as ModelMessage,
       { role: 'user', content: 'hi' } as ModelMessage,
     ]
 
     const result = convertMessagesToModelMessages(messages)
-    expect(result.find((m) => (m as any).role === 'reasoning')).toBeUndefined()
     expect(result).toHaveLength(1)
     expect(result[0]?.role).toBe('user')
+  })
+
+  it('attaches reasoning encryptedValue as thinking signature on the next assistant', () => {
+    const result = convertMessagesToModelMessages([
+      {
+        role: 'reasoning',
+        content: 'pondering',
+        encryptedValue: 'sig-1',
+      } as unknown as ModelMessage,
+      { role: 'assistant', content: 'answer' },
+    ])
+    expect(result).toHaveLength(1)
+    expect(result[0]?.thinking).toEqual([
+      { content: 'pondering', signature: 'sig-1' },
+    ])
+  })
+
+  it('reads tanstack.signature when encryptedValue is missing', () => {
+    const result = convertMessagesToModelMessages([
+      {
+        role: 'reasoning',
+        content: 'pondering',
+        metadata: { tanstack: { signature: 'sig-old' } },
+      } as unknown as ModelMessage,
+      { role: 'assistant', content: 'answer' },
+    ])
+    expect(result[0]?.thinking).toEqual([
+      { content: 'pondering', signature: 'sig-old' },
+    ])
   })
 
   it('drops AG-UI activity messages', () => {

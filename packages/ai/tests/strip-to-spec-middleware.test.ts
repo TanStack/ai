@@ -37,9 +37,11 @@ describe('stripToSpec', () => {
       type: EventType.TOOL_CALL_START,
       toolCallId: 'tc-1',
       toolCallName: 'getTodos',
-      toolName: 'getTodos',
       metadata: { foo: 'bar' },
     })
+    expect(result).not.toHaveProperty('toolName')
+    expect(result).not.toHaveProperty('index')
+    expect(result).not.toHaveProperty('model')
   })
 
   it('moves nothing and only keeps spec keys on RUN_FINISHED', () => {

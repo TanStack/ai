@@ -74,16 +74,9 @@ export function normalizeStreamChunk(
   }
 
   if (chunk.type === EventType.TOOL_CALL_START) {
-    if (specChunk.toolName === undefined && chunk.toolCallName) {
-      specChunk.toolName = chunk.toolCallName
-    }
     if (specChunk.toolCallName === undefined && chunk.toolName) {
       specChunk.toolCallName = chunk.toolName
     }
-  }
-
-  if (chunk.type === EventType.TOOL_CALL_END && chunk.input !== undefined) {
-    specChunk.input = chunk.input
   }
 
   if (chunk.type === EventType.RUN_ERROR && chunk.error != null) {
@@ -129,6 +122,11 @@ export function normalizeStreamChunk(
     chunk.type === EventType.TOOL_CALL_ARGS
   ) {
     skipLeftover.add('model')
+    skipLeftover.add('content')
+    skipLeftover.add('args')
+  }
+  if (chunk.type === EventType.TOOL_CALL_START) {
+    skipLeftover.add('toolName')
   }
   for (const key of Object.keys(chunk)) {
     if (specKeys.has(key) || skipLeftover.has(key)) continue

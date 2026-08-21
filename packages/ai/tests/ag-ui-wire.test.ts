@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
+import { convertMessagesToModelMessages } from '../src/activities/chat/messages'
 import { uiMessagesToWire } from '../src/utilities/ag-ui-wire'
-import type { UIMessage } from '../src/types'
+import type { ModelMessage, UIMessage } from '../src/types'
 
 describe('uiMessagesToWire', () => {
   it('mirrors a system UIMessage to a string content field', () => {
@@ -130,6 +131,74 @@ describe('uiMessagesToWire', () => {
       id: 'a1',
       role: 'assistant',
       content: 'answer',
+    })
+  })
+
+  it('round-trips ThinkingPart.signature on spec encryptedValue', () => {
+    const messages: Array<UIMessage> = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          { type: 'thinking', content: 'pondering', signature: 'sig-1' },
+          { type: 'text', content: 'answer' },
+        ],
+      },
+    ]
+    const wire = uiMessagesToWire(messages)
+    const reasoning = wire[0]
+    expect(reasoning).toEqual({
+      role: 'reasoning',
+      id: expect.any(String),
+      content: 'pondering',
+      encryptedValue: 'sig-1',
+    })
+    expect(reasoning).not.toHaveProperty('metadata')
+
+    const model = convertMessagesToModelMessages(
+      wire as Array<UIMessage | ModelMessage>,
+    )
+    expect(model[0]?.thinking).toEqual([
+      { content: 'pondering', signature: 'sig-1' },
+    ])
+  })
+
+  it('round-trips Gemini thoughtSignature on toolCalls.encryptedValue', () => {
+    const messages: Array<UIMessage> = [
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'tc1',
+            name: 'get_weather',
+            arguments: '{}',
+            state: 'input-complete',
+            metadata: { thoughtSignature: 'sig-g' },
+          },
+        ],
+      },
+    ]
+    const wire = uiMessagesToWire(messages)
+    const assistant = wire[0]
+    expect(assistant).toMatchObject({
+      role: 'assistant',
+      toolCalls: [
+        {
+          id: 'tc1',
+          type: 'function',
+          function: { name: 'get_weather', arguments: '{}' },
+          encryptedValue: 'sig-g',
+        },
+      ],
+    })
+
+    const model = convertMessagesToModelMessages(
+      wire as Array<UIMessage | ModelMessage>,
+    )
+    expect(model[0]?.toolCalls?.[0]?.metadata).toEqual({
+      thoughtSignature: 'sig-g',
     })
   })
 

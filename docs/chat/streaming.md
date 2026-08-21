@@ -139,7 +139,7 @@ stores the transcript per `threadId`. The media generation hooks take a
 
 ### Tool input and output
 
-`TOOL_CALL_END` does not carry parsed `input`. Tool input and output live on `UIMessage` parts. On the server, feed chunks into `StreamProcessor`. On the client, read `useChat` `messages`.
+SSE and HTTP `TOOL_CALL_END` does not carry parsed `input`. In-process `chat()` still has `input`. Tool input and output also live on `UIMessage` parts. On the server, feed chunks into `StreamProcessor`. On the client, read `useChat` `messages`.
 
 Server:
 

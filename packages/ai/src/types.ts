@@ -546,6 +546,8 @@ export interface TanStackRunMetadata {
   sessionId?: string
   index?: number
   state?: ToolOutputState
+  /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
+  input?: unknown
 }
 
 /**

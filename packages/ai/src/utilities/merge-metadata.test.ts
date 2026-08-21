@@ -6,14 +6,27 @@ import {
 } from './merge-metadata'
 
 describe('mergeMetadata', () => {
-  it('last write wins per key and does not deep merge', () => {
+  it('deep-merges tanstack and last-write-wins sibling keys', () => {
     const merged = mergeMetadata(
       { author: 'dana', tanstack: { model: 'gpt-5.5' } },
       { tanstack: { createdAt: '2026-08-20T00:00:00.000Z' } },
     )
     expect(merged).toEqual({
       author: 'dana',
-      tanstack: { createdAt: '2026-08-20T00:00:00.000Z' },
+      tanstack: {
+        model: 'gpt-5.5',
+        createdAt: '2026-08-20T00:00:00.000Z',
+      },
+    })
+  })
+
+  it('last write wins for overlapping tanstack keys', () => {
+    const merged = mergeMetadata(
+      { tanstack: { model: 'gpt-5.5', finishReason: 'stop' } },
+      { tanstack: { model: 'claude' } },
+    )
+    expect(merged).toEqual({
+      tanstack: { model: 'claude', finishReason: 'stop' },
     })
   })
 

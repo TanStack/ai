@@ -8,6 +8,7 @@ import type {
   ModelMessage,
   StructuredOutputPart,
   TextPart,
+  ToolCall,
   ToolCallPart,
   UIMessage,
 } from '../../types'
@@ -34,6 +35,34 @@ export function safeJsonStringify(value: unknown): string {
     return JSON.stringify(value) ?? ''
   } catch {
     return ''
+  }
+}
+
+function nonEmptyString(value: unknown): string | undefined {
+  return typeof value === 'string' && value !== '' ? value : undefined
+}
+
+function encryptedValueFrom(value: object): string | undefined {
+  if ('encryptedValue' in value) {
+    const fromSpec = nonEmptyString(value.encryptedValue)
+    if (fromSpec !== undefined) return fromSpec
+  }
+  return nonEmptyString(tanstackMetadata(value)?.signature)
+}
+
+function toolCallFromWire(toolCall: ToolCall, bag: unknown): ToolCall {
+  const fromBag =
+    bag != null && typeof bag === 'object' && !Array.isArray(bag)
+      ? bag
+      : undefined
+  const encrypted = encryptedValueFrom(toolCall)
+  if (fromBag === undefined && encrypted === undefined) return toolCall
+  return {
+    ...toolCall,
+    metadata: {
+      ...(fromBag ?? {}),
+      ...(encrypted !== undefined ? { thoughtSignature: encrypted } : {}),
+    },
   }
 }
 
@@ -119,12 +148,10 @@ export function convertMessagesToModelMessages(
     if (role === 'reasoning') {
       const content = (msg as { content?: string }).content
       if (content) {
-        const signature = tanstackMetadata(msg)?.signature
+        const signature = encryptedValueFrom(msg)
         pendingThinking.push({
           content,
-          ...(typeof signature === 'string' && signature !== ''
-            ? { signature }
-            : {}),
+          ...(signature !== undefined ? { signature } : {}),
         })
       }
       continue
@@ -175,19 +202,9 @@ export function convertMessagesToModelMessages(
     if (role === 'assistant') {
       const source = msg as ModelMessage
       const toolCallMetadata = tanstackMetadata(msg)?.toolCallMetadata
-      const toolCalls =
-        source.toolCalls &&
-        toolCallMetadata != null &&
-        typeof toolCallMetadata === 'object'
-          ? source.toolCalls.map((toolCall) => {
-              const metadata = (toolCallMetadata as Record<string, unknown>)[
-                toolCall.id
-              ]
-              return metadata !== undefined
-                ? { ...toolCall, metadata }
-                : toolCall
-            })
-          : source.toolCalls
+      const toolCalls = source.toolCalls?.map((toolCall) =>
+        toolCallFromWire(toolCall, toolCallMetadata?.[toolCall.id]),
+      )
       modelMessages.push({
         ...source,
         ...(toolCalls !== undefined ? { toolCalls } : {}),
@@ -665,7 +682,7 @@ export function aguiSnapshotMessageToUIMessage(
           : [],
       })
     case 'reasoning': {
-      const signature = tanstackMetadata(message)?.signature
+      const signature = encryptedValueFrom(message)
       return applySnapshotMetadata(message, {
         id,
         role: 'assistant',
@@ -674,9 +691,7 @@ export function aguiSnapshotMessageToUIMessage(
               {
                 type: 'thinking' as const,
                 content: message.content,
-                ...(typeof signature === 'string' && signature !== ''
-                  ? { signature }
-                  : {}),
+                ...(signature !== undefined ? { signature } : {}),
               },
             ]
           : [],

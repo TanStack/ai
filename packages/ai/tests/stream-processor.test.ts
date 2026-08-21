@@ -330,7 +330,7 @@ describe('StreamProcessor', () => {
   describe('message metadata', () => {
     const createdAtIso = '2026-08-20T00:00:00.000Z'
 
-    it('TEXT_MESSAGE_START/CONTENT/END merge metadata last-write-wins per key', () => {
+    it('TEXT_MESSAGE_START/CONTENT/END deep-merge tanstack and keep sibling keys', () => {
       const processor = new StreamProcessor()
 
       processor.processChunk({
@@ -349,7 +349,7 @@ describe('StreamProcessor', () => {
       const msg = processor.getMessages()[0]!
       expect(msg.metadata).toEqual({
         author: { id: 'user-42', name: 'Dana' },
-        tanstack: { createdAt: createdAtIso },
+        tanstack: { model: 'gpt-5.5', createdAt: createdAtIso },
       })
       expect(msg.createdAt).toBeInstanceOf(Date)
       expect(msg.createdAt?.toISOString()).toBe(createdAtIso)
@@ -582,6 +582,22 @@ describe('StreamProcessor', () => {
         .getMessages()[0]!
         .parts.find((part): part is ToolCallPart => part.type === 'tool-call')
       expect(toolCall?.state).toBe('error')
+    })
+
+    it('TEXT_MESSAGE_START metadata.tanstack.model survives a content delta leftover', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        ...ev.textStart('msg-1'),
+        metadata: { tanstack: { model: 'gpt-5.5' } },
+      })
+      processor.processChunk({
+        ...ev.textContent('Hi', 'msg-1'),
+        metadata: { tanstack: { content: 'Hello Hi' } },
+      })
+
+      const msg = processor.getMessages()[0]!
+      expect(msg.metadata).toEqual({ tanstack: { model: 'gpt-5.5' } })
     })
 
     it('TEXT_MESSAGE_START metadata.tanstack.model survives a TOOL_CALL_RESULT output-error', () => {

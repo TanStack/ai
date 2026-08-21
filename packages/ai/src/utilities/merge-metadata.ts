@@ -5,13 +5,21 @@ export type MetadataRecord = Record<string, any>
 /** `metadata.tanstack` on a message or run event. Internal getter return type. */
 export type TanStackMetadata = TanStackMessageMetadata & TanStackRunMetadata
 
+function isPlainRecord(value: unknown): value is MetadataRecord {
+  return value != null && typeof value === 'object' && !Array.isArray(value)
+}
+
 export function mergeMetadata(
   current: MetadataRecord | undefined,
   incoming: MetadataRecord | null | undefined,
 ): MetadataRecord | undefined {
   if (incoming == null) return current
   if (current == null) return { ...incoming }
-  return { ...current, ...incoming }
+  const merged: MetadataRecord = { ...current, ...incoming }
+  if (isPlainRecord(current.tanstack) && isPlainRecord(incoming.tanstack)) {
+    merged.tanstack = { ...current.tanstack, ...incoming.tanstack }
+  }
+  return merged
 }
 
 /** Read `metadata.tanstack`. Not part of the public SDK surface. */

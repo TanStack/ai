@@ -16,7 +16,7 @@ keywords:
 
 Some models expose their internal reasoning as "thinking" content -- Claude with extended thinking, OpenAI o-series models with reasoning, and others. TanStack AI captures this as `ThinkingPart` in messages, streamed to your UI in real-time alongside text and tool calls.
 
-Unsigned thinking stays in the UI. Signed thinking is a `ThinkingPart` with a `signature`. Anthropic extended thinking uses this. The next request sends signed thinking back in the same order as the original response, including around provider-executed tools.
+Unsigned thinking stays in the UI. Signed thinking is a `ThinkingPart` with a `signature`. Anthropic extended thinking uses this. The next request sends signed thinking back in the same order as the original response, including around provider-executed tools. The next-turn body puts that signature on spec `encryptedValue` on the `role: "reasoning"` fan-out. Stream events use `REASONING_ENCRYPTED_VALUE`.
 
 ## How It Works
 

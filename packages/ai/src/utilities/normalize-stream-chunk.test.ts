@@ -129,10 +129,10 @@ describe('normalizeStreamChunk', () => {
       type: EventType.TEXT_MESSAGE_CONTENT,
       messageId: 'm1',
       delta: 'Hi',
-      metadata: { tanstack: { content: 'Hello Hi' } },
     })
     expect(content).not.toHaveProperty('content')
     expect(content).not.toHaveProperty('model')
+    expect(content).not.toHaveProperty('metadata')
   })
 
   it('strips RUN_ERROR nested error and moves interruptErrors + ids into metadata.tanstack', () => {
@@ -241,7 +241,7 @@ describe('normalizeStreamChunk', () => {
     expect(out[0]).not.toHaveProperty('metadata')
   })
 
-  it('keeps TOOL_CALL_START toolName alias and emits REASONING_ENCRYPTED_VALUE for thoughtSignature', () => {
+  it('keeps TOOL_CALL_START toolCallName and emits REASONING_ENCRYPTED_VALUE for thoughtSignature', () => {
     const out = normalizeAll({
       type: EventType.TOOL_CALL_START,
       toolCallId: 'tc1',
@@ -257,13 +257,13 @@ describe('normalizeStreamChunk', () => {
       type: EventType.TOOL_CALL_START,
       toolCallId: 'tc1',
       toolCallName: 'get_weather',
-      toolName: 'get_weather',
       parentMessageId: 'm1',
       metadata: {
         thoughtSignature: 'sig-1',
         tanstack: { index: 0 },
       },
     })
+    expect(out[0]).not.toHaveProperty('toolName')
     expect(out[0]).not.toHaveProperty('index')
     expect(out[1]).toEqual({
       type: EventType.REASONING_ENCRYPTED_VALUE,
@@ -286,10 +286,10 @@ describe('normalizeStreamChunk', () => {
       type: EventType.TOOL_CALL_ARGS,
       toolCallId: 'tc1',
       delta: '{"q":',
-      metadata: { tanstack: { args: '{"q":' } },
     })
     expect(out).not.toHaveProperty('args')
     expect(out).not.toHaveProperty('model')
+    expect(out).not.toHaveProperty('metadata')
   })
 
   it('splits TOOL_CALL_END with result into spec END then RESULT', () => {
@@ -308,16 +308,17 @@ describe('normalizeStreamChunk', () => {
     expect(out[0]).toEqual({
       type: EventType.TOOL_CALL_END,
       toolCallId: 'tc1',
-      input: { q: 'sf' },
       metadata: {
         tanstack: {
           toolCallName: 'get_weather',
           toolName: 'get_weather',
           parentMessageId: 'm1',
           output: { temp: 72 },
+          input: { q: 'sf' },
         },
       },
     })
+    expect(out[0]).not.toHaveProperty('input')
     expect(out[1]).toEqual({
       type: EventType.TOOL_CALL_RESULT,
       toolCallId: 'tc1',

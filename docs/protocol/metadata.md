@@ -99,8 +99,8 @@ Add these when you use the matching feature:
 - **Leftover usage.** Spec `usage[]` also accepts `cachedInputTokens` and `reasoningTokens`. Put `cost` and other leftover fields in `metadata.tanstack.usage`. The client rebuilds TanStack `TokenUsage` (`promptTokens`) from the array plus that leftover.
 - **Interrupt errors.** On `RUN_ERROR`, set `metadata.tanstack.interruptErrors` so `ChatClient` can match a failed interrupt submit.
 - **Tool output error.** On `TOOL_CALL_RESULT`, set `metadata.tanstack.state` to `"output-error"` when the tool result is an error payload.
-- **Message stamps.** On wire messages, `metadata.tanstack.createdAt` is an ISO-8601 string. Thinking signatures round-trip on `REASONING_ENCRYPTED_VALUE`. See [Thinking & Reasoning](../chat/thinking-content).
-- **Tool-call provider metadata.** On assistant wire messages, `metadata.tanstack.toolCallMetadata` is a map of tool-call id to provider metadata (for example Gemini `thoughtSignature`).
+- **Message stamps.** On wire messages, `metadata.tanstack.createdAt` is an ISO-8601 string.
+- **Signatures.** Stream thinking signatures on `REASONING_ENCRYPTED_VALUE`. On the next-turn body, set spec `encryptedValue` on `role: "reasoning"` messages and on `toolCalls`. Other tool-call provider fields stay in `metadata.tanstack.toolCallMetadata`. See [Thinking & Reasoning](../chat/thinking-content).
 
 A TanStack `chat()` server already writes this bag. Use this page when you emit AG-UI events yourself.
 

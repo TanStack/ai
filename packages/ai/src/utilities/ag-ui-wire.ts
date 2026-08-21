@@ -18,6 +18,7 @@ type AGUIToolCallMirror = {
   id: string
   type: 'function'
   function: { name: string; arguments: string }
+  encryptedValue?: string
 }
 
 type AGUIToolMessage = {
@@ -32,6 +33,7 @@ type AGUIReasoningMessage = {
   role: 'reasoning'
   id: string
   content: string
+  encryptedValue?: string
   metadata?: MetadataRecord
 }
 
@@ -109,13 +111,9 @@ export function uiMessagesToWire(
           content: part.content,
         }
         if (part.signature) {
-          wire.push({
-            ...reasoning,
-            metadata: { tanstack: { signature: part.signature } },
-          })
-        } else {
-          wire.push(reasoning)
+          reasoning.encryptedValue = part.signature
         }
+        wire.push(reasoning)
       }
     }
 
@@ -276,16 +274,31 @@ function collectUserContent(
   return out
 }
 
+function thoughtSignatureFromMetadata(metadata: unknown): string | undefined {
+  if (
+    metadata == null ||
+    typeof metadata !== 'object' ||
+    Array.isArray(metadata)
+  ) {
+    return undefined
+  }
+  if (!('thoughtSignature' in metadata)) return undefined
+  const value = metadata.thoughtSignature
+  return typeof value === 'string' && value !== '' ? value : undefined
+}
+
 function collectToolCalls(
   parts: ReadonlyArray<MessagePart>,
 ): Array<AGUIToolCallMirror> | undefined {
   const calls: Array<AGUIToolCallMirror> = []
   for (const p of parts) {
     if (p.type === 'tool-call') {
+      const encryptedValue = thoughtSignatureFromMetadata(p.metadata)
       calls.push({
         id: p.id,
         type: 'function',
         function: { name: p.name, arguments: p.arguments },
+        ...(encryptedValue !== undefined ? { encryptedValue } : {}),
       })
     }
   }

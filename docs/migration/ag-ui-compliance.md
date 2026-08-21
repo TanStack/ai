@@ -134,7 +134,7 @@ The upgrade is **opt-in**: pick the tier that matches the features you use. Most
 
 ### Tier 1 — Minimum (no changes for most servers)
 
-Keep reading `body.messages` and pass it through. `chat()` accepts mixed `UIMessage | ModelMessage` arrays and handles all AG-UI message-shape quirks internally — fan-out tool dedup, dropping `reasoning`/`activity`, collapsing `developer` → `system`.
+Keep reading `body.messages` and pass it through. `chat()` accepts mixed `UIMessage | ModelMessage` arrays and handles all AG-UI message-shape quirks internally: fan-out tool dedup, attaching `reasoning` rows to the next assistant as thinking, dropping `activity`, collapsing `developer` to `system`.
 
 ```ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
@@ -389,7 +389,7 @@ A `@tanstack/ai-client` request hitting a foreign AG-UI server:
 Pure AG-UI `RunAgentInput` payloads (no TanStack `parts` field) work end-to-end:
 
 - Tool messages pass through as `ModelMessage` entries with `role: 'tool'`.
-- `reasoning` messages are dropped (no LLM-replay equivalent today).
+- `reasoning` messages attach to the next assistant as thinking. Spec `encryptedValue` becomes `ThinkingPart.signature`.
 - `activity` messages are dropped (no TanStack equivalent).
 - `developer` messages are collapsed to `system` role.
 
