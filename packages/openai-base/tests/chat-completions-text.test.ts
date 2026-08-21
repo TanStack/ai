@@ -623,7 +623,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
     it('points document parts at the Responses adapter', async () => {
       mockCreate = vi.fn()
       const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,

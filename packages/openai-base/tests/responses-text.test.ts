@@ -2451,10 +2451,10 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       },
     ]
 
-    async function runChat(content: Array<any>): Promise<Array<StreamChunk>> {
+    async function runChat(content: Array<any>): Promise<Array<AdapterYieldChunk>> {
       setupMockResponsesClient(minimalStreamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -2711,7 +2711,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
     it('converts a document part inside a tool result', async () => {
       setupMockResponsesClient(minimalStreamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
