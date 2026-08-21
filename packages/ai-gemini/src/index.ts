@@ -146,6 +146,7 @@ export type { GeminiTTSVoice } from './model-meta'
 // Type Exports
 // ===========================
 
+export type { GeminiClientConfig } from './utils/client'
 export type {
   GeminiChatModelProviderOptionsByName,
   GeminiChatModelToolCapabilitiesByName,

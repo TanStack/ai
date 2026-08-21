@@ -12,6 +12,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -28,6 +31,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -49,6 +55,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'mistral',
     'byteplus',
     'llmgateway',
@@ -57,6 +64,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -73,6 +83,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -91,6 +104,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'groq',
     'grok',
     'bedrock',
@@ -103,12 +119,15 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'llmgateway',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
+  // Vertex uses the same Gemini stream, so it is excluded for the same reason.
   'tool-approval': new Set([
     'openai',
     'anthropic',
     'ollama',
     'groq',
     'grok',
+    'vertex-grok',
+    'vertex-mistral',
     'bedrock',
     'bedrock-responses',
     'openrouter',
@@ -123,6 +142,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'groq',
     'grok',
     'bedrock',
@@ -138,6 +160,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -158,6 +183,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'groq',
     'grok',
+    'vertex-grok',
     'bedrock',
     'bedrock-responses',
     'openrouter',
@@ -187,6 +213,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'multi-turn-structured': new Set([
     'openai',
     'gemini',
+    'vertex',
+    'vertex-grok',
     'ollama',
     'groq',
     'grok',
@@ -202,6 +230,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -224,7 +255,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'grok',
+    'vertex-grok',
     'openrouter',
     'openrouter-responses',
     'byteplus',
@@ -232,12 +265,16 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // Bedrock excluded: the default e2e model (openai.gpt-oss-120b) is text-only
   // (input: ['text'], no vision) — image input isn't supported, so the
   // multimodal request never carries the image and the description comes back empty.
-  // Mistral excluded: mistral-large-latest is text-only; vision requires pixtral
+  // Mistral API default e2e model (mistral-large-latest) is text-only.
+  // vertex-mistral uses mistral-medium-3, which accepts image input.
   'multimodal-image': new Set([
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'grok',
+    'vertex-grok',
+    'vertex-mistral',
     'openrouter',
     'byteplus',
     'llmgateway',
@@ -250,7 +287,10 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'grok',
+    'vertex-grok',
+    'vertex-mistral',
     'openrouter',
     'byteplus',
     'llmgateway',
@@ -263,6 +303,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -277,6 +320,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -296,6 +342,10 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // `embedding` field, not the `embeddings: number[][]` shape the ollama SDK
   // `embed()` expects; Mistral because its SDK Zod-validates the response and
   // requires an `id` field aimock's OpenAI-format builder omits.
+  // Vertex excluded: aimock's Vertex handler only covers
+  // generateContent / streamGenerateContent. Vertex embed uses a
+  // different path (`:predict` / `:batchEmbedContents` under
+  // /v1/projects/…), so it cannot reuse the Gemini /v1beta mount.
   embedding: new Set([
     'openai',
     'gemini',
@@ -322,6 +372,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'image-to-image': new Set(['openai']),
   // byteplus excluded: BytePlus has no music/audio generation product —
   // Seed Speech is TTS + ASR only.
+  // Vertex excluded for the same media-path reason as embedding: the
+  // Gemini TTS / Veo / Lyria / Interactions mounts live under /v1beta.
+  // Vertex posts those activities to /v1/projects/… instead.
   'audio-gen': new Set(['gemini', 'elevenlabs']),
   // byteplus excluded: no sound-effects endpoint (see audio-gen above).
   'sound-effects': new Set(['elevenlabs']),

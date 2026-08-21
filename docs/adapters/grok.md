@@ -61,6 +61,50 @@ const config: Omit<GrokTextConfig, "apiKey"> = {
 const adapter = createGrokText("grok-build-0.1", process.env.XAI_API_KEY!, config);
 ```
 
+## Grok on Vertex
+
+Use `@tanstack/ai-grok/vertex` when Grok must run on Vertex AI. That path
+uses Google Cloud credentials and Vertex regional or global endpoints.
+
+```bash
+npm install @tanstack/ai-grok google-auth-library
+```
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { grokVertexText } from "@tanstack/ai-grok/vertex";
+
+const stream = chat({
+  adapter: grokVertexText("grok-4.3", {
+    project: "my-project",
+    location: "global",
+  }),
+  messages: [{ role: "user", content: "Hello!" }],
+});
+```
+
+`project` and `location` use the same names as `@tanstack/ai-vertex`. If you
+omit `location`, the factory uses `global`.
+
+`grokVertexText` accepts only the Grok chat models that Vertex lists:
+
+- `grok-4.3`
+- `grok-4.20-reasoning`
+- `grok-4.20-non-reasoning`
+- `grok-4.1-fast-reasoning`
+- `grok-4.1-fast-non-reasoning`
+
+xAI API models such as `grok-4.6` and `grok-build-0.1` are not on Vertex.
+
+The adapter sends the Vertex model id `xai/grok-4.3`. Install
+`google-auth-library` for Application Default Credentials, or pass
+`authClient` or `getAccessToken`.
+
+Use `grokVertexSummarize` from the same entry when you need summarize on
+Vertex.
+
+Gemini on Vertex lives in [`@tanstack/ai-vertex`](./vertex).
+
 ## Example: Chat Completion
 
 ```typescript

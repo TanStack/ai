@@ -12,22 +12,57 @@ export interface MistralClientConfig {
 
   /** Optional default headers to include with every request. */
   defaultHeaders?: Record<string, string>
+
+  /**
+   * Optional Google / Vertex access token. When set, it replaces
+   * `apiKey` on the Authorization header.
+   */
+  getAccessToken?: () => Promise<string>
+
+  /**
+   * Optional chat completions URL. Vertex uses this for
+   * `:rawPredict` and `:streamRawPredict`.
+   */
+  resolveRequestUrl?: (stream: boolean) => string
+
+  /** Optional model id sent on the wire. Vertex uses publisher model ids. */
+  requestModel?: string
 }
 
 /**
  * Creates a Mistral SDK client instance.
  */
 export function createMistralClient(config: MistralClientConfig): Mistral {
-  const { apiKey, serverURL, timeoutMs, defaultHeaders } = config
+  const {
+    apiKey,
+    serverURL,
+    timeoutMs,
+    defaultHeaders,
+    getAccessToken,
+    resolveRequestUrl,
+  } = config
+
+  const needsHook =
+    (defaultHeaders !== undefined && Object.keys(defaultHeaders).length > 0) ||
+    getAccessToken !== undefined ||
+    resolveRequestUrl !== undefined
 
   let httpClient: HTTPClient | undefined
-  if (defaultHeaders && Object.keys(defaultHeaders).length > 0) {
+  if (needsHook) {
     httpClient = new HTTPClient()
-    httpClient.addHook('beforeRequest', (req) => {
-      for (const [key, value] of Object.entries(defaultHeaders)) {
-        req.headers.set(key, value)
+    httpClient.addHook('beforeRequest', async (req) => {
+      const nextUrl =
+        resolveRequestUrl === undefined ? req.url : resolveRequestUrl(false)
+      const next = new Request(nextUrl, req)
+      if (defaultHeaders) {
+        for (const [key, value] of Object.entries(defaultHeaders)) {
+          next.headers.set(key, value)
+        }
       }
-      return req
+      if (getAccessToken !== undefined) {
+        next.headers.set('Authorization', `Bearer ${await getAccessToken()}`)
+      }
+      return next
     })
   }
 

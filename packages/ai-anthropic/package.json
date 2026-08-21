@@ -41,6 +41,10 @@
     "./tools": {
       "types": "./dist/esm/tools/index.d.ts",
       "import": "./dist/esm/tools/index.js"
+    },
+    "./vertex": {
+      "types": "./dist/esm/vertex/index.d.ts",
+      "import": "./dist/esm/vertex/index.js"
     }
   },
   "files": [
@@ -62,10 +66,18 @@
     "@tanstack/ai-utils": "workspace:^"
   },
   "peerDependencies": {
+    "@anthropic-ai/vertex-sdk": "^0.19.0",
     "@tanstack/ai": "workspace:^",
     "zod": "^4.0.0"
   },
+  "peerDependenciesMeta": {
+    "@anthropic-ai/vertex-sdk": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@anthropic-ai/sdk-v112": "npm:@anthropic-ai/sdk@0.112.4",
+    "@anthropic-ai/vertex-sdk": "^0.19.0",
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
     "zod": "^4.2.0"
