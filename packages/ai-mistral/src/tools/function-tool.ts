@@ -7,11 +7,10 @@ export type FunctionTool = ChatCompletionTool
 /**
  * Converts a standard Tool to Mistral ChatCompletionTool format.
  *
- * Tool schemas are already converted to JSON Schema in the ai layer.
- * We apply Mistral-specific transformations for strict mode:
- * - All properties in required array
- * - Optional fields made nullable
- * - additionalProperties: false
+ * Tool schemas are already JSON Schema in the ai layer. When the schema can
+ * be inverted, rewrite it for strict mode (required, nullable optionals,
+ * `additionalProperties: false`) and set `strict: true`. Otherwise leave the
+ * schema intact and set `strict: false`.
  */
 export function convertFunctionToolToAdapterFormat(tool: Tool): FunctionTool {
   const baseSchema = (tool.inputSchema ?? {

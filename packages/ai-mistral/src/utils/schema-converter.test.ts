@@ -163,6 +163,53 @@ describe('makeMistralStructuredOutputCompatibleWithMap', () => {
     })
   })
 
+  it('keeps tuple items as an array and widens optional tuple slots', () => {
+    const { schema, nullWideningMap, strict } =
+      makeMistralStructuredOutputCompatibleWithMap(
+        {
+          type: 'object',
+          properties: {
+            pair: {
+              type: 'array',
+              items: [
+                {
+                  type: 'object',
+                  properties: { label: { type: 'string' } },
+                  required: [],
+                },
+                { type: 'string' },
+              ],
+            },
+          },
+          required: [],
+        },
+        [],
+      )
+
+    expect(strict).toBe(true)
+    expect(Array.isArray(schema.properties.pair.items)).toBe(true)
+    expect(schema.properties.pair).toEqual({
+      type: ['array', 'null'],
+      items: [
+        {
+          type: 'object',
+          properties: { label: { type: ['string', 'null'] } },
+          required: ['label'],
+          additionalProperties: false,
+        },
+        { type: 'string' },
+      ],
+    })
+    expect(nullWideningMap).toEqual({
+      properties: {
+        pair: {
+          widened: true,
+          items: [{ properties: { label: { widened: true } } }, {}],
+        },
+      },
+    })
+  })
+
   it('falls back from strict mode for branch-dependent compositions', () => {
     const input = {
       type: 'object',

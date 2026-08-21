@@ -52,6 +52,7 @@ import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.opena
 import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
 import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
+import { Route as ApiMistralStrictToolNullWireRouteImport } from './routes/api.mistral-strict-tool-null-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
 import { Route as ApiMcpTestRouteImport } from './routes/api.mcp-test'
@@ -317,6 +318,12 @@ const ApiMultimodalToolResultWireRoute =
     path: '/api/multimodal-tool-result-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiMistralStrictToolNullWireRoute =
+  ApiMistralStrictToolNullWireRouteImport.update({
+    id: '/api/mistral-strict-tool-null-wire',
+    path: '/api/mistral-strict-tool-null-wire',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiMiddlewareTestRoute = ApiMiddlewareTestRouteImport.update({
   id: '/api/middleware-test',
   path: '/api/middleware-test',
@@ -560,6 +567,7 @@ export interface FileRoutesByFullPath {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
@@ -642,6 +650,7 @@ export interface FileRoutesByTo {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
@@ -725,6 +734,7 @@ export interface FileRoutesById {
   '/api/mcp-test': typeof ApiMcpTestRoute
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
+  '/api/mistral-strict-tool-null-wire': typeof ApiMistralStrictToolNullWireRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
   '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
   '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
@@ -809,6 +819,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/message-ids'
     | '/api/middleware-test'
+    | '/api/mistral-strict-tool-null-wire'
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
@@ -891,6 +902,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/message-ids'
     | '/api/middleware-test'
+    | '/api/mistral-strict-tool-null-wire'
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
@@ -973,6 +985,7 @@ export interface FileRouteTypes {
     | '/api/mcp-test'
     | '/api/message-ids'
     | '/api/middleware-test'
+    | '/api/mistral-strict-tool-null-wire'
     | '/api/multimodal-tool-result-wire'
     | '/api/non-streaming-run-error'
     | '/api/openai-completed-response-text'
@@ -1056,6 +1069,7 @@ export interface RootRouteChildren {
   ApiMcpTestRoute: typeof ApiMcpTestRoute
   ApiMessageIdsRoute: typeof ApiMessageIdsRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
+  ApiMistralStrictToolNullWireRoute: typeof ApiMistralStrictToolNullWireRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
   ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
   ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
@@ -1383,6 +1397,13 @@ declare module '@tanstack/react-router' {
       path: '/api/multimodal-tool-result-wire'
       fullPath: '/api/multimodal-tool-result-wire'
       preLoaderRoute: typeof ApiMultimodalToolResultWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/mistral-strict-tool-null-wire': {
+      id: '/api/mistral-strict-tool-null-wire'
+      path: '/api/mistral-strict-tool-null-wire'
+      fullPath: '/api/mistral-strict-tool-null-wire'
+      preLoaderRoute: typeof ApiMistralStrictToolNullWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/middleware-test': {
@@ -1757,6 +1778,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMcpTestRoute: ApiMcpTestRoute,
   ApiMessageIdsRoute: ApiMessageIdsRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
+  ApiMistralStrictToolNullWireRoute: ApiMistralStrictToolNullWireRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
   ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
   ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,

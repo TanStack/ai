@@ -5,7 +5,11 @@ import type { NullWideningMap } from '@tanstack/ai-utils'
 
 export type ToolInputNormalizer = (toolName: string, input: unknown) => unknown
 
-/** Build an inverse transform for the strict tool schemas sent in one request. */
+/**
+ * Per-request inverse of Mistral optional-null widening. Recomputes maps from
+ * each tool's input schema; duplicate names and non-strict schemas are left
+ * untouched so we never guess.
+ */
 export function createToolInputNormalizer(
   tools: Array<Tool> | undefined,
 ): ToolInputNormalizer {

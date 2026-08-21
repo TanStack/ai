@@ -1,13 +1,10 @@
 import type { NullWideningMap } from '@tanstack/ai-utils'
 
 /**
- * Transform a JSON schema to be compatible with Mistral's structured output
- * requirements when `strict: true` is used.
- *
- * Mistral (in strict mode) requires:
- * - All properties must be in the `required` array
- * - Optional fields should have null added to their type union
- * - additionalProperties must be false for objects
+ * Schema-only wrapper around {@link makeMistralStructuredOutputCompatibleWithMap}.
+ * Returns the strict rewrite when conversion succeeds, or the original schema
+ * when it falls back to `strict: false`. Does not report which — callers that
+ * send `strict` on the wire must use `WithMap`.
  */
 export function makeMistralStructuredOutputCompatible(
   schema: Record<string, any>,
@@ -24,10 +21,14 @@ interface MistralStructuredOutputCompatibility {
 }
 
 /**
- * Mistral strict-schema conversion plus an exact map of the nullability added
- * for optional fields. The map lets callers remove only provider nulls that
- * represent omitted fields while preserving nulls accepted by the original
- * schema.
+ * Convert a schema for Mistral strict mode and record how to invert it.
+ *
+ * Outcomes:
+ * - `strict: true` — rewritten schema (`required` closed, optionals null-widened).
+ *   `nullWideningMap` marks synthesized optional nulls only; already-nullable
+ *   fields and enum/const repairs on required nodes are unmarked.
+ * - `strict: false` — original schema, no map. Used when `oneOf`/`allOf`/`not`/
+ *   `$ref`/`$defs` appear, or an `anyOf` branch would need a branch-dependent map.
  */
 export function makeMistralStructuredOutputCompatibleWithMap(
   schema: Record<string, any>,
@@ -65,9 +66,9 @@ const UNSUPPORTED_STRICT_KEYWORDS: ReadonlyArray<string> = [
 ]
 
 /**
- * Composed and referenced schemas cannot be rewritten without either changing
- * their meaning or making inverse null normalization branch-dependent. Keep
- * those schemas intact and let the provider handle them in non-strict mode.
+ * Tree-wide key scan for `oneOf`/`allOf`/`not`/`$ref`/`$defs`/`definitions`.
+ * Conservative: a property literally named e.g. `oneOf` also trips fallback.
+ * `anyOf` is handled separately in the coerce walk.
  */
 function containsUnsupportedStrictKeyword(node: unknown): boolean {
   if (Array.isArray(node)) return node.some(containsUnsupportedStrictKeyword)
@@ -85,7 +86,50 @@ function pruneMap(map: NullWideningMap): NullWideningMap | undefined {
 }
 
 function isSchemaObject(schema: unknown): schema is Record<string, any> {
-  return typeof schema === 'object' && schema !== null
+  return typeof schema === 'object' && schema !== null && !Array.isArray(schema)
+}
+
+function coerceArrayItems(items: unknown): {
+  schema: unknown
+  itemMap: NullWideningMap | Array<NullWideningMap> | undefined
+  hasUntrackableAnyOfWidening: boolean
+} {
+  if (Array.isArray(items)) {
+    const converted = items.map((item) =>
+      isSchemaObject(item)
+        ? coerceMistralStrictSchema(item, item.required || [])
+        : {
+            schema: item,
+            nullWideningMap: undefined,
+            hasUntrackableAnyOfWidening: false,
+          },
+    )
+    const itemMaps = converted.map((item) => item.nullWideningMap)
+    return {
+      schema: converted.map((item) => item.schema),
+      itemMap: itemMaps.some(Boolean)
+        ? itemMaps.map((map) => map ?? {})
+        : undefined,
+      hasUntrackableAnyOfWidening: converted.some(
+        (item) => item.hasUntrackableAnyOfWidening,
+      ),
+    }
+  }
+
+  if (isSchemaObject(items)) {
+    const converted = coerceMistralStrictSchema(items, items.required || [])
+    return {
+      schema: converted.schema,
+      itemMap: converted.nullWideningMap,
+      hasUntrackableAnyOfWidening: converted.hasUntrackableAnyOfWidening,
+    }
+  }
+
+  return {
+    schema: items,
+    itemMap: undefined,
+    hasUntrackableAnyOfWidening: false,
+  }
 }
 
 function schemaTypeIncludes(
@@ -111,7 +155,10 @@ function admitNullInEnumOrConst(
   return prop
 }
 
-/** Whether every active JSON Schema constraint at this node admits null. */
+/**
+ * True when `type`/`enum`/`const`/`anyOf` already admit null. `oneOf`/`allOf`/
+ * `not` are not inspected — callers must reject those first.
+ */
 function acceptsNull(schema: unknown): boolean {
   if (schema === true) return true
   if (!isSchemaObject(schema)) return false
@@ -166,18 +213,15 @@ function coerceMistralStrictSchema(
       } else if (
         isSchemaObject(prop) &&
         schemaTypeIncludes(prop, 'array') &&
-        isSchemaObject(prop.items)
+        prop.items != null
       ) {
-        const convertedItems = coerceMistralStrictSchema(
-          prop.items,
-          prop.items.required || [],
-        )
+        const convertedItems = coerceArrayItems(prop.items)
         prop = {
           ...prop,
           items: convertedItems.schema,
         }
-        if (convertedItems.nullWideningMap) {
-          childMap = { items: convertedItems.nullWideningMap }
+        if (convertedItems.itemMap) {
+          childMap = { items: convertedItems.itemMap }
         }
         hasUntrackableAnyOfWidening ||=
           convertedItems.hasUntrackableAnyOfWidening
@@ -233,14 +277,11 @@ function coerceMistralStrictSchema(
     }
   }
 
-  if (schemaTypeIncludes(result, 'array') && isSchemaObject(result.items)) {
-    const convertedItems = coerceMistralStrictSchema(
-      result.items,
-      result.items.required || [],
-    )
+  if (schemaTypeIncludes(result, 'array') && result.items != null) {
+    const convertedItems = coerceArrayItems(result.items)
     result.items = convertedItems.schema
-    if (convertedItems.nullWideningMap) {
-      nullWideningMap.items = convertedItems.nullWideningMap
+    if (convertedItems.itemMap) {
+      nullWideningMap.items = convertedItems.itemMap
     }
     hasUntrackableAnyOfWidening ||= convertedItems.hasUntrackableAnyOfWidening
   }
