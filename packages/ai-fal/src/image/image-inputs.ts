@@ -1,10 +1,31 @@
+import { fileReferenceFor, isFileSource } from '@tanstack/ai'
 import { FAL_IMAGE_FIELD_OVERRIDES } from './generated/image-field-overrides'
 import type {
   FalImageFieldName,
   FalImageFieldOverride,
 } from './generated/image-field-overrides'
-import type { ImagePart, MediaInputMetadata } from '@tanstack/ai'
+import type {
+  ContentPartSource,
+  ImagePart,
+  MediaInputMetadata,
+} from '@tanstack/ai'
 import type { FalModel, FalModelInput } from '../model-meta'
+
+/**
+ * Convert a content source into a URL string for fal's URL-based input fields.
+ * URL sources pass through; fal storage handles (a storage URL) pass through
+ * after a provider check; base64 data becomes a `data:<mime>;base64,<value>`
+ * URI which fal endpoints accept on the wire.
+ */
+export function contentSourceToFalUrl(source: ContentPartSource): string {
+  if (isFileSource(source)) {
+    // The 'fal' entry of the reference record is a storage URL; throws when
+    // the file was never uploaded to fal storage.
+    return fileReferenceFor(source, 'fal')
+  }
+  if (source.type === 'url') return source.value
+  return `data:${source.mimeType};base64,${source.value}`
+}
 
 /**
  * The image-conditioning fields the mappers may set, narrowed to the ones
@@ -237,10 +258,8 @@ export function mapImageInputsToFalVideoFields<TModel extends FalModel>(
 
 /**
  * Convert a TanStack ImagePart into a string suitable for fal's URL-based
- * input fields. URL sources pass through; data sources are emitted as a
- * `data:<mime>;base64,<value>` URI which fal endpoints accept on the wire.
+ * input fields.
  */
 function imagePartToUrl(part: ImagePart<MediaInputMetadata>): string {
-  if (part.source.type === 'url') return part.source.value
-  return `data:${part.source.mimeType};base64,${part.source.value}`
+  return contentSourceToFalUrl(part.source)
 }

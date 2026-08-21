@@ -417,6 +417,64 @@ compatible providers speak.
 > Verify the provider's current `baseURL` and model ids against its live docs —
 > they drift. See `docs/adapters/openai-compatible.md` for the full provider table.
 
+### 7. Files Adapters (upload once, reference by handle)
+
+Four providers expose a native Files/storage API as a tree-shakeable `files`
+adapter: `openaiFiles()`, `anthropicFiles()`, `geminiFiles()` (each reads the
+same env var as the provider's text adapter; `create*Files(apiKey)` variants
+take an explicit key), and `falFiles(config)`. Upload media once with
+`uploadFile()`, then reference the returned `FileHandle` in messages via a
+`{ type: 'file' }` content source instead of re-sending base64 each request:
+
+```typescript
+import { chat, fileSourceFromHandle, uploadFile } from '@tanstack/ai'
+import { openaiFiles, openaiText } from '@tanstack/ai-openai'
+import { pdfBase64 } from './pdf-data'
+
+const handle = await uploadFile({
+  adapter: openaiFiles(),
+  input: { data: pdfBase64, mimeType: 'application/pdf' },
+})
+
+chat({
+  adapter: openaiText('gpt-5.5'),
+  messages: [
+    {
+      role: 'user',
+      content: [
+        { type: 'text', content: 'Summarize this document' },
+        { type: 'document', source: fileSourceFromHandle(handle) },
+      ],
+    },
+  ],
+})
+```
+
+Rules agents must respect:
+
+- **The source is a per-provider reference record.** `fileSourceFromHandle`
+  builds `{ type: 'file', reference: { openai: 'file-…' } }`; each adapter
+  reads only its own entry and throws when none is present. Upload the same
+  bytes to several providers and pass all the handles —
+  `fileSourceFromHandle(openaiHandle, geminiHandle)` — to build one source
+  that routes to any of them.
+- **Adapters declare `supportsFileSources`.** For adapters that don't (Grok,
+  Groq, Bedrock, Mistral, OpenRouter, Ollama, BytePlus, Cohere, and anything
+  written before this feature), `chat()` / `generateImage()` /
+  `generateVideo()` / `embed()` reject file sources in preflight, before any
+  request is built — pass `data`/`url` sources there instead.
+- **Lifecycle:** `getFile()` / `deleteFile()` work for OpenAI, Anthropic, and
+  Gemini, and accept the handle itself (provider-literal typed — a foreign
+  handle is a compile error). fal storage is upload-only — those calls throw
+  for `falFiles()`.
+- **Some endpoints need raw bytes even on supporting providers:** OpenAI
+  `images/edits` + Sora `input_reference`, Gemini Veo, and Chat Completions
+  image inputs throw endpoint-specific errors for file sources.
+- `fileSourceFromHandle` and the `FileHandle` type are also exported from the
+  browser-safe `@tanstack/ai/client` entry for clients that persist handles.
+
+See `docs/advanced/files-api.md` for the full guide.
+
 ## Common Mistakes
 
 ### a. HIGH: Confusing legacy monolithic with tree-shakeable adapter

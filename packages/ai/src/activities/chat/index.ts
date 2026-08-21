@@ -35,6 +35,7 @@ import {
 } from '../../interrupt-serialization'
 import { normalizeToolResult } from '../../utilities/tool-result'
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
+import { assertMessagesFileSourceSupport } from '../../utilities/content-source'
 import { LazyToolManager } from './tools/lazy-tool-manager'
 import { assertUniqueToolNames } from './tools/unique-tool-names'
 import {
@@ -1493,6 +1494,13 @@ class TextEngine<
         typeof resolution === 'boolean' ? resolution : resolution.approved,
       )
     }
+
+    // Fail closed on `{ type: 'file' }` sources for adapters that haven't
+    // declared support — an adapter written before the file arm existed would
+    // otherwise fall through to its URL/data branch and silently mis-map the
+    // reference. Checked per model call so tool results added mid-loop are
+    // covered too.
+    assertMessagesFileSourceSupport(this.adapter, this.messages)
 
     for await (const chunk of this.adapter.chatStream({
       model: this.params.model,
@@ -3431,6 +3439,12 @@ class TextEngine<
 
     // Apply merged config back to engine state
     this.applyMiddlewareConfig(postOnConfig)
+
+    // Schema-only structured output with no tools skips the agent loop, so
+    // `streamModelResponse` never runs this check. Middleware can also
+    // replace `this.messages` above. Fail closed here before the
+    // structured-output adapter call.
+    assertMessagesFileSourceSupport(this.adapter, this.messages)
 
     // Build the StructuredOutputOptions the adapter expects.
     // `this.adapter` is already `TAdapter extends AnyTextAdapter` per the

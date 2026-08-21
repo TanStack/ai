@@ -247,12 +247,49 @@ export interface ContentPartUrlSource {
 }
 
 /**
+ * Source specification for provider-issued file references (Files API).
+ *
+ * The media is uploaded once via a `files` adapter (`openaiFiles()`,
+ * `anthropicFiles()`, `geminiFiles()`, `falFiles()`) and referenced here by the
+ * returned handle instead of re-sending base64 or a public URL each request.
+ *
+ * `reference` maps provider names to that provider's wire reference — an
+ * OpenAI/Anthropic `file_id`, a Gemini file URI, a fal storage URL. Upload the
+ * same bytes to several providers and merge their handles
+ * (`fileSourceFromHandle(openaiHandle, geminiHandle)`) to make one source that
+ * works across all of them; each adapter reads only its own entry and throws
+ * when none is present. Adapters that can't consume file references at all are
+ * rejected by the activity-layer preflight before mapping starts.
+ */
+export interface ContentPartFileSource<TProvider extends string = string> {
+  /**
+   * Indicates this references provider-issued file handles.
+   */
+  type: 'file'
+  /**
+   * Provider name → wire reference issued by that provider's Files API. Use
+   * `fileSourceFromHandle(...handles)` to build (and merge) entries without
+   * worrying about the id-vs-uri distinction.
+   */
+  reference: Record<TProvider, string>
+  /**
+   * Optional MIME type hint for cases where the provider can't infer it.
+   */
+  mimeType?: string
+}
+
+/**
  * Source specification for multimodal content.
- * Discriminated union supporting both inline data (base64) and URL-based content.
+ * Discriminated union supporting inline data (base64), URL-based content, and
+ * provider-issued file handles.
  * - For 'data' sources: mimeType is required
  * - For 'url' sources: mimeType is optional
+ * - For 'file' sources: a provider-issued handle plus its issuing `provider`
  */
-export type ContentPartSource = ContentPartDataSource | ContentPartUrlSource
+export type ContentPartSource =
+  | ContentPartDataSource
+  | ContentPartUrlSource
+  | ContentPartFileSource
 
 /**
  * Image content part for multimodal messages.

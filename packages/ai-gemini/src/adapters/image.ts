@@ -1,4 +1,8 @@
-import { resolveMediaPrompt } from '@tanstack/ai'
+import {
+  fileReferenceFor,
+  isFileSource,
+  resolveMediaPrompt,
+} from '@tanstack/ai'
 import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import {
   createGeminiClient,
@@ -75,6 +79,8 @@ export class GeminiImageAdapter<
 > {
   override readonly kind = 'image' as const
   readonly name = 'gemini' as const
+  // Consumes Gemini Files API references (geminiFiles()) as fileData.fileUri.
+  override readonly supportsFileSources = true
 
   // Type-only property - never assigned at runtime
   declare '~types': {
@@ -270,10 +276,14 @@ export class GeminiImageAdapter<
     // `fileData` and Gemini fetches them server-side — same as the chat
     // adapter. Fetching locally and inlining as base64 double-buffers the
     // image and OOMs on memory-constrained runtimes (e.g. Cloudflare
-    // Workers).
+    // Workers). A file source resolves to this adapter's own reference entry
+    // (throws when the file was never uploaded to Gemini).
+    const fileUri = isFileSource(part.source)
+      ? fileReferenceFor(part.source, this.name)
+      : part.source.value
     return {
       fileData: {
-        fileUri: part.source.value,
+        fileUri,
         mimeType: part.source.mimeType ?? 'image/jpeg',
       },
     }

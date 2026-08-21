@@ -182,7 +182,8 @@ export default function ImageGenerator({
             </label>
             <span className="text-xs text-gray-500">
               Sent as image prompt parts with role &quot;reference&quot; —
-              accepted by the Gemini multimodal models, xAI Imagine and Seedream
+              accepted by the Gemini multimodal models (uploaded once via the
+              Gemini Files API), xAI Imagine and Seedream
             </span>
           </div>
           <div className="flex flex-wrap gap-2">

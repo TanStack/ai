@@ -107,7 +107,8 @@ function Messages({
   const hasRenderablePart = (message: UIMessage): boolean => {
     return message.parts.some((part) => {
       if (part.type === 'thinking') return true
-      if (part.type === 'image') return true
+      // File-handle images have no local bytes or URL to show.
+      if (part.type === 'image' && 'value' in part.source) return true
       if (part.type === 'text' && part.content.trim()) return true
       if (
         part.type === 'tool-call' &&
@@ -364,8 +365,9 @@ function Messages({
                     )
                   }
 
-                  // Render image parts
-                  if (part.type === 'image') {
+                  // Render image parts (file references have no local bytes
+                  // or URL to render, so only url/data sources get an <img>)
+                  if (part.type === 'image' && 'value' in part.source) {
                     const imageUrl =
                       part.source.type === 'url'
                         ? part.source.value

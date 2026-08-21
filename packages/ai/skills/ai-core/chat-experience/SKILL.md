@@ -290,6 +290,17 @@ if (part.type === 'image') {
 }
 ```
 
+For media reused across turns, upload once via a provider Files adapter
+(`openaiFiles()`, `anthropicFiles()`, `geminiFiles()`, `falFiles()`) and send a
+`{ type: 'file' }` source built with `fileSourceFromHandle(...handles)` instead
+of re-sending base64 each request. The source carries a per-provider reference
+record, so handles from several providers merge into one source that routes to
+any of them; providers without an entry (or without Files API support at all)
+reject it with a clear error before any request is sent.
+`fileSourceFromHandle` is exported from the browser-safe
+`@tanstack/ai/client`; the upload itself is server-side. See
+`ai-core/adapter-configuration/SKILL.md` §7 and `docs/advanced/files-api.md`.
+
 ### 4. Sending Audio Messages (Browser Recording)
 
 Use `useAudioRecorder` from `@tanstack/ai-react` (or `createAudioRecorder` in Svelte) to capture audio in the browser. The resolved `AudioRecording` includes a ready-to-use `part` that slots directly into `sendMessage`.

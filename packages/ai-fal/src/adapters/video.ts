@@ -10,7 +10,10 @@ import {
   getFalVideoDurationOptions,
   mapVideoSizeToFalFormat,
 } from '../video/video-provider-options'
-import { mapImageInputsToFalVideoFields } from '../image/image-inputs'
+import {
+  contentSourceToFalUrl,
+  mapImageInputsToFalVideoFields,
+} from '../image/image-inputs'
 import type { DurationOptions } from '@tanstack/ai/adapters'
 import type {
   AudioPart,
@@ -75,17 +78,12 @@ function mapAudioInputsToFalFields(
     )
   }
   return {
-    audio_url:
-      part.source.type === 'url'
-        ? part.source.value
-        : `data:${part.source.mimeType};base64,${part.source.value}`,
+    audio_url: contentSourceToFalUrl(part.source),
   }
 }
 
 function videoPartToUrl(part: VideoPart<MediaInputMetadata>): string {
-  return part.source.type === 'url'
-    ? part.source.value
-    : `data:${part.source.mimeType};base64,${part.source.value}`
+  return contentSourceToFalUrl(part.source)
 }
 
 type FalQueueStatus = 'IN_QUEUE' | 'IN_PROGRESS' | 'COMPLETED'
@@ -142,6 +140,8 @@ export class FalVideoAdapter<TModel extends FalModel> extends BaseVideoAdapter<
 > {
   override readonly kind = 'video' as const
   readonly name = 'fal' as const
+  // Consumes fal storage URLs uploaded via falFiles().
+  override readonly supportsFileSources = true
 
   constructor(model: TModel, config?: FalClientConfig) {
     super({}, model)
