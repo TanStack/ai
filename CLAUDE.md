@@ -50,7 +50,7 @@ pnpm test:lib:dev          # Watch mode for unit tests
 pnpm test:oxlint           # Lint affected packages (oxlint, incl. type-aware)
 pnpm test:types            # Type check affected packages
 pnpm test:build            # Verify build artifacts with publint
-pnpm test:coverage         # Generate coverage reports
+# Coverage is CI-only. See CONTRIBUTING.md. Don't run it locally.
 pnpm test:knip             # Check for unused dependencies
 pnpm test:sherif           # Check pnpm workspace consistency
 pnpm test:docs             # Verify documentation links
@@ -314,7 +314,16 @@ Each package uses `exports` field in package.json for subpath exports (e.g., `@t
 
 - Unit tests in `*.test.ts` files alongside source
 - Uses Vitest with happy-dom for DOM testing
-- Test coverage via `pnpm test:coverage`
+- **Coverage is CI-only.** Don't run it locally and don't add it to local
+  gates — it is deliberately absent from `test`, `test:pr`, `test:ci` and the
+  git hooks. The `Coverage` job on each PR measures every affected package
+  twice, on the PR head and on its merge-base with `main`, and fails when a
+  metric drops more than 0.5pp between them. There is **no baseline file** —
+  don't reintroduce one, it was removed precisely because it needed manual
+  syncing and was platform-sensitive. The only remedy for a drop is tests.
+  `.github/workflows/coverage.yml` runs coverage on pushes to `main` purely to
+  warm the Nx Cloud cache so the base-side run is mostly cache restores. See
+  CONTRIBUTING.md.
 - **E2E tests are mandatory** — see E2E Testing section below
 
 ### E2E Testing (REQUIRED)

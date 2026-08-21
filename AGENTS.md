@@ -110,6 +110,13 @@ each of these and confirm they're green before pushing:
 
 Do **not** rely on CI as your first signal. Run locally, fix, then push.
 
+## Coverage
+
+Coverage is CI-only. Do not run it locally and do not add it to `test`,
+`test:pr`, `test:ci`, or git hooks. There is no baseline file. The PR
+`Coverage` job compares affected packages on the branch against their
+merge-base with `main`. See **Coverage** in `CONTRIBUTING.md`.
+
 ## Documentation
 
 Load the `docs` skill first (see **Docs skill** above). Then also obey
