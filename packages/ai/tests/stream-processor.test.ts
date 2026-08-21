@@ -694,10 +694,17 @@ describe('StreamProcessor', () => {
       processor.prepareAssistantMessage()
 
       processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart())
       processor.processChunk(ev.toolStart('tc-1', 'offerTemplates'))
       processor.processChunk(ev.toolArgs('tc-1', '{"templateIds":["mock-gsk-e'))
-      processor.processChunk(ev.textStart())
       processor.processChunk(ev.textContent('Let me look those up. '))
+
+      const partialToolCall = processor
+        .getMessages()[0]!
+        .parts.find((part) => part.type === 'tool-call') as ToolCallPart
+      expect(partialToolCall.state).not.toBe('input-complete')
+      expect(partialToolCall.input).toBeUndefined()
+
       processor.processChunk(ev.toolArgs('tc-1', 'fimosfermin"]}'))
       processor.processChunk(ev.toolEnd('tc-1', 'offerTemplates'))
       processor.processChunk(ev.runFinished('stop'))
