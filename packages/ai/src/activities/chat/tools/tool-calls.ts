@@ -233,13 +233,7 @@ export class ToolCallManager<
    * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
    */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
-    for (const existing of this.toolCallsMap.values()) {
-      if (existing.id === event.toolCallId) return
-    }
-    const index =
-      'index' in event && typeof event.index === 'number'
-        ? event.index
-        : this.toolCallsMap.size
+    const index = (event as AdapterYieldChunk).index ?? this.toolCallsMap.size
     const name = event.toolCallName ?? event.toolName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
