@@ -298,7 +298,9 @@ function ImageModelCard({
         data: {
           prompt: input.prompt,
           model: model.id,
-          ...(input.previousImage ? { previousImage: input.previousImage } : {}),
+          ...(input.previousImage
+            ? { previousImage: input.previousImage }
+            : {}),
         },
         signal: options?.signal,
       }),
