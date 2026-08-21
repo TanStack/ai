@@ -41,6 +41,7 @@ TanStack AI provides several advantages:
 | `@ai-sdk/openai` | `@tanstack/ai-openai` |
 | `@ai-sdk/anthropic` | `@tanstack/ai-anthropic` |
 | `@ai-sdk/google` | `@tanstack/ai-gemini` |
+| `@ai-sdk/google-vertex` | `@tanstack/ai-vertex` (Gemini), `@tanstack/ai-anthropic/vertex` (Claude), `@tanstack/ai-grok/vertex` (Grok), and `@tanstack/ai-mistral/vertex` (Mistral) |
 | `@ai-sdk/react` | `@tanstack/ai-react` |
 | `@ai-sdk/vue` | `@tanstack/ai-vue` |
 | `@ai-sdk/solid` | `@tanstack/ai-solid` |

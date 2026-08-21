@@ -35,7 +35,7 @@ Versions referenced below: TanStack AI as of this writing; Vercel AI SDK `ai@7.x
 |---------|------------|---------------|
 | License | MIT | Apache 2.0 |
 | Hosting | Works anywhere | Works anywhere |
-| Providers | 15 official LLM adapters (OpenAI, Anthropic, Gemini, Grok, Groq, OpenRouter, Ollama, Bedrock, BytePlus, Mistral, Cohere, ElevenLabs, fal, Vercel Gateway, `openaiCompatible`) plus 5 harness adapters; community adapters for more | ~38 first-party provider packages (plus community); 100+ models via AI Gateway |
+| Providers | 16 official LLM adapters (OpenAI, Anthropic, Gemini, Vertex, Grok, Groq, OpenRouter, Ollama, Bedrock, BytePlus, Mistral, Cohere, ElevenLabs, fal, Vercel Gateway, `openaiCompatible`) plus 5 harness adapters; community adapters for more | ~38 first-party provider packages (plus community); 100+ models via AI Gateway |
 | Framework Hooks | React, Solid, Svelte, Vue, Preact, Angular (+ React Native) | React, Vue, Svelte, Angular (Solid is community-maintained) |
 | Generation UI Hooks | One hook per activity: chat, structured output, image, audio, speech, transcription, summarize, video, realtime | `useChat`, `useCompletion`, `useObject` |
 | Wire Protocol | Native AG-UI events end to end | Proprietary UI Message Stream; AG-UI via external translation layer |
@@ -754,7 +754,7 @@ Set `debug: true` on any activity and the pipeline prints itself: raw provider c
 
 TanStack AI publishes an open adapter specification. Official LLM adapters:
 
-- OpenAI, Anthropic, Gemini, Grok, Groq, OpenRouter, Ollama
+- OpenAI, Anthropic, Gemini, Vertex, Grok, Groq, OpenRouter, Ollama
 - Bedrock, BytePlus, Mistral, Cohere, ElevenLabs, fal
 - Vercel AI Gateway, and any OpenAI-compatible endpoint via `openaiCompatible`
 

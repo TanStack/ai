@@ -1582,10 +1582,10 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
-      "input": ["text"],
+      "input": ["text", "image"],
       "output": ["text"]
     },
     "supported_parameters": [
@@ -5042,6 +5042,7 @@
       }
     ],
     "knowledge": "2025-05",
+    "deprecated_at": 1787875140000,
     "pricing": {
       "input": "0.00000174",
       "output": "0.00000348",
@@ -6614,75 +6615,6 @@
       "input": "0.00000014",
       "output": "0.0000004",
       "varies_by_provider": true
-    }
-  },
-  {
-    "id": "google/imagen-4.0-fast-generate-001",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1748736000,
-    "owned_by": "google",
-    "name": "Imagen 4 Fast",
-    "description": "Imagen 4 Fast is Google’s speed-optimized variant of the Imagen 4 text-to-image model, designed for rapid, high-volume image generation. It’s ideal for workflows like quick drafts, mockups, and iterative creative exploration. Despite emphasizing speed, it still benefits from the broader Imagen 4 family’s improvements in clarity, text rendering, and stylistic flexibility, and supports high-resolution outputs up to 2K.",
-    "context_window": 480,
-    "max_tokens": 0,
-    "type": "image",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["image-generation"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["image"]
-    },
-    "pricing": {
-      "image": "0.02"
-    }
-  },
-  {
-    "id": "google/imagen-4.0-generate-001",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1747699200,
-    "owned_by": "google",
-    "name": "Imagen 4",
-    "description": "Imagen 4: Google's flagship text-to-image model that serves as the go-to choice for a wide variety of high-quality image generation tasks, featuring significant improvements in text rendering over previous models. It now supports up to 2K resolution generation for creating detailed and crisp visuals, making it suitable for everything from marketing assets to artistic compositions.",
-    "context_window": 480,
-    "max_tokens": 0,
-    "type": "image",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["image-generation"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["image"]
-    },
-    "pricing": {
-      "image": "0.04"
-    }
-  },
-  {
-    "id": "google/imagen-4.0-ultra-generate-001",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1748044800,
-    "owned_by": "google",
-    "name": "Imagen 4 Ultra",
-    "description": "Imagen 4 Ultra: Highest quality image generation model for detailed and photorealistic outputs.",
-    "context_window": 480,
-    "max_tokens": 0,
-    "type": "image",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["image-generation"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["image"]
-    },
-    "pricing": {
-      "image": "0.06"
     }
   },
   {
@@ -15039,6 +14971,1287 @@
     }
   },
   {
+    "id": "spacexai/grok-4.1-fast-non-reasoning",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1763510400,
+    "owned_by": "spacexai",
+    "name": "Grok 4.1 Fast Non-Reasoning",
+    "description": "",
+    "context_window": 1000000,
+    "max_tokens": 1000000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["tool-use", "file-input", "vision", "implicit-caching"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice"
+    ],
+    "temperature": true,
+    "knowledge": "2024-10",
+    "pricing": {
+      "input": "0.0000002",
+      "output": "0.0000005",
+      "input_cache_read": "0.00000005"
+    }
+  },
+  {
+    "id": "spacexai/grok-4.1-fast-reasoning",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1763510400,
+    "owned_by": "spacexai",
+    "name": "Grok 4.1 Fast Reasoning",
+    "description": "",
+    "context_window": 1000000,
+    "max_tokens": 1000000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "file-input",
+      "vision",
+      "tool-use",
+      "implicit-caching"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "knowledge": "2024-10",
+    "pricing": {
+      "input": "0.0000002",
+      "output": "0.0000005",
+      "input_cache_read": "0.00000005"
+    }
+  },
+  {
+    "id": "spacexai/grok-4.20-multi-agent",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1773100800,
+    "owned_by": "spacexai",
+    "name": "Grok 4.20 Multi-Agent",
+    "description": "Multiple agents collaborate in parallel to perform deep research tasks.",
+    "context_window": 2000000,
+    "max_tokens": 2000000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "file-input",
+      "web-search"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh"]
+      }
+    ],
+    "pricing": {
+      "input": "0.00000125",
+      "input_tiers": [
+        {
+          "cost": "0.00000125",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000025",
+          "min": 200001
+        }
+      ],
+      "output": "0.0000025",
+      "output_tiers": [
+        {
+          "cost": "0.0000025",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000005",
+          "min": 200001
+        }
+      ],
+      "input_cache_read": "0.0000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000002",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000004",
+          "min": 200001
+        }
+      ],
+      "web_search": "5",
+      "service_tiers": {
+        "priority": {
+          "input": "0.0000025",
+          "output": "0.000005",
+          "input_cache_read": "0.0000004",
+          "long_context": {
+            "threshold": 200001,
+            "input": "0.000005",
+            "output": "0.00001",
+            "input_cache_read": "0.0000008"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "spacexai/grok-4.20-multi-agent-beta",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1773187200,
+    "owned_by": "spacexai",
+    "name": "Grok 4.20 Multi Agent Beta",
+    "description": "Multiple agents collaborate in parallel to perform deep research tasks.",
+    "context_window": 2000000,
+    "max_tokens": 2000000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "file-input",
+      "web-search"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high", "xhigh"]
+      }
+    ],
+    "pricing": {
+      "input": "0.00000125",
+      "input_tiers": [
+        {
+          "cost": "0.00000125",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000025",
+          "min": 200001
+        }
+      ],
+      "output": "0.0000025",
+      "output_tiers": [
+        {
+          "cost": "0.0000025",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000005",
+          "min": 200001
+        }
+      ],
+      "input_cache_read": "0.0000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000002",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000004",
+          "min": 200001
+        }
+      ],
+      "web_search": "5"
+    }
+  },
+  {
+    "id": "spacexai/grok-4.20-non-reasoning",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1773100800,
+    "owned_by": "spacexai",
+    "name": "Grok 4.20 Non-Reasoning",
+    "description": "Grok 4.20 Beta is the newest flagship model from xAI with industry-leading speed and agentic tool calling capabilities. It combines the lowest hallucination rate on the market with strict prompt adherence, delivering consistently precise and truthful responses.",
+    "context_window": 2000000,
+    "max_tokens": 2000000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "tool-use",
+      "implicit-caching",
+      "file-input",
+      "vision",
+      "web-search"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000125",
+      "input_tiers": [
+        {
+          "cost": "0.00000125",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000025",
+          "min": 200001
+        }
+      ],
+      "output": "0.0000025",
+      "output_tiers": [
+        {
+          "cost": "0.0000025",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000005",
+          "min": 200001
+        }
+      ],
+      "input_cache_read": "0.0000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000002",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000004",
+          "min": 200001
+        }
+      ],
+      "web_search": "5",
+      "service_tiers": {
+        "priority": {
+          "input": "0.0000025",
+          "output": "0.000005",
+          "input_cache_read": "0.0000004",
+          "long_context": {
+            "threshold": 200001,
+            "input": "0.000005",
+            "output": "0.00001",
+            "input_cache_read": "0.0000008"
+          }
+        }
+      },
+      "varies_by_provider": true
+    }
+  },
+  {
+    "id": "spacexai/grok-4.20-non-reasoning-beta",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1773187200,
+    "owned_by": "spacexai",
+    "name": "Grok 4.20 Beta Non-Reasoning",
+    "description": "Grok 4.20 Beta is the newest flagship model from xAI with industry-leading speed and agentic tool calling capabilities. It combines the lowest hallucination rate on the market with strict prompt adherance, delivering consistently precise and truthful responses.",
+    "context_window": 2000000,
+    "max_tokens": 2000000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "file-input",
+      "web-search"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000125",
+      "input_tiers": [
+        {
+          "cost": "0.00000125",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000025",
+          "min": 200001
+        }
+      ],
+      "output": "0.0000025",
+      "output_tiers": [
+        {
+          "cost": "0.0000025",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000005",
+          "min": 200001
+        }
+      ],
+      "input_cache_read": "0.0000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000004",
+          "min": 200001
+        }
+      ],
+      "web_search": "5"
+    }
+  },
+  {
+    "id": "spacexai/grok-4.20-reasoning",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1773100800,
+    "owned_by": "spacexai",
+    "name": "Grok 4.20 Reasoning",
+    "description": "Grok 4.20 Beta is the newest flagship model from xAI with industry-leading speed and agentic tool calling capabilities. It combines the lowest hallucination rate on the market with strict prompt adherence, delivering consistently precise and truthful responses.",
+    "context_window": 2000000,
+    "max_tokens": 2000000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "vision",
+      "file-input",
+      "web-search"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000125",
+      "input_tiers": [
+        {
+          "cost": "0.00000125",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000025",
+          "min": 200001
+        }
+      ],
+      "output": "0.0000025",
+      "output_tiers": [
+        {
+          "cost": "0.0000025",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000005",
+          "min": 200001
+        }
+      ],
+      "input_cache_read": "0.0000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000002",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000004",
+          "min": 200001
+        }
+      ],
+      "web_search": "5",
+      "service_tiers": {
+        "priority": {
+          "input": "0.0000025",
+          "output": "0.000005",
+          "input_cache_read": "0.0000004",
+          "long_context": {
+            "threshold": 200001,
+            "input": "0.000005",
+            "output": "0.00001",
+            "input_cache_read": "0.0000008"
+          }
+        }
+      },
+      "varies_by_provider": true
+    }
+  },
+  {
+    "id": "spacexai/grok-4.20-reasoning-beta",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1773187200,
+    "owned_by": "spacexai",
+    "name": "Grok 4.20 Beta Reasoning",
+    "description": "Grok 4.20 Beta is the newest flagship model from xAI with industry-leading speed and agentic tool calling capabilities. It combines the lowest hallucination rate on the market with strict prompt adherance, delivering consistently precise and truthful responses.",
+    "context_window": 2000000,
+    "max_tokens": 2000000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "vision",
+      "file-input",
+      "implicit-caching",
+      "web-search"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000125",
+      "input_tiers": [
+        {
+          "cost": "0.00000125",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000025",
+          "min": 200001
+        }
+      ],
+      "output": "0.0000025",
+      "output_tiers": [
+        {
+          "cost": "0.0000025",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000005",
+          "min": 200001
+        }
+      ],
+      "input_cache_read": "0.0000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000002",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000004",
+          "min": 200001
+        }
+      ],
+      "web_search": "5"
+    }
+  },
+  {
+    "id": "spacexai/grok-4.3",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1777507200,
+    "owned_by": "spacexai",
+    "name": "Grok 4.3",
+    "description": "Grok 4.3 is a new model matching the scale of Grok 4.20 with an improved architecture and a December 2025 knowledge cutoff.",
+    "context_window": 1000000,
+    "max_tokens": 1000000,
+    "type": "language",
+    "zdr": "some",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "file-input",
+      "vision",
+      "web-search"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["none", "low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.00000125",
+      "input_tiers": [
+        {
+          "cost": "0.00000125",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000025",
+          "min": 200001
+        }
+      ],
+      "output": "0.0000025",
+      "output_tiers": [
+        {
+          "cost": "0.0000025",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000005",
+          "min": 200001
+        }
+      ],
+      "input_cache_read": "0.0000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000002",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000004",
+          "min": 200001
+        }
+      ],
+      "web_search": "5",
+      "service_tiers": {
+        "priority": {
+          "input": "0.0000025",
+          "output": "0.000005",
+          "input_cache_read": "0.0000004",
+          "long_context": {
+            "threshold": 200001,
+            "input": "0.000005",
+            "output": "0.00001",
+            "input_cache_read": "0.0000008"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "spacexai/grok-4.5",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1783468800,
+    "owned_by": "spacexai",
+    "name": "Grok 4.5",
+    "description": "SpaceXAI's smartest model with frontier performance on coding, knowledge work, and STEM.",
+    "context_window": 500000,
+    "max_tokens": 500000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "tool-use",
+      "implicit-caching",
+      "file-input",
+      "vision",
+      "web-search"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image", "pdf"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "reasoning_options": [
+      {
+        "type": "effort",
+        "values": ["low", "medium", "high"]
+      }
+    ],
+    "pricing": {
+      "input": "0.000002",
+      "input_tiers": [
+        {
+          "cost": "0.000002",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000004",
+          "min": 200001
+        }
+      ],
+      "output": "0.000006",
+      "output_tiers": [
+        {
+          "cost": "0.000006",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000012",
+          "min": 200001
+        }
+      ],
+      "input_cache_read": "0.0000003",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000003",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000006",
+          "min": 200001
+        }
+      ],
+      "web_search": "5",
+      "service_tiers": {
+        "priority": {
+          "input": "0.000004",
+          "output": "0.000012",
+          "input_cache_read": "0.0000006",
+          "long_context": {
+            "threshold": 200001,
+            "input": "0.000008",
+            "output": "0.000024",
+            "input_cache_read": "0.0000012"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "spacexai/grok-4.6",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1786492800,
+    "owned_by": "spacexai",
+    "name": "Grok 4.6",
+    "description": "Grok 4.6 builds on Grok 4.5 with a particular focus on long-running agents and more ambitious interactive and visual work. It stays with complex tasks across many steps, whether researching a topic, analyzing information, working across a codebase, or turning an idea into a polished application or work artifact.",
+    "context_window": 500000,
+    "max_tokens": 500000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.000002",
+      "input_tiers": [
+        {
+          "cost": "0.000002",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000004",
+          "min": 200001
+        }
+      ],
+      "output": "0.000006",
+      "output_tiers": [
+        {
+          "cost": "0.000006",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000012",
+          "min": 200001
+        }
+      ],
+      "input_cache_read": "0.0000005",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000005",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000001",
+          "min": 200001
+        }
+      ],
+      "web_search": "5",
+      "service_tiers": {
+        "priority": {
+          "input": "0.000004",
+          "output": "0.000012",
+          "input_cache_read": "0.000001",
+          "long_context": {
+            "threshold": 200001,
+            "input": "0.000008",
+            "output": "0.000024",
+            "input_cache_read": "0.000002"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "spacexai/grok-build-0.1",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1779235200,
+    "owned_by": "spacexai",
+    "name": "Grok Build 0.1",
+    "description": "xAI's fast coding model trained specifically for agentic coding.",
+    "context_window": 256000,
+    "max_tokens": 256000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": [
+      "reasoning",
+      "implicit-caching",
+      "vision",
+      "tool-use",
+      "web-search"
+    ],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.000001",
+      "input_tiers": [
+        {
+          "cost": "0.000001",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000002",
+          "min": 200001
+        }
+      ],
+      "output": "0.000002",
+      "output_tiers": [
+        {
+          "cost": "0.000002",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.000004",
+          "min": 200001
+        }
+      ],
+      "input_cache_read": "0.0000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000002",
+          "min": 0,
+          "max": 200001
+        },
+        {
+          "cost": "0.0000004",
+          "min": 200001
+        }
+      ],
+      "web_search": "5",
+      "service_tiers": {
+        "priority": {
+          "input": "0.000002",
+          "output": "0.000004",
+          "input_cache_read": "0.0000004",
+          "long_context": {
+            "threshold": 200001,
+            "input": "0.000004",
+            "output": "0.000008",
+            "input_cache_read": "0.0000008"
+          }
+        }
+      }
+    }
+  },
+  {
+    "id": "spacexai/grok-imagine-image",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1769558400,
+    "owned_by": "spacexai",
+    "name": "Grok Imagine Image",
+    "description": "Generate high-quality images from text prompts with xAI's imagine API.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["image-generation"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "image": "0.02"
+    }
+  },
+  {
+    "id": "spacexai/grok-imagine-image-2.0",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1786060800,
+    "owned_by": "spacexai",
+    "name": "Grok Imagine Image 2.0",
+    "description": "",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "image",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["image-generation"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["image"]
+    },
+    "pricing": {
+      "image": "0.06",
+      "image_dimension_quality_pricing": [
+        {
+          "quality": "low",
+          "cost": "0.04"
+        },
+        {
+          "size": "2048x2048",
+          "cost": "0.08"
+        },
+        {
+          "size": "2048x2048",
+          "quality": "low",
+          "cost": "0.06"
+        }
+      ]
+    }
+  },
+  {
+    "id": "spacexai/grok-imagine-video",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1769558400,
+    "owned_by": "spacexai",
+    "name": "Grok Imagine",
+    "description": "State-of-the-art video generation across quality, cost, and latency. Grok Imagine is x.AI's most powerful video-audio generative model yet. Bring an image to life, start from a simple text prompt, or even refine a complex cinematic sequence.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "video",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["video"]
+    },
+    "video_capabilities": {
+      "supported_operations": [
+        "text-to-video",
+        "image-to-video",
+        "reference-to-video",
+        "video-editing",
+        "extend-video"
+      ],
+      "supported_resolutions": ["480p", "720p"],
+      "supported_aspect_ratios": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3"
+      ],
+      "supported_durations_seconds": [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+      ],
+      "generate_audio": false,
+      "supported_fps": [24],
+      "input_limits": {
+        "image": {
+          "max_count": 5,
+          "supported_formats": ["jpg", "jpeg", "png", "webp", "gif", "avif"],
+          "supported_sources": ["url", "base64", "buffer"]
+        },
+        "video": {
+          "max_count": 1,
+          "supported_sources": ["url"],
+          "min_duration_seconds": 2,
+          "max_duration_seconds": 8.7
+        }
+      }
+    },
+    "pricing": {
+      "video_duration_pricing": [
+        {
+          "resolution": "480p",
+          "cost_per_second": "0.05"
+        },
+        {
+          "resolution": "720p",
+          "cost_per_second": "0.07"
+        }
+      ]
+    }
+  },
+  {
+    "id": "spacexai/grok-imagine-video-1.5",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1782086400,
+    "owned_by": "spacexai",
+    "name": "Grok Imagine Video 1.5",
+    "description": "",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "video",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["video"]
+    },
+    "video_capabilities": {
+      "supported_operations": [
+        "image-to-video",
+        "text-to-video",
+        "reference-to-video"
+      ],
+      "supported_resolutions": ["480p", "720p", "1080p"],
+      "supported_aspect_ratios": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3"
+      ],
+      "supported_durations_seconds": [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+      ],
+      "generate_audio": true,
+      "supported_fps": [24],
+      "input_limits": {
+        "image": {
+          "max_count": 7,
+          "supported_sources": ["url", "base64"]
+        },
+        "audio": {
+          "supported_sources": ["url"]
+        }
+      }
+    },
+    "pricing": {
+      "video_duration_pricing": [
+        {
+          "resolution": "480p",
+          "cost_per_second": "0.08"
+        },
+        {
+          "resolution": "720p",
+          "cost_per_second": "0.14"
+        },
+        {
+          "resolution": "1080p",
+          "cost_per_second": "0.25"
+        }
+      ]
+    }
+  },
+  {
+    "id": "spacexai/grok-imagine-video-1.5-preview",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1780099200,
+    "owned_by": "spacexai",
+    "name": "Grok Imagine Video 1.5 Preview",
+    "description": "",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "video",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["video"]
+    },
+    "video_capabilities": {
+      "supported_operations": ["image-to-video"],
+      "supported_resolutions": ["480p", "720p", "1080p"],
+      "supported_aspect_ratios": [
+        "1:1",
+        "16:9",
+        "9:16",
+        "4:3",
+        "3:4",
+        "3:2",
+        "2:3"
+      ],
+      "supported_durations_seconds": [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
+      ],
+      "generate_audio": true,
+      "supported_fps": [24],
+      "input_limits": {
+        "image": {
+          "max_count": 1,
+          "supported_sources": ["url", "base64"]
+        }
+      }
+    },
+    "pricing": {
+      "video_duration_pricing": [
+        {
+          "resolution": "480p",
+          "cost_per_second": "0.08"
+        },
+        {
+          "resolution": "720p",
+          "cost_per_second": "0.14"
+        },
+        {
+          "resolution": "1080p",
+          "cost_per_second": "0.25"
+        }
+      ]
+    }
+  },
+  {
+    "id": "spacexai/grok-stt",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1773619200,
+    "owned_by": "spacexai",
+    "name": "Grok STT",
+    "description": "Transcribe audio to text in 25 languages with batch and streaming modes.",
+    "type": "transcription",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["websocket-transcription"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["audio"],
+      "output": ["text"]
+    },
+    "pricing": {
+      "input": "0",
+      "transcription_duration_cost_per_second": "0.000028"
+    }
+  },
+  {
+    "id": "spacexai/grok-tts",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1773619200,
+    "owned_by": "spacexai",
+    "name": "Grok TTS",
+    "description": "Generate speech with 5 expressive voices, speech tags, and telephony codecs.",
+    "type": "speech",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["audio"]
+    },
+    "pricing": {
+      "input": "0.000015",
+      "speech_input_character_cost": "0.000015"
+    }
+  },
+  {
+    "id": "spacexai/grok-voice-think-fast-1.0",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1776902400,
+    "owned_by": "spacexai",
+    "name": "Grok Voice Think Fast 1.0",
+    "description": "Build real-time voice applications powered by Grok. Stream audio and text bidirectionally via WebSocket for voice assistants, phone agents, and interactive voice systems.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "realtime",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio"],
+      "output": ["text", "audio"]
+    },
+    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "temperature": true,
+    "pricing": {
+      "realtime_client_message_cost": "0.004",
+      "realtime_session_duration_cost_per_second": "0.000834"
+    }
+  },
+  {
+    "id": "spacexai/grok-voice-think-fast-2.0",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1785283200,
+    "owned_by": "spacexai",
+    "name": "Grok Voice Think Fast 2.0",
+    "description": "Grok Voice Think Fast 2.0, our next-generation voice model with improved intelligence, transcription accuracy, and conversational capabilities.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "realtime",
+    "zdr": "none",
+    "no_training": "all",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio"],
+      "output": ["text", "audio"]
+    },
+    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "temperature": true,
+    "pricing": {
+      "realtime_client_message_cost": "0.004",
+      "realtime_session_duration_cost_per_second": "0.001334"
+    }
+  },
+  {
     "id": "stepfun/step-3.5-flash",
     "object": "model",
     "created": 1755815280,
@@ -15123,15 +16336,90 @@
     }
   },
   {
+    "id": "tencent/hy-mt2-lite",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1781222400,
+    "owned_by": "tencent",
+    "name": "Tencent Hy-MT2-Lite",
+    "description": "Hy-MT2-Lite is Tencent Cloud Hunyuan’s lightweight 1.8B translation model, combining efficient performance with an 8K-token context window and broad multilingual coverage. It supports translation across 33 languages and five ethnic Chinese and dialect variants, delivering strong results on benchmarks including FLORES-200 and WMT25. Designed for professional and real-world business use, it reliably follows instructions for structured, delimiter-preserving, context-aware, glossary-guided, and style-specific translation.",
+    "context_window": 8000,
+    "max_tokens": 4000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "temperature": true,
+    "pricing": {
+      "input": "0.000000044",
+      "output": "0.000000177"
+    }
+  },
+  {
+    "id": "tencent/hy-mt2-plus",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1781222400,
+    "owned_by": "tencent",
+    "name": "Tencent Hy-MT2-Plus",
+    "description": "Hy-MT2-Plus is Tencent Cloud Hunyuan’s 7B translation model, offering an 8K-token context window and broad multilingual coverage. Optimized for translation across 33 languages and five ethnic Chinese and dialect variants, it delivers industry-leading performance on benchmarks including FLORES-200 and WMT25. It excels in professional domains and real-world business scenarios, with strong instruction-following for structured, delimiter-preserving, context-aware, glossary-guided, and style-specific translation.",
+    "context_window": 8000,
+    "max_tokens": 4000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "temperature": true,
+    "pricing": {
+      "input": "0.000000074",
+      "output": "0.000000295"
+    }
+  },
+  {
+    "id": "tencent/hy-mt2-pro",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1779321600,
+    "owned_by": "tencent",
+    "name": "Tencent Hy-MT2-Pro",
+    "description": "Hy-MT2-Pro is Tencent Cloud Hunyuan’s flagship translation model, featuring 30B-A3B parameters and an 8K-token context window. It delivers bidirectional translation across 33 core language pairs, plus five minority-language and dialect pairs. With industry-leading performance on FLORES-200 and WMT25, it excels in specialized domains and real-world business scenarios while supporting structured, contextual, terminology-aware, style-specific, and delimiter-preserving translation.",
+    "context_window": 8000,
+    "max_tokens": 4000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": ["max_tokens", "temperature", "stop"],
+    "temperature": true,
+    "pricing": {
+      "input": "0.000000074",
+      "output": "0.000000295"
+    }
+  },
+  {
     "id": "tencent/hy3",
     "object": "model",
     "created": 1755815280,
     "released": 1783296000,
     "owned_by": "tencent",
     "name": "Hy3",
-    "description": "Built for real-world business scenarios, Hy3 features a 295B/21B active MoE architecture, native 256K context support, and three reasoning modes. It enhances coding, long-form comprehension, multi-turn dialogue, and agentic task execution, balancing reliability, efficiency, and cost across both high-frequency interactions and complex workflows.",
-    "context_window": 262144,
-    "max_tokens": 262144,
+    "description": "Tencent Hy3 is an open-source Mixture-of-Experts (MoE) large language model developed by Tencent's Hunyuan team. It has 295B total parameters, 21B active parameters, a 3.8B-parameter MTP layer, and a 256K context window. Hy3 is designed for agentic workflows, coding, reasoning, long-context understanding, tool-use scenarios, document analysis, and structured generation.\n\nThe model improves on Hy3 Preview with stronger tool-call reliability, better output-format stability, improved long-context retention, and lower hallucination rates in Tencent's internal evaluations.",
+    "context_window": 256000,
+    "max_tokens": 128000,
     "type": "language",
     "zdr": "some",
     "no_training": "some",
@@ -15152,9 +16440,9 @@
     ],
     "temperature": true,
     "pricing": {
-      "input": "0.00000014",
-      "output": "0.00000058",
-      "input_cache_read": "0.000000035",
+      "input": "0.000000132",
+      "output": "0.000000528",
+      "input_cache_read": "0.000000033",
       "varies_by_provider": true
     }
   },
@@ -15512,1287 +16800,6 @@
     },
     "pricing": {
       "input": "0.00000012"
-    }
-  },
-  {
-    "id": "xai/grok-4.1-fast-non-reasoning",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1763510400,
-    "owned_by": "xai",
-    "name": "Grok 4.1 Fast Non-Reasoning",
-    "description": "",
-    "context_window": 1000000,
-    "max_tokens": 1000000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["tool-use", "file-input", "vision", "implicit-caching"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0.0000002",
-      "output": "0.0000005",
-      "input_cache_read": "0.00000005"
-    }
-  },
-  {
-    "id": "xai/grok-4.1-fast-reasoning",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1763510400,
-    "owned_by": "xai",
-    "name": "Grok 4.1 Fast Reasoning",
-    "description": "",
-    "context_window": 1000000,
-    "max_tokens": 1000000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "file-input",
-      "vision",
-      "tool-use",
-      "implicit-caching"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0.0000002",
-      "output": "0.0000005",
-      "input_cache_read": "0.00000005"
-    }
-  },
-  {
-    "id": "xai/grok-4.20-multi-agent",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1773100800,
-    "owned_by": "xai",
-    "name": "Grok 4.20 Multi-Agent",
-    "description": "Multiple agents collaborate in parallel to perform deep research tasks.",
-    "context_window": 2000000,
-    "max_tokens": 2000000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "tool-use",
-      "implicit-caching",
-      "vision",
-      "file-input",
-      "web-search"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
-      }
-    ],
-    "pricing": {
-      "input": "0.00000125",
-      "input_tiers": [
-        {
-          "cost": "0.00000125",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000025",
-          "min": 200001
-        }
-      ],
-      "output": "0.0000025",
-      "output_tiers": [
-        {
-          "cost": "0.0000025",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000005",
-          "min": 200001
-        }
-      ],
-      "input_cache_read": "0.0000002",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.0000002",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000004",
-          "min": 200001
-        }
-      ],
-      "web_search": "5",
-      "service_tiers": {
-        "priority": {
-          "input": "0.0000025",
-          "output": "0.000005",
-          "input_cache_read": "0.0000004",
-          "long_context": {
-            "threshold": 200001,
-            "input": "0.000005",
-            "output": "0.00001",
-            "input_cache_read": "0.0000008"
-          }
-        }
-      }
-    }
-  },
-  {
-    "id": "xai/grok-4.20-multi-agent-beta",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1773187200,
-    "owned_by": "xai",
-    "name": "Grok 4.20 Multi Agent Beta",
-    "description": "Multiple agents collaborate in parallel to perform deep research tasks.",
-    "context_window": 2000000,
-    "max_tokens": 2000000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "tool-use",
-      "implicit-caching",
-      "vision",
-      "file-input",
-      "web-search"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "high", "xhigh"]
-      }
-    ],
-    "pricing": {
-      "input": "0.00000125",
-      "input_tiers": [
-        {
-          "cost": "0.00000125",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000025",
-          "min": 200001
-        }
-      ],
-      "output": "0.0000025",
-      "output_tiers": [
-        {
-          "cost": "0.0000025",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000005",
-          "min": 200001
-        }
-      ],
-      "input_cache_read": "0.0000002",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.0000002",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000004",
-          "min": 200001
-        }
-      ],
-      "web_search": "5"
-    }
-  },
-  {
-    "id": "xai/grok-4.20-non-reasoning",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1773100800,
-    "owned_by": "xai",
-    "name": "Grok 4.20 Non-Reasoning",
-    "description": "Grok 4.20 Beta is the newest flagship model from xAI with industry-leading speed and agentic tool calling capabilities. It combines the lowest hallucination rate on the market with strict prompt adherence, delivering consistently precise and truthful responses.",
-    "context_window": 2000000,
-    "max_tokens": 2000000,
-    "type": "language",
-    "zdr": "some",
-    "no_training": "all",
-    "tags": [
-      "tool-use",
-      "implicit-caching",
-      "file-input",
-      "vision",
-      "web-search"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0.00000125",
-      "input_tiers": [
-        {
-          "cost": "0.00000125",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000025",
-          "min": 200001
-        }
-      ],
-      "output": "0.0000025",
-      "output_tiers": [
-        {
-          "cost": "0.0000025",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000005",
-          "min": 200001
-        }
-      ],
-      "input_cache_read": "0.0000002",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.0000002",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000004",
-          "min": 200001
-        }
-      ],
-      "web_search": "5",
-      "service_tiers": {
-        "priority": {
-          "input": "0.0000025",
-          "output": "0.000005",
-          "input_cache_read": "0.0000004",
-          "long_context": {
-            "threshold": 200001,
-            "input": "0.000005",
-            "output": "0.00001",
-            "input_cache_read": "0.0000008"
-          }
-        }
-      },
-      "varies_by_provider": true
-    }
-  },
-  {
-    "id": "xai/grok-4.20-non-reasoning-beta",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1773187200,
-    "owned_by": "xai",
-    "name": "Grok 4.20 Beta Non-Reasoning",
-    "description": "Grok 4.20 Beta is the newest flagship model from xAI with industry-leading speed and agentic tool calling capabilities. It combines the lowest hallucination rate on the market with strict prompt adherance, delivering consistently precise and truthful responses.",
-    "context_window": 2000000,
-    "max_tokens": 2000000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "tool-use",
-      "implicit-caching",
-      "vision",
-      "file-input",
-      "web-search"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0.00000125",
-      "input_tiers": [
-        {
-          "cost": "0.00000125",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000025",
-          "min": 200001
-        }
-      ],
-      "output": "0.0000025",
-      "output_tiers": [
-        {
-          "cost": "0.0000025",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000005",
-          "min": 200001
-        }
-      ],
-      "input_cache_read": "0.0000002",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.0000004",
-          "min": 200001
-        }
-      ],
-      "web_search": "5"
-    }
-  },
-  {
-    "id": "xai/grok-4.20-reasoning",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1773100800,
-    "owned_by": "xai",
-    "name": "Grok 4.20 Reasoning",
-    "description": "Grok 4.20 Beta is the newest flagship model from xAI with industry-leading speed and agentic tool calling capabilities. It combines the lowest hallucination rate on the market with strict prompt adherence, delivering consistently precise and truthful responses.",
-    "context_window": 2000000,
-    "max_tokens": 2000000,
-    "type": "language",
-    "zdr": "some",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "tool-use",
-      "implicit-caching",
-      "vision",
-      "file-input",
-      "web-search"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0.00000125",
-      "input_tiers": [
-        {
-          "cost": "0.00000125",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000025",
-          "min": 200001
-        }
-      ],
-      "output": "0.0000025",
-      "output_tiers": [
-        {
-          "cost": "0.0000025",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000005",
-          "min": 200001
-        }
-      ],
-      "input_cache_read": "0.0000002",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.0000002",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000004",
-          "min": 200001
-        }
-      ],
-      "web_search": "5",
-      "service_tiers": {
-        "priority": {
-          "input": "0.0000025",
-          "output": "0.000005",
-          "input_cache_read": "0.0000004",
-          "long_context": {
-            "threshold": 200001,
-            "input": "0.000005",
-            "output": "0.00001",
-            "input_cache_read": "0.0000008"
-          }
-        }
-      },
-      "varies_by_provider": true
-    }
-  },
-  {
-    "id": "xai/grok-4.20-reasoning-beta",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1773187200,
-    "owned_by": "xai",
-    "name": "Grok 4.20 Beta Reasoning",
-    "description": "Grok 4.20 Beta is the newest flagship model from xAI with industry-leading speed and agentic tool calling capabilities. It combines the lowest hallucination rate on the market with strict prompt adherance, delivering consistently precise and truthful responses.",
-    "context_window": 2000000,
-    "max_tokens": 2000000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "tool-use",
-      "vision",
-      "file-input",
-      "implicit-caching",
-      "web-search"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0.00000125",
-      "input_tiers": [
-        {
-          "cost": "0.00000125",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000025",
-          "min": 200001
-        }
-      ],
-      "output": "0.0000025",
-      "output_tiers": [
-        {
-          "cost": "0.0000025",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000005",
-          "min": 200001
-        }
-      ],
-      "input_cache_read": "0.0000002",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.0000002",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000004",
-          "min": 200001
-        }
-      ],
-      "web_search": "5"
-    }
-  },
-  {
-    "id": "xai/grok-4.3",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1777507200,
-    "owned_by": "xai",
-    "name": "Grok 4.3",
-    "description": "Grok 4.3 is a new model matching the scale of Grok 4.20 with an improved architecture and a December 2025 knowledge cutoff.",
-    "context_window": 1000000,
-    "max_tokens": 1000000,
-    "type": "language",
-    "zdr": "some",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "tool-use",
-      "implicit-caching",
-      "file-input",
-      "vision",
-      "web-search"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["none", "low", "medium", "high"]
-      }
-    ],
-    "pricing": {
-      "input": "0.00000125",
-      "input_tiers": [
-        {
-          "cost": "0.00000125",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000025",
-          "min": 200001
-        }
-      ],
-      "output": "0.0000025",
-      "output_tiers": [
-        {
-          "cost": "0.0000025",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000005",
-          "min": 200001
-        }
-      ],
-      "input_cache_read": "0.0000002",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.0000002",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000004",
-          "min": 200001
-        }
-      ],
-      "web_search": "5",
-      "service_tiers": {
-        "priority": {
-          "input": "0.0000025",
-          "output": "0.000005",
-          "input_cache_read": "0.0000004",
-          "long_context": {
-            "threshold": 200001,
-            "input": "0.000005",
-            "output": "0.00001",
-            "input_cache_read": "0.0000008"
-          }
-        }
-      }
-    }
-  },
-  {
-    "id": "xai/grok-4.5",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1783468800,
-    "owned_by": "xai",
-    "name": "Grok 4.5",
-    "description": "SpaceXAI's smartest model with frontier performance on coding, knowledge work, and STEM.",
-    "context_window": 500000,
-    "max_tokens": 500000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "tool-use",
-      "implicit-caching",
-      "file-input",
-      "vision",
-      "web-search"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["low", "medium", "high"]
-      }
-    ],
-    "pricing": {
-      "input": "0.000002",
-      "input_tiers": [
-        {
-          "cost": "0.000002",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000004",
-          "min": 200001
-        }
-      ],
-      "output": "0.000006",
-      "output_tiers": [
-        {
-          "cost": "0.000006",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000012",
-          "min": 200001
-        }
-      ],
-      "input_cache_read": "0.0000003",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.0000003",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000006",
-          "min": 200001
-        }
-      ],
-      "web_search": "5",
-      "service_tiers": {
-        "priority": {
-          "input": "0.000004",
-          "output": "0.000012",
-          "input_cache_read": "0.0000006",
-          "long_context": {
-            "threshold": 200001,
-            "input": "0.000008",
-            "output": "0.000024",
-            "input_cache_read": "0.0000012"
-          }
-        }
-      }
-    }
-  },
-  {
-    "id": "xai/grok-4.6",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1786492800,
-    "owned_by": "xai",
-    "name": "Grok 4.6",
-    "description": "Grok 4.6 builds on Grok 4.5 with a particular focus on long-running agents and more ambitious interactive and visual work. It stays with complex tasks across many steps, whether researching a topic, analyzing information, working across a codebase, or turning an idea into a polished application or work artifact.",
-    "context_window": 500000,
-    "max_tokens": 500000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0.000002",
-      "input_tiers": [
-        {
-          "cost": "0.000002",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000004",
-          "min": 200001
-        }
-      ],
-      "output": "0.000006",
-      "output_tiers": [
-        {
-          "cost": "0.000006",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000012",
-          "min": 200001
-        }
-      ],
-      "input_cache_read": "0.0000005",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.0000005",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000001",
-          "min": 200001
-        }
-      ],
-      "web_search": "5",
-      "service_tiers": {
-        "priority": {
-          "input": "0.000004",
-          "output": "0.000012",
-          "input_cache_read": "0.000001",
-          "long_context": {
-            "threshold": 200001,
-            "input": "0.000008",
-            "output": "0.000024",
-            "input_cache_read": "0.000002"
-          }
-        }
-      }
-    }
-  },
-  {
-    "id": "xai/grok-build-0.1",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1779235200,
-    "owned_by": "xai",
-    "name": "Grok Build 0.1",
-    "description": "xAI's fast coding model trained specifically for agentic coding.",
-    "context_window": 256000,
-    "max_tokens": 256000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "reasoning",
-      "implicit-caching",
-      "vision",
-      "tool-use",
-      "web-search"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0.000001",
-      "input_tiers": [
-        {
-          "cost": "0.000001",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000002",
-          "min": 200001
-        }
-      ],
-      "output": "0.000002",
-      "output_tiers": [
-        {
-          "cost": "0.000002",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.000004",
-          "min": 200001
-        }
-      ],
-      "input_cache_read": "0.0000002",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.0000002",
-          "min": 0,
-          "max": 200001
-        },
-        {
-          "cost": "0.0000004",
-          "min": 200001
-        }
-      ],
-      "web_search": "5",
-      "service_tiers": {
-        "priority": {
-          "input": "0.000002",
-          "output": "0.000004",
-          "input_cache_read": "0.0000004",
-          "long_context": {
-            "threshold": 200001,
-            "input": "0.000004",
-            "output": "0.000008",
-            "input_cache_read": "0.0000008"
-          }
-        }
-      }
-    }
-  },
-  {
-    "id": "xai/grok-imagine-image",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1769558400,
-    "owned_by": "xai",
-    "name": "Grok Imagine Image",
-    "description": "Generate high-quality images from text prompts with xAI's imagine API.",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "image",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["image-generation"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["image"]
-    },
-    "pricing": {
-      "image": "0.02"
-    }
-  },
-  {
-    "id": "xai/grok-imagine-image-2.0",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1786060800,
-    "owned_by": "xai",
-    "name": "Grok Imagine Image 2.0",
-    "description": "",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "image",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["image-generation"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["image"]
-    },
-    "pricing": {
-      "image": "0.06",
-      "image_dimension_quality_pricing": [
-        {
-          "quality": "low",
-          "cost": "0.04"
-        },
-        {
-          "size": "2048x2048",
-          "cost": "0.08"
-        },
-        {
-          "size": "2048x2048",
-          "quality": "low",
-          "cost": "0.06"
-        }
-      ]
-    }
-  },
-  {
-    "id": "xai/grok-imagine-video",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1769558400,
-    "owned_by": "xai",
-    "name": "Grok Imagine",
-    "description": "State-of-the-art video generation across quality, cost, and latency. Grok Imagine is x.AI's most powerful video-audio generative model yet. Bring an image to life, start from a simple text prompt, or even refine a complex cinematic sequence.",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "video",
-    "zdr": "none",
-    "no_training": "all",
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["video"]
-    },
-    "video_capabilities": {
-      "supported_operations": [
-        "text-to-video",
-        "image-to-video",
-        "reference-to-video",
-        "video-editing",
-        "extend-video"
-      ],
-      "supported_resolutions": ["480p", "720p"],
-      "supported_aspect_ratios": [
-        "1:1",
-        "16:9",
-        "9:16",
-        "4:3",
-        "3:4",
-        "3:2",
-        "2:3"
-      ],
-      "supported_durations_seconds": [
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
-      ],
-      "generate_audio": false,
-      "supported_fps": [24],
-      "input_limits": {
-        "image": {
-          "max_count": 5,
-          "supported_formats": ["jpg", "jpeg", "png", "webp", "gif", "avif"],
-          "supported_sources": ["url", "base64", "buffer"]
-        },
-        "video": {
-          "max_count": 1,
-          "supported_sources": ["url"],
-          "min_duration_seconds": 2,
-          "max_duration_seconds": 8.7
-        }
-      }
-    },
-    "pricing": {
-      "video_duration_pricing": [
-        {
-          "resolution": "480p",
-          "cost_per_second": "0.05"
-        },
-        {
-          "resolution": "720p",
-          "cost_per_second": "0.07"
-        }
-      ]
-    }
-  },
-  {
-    "id": "xai/grok-imagine-video-1.5",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1782086400,
-    "owned_by": "xai",
-    "name": "Grok Imagine Video 1.5",
-    "description": "",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "video",
-    "zdr": "none",
-    "no_training": "all",
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["video"]
-    },
-    "video_capabilities": {
-      "supported_operations": [
-        "image-to-video",
-        "text-to-video",
-        "reference-to-video"
-      ],
-      "supported_resolutions": ["480p", "720p", "1080p"],
-      "supported_aspect_ratios": [
-        "1:1",
-        "16:9",
-        "9:16",
-        "4:3",
-        "3:4",
-        "3:2",
-        "2:3"
-      ],
-      "supported_durations_seconds": [
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
-      ],
-      "generate_audio": true,
-      "supported_fps": [24],
-      "input_limits": {
-        "image": {
-          "max_count": 7,
-          "supported_sources": ["url", "base64"]
-        },
-        "audio": {
-          "supported_sources": ["url"]
-        }
-      }
-    },
-    "pricing": {
-      "video_duration_pricing": [
-        {
-          "resolution": "480p",
-          "cost_per_second": "0.08"
-        },
-        {
-          "resolution": "720p",
-          "cost_per_second": "0.14"
-        },
-        {
-          "resolution": "1080p",
-          "cost_per_second": "0.25"
-        }
-      ]
-    }
-  },
-  {
-    "id": "xai/grok-imagine-video-1.5-preview",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1780099200,
-    "owned_by": "xai",
-    "name": "Grok Imagine Video 1.5 Preview",
-    "description": "",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "video",
-    "zdr": "none",
-    "no_training": "all",
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["video"]
-    },
-    "video_capabilities": {
-      "supported_operations": ["image-to-video"],
-      "supported_resolutions": ["480p", "720p", "1080p"],
-      "supported_aspect_ratios": [
-        "1:1",
-        "16:9",
-        "9:16",
-        "4:3",
-        "3:4",
-        "3:2",
-        "2:3"
-      ],
-      "supported_durations_seconds": [
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15
-      ],
-      "generate_audio": true,
-      "supported_fps": [24],
-      "input_limits": {
-        "image": {
-          "max_count": 1,
-          "supported_sources": ["url", "base64"]
-        }
-      }
-    },
-    "pricing": {
-      "video_duration_pricing": [
-        {
-          "resolution": "480p",
-          "cost_per_second": "0.08"
-        },
-        {
-          "resolution": "720p",
-          "cost_per_second": "0.14"
-        },
-        {
-          "resolution": "1080p",
-          "cost_per_second": "0.25"
-        }
-      ]
-    }
-  },
-  {
-    "id": "xai/grok-stt",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1773619200,
-    "owned_by": "xai",
-    "name": "Grok STT",
-    "description": "Transcribe audio to text in 25 languages with batch and streaming modes.",
-    "type": "transcription",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["websocket-transcription"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["audio"],
-      "output": ["text"]
-    },
-    "pricing": {
-      "input": "0",
-      "transcription_duration_cost_per_second": "0.000028"
-    }
-  },
-  {
-    "id": "xai/grok-tts",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1773619200,
-    "owned_by": "xai",
-    "name": "Grok TTS",
-    "description": "Generate speech with 5 expressive voices, speech tags, and telephony codecs.",
-    "type": "speech",
-    "zdr": "none",
-    "no_training": "all",
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["audio"]
-    },
-    "pricing": {
-      "input": "0.000015",
-      "speech_input_character_cost": "0.000015"
-    }
-  },
-  {
-    "id": "xai/grok-voice-think-fast-1.0",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1776902400,
-    "owned_by": "xai",
-    "name": "Grok Voice Think Fast 1.0",
-    "description": "Build real-time voice applications powered by Grok. Stream audio and text bidirectionally via WebSocket for voice assistants, phone agents, and interactive voice systems.",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "realtime",
-    "zdr": "none",
-    "no_training": "all",
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "audio"],
-      "output": ["text", "audio"]
-    },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
-    "temperature": true,
-    "pricing": {
-      "realtime_client_message_cost": "0.004",
-      "realtime_session_duration_cost_per_second": "0.000834"
-    }
-  },
-  {
-    "id": "xai/grok-voice-think-fast-2.0",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1785283200,
-    "owned_by": "xai",
-    "name": "Grok Voice Think Fast 2.0",
-    "description": "Grok Voice Think Fast 2.0, our next-generation voice model with improved intelligence, transcription accuracy, and conversational capabilities.",
-    "context_window": 0,
-    "max_tokens": 0,
-    "type": "realtime",
-    "zdr": "none",
-    "no_training": "all",
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "audio"],
-      "output": ["text", "audio"]
-    },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
-    "temperature": true,
-    "pricing": {
-      "realtime_client_message_cost": "0.004",
-      "realtime_session_duration_cost_per_second": "0.001334"
     }
   },
   {

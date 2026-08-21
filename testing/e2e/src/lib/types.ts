@@ -4,6 +4,9 @@ export type Provider =
   | 'openai'
   | 'anthropic'
   | 'gemini'
+  | 'vertex'
+  | 'vertex-grok'
+  | 'vertex-mistral'
   | 'ollama'
   | 'grok'
   | 'groq'
@@ -17,6 +20,7 @@ export type Provider =
   | 'mistral'
   | 'byteplus'
   | 'elevenlabs'
+  | 'llmgateway'
 
 export type Feature =
   | 'chat'
@@ -54,6 +58,9 @@ export const ALL_PROVIDERS: Provider[] = [
   'openai',
   'anthropic',
   'gemini',
+  'vertex',
+  'vertex-grok',
+  'vertex-mistral',
   'ollama',
   'grok',
   'groq',
@@ -67,6 +74,7 @@ export const ALL_PROVIDERS: Provider[] = [
   'mistral',
   'byteplus',
   'elevenlabs',
+  'llmgateway',
 ]
 
 export const ALL_FEATURES: Feature[] = [

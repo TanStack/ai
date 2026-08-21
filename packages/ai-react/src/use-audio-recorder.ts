@@ -48,10 +48,16 @@ export interface UseAudioRecorderReturn<TOutput> {
  * sendMessage({ content: [rec.part] })
  * ```
  */
+// The transforming overload requires `onComplete`. Without that constraint an
+// options object carrying only unrelated keys (`useAudioRecorder({ onError })`)
+// still matches it, `TOnComplete` infers as `unknown`, and `recording`/`stop()`
+// collapse to `unknown` — so passing any option would silently cost you the
+// `AudioRecording` type. Requiring it here sends those calls to the second
+// overload instead (issue #1001).
 export function useAudioRecorder<
   TOnComplete extends (recording: AudioRecording) => unknown,
 >(
-  options: UseAudioRecorderOptions<TOnComplete>,
+  options: UseAudioRecorderOptions<TOnComplete> & { onComplete: TOnComplete },
 ): UseAudioRecorderReturn<InferAudioRecordingOutput<TOnComplete>>
 export function useAudioRecorder(
   options?: UseAudioRecorderOptions<undefined>,

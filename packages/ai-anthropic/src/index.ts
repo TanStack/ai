@@ -7,9 +7,12 @@ export {
   AnthropicTextAdapter,
   anthropicText,
   createAnthropicChat,
+  createAnthropicChatWithClient,
+  type AnthropicTextAdapterConfig,
   type AnthropicTextConfig,
   type AnthropicTextProviderOptions,
 } from './adapters/text'
+export type { AnthropicMessagesClient } from './utils/client'
 export type { AnthropicSystemPromptMetadata } from './text/text-provider-options'
 
 // Summarize - thin factory functions over @tanstack/ai's ChatStreamSummarizeAdapter
@@ -25,12 +28,14 @@ export {
 
 export type {
   AnthropicChatModel,
+  AnthropicVertexChatModel,
   AnthropicChatModelProviderOptionsByName,
   AnthropicChatModelToolCapabilitiesByName,
   AnthropicModelInputModalitiesByName,
 } from './model-meta'
 export {
   ANTHROPIC_MODELS,
+  ANTHROPIC_VERTEX_CHAT_MODELS,
   ANTHROPIC_COMBINED_TOOLS_AND_SCHEMA_MODELS,
 } from './model-meta'
 export type {
