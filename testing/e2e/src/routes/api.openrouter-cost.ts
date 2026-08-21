@@ -21,6 +21,8 @@ export const Route = createFileRoute('/api/openrouter-cost')({
         })
 
         let usage: Record<string, unknown> | undefined
+        let generationId: string | undefined
+        let provider: string | undefined
         try {
           for await (const chunk of chat({
             ...createChatOptions({ adapter }),
@@ -28,6 +30,8 @@ export const Route = createFileRoute('/api/openrouter-cost')({
           })) {
             if (chunk.type === 'RUN_FINISHED') {
               usage = chunk.usage as Record<string, unknown> | undefined
+              generationId = chunk.generationId
+              provider = chunk.provider
             }
           }
         } catch (error) {
@@ -40,10 +44,13 @@ export const Route = createFileRoute('/api/openrouter-cost')({
           )
         }
 
-        return new Response(JSON.stringify({ ok: true, usage }), {
-          status: 200,
-          headers: { 'Content-Type': 'application/json' },
-        })
+        return new Response(
+          JSON.stringify({ ok: true, usage, generationId, provider }),
+          {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' },
+          },
+        )
       },
     },
   },

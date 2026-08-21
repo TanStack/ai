@@ -1142,7 +1142,7 @@ export type RunAgentResumeItem = AGUIResumeEntry & {
  * Emitted when a run completes successfully.
  *
  * @ag-ui/core provides: `threadId`, `runId`, `result?`
- * TanStack AI adds: `model?`, `finishReason?`, `usage?`
+ * TanStack AI adds: `model?`, `finishReason?`, `usage?`, `generationId?`, `provider?`
  */
 export interface RunFinishedEvent extends AGUIRunFinishedEvent {
   /** Model identifier for multi-model support */
@@ -1151,6 +1151,10 @@ export interface RunFinishedEvent extends AGUIRunFinishedEvent {
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   /** Token usage statistics with optional detailed breakdowns and provider-reported cost. */
   usage?: TokenUsage
+  /** Provider generation identifier for reconciliation, when reported. */
+  generationId?: string
+  /** Provider that served the generation, when reported. */
+  provider?: string
 }
 
 /**
