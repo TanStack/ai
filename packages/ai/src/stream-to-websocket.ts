@@ -1,6 +1,6 @@
 import { chatParamsFromRequestBody } from './utilities/chat-params'
 import { durableStreamSource, runErrorChunk } from './stream-to-response'
-import { stripToSpec } from './strip-to-spec-middleware'
+import { toWireChunk } from './strip-to-spec-middleware'
 import { resolveDebugOption } from './logger/resolve'
 import type { StreamDurability } from './stream-durability'
 import type { DebugOption } from './logger/types'
@@ -36,7 +36,7 @@ export function encodeWsFrame(
   chunk: StreamChunk,
   id: string | undefined,
 ): string {
-  const wire = stripToSpec(chunk)
+  const wire = toWireChunk(chunk)
   return JSON.stringify(id === undefined ? wire : { id, chunk: wire })
 }
 

@@ -250,10 +250,14 @@ export class ToolCallManager<
    * Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
    */
   addToolCallArgsEvent(event: ToolCallArgsEvent): void {
-    // Find the tool call by ID
+    const extra = event as AdapterYieldChunk
     for (const [, toolCall] of this.toolCallsMap.entries()) {
       if (toolCall.id === event.toolCallId) {
-        toolCall.function.arguments += event.delta
+        if (typeof extra.args === 'string' && extra.args !== '') {
+          toolCall.function.arguments = extra.args
+        } else {
+          toolCall.function.arguments += event.delta
+        }
         break
       }
     }

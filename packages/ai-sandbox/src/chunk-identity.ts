@@ -29,9 +29,16 @@
  *    exactly that field — nothing downstream keys on a chunk's timestamp, so
  *    leaving it wall-clock is safe, but every other field must participate in
  *    the comparison or a real divergence would go undetected.
+ * 3. Adapter yields still carry leftover TanStack extras (`content`, `args`,
+ *    `finishReason`). The durability log stores spec chunks. Fingerprints keep
+ *    only AG-UI spec keys and drop `metadata.tanstack`, so a live adapter yield
+ *    matches the stored spec chunk.
  */
-import { tanstackMetadata } from '@tanstack/ai/adapter-internals'
 import type { StreamChunk } from '@tanstack/ai'
+import {
+  isSpecTopLevelKey,
+  tanstackMetadata,
+} from '@tanstack/ai/adapter-internals'
 
 /**
  * A deterministic id generator scoped to one run.
@@ -113,16 +120,37 @@ function stableStringify(
  *   cannot spuriously diverge.
  * - **Recurses into nested arrays and objects**: tool-call arguments are
  *   nested, and a shallow fingerprint would miss a changed argument.
- * - **Excludes exactly `VOLATILE_FIELDS`** (`timestamp`) — everything else
- *   participates, including fields whose value is `undefined`.
+ * - **Excludes `timestamp` and leftover adapter extras.** Spec keys
+ *   participate, including `undefined` values. `metadata.tanstack` is dropped
+ *   so stored spec chunks match live adapter yields.
  * - **Distinguishes present-but-`undefined` from absent**: `undefined` is
  *   encoded as the sentinel string `"__undefined__"` rather than dropped, so
  *   `{a: undefined}` and `{}` do not collide. A translator emitting an
  *   explicit `undefined` is a different chunk shape and must fingerprint
  *   differently.
  */
+function fingerprintableChunk(chunk: StreamChunk): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(chunk)) {
+    if (key === 'timestamp') continue
+    if (!isSpecTopLevelKey(chunk.type, key)) continue
+    if (key === 'metadata' && value != null && typeof value === 'object') {
+      const rest: Record<string, unknown> = {}
+      for (const [metaKey, metaValue] of Object.entries(value)) {
+        if (metaKey === 'tanstack') continue
+        rest[metaKey] = metaValue
+      }
+      if (Object.keys(rest).length === 0) continue
+      out.metadata = rest
+      continue
+    }
+    out[key] = value
+  }
+  return out
+}
+
 export function chunkFingerprint(chunk: StreamChunk): string {
-  return stableStringify(chunk, VOLATILE_FIELDS)
+  return stableStringify(fingerprintableChunk(chunk), VOLATILE_FIELDS)
 }
 
 /**
@@ -137,7 +165,7 @@ export function chunkFingerprint(chunk: StreamChunk): string {
  * `JournalReplayThreadIdMismatchError` in `align.ts`).
  */
 export function chunkFingerprintIgnoringThreadId(chunk: StreamChunk): string {
-  return stableStringify(chunk, VOLATILE_AND_THREAD_ID)
+  return stableStringify(fingerprintableChunk(chunk), VOLATILE_AND_THREAD_ID)
 }
 
 /**

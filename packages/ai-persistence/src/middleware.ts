@@ -12,7 +12,6 @@ import {
   getGenericInterruptDefinitionRegistry,
   providePendingTurn,
   rehydrateInterruptRequest,
-  tanstackMetadata,
   toRunErrorPayload,
 } from '@tanstack/ai/adapter-internals'
 import type {
@@ -1749,10 +1748,16 @@ function tokenUsageFromChunk(chunk: StreamChunk): TokenUsage | undefined {
   ) {
     return usage
   }
-  return fromSpecTokenUsage(
-    Array.isArray(usage) ? usage : undefined,
-    tanstackMetadata(chunk)?.usage,
-  )
+  const metadata = chunk.metadata
+  const tanstack =
+    metadata != null && typeof metadata === 'object' && 'tanstack' in metadata
+      ? metadata.tanstack
+      : undefined
+  const leftover =
+    tanstack != null && typeof tanstack === 'object' && !Array.isArray(tanstack)
+      ? (tanstack as { usage?: TokenUsage }).usage
+      : undefined
+  return fromSpecTokenUsage(Array.isArray(usage) ? usage : undefined, leftover)
 }
 
 function accumulateTokenUsage(

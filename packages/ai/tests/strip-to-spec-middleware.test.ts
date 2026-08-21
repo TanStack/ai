@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { stripToSpec } from '../src/strip-to-spec-middleware'
+import { stripToSpec, toWireChunk } from '../src/strip-to-spec-middleware'
 import { EventType } from '../src/types'
 import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 import { isSpecTopLevelKey } from '../src/utilities/spec-event-keys'
@@ -95,6 +95,29 @@ describe('stripToSpec', () => {
           cost: 0.02,
           promptTokensDetails: { audioTokens: 1 },
         },
+      },
+    })
+  })
+})
+
+describe('toWireChunk', () => {
+  it('moves leftover RUN_FINISHED finishReason into metadata.tanstack', () => {
+    const result = toWireChunk({
+      type: EventType.RUN_FINISHED,
+      runId: 'run-1',
+      threadId: 'thread-1',
+      finishReason: 'stop',
+      model: 'gpt-5.5',
+    } as AdapterYieldChunk)
+    expect(result).not.toHaveProperty('finishReason')
+    expect(result).not.toHaveProperty('model')
+    if (result.type !== EventType.RUN_FINISHED) {
+      throw new Error('expected RUN_FINISHED')
+    }
+    expect(result.metadata).toEqual({
+      tanstack: {
+        finishReason: 'stop',
+        model: 'gpt-5.5',
       },
     })
   })

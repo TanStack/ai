@@ -1721,7 +1721,15 @@ class TextEngine<
   // ===========================
 
   private handleTextMessageContentEvent(chunk: TextMessageContentEvent): void {
-    this.accumulatedContent += chunk.delta
+    const extra = chunk as AdapterYieldChunk
+    // Adapters still emit leftover cumulative `content` on RAW yields.
+    // Alignment suppresses already-delivered deltas, so this snapshot is
+    // what a takeover saves as the full assistant text.
+    if (typeof extra.content === 'string' && extra.content !== '') {
+      this.accumulatedContent = extra.content
+    } else {
+      this.accumulatedContent += chunk.delta
+    }
     this.middlewareCtx.accumulatedContent = this.accumulatedContent
   }
 

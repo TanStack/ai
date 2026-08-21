@@ -80,9 +80,8 @@ type DevtoolsKnownChunk =
 
 // The engine emits more chunk types than this middleware acts on
 // (TEXT_MESSAGE_START, MESSAGES_SNAPSHOT, REASONING_*, CUSTOM, etc.).
-// Spec events have no index signature, so do not intersect with
-// `Record<string, unknown>` — that made this middleware unassignable
-// to ChatMiddleware.
+// Spec events have no index signature. `unknown` is a supertype of every
+// AG-UI event, so this middleware stays assignable to ChatMiddleware.
 type DevtoolsStreamChunk = { type: string }
 
 const KNOWN_CHUNK_TYPES: ReadonlySet<DevtoolsKnownChunk['type']> = new Set([
@@ -96,8 +95,20 @@ const KNOWN_CHUNK_TYPES: ReadonlySet<DevtoolsKnownChunk['type']> = new Set([
   'REASONING_MESSAGE_CONTENT',
 ])
 
-function isKnownChunk(chunk: DevtoolsStreamChunk): chunk is DevtoolsKnownChunk {
-  return (KNOWN_CHUNK_TYPES as ReadonlySet<string>).has(chunk.type)
+function isTypedChunk(chunk: unknown): chunk is DevtoolsStreamChunk {
+  return (
+    typeof chunk === 'object' &&
+    chunk !== null &&
+    'type' in chunk &&
+    typeof chunk.type === 'string'
+  )
+}
+
+function isKnownChunk(chunk: unknown): chunk is DevtoolsKnownChunk {
+  return (
+    isTypedChunk(chunk) &&
+    (KNOWN_CHUNK_TYPES as ReadonlySet<string>).has(chunk.type)
+  )
 }
 
 function chunkTanstack(chunk: DevtoolsRunFinishedChunk) {
@@ -223,7 +234,7 @@ export interface DevtoolsChatMiddleware {
   ) => void | Promise<void>
   onChunk?: (
     ctx: DevtoolsMiddlewareContext,
-    chunk: DevtoolsStreamChunk,
+    chunk: unknown,
   ) => void | Promise<void>
   onToolPhaseComplete?: (
     ctx: DevtoolsMiddlewareContext,
