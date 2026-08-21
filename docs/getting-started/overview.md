@@ -101,6 +101,12 @@ Solid hooks for TanStack AI:
 - Tool approval flow support
 - Type-safe message handling with `InferChatMessages`
 
+### `@tanstack/ai-octane`
+Octane hooks for TanStack AI:
+- `useChat` hook for chat interfaces
+- Same hook names as `@tanstack/ai-react`
+- Compiled by the Octane plugin from `.tsrx` source
+
 ## Adapters
 
 With the help of adapters, TanStack AI can connect to various LLM providers. Available adapters include:

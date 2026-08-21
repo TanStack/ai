@@ -16,7 +16,7 @@ keywords:
 
 Get started with TanStack AI in minutes. This guide will walk you through creating a simple chat application using the React integration and OpenAI adapter.
 
-> **Using a different framework?** See quick-starts for [Vue](./quick-start-vue), [Svelte](./quick-start-svelte), or [server-only Node.js](./quick-start-server).
+> **Using a different framework?** See quick-starts for [Vue](./quick-start-vue), [Svelte](./quick-start-svelte), [Octane](./quick-start-octane), or [server-only Node.js](./quick-start-server).
 
 > **React Native or Expo app?** Use the headless React hooks with an absolute
 > server URL and a mobile-compatible transport. See

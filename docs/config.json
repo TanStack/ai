@@ -13,12 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Quick Start: React",
           "to": "getting-started/quick-start",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Quick Start: React Native",
@@ -45,6 +46,11 @@
           "label": "Quick Start: Angular",
           "to": "getting-started/quick-start-angular",
           "addedAt": "2026-06-15"
+        },
+        {
+          "label": "Quick Start: Octane",
+          "to": "getting-started/quick-start-octane",
+          "addedAt": "2026-08-21"
         },
         {
           "label": "Quick Start: Server Only",
@@ -872,6 +878,11 @@
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
           "updatedAt": "2026-08-20"
+        },
+        {
+          "label": "@tanstack/ai-octane",
+          "to": "api/ai-octane",
+          "addedAt": "2026-08-21"
         }
       ]
     },
