@@ -1,22 +1,30 @@
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  afterEach,
-  beforeEach,
-  type Mock,
-} from 'vitest'
-import { createMistralText, mistralText } from '../src/adapters/text'
-import {
-  chat,
-  createChatOptions,
-  maxIterations,
-  toolDefinition,
-} from '@tanstack/ai'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+
+const { mockComplete } = vi.hoisted(() => ({
+  mockComplete: vi.fn<(...args: Array<unknown>) => unknown>(),
+}))
+
+vi.mock('@mistralai/mistralai', () => {
+  return {
+    Mistral: class {
+      chat = {
+        complete: (...args: Array<unknown>) => mockComplete(...args),
+      }
+      HTTPClient = class {}
+    },
+    HTTPClient: class {
+      addHook() {}
+    },
+  }
+})
+
 import type { StreamChunk, Tool, TextOptions } from '@tanstack/ai'
-import type { MistralTextProviderOptions } from '../src/adapters/text'
 import { z } from 'zod'
+import type { MistralTextProviderOptions } from '../src/adapters/text'
+
+const { chat, createChatOptions, maxIterations, toolDefinition } =
+  await import('@tanstack/ai')
+const { createMistralText, mistralText } = await import('../src/adapters/text')
 
 /**
  * Builds chat options for tests. `chatStream`'s `TextOptions` requires fields
@@ -37,24 +45,6 @@ function chatOpts(
 ): TextOptions<MistralTextProviderOptions> {
   return opts as unknown as TextOptions<MistralTextProviderOptions>
 }
-
-// Declare mocks at module level
-let mockComplete: Mock<(...args: Array<unknown>) => unknown>
-
-// Mock the Mistral SDK (constructor still used for structuredOutput)
-vi.mock('@mistralai/mistralai', () => {
-  return {
-    Mistral: class {
-      chat = {
-        complete: (...args: Array<unknown>) => mockComplete(...args),
-      }
-      HTTPClient = class {}
-    },
-    HTTPClient: class {
-      addHook() {}
-    },
-  }
-})
 
 function toApiChunk(chunk: Record<string, unknown>): Record<string, unknown> {
   const choices = (chunk.choices as Array<Record<string, unknown>>) ?? []
@@ -107,7 +97,7 @@ function setupMockStream(chunks: Array<Record<string, unknown>>) {
       }),
     }),
   )
-  mockComplete = vi.fn()
+  mockComplete.mockReset()
 }
 
 const weatherTool: Tool = {
@@ -155,7 +145,7 @@ describe('Mistral adapters', () => {
     })
 
     it('normalizes only strict-schema nulls in structured output', async () => {
-      mockComplete = vi.fn().mockResolvedValue({
+      mockComplete.mockReset().mockResolvedValue({
         choices: [
           {
             message: {
@@ -208,7 +198,7 @@ describe('Mistral adapters', () => {
     })
 
     it('preserves composed structured-output schemas in non-strict mode', async () => {
-      mockComplete = vi.fn().mockResolvedValue({
+      mockComplete.mockReset().mockResolvedValue({
         choices: [{ message: { content: JSON.stringify({ value: null }) } }],
       })
       const adapter = createMistralText('mistral-large-latest', 'test-api-key')
@@ -712,7 +702,7 @@ describe('Mistral AG-UI event emission', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
     const chunks: Array<StreamChunk> = []
@@ -887,7 +877,7 @@ describe('Mistral AG-UI event emission', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
     const chunks: Array<StreamChunk> = []
@@ -1059,7 +1049,7 @@ describe('Mistral AG-UI event emission', () => {
         }
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
     for await (const _chunk of adapter.chatStream(
@@ -1095,7 +1085,7 @@ describe('Mistral AG-UI event emission', () => {
         }
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
     for await (const _chunk of adapter.chatStream(
@@ -1126,7 +1116,7 @@ describe('Mistral AG-UI event emission', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
     let caught: Error | undefined
@@ -1254,7 +1244,7 @@ describe('Mistral reasoning (magistral-* models)', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
     const chunks: Array<StreamChunk> = []
@@ -1355,7 +1345,7 @@ describe('Mistral reasoning (magistral-* models)', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
     const chunks: Array<StreamChunk> = []
@@ -1432,7 +1422,7 @@ describe('Mistral reasoning (magistral-* models)', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
     const chunks: Array<StreamChunk> = []

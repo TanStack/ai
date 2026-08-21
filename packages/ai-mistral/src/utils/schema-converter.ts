@@ -88,6 +88,29 @@ function isSchemaObject(schema: unknown): schema is Record<string, any> {
   return typeof schema === 'object' && schema !== null
 }
 
+function schemaTypeIncludes(
+  schema: Record<string, any>,
+  typeName: string,
+): boolean {
+  return (
+    schema.type === typeName ||
+    (Array.isArray(schema.type) && schema.type.includes(typeName))
+  )
+}
+
+function admitNullInEnumOrConst(
+  prop: Record<string, any>,
+): Record<string, any> {
+  if ('const' in prop && prop.const !== null) {
+    const { const: constValue, ...withoutConst } = prop
+    return { ...withoutConst, enum: [constValue, null] }
+  }
+  if (Array.isArray(prop.enum) && !prop.enum.includes(null)) {
+    return { ...prop, enum: [...prop.enum, null] }
+  }
+  return prop
+}
+
 /** Whether every active JSON Schema constraint at this node admits null. */
 function acceptsNull(schema: unknown): boolean {
   if (schema === true) return true
@@ -117,7 +140,7 @@ function coerceMistralStrictSchema(
   const nullWideningMap: NullWideningMap = {}
   let hasUntrackableAnyOfWidening = false
 
-  if (result.type === 'object') {
+  if (schemaTypeIncludes(result, 'object')) {
     if (!result.properties) {
       result.properties = {}
     }
@@ -131,14 +154,18 @@ function coerceMistralStrictSchema(
       let childMap: NullWideningMap | undefined
       let widenedHere = false
 
-      if (isSchemaObject(prop) && prop.type === 'object' && prop.properties) {
+      if (
+        isSchemaObject(prop) &&
+        schemaTypeIncludes(prop, 'object') &&
+        prop.properties
+      ) {
         const converted = coerceMistralStrictSchema(prop, prop.required || [])
         prop = converted.schema
         childMap = converted.nullWideningMap
         hasUntrackableAnyOfWidening ||= converted.hasUntrackableAnyOfWidening
       } else if (
         isSchemaObject(prop) &&
-        prop.type === 'array' &&
+        schemaTypeIncludes(prop, 'array') &&
         isSchemaObject(prop.items)
       ) {
         const convertedItems = coerceMistralStrictSchema(
@@ -161,33 +188,28 @@ function coerceMistralStrictSchema(
         hasUntrackableAnyOfWidening ||= converted.hasUntrackableAnyOfWidening
       }
 
-      if (wasOptional) {
-        const originallyAcceptedNull = acceptsNull(prop)
+      if (!acceptsNull(prop)) {
+        if (wasOptional) {
+          if (isSchemaObject(prop)) {
+            prop = admitNullInEnumOrConst(prop)
+          }
 
-        if (isSchemaObject(prop) && 'const' in prop && prop.const !== null) {
-          const { const: constValue, ...withoutConst } = prop
-          prop = { ...withoutConst, enum: [constValue, null] }
-        } else if (
-          isSchemaObject(prop) &&
-          Array.isArray(prop.enum) &&
-          !prop.enum.includes(null)
-        ) {
-          prop = { ...prop, enum: [...prop.enum, null] }
+          if (isSchemaObject(prop) && prop.type && !Array.isArray(prop.type)) {
+            prop = { ...prop, type: [prop.type, 'null'] }
+          } else if (
+            isSchemaObject(prop) &&
+            Array.isArray(prop.type) &&
+            !prop.type.includes('null')
+          ) {
+            prop = { ...prop, type: [...prop.type, 'null'] }
+          } else if (!isSchemaObject(prop) || !prop.type) {
+            prop = { anyOf: [prop, { type: 'null' }] }
+          }
+
+          widenedHere = true
+        } else if (isSchemaObject(prop) && schemaTypeIncludes(prop, 'null')) {
+          prop = admitNullInEnumOrConst(prop)
         }
-
-        if (isSchemaObject(prop) && prop.type && !Array.isArray(prop.type)) {
-          prop = { ...prop, type: [prop.type, 'null'] }
-        } else if (
-          isSchemaObject(prop) &&
-          Array.isArray(prop.type) &&
-          !prop.type.includes('null')
-        ) {
-          prop = { ...prop, type: [...prop.type, 'null'] }
-        } else if (!isSchemaObject(prop) || !prop.type) {
-          prop = { anyOf: [prop, { type: 'null' }] }
-        }
-
-        widenedHere = !originallyAcceptedNull
       }
 
       properties[propName] = prop
@@ -211,7 +233,7 @@ function coerceMistralStrictSchema(
     }
   }
 
-  if (result.type === 'array' && isSchemaObject(result.items)) {
+  if (schemaTypeIncludes(result, 'array') && isSchemaObject(result.items)) {
     const convertedItems = coerceMistralStrictSchema(
       result.items,
       result.items.required || [],

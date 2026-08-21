@@ -54,6 +54,87 @@ describe('makeMistralStructuredOutputCompatibleWithMap', () => {
     expect(nullWideningMap).toBeUndefined()
   })
 
+  it('does not rewrap a node that already accepts null', () => {
+    const note = { anyOf: [{ type: 'string' }, { type: 'null' }] }
+    const { schema, nullWideningMap } =
+      makeMistralStructuredOutputCompatibleWithMap(
+        {
+          type: 'object',
+          properties: { note },
+          required: [],
+        },
+        [],
+      )
+
+    expect(schema.properties).toEqual({ note })
+    expect(nullWideningMap).toBeUndefined()
+  })
+
+  it('adds null to enum and const when type already includes null', () => {
+    const { schema, nullWideningMap } =
+      makeMistralStructuredOutputCompatibleWithMap(
+        {
+          type: 'object',
+          properties: {
+            enumValue: { type: ['string', 'null'], enum: ['canary'] },
+            constValue: { type: ['string', 'null'], const: 'fixed' },
+            note: { type: ['string', 'null'] },
+          },
+          required: ['enumValue', 'constValue', 'note'],
+        },
+        ['enumValue', 'constValue', 'note'],
+      )
+
+    expect(schema.properties).toEqual({
+      enumValue: {
+        type: ['string', 'null'],
+        enum: ['canary', null],
+      },
+      constValue: {
+        type: ['string', 'null'],
+        enum: ['fixed', null],
+      },
+      note: { type: ['string', 'null'] },
+    })
+    expect(nullWideningMap).toBeUndefined()
+  })
+
+  it('recurses into objects whose type is a union that includes object', () => {
+    const { schema, nullWideningMap } =
+      makeMistralStructuredOutputCompatibleWithMap(
+        {
+          type: 'object',
+          properties: {
+            nested: {
+              type: ['object', 'null'],
+              properties: {
+                mode: { type: ['string', 'null'], enum: ['canary'] },
+              },
+              required: ['mode'],
+              additionalProperties: false,
+            },
+          },
+          required: ['nested'],
+        },
+        ['nested'],
+      )
+
+    expect(schema.properties).toEqual({
+      nested: {
+        type: ['object', 'null'],
+        properties: {
+          mode: {
+            type: ['string', 'null'],
+            enum: ['canary', null],
+          },
+        },
+        required: ['mode'],
+        additionalProperties: false,
+      },
+    })
+    expect(nullWideningMap).toBeUndefined()
+  })
+
   it('preserves boolean schemas while widening optional properties', () => {
     const inputSchema = {
       type: 'object',
@@ -69,7 +150,7 @@ describe('makeMistralStructuredOutputCompatibleWithMap', () => {
     expect(schema).toEqual({
       type: 'object',
       properties: {
-        acceptAnything: { anyOf: [true, { type: 'null' }] },
+        acceptAnything: true,
         rejectAnything: { anyOf: [false, { type: 'null' }] },
       },
       required: ['acceptAnything', 'rejectAnything'],
