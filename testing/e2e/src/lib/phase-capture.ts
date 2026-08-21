@@ -39,8 +39,10 @@ export interface PhaseCapture {
    * that only care about presence should use `.includes('structuredOutput')`.
    */
   phases: Array<string>
-  /** Count of `onFinish` invocations — must be exactly 1 per `chat()` call. */
+  /** Count of `onFinish` invocations. */
   onFinishCount: number
+  /** Count of `onError` invocations. */
+  onErrorCount: number
   /**
    * Chunks that were yielded out of `chat()` to the SSE consumer. Captured
    * by teeing the iterable in `api.middleware-test.ts` after the middleware
@@ -61,6 +63,7 @@ function bucketFor(captureId: string): PhaseCapture {
     bucket = {
       phases: [],
       onFinishCount: 0,
+      onErrorCount: 0,
       yieldedChunks: [],
       boundaries: [],
       resolutions: [],
@@ -76,6 +79,7 @@ export function resetPhaseCapture(captureId: string): void {
   captures.set(captureId, {
     phases: [],
     onFinishCount: 0,
+    onErrorCount: 0,
     yieldedChunks: [],
     boundaries: [],
     resolutions: [],
@@ -94,6 +98,10 @@ export function recordPhase(captureId: string, phase: string): void {
 
 export function recordOnFinish(captureId: string): void {
   bucketFor(captureId).onFinishCount += 1
+}
+
+export function recordOnError(captureId: string): void {
+  bucketFor(captureId).onErrorCount += 1
 }
 
 export function recordYieldedChunk(

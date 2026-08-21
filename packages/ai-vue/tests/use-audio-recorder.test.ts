@@ -133,4 +133,21 @@ describe('useAudioRecorder (vue) type inference', () => {
     }
     expect(typeof _types).toBe('function')
   })
+
+  it('keeps AudioRecording when options carry no onComplete (issue #1001)', () => {
+    const _types = () => {
+      const { recording, stop } = useAudioRecorder({
+        onError: (_error: Error) => {},
+      })
+
+      expectTypeOf(recording.value).not.toBeUnknown()
+      expectTypeOf(recording.value).toEqualTypeOf<AudioRecording | null>()
+      expectTypeOf(stop).returns.toEqualTypeOf<Promise<AudioRecording>>()
+
+      if (recording.value) {
+        expectTypeOf(recording.value.base64).toBeString()
+      }
+    }
+    expect(typeof _types).toBe('function')
+  })
 })

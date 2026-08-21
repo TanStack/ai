@@ -48,6 +48,8 @@ import { Route as ApiOpenrouterJsonObjectWireRouteImport } from './routes/api.op
 import { Route as ApiOpenrouterCostRouteImport } from './routes/api.openrouter-cost'
 import { Route as ApiOpenaiUsageDetailsRouteImport } from './routes/api.openai-usage-details'
 import { Route as ApiOpenaiShellSkillsWireRouteImport } from './routes/api.openai-shell-skills-wire'
+import { Route as ApiOpenaiCompletedResponseTextRouteImport } from './routes/api.openai-completed-response-text'
+import { Route as ApiNonStreamingRunErrorRouteImport } from './routes/api.non-streaming-run-error'
 import { Route as ApiMultimodalToolResultWireRouteImport } from './routes/api.multimodal-tool-result-wire'
 import { Route as ApiMiddlewareTestRouteImport } from './routes/api.middleware-test'
 import { Route as ApiMessageIdsRouteImport } from './routes/api.message-ids'
@@ -291,6 +293,17 @@ const ApiOpenaiShellSkillsWireRoute =
     path: '/api/openai-shell-skills-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiOpenaiCompletedResponseTextRoute =
+  ApiOpenaiCompletedResponseTextRouteImport.update({
+    id: '/api/openai-completed-response-text',
+    path: '/api/openai-completed-response-text',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiNonStreamingRunErrorRoute = ApiNonStreamingRunErrorRouteImport.update({
+  id: '/api/non-streaming-run-error',
+  path: '/api/non-streaming-run-error',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiMultimodalToolResultWireRoute =
   ApiMultimodalToolResultWireRouteImport.update({
     id: '/api/multimodal-tool-result-wire',
@@ -541,6 +554,8 @@ export interface FileRoutesByFullPath {
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
@@ -620,6 +635,8 @@ export interface FileRoutesByTo {
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
@@ -700,6 +717,8 @@ export interface FileRoutesById {
   '/api/message-ids': typeof ApiMessageIdsRoute
   '/api/middleware-test': typeof ApiMiddlewareTestRoute
   '/api/multimodal-tool-result-wire': typeof ApiMultimodalToolResultWireRoute
+  '/api/non-streaming-run-error': typeof ApiNonStreamingRunErrorRoute
+  '/api/openai-completed-response-text': typeof ApiOpenaiCompletedResponseTextRoute
   '/api/openai-shell-skills-wire': typeof ApiOpenaiShellSkillsWireRoute
   '/api/openai-usage-details': typeof ApiOpenaiUsageDetailsRoute
   '/api/openrouter-cost': typeof ApiOpenrouterCostRoute
@@ -781,6 +800,8 @@ export interface FileRouteTypes {
     | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
+    | '/api/non-streaming-run-error'
+    | '/api/openai-completed-response-text'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
@@ -860,6 +881,8 @@ export interface FileRouteTypes {
     | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
+    | '/api/non-streaming-run-error'
+    | '/api/openai-completed-response-text'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
@@ -939,6 +962,8 @@ export interface FileRouteTypes {
     | '/api/message-ids'
     | '/api/middleware-test'
     | '/api/multimodal-tool-result-wire'
+    | '/api/non-streaming-run-error'
+    | '/api/openai-completed-response-text'
     | '/api/openai-shell-skills-wire'
     | '/api/openai-usage-details'
     | '/api/openrouter-cost'
@@ -1019,6 +1044,8 @@ export interface RootRouteChildren {
   ApiMessageIdsRoute: typeof ApiMessageIdsRoute
   ApiMiddlewareTestRoute: typeof ApiMiddlewareTestRoute
   ApiMultimodalToolResultWireRoute: typeof ApiMultimodalToolResultWireRoute
+  ApiNonStreamingRunErrorRoute: typeof ApiNonStreamingRunErrorRoute
+  ApiOpenaiCompletedResponseTextRoute: typeof ApiOpenaiCompletedResponseTextRoute
   ApiOpenaiShellSkillsWireRoute: typeof ApiOpenaiShellSkillsWireRoute
   ApiOpenaiUsageDetailsRoute: typeof ApiOpenaiUsageDetailsRoute
   ApiOpenrouterCostRoute: typeof ApiOpenrouterCostRoute
@@ -1314,6 +1341,20 @@ declare module '@tanstack/react-router' {
       path: '/api/openai-shell-skills-wire'
       fullPath: '/api/openai-shell-skills-wire'
       preLoaderRoute: typeof ApiOpenaiShellSkillsWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/openai-completed-response-text': {
+      id: '/api/openai-completed-response-text'
+      path: '/api/openai-completed-response-text'
+      fullPath: '/api/openai-completed-response-text'
+      preLoaderRoute: typeof ApiOpenaiCompletedResponseTextRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/non-streaming-run-error': {
+      id: '/api/non-streaming-run-error'
+      path: '/api/non-streaming-run-error'
+      fullPath: '/api/non-streaming-run-error'
+      preLoaderRoute: typeof ApiNonStreamingRunErrorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/multimodal-tool-result-wire': {
@@ -1696,6 +1737,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiMessageIdsRoute: ApiMessageIdsRoute,
   ApiMiddlewareTestRoute: ApiMiddlewareTestRoute,
   ApiMultimodalToolResultWireRoute: ApiMultimodalToolResultWireRoute,
+  ApiNonStreamingRunErrorRoute: ApiNonStreamingRunErrorRoute,
+  ApiOpenaiCompletedResponseTextRoute: ApiOpenaiCompletedResponseTextRoute,
   ApiOpenaiShellSkillsWireRoute: ApiOpenaiShellSkillsWireRoute,
   ApiOpenaiUsageDetailsRoute: ApiOpenaiUsageDetailsRoute,
   ApiOpenrouterCostRoute: ApiOpenrouterCostRoute,

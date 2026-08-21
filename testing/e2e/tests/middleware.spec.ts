@@ -17,7 +17,57 @@ async function fetchOtelCapture(
   return response.json()
 }
 
+async function fetchPhaseCapture(
+  page: import('@playwright/test').Page,
+  baseURL: string | undefined,
+  testId: string | undefined,
+) {
+  if (!testId) throw new Error('phase capture test requires a testId fixture')
+  const url = `${baseURL ?? ''}/api/middleware-test?testId=${encodeURIComponent(testId)}&kind=phase`
+  const response = await page.request.get(url)
+  if (!response.ok()) {
+    throw new Error(
+      `GET ${url} failed: ${response.status()} ${await response.text()}`,
+    )
+  }
+  return response.json()
+}
+
 test.describe('Middleware Lifecycle', () => {
+  test('adapter RUN_ERROR calls onError once', async ({
+    page,
+    testId,
+    baseURL,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000) // hydration
+    await page.locator('#mw-scenario-select').selectOption('run-error')
+    await page.locator('#mw-mode-select').selectOption('phase-recorder')
+    await page.locator('#mw-run-button').click()
+
+    await expect
+      .poll(async () => {
+        const capture = await fetchPhaseCapture(page, baseURL, testId)
+        return capture.onErrorCount
+      })
+      .toBe(1)
+
+    const capture = await fetchPhaseCapture(page, baseURL, testId)
+    expect(capture.onFinishCount).toBe(0)
+    expect(capture.yieldedChunks).toContainEqual(
+      expect.objectContaining({ type: 'RUN_ERROR' }),
+    )
+    expect(capture.yieldedChunks).not.toContainEqual(
+      expect.objectContaining({
+        type: 'RUN_FINISHED',
+        outcomeType: 'interrupt',
+      }),
+    )
+  })
+
   test('onChunk transforms text content', async ({
     page,
     testId,

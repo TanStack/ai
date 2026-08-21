@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, chat, generateImage } from '@tanstack/ai'
+import {
+  EventType,
+  chat,
+  defineChatMiddleware,
+  defineInterrupt,
+  generateImage,
+} from '@tanstack/ai'
 import type {
   AnyTextAdapter,
   GenerationAbortInfo,
@@ -52,6 +58,23 @@ const interruptFinished = (): StreamChunk => ({
   },
 })
 
+const booleanResponseSchema = {
+  '~standard': {
+    version: 1,
+    vendor: 'test',
+    validate(value: unknown) {
+      return typeof value === 'boolean'
+        ? { value }
+        : { issues: [{ message: 'response must be a boolean' }] }
+    },
+    jsonSchema: {
+      input() {
+        return { type: 'boolean' }
+      },
+    },
+  },
+} as const
+
 async function collect(stream: AsyncIterable<StreamChunk>) {
   const out: Array<StreamChunk> = []
   for await (const c of stream) out.push(c)
@@ -92,6 +115,70 @@ describe('chat persistence error/abort hooks', () => {
     const run = await persistence.stores.runs!.get('r1')
     expect(run?.status).toBe('failed')
     expect(run?.error).toEqual({ message: 'provider exploded' })
+  })
+
+  it('marks the run failed when the adapter emits RUN_ERROR', async () => {
+    const persistence = memoryPersistence()
+    const review = defineInterrupt({
+      id: 'review',
+      responseSchema: booleanResponseSchema,
+    })
+    const { adapter } = mockAdapter([
+      [
+        runStarted(),
+        {
+          type: EventType.RUN_ERROR,
+          message: 'provider failed',
+          code: 'provider_error',
+          timestamp: 1,
+        },
+      ],
+    ])
+
+    const chunks = await collect(
+      chat({
+        adapter,
+        interrupts: [review],
+        messages: [{ role: 'user', content: 'hi' }],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [
+          defineChatMiddleware({
+            onInterruptBoundary(ctx) {
+              if (ctx.phase !== 'afterModel') return
+              return {
+                interrupts: [
+                  review.interrupt({
+                    key: 'review',
+                    reason: 'review',
+                    message: 'Review the response',
+                  }),
+                ],
+              }
+            },
+          }),
+          withPersistence(persistence),
+        ],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    expect(chunks).toContainEqual(
+      expect.objectContaining({
+        type: EventType.RUN_ERROR,
+        message: 'provider failed',
+        code: 'provider_error',
+      }),
+    )
+    expect(chunks).not.toContainEqual(
+      expect.objectContaining({
+        type: EventType.RUN_FINISHED,
+        outcome: expect.objectContaining({ type: 'interrupt' }),
+      }),
+    )
+    expect(await persistence.stores.runs!.get('r1')).toMatchObject({
+      status: 'failed',
+      error: { message: 'provider failed', code: 'provider_error' },
+    })
   })
 
   it('preserves known usage when structured-output finalization fails', async () => {

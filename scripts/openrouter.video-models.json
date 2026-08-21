@@ -189,6 +189,31 @@
     "allowed_passthrough_parameters": ["safety_tolerance", "version"]
   },
   {
+    "id": "black-forest-labs/flux-video-upscale",
+    "canonical_slug": "black-forest-labs/flux-video-upscale-20260819",
+    "hugging_face_id": null,
+    "name": "Black Forest Labs: FLUX Video Upscale",
+    "created": 1787173919,
+    "description": "FLUX Video Upscale is a video upscaling model from Black Forest Labs. It enlarges a single source video by 1.5× to 3× while preserving its duration, with an optional prompt...",
+    "supported_resolutions": null,
+    "supported_aspect_ratios": null,
+    "supported_sizes": null,
+    "supported_durations": null,
+    "supported_frame_images": null,
+    "upscale_factor": {
+      "min": 1.5,
+      "max": 3
+    },
+    "creativity": [0, 1],
+    "generate_audio": false,
+    "seed": false,
+    "pricing_skus": {
+      "cents_per_megapixel_second_precise": "7.5",
+      "cents_per_megapixel_second_creative": "10.5"
+    },
+    "allowed_passthrough_parameters": ["safety_tolerance"]
+  },
+  {
     "id": "bytedance/seedance-1-5-pro",
     "canonical_slug": "bytedance/seedance-1-5-pro-20260320",
     "hugging_face_id": null,

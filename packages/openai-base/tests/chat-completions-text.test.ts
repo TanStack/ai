@@ -691,20 +691,32 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
+      const errorsSpy = vi.spyOn(testLogger, 'errors')
 
-      for await (const chunk of adapter.chatStream({
-        logger: testLogger,
-        model: 'test-model',
-        messages: [{ role: 'user', content: 'Hello' }],
-      })) {
-        chunks.push(chunk)
-      }
+      try {
+        for await (const chunk of adapter.chatStream({
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })) {
+          chunks.push(chunk)
+          if (chunk.type === EventType.RUN_ERROR) break
+        }
 
-      // Should emit RUN_ERROR
-      const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
-      expect(runErrorChunk).toBeDefined()
-      if (runErrorChunk?.type === 'RUN_ERROR') {
-        expect(runErrorChunk.error!.message).toBe('Stream interrupted')
+        // Should emit RUN_ERROR
+        const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+        expect(runErrorChunk).toBeDefined()
+        if (runErrorChunk?.type === 'RUN_ERROR') {
+          expect(runErrorChunk.error!.message).toBe('Stream interrupted')
+        }
+        expect(errorsSpy).toHaveBeenCalledWith(
+          'openai-base.processStreamChunks fatal',
+          expect.objectContaining({
+            source: 'openai-base.processStreamChunks',
+          }),
+        )
+      } finally {
+        errorsSpy.mockRestore()
       }
     })
 
