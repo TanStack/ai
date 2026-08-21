@@ -719,11 +719,7 @@ export function runReaperConformance(config: ReaperConformanceConfig): void {
     // 2. The age gate on a real shell.
     // -----------------------------------------------------------------------
     const mtimeSkip = config.mtimeListUnsupported
-    const itMtime = (
-      title: string,
-      timeout: number,
-      fn: () => Promise<void>,
-    ) =>
+    const itMtime = (title: string, timeout: number, fn: () => Promise<void>) =>
       it(
         mtimeSkip ? `${title} (unsupported: ${mtimeSkip.reason})` : title,
         { timeout, skip: Boolean(mtimeSkip) },
