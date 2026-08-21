@@ -1,4 +1,7 @@
-export { makeStructuredOutputCompatible } from './utils/schema-converter'
+export {
+  makeStructuredOutputCompatible,
+  makeStructuredOutputCompatibleWithMap,
+} from './utils/schema-converter'
 export {
   buildChatCompletionsUsage,
   buildResponsesUsage,

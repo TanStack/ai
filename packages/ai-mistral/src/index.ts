@@ -34,11 +34,16 @@ export type {
   ResolveProviderOptions,
   ResolveInputModalities,
   MistralChatModels,
+  MistralVertexChatModel,
   MistralEmbeddingModel,
   MistralEmbeddingModelProviderOptionsByName,
   MistralEmbeddingModelInputModalitiesByName,
 } from './model-meta'
-export { MISTRAL_CHAT_MODELS, MISTRAL_EMBEDDING_MODELS } from './model-meta'
+export {
+  MISTRAL_CHAT_MODELS,
+  MISTRAL_EMBEDDING_MODELS,
+  MISTRAL_VERTEX_CHAT_MODELS,
+} from './model-meta'
 export type {
   MistralTextMetadata,
   MistralImageMetadata,

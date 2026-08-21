@@ -4,7 +4,7 @@ End-to-end tests for TanStack AI using Playwright and [aimock](https://github.co
 
 **Architecture:** Playwright drives a TanStack Start app (`testing/e2e/`) which routes requests through provider adapters pointing at aimock. Fixtures define mock responses. No real API keys needed. All scenarios (including tool execution flows) use aimock fixtures. Tests run in parallel with per-test `X-Test-Id` isolation.
 
-**Providers tested:** openai, anthropic, gemini, ollama, groq, grok, openrouter, openrouter-responses, vercel-gateway, vercel-gateway-responses, bedrock, bedrock-responses, openai-compatible, mistral, byteplus, elevenlabs
+**Providers tested:** openai, anthropic, gemini, vertex, vertex-grok, vertex-mistral, ollama, groq, grok, openrouter, openrouter-responses, vercel-gateway, vercel-gateway-responses, bedrock, bedrock-responses, openai-compatible, mistral, byteplus, elevenlabs, llmgateway
 
 > **Claude Code (`@tanstack/ai-claude-code`) is excluded from the standard matrix.** It's a harness adapter that spawns the Claude Code runtime as a subprocess, so aimock's per-test `X-Test-Id` header isolation can't be injected into its requests. It's covered by unit tests in the package plus a gated live smoke test in `tests/claude-code.spec.ts` — run it with `CLAUDE_CODE_E2E=1` and an `ANTHROPIC_API_KEY` (or a local `claude login`).
 
@@ -262,6 +262,32 @@ await waitForAssistantText(page, 'Fender Stratocaster')
 3. **Add to `tests/test-matrix.ts`** — mirror the support matrix
 4. **No fixture changes needed** — aimock translates to correct wire format
 
+### Vertex (Gemini on Vertex AI)
+
+`vertex` is the Gemini adapter with Vertex auth and the Vertex request path. It is not a new protocol.
+
+The factory in `src/lib/providers.ts` calls `vertexText` with `vertexE2eConfig()` from `src/lib/vertex-e2e.ts`:
+
+- `project` + `location` so `@google/genai` posts to `/v1/projects/{p}/locations/{l}/publishers/google/models/{m}:(generateContent|streamGenerateContent)`. aimock already serves that path.
+- A dummy `googleAuthOptions.authClient` so the SDK does not look for Application Default Credentials in CI.
+- `apiVersion: 'v1'`. The SDK default for Vertex is `v1beta1`, and aimock's Vertex handler only matches `/v1/…`.
+
+Chat, tools, structured output, multimodal image, and summarize reuse the existing Gemini fixtures. Media, embedding, TTS, video, and Gemini Interactions stay off the Vertex row: those Gemini e2e mounts live under `/v1beta`, and Vertex uses a different path.
+
+Claude on Vertex (`anthropicVertexText`) is not in this matrix. That SDK talks OAuth and a different Vertex URL that aimock does not mock.
+
+### Vertex Grok and Vertex Mistral
+
+`vertex-grok` is the Grok Responses adapter with Vertex auth. The factory in `src/lib/providers.ts` calls `grokVertexText` with:
+
+- `baseURL` pointed at aimock `/v1`, so the OpenAI client posts `/v1/responses` like the xAI Grok row
+- a dummy `authClient` so the factory does not look for Application Default Credentials
+- the factory still prefixes the wire model with `xai/`
+
+`vertex-mistral` is the Mistral chat adapter with Vertex auth. The factory calls `mistralVertexText` with `resolveRequestUrl` pointed at aimock `/v1/chat/completions`. That skips the Vertex publisher `:rawPredict` rewrite.
+
+Both rows reuse the existing Grok and Mistral fixtures. Image, TTS, transcription, and embedding stay off these rows.
+
 ### Bedrock Converse coverage gap
 
 The `bedrock` and `bedrock-responses` providers in this matrix use `createBedrockText` with a `baseURL` pointing at aimock — they speak Bedrock's **OpenAI-compatible** endpoint, which aimock's OpenAI replay handles fine.
@@ -295,6 +321,9 @@ Three endpoints have no aimock equivalent and are mounted in `global-setup.ts`, 
 - Groq: `LLMOCK_BASE` (SDK appends `/openai/v1/` internally) + `defaultHeaders`
 - Anthropic: `LLMOCK_BASE` + `defaultHeaders`
 - Gemini: `httpOptions: { baseUrl: LLMOCK_BASE, headers }`
+- Vertex: `vertexE2eConfig(LLMOCK_BASE, headers)` (`project` + `location` + dummy auth + `apiVersion: 'v1'`)
+- Vertex Grok: `grokVertexText` with `baseURL: LLMOCK_OPENAI`, dummy `authClient`, and `defaultHeaders`
+- Vertex Mistral: `mistralVertexText` with `resolveRequestUrl` → `LLMOCK_BASE/v1/chat/completions`, dummy `authClient`, and `defaultHeaders`
 - Ollama: `{ host: LLMOCK_BASE, headers }` (config object)
 - OpenRouter: `serverURL` with `?testId=` query param (SDK doesn't support headers)
 - BytePlus: `LLMOCK_BASE + /api/v3` + `defaultHeaders` for Ark (chat, image, video); bare `LLMOCK_BASE` + `defaultHeaders` for Seed Speech (TTS, ASR)

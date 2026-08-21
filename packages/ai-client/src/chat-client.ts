@@ -1776,11 +1776,13 @@ export class ChatClient<
     this.processor.processChunk(chunk)
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)
-    // The live path yields a macrotask between chunks so React can paint each
-    // delta progressively. A resume replay passes `defer: false` to skip it, so
-    // the buffered backlog applies in one batch (instant catch-up) instead of
-    // re-typing the whole reply.
-    if (options?.defer !== false) {
+    // Live path: yield a macrotask so the UI can paint. Skip when the page is
+    // hidden. Browsers clamp setTimeout there, and that wait paces stream pull.
+    // Replay passes defer: false so a backlog applies in one batch.
+    if (
+      options?.defer !== false &&
+      (typeof document === 'undefined' || !document.hidden)
+    ) {
       await new Promise((resolve) => setTimeout(resolve, 0))
     }
     this.resolveJoinedRun(chunk)
