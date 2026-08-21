@@ -1,5 +1,26 @@
 # @tanstack/ai-anthropic
 
+## 0.17.0
+
+### Minor Changes
+
+- [#989](https://github.com/TanStack/ai/pull/989) [`75dbdfa`](https://github.com/TanStack/ai/commit/75dbdfa2fe4141cc240fe74307820fe43bd31e07) - Add `createAnthropicChatWithClient` and `anthropicVertexText` (from
+  `@tanstack/ai-anthropic/vertex`) so Claude can run on Vertex AI and other
+  Anthropic-compatible transports.
+
+- [#989](https://github.com/TanStack/ai/pull/989) [`75dbdfa`](https://github.com/TanStack/ai/commit/75dbdfa2fe4141cc240fe74307820fe43bd31e07) - Add Vertex AI factories for Grok (`grokVertexText`, `grokVertexSummarize`)
+  and Mistral (`mistralVertexText`) on `@tanstack/ai-grok/vertex` and
+  `@tanstack/ai-mistral/vertex`. Vertex factories accept only the chat
+  models in the Google partner catalog. `anthropicVertexText` now uses
+  the same Vertex Claude catalog.
+
+### Patch Changes
+
+- [#1021](https://github.com/TanStack/ai/pull/1021) [`5bf4402`](https://github.com/TanStack/ai/commit/5bf440252685d5bfd69eb7d1c066e6e2de5ee101) - Serialize only Anthropic-supported fields from document and image metadata; use `filename` as a fallback document title.
+
+- Updated dependencies [[`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac), [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e), [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b), [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4)]:
+  - @tanstack/ai@0.47.3
+
 ## 0.16.9
 
 ### Patch Changes
