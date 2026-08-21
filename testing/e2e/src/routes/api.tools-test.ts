@@ -179,6 +179,127 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
   }
 }
 
+/**
+ * Regression adapter for issue #1017.
+ *
+ * Emits a TEXT_MESSAGE_CONTENT delta between two TOOL_CALL_ARGS deltas.
+ * Pre-fix, the interleaved text force-completed the tool call with a
+ * lenient partial-JSON parse of the truncated arguments
+ * (`{"city":"New Yo"}`) and the later TOOL_CALL_END was skipped.
+ */
+function createInterleavedArgsAdapter(): AnyTextAdapter {
+  return {
+    kind: 'text',
+    name: 'interleaved-args-test',
+    model: 'interleaved-args-test',
+    '~types': {
+      providerOptions: {},
+      inputModalities: ['text'],
+      messageMetadataByModality: {},
+      toolCapabilities: [],
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    async *chatStream(options): AsyncGenerator<StreamChunk> {
+      const model = 'interleaved-args-test'
+      const runId = options.runId ?? 'interleaved-args-run'
+      const threadId = options.threadId ?? 'interleaved-args-thread'
+      const messageId = `${runId}-message`
+      const toolCallId = 'interleaved-args-tool-call'
+      const hasToolResult = options.messages.some(
+        (message) => message.role === 'tool',
+      )
+
+      yield {
+        type: EventType.RUN_STARTED,
+        runId,
+        threadId,
+        model,
+        timestamp: Date.now(),
+      }
+
+      if (hasToolResult) {
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId,
+          role: 'assistant',
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId,
+          delta: 'It is 72F in New York City.',
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId,
+          model,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          model,
+          finishReason: 'stop',
+          timestamp: Date.now(),
+        }
+        return
+      }
+
+      yield {
+        type: EventType.TOOL_CALL_START,
+        toolCallId,
+        toolCallName: 'get_weather',
+        toolName: 'get_weather',
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: '{"city":"New Yo',
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TEXT_MESSAGE_CONTENT,
+        messageId,
+        delta: 'Let me check the weather. ',
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: 'rk City"}',
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        toolCallName: 'get_weather',
+        toolName: 'get_weather',
+        model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId,
+        threadId,
+        model,
+        finishReason: 'tool_calls',
+        timestamp: Date.now(),
+      }
+    },
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+  }
+}
+
 export const Route = createFileRoute('/api/tools-test')({
   server: {
     handlers: {
@@ -237,14 +358,19 @@ export const Route = createFileRoute('/api/tools-test')({
             return toServerSentEventsResponse(errorStream, { abortController })
           }
 
-          const adapterOptions = providerFreeScenarios.has(scenario)
-            ? { adapter: createProviderFreeAdapter(scenario) }
-            : createTextAdapter(
-                'openai',
-                scenario === 'client-tool-reasoning' ? 'gpt-5.2' : undefined,
-                aimockPort,
-                testId,
-              )
+          const adapterOptions =
+            scenario === 'interleaved-args'
+              ? { adapter: createInterleavedArgsAdapter() }
+              : providerFreeScenarios.has(scenario)
+                ? { adapter: createProviderFreeAdapter(scenario) }
+                : createTextAdapter(
+                    'openai',
+                    scenario === 'client-tool-reasoning'
+                      ? 'gpt-5.2'
+                      : undefined,
+                    aimockPort,
+                    testId,
+                  )
 
           const tools = getToolsForScenario(scenario)
           const runtimeContext: TestRuntimeContext =

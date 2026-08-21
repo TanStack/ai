@@ -887,9 +887,6 @@ export class StreamProcessor {
     if (state.currentSegmentText !== state.lastEmittedText) {
       this.emitTextUpdateForMessage(messageId)
     }
-
-    // Complete all tool calls for this message
-    this.completeAllToolCallsForMessage(messageId)
   }
 
   /**
@@ -1139,9 +1136,6 @@ export class StreamProcessor {
     chunk: Extract<StreamChunk, { type: 'TEXT_MESSAGE_CONTENT' }>,
   ): void {
     const { messageId, state } = this.ensureAssistantMessage(chunk.messageId)
-
-    // Content arriving means all current tool calls for this message are complete
-    this.completeAllToolCallsForMessage(messageId)
 
     if (this.structuredMessageIds.has(messageId)) {
       // `chunk.delta` is incremental; `chunk.content` is sometimes cumulative
@@ -2080,8 +2074,17 @@ export class StreamProcessor {
     // counts as a completed tool call in getCompletedToolCalls()/getState().
     toolCall.state = 'input-complete'
 
-    // Try final parse
-    toolCall.parsedArguments = this.jsonParser.parse(toolCall.arguments)
+    // Only surface `input` from a strict parse. The streaming partial-JSON
+    // parser closes unterminated strings, so truncated arguments would become
+    // a plausible but wrong object (GitHub issue #1017). If parse fails,
+    // `input` stays unset and consumers use the raw `arguments` string.
+    let strictParseSucceeded = false
+    try {
+      toolCall.parsedArguments = JSON.parse(toolCall.arguments)
+      strictParseSucceeded = true
+    } catch {
+      toolCall.parsedArguments = undefined
+    }
 
     // Don't downgrade the rendered part of a call that already reached the
     // terminal 'error' state (e.g. an output-error TOOL_CALL_RESULT arrived
@@ -2109,9 +2112,7 @@ export class StreamProcessor {
       name: toolCall.name,
       arguments: toolCall.arguments,
       state: 'input-complete',
-      ...(toolCall.parsedArguments !== undefined && {
-        input: toolCall.parsedArguments,
-      }),
+      ...(strictParseSucceeded && { input: toolCall.parsedArguments }),
       ...(toolCall.metadata !== undefined && { metadata: toolCall.metadata }),
     })
     this.emitMessagesChange()
