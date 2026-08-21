@@ -30,7 +30,7 @@
  *    leaving it wall-clock is safe, but every other field must participate in
  *    the comparison or a real divergence would go undetected.
  */
-import { tanstackMetadata } from '@tanstack/ai'
+import { tanstackMetadata } from '@tanstack/ai/adapter-internals'
 import type { StreamChunk } from '@tanstack/ai'
 
 /**

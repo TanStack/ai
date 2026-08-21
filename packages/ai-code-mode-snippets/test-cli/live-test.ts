@@ -6,7 +6,7 @@
  * 2. Second run: Use the saved snippet
  */
 
-import { EventType, chat, maxIterations, tanstackMetadata } from '@tanstack/ai'
+import { EventType, chat, maxIterations } from '@tanstack/ai'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { codeModeWithSnippets } from '../src/code-mode-with-snippets'
 import {
@@ -150,7 +150,7 @@ Please complete all three steps: execute the code, register the snippet, and tel
       } else if (chunk.type === 'content') {
         fullContent += chunk.delta
       } else if (chunk.type === EventType.RUN_FINISHED) {
-        logInfo(`Phase 1 done: ${tanstackMetadata(chunk)?.finishReason}`)
+        logInfo(`Phase 1 done: ${chunk.metadata?.tanstack?.finishReason}`)
       }
     }
 
@@ -320,7 +320,7 @@ If you have a snippet called "add_two_numbers" available, please use it directly
         } else if (chunk.type === 'content') {
           fullContent2 += chunk.delta
         } else if (chunk.type === EventType.RUN_FINISHED) {
-          logInfo(`Phase 2 done: ${tanstackMetadata(chunk)?.finishReason}`)
+          logInfo(`Phase 2 done: ${chunk.metadata?.tanstack?.finishReason}`)
         }
       }
 

@@ -57,3 +57,4 @@ export {
   structuredOutputCompleteChunk,
   structuredOutputStartChunk,
 } from './utilities/structured-output-events'
+export { tanstackMetadata } from './utilities/merge-metadata'

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { EventType, chat, tanstackMetadata } from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ResponsesRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
@@ -925,7 +925,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     if (finished === undefined) {
       throw new Error('expected RUN_FINISHED')
     }
-    expect(tanstackMetadata(finished)?.finishReason).toBe('tool_calls')
+    expect(finished.metadata?.tanstack?.finishReason).toBe('tool_calls')
   })
 
   it('preserves a streamed function-call name when later items omit it', async () => {

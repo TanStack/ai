@@ -4,7 +4,6 @@ import {
   getDetachableRun,
   InterruptResumeValidationError,
   readInterruptBinding,
-  tanstackMetadata,
   validateInterruptResumeBatch,
   wasCancelRequested,
 } from '@tanstack/ai'
@@ -13,6 +12,7 @@ import {
   getGenericInterruptDefinitionRegistry,
   providePendingTurn,
   rehydrateInterruptRequest,
+  tanstackMetadata,
   toRunErrorPayload,
 } from '@tanstack/ai/adapter-internals'
 import type {

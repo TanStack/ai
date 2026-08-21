@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { stripToSpec } from '../src/strip-to-spec-middleware'
 import { EventType } from '../src/types'
+import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 import { isSpecTopLevelKey } from '../src/utilities/spec-event-keys'
 
 describe('stripToSpec', () => {
@@ -12,7 +13,7 @@ describe('stripToSpec', () => {
       code: 'INTERNAL_ERROR',
       error: { message: 'Something went wrong' },
       model: 'gpt-5.5',
-    } as never)
+    })
     expect(result).not.toHaveProperty('error')
     expect(result).not.toHaveProperty('model')
     expect(result).toMatchObject({
@@ -31,7 +32,7 @@ describe('stripToSpec', () => {
       index: 0,
       metadata: { foo: 'bar' },
       model: 'gpt-5.5',
-    } as never)
+    })
     expect(result).toEqual({
       type: EventType.TOOL_CALL_START,
       toolCallId: 'tc-1',
@@ -49,7 +50,7 @@ describe('stripToSpec', () => {
       model: 'gpt-5.5',
       finishReason: 'stop',
       usage: [{ inputTokens: 100, outputTokens: 50, totalTokens: 150 }],
-    } as never)
+    } satisfies AdapterYieldChunk)
     expect(result).not.toHaveProperty('model')
     expect(result).not.toHaveProperty('finishReason')
     expect(result).toMatchObject({
@@ -62,7 +63,7 @@ describe('stripToSpec', () => {
     }
   })
 
-  it('converts TanStack TokenUsage to spec usage[]', () => {
+  it('converts TanStack TokenUsage to spec usage[] and leftover metadata', () => {
     const result = stripToSpec({
       type: EventType.RUN_FINISHED,
       runId: 'run-1',
@@ -72,13 +73,27 @@ describe('stripToSpec', () => {
         completionTokens: 5,
         totalTokens: 15,
         cost: 0.02,
+        promptTokensDetails: { cachedTokens: 3, audioTokens: 1 },
       },
-    } as never)
+    })
     if (result.type !== EventType.RUN_FINISHED) {
       throw new Error('expected RUN_FINISHED')
     }
     expect(result.usage).toEqual([
-      { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+      {
+        inputTokens: 10,
+        outputTokens: 5,
+        totalTokens: 15,
+        cachedInputTokens: 3,
+      },
     ])
+    expect(result.metadata).toEqual({
+      tanstack: {
+        usage: {
+          cost: 0.02,
+          promptTokensDetails: { audioTokens: 1 },
+        },
+      },
+    })
   })
 })

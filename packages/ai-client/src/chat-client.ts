@@ -6,6 +6,7 @@ import {
   mergeMetadata,
   normalizeToUIMessage,
   parseWithStandardSchema,
+  restoreInboundChunk,
   tanstackMetadata,
 } from '@tanstack/ai/client'
 import { createNoOpChatDevtoolsBridge } from './devtools-noop'
@@ -1757,6 +1758,7 @@ export class ChatClient<
     chunk: StreamChunk,
     options?: { defer?: boolean },
   ): Promise<void> {
+    chunk = restoreInboundChunk(chunk)
     if (
       chunk.type === 'RUN_ERROR' &&
       this.isActiveInterruptSubmissionFailure(chunk)

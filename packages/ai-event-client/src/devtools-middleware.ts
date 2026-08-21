@@ -47,7 +47,8 @@ interface DevtoolsToolCallResultChunk {
 }
 interface DevtoolsRunFinishedChunk {
   type: 'RUN_FINISHED'
-  usage?: Array<DevtoolsSpecTokenUsage>
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  usage?: Array<DevtoolsSpecTokenUsage> | TokenUsage
   metadata?: {
     tanstack?: {
       finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
@@ -462,14 +463,22 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
           break
         }
         case 'RUN_FINISHED': {
-          const usage = fromSpecTokenUsage(
-            chunk.usage,
-            chunkTanstack(chunk)?.usage,
-          )
+          const rawUsage = chunk.usage
+          const usage =
+            rawUsage != null &&
+            typeof rawUsage === 'object' &&
+            !Array.isArray(rawUsage) &&
+            'promptTokens' in rawUsage
+              ? rawUsage
+              : fromSpecTokenUsage(
+                  Array.isArray(rawUsage) ? rawUsage : undefined,
+                  chunkTanstack(chunk)?.usage,
+                )
           safeEmit('text:chunk:done', {
             ...base,
             messageId: localMessageId || undefined,
-            finishReason: chunkTanstack(chunk)?.finishReason ?? null,
+            finishReason:
+              chunk.finishReason ?? chunkTanstack(chunk)?.finishReason ?? null,
             usage,
             timestamp: Date.now(),
           })

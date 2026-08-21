@@ -120,9 +120,7 @@ export const ev = {
       metadata: {
         tanstack: {
           ...(finishReason !== undefined ? { finishReason } : {}),
-          ...(spec?.leftover !== undefined
-            ? { usage: spec.leftover as TokenUsage }
-            : {}),
+          ...(spec?.leftover !== undefined ? { usage: spec.leftover } : {}),
         },
       },
     }

@@ -4,7 +4,6 @@ import {
   chat,
   defineChatMiddleware,
   defineInterrupt,
-  tanstackMetadata,
 } from '@tanstack/ai'
 import type {
   AdapterYieldChunk,
@@ -94,7 +93,8 @@ const transformedDisplaySchema = {
 } as const
 
 function interruptErrorsOf(chunk: StreamChunk | undefined) {
-  return tanstackMetadata(chunk)?.interruptErrors
+  if (chunk?.type !== EventType.RUN_ERROR) return undefined
+  return chunk.metadata?.tanstack?.interruptErrors
 }
 
 function expectResumeError(

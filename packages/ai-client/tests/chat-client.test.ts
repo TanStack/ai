@@ -2754,6 +2754,25 @@ describe('ChatClient', () => {
       expect(onChunk.mock.calls.length).toBeGreaterThan(0)
     })
 
+    it('restores finishReason and model onto onChunk RUN_FINISHED', async () => {
+      const chunks = createTextChunks('Hi')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const onChunk = vi.fn()
+
+      const client = new ChatClient({
+        connection: adapter,
+        onChunk,
+      })
+
+      await client.sendMessage('Hello')
+
+      const finished = onChunk.mock.calls
+        .map(([chunk]) => chunk)
+        .find((chunk) => chunk.type === 'RUN_FINISHED')
+      expect(finished?.finishReason).toBe('stop')
+      expect(finished?.model).toBe('test')
+    })
+
     it('should call onFinish when stream completes', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })

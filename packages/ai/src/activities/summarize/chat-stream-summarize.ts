@@ -1,7 +1,7 @@
 import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from '../error-payload'
 import { MAX_TOKENS_KEYS } from '../../utilities/sampling-keys'
-import { fromSpecTokenUsage } from '../../utilities/ag-ui-usage'
+import { rebuildTokenUsage } from '../../utilities/ag-ui-usage'
 import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import { tanstackMetadata } from '../../utilities/merge-metadata'
 import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
@@ -34,11 +34,7 @@ function consumeSpecSummarizeChunk(
   }
 
   if (chunk.type === EventType.RUN_FINISHED) {
-    const usage: unknown = chunk.usage
-    const rebuilt = fromSpecTokenUsage(
-      Array.isArray(usage) ? usage : undefined,
-      tanstack?.usage,
-    )
+    const rebuilt = rebuildTokenUsage(chunk.usage, tanstack?.usage)
     if (rebuilt) state.usage = rebuilt
   }
 }

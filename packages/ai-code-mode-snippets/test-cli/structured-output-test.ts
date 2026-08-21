@@ -5,7 +5,7 @@
  * This is a simplified test to verify the structured output pipeline works.
  */
 
-import { EventType, chat, maxIterations, tanstackMetadata } from '@tanstack/ai'
+import { EventType, chat, maxIterations } from '@tanstack/ai'
 import { z } from 'zod'
 import {
   createCodeModeSystemPrompt,
@@ -151,7 +151,7 @@ After performing the calculation, provide a structured report about the result.`
       } else if (chunk.type === 'content') {
         fullContent += chunk.delta
       } else if (chunk.type === EventType.RUN_FINISHED) {
-        logInfo(`Code mode done: ${tanstackMetadata(chunk)?.finishReason}`)
+        logInfo(`Code mode done: ${chunk.metadata?.tanstack?.finishReason}`)
       }
     }
 

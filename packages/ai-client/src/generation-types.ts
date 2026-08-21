@@ -1,8 +1,8 @@
-import {
-  tanstackMetadata,
-  type MediaPrompt,
-  type PersistedArtifactRef,
-  type StreamChunk,
+import { tanstackMetadata } from '@tanstack/ai/client'
+import type {
+  MediaPrompt,
+  PersistedArtifactRef,
+  StreamChunk,
 } from '@tanstack/ai/client'
 import type { TokenUsage, TranscriptionResponseFormat } from '@tanstack/ai'
 import type { ConnectConnectionAdapter } from './connection-adapters'

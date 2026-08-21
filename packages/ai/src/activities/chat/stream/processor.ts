@@ -29,6 +29,7 @@ import {
   tanstackMetadata,
 } from '../../../utilities/merge-metadata'
 import { getChunkRunId } from '../../../utilities/chunk-ids'
+import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import { normalizeToolResult } from '../../../utilities/tool-result'
 import { defaultJSONParser } from './json-parser'
 import {
@@ -1496,7 +1497,10 @@ export class StreamProcessor {
     const messageId = this.toolCallToMessage.get(chunk.toolCallId)
     if (!messageId) return
 
-    const isOutputError = tanstackMetadata(chunk)?.state === 'output-error'
+    const extra = chunk as AdapterYieldChunk
+    const isOutputError =
+      extra.state === 'output-error' ||
+      tanstackMetadata(chunk)?.state === 'output-error'
 
     // Step 1: Update the tool-call part's output field
     let output: unknown
@@ -1550,7 +1554,11 @@ export class StreamProcessor {
   private handleRunFinishedEvent(
     chunk: Extract<StreamChunk, { type: 'RUN_FINISHED' }>,
   ): void {
-    this.finishReason = tanstackMetadata(chunk)?.finishReason ?? null
+    const extra = chunk as AdapterYieldChunk
+    this.finishReason =
+      extra.finishReason !== undefined
+        ? extra.finishReason
+        : (tanstackMetadata(chunk)?.finishReason ?? null)
     this.activeRuns.delete(chunk.runId)
 
     if (chunk.outcome?.type === 'interrupt') {

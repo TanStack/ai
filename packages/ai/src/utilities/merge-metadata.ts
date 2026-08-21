@@ -2,7 +2,7 @@ import type { TanStackMessageMetadata, TanStackRunMetadata } from '../types'
 
 export type MetadataRecord = Record<string, any>
 
-/** `metadata.tanstack` on a message or run event. */
+/** `metadata.tanstack` on a message or run event. Internal getter return type. */
 export type TanStackMetadata = TanStackMessageMetadata & TanStackRunMetadata
 
 export function mergeMetadata(
@@ -14,6 +14,7 @@ export function mergeMetadata(
   return { ...current, ...incoming }
 }
 
+/** Read `metadata.tanstack`. Not part of the public SDK surface. */
 export function tanstackMetadata(
   value: { metadata?: MetadataRecord | null } | MetadataRecord | undefined,
 ): TanStackMetadata | undefined {

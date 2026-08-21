@@ -20,7 +20,7 @@ TanStack AI supports streaming responses for real-time chat experiences. Streami
 `chat()` returns an async iterable of spec AG-UI chunks. Branch on `chunk.type`:
 
 ```typescript
-import { chat, tanstackMetadata } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
@@ -34,7 +34,7 @@ for await (const chunk of stream) {
   }
   if (chunk.type === "RUN_FINISHED") {
     console.log(chunk.usage);
-    console.log(tanstackMetadata(chunk)?.finishReason);
+    console.log(chunk.metadata?.tanstack?.finishReason);
   }
 }
 ```

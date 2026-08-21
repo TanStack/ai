@@ -16,7 +16,8 @@ export interface ToSpecTokenUsageOptions {
   model?: string
 }
 
-type TokenUsageLeftover = Omit<
+/** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
+export type TokenUsageLeftover = Omit<
   TokenUsage,
   'promptTokens' | 'completionTokens' | 'totalTokens'
 >
@@ -25,11 +26,36 @@ function definedDetails<T extends object>(value: T): T | undefined {
   return Object.keys(value).length > 0 ? value : undefined
 }
 
+function withoutKey<T extends object, K extends keyof T>(
+  value: T,
+  key: K,
+): Omit<T, K> {
+  const next = { ...value }
+  delete next[key]
+  return next
+}
+
+export function isTanstackUsage(usage: unknown): usage is TokenUsage {
+  return (
+    typeof usage === 'object' &&
+    usage != null &&
+    !Array.isArray(usage) &&
+    'promptTokens' in usage
+  )
+}
+
 export function toSpecTokenUsage(
   usage: TokenUsage,
   options?: ToSpecTokenUsageOptions,
 ): { usage: Array<SpecTokenUsage>; leftover?: TokenUsageLeftover } {
-  const { promptTokens, completionTokens, totalTokens, ...leftover } = usage
+  const {
+    promptTokens,
+    completionTokens,
+    totalTokens,
+    promptTokensDetails,
+    completionTokensDetails,
+    ...rest
+  } = usage
 
   const spec: SpecTokenUsage = {
     ...(options?.provider !== undefined ? { provider: options.provider } : {}),
@@ -38,19 +64,47 @@ export function toSpecTokenUsage(
     outputTokens: completionTokens,
     totalTokens,
   }
-  const cachedInputTokens = leftover.promptTokensDetails?.cachedTokens
+  const cachedInputTokens = promptTokensDetails?.cachedTokens
   if (cachedInputTokens !== undefined) {
     spec.cachedInputTokens = cachedInputTokens
   }
-  const reasoningTokens = leftover.completionTokensDetails?.reasoningTokens
+  const reasoningTokens = completionTokensDetails?.reasoningTokens
   if (reasoningTokens !== undefined) {
     spec.reasoningTokens = reasoningTokens
   }
 
+  const leftoverPrompt = promptTokensDetails
+    ? definedDetails(withoutKey(promptTokensDetails, 'cachedTokens'))
+    : undefined
+  const leftoverCompletion = completionTokensDetails
+    ? definedDetails(withoutKey(completionTokensDetails, 'reasoningTokens'))
+    : undefined
+
   return {
     usage: [spec],
-    leftover: definedDetails(leftover),
+    leftover: definedDetails({
+      ...rest,
+      ...(leftoverPrompt !== undefined
+        ? { promptTokensDetails: leftoverPrompt }
+        : {}),
+      ...(leftoverCompletion !== undefined
+        ? { completionTokensDetails: leftoverCompletion }
+        : {}),
+    }),
   }
+}
+
+export function rebuildTokenUsage(
+  usage: unknown,
+  leftover?: TokenUsageLeftover,
+): TokenUsage | undefined {
+  if (isTanstackUsage(usage)) {
+    return usage
+  }
+  if (Array.isArray(usage)) {
+    return fromSpecTokenUsage(usage, leftover)
+  }
+  return fromSpecTokenUsage(undefined, leftover)
 }
 
 export function fromSpecTokenUsage(

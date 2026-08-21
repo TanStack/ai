@@ -228,7 +228,7 @@ describe('GenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ])
@@ -302,7 +302,7 @@ describe('GenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ])
@@ -337,7 +337,7 @@ describe('GenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ]
@@ -366,7 +366,7 @@ describe('GenerationClient', () => {
           type: EventType.RUN_FINISHED as const,
           runId: 'run-1',
           threadId: 'thread-1',
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         }
       })
@@ -442,7 +442,7 @@ describe('GenerationClient', () => {
           type: EventType.RUN_FINISHED as const,
           runId: 'run-1',
           threadId: 'thread-1',
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         }
       })
@@ -538,7 +538,7 @@ describe('GenerationClient', () => {
             type: EventType.RUN_FINISHED as const,
             runId: 'run-1',
             threadId: 'thread-1',
-            metadata: { tanstack: { finishReason: 'stop' } },
+            metadata: { tanstack: { finishReason: 'stop' as const } },
             timestamp: Date.now(),
           }
         },
@@ -668,7 +668,7 @@ describe('GenerationClient', () => {
             type: EventType.RUN_FINISHED as const,
             runId: 'run-1',
             threadId: 'thread-1',
-            metadata: { tanstack: { finishReason: 'stop' } },
+            metadata: { tanstack: { finishReason: 'stop' as const } },
             timestamp: Date.now(),
           }
         },
@@ -845,7 +845,7 @@ describe('GenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ])
@@ -882,7 +882,7 @@ describe('GenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ])
@@ -993,7 +993,7 @@ describe('GenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: Date.now(),
         },
       ])
@@ -1105,7 +1105,7 @@ describe('GenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: 300,
         }),
       ])
@@ -1138,7 +1138,7 @@ describe('GenerationClient', () => {
             type: EventType.RUN_FINISHED,
             runId: 'run-1',
             threadId: 'thread-1',
-            metadata: { tanstack: { finishReason: 'stop' } },
+            metadata: { tanstack: { finishReason: 'stop' as const } },
             timestamp: 300,
           }),
         ],
@@ -1208,7 +1208,7 @@ describe('GenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: 300,
         }),
       ])
@@ -1249,7 +1249,7 @@ describe('GenerationClient', () => {
           type: EventType.RUN_FINISHED,
           runId: 'run-1',
           threadId: 'thread-1',
-          metadata: { tanstack: { finishReason: 'stop' } },
+          metadata: { tanstack: { finishReason: 'stop' as const } },
           timestamp: 400,
         }),
       ])
@@ -1320,7 +1320,7 @@ describe('GenerationClient', () => {
             type: EventType.RUN_FINISHED,
             runId: 'run-1',
             threadId: 'thread-1',
-            metadata: { tanstack: { finishReason: 'stop' } },
+            metadata: { tanstack: { finishReason: 'stop' as const } },
             timestamp: 200,
           }),
         ])
@@ -1624,7 +1624,7 @@ describe('GenerationClient', () => {
             type: EventType.RUN_FINISHED,
             runId: 'run-live',
             threadId: 'thread-server',
-            metadata: { tanstack: { finishReason: 'stop' } },
+            metadata: { tanstack: { finishReason: 'stop' as const } },
             timestamp: Date.now(),
           } satisfies StreamChunk
         },

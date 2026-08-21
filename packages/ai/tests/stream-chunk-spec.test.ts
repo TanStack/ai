@@ -1,6 +1,6 @@
 /**
- * Public StreamChunk is AG-UI spec-only. TanStack extras live on
- * AdapterYieldChunk until normalize, then in metadata.tanstack / UIMessage parts.
+ * Wire events put TanStack extras in metadata.tanstack. Client restore copies
+ * model/finishReason back onto RunFinishedEvent for onChunk.
  */
 
 import { describe, expectTypeOf, it } from 'vitest'
@@ -13,12 +13,12 @@ import type {
 
 type HasKey<T, K extends string> = K extends keyof T ? true : false
 
-describe('public StreamChunk is spec-only', () => {
-  it('RunFinishedEvent has no model/finishReason', () => {
-    expectTypeOf<HasKey<RunFinishedEvent, 'model'>>().toEqualTypeOf<false>()
+describe('public StreamChunk extras', () => {
+  it('RunFinishedEvent restores model/finishReason for client onChunk', () => {
+    expectTypeOf<HasKey<RunFinishedEvent, 'model'>>().toEqualTypeOf<true>()
     expectTypeOf<
       HasKey<RunFinishedEvent, 'finishReason'>
-    >().toEqualTypeOf<false>()
+    >().toEqualTypeOf<true>()
   })
 
   it('ToolCallEndEvent has no output/result/toolName', () => {

@@ -36,7 +36,7 @@ function normalizeOne(chunk: AdapterYieldChunk) {
 }
 
 describe('normalizeStreamChunk', () => {
-  it('maps RUN_FINISHED model + finishReason into metadata.tanstack and keeps TokenUsage', () => {
+  it('maps RUN_FINISHED TokenUsage onto spec usage[] and leftover metadata', () => {
     const chunk = {
       type: EventType.RUN_FINISHED,
       threadId: 't1',
@@ -48,6 +48,8 @@ describe('normalizeStreamChunk', () => {
         completionTokens: 5,
         totalTokens: 15,
         cost: 0.02,
+        promptTokensDetails: { cachedTokens: 3, audioTokens: 1 },
+        completionTokensDetails: { reasoningTokens: 2 },
       },
     } as AdapterYieldChunk
 
@@ -57,16 +59,24 @@ describe('normalizeStreamChunk', () => {
       type: EventType.RUN_FINISHED,
       threadId: 't1',
       runId: 'r1',
-      usage: {
-        promptTokens: 10,
-        completionTokens: 5,
-        totalTokens: 15,
-        cost: 0.02,
-      },
+      usage: [
+        {
+          model: 'gpt-5.5',
+          inputTokens: 10,
+          outputTokens: 5,
+          totalTokens: 15,
+          cachedInputTokens: 3,
+          reasoningTokens: 2,
+        },
+      ],
       metadata: {
         tanstack: {
           model: 'gpt-5.5',
           finishReason: 'stop',
+          usage: {
+            cost: 0.02,
+            promptTokensDetails: { audioTokens: 1 },
+          },
         },
       },
     })
@@ -119,10 +129,10 @@ describe('normalizeStreamChunk', () => {
       type: EventType.TEXT_MESSAGE_CONTENT,
       messageId: 'm1',
       delta: 'Hi',
+      metadata: { tanstack: { content: 'Hello Hi' } },
     })
     expect(content).not.toHaveProperty('content')
     expect(content).not.toHaveProperty('model')
-    expect(content).not.toHaveProperty('metadata')
   })
 
   it('strips RUN_ERROR nested error and moves interruptErrors + ids into metadata.tanstack', () => {
@@ -249,7 +259,10 @@ describe('normalizeStreamChunk', () => {
       toolCallName: 'get_weather',
       toolName: 'get_weather',
       parentMessageId: 'm1',
-      metadata: { thoughtSignature: 'sig-1' },
+      metadata: {
+        thoughtSignature: 'sig-1',
+        tanstack: { index: 0 },
+      },
     })
     expect(out[0]).not.toHaveProperty('index')
     expect(out[1]).toEqual({
@@ -273,10 +286,10 @@ describe('normalizeStreamChunk', () => {
       type: EventType.TOOL_CALL_ARGS,
       toolCallId: 'tc1',
       delta: '{"q":',
+      metadata: { tanstack: { args: '{"q":' } },
     })
     expect(out).not.toHaveProperty('args')
     expect(out).not.toHaveProperty('model')
-    expect(out).not.toHaveProperty('metadata')
   })
 
   it('splits TOOL_CALL_END with result into spec END then RESULT', () => {
@@ -296,6 +309,14 @@ describe('normalizeStreamChunk', () => {
       type: EventType.TOOL_CALL_END,
       toolCallId: 'tc1',
       input: { q: 'sf' },
+      metadata: {
+        tanstack: {
+          toolCallName: 'get_weather',
+          toolName: 'get_weather',
+          parentMessageId: 'm1',
+          output: { temp: 72 },
+        },
+      },
     })
     expect(out[1]).toEqual({
       type: EventType.TOOL_CALL_RESULT,
@@ -315,6 +336,7 @@ describe('normalizeStreamChunk', () => {
     expect(out).toEqual({
       type: EventType.TOOL_CALL_END,
       toolCallId: 'tc1',
+      metadata: { tanstack: { toolCallName: 'get_weather' } },
     })
     expect(out).not.toHaveProperty('result')
     expect(out).not.toHaveProperty('toolCallName')
@@ -349,6 +371,7 @@ describe('normalizeStreamChunk', () => {
     expect(out[0]).toEqual({
       type: EventType.TOOL_CALL_END,
       toolCallId: 'tc1',
+      metadata: { tanstack: { state: 'output-error' } },
     })
     expect(out[1]).toEqual({
       type: EventType.TOOL_CALL_RESULT,
@@ -376,6 +399,14 @@ describe('normalizeStreamChunk', () => {
     expect(out[0]).toEqual({
       type: EventType.STEP_FINISHED,
       stepName: 'thinking',
+      metadata: {
+        tanstack: {
+          content: 'hmm full',
+          delta: 'hmm',
+          signature: 'sig',
+          stepId: 's1',
+        },
+      },
     })
     expect(out[0]).not.toHaveProperty('delta')
     expect(out[0]).not.toHaveProperty('content')

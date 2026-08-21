@@ -45,7 +45,7 @@ This is a real behavior change. Upgrade `@tanstack/ai` and `@tanstack/ai-client`
 Wire events keep spec fields and add `metadata`. TanStack extras live under `metadata.tanstack`. Public `StreamChunk` is spec-only.
 
 ```typescript
-import { chat, tanstackMetadata } from "@tanstack/ai";
+import { chat } from "@tanstack/ai";
 import { openaiText } from "@tanstack/ai-openai";
 
 const stream = chat({
@@ -56,7 +56,7 @@ const stream = chat({
 for await (const chunk of stream) {
   if (chunk.type === "RUN_FINISHED") {
     console.log(chunk.usage);
-    console.log(tanstackMetadata(chunk)?.finishReason);
+    console.log(chunk.metadata?.tanstack?.finishReason);
   }
 }
 ```

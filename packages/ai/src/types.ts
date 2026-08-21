@@ -47,7 +47,10 @@ import type {
   ToolCallStartEvent as AGUIToolCallStartEvent,
   EventType,
 } from '@ag-ui/core'
-import type { SpecTokenUsage } from './utilities/ag-ui-usage'
+import type {
+  SpecTokenUsage,
+  TokenUsageLeftover,
+} from './utilities/ag-ui-usage'
 
 // Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
 // entry via `export * from './types'` without forcing the subpath import.
@@ -535,7 +538,8 @@ export interface TanStackMessageMetadata {
 export interface TanStackRunMetadata {
   model?: string
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  usage?: TokenUsage
+  /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
+  usage?: TokenUsageLeftover
   interruptErrors?: ReadonlyArray<InterruptSubmissionError>
   threadId?: string
   runId?: string
@@ -1184,6 +1188,10 @@ export interface RunFinishedEvent extends Pick<
 > {
   type: EventType.RUN_FINISHED
   usage?: Array<SpecTokenUsage> | TokenUsage
+  /** Restored on the client from `metadata.tanstack`. */
+  model?: string
+  /** Restored on the client from `metadata.tanstack`. */
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
@@ -1200,6 +1208,12 @@ export interface RunErrorEvent extends Pick<
 > {
   type: EventType.RUN_ERROR
   usage?: Array<SpecTokenUsage> | TokenUsage
+  /** Restored on the client from `metadata.tanstack`. */
+  threadId?: string
+  /** Restored on the client from `metadata.tanstack`. */
+  runId?: string
+  /** Restored on the client from `metadata.tanstack`. */
+  model?: string
   /** Nested payload kept for in-process / durability consumers. */
   error?: { message: string; code?: string }
   metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>

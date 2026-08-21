@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { fromSpecTokenUsage, toSpecTokenUsage } from './ag-ui-usage'
+import {
+  fromSpecTokenUsage,
+  rebuildTokenUsage,
+  toSpecTokenUsage,
+} from './ag-ui-usage'
 import type { TokenUsage } from '../types'
 
 const rich: TokenUsage = {
@@ -34,8 +38,6 @@ describe('toSpecTokenUsage', () => {
       },
     ])
     expect(leftover).toEqual({
-      promptTokensDetails: { cachedTokens: 10 },
-      completionTokensDetails: { reasoningTokens: 7 },
       billed: { quantity: 3, unit: 'units' },
       cost: 0.02,
       costDetails: { upstreamInputCost: 0.01, upstreamOutputCost: 0.01 },
@@ -45,13 +47,31 @@ describe('toSpecTokenUsage', () => {
     })
   })
 
-  it('returns undefined leftover when only core token fields exist', () => {
+  it('returns undefined leftover when only mapped token fields exist', () => {
     const { leftover } = toSpecTokenUsage({
       promptTokens: 1,
       completionTokens: 2,
       totalTokens: 3,
+      promptTokensDetails: { cachedTokens: 10 },
+      completionTokensDetails: { reasoningTokens: 7 },
     })
     expect(leftover).toBeUndefined()
+  })
+
+  it('keeps unmapped detail keys in leftover', () => {
+    const { usage, leftover } = toSpecTokenUsage({
+      promptTokens: 1,
+      completionTokens: 2,
+      totalTokens: 3,
+      promptTokensDetails: { cachedTokens: 10, audioTokens: 4 },
+      completionTokensDetails: { reasoningTokens: 7, audioTokens: 1 },
+    })
+    expect(usage[0]?.cachedInputTokens).toBe(10)
+    expect(usage[0]?.reasoningTokens).toBe(7)
+    expect(leftover).toEqual({
+      promptTokensDetails: { audioTokens: 4 },
+      completionTokensDetails: { audioTokens: 1 },
+    })
   })
 })
 
@@ -139,5 +159,36 @@ describe('fromSpecTokenUsage', () => {
   it('returns undefined for missing or empty spec usage without leftover', () => {
     expect(fromSpecTokenUsage(undefined)).toBeUndefined()
     expect(fromSpecTokenUsage([])).toBeUndefined()
+  })
+})
+
+describe('rebuildTokenUsage', () => {
+  it('returns TokenUsage objects unchanged', () => {
+    expect(
+      rebuildTokenUsage({
+        promptTokens: 1,
+        completionTokens: 2,
+        totalTokens: 3,
+        cost: 0.01,
+      }),
+    ).toEqual({
+      promptTokens: 1,
+      completionTokens: 2,
+      totalTokens: 3,
+      cost: 0.01,
+    })
+  })
+
+  it('rebuilds spec usage[] plus leftover into TokenUsage', () => {
+    expect(
+      rebuildTokenUsage([{ inputTokens: 4, outputTokens: 5, totalTokens: 9 }], {
+        cost: 0.02,
+      }),
+    ).toEqual({
+      promptTokens: 4,
+      completionTokens: 5,
+      totalTokens: 9,
+      cost: 0.02,
+    })
   })
 })

@@ -1,7 +1,7 @@
 import {
   EventType,
-  fromSpecTokenUsage,
   getChunkRunId as getNormalizedChunkRunId,
+  restoreInboundChunk,
   tanstackMetadata,
   uiMessagesToWire,
   withTanstackMetadata,
@@ -386,19 +386,9 @@ function isNdjsonEnvelope(
   )
 }
 
-/** Rebuild TanStack TokenUsage from spec `usage[]` after SSE/NDJSON ingest. */
+/** Rebuild pre-wire extras after SSE/NDJSON ingest. */
 function restoreInboundUsage(chunk: StreamChunk): StreamChunk {
-  if (
-    chunk.type !== EventType.RUN_FINISHED &&
-    chunk.type !== EventType.RUN_ERROR
-  ) {
-    return chunk
-  }
-  const usage = chunk.usage
-  if (!Array.isArray(usage)) return chunk
-  const rebuilt = fromSpecTokenUsage(usage, tanstackMetadata(chunk)?.usage)
-  if (rebuilt === undefined) return chunk
-  return { ...chunk, usage: rebuilt }
+  return restoreInboundChunk(chunk)
 }
 
 function sseChunkModel(chunk: StreamChunk): string | undefined {

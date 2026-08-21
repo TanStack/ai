@@ -1,6 +1,7 @@
 import { EventType } from '../types'
 import type { StreamChunk, ToolCallResultEvent } from '../types'
 import type { AdapterYieldChunk } from './adapter-yield-chunk'
+import { isTanstackUsage, toSpecTokenUsage } from './ag-ui-usage'
 import type { MetadataRecord } from './merge-metadata'
 import { withTanstackMetadata } from './merge-metadata'
 import { reasoningEncryptedValue } from './reasoning-encrypted-value'
@@ -119,6 +120,36 @@ export function normalizeStreamChunk(
     }
     if (chunk.runId !== undefined) {
       tanstack.runId = chunk.runId
+    }
+  }
+
+  const skipLeftover = new Set(['result', 'error', 'tanstack:interruptErrors'])
+  if (
+    chunk.type === EventType.TEXT_MESSAGE_CONTENT ||
+    chunk.type === EventType.TOOL_CALL_ARGS
+  ) {
+    skipLeftover.add('model')
+  }
+  for (const key of Object.keys(chunk)) {
+    if (specKeys.has(key) || skipLeftover.has(key)) continue
+    if (tanstack[key] !== undefined) continue
+    const value = source[key]
+    if (value !== undefined) {
+      tanstack[key] = value
+    }
+  }
+
+  if (
+    (chunk.type === EventType.RUN_FINISHED ||
+      chunk.type === EventType.RUN_ERROR) &&
+    isTanstackUsage(specChunk.usage)
+  ) {
+    const { usage, leftover } = toSpecTokenUsage(specChunk.usage, {
+      model: typeof chunk.model === 'string' ? chunk.model : undefined,
+    })
+    specChunk.usage = usage
+    if (leftover !== undefined) {
+      tanstack.usage = leftover
     }
   }
 

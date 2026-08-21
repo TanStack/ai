@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, chat, tanstackMetadata } from '@tanstack/ai'
+import { EventType, chat } from '@tanstack/ai'
 import type {
   AdapterYieldChunk,
   AnyTextAdapter,
@@ -87,7 +87,8 @@ async function collect(stream: AsyncIterable<StreamChunk>) {
 }
 
 function interruptErrorsOf(chunk: StreamChunk | undefined) {
-  return tanstackMetadata(chunk)?.interruptErrors
+  if (chunk?.type !== EventType.RUN_ERROR) return undefined
+  return chunk.metadata?.tanstack?.interruptErrors
 }
 
 function serverSearchTool(): Tool {

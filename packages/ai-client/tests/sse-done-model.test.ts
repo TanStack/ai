@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType, tanstackMetadata } from '@tanstack/ai/client'
+import { EventType } from '@tanstack/ai/client'
 import { fetchServerSentEvents } from '../src/connection-adapters'
 import type { StreamChunk } from '@tanstack/ai/client'
 
@@ -47,11 +47,13 @@ describe('SSE [DONE] synthetic RUN_FINISHED', () => {
 
     expect(chunks).toHaveLength(2)
     expect(chunks[0]!.type).toBe(EventType.RUN_STARTED)
-    const done = chunks[1]!
-    expect(done.type).toBe(EventType.RUN_FINISHED)
+    const done = chunks[1]
+    if (done === undefined || done.type !== EventType.RUN_FINISHED) {
+      throw new Error('expected RUN_FINISHED')
+    }
     expect(done).not.toHaveProperty('model')
     expect(done).not.toHaveProperty('finishReason')
-    expect(tanstackMetadata(done)).toEqual({
+    expect(done.metadata?.tanstack).toEqual({
       model: 'gpt-5.5',
       finishReason: 'stop',
     })
