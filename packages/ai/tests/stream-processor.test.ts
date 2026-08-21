@@ -701,24 +701,40 @@ describe('StreamProcessor', () => {
       const FULL_INPUT = { templateIds: ['mock-gsk-efimosfermin'] }
       const CORRUPTED_INPUT = { templateIds: ['mock-gsk-e'] }
 
-      const toolCallPart = (processor: StreamProcessor) =>
+      const feed = (...chunks: Array<StreamChunk>) => {
+        const processor = new StreamProcessor()
+        processor.prepareAssistantMessage()
+        for (const chunk of chunks) processor.processChunk(chunk)
+        return processor
+      }
+
+      const settle = (processor: StreamProcessor) => {
+        processor.processChunk(ev.runFinished('stop'))
+        processor.finalizeStream()
+        return processor
+      }
+
+      const toolCallParts = (processor: StreamProcessor) =>
         processor
           .getMessages()
           .flatMap((m) => m.parts)
-          .find((p): p is ToolCallPart => p.type === 'tool-call')
+          .filter((p): p is ToolCallPart => p.type === 'tool-call')
+
+      const toolCallPart = (processor: StreamProcessor, id?: string) => {
+        const parts = toolCallParts(processor)
+        return id === undefined ? parts[0] : parts.find((p) => p.id === id)
+      }
 
       it('does not publish a truncated partial-JSON parse as input after interleaved text', () => {
-        const processor = new StreamProcessor()
-        processor.prepareAssistantMessage()
-
-        processor.processChunk(ev.runStarted())
-        processor.processChunk(ev.toolStart('tc-1', 'offerTemplates'))
-        processor.processChunk(ev.toolArgs('tc-1', ARGS_HEAD))
-        processor.processChunk(ev.textContent('Let me look those up. '))
-        processor.processChunk(ev.toolArgs('tc-1', ARGS_TAIL))
-        processor.processChunk(ev.toolEnd('tc-1', 'offerTemplates'))
-        processor.processChunk(ev.runFinished('stop'))
-        processor.finalizeStream()
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textContent('Let me look those up. '),
+          ev.toolArgs('tc-1', ARGS_TAIL),
+          ev.toolEnd('tc-1', 'offerTemplates'),
+        )
+        settle(processor)
 
         const part = toolCallPart(processor)
         expect(part?.state).toBe('input-complete')
@@ -728,21 +744,19 @@ describe('StreamProcessor', () => {
       })
 
       it('never surfaces a lenient parse of truncated args as input', () => {
-        const processor = new StreamProcessor()
-        processor.prepareAssistantMessage()
-
-        processor.processChunk(ev.runStarted())
-        processor.processChunk(ev.toolStart('tc-1', 'offerTemplates'))
-        processor.processChunk(ev.toolArgs('tc-1', ARGS_HEAD))
-        processor.processChunk(ev.textContent('Let me look those up. '))
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textContent('Let me look those up. '),
+        )
 
         const during = toolCallPart(processor)
         expect(during?.input).not.toEqual(CORRUPTED_INPUT)
         expect(during?.input).toBeUndefined()
 
         processor.processChunk(ev.toolEnd('tc-1', 'offerTemplates'))
-        processor.processChunk(ev.runFinished('stop'))
-        processor.finalizeStream()
+        settle(processor)
 
         const part = toolCallPart(processor)
         expect(part?.state).toBe('input-complete')
@@ -750,17 +764,94 @@ describe('StreamProcessor', () => {
         expect(part?.input).toBeUndefined()
       })
 
-      it('RUN_FINISHED safety net completes full args when TOOL_CALL_END is missing', () => {
-        const processor = new StreamProcessor()
-        processor.prepareAssistantMessage()
+      it('leaves the call streaming through interleaved text so TOOL_CALL_END can still run', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textContent('Let me look those up. '),
+        )
 
-        processor.processChunk(ev.runStarted())
-        processor.processChunk(ev.toolStart('tc-1', 'offerTemplates'))
-        processor.processChunk(ev.toolArgs('tc-1', ARGS_HEAD))
-        processor.processChunk(ev.textContent('Let me look those up. '))
-        processor.processChunk(ev.toolArgs('tc-1', ARGS_TAIL))
-        processor.processChunk(ev.runFinished('stop'))
-        processor.finalizeStream()
+        expect(processor.getState().toolCalls.get('tc-1')?.state).toBe(
+          'input-streaming',
+        )
+        expect(toolCallPart(processor)?.state).toBe('input-streaming')
+        expect(toolCallPart(processor)?.input).toBeUndefined()
+      })
+
+      it('RUN_FINISHED safety net completes full args when TOOL_CALL_END is missing', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textContent('Let me look those up. '),
+          ev.toolArgs('tc-1', ARGS_TAIL),
+        )
+        settle(processor)
+
+        const part = toolCallPart(processor)
+        expect(part?.state).toBe('input-complete')
+        expect(part?.arguments).toBe(FULL_ARGS)
+        expect(part?.input).toEqual(FULL_INPUT)
+      })
+
+      it('uses TOOL_CALL_END.input as canonical after interleaved text', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textContent('Let me look those up. '),
+          ev.toolArgs('tc-1', ARGS_TAIL),
+          ev.toolEnd('tc-1', 'offerTemplates', { input: FULL_INPUT }),
+        )
+        settle(processor)
+
+        const part = toolCallPart(processor)
+        expect(part?.state).toBe('input-complete')
+        expect(part?.input).toEqual(FULL_INPUT)
+        expect(
+          processor.getState().toolCalls.get('tc-1')?.parsedArguments,
+        ).toEqual(FULL_INPUT)
+      })
+
+      it('repairs multiple parallel tool calls with interleaved text', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.toolStart('tc-2', 'getWeather'),
+          ev.toolArgs('tc-2', '{"city":"New '),
+          ev.textContent('Working on it. '),
+          ev.toolArgs('tc-1', ARGS_TAIL),
+          ev.toolArgs('tc-2', 'York"}'),
+          ev.toolEnd('tc-1', 'offerTemplates'),
+          ev.toolEnd('tc-2', 'getWeather'),
+        )
+        settle(processor)
+
+        const first = toolCallPart(processor, 'tc-1')
+        expect(first?.state).toBe('input-complete')
+        expect(first?.arguments).toBe(FULL_ARGS)
+        expect(first?.input).toEqual(FULL_INPUT)
+
+        const second = toolCallPart(processor, 'tc-2')
+        expect(second?.state).toBe('input-complete')
+        expect(second?.arguments).toBe('{"city":"New York"}')
+        expect(second?.input).toEqual({ city: 'New York' })
+      })
+
+      it('still completes after a full text block between arg deltas', () => {
+        const processor = feed(
+          ev.runStarted(),
+          ev.toolStart('tc-1', 'offerTemplates'),
+          ev.toolArgs('tc-1', ARGS_HEAD),
+          ev.textStart(),
+          ev.textContent('Let me look those up. '),
+          ev.textEnd(),
+          ev.toolArgs('tc-1', ARGS_TAIL),
+          ev.toolEnd('tc-1', 'offerTemplates'),
+        )
+        settle(processor)
 
         const part = toolCallPart(processor)
         expect(part?.state).toBe('input-complete')

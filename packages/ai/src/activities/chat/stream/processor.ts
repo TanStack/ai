@@ -820,6 +820,15 @@ export class StreamProcessor {
         // Update activeMessageIds
         this.activeMessageIds.delete(pendingId)
         this.activeMessageIds.add(messageId)
+
+        // TOOL_CALL_ARGS/END route through toolCallToMessage. Keep those
+        // entries on the remapped id so later args still accumulate
+        // (interleaved text can arrive as a full START/CONTENT/END block).
+        for (const [toolCallId, mappedMessageId] of this.toolCallToMessage) {
+          if (mappedMessageId === pendingId) {
+            this.toolCallToMessage.set(toolCallId, messageId)
+          }
+        }
       }
 
       // Ensure state exists
