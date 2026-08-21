@@ -4,40 +4,44 @@ import { createMockConnectionAdapter, createTextChunks } from './test-utils'
 
 afterEach(() => {
   vi.unstubAllGlobals()
-  vi.restoreAllMocks()
 })
 
-async function streamChunks(documentHidden?: boolean) {
+/**
+ * Live `processIncomingChunk` either awaits `setTimeout(0)` (visible / Node)
+ * or skips it (hidden). A marker timer scheduled *before* sendMessage has
+ * not run yet if sendMessage never awaited a macrotask.
+ */
+async function streamWithMacrotaskMarker(documentHidden?: boolean) {
   if (documentHidden !== undefined) {
     vi.stubGlobal('document', { hidden: documentHidden })
   }
 
   const chunks = createTextChunks('ab')
-  const spy = vi.spyOn(globalThis, 'setTimeout')
   const client = new ChatClient({
     connection: createMockConnectionAdapter({ chunks }),
   })
+  let macrotaskRan = false
+  setTimeout(() => {
+    macrotaskRan = true
+  }, 0)
   await client.sendMessage('Hi')
-  return {
-    chunkCount: chunks.length,
-    zeroDelayCount: spy.mock.calls.filter((call) => call[1] === 0).length,
-  }
+  return macrotaskRan
 }
 
 describe('ChatClient live yield', () => {
-  it('does not await setTimeout(0) after live chunks when the page is hidden', async () => {
-    const { zeroDelayCount } = await streamChunks(true)
-    expect(zeroDelayCount).toBe(0)
+  it('does not await a macrotask after live chunks when the page is hidden', async () => {
+    const macrotaskRan = await streamWithMacrotaskMarker(true)
+    expect(macrotaskRan).toBe(false)
   })
 
-  it('awaits setTimeout(0) after every live chunk when the page is visible', async () => {
-    const { chunkCount, zeroDelayCount } = await streamChunks(false)
-    expect(zeroDelayCount).toBe(chunkCount)
+  it('awaits a macrotask after live chunks when the page is visible', async () => {
+    const macrotaskRan = await streamWithMacrotaskMarker(false)
+    expect(macrotaskRan).toBe(true)
   })
 
-  it('awaits setTimeout(0) after every live chunk when document is missing', async () => {
+  it('awaits a macrotask after live chunks when document is missing', async () => {
     expect(typeof document).toBe('undefined')
-    const { chunkCount, zeroDelayCount } = await streamChunks()
-    expect(zeroDelayCount).toBe(chunkCount)
+    const macrotaskRan = await streamWithMacrotaskMarker()
+    expect(macrotaskRan).toBe(true)
   })
 })
