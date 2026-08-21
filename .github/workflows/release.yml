@@ -66,6 +66,10 @@ jobs:
       - name: Commit Generated Docs
         if: steps.changesets.outputs.published == 'true'
         run: |
+          if [[ ! -f docs/reference/index.md ]]; then
+            echo "generate-docs produced no reference pages; refusing to commit" >&2
+            exit 1
+          fi
           if [[ -n $(git status --porcelain) ]]; then
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
