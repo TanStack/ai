@@ -1,19 +1,5 @@
 import type { NullWideningMap } from '@tanstack/ai-utils'
 
-/**
- * Schema-only wrapper around {@link makeMistralStructuredOutputCompatibleWithMap}.
- * Returns the strict rewrite when conversion succeeds, or the original schema
- * when it falls back to `strict: false`. Does not report which — callers that
- * send `strict` on the wire must use `WithMap`.
- */
-export function makeMistralStructuredOutputCompatible(
-  schema: Record<string, any>,
-  originalRequired: Array<string> = [],
-): Record<string, any> {
-  return makeMistralStructuredOutputCompatibleWithMap(schema, originalRequired)
-    .schema
-}
-
 interface MistralStructuredOutputCompatibility {
   schema: Record<string, any>
   nullWideningMap: NullWideningMap | undefined
