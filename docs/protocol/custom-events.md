@@ -173,6 +173,7 @@ for the branches that read your own.
 
 ## Related
 
+- [Event metadata](./metadata) — `metadata.tanstack` fields a custom AG-UI server must send so `useChat` gets `finishReason` and model.
 - [Sandbox Events](../sandbox/events) — the sandbox- and harness-specific rows of this table, in context, plus `sandbox.file.diff`'s opt-in.
 - [Observability](../sandbox/observability) — the server-side hook accessors (`before()`/`after()`/`diff()`) that back `sandbox.file.diff`.
 - [Showing Code Mode in the UI](../code-mode/client-integration) — rendering the `code_mode:*` events live.

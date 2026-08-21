@@ -356,10 +356,15 @@
       "label": "Protocol",
       "children": [
         {
+          "label": "Event metadata",
+          "to": "protocol/metadata",
+          "addedAt": "2026-08-21"
+        },
+        {
           "label": "Custom Events Reference",
           "to": "protocol/custom-events",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-21"
         }
       ]
     },

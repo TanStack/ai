@@ -93,7 +93,7 @@ Public `StreamChunk` follows AG-UI event types. TanStack extras live under `meta
 | `REASONING_*` / `REASONING_ENCRYPTED_VALUE` | Thinking content. See [Thinking & Reasoning](./thinking-content) |
 | `STEP_STARTED` / `STEP_FINISHED` | `stepName` only |
 | `CUSTOM` | `name` and `value` (sandbox files, Code Mode, `structured-output.*`, `*.session-id`, and your `emitCustomEvent` calls). See [Custom Events](../protocol/custom-events) |
-| `RUN_FINISHED` / `RUN_ERROR` | In-process `chat()` still uses TanStack `TokenUsage` (`promptTokens`). The SSE/HTTP wire uses the spec `usage` array (`inputTokens`). `finishReason` is `metadata.tanstack.finishReason` |
+| `RUN_FINISHED` / `RUN_ERROR` | In-process `chat()` still uses TanStack `TokenUsage` (`promptTokens`). The SSE/HTTP wire uses the spec `usage` array (`inputTokens`). `finishReason` is `metadata.tanstack.finishReason`. Custom servers: see [Event metadata](../protocol/metadata) |
 
 ### Threads and runs
 
