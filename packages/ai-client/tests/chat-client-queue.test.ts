@@ -685,6 +685,42 @@ describe('ChatClient queue policy branches', () => {
     expect(seenBodies.map((b) => b?.tag)).toEqual(['seed', 'y'])
   })
 
+  it('preserves sendOptions.body for queued sends', async () => {
+    const seenBodies: Array<Record<string, unknown> | undefined> = []
+    const deferred = createDeferred<void>()
+    let call = 0
+    const connection: ConnectConnectionAdapter = {
+      async *connect(_messages, data) {
+        call += 1
+        seenBodies.push(
+          data && typeof data === 'object'
+            ? (data as Record<string, unknown>)
+            : undefined,
+        )
+        if (call === 1) {
+          await deferred.promise
+        }
+        yield* createTextChunks('done', `msg-${call}`)
+      },
+    }
+
+    // Hook-style calls: body rides in sendOptions, positional arg unused.
+    const client = new ChatClient({ connection })
+    const firstSend = client.sendMessage('first', undefined, {
+      body: { tag: 'seed' },
+    })
+    await vi.waitFor(() => {
+      expect(client.getIsLoading()).toBe(true)
+    })
+    await client.sendMessage('a', undefined, { body: { tag: 'a' } })
+    deferred.resolve()
+    await firstSend
+    await vi.waitFor(() => {
+      expect(client.getQueue()).toEqual([])
+    })
+    expect(seenBodies.map((b) => b?.tag)).toEqual(['seed', 'a'])
+  })
+
   it('batch drain does not strand messages enqueued during the batch stream', async () => {
     const deferred1 = createDeferred<void>()
     const deferred2 = createDeferred<void>()

@@ -411,6 +411,35 @@ describe('useChat', () => {
       expect(typeof messageId).toBe('string')
     })
 
+    it('should merge sendMessage options.body into the request', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, any> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const { result } = renderUseChat({
+        connection: adapter,
+        body: { provider: 'openai' },
+      })
+
+      // The hook has no positional body arg — options.body is the per-call
+      // channel, merged over the chat-level `body` option.
+      await result.current.sendMessage('Test', {
+        body: { attachmentIds: ['a1', 'a2'] },
+      })
+
+      await waitFor(() => {
+        expect(result.current.messages.length).toBeGreaterThan(0)
+      })
+
+      expect(capturedData?.['provider']).toBe('openai')
+      expect(capturedData?.['attachmentIds']).toEqual(['a1', 'a2'])
+    })
+
     it('should generate id if not provided', async () => {
       const chunks = createTextChunks('Response')
       const adapter = createMockConnectionAdapter({ chunks })

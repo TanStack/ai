@@ -168,7 +168,9 @@ interface BaseUseChatReturn<
    * Can be a simple string or multimodal content with images, audio, etc.
    * By default, sends while busy are queued until the run settles successfully
    * (`queue: 'drop'` restores the old drop-while-busy behavior).
-   * Pass `{ whenBusy }` to override the policy for a single send.
+   * Pass `{ whenBusy }` to override the policy for a single send, or
+   * `{ body }` to merge per-call body params into this request's
+   * `forwardedProps`.
    */
   sendMessage: (
     content: string | MultimodalContent,
