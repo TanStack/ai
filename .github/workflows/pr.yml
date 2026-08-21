@@ -70,8 +70,8 @@ jobs:
           PROJECTS: ${{ steps.affected.outputs.list }}
         run: |
           rm -rf packages/*/coverage
-          pnpm exec nx run-many --targets=test:coverage --projects="$PROJECTS"
-          node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-head"
+          pnpm exec nx run-many --targets=test:coverage --projects="$PROJECTS" -- --coverage.reporter=json-summary --coverage.include='src/**'
+          node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-head" --expect "$PROJECTS"
       # Re-measuring the merge-base is normally a set of Nx Cloud cache
       # restores seeded by the Coverage workflow on main: the task hashes are
       # identical, and `test:coverage` declares its coverage dir as an output,
@@ -87,16 +87,20 @@ jobs:
           # numbers and every delta comes out as 0.00.
           rm -rf packages/*/coverage
           pnpm install --frozen-lockfile
-          # Packages added by this PR do not exist on the base commit.
+          # Intersect with projects that have test:coverage on the base commit
+          # (added packages, or packages that gained the script in this PR).
           printf '%s\n' "$PROJECTS" | tr ',' '\n' | sort > /tmp/wanted
           pnpm exec nx show projects --with-target=test:coverage --json | jq -r '.[]' | sort > /tmp/available
           base_list=$(comm -12 /tmp/wanted /tmp/available | paste -sd, -)
           if [ -z "$base_list" ]; then
-            echo "No affected package exists on the base commit; nothing to compare against."
+            echo "No affected package has test:coverage on the base commit; treating all as new."
+            mkdir -p "$RUNNER_TEMP/cov-base"
             exit 0
           fi
-          pnpm exec nx run-many --targets=test:coverage --projects="$base_list"
-          node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-base"
+          # Extra reporters/include so a merge-base whose scripts are still
+          # `vitest run --coverage` still writes coverage-summary.json.
+          pnpm exec nx run-many --targets=test:coverage --projects="$base_list" -- --coverage.reporter=json-summary --coverage.include='src/**'
+          node "$RUNNER_TEMP/coverage-check.mjs" --collect "$RUNNER_TEMP/cov-base" --expect "$base_list"
       - name: Compare
         if: steps.affected.outputs.list != ''
         run: |

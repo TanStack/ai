@@ -50,7 +50,7 @@ pnpm test:lib:dev          # Watch mode for unit tests
 pnpm test:oxlint           # Lint affected packages (oxlint, incl. type-aware)
 pnpm test:types            # Type check affected packages
 pnpm test:build            # Verify build artifacts with publint
-# Coverage is CI-only — see the Coverage section below. Don't run it locally.
+# Coverage is CI-only. See CONTRIBUTING.md. Don't run it locally.
 pnpm test:knip             # Check for unused dependencies
 pnpm test:sherif           # Check pnpm workspace consistency
 pnpm test:docs             # Verify documentation links
