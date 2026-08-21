@@ -6,9 +6,9 @@ title: AnyChatMiddleware
 # Type Alias: AnyChatMiddleware
 
 ```ts
-type AnyChatMiddleware = ChatMiddleware<any>;
+type AnyChatMiddleware = ChatMiddleware<any, any>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:656](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L656)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:781](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L781)
 
-A `ChatMiddleware` with a permissive context — for use as a constraint.
+A permissive middleware constraint that retains the definition parameter.

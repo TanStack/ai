@@ -4,7 +4,7 @@ title: Migrating to AG-UI Client-to-Server Compliance
 
 # Migrating to AG-UI Client-to-Server Compliance
 
-> **TL;DR:** This release is fully backward compatible. Upgrade `@tanstack/ai` and `@tanstack/ai-client` together and existing code keeps working — both the legacy `body` client option and the legacy `data` server-side wire field continue to function unchanged. The HTTP wire format gained AG-UI `RunAgentInput` fields (`threadId`, `runId`, `tools`, `forwardedProps`, etc.) for full AG-UI compliance, and the legacy fields are emitted alongside them as a deprecation bridge. New helpers (`chatParamsFromRequest`, `mergeAgentTools`) are available for opt-in conveniences. Migrate to the new names when convenient — both `body` (client) and `data` (wire) will be removed in a future major release.
+> **TL;DR:** Upgrade `@tanstack/ai` and `@tanstack/ai-client` together. `useChat` messages, thinking, tools, and approvals keep working. The HTTP wire is a breaking 0.x change: extras live in `metadata.tanstack`, and messages have no `parts`. Wire messages use `content`, `toolCalls`, and fan-out `role: "tool"` / `role: "reasoning"` rows. The legacy `body` client option and `data` wire field still work as a deprecation bridge.
 
 ## What changed
 
@@ -36,7 +36,39 @@ title: Migrating to AG-UI Client-to-Server Compliance
 
 `forwardedProps` and `data` carry the same content. New servers should read `forwardedProps`; legacy servers reading `data` keep working unchanged. The `data` field will be removed in a future major release.
 
-The `messages` array carries TanStack `UIMessage` anchors with `parts` intact, plus AG-UI mirror fields (`content`, `toolCalls`) so strict AG-UI servers can parse it. Tool results and thinking parts are additionally emitted as separate `{role:'tool',...}` and `{role:'reasoning',...}` fan-out messages alongside the anchors.
+The `messages` array on the wire is spec AG-UI. Anchors use `content`, `toolCalls`, and `metadata`. They do not include `parts`. Tool results and thinking parts go out as extra `{ role: "tool" }` and `{ role: "reasoning" }` messages.
+
+## AG-UI event and message extras
+
+This is a real behavior change. Upgrade `@tanstack/ai` and `@tanstack/ai-client` together.
+
+Wire events keep spec fields and add `metadata`. TanStack extras live under `metadata.tanstack`. Public `StreamChunk` is spec-only.
+
+```typescript
+import { chat } from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+const stream = chat({
+  adapter: openaiText("gpt-5.5"),
+  messages: [{ role: "user", content: "Hello" }],
+});
+
+for await (const chunk of stream) {
+  if (chunk.type === "RUN_FINISHED") {
+    console.log(chunk.usage);
+    console.log(chunk.metadata?.tanstack?.finishReason);
+  }
+}
+```
+
+What that means:
+
+- **Wire events.** Spec fields stay at the top. Extra TanStack fields go in `metadata.tanstack`. Custom servers: see [Event metadata](../protocol/metadata).
+- **Wire messages.** Use `content`, `toolCalls`, and fan-out `role: "tool"` / `role: "reasoning"`. There is no `parts` field on the wire.
+- **`chat()` chunks.** In-process `chat()` still yields `toolName`, `TOOL_CALL_END.input`, and TanStack `TokenUsage` (`promptTokens`). The SSE/HTTP wire converts `usage` to the spec array (`inputTokens`).
+- **Usage.** Middleware `onUsage` still receives TanStack `TokenUsage` (`promptTokens`, `completionTokens`).
+
+See [Streaming](../chat/streaming) for the `for await` branch, and [Middleware](../advanced/middleware) for `onUsage`.
 
 ## Backward compatibility & deprecation timeline
 
@@ -102,7 +134,7 @@ The upgrade is **opt-in**: pick the tier that matches the features you use. Most
 
 ### Tier 1 — Minimum (no changes for most servers)
 
-Keep reading `body.messages` and pass it through. `chat()` accepts mixed `UIMessage | ModelMessage` arrays and handles all AG-UI message-shape quirks internally — fan-out tool dedup, dropping `reasoning`/`activity`, collapsing `developer` → `system`.
+Keep reading `body.messages` and pass it through. `chat()` accepts mixed `UIMessage | ModelMessage` arrays and handles all AG-UI message-shape quirks internally: fan-out tool dedup, attaching `reasoning` rows to the next assistant as thinking, dropping `activity`, collapsing `developer` to `system`.
 
 ```ts
 import { chat, toServerSentEventsResponse } from '@tanstack/ai'
@@ -357,7 +389,7 @@ A `@tanstack/ai-client` request hitting a foreign AG-UI server:
 Pure AG-UI `RunAgentInput` payloads (no TanStack `parts` field) work end-to-end:
 
 - Tool messages pass through as `ModelMessage` entries with `role: 'tool'`.
-- `reasoning` messages are dropped (no LLM-replay equivalent today).
+- `reasoning` messages attach to the next assistant as thinking. Spec `encryptedValue` becomes `ThinkingPart.signature`.
 - `activity` messages are dropped (no TanStack equivalent).
 - `developer` messages are collapsed to `system` role.
 
@@ -397,5 +429,5 @@ you can now drop zod entirely.
 
 ## Out of scope (existing behavior preserved)
 
-- **Reasoning replay to LLM providers.** TanStack still drops `ThinkingPart` at the `UIMessage`→`ModelMessage` boundary (pre-existing behavior). Providers like Anthropic that require thinking blocks to be replayed for extended thinking continuation remain a separate concern, tracked outside this migration.
+- **Reasoning replay to LLM providers.** This migration does not change that path. Signed `ThinkingPart`s convert to `ModelMessage.thinking` and replay in original order, including around provider-executed tools. Unsigned thinking is not sent back.
 - **AG-UI `state` and `context` fields.** Surfaced on `chatParamsFromRequestBody`'s return value as `state` and `aguiContext`, with `context` kept as a deprecated alias of `aguiContext` for backward compatibility. They are protocol-level fields available for your endpoint to inspect/forward. TanStack AI's typed runtime context is the separate `chat({ context })` option; validate and map AG-UI values into it yourself if you want tools or middleware to read them.

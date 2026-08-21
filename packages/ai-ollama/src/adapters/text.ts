@@ -27,7 +27,7 @@ import type {
   Tool as OllamaTool,
   ToolCall,
 } from 'ollama'
-import type { StreamChunk, TextOptions, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
 
 export type OllamaTextModel =
   | (typeof OLLAMA_TEXT_MODELS)[number]
@@ -102,7 +102,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
 
   async *chatStream(
     options: TextOptions<ResolveModelOptions<TModel>>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const mappedOptions = this.mapCommonOptionsToOllama(options)
     const { logger } = options
     try {
@@ -198,7 +198,7 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
     stream: AbortableAsyncIterator<ChatResponse>,
     options: TextOptions,
     logger: InternalLogger,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     let accumulatedContent = ''
     let accumulatedReasoning = ''
     const toolCallsEmitted = new Set<string>()
@@ -229,14 +229,14 @@ export class OllamaTextAdapter<TModel extends string> extends BaseTextAdapter<
         }
       }
 
-      const handleToolCall = (toolCall: ToolCall): Array<StreamChunk> => {
+      const handleToolCall = (toolCall: ToolCall): Array<AdapterYieldChunk> => {
         const actualToolCall = toolCall as ToolCall & {
           id: string
           function: { index: number }
         }
         const toolCallId =
           actualToolCall.id || `${actualToolCall.function.name}_${Date.now()}`
-        const events: Array<StreamChunk> = []
+        const events: Array<AdapterYieldChunk> = []
 
         // Emit TOOL_CALL_START if not already emitted for this tool call
         if (!toolCallsEmitted.has(toolCallId)) {

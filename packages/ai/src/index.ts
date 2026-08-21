@@ -459,6 +459,12 @@ export { generationParamsFromBody, generationParamsFromRequest } from './client'
 
 // AG-UI wire serialization (used internally by @tanstack/ai-client)
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
+export { mergeMetadata, withTanstackMetadata } from './utilities/merge-metadata'
+export { fromSpecTokenUsage, toSpecTokenUsage } from './utilities/ag-ui-usage'
+export type { SpecTokenUsage } from './utilities/ag-ui-usage'
+export { normalizeStreamChunk } from './utilities/normalize-stream-chunk'
+export type { AdapterYieldChunk } from './utilities/adapter-yield-chunk'
+export { getChunkRunId, getChunkThreadId } from './utilities/chunk-ids'
 export type { WireMessage } from './utilities/ag-ui-wire'
 export {
   isContentPart,

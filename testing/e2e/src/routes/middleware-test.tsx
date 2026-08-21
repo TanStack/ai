@@ -227,6 +227,7 @@ function MiddlewareTestPage() {
           <option value="basic-text">Basic Text</option>
           <option value="capability">Capability</option>
           <option value="with-tool">With Tool</option>
+          <option value="run-error">Run Error</option>
           <option value="structured-output">Structured Output</option>
           <option value="structured-output-stream">
             Structured Output (Stream)

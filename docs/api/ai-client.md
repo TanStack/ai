@@ -114,27 +114,43 @@ goes away. Users of the framework hooks need no change.
 
 ### Methods
 
-#### `sendMessage(content: string)`
+#### `sendMessage(content: string | MultimodalContent)`
 
-Sends a user message and gets a response.
+Sends a user message and starts the run.
+
+`MultimodalContent` is `{ content, id?, metadata? }`. The string form has no metadata. Pass the object form to stamp `metadata` on the user `UIMessage`. TanStack writes the `tanstack` key. Your keys stay at the top of the bag.
 
 ```typescript
 import { client } from "./client";
 
 await client.sendMessage("Hello!");
+
+await client.sendMessage({
+  content: "Show me failed logins",
+  metadata: { author: { id: "user-42", name: "Dana" } },
+});
 ```
 
 #### `append(message: ModelMessage | UIMessage)`
 
-Appends a message to the conversation.
+Appends a message to the conversation. If you pass a `UIMessage`, `append` copies `uiMessage.metadata` onto the stored message.
 
 ```typescript
 import { client } from "./client";
+import type { UIMessage } from "@tanstack/ai-client";
 
 await client.append({
   role: "user",
   content: "Additional context",
 });
+
+const stamped: UIMessage = {
+  id: "user-1",
+  role: "user",
+  parts: [{ type: "text", content: "Show me failed logins" }],
+  metadata: { author: { id: "user-42", name: "Dana" } },
+};
+await client.append(stamped);
 ```
 
 #### `reload()`
@@ -541,8 +557,11 @@ interface UIMessage {
   role: "user" | "assistant";
   parts: MessagePart[];
   createdAt?: Date;
+  metadata?: Record<string, any>;
 }
 ```
+
+`metadata` is an optional AG-UI bag (`Record<string, any>`). TanStack writes the `tanstack` key. Your keys stay at the top.
 
 ### `MessagePart`
 

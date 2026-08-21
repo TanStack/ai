@@ -297,6 +297,17 @@ export type {
 } from './activities/chat/stream/index'
 
 export { uiMessagesToWire } from './utilities/ag-ui-wire'
+export {
+  mergeMetadata,
+  tanstackMetadata,
+  withTanstackMetadata,
+} from './utilities/merge-metadata'
+export { fromSpecTokenUsage, toSpecTokenUsage } from './utilities/ag-ui-usage'
+export type { SpecTokenUsage } from './utilities/ag-ui-usage'
+export { normalizeStreamChunk } from './utilities/normalize-stream-chunk'
+export { restoreInboundChunk } from './utilities/restore-inbound-chunk'
+export type { AdapterYieldChunk } from './utilities/adapter-yield-chunk'
+export { getChunkRunId, getChunkThreadId } from './utilities/chunk-ids'
 export type { WireMessage } from './utilities/ag-ui-wire'
 
 export type {
@@ -326,6 +337,8 @@ export type {
   StreamChunk,
   StructuredOutputPart,
   TextPart,
+  TanStackMessageMetadata,
+  TanStackRunMetadata,
   ThinkingPart,
   ToolCall,
   ToolCallPart,

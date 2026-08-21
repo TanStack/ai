@@ -6,11 +6,8 @@
  */
 
 import type {
-  ContentStreamChunk,
+  AdapterYieldChunk,
   DefaultMessageMetadataByModality,
-  DoneStreamChunk,
-  StreamChunk,
-  ToolCallStreamChunk,
 } from '@tanstack/ai'
 
 /**
@@ -66,7 +63,7 @@ export function createMockTextAdapter(config: MockAdapterConfig) {
       messageMetadataByModality: DefaultMessageMetadataByModality
     },
 
-    async *chatStream(): AsyncIterable<StreamChunk> {
+    async *chatStream(): AsyncIterable<AdapterYieldChunk> {
       const response = config.responses[responseIndex % config.responses.length]
       if (!response) {
         throw new Error('No responses configured for mock adapter')
@@ -82,7 +79,7 @@ export function createMockTextAdapter(config: MockAdapterConfig) {
       if (response.toolCalls && response.toolCalls.length > 0) {
         for (let i = 0; i < response.toolCalls.length; i++) {
           const toolCall = response.toolCalls[i]!
-          const toolCallChunk: ToolCallStreamChunk = {
+          const toolCallChunk = {
             type: 'tool_call',
             id,
             model: 'mock-model',
@@ -97,11 +94,11 @@ export function createMockTextAdapter(config: MockAdapterConfig) {
               },
             },
           }
-          yield toolCallChunk
+          yield toolCallChunk as AdapterYieldChunk
         }
 
         // Done with tool_calls finish reason
-        const doneChunk: DoneStreamChunk = {
+        const doneChunk = {
           type: 'done',
           id,
           model: 'mock-model',
@@ -113,7 +110,7 @@ export function createMockTextAdapter(config: MockAdapterConfig) {
             totalTokens: 20,
           },
         }
-        yield doneChunk
+        yield doneChunk as AdapterYieldChunk
         return
       }
 
@@ -123,7 +120,7 @@ export function createMockTextAdapter(config: MockAdapterConfig) {
         let accumulated = ''
         for (const char of response.content) {
           accumulated += char
-          const contentChunk: ContentStreamChunk = {
+          const contentChunk = {
             type: 'content',
             id,
             model: 'mock-model',
@@ -132,12 +129,12 @@ export function createMockTextAdapter(config: MockAdapterConfig) {
             content: accumulated,
             role: 'assistant',
           }
-          yield contentChunk
+          yield contentChunk as AdapterYieldChunk
         }
       }
 
       // Done chunk
-      const doneChunk: DoneStreamChunk = {
+      const doneChunk = {
         type: 'done',
         id,
         model: 'mock-model',
@@ -149,7 +146,7 @@ export function createMockTextAdapter(config: MockAdapterConfig) {
           totalTokens: 10 + (response.content?.length || 0),
         },
       }
-      yield doneChunk
+      yield doneChunk as AdapterYieldChunk
     },
 
     async structuredOutput() {

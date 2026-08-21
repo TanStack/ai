@@ -12,6 +12,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -22,11 +25,15 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   'one-shot-text': new Set([
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -37,16 +44,29 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
-  // BytePlus streams its reasoning trace as `delta.reasoning_content`, which is
-  // exactly the field aimock's OpenAI-compatible chunk builder emits for a
-  // fixture's `reasoning` channel — so the adapter's `extractReasoning`
-  // override is exercised end-to-end against the shared fixture.
-  reasoning: new Set(['openai', 'anthropic', 'gemini', 'mistral', 'byteplus']),
+  // BytePlus and LLM Gateway both stream their reasoning trace as
+  // `delta.reasoning_content`, which is exactly the field aimock's
+  // OpenAI-compatible chunk builder emits for a fixture's `reasoning` channel —
+  // so each adapter's `extractReasoning` override is exercised end-to-end
+  // against the shared fixture.
+  reasoning: new Set([
+    'openai',
+    'anthropic',
+    'gemini',
+    'vertex',
+    'mistral',
+    'byteplus',
+    'llmgateway',
+  ]),
   'multi-turn': new Set([
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -57,11 +77,15 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   'tool-calling': new Set([
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -74,11 +98,15 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   'parallel-tool-calls': new Set([
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'groq',
     'grok',
     'bedrock',
@@ -88,14 +116,18 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   // Gemini excluded: approval flow timing issues with Gemini's streaming format
+  // Vertex uses the same Gemini stream, so it is excluded for the same reason.
   'tool-approval': new Set([
     'openai',
     'anthropic',
     'ollama',
     'groq',
     'grok',
+    'vertex-grok',
+    'vertex-mistral',
     'bedrock',
     'bedrock-responses',
     'openrouter',
@@ -103,12 +135,16 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   // Ollama excluded: aimock doesn't support content+toolCalls for /api/chat format
   'text-tool-text': new Set([
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'groq',
     'grok',
     'bedrock',
@@ -118,11 +154,15 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   'structured-output': new Set([
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -133,6 +173,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   // Streaming structured output: only providers with native streaming JSON
   // schema support are listed here. Other providers fall back to the
@@ -142,12 +183,14 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'groq',
     'grok',
+    'vertex-grok',
     'bedrock',
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
     'openai-compatible',
     'byteplus',
+    'llmgateway',
   ]),
   // Multi-turn structured output: every turn produces its own typed
   // `structured-output` part on the assistant message, and historical
@@ -170,6 +213,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'multi-turn-structured': new Set([
     'openai',
     'gemini',
+    'vertex',
+    'vertex-grok',
     'ollama',
     'groq',
     'grok',
@@ -179,11 +224,15 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'vercel-gateway',
     'openai-compatible',
     'byteplus',
+    'llmgateway',
   ]),
   'agentic-structured': new Set([
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -194,6 +243,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai-compatible',
     'mistral',
     'byteplus',
+    'llmgateway',
   ]),
   // Native-combined-mode adapters only. Each provider's default test model
   // (or per-feature override in `features.ts`) must opt into combined mode
@@ -205,7 +255,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'grok',
+    'vertex-grok',
     'openrouter',
     'openrouter-responses',
     'byteplus',
@@ -213,14 +265,19 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // Bedrock excluded: the default e2e model (openai.gpt-oss-120b) is text-only
   // (input: ['text'], no vision) — image input isn't supported, so the
   // multimodal request never carries the image and the description comes back empty.
-  // Mistral excluded: mistral-large-latest is text-only; vision requires pixtral
+  // Mistral API default e2e model (mistral-large-latest) is text-only.
+  // vertex-mistral uses mistral-medium-3, which accepts image input.
   'multimodal-image': new Set([
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'grok',
+    'vertex-grok',
+    'vertex-mistral',
     'openrouter',
     'byteplus',
+    'llmgateway',
   ]),
   // OpenAI only: this feature exercises the Responses adapter's PDF
   // `input_file` conversion (base64 `file_data` + filename).
@@ -230,9 +287,13 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
     'grok',
+    'vertex-grok',
+    'vertex-mistral',
     'openrouter',
     'byteplus',
+    'llmgateway',
   ]),
   // byteplus excluded: @tanstack/ai-byteplus ships no summarize adapter —
   // Ark has no summarization endpoint, and api.summarize.ts builds a
@@ -242,6 +303,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -250,11 +314,15 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openrouter',
     'vercel-gateway',
     'mistral',
+    'llmgateway',
   ]),
   'summarize-stream': new Set([
     'openai',
     'anthropic',
     'gemini',
+    'vertex',
+    'vertex-grok',
+    'vertex-mistral',
     'ollama',
     'groq',
     'grok',
@@ -263,6 +331,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openrouter',
     'vercel-gateway',
     'mistral',
+    'llmgateway',
   ]),
   // Embedding (Promise-based `embed()` activity, no streaming). aimock 1.34
   // natively mocks OpenAI's /v1/embeddings (JSON fixture in
@@ -273,6 +342,10 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // `embedding` field, not the `embeddings: number[][]` shape the ollama SDK
   // `embed()` expects; Mistral because its SDK Zod-validates the response and
   // requires an `id` field aimock's OpenAI-format builder omits.
+  // Vertex excluded: aimock's Vertex handler only covers
+  // generateContent / streamGenerateContent. Vertex embed uses a
+  // different path (`:predict` / `:batchEmbedContents` under
+  // /v1/projects/…), so it cannot reuse the Gemini /v1beta mount.
   embedding: new Set([
     'openai',
     'gemini',
@@ -299,6 +372,9 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'image-to-image': new Set(['openai']),
   // byteplus excluded: BytePlus has no music/audio generation product —
   // Seed Speech is TTS + ASR only.
+  // Vertex excluded for the same media-path reason as embedding: the
+  // Gemini TTS / Veo / Lyria / Interactions mounts live under /v1beta.
+  // Vertex posts those activities to /v1/projects/… instead.
   'audio-gen': new Set(['gemini', 'elevenlabs']),
   // byteplus excluded: no sound-effects endpoint (see audio-gen above).
   'sound-effects': new Set(['elevenlabs']),

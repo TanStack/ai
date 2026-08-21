@@ -6,7 +6,9 @@ import {
 } from '@tanstack/ai/adapter-internals'
 import { generateId } from '@tanstack/ai-utils'
 import { extractRequestOptions } from '../utils/request-options'
-import { makeStructuredOutputCompatible } from '../utils/schema-converter'
+import { makeStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
+import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
+import type { StructuredOutputCompatibility } from '../utils/schema-converter'
 import { buildChatCompletionsUsage } from '../usage'
 import { convertToolsToChatCompletionsFormat } from './chat-completions-tool-converter'
 import type OpenAI from 'openai'
@@ -25,10 +27,16 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   ModelMessage,
-  RunFinishedEvent,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
+
+type ChatStreamState = {
+  runId: string
+  threadId: string
+  messageId: string
+  hasEmittedRunStarted: boolean
+}
 
 /**
  * Shared implementation of the OpenAI Chat Completions API. Holds the
@@ -62,7 +70,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
       runId: generateId(this.name),
@@ -94,98 +102,101 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
       yield* this.processStreamChunks(stream, options, aguiState)
     } catch (error: unknown) {
-      // Narrow before logging: raw SDK errors can carry request metadata
-      // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
-        error,
-        `${this.name}.chatStream failed`,
-      )
-      const rawEvent = toRunErrorRawEvent(error)
+      yield* this.handleChatStreamError(error, options, aguiState, 'chatStream')
+    }
+  }
 
-      // Emit RUN_STARTED if not yet emitted
-      if (!aguiState.hasEmittedRunStarted) {
-        aguiState.hasEmittedRunStarted = true
-        yield {
-          type: EventType.RUN_STARTED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
-          model: options.model,
-          timestamp: Date.now(),
-          parentRunId: options.parentRunId,
-        }
-      }
+  private async *handleChatStreamError(
+    error: unknown,
+    options: TextOptions,
+    aguiState: ChatStreamState,
+    source: 'chatStream' | 'processStreamChunks',
+  ): AsyncIterable<AdapterYieldChunk> {
+    // Narrow before logging: raw SDK errors can carry request metadata
+    // (including auth headers) which we must never surface to user loggers.
+    const errorPayload = toRunErrorPayload(
+      error,
+      `${this.name}.${source} failed`,
+    )
+    const rawEvent = toRunErrorRawEvent(error)
 
-      const rejectedToolCall = this.extractRejectedToolCall(
-        rawEvent,
-        errorPayload.message,
-      )
-      if (rejectedToolCall) {
-        const toolCallId = generateId(this.name)
-        yield {
-          type: EventType.TOOL_CALL_START,
-          toolCallId,
-          toolCallName: rejectedToolCall.toolName,
-          toolName: rejectedToolCall.toolName,
-          parentMessageId: aguiState.messageId,
-          model: options.model,
-          timestamp: Date.now(),
-        }
-        yield {
-          type: EventType.TOOL_CALL_ARGS,
-          toolCallId,
-          delta: rejectedToolCall.arguments,
-          args: rejectedToolCall.arguments,
-          model: options.model,
-          timestamp: Date.now(),
-        }
-        yield {
-          type: EventType.TOOL_CALL_END,
-          toolCallId,
-          toolCallName: rejectedToolCall.toolName,
-          toolName: rejectedToolCall.toolName,
-          ...(rejectedToolCall.input !== undefined && {
-            input: rejectedToolCall.input,
-          }),
-          result: JSON.stringify({ error: rejectedToolCall.error }),
-          state: 'output-error',
-          model: options.model,
-          timestamp: Date.now(),
-        }
-        yield {
-          type: EventType.RUN_FINISHED,
-          runId: aguiState.runId,
-          threadId: aguiState.threadId,
-          model: options.model,
-          timestamp: Date.now(),
-          finishReason: 'tool_calls',
-        }
-        return
-      }
-
-      // Emit AG-UI RUN_ERROR. Conditional `code` spread keeps the wire
-      // shape spec-compliant under `exactOptionalPropertyTypes`: AG-UI's
-      // `RunErrorEvent.code` is `string?` (absent vs explicit `undefined`
-      // matter), so we omit the key when there's no code.
+    if (!aguiState.hasEmittedRunStarted) {
+      aguiState.hasEmittedRunStarted = true
       yield {
-        type: EventType.RUN_ERROR,
+        type: EventType.RUN_STARTED,
+        runId: aguiState.runId,
+        threadId: aguiState.threadId,
         model: options.model,
         timestamp: Date.now(),
-        message: errorPayload.message,
-        code: errorPayload.code,
-        // Forward the provider's structured error body so consumers can recover
-        // the upstream detail the `{ message, code }` payload drops. Omitted
-        // when the error carried no provider body (see toRunErrorRawEvent).
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: errorPayload.message,
-          code: errorPayload.code,
-        },
+        parentRunId: options.parentRunId,
       }
+    }
 
-      options.logger.errors(`${this.name}.chatStream fatal`, {
-        error: errorPayload,
-        source: `${this.name}.chatStream`,
-      })
+    const rejectedToolCall = this.extractRejectedToolCall(
+      rawEvent,
+      errorPayload.message,
+    )
+    if (rejectedToolCall) {
+      const toolCallId = generateId(this.name)
+      yield {
+        type: EventType.TOOL_CALL_START,
+        toolCallId,
+        toolCallName: rejectedToolCall.toolName,
+        toolName: rejectedToolCall.toolName,
+        parentMessageId: aguiState.messageId,
+        model: options.model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TOOL_CALL_ARGS,
+        toolCallId,
+        delta: rejectedToolCall.arguments,
+        args: rejectedToolCall.arguments,
+        model: options.model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.TOOL_CALL_END,
+        toolCallId,
+        toolCallName: rejectedToolCall.toolName,
+        toolName: rejectedToolCall.toolName,
+        ...(rejectedToolCall.input !== undefined && {
+          input: rejectedToolCall.input,
+        }),
+        result: JSON.stringify({ error: rejectedToolCall.error }),
+        state: 'output-error',
+        model: options.model,
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.RUN_FINISHED,
+        runId: aguiState.runId,
+        threadId: aguiState.threadId,
+        model: options.model,
+        timestamp: Date.now(),
+        finishReason: 'tool_calls',
+      }
+      return
+    }
+
+    options.logger.errors(`${this.name}.${source} fatal`, {
+      error: errorPayload,
+      source: `${this.name}.${source}`,
+    })
+
+    yield {
+      type: EventType.RUN_ERROR,
+      runId: aguiState.runId,
+      threadId: aguiState.threadId,
+      model: options.model,
+      timestamp: Date.now(),
+      message: errorPayload.message,
+      ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+      ...(rawEvent !== undefined && { rawEvent }),
+      error: {
+        message: errorPayload.message,
+        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
+      },
     }
   }
 
@@ -312,7 +323,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
    */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapOptionsToRequest(chatOptions)
 
@@ -341,7 +352,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     const closeReasoningLifecycle = function* (this: {
       name: string
-    }): Generator<StreamChunk> {
+    }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId && !hasClosedReasoning) {
         hasClosedReasoning = true
         yield {
@@ -366,6 +377,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             content: accumulatedReasoning,
           }
         }
+        reasoningMessageId = undefined
+        stepId = undefined
+        hasClosedReasoning = false
       }
     }.bind(this)
 
@@ -637,14 +651,28 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   }
 
   /**
+   * Strict conversion plus the inverse null-widening map for this request.
+   * Override this when schema conversion changes, so tool-input undo matches
+   * the wire schema.
+   */
+  protected makeStructuredOutputCompatibleWithMap(
+    schema: Record<string, any>,
+    originalRequired?: Array<string>,
+  ): StructuredOutputCompatibility {
+    return makeStructuredOutputCompatibleWithMap(schema, originalRequired)
+  }
+
+  /**
    * Applies provider-specific transformations for structured output compatibility.
-   * Override this in subclasses to handle provider-specific quirks.
+   * Override `makeStructuredOutputCompatibleWithMap` when you need the inverse map
+   * to match the wire schema.
    */
   protected makeStructuredOutputCompatible(
     schema: Record<string, any>,
     originalRequired?: Array<string>,
   ): Record<string, any> {
-    return makeStructuredOutputCompatible(schema, originalRequired)
+    return this.makeStructuredOutputCompatibleWithMap(schema, originalRequired)
+      .schema
   }
 
   /**
@@ -680,13 +708,13 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
   protected async *processStreamChunks(
     stream: AsyncIterable<ChatCompletionChunk>,
     options: TextOptions,
-    aguiState: {
-      runId: string
-      threadId: string
-      messageId: string
-      hasEmittedRunStarted: boolean
-    },
-  ): AsyncIterable<StreamChunk> {
+    aguiState: ChatStreamState,
+  ): AsyncIterable<AdapterYieldChunk> {
+    const normalizeToolInput = createToolInputNormalizer(
+      options.tools,
+      (schema, required) =>
+        this.makeStructuredOutputCompatibleWithMap(schema, required),
+    )
     let accumulatedContent = ''
     let hasEmittedTextMessageStart = false
     let lastModel: string | undefined
@@ -955,8 +983,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
               if (toolCall.arguments) {
                 try {
                   const parsed: unknown = JSON.parse(toolCall.arguments)
-                  parsedInput =
-                    parsed && typeof parsed === 'object' ? parsed : {}
+                  parsedInput = normalizeToolInput(
+                    toolCall.name,
+                    parsed && typeof parsed === 'object' ? parsed : {},
+                  )
                 } catch (parseError) {
                   options.logger.errors(
                     `${this.name}.processStreamChunks tool-args JSON parse failed`,
@@ -1027,7 +1057,10 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
           if (toolCall.arguments) {
             try {
               const parsed: unknown = JSON.parse(toolCall.arguments)
-              parsedInput = parsed && typeof parsed === 'object' ? parsed : {}
+              parsedInput = normalizeToolInput(
+                toolCall.name,
+                parsed && typeof parsed === 'object' ? parsed : {},
+              )
             } catch (parseError) {
               // Mirror the finish_reason path's logger call — a truncated
               // stream emitting malformed tool-call JSON would otherwise
@@ -1111,7 +1144,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         // tool results that would never arrive. OpenAI's legacy
         // `function_call` value (from the v1 function-calling API) is
         // normalized to `tool_calls` — semantically the same termination.
-        const finishReason: NonNullable<RunFinishedEvent['finishReason']> =
+        const finishReason: NonNullable<AdapterYieldChunk['finishReason']> =
           emittedAnyToolCallEnd
             ? 'tool_calls'
             : pendingFinishReason === 'tool_calls'
@@ -1136,33 +1169,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         }
       }
     } catch (error: unknown) {
-      // Narrow before logging: raw SDK errors can carry request metadata
-      // (including auth headers) which we must never surface to user loggers.
-      const errorPayload = toRunErrorPayload(
+      yield* this.handleChatStreamError(
         error,
-        `${this.name}.processStreamChunks failed`,
+        options,
+        aguiState,
+        'processStreamChunks',
       )
-      const rawEvent = toRunErrorRawEvent(error)
-      options.logger.errors(`${this.name}.processStreamChunks fatal`, {
-        error: errorPayload,
-        source: `${this.name}.processStreamChunks`,
-      })
-
-      // Emit AG-UI RUN_ERROR with conditional `code` spread (see chatStream's
-      // catch block for the rationale). `rawEvent` carries the provider's
-      // structured error body when present.
-      yield {
-        type: EventType.RUN_ERROR,
-        model: options.model,
-        timestamp: Date.now(),
-        message: errorPayload.message,
-        ...(errorPayload.code !== undefined && { code: errorPayload.code }),
-        ...(rawEvent !== undefined && { rawEvent }),
-        error: {
-          message: errorPayload.message,
-          ...(errorPayload.code !== undefined && { code: errorPayload.code }),
-        },
-      }
     }
   }
 
@@ -1419,9 +1431,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
    * Handles backward compatibility with string content.
    */
   protected normalizeContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null) {
+    if (content === null || content === undefined) {
       return []
     }
     if (typeof content === 'string') {
@@ -1434,9 +1446,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
    * Extracts text content from a content value that may be string, null, or ContentPart array.
    */
   protected extractTextContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null) {
+    // Tool-call-only assistant turns (e.g. an approval resume replaying the
+    // pending call) carry no text and arrive as `null` or `undefined`; both
+    // must collapse to '' rather than crash on `.filter`.
+    if (content === null || content === undefined) {
       return ''
     }
     if (typeof content === 'string') {

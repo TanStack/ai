@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { translateSdkStream } from '../src/stream/translate'
 import type { AgentSdkMessage } from '../src/stream/sdk-types'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 function makeContext() {
   let id = 0
@@ -26,8 +26,8 @@ async function collect(
   context: ReturnType<typeof makeContext> & {
     expectStructuredOutput?: boolean
   } = makeContext(),
-): Promise<Array<StreamChunk>> {
-  const chunks: Array<StreamChunk> = []
+): Promise<Array<AdapterYieldChunk>> {
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of translateSdkStream(fromArray(messages), context)) {
     chunks.push(chunk)
   }
@@ -449,7 +449,7 @@ describe('translateSdkStream', () => {
       throw new Error('aborted')
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     await expect(async () => {
       for await (const chunk of translateSdkStream(throwing(), makeContext())) {
         chunks.push(chunk)

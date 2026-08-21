@@ -1,5 +1,27 @@
 # @tanstack/ai-persistence
 
+## 0.4.1
+
+### Patch Changes
+
+- [#1175](https://github.com/TanStack/ai/pull/1175) [`17b4c60`](https://github.com/TanStack/ai/commit/17b4c60c8d237df53a63dcda18c43d8017d45449) - Route adapter-emitted `RUN_ERROR` events through middleware `onError` hooks and preserve provider error codes in persisted run failures.
+
+- Updated dependencies [[`17b4c60`](https://github.com/TanStack/ai/commit/17b4c60c8d237df53a63dcda18c43d8017d45449)]:
+  - @tanstack/ai@0.47.2
+
+## 0.4.0
+
+### Minor Changes
+
+- [#1108](https://github.com/TanStack/ai/pull/1108) [`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9) - Add complete thread artifact history for portable sandbox snapshots.
+
+### Patch Changes
+
+- [#1126](https://github.com/TanStack/ai/pull/1126) [`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d) - Persist completed structured outputs as structured-output message parts and restore them during chat hydration.
+
+- Updated dependencies [[`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/ai@0.47.1
+
 ## 0.3.0
 
 ### Minor Changes

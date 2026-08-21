@@ -30,7 +30,7 @@ import type {
   ContentPart,
   JSONSchema,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type {
@@ -42,6 +42,7 @@ import type {
 import type {
   ExternalTextProviderOptions,
   OpenRouterSystemPromptMetadata,
+  ReasoningOptions,
 } from '../text/text-provider-options'
 import type {
   OpenRouterImageMetadata,
@@ -67,6 +68,22 @@ type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof OpenRouterChatModelToolCapabilitiesByName
     ? NonNullable<OpenRouterChatModelToolCapabilitiesByName[TModel]>
     : readonly []
+
+function normalizeReasoningOptions(
+  reasoning: ReasoningOptions | undefined,
+): ChatRequest['reasoning'] | undefined {
+  if (!reasoning) return undefined
+
+  const { enabled, ...sdkReasoning } = reasoning
+  const normalized =
+    enabled === false
+      ? { ...sdkReasoning, effort: 'none' as const }
+      : sdkReasoning
+
+  return Object.values(normalized).some((value) => value !== undefined)
+    ? normalized
+    : undefined
+}
 
 /**
  * OpenRouter Text (Chat) Adapter — standalone implementation that talks to
@@ -119,7 +136,7 @@ export class OpenRouterTextAdapter<
 
   async *chatStream(
     options: TextOptions<ResolveProviderOptions<TModel>>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
       runId: generateId(this.name),
@@ -316,7 +333,7 @@ export class OpenRouterTextAdapter<
    */
   async *structuredOutputStream(
     options: StructuredOutputOptions<ResolveProviderOptions<TModel>>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const chatRequest = this.mapOptionsToRequest(chatOptions)
     const responseFormat = this.resolveStructuredResponseFormat(
@@ -342,7 +359,7 @@ export class OpenRouterTextAdapter<
 
     const closeReasoningLifecycle = function* (this: {
       name: string
-    }): Generator<StreamChunk> {
+    }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId && !hasClosedReasoning) {
         hasClosedReasoning = true
         yield {
@@ -367,6 +384,9 @@ export class OpenRouterTextAdapter<
             content: accumulatedReasoning,
           }
         }
+        reasoningMessageId = undefined
+        stepId = undefined
+        hasClosedReasoning = false
       }
     }.bind(this)
 
@@ -689,7 +709,7 @@ export class OpenRouterTextAdapter<
       messageId: string
       hasEmittedRunStarted: boolean
     },
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     let accumulatedContent = ''
     let hasEmittedTextMessageStart = false
     let lastModel: string | undefined
@@ -1177,8 +1197,10 @@ export class OpenRouterTextAdapter<
     // `variant` is OpenRouter metadata used only to build the `:variant` model
     // suffix — it must NOT be spread into the request body. Destructure it out
     // so the remaining sampling/provider options flow through `...restModelOptions`.
-    const { variant, ...restModelOptions } = options.modelOptions ?? {}
+    const { variant, reasoning, ...restModelOptions } = (options.modelOptions ??
+      {}) as ExternalTextProviderOptions
     const variantSuffix = variant ? `:${variant}` : ''
+    const normalizedReasoning = normalizeReasoningOptions(reasoning)
 
     const messages: Array<ChatMessages> = []
     const systemPrompts =
@@ -1241,6 +1263,7 @@ export class OpenRouterTextAdapter<
     // SDK validates `chatRequest.metadata` as `Record<string, string>` (#735).
     const request: Omit<ChatRequest, 'stream'> = {
       ...restModelOptions,
+      ...(normalizedReasoning && { reasoning: normalizedReasoning }),
       model: options.model + variantSuffix,
       messages,
       ...(tools && tools.length > 0 && { tools }),
@@ -1441,9 +1464,9 @@ export class OpenRouterTextAdapter<
    * Handles backward compatibility with string content.
    */
   protected normalizeContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null) {
+    if (content === null || content === undefined) {
       return []
     }
     if (typeof content === 'string') {
@@ -1456,9 +1479,9 @@ export class OpenRouterTextAdapter<
    * Extracts text content from a content value that may be string, null, or ContentPart array.
    */
   protected extractTextContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null) {
+    if (content === null || content === undefined) {
       return ''
     }
     if (typeof content === 'string') {

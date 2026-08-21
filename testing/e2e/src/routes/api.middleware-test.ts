@@ -3,6 +3,7 @@ import {
   chat,
   chatParamsFromRequestBody,
   createCapability,
+  EventType,
   maxIterations,
   toServerSentEventsResponse,
   toolDefinition,
@@ -18,7 +19,12 @@ import {
 } from '@/lib/memory-capture'
 import { SpanStatusCode } from '@opentelemetry/api'
 import { z } from 'zod'
-import type { ChatMiddleware, StreamChunk, Tool } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  ChatMiddleware,
+  StreamChunk,
+  Tool,
+} from '@tanstack/ai'
 import type {
   AttributeValue,
   Attributes,
@@ -38,6 +44,7 @@ import {
   recordGenericPolicy,
   recordGenericResolution,
   recordGenericToolExecution,
+  recordOnError,
   recordOnFinish,
   recordPhase,
   recordYieldedChunk,
@@ -76,6 +83,54 @@ const weatherTool = toolDefinition({
 }).server(async (args) =>
   JSON.stringify({ city: args.city, temperature: 72, condition: 'sunny' }),
 )
+
+function createRunErrorAdapter(): AnyTextAdapter {
+  return {
+    kind: 'text',
+    name: 'run-error-test',
+    model: 'run-error-test',
+    '~types': {
+      providerOptions: {},
+      inputModalities: ['text'],
+      messageMetadataByModality: {},
+      toolCapabilities: [],
+      toolCallMetadata: undefined,
+      systemPromptMetadata: undefined,
+    },
+    async *chatStream(options): AsyncGenerator<StreamChunk> {
+      yield {
+        type: EventType.RUN_STARTED,
+        runId: options.runId ?? 'run-error-test',
+        threadId: options.threadId ?? 'run-error-test',
+        timestamp: Date.now(),
+      }
+      yield {
+        type: EventType.RUN_ERROR,
+        message: 'Provider failed',
+        code: 'provider_error',
+        timestamp: Date.now(),
+      }
+    },
+    structuredOutput: async () => ({ data: {}, rawText: '{}' }),
+  }
+}
+
+const runErrorBoundaryMiddleware: ChatMiddleware<unknown, typeof reviewPlan> = {
+  name: 'run-error-boundary',
+  onInterruptBoundary(ctx) {
+    if (ctx.phase !== 'afterModel') return
+    return {
+      interrupts: [
+        reviewPlan.interrupt({
+          key: 'run-error-review',
+          reason: 'review_required',
+          message: 'Review the response',
+          payload: { title: 'Run error review', boundary: ctx.phase },
+        }),
+      ],
+    }
+  },
+}
 
 const chunkTransformMiddleware: ChatMiddleware = {
   name: 'chunk-transform',
@@ -167,6 +222,9 @@ function createPhaseRecorderMiddleware(captureId: string): ChatMiddleware {
     },
     onFinish() {
       recordOnFinish(captureId)
+    },
+    onError() {
+      recordOnError(captureId)
     },
   }
 }
@@ -478,17 +536,21 @@ export const Route = createFileRoute('/api/middleware-test')({
           typeof fp.model === 'string' ? fp.model : undefined
 
         try {
-          const adapterOptions = createTextAdapter(
-            provider as Parameters<typeof createTextAdapter>[0],
-            modelOverride,
-            aimockPort,
-            testId,
-          )
+          const adapterOptions =
+            scenario === 'run-error'
+              ? { adapter: createRunErrorAdapter() }
+              : createTextAdapter(
+                  provider as Parameters<typeof createTextAdapter>[0],
+                  modelOverride,
+                  aimockPort,
+                  testId,
+                )
 
           const middleware: Array<ChatMiddleware> = []
           let genericLifecycleMiddleware:
             | ChatMiddleware<unknown, typeof reviewPlan>
-            | undefined
+            | undefined =
+            scenario === 'run-error' ? runErrorBoundaryMiddleware : undefined
           const genericScenario = isGenericScenario(scenario)
             ? scenario
             : undefined

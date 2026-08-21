@@ -1,4 +1,11 @@
-import { EventType, uiMessagesToWire } from '@tanstack/ai/client'
+import {
+  EventType,
+  getChunkRunId as getNormalizedChunkRunId,
+  restoreInboundChunk,
+  tanstackMetadata,
+  uiMessagesToWire,
+  withTanstackMetadata,
+} from '@tanstack/ai/client'
 import { ByokMissingError, isByokMissingBody } from '@tanstack/ai/byok'
 import {
   createResponseStreamTextDecoder,
@@ -9,7 +16,6 @@ import type {
   ModelMessage,
   RunAgentResumeItem,
   RunErrorEvent,
-  RunFinishedEvent,
   StreamChunk,
   UIMessage,
 } from '@tanstack/ai/client'
@@ -35,12 +41,7 @@ export function getChunkRunId(chunk: StreamChunk): string | undefined {
   // the client's run identity to win when a provider stamps its own id; for
   // resumable reconnect/join the two ids match, so precedence is moot there.
   const requestRunId = chunkRunIds.get(chunk)
-  return (
-    requestRunId ??
-    ('runId' in chunk && typeof chunk.runId === 'string'
-      ? chunk.runId
-      : undefined)
-  )
+  return requestRunId ?? getNormalizedChunkRunId(chunk)
 }
 
 /**
@@ -386,6 +387,22 @@ function isNdjsonEnvelope(
   )
 }
 
+/** Rebuild pre-wire extras after SSE/NDJSON ingest. */
+function restoreInboundUsage(chunk: StreamChunk): StreamChunk {
+  return restoreInboundChunk(chunk)
+}
+
+function sseChunkModel(chunk: StreamChunk): string | undefined {
+  const tanstackModel = tanstackMetadata(chunk)?.model
+  if (typeof tanstackModel === 'string') return tanstackModel
+  const usage = 'usage' in chunk ? chunk.usage : undefined
+  if (Array.isArray(usage)) {
+    const model = (usage[0] as { model?: unknown } | undefined)?.model
+    if (typeof model === 'string') return model
+  }
+  return undefined
+}
+
 /**
  * Parse SSE-format lines into stream events, pairing each chunk with the `id:`
  * offset of the event it arrived on. Shared by the fetch- and XHR-backed SSE
@@ -432,27 +449,31 @@ async function* linesToSSEEvents(
     }
     const data = parseSseDataLine(line)
     if (data === '[DONE]') {
-      const synthetic: RunFinishedEvent = {
-        type: EventType.RUN_FINISHED,
-        threadId: lastThreadId ?? fallbackIds?.threadId ?? '',
-        runId: lastRunId ?? fallbackIds?.runId ?? '',
-        model: lastModel ?? '',
-        timestamp: Date.now(),
-        finishReason: 'stop',
+      yield {
+        chunk: withTanstackMetadata(
+          {
+            type: EventType.RUN_FINISHED,
+            threadId: lastThreadId ?? fallbackIds?.threadId ?? '',
+            runId: lastRunId ?? fallbackIds?.runId ?? '',
+            timestamp: Date.now(),
+          },
+          {
+            finishReason: 'stop',
+            ...(lastModel !== undefined ? { model: lastModel } : {}),
+          },
+        ) as StreamChunk,
       }
-      yield { chunk: synthetic }
       return
     }
-    const chunk = JSON.parse(data) as StreamChunk
+    const chunk = restoreInboundUsage(JSON.parse(data) as StreamChunk)
     if ('threadId' in chunk && typeof chunk.threadId === 'string') {
       lastThreadId = chunk.threadId
     }
     if ('runId' in chunk && typeof chunk.runId === 'string') {
       lastRunId = chunk.runId
     }
-    if ('model' in chunk && typeof chunk.model === 'string') {
-      lastModel = chunk.model
-    }
+    const model = sseChunkModel(chunk)
+    if (model !== undefined) lastModel = model
     const id = pendingId
     pendingId = undefined
     yield { chunk, ...(id !== undefined ? { id } : {}) }
@@ -471,9 +492,9 @@ async function* linesToNdjsonEvents(
   for await (const line of lines) {
     const parsed = JSON.parse(line) as unknown
     if (isNdjsonEnvelope(parsed)) {
-      yield { chunk: parsed.chunk, id: parsed.id }
+      yield { chunk: restoreInboundUsage(parsed.chunk), id: parsed.id }
     } else {
-      yield { chunk: parsed as StreamChunk }
+      yield { chunk: restoreInboundUsage(parsed as StreamChunk) }
     }
   }
 }
@@ -1090,21 +1111,24 @@ export function normalizeConnectionAdapter(
         // observed, but stamp the caller's request runId so getChunkRunId()
         // correlates to activeRunIds / currentRunId (same as real stream chunks).
         if (!abortSignal?.aborted && !hasTerminalEvent) {
-          const synthetic: RunFinishedEvent = {
-            type: EventType.RUN_FINISHED,
-            threadId: requireSyntheticId(
-              upstreamThreadId ?? runContext?.threadId,
-              'threadId',
-            ),
-            runId: requireSyntheticId(
-              upstreamRunId ?? runContext?.runId,
-              'runId',
-            ),
-            model: 'connect-wrapper',
-            timestamp: Date.now(),
-            finishReason: 'stop',
-          }
-          push(synthetic, runContext?.runId)
+          push(
+            withTanstackMetadata(
+              {
+                type: EventType.RUN_FINISHED,
+                threadId: requireSyntheticId(
+                  upstreamThreadId ?? runContext?.threadId,
+                  'threadId',
+                ),
+                runId: requireSyntheticId(
+                  upstreamRunId ?? runContext?.runId,
+                  'runId',
+                ),
+                timestamp: Date.now(),
+              },
+              { finishReason: 'stop', model: 'connect-wrapper' },
+            ) as StreamChunk,
+            runContext?.runId,
+          )
         }
       } catch (err) {
         if (!abortSignal?.aborted && !hasTerminalEvent) {
@@ -2172,9 +2196,9 @@ export function webSocket(
       }
       if (isPingFrame(parsed)) return
       const envelopeId = isNdjsonEnvelope(parsed) ? parsed.id : undefined
-      const chunk = isNdjsonEnvelope(parsed)
-        ? parsed.chunk
-        : (parsed as StreamChunk)
+      const chunk = restoreInboundUsage(
+        isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
+      )
 
       // Thread durable chunks through the active run session's tracker (if
       // any) so a later reconnect knows the last offset and can skip a
@@ -2354,7 +2378,9 @@ export function webSocket(
         }
         if (isPingFrame(parsed)) return
         pipe.push(
-          isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
+          restoreInboundUsage(
+            isNdjsonEnvelope(parsed) ? parsed.chunk : (parsed as StreamChunk),
+          ),
         )
       }
       ws.onclose = (event?: CloseEvent) => {

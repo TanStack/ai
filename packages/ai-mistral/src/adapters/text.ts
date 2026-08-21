@@ -1,25 +1,25 @@
 import { BaseTextAdapter } from '@tanstack/ai/adapters'
+import { undoNullWidening } from '@tanstack/ai-utils'
 import { convertToolsToProviderFormat } from '../tools/tool-converter'
 import {
   createMistralClient,
   generateId,
   getMistralApiKeyFromEnv,
 } from '../utils/client'
-import {
-  makeMistralStructuredOutputCompatible,
-  transformNullsToUndefined,
-} from '../utils/schema-converter'
+import { makeMistralStructuredOutputCompatibleWithMap } from '../utils/schema-converter'
+import { createToolInputNormalizer } from '../utils/tool-input-normalizer'
 import type {
   ContentPart,
   Modality,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type {
   MISTRAL_CHAT_MODELS,
   MistralChatModelProviderOptionsByName,
   MistralModelInputModalitiesByName,
+  MistralTextAdapterModel,
 } from '../model-meta'
 import type {
   StructuredOutputOptions,
@@ -38,26 +38,30 @@ import type {
   MistralMessageMetadataByModality,
 } from '../message-types'
 import type { MistralClientConfig } from '../utils/client'
+import type { ToolInputNormalizer } from '../utils/tool-input-normalizer'
 
 /** Cast an event object to StreamChunk. Adapters construct events with string
  *  literal types which are structurally compatible with the EventType enum. */
 const asChunk = (chunk: Record<string, unknown>) =>
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- Record<string, unknown> doesn't structurally overlap the StreamChunk discriminated union; events are built with literal `type` fields the union accepts at runtime
-  chunk as unknown as StreamChunk
+  chunk as unknown as AdapterYieldChunk
 
 /**
  * Parse the accumulated streaming arguments for a tool call. Throws a clear
  * error if the JSON is malformed — silently substituting `{}` would let a
  * tool fire with empty inputs, masking truncated streams or mis-shaped output.
  */
-function parseToolCallInput(toolCall: {
-  id: string
-  name: string
-  arguments: string
-}): unknown {
+function parseToolCallInput(
+  toolCall: {
+    id: string
+    name: string
+    arguments: string
+  },
+  normalizeToolInput: ToolInputNormalizer,
+): unknown {
   if (!toolCall.arguments) return {}
   try {
-    return transformNullsToUndefined(JSON.parse(toolCall.arguments))
+    return normalizeToolInput(toolCall.name, JSON.parse(toolCall.arguments))
   } catch (cause) {
     const preview = toolCall.arguments.slice(0, 200)
     const ellipsis = toolCall.arguments.length > 200 ? '...' : ''
@@ -160,7 +164,7 @@ interface MistralRawChunk {
  * Tree-shakeable adapter for Mistral chat/text completion functionality.
  */
 export class MistralTextAdapter<
-  TModel extends (typeof MISTRAL_CHAT_MODELS)[number],
+  TModel extends MistralTextAdapterModel,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
@@ -186,7 +190,7 @@ export class MistralTextAdapter<
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const requestParams = this.mapTextOptionsToMistral(options)
     const timestamp = Date.now()
 
@@ -242,7 +246,11 @@ export class MistralTextAdapter<
     const { stream: _stream, ...nonStreamParams } =
       this.mapTextOptionsToMistral(chatOptions)
 
-    const jsonSchema = makeMistralStructuredOutputCompatible(
+    const {
+      schema: jsonSchema,
+      nullWideningMap,
+      strict,
+    } = makeMistralStructuredOutputCompatibleWithMap(
       outputSchema,
       outputSchema.required || [],
     )
@@ -254,7 +262,7 @@ export class MistralTextAdapter<
         jsonSchema: {
           name: 'structured_output',
           schemaDefinition: jsonSchema,
-          strict: true,
+          strict,
         },
       },
     })
@@ -273,7 +281,7 @@ export class MistralTextAdapter<
 
     const usage = response.usage
     return {
-      data: transformNullsToUndefined(parsed),
+      data: undoNullWidening(parsed, nullWideningMap),
       rawText: textContent,
       ...(usage && {
         usage: {
@@ -298,7 +306,7 @@ export class MistralTextAdapter<
       timestamp: number
       hasEmittedRunStarted: boolean
     },
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     let accumulatedContent = ''
     const timestamp = aguiState.timestamp
     let hasEmittedTextMessageStart = false
@@ -306,6 +314,7 @@ export class MistralTextAdapter<
     let hasEmittedToolCall = false
     let hasEmittedRunFinished = false
     let lastChunkModel = options.model
+    const normalizeToolInput = createToolInputNormalizer(options.tools)
 
     // Reasoning lifecycle (magistral-* models stream `thinking` content
     // parts before any text). Mirrors the anthropic adapter's pattern:
@@ -513,7 +522,10 @@ export class MistralTextAdapter<
                 continue
               }
 
-              const parsedInput = parseToolCallInput(toolCall)
+              const parsedInput = parseToolCallInput(
+                toolCall,
+                normalizeToolInput,
+              )
 
               toolCall.ended = true
               hasEmittedToolCall = true
@@ -615,7 +627,7 @@ export class MistralTextAdapter<
               toolName: toolCall.name,
               model: lastChunkModel,
               timestamp,
-              input: parseToolCallInput(toolCall),
+              input: parseToolCallInput(toolCall, normalizeToolInput),
             })
           }
         }
@@ -676,7 +688,10 @@ export class MistralTextAdapter<
           let partialInput: unknown = {}
           try {
             partialInput = toolCall.arguments
-              ? transformNullsToUndefined(JSON.parse(toolCall.arguments))
+              ? normalizeToolInput(
+                  toolCall.name,
+                  JSON.parse(toolCall.arguments),
+                )
               : {}
           } catch {
             partialInput = {}
@@ -708,13 +723,18 @@ export class MistralTextAdapter<
     const serverURL = (config.serverURL ?? 'https://api.mistral.ai')
       .replace(/\/+$/, '')
       .replace(/\/v1$/, '')
-    const url = `${serverURL}/v1/chat/completions`
+    const url =
+      config.resolveRequestUrl?.(true) ?? `${serverURL}/v1/chat/completions`
 
     const body = this.toWireBody(params)
+    const accessToken =
+      config.getAccessToken === undefined
+        ? config.apiKey
+        : await config.getAccessToken()
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
+      Authorization: `Bearer ${accessToken}`,
       ...config.defaultHeaders,
     }
 
@@ -906,7 +926,7 @@ export class MistralTextAdapter<
     }
 
     return {
-      model: options.model,
+      model: this.rawConfig.requestModel ?? options.model,
       messages: messages,
       temperature: modelOptions?.temperature ?? undefined,
       maxTokens: modelOptions?.max_tokens ?? undefined,
@@ -1047,9 +1067,9 @@ export class MistralTextAdapter<
    * Normalizes message content to an array of ContentPart.
    */
   private normalizeContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null) return []
+    if (content === null || content === undefined) return []
     if (typeof content === 'string') return [{ type: 'text', content }]
     return content
   }
@@ -1058,9 +1078,9 @@ export class MistralTextAdapter<
    * Extracts text content from a content value that may be string, null, or ContentPart array.
    */
   private extractTextContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null) return ''
+    if (content === null || content === undefined) return ''
     if (typeof content === 'string') return content
     return content
       .filter((p) => p.type === 'text')

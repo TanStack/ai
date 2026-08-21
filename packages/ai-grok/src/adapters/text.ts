@@ -5,6 +5,7 @@ import { convertToolsToProviderFormat } from '../tools'
 import type {
   GROK_CHAT_MODELS,
   GrokChatModelToolCapabilitiesByName,
+  GrokTextAdapterModel,
   ResolveInputModalities,
   ResolveProviderOptions,
 } from '../model-meta'
@@ -42,7 +43,7 @@ export type { ExternalTextProviderOptions as GrokTextProviderOptions } from '../
  * typing through the 5th generic of the base class.
  */
 export class GrokTextAdapter<
-  TModel extends (typeof GROK_CHAT_MODELS)[number],
+  TModel extends GrokTextAdapterModel,
   // Use `Record<string, any>` (not `unknown`) to match the OpenAI text
   // adapter: the resolved Grok provider options are a type-alias intersection
   // with no explicit index signature, which is assignable to

@@ -33,6 +33,8 @@ import type {
   GenerationMiddlewareContext,
 } from '../middleware/types'
 import type { VideoAdapter } from './adapter'
+import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
+import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import type {
   MediaPrompt,
   MediaPromptFor,
@@ -728,13 +730,13 @@ async function* runStreamingVideoGeneration<
           timestamp: Date.now(),
         }
 
-        yield {
+        yield* normalizeStreamChunk({
           type: 'RUN_FINISHED',
           runId,
           threadId: wireThreadId,
           finishReason: 'stop',
           timestamp: Date.now(),
-        } as StreamChunk
+        } as AdapterYieldChunk)
         return
       }
 
@@ -768,15 +770,14 @@ async function* runStreamingVideoGeneration<
       code: payload.code,
       source: 'generateVideo',
     })
-    yield {
+    yield* normalizeStreamChunk({
       type: 'RUN_ERROR',
       runId,
       threadId: wireThreadId,
       message: payload.message,
-      code: payload.code,
-      error: payload,
+      ...(payload.code !== undefined ? { code: payload.code } : {}),
       timestamp: Date.now(),
-    } as StreamChunk
+    } as AdapterYieldChunk)
   } finally {
     abortControls.clear()
     if (!settled) {

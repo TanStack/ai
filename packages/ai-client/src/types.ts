@@ -400,6 +400,18 @@ export interface MultimodalContent {
    * If not provided, a unique ID will be generated.
    */
   id?: string
+  /**
+   * Optional AG-UI metadata bag copied onto the resulting UIMessage.
+   *
+   * @example
+   * ```ts
+   * await client.sendMessage({
+   *   content: 'Show me failed logins',
+   *   metadata: { author: { id: 'user-42', name: 'Dana' } },
+   * })
+   * ```
+   */
+  metadata?: Record<string, any>
 }
 
 /**
@@ -619,6 +631,11 @@ export interface UIMessage<
   role: 'system' | 'user' | 'assistant'
   parts: Array<MessagePart<TTools, TData>>
   createdAt?: Date
+  /**
+   * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
+   * User keys stay at the top.
+   */
+  metadata?: Record<string, any>
 }
 
 /**

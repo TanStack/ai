@@ -17,7 +17,11 @@ import {
 } from '@tanstack/ai-sandbox'
 import { codexText } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { AnyTool, CapabilityContext, StreamChunk } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  AnyTool,
+  CapabilityContext,
+} from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 const baseDir = path.join(os.tmpdir(), `tanstack-ai-codex-test-${Date.now()}`)
@@ -63,9 +67,9 @@ function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }

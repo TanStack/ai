@@ -13,12 +13,13 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Quick Start: React",
           "to": "getting-started/quick-start",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Quick Start: React Native",
@@ -47,6 +48,11 @@
           "addedAt": "2026-06-15"
         },
         {
+          "label": "Quick Start: Octane",
+          "to": "getting-started/quick-start-octane",
+          "addedAt": "2026-08-21"
+        },
+        {
           "label": "Quick Start: Server Only",
           "to": "getting-started/quick-start-server",
           "addedAt": "2026-04-15"
@@ -66,7 +72,7 @@
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-12"
+          "updatedAt": "2026-08-19"
         }
       ]
     },
@@ -77,7 +83,7 @@
           "label": "Tools",
           "to": "tools/tools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-08"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Provider Tools",
@@ -167,7 +173,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Connection Adapters",
@@ -178,7 +184,8 @@
         {
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-21"
         }
       ]
     },
@@ -355,10 +362,15 @@
       "label": "Protocol",
       "children": [
         {
+          "label": "Event metadata",
+          "to": "protocol/metadata",
+          "addedAt": "2026-08-21"
+        },
+        {
           "label": "Custom Events Reference",
           "to": "protocol/custom-events",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-21"
         }
       ]
     },
@@ -382,7 +394,7 @@
           "label": "Streaming UIs",
           "to": "structured-outputs/streaming",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Multi-Turn Chat",
@@ -813,13 +825,13 @@
           "label": "From Vercel AI SDK",
           "to": "migration/migration-from-vercel-ai",
           "addedAt": "2026-04-20",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
           "addedAt": "2026-05-16",
-          "updatedAt": "2026-07-31"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Sampling â†’ modelOptions",
@@ -841,7 +853,7 @@
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "@tanstack/ai-react",
@@ -878,6 +890,11 @@
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
           "updatedAt": "2026-08-20"
+        },
+        {
+          "label": "@tanstack/ai-octane",
+          "to": "api/ai-octane",
+          "addedAt": "2026-08-21"
         }
       ]
     },
@@ -894,13 +911,19 @@
           "label": "Anthropic",
           "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-04"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Google Gemini",
           "to": "adapters/gemini",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-19"
+        },
+        {
+          "label": "Google Vertex AI",
+          "to": "adapters/vertex",
+          "addedAt": "2026-08-19",
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Ollama",
@@ -924,7 +947,7 @@
           "label": "Mistral",
           "to": "adapters/mistral",
           "addedAt": "2026-06-30",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-08-19"
         },
         {
           "label": "Cohere",
@@ -965,6 +988,11 @@
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
           "updatedAt": "2026-08-13"
+        },
+        {
+          "label": "LLM Gateway",
+          "to": "adapters/llmgateway",
+          "addedAt": "2026-07-29"
         },
         {
           "label": "Claude Code",

@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { OpenAIBaseResponsesTextAdapter } from '../src/adapters/responses-text'
 import type OpenAI from 'openai'
 import { EventType, chat } from '@tanstack/ai'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 
 const testLogger = resolveDebugOption(false)
@@ -249,7 +249,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -298,7 +298,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -358,7 +358,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -428,7 +428,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -493,7 +493,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -524,7 +524,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
   })
 
   describe('reasoning/thinking tokens', () => {
-    it('emits STEP_STARTED and STEP_FINISHED for reasoning_text.delta', async () => {
+    it('emits REASONING_MESSAGE_CONTENT for reasoning_text.delta', async () => {
       const streamChunks = [
         {
           type: 'response.created',
@@ -564,7 +564,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -574,42 +574,46 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         chunks.push(chunk)
       }
 
-      const eventTypes = chunks.map((c) => c.type)
+      const types = chunks.map((c) => c.type)
+      const reasoningStart = types.indexOf(EventType.REASONING_START)
+      const reasoningMessageStart = types.indexOf(
+        EventType.REASONING_MESSAGE_START,
+      )
+      const reasoningMessageEnd = types.indexOf(EventType.REASONING_MESSAGE_END)
+      const reasoningEnd = types.indexOf(EventType.REASONING_END)
+      expect(reasoningStart).toBeGreaterThanOrEqual(0)
+      expect(reasoningMessageStart).toBeGreaterThan(reasoningStart)
+      expect(reasoningMessageEnd).toBeGreaterThan(reasoningMessageStart)
+      expect(reasoningEnd).toBeGreaterThan(reasoningMessageEnd)
 
-      // Should have STEP_STARTED for reasoning
-      const stepStartIndex = eventTypes.indexOf(EventType.STEP_STARTED)
-      expect(stepStartIndex).toBeGreaterThan(-1)
+      const reasoningDeltas = chunks
+        .filter(
+          (
+            c,
+          ): c is Extract<
+            AdapterYieldChunk,
+            { type: 'REASONING_MESSAGE_CONTENT' }
+          > => c.type === 'REASONING_MESSAGE_CONTENT',
+        )
+        .map((c) => c.delta)
+      expect(reasoningDeltas).toEqual([
+        'Let me think about this...',
+        ' The answer is clear.',
+      ])
 
-      const stepStart = chunks[stepStartIndex]
+      const stepStart = chunks.find((c) => c.type === 'STEP_STARTED')
+      expect(stepStart).toBeDefined()
       if (stepStart?.type === 'STEP_STARTED') {
-        expect(stepStart.stepId).toBeDefined()
         expect(stepStart.stepType).toBe('thinking')
       }
 
-      // Should have STEP_FINISHED events for reasoning deltas
-      const stepFinished = chunks.filter((c) => c.type === 'STEP_FINISHED')
-      expect(stepFinished.length).toBe(2)
-
-      // Check accumulated reasoning
-      if (stepFinished[0]?.type === 'STEP_FINISHED') {
-        expect(stepFinished[0].delta).toBe('Let me think about this...')
-        expect(stepFinished[0].content).toBe('Let me think about this...')
-      }
-      if (stepFinished[1]?.type === 'STEP_FINISHED') {
-        expect(stepFinished[1].delta).toBe(' The answer is clear.')
-        expect(stepFinished[1].content).toBe(
-          'Let me think about this... The answer is clear.',
-        )
-      }
-
-      // Should also have text content
       const textContent = chunks.filter(
         (c) => c.type === 'TEXT_MESSAGE_CONTENT',
       )
       expect(textContent.length).toBe(1)
     })
 
-    it('emits STEP_STARTED and STEP_FINISHED for reasoning_summary_text.delta', async () => {
+    it('emits REASONING_MESSAGE_CONTENT for reasoning_summary_text.delta', async () => {
       const streamChunks = [
         {
           type: 'response.created',
@@ -645,7 +649,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -655,21 +659,107 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         chunks.push(chunk)
       }
 
+      const reasoningContent = chunks.find(
+        (c) => c.type === 'REASONING_MESSAGE_CONTENT',
+      )
+      expect(reasoningContent).toBeDefined()
+      if (reasoningContent?.type === 'REASONING_MESSAGE_CONTENT') {
+        expect(reasoningContent.delta).toBe('Summary of reasoning...')
+      }
+
       const stepStart = chunks.find((c) => c.type === 'STEP_STARTED')
       expect(stepStart).toBeDefined()
       if (stepStart?.type === 'STEP_STARTED') {
         expect(stepStart.stepType).toBe('thinking')
       }
-
-      const stepFinished = chunks.filter((c) => c.type === 'STEP_FINISHED')
-      expect(stepFinished.length).toBe(1)
-      if (stepFinished[0]?.type === 'STEP_FINISHED') {
-        expect(stepFinished[0].delta).toBe('Summary of reasoning...')
-      }
     })
   })
 
   describe('tool call events', () => {
+    it('undoes strict null-widening before emitting the completed tool input', async () => {
+      const strictTool: Tool = {
+        name: 'ask_user',
+        description: 'Ask a question',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            question: { type: 'string' },
+            options: { type: 'array', items: { type: 'string' } },
+            nullableNote: { type: ['string', 'null'] },
+          },
+          required: ['question', 'nullableNote'],
+        },
+      }
+      const argumentsJson =
+        '{"question":"Which one?","options":null,"nullableNote":null}'
+      setupMockResponsesClient([
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-null-input',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.output_item.added',
+          output_index: 0,
+          item: {
+            type: 'function_call',
+            id: 'call-null-input',
+            name: 'ask_user',
+          },
+        },
+        {
+          type: 'response.function_call_arguments.delta',
+          item_id: 'call-null-input',
+          delta: argumentsJson,
+        },
+        {
+          type: 'response.function_call_arguments.done',
+          item_id: 'call-null-input',
+          arguments: argumentsJson,
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-null-input',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                type: 'function_call',
+                id: 'call-null-input',
+                name: 'ask_user',
+                arguments: argumentsJson,
+              },
+            ],
+            usage: { input_tokens: 1, output_tokens: 1, total_tokens: 2 },
+          },
+        },
+      ])
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Ask me' }],
+        tools: [strictTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+      if (toolCallEnd?.type !== 'TOOL_CALL_END') {
+        throw new Error('expected TOOL_CALL_END')
+      }
+      expect(toolCallEnd.input).toEqual({
+        question: 'Which one?',
+        nullableNote: null,
+      })
+    })
+
     it('emits TOOL_CALL_START -> TOOL_CALL_ARGS -> TOOL_CALL_END', async () => {
       const streamChunks = [
         {
@@ -729,7 +819,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -827,7 +917,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -930,7 +1020,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1016,7 +1106,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1101,7 +1191,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       ]
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -1184,7 +1274,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       ]
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -1249,7 +1339,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       ]
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -1326,7 +1416,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       ]
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -1378,7 +1468,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1396,6 +1486,77 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       const startIdx = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
       const contentIdx = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
       expect(startIdx).toBeLessThan(contentIdx)
+    })
+
+    it('recovers final text from response.completed when no text was streamed', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-completed-text',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.content_part.added',
+          part: { type: 'output_text', text: '' },
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-completed-text',
+            model: 'test-model',
+            status: 'completed',
+            output: [
+              {
+                id: 'msg-completed-text',
+                type: 'message',
+                role: 'assistant',
+                content: [
+                  {
+                    type: 'output_text',
+                    text: 'Recovered final answer',
+                    annotations: [],
+                  },
+                ],
+              },
+            ],
+            usage: { input_tokens: 5, output_tokens: 3, total_tokens: 8 },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Answer carefully' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const contentChunks = chunks.filter(
+        (chunk) => chunk.type === EventType.TEXT_MESSAGE_CONTENT,
+      )
+      expect(contentChunks).toHaveLength(1)
+      expect(contentChunks[0]).toMatchObject({
+        delta: 'Recovered final answer',
+        content: 'Recovered final answer',
+      })
+
+      const eventTypes = chunks.map((chunk) => chunk.type)
+      const startIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_START)
+      const contentIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_CONTENT)
+      const endIndex = eventTypes.indexOf(EventType.TEXT_MESSAGE_END)
+      const finishedIndex = eventTypes.indexOf(EventType.RUN_FINISHED)
+      expect(startIndex).toBeGreaterThanOrEqual(0)
+      expect(contentIndex).toBeGreaterThan(startIndex)
+      expect(endIndex).toBeGreaterThan(contentIndex)
+      expect(finishedIndex).toBeGreaterThan(endIndex)
     })
 
     it('skips content_part.done when deltas were already streamed', async () => {
@@ -1441,7 +1602,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1486,7 +1647,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       ]
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -1539,7 +1700,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       mockResponsesCreate = vi.fn().mockResolvedValue(errorIterable)
 
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1563,7 +1724,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
         .mockRejectedValue(new Error('API key invalid'))
 
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1600,7 +1761,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1634,7 +1795,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1672,7 +1833,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
 
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
@@ -1706,7 +1867,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       )
 
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -1726,7 +1887,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       mockResponsesCreate = vi.fn().mockRejectedValue(new Error('network down'))
 
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -2037,7 +2198,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -2109,7 +2270,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -2157,7 +2318,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -2367,7 +2528,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       setupMockResponsesClient(streamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
 
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -2445,10 +2606,12 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       },
     ]
 
-    async function runChat(content: Array<any>): Promise<Array<StreamChunk>> {
+    async function runChat(
+      content: Array<any>,
+    ): Promise<Array<AdapterYieldChunk>> {
       setupMockResponsesClient(minimalStreamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',
@@ -2705,7 +2868,7 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
     it('converts a document part inside a tool result', async () => {
       setupMockResponsesClient(minimalStreamChunks)
       const adapter = new TestResponsesAdapter(testConfig, 'test-model')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         logger: testLogger,
         model: 'test-model',

@@ -1,16 +1,30 @@
-import {
-  describe,
-  it,
-  expect,
-  vi,
-  afterEach,
-  beforeEach,
-  type Mock,
-} from 'vitest'
-import { createMistralText, mistralText } from '../src/adapters/text'
-import { transformNullsToUndefined } from '../src/utils/schema-converter'
-import type { StreamChunk, Tool, TextOptions } from '@tanstack/ai'
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
+
+const { mockComplete } = vi.hoisted(() => ({
+  mockComplete: vi.fn<(...args: Array<unknown>) => unknown>(),
+}))
+
+vi.mock('@mistralai/mistralai', () => {
+  return {
+    Mistral: class {
+      chat = {
+        complete: (...args: Array<unknown>) => mockComplete(...args),
+      }
+      HTTPClient = class {}
+    },
+    HTTPClient: class {
+      addHook() {}
+    },
+  }
+})
+
+import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
+import { z } from 'zod'
 import type { MistralTextProviderOptions } from '../src/adapters/text'
+
+const { chat, createChatOptions, maxIterations, toolDefinition } =
+  await import('@tanstack/ai')
+const { createMistralText, mistralText } = await import('../src/adapters/text')
 
 /**
  * Builds chat options for tests. `chatStream`'s `TextOptions` requires fields
@@ -31,24 +45,6 @@ function chatOpts(
 ): TextOptions<MistralTextProviderOptions> {
   return opts as unknown as TextOptions<MistralTextProviderOptions>
 }
-
-// Declare mocks at module level
-let mockComplete: Mock<(...args: Array<unknown>) => unknown>
-
-// Mock the Mistral SDK (constructor still used for structuredOutput)
-vi.mock('@mistralai/mistralai', () => {
-  return {
-    Mistral: class {
-      chat = {
-        complete: (...args: Array<unknown>) => mockComplete(...args),
-      }
-      HTTPClient = class {}
-    },
-    HTTPClient: class {
-      addHook() {}
-    },
-  }
-})
 
 function toApiChunk(chunk: Record<string, unknown>): Record<string, unknown> {
   const choices = (chunk.choices as Array<Record<string, unknown>>) ?? []
@@ -101,12 +97,21 @@ function setupMockStream(chunks: Array<Record<string, unknown>>) {
       }),
     }),
   )
-  mockComplete = vi.fn()
+  mockComplete.mockReset()
 }
 
 const weatherTool: Tool = {
   name: 'lookup_weather',
   description: 'Return the forecast for a location',
+  inputSchema: {
+    type: 'object',
+    properties: {
+      location: { type: 'string' },
+      mode: { type: 'string', enum: ['canary'] },
+      note: { type: ['string', 'null'] },
+    },
+    required: ['location'],
+  },
 }
 
 describe('Mistral adapters', () => {
@@ -137,6 +142,97 @@ describe('Mistral adapters', () => {
       expect(adapter).toBeDefined()
       expect(adapter.kind).toBe('text')
       expect(adapter.model).toBe('ministral-8b-latest')
+    })
+
+    it('normalizes only strict-schema nulls in structured output', async () => {
+      mockComplete.mockReset().mockResolvedValue({
+        choices: [
+          {
+            message: {
+              content: JSON.stringify({ mode: null, note: null }),
+            },
+          },
+        ],
+      })
+      const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+
+      const result = await adapter.structuredOutput({
+        chatOptions: chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Return structured output' }],
+        }),
+        outputSchema: {
+          type: 'object',
+          properties: {
+            mode: { type: 'string', enum: ['canary'] },
+            note: { type: ['string', 'null'] },
+          },
+          required: [],
+        },
+      })
+
+      expect(result.data).toEqual({ note: null })
+      expect(mockComplete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          responseFormat: {
+            type: 'json_schema',
+            jsonSchema: {
+              name: 'structured_output',
+              schemaDefinition: {
+                type: 'object',
+                properties: {
+                  mode: {
+                    type: ['string', 'null'],
+                    enum: ['canary', null],
+                  },
+                  note: { type: ['string', 'null'] },
+                },
+                required: ['mode', 'note'],
+                additionalProperties: false,
+              },
+              strict: true,
+            },
+          },
+        }),
+      )
+    })
+
+    it('preserves composed structured-output schemas in non-strict mode', async () => {
+      mockComplete.mockReset().mockResolvedValue({
+        choices: [{ message: { content: JSON.stringify({ value: null }) } }],
+      })
+      const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+      const outputSchema = {
+        type: 'object',
+        properties: {
+          value: {
+            oneOf: [{ type: 'string' }, { type: 'null' }],
+          },
+        },
+        required: [],
+      }
+
+      const result = await adapter.structuredOutput({
+        chatOptions: chatOpts({
+          model: 'mistral-large-latest',
+          messages: [{ role: 'user', content: 'Return structured output' }],
+        }),
+        outputSchema,
+      })
+
+      expect(result.data).toEqual({ value: null })
+      expect(mockComplete).toHaveBeenCalledWith(
+        expect.objectContaining({
+          responseFormat: {
+            type: 'json_schema',
+            jsonSchema: {
+              name: 'structured_output',
+              schemaDefinition: outputSchema,
+              strict: false,
+            },
+          },
+        }),
+      )
     })
 
     it('throws if MISTRAL_API_KEY is not set when using mistralText', () => {
@@ -204,7 +300,7 @@ describe('Mistral AG-UI event emission', () => {
 
     setupMockStream(streamChunks)
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -255,7 +351,7 @@ describe('Mistral AG-UI event emission', () => {
 
     setupMockStream(streamChunks)
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -311,7 +407,7 @@ describe('Mistral AG-UI event emission', () => {
 
     setupMockStream(streamChunks)
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -373,7 +469,7 @@ describe('Mistral AG-UI event emission', () => {
                 {
                   index: 0,
                   function: {
-                    arguments: '"Berlin"}',
+                    arguments: '"Berlin","mode":null,"note":null}',
                   },
                 },
               ],
@@ -402,7 +498,7 @@ describe('Mistral AG-UI event emission', () => {
 
     setupMockStream(streamChunks)
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -429,7 +525,10 @@ describe('Mistral AG-UI event emission', () => {
     if (toolEndChunk?.type === 'TOOL_CALL_END') {
       expect(toolEndChunk.toolCallId).toBe('call_abc123')
       expect(toolEndChunk.toolName).toBe('lookup_weather')
-      expect(toolEndChunk.input).toEqual({ location: 'Berlin' })
+      expect(toolEndChunk.input).toEqual({
+        location: 'Berlin',
+        note: null,
+      })
     }
 
     const runFinishedChunk = chunks.find((c) => c.type === 'RUN_FINISHED')
@@ -437,6 +536,149 @@ describe('Mistral AG-UI event emission', () => {
     if (runFinishedChunk?.type === 'RUN_FINISHED') {
       expect(runFinishedChunk.finishReason).toBe('tool_calls')
     }
+  })
+
+  it('normalizes strict optional nulls before server tool execution', async () => {
+    const responseStreams = [
+      [
+        {
+          id: 'cmpl-tool',
+          model: 'mistral-large-latest',
+          choices: [
+            {
+              index: 0,
+              delta: {
+                toolCalls: [
+                  {
+                    index: 0,
+                    id: 'call-tool',
+                    type: 'function',
+                    function: {
+                      name: 'ask_user',
+                      arguments: JSON.stringify({
+                        mode: null,
+                        question: 'Which option?',
+                        nullableNote: null,
+                      }),
+                    },
+                  },
+                ],
+              },
+              finishReason: null,
+            },
+          ],
+        },
+        {
+          id: 'cmpl-tool',
+          model: 'mistral-large-latest',
+          choices: [{ index: 0, delta: {}, finishReason: 'tool_calls' }],
+          usage: {
+            promptTokens: 10,
+            completionTokens: 5,
+            totalTokens: 15,
+          },
+        },
+      ],
+      [
+        {
+          id: 'cmpl-text',
+          model: 'mistral-large-latest',
+          choices: [
+            {
+              index: 0,
+              delta: { content: 'Tool executed.' },
+              finishReason: null,
+            },
+          ],
+        },
+        {
+          id: 'cmpl-text',
+          model: 'mistral-large-latest',
+          choices: [{ index: 0, delta: {}, finishReason: 'stop' }],
+          usage: {
+            promptTokens: 8,
+            completionTokens: 2,
+            totalTokens: 10,
+          },
+        },
+      ],
+    ]
+    let requestCount = 0
+    let firstRequestBody: unknown
+    let executedInput: unknown
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation(async (_input, init: RequestInit) => {
+        const chunks = responseStreams[requestCount]
+        requestCount++
+        if (!chunks) throw new Error('Unexpected Mistral request')
+
+        if (requestCount === 1 && typeof init.body === 'string') {
+          firstRequestBody = JSON.parse(init.body)
+        }
+        const sseBody =
+          chunks
+            .map((chunk) => `data: ${JSON.stringify(toApiChunk(chunk))}`)
+            .join('\n\n') + '\n\ndata: [DONE]\n\n'
+        return new Response(sseBody, {
+          headers: { 'Content-Type': 'text/event-stream' },
+        })
+      }),
+    )
+
+    const askUser = toolDefinition({
+      name: 'ask_user',
+      description: 'Ask the user to choose an option',
+      inputSchema: z.object({
+        mode: z.enum(['canary']).optional(),
+        question: z.string(),
+        nullableNote: z.string().nullable(),
+      }),
+    }).server((input) => {
+      executedInput = input
+      return { accepted: true }
+    })
+    const adapter = createMistralText('mistral-large-latest', 'test-api-key')
+    const text: Array<string> = []
+
+    for await (const chunk of chat({
+      ...createChatOptions({ adapter }),
+      messages: [{ role: 'user', content: 'Ask me a question' }],
+      tools: [askUser],
+      agentLoopStrategy: maxIterations(3),
+    })) {
+      if (chunk.type === 'TEXT_MESSAGE_CONTENT') text.push(chunk.delta)
+    }
+
+    expect(firstRequestBody).toMatchObject({
+      tools: [
+        {
+          function: {
+            name: 'ask_user',
+            strict: true,
+            parameters: {
+              required: ['mode', 'question', 'nullableNote'],
+              properties: {
+                mode: {
+                  type: ['string', 'null'],
+                  enum: ['canary', null],
+                },
+                nullableNote: {
+                  anyOf: [{ type: 'string' }, { type: 'null' }],
+                },
+              },
+            },
+          },
+        },
+      ],
+    })
+    expect(executedInput).toEqual({
+      question: 'Which option?',
+      nullableNote: null,
+    })
+    expect(requestCount).toBe(2)
+    expect(text.join('')).toBe('Tool executed.')
   })
 
   it('emits RUN_ERROR on stream error', async () => {
@@ -460,10 +702,10 @@ describe('Mistral AG-UI event emission', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     let thrownError: Error | undefined
 
     try {
@@ -533,7 +775,7 @@ describe('Mistral AG-UI event emission', () => {
 
     setupMockStream(streamChunks)
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -590,7 +832,7 @@ describe('Mistral AG-UI event emission', () => {
     )
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     try {
       for await (const chunk of adapter.chatStream(
@@ -635,10 +877,10 @@ describe('Mistral AG-UI event emission', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -718,7 +960,7 @@ describe('Mistral AG-UI event emission', () => {
     ])
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream(
       chatOpts({
@@ -807,7 +1049,7 @@ describe('Mistral AG-UI event emission', () => {
         }
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
     for await (const _chunk of adapter.chatStream(
@@ -843,7 +1085,7 @@ describe('Mistral AG-UI event emission', () => {
         }
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
     for await (const _chunk of adapter.chatStream(
@@ -874,7 +1116,7 @@ describe('Mistral AG-UI event emission', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('mistral-large-latest', 'test-api-key')
     let caught: Error | undefined
@@ -1002,10 +1244,10 @@ describe('Mistral reasoning (magistral-* models)', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream(
       chatOpts({
         model: 'magistral-medium-latest',
@@ -1103,10 +1345,10 @@ describe('Mistral reasoning (magistral-* models)', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream(
       chatOpts({
         model: 'magistral-medium-latest',
@@ -1180,10 +1422,10 @@ describe('Mistral reasoning (magistral-* models)', () => {
         }),
       }),
     )
-    mockComplete = vi.fn()
+    mockComplete.mockReset()
 
     const adapter = createMistralText('magistral-medium-latest', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream(
       chatOpts({
         model: 'magistral-medium-latest',
@@ -1201,37 +1443,5 @@ describe('Mistral reasoning (magistral-* models)', () => {
     )
     // No TEXT_MESSAGE_START — the run was reasoning-only
     expect(types).not.toContain('TEXT_MESSAGE_START')
-  })
-})
-
-describe('transformNullsToUndefined (regression coverage)', () => {
-  it('preserves array length and indices — null elements become undefined slots', () => {
-    const input = ['a', null, 'b', null]
-    const out = transformNullsToUndefined(input)
-    expect(out).toHaveLength(4)
-    expect(out[0]).toBe('a')
-    expect(out[1]).toBeUndefined()
-    expect(out[2]).toBe('b')
-    expect(out[3]).toBeUndefined()
-  })
-
-  it('preserves object keys whose values were null — value becomes undefined, key remains', () => {
-    const input = { a: 1, b: null, c: 'x' }
-    const out = transformNullsToUndefined(input) as Record<string, unknown>
-    expect(Object.keys(out).sort()).toEqual(['a', 'b', 'c'])
-    expect(out.a).toBe(1)
-    expect(out.b).toBeUndefined()
-    expect(out.c).toBe('x')
-  })
-
-  it('recurses into nested arrays and objects', () => {
-    const input = { items: [{ x: null, y: 1 }, null, { x: 2, y: null }] }
-    const out = transformNullsToUndefined(input) as {
-      items: Array<{ x: unknown; y: unknown } | undefined>
-    }
-    expect(out.items).toHaveLength(3)
-    expect(out.items[0]).toEqual({ x: undefined, y: 1 })
-    expect(out.items[1]).toBeUndefined()
-    expect(out.items[2]).toEqual({ x: 2, y: undefined })
   })
 })

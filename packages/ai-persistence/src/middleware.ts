@@ -1,5 +1,6 @@
 import {
   defineChatMiddleware,
+  fromSpecTokenUsage,
   getDetachableRun,
   InterruptResumeValidationError,
   readInterruptBinding,
@@ -11,6 +12,7 @@ import {
   getGenericInterruptDefinitionRegistry,
   providePendingTurn,
   rehydrateInterruptRequest,
+  toRunErrorPayload,
 } from '@tanstack/ai/adapter-internals'
 import type {
   GenericInterruptRequest,
@@ -1733,6 +1735,31 @@ function sumNumberFields<T extends object>(
   return result
 }
 
+function tokenUsageFromChunk(chunk: StreamChunk): TokenUsage | undefined {
+  if (chunk.type !== 'RUN_FINISHED' && chunk.type !== 'RUN_ERROR') {
+    return undefined
+  }
+  const usage = chunk.usage
+  if (
+    usage != null &&
+    typeof usage === 'object' &&
+    !Array.isArray(usage) &&
+    'promptTokens' in usage
+  ) {
+    return usage
+  }
+  const metadata = chunk.metadata
+  const tanstack =
+    metadata != null && typeof metadata === 'object' && 'tanstack' in metadata
+      ? metadata.tanstack
+      : undefined
+  const leftover =
+    tanstack != null && typeof tanstack === 'object' && !Array.isArray(tanstack)
+      ? (tanstack as { usage?: TokenUsage }).usage
+      : undefined
+  return fromSpecTokenUsage(Array.isArray(usage) ? usage : undefined, leftover)
+}
+
 function accumulateTokenUsage(
   current: TokenUsage | undefined,
   next: TokenUsage,
@@ -1808,14 +1835,14 @@ async function failRun(
   error: unknown,
   usage?: TokenUsage,
 ): Promise<void> {
-  // `RunRecord.error` is a structured `RunError`. Only `message` is filled in
-  // here: the middleware sees an opaque thrown value, and inventing a `code`
-  // from it would fabricate the stable classification consumers branch on. A
-  // provider-supplied code reaches the record through the adapter layer.
+  const runError = toRunErrorPayload(error)
   await runs?.update(runId, {
     status: 'failed',
     finishedAt: Date.now(),
-    error: { message: error instanceof Error ? error.message : String(error) },
+    error: {
+      message: runError.message,
+      ...(runError.code !== undefined ? { code: runError.code } : {}),
+    },
     ...(usage ? { usage } : {}),
   })
 }
@@ -2163,10 +2190,11 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       }
       // Adapter terminals arrive before `onUsage`; synthesized tool boundaries
       // arrive after it with the same usage already in state.
+      const chunkUsage = tokenUsageFromChunk(chunk)
       const usage =
-        ctx.phase === 'modelStream' && chunk.usage
-          ? accumulateTokenUsage(state.usage, chunk.usage)
-          : (state.usage ?? chunk.usage)
+        ctx.phase === 'modelStream' && chunkUsage
+          ? accumulateTokenUsage(state.usage, chunkUsage)
+          : (state.usage ?? chunkUsage)
       state.usage = usage
       await interruptRun(runs, ctx.runId, usage)
       await messageStore.saveThread(ctx.threadId, [...ctx.messages])

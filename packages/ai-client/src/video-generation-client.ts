@@ -15,6 +15,7 @@ import {
 } from './generation-types'
 import { createNoOpVideoDevtoolsBridge } from './devtools-noop'
 import { parseSSEResponse } from './sse-parser'
+import { restoreInboundChunk } from '@tanstack/ai/client'
 import type { StreamChunk } from '@tanstack/ai/client'
 import type { ByokClient } from './byok'
 import type {
@@ -372,9 +373,10 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     let streamRunId: string | undefined
     let sawTerminalChunk = false
 
-    for await (const chunk of source) {
+    for await (const raw of source) {
       if (signal.aborted) break
 
+      const chunk = restoreInboundChunk(raw)
       this.callbacksRef.onChunk?.(chunk)
       this.observeResumeSnapshot(chunk)
       const chunkRunId =
@@ -424,11 +426,9 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
           this.devtoolsBridge.ensureRunStarted(
             chunkRunId ?? streamRunId ?? fallbackRunId,
           )
-          // Prefer spec `message`; fall back to deprecated `error.message`
+          // Spec RUN_ERROR message. Missing message uses this fallback.
           const msg =
-            (chunk.message as string | undefined) ||
-            chunk.error?.message ||
-            'An error occurred'
+            (chunk.message as string | undefined) || 'An error occurred'
           throw new Error(msg)
         }
         default:

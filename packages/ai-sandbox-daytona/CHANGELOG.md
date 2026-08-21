@@ -1,5 +1,14 @@
 # @tanstack/ai-sandbox-daytona
 
+## 0.3.1
+
+### Patch Changes
+
+- [#1108](https://github.com/TanStack/ai/pull/1108) [`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9) - Support filesystem metadata needed by portable sandbox snapshots.
+
+- Updated dependencies [[`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9)]:
+  - @tanstack/ai-sandbox@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes

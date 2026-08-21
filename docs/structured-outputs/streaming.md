@@ -156,7 +156,7 @@ The `structured-output` part fields:
 
 ## What the stream contains
 
-`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>` — the standard `StreamChunk` lifecycle plus a terminal `CUSTOM` event named `structured-output.complete`:
+`chat({ outputSchema, stream: true })` returns a `StructuredOutputStream<T>`. The stream is the standard `StreamChunk` lifecycle plus a terminal `CUSTOM` event named `structured-output.complete`. It is not folded into `RUN_FINISHED`.
 
 ```typescript ignore
 {
@@ -167,7 +167,8 @@ The `structured-output` part fields:
     raw: string;        // full accumulated JSON text
     reasoning?: string; // present only for thinking/reasoning models
   },
-  // ...standard event fields (timestamp, model, …)
+  // ...standard event fields (timestamp, …)
+  // model lives in metadata.tanstack when present
 }
 ```
 
@@ -185,6 +186,7 @@ Streaming structured output works with **every adapter**, but only some support 
 | `@tanstack/ai-groq` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
 | `@tanstack/ai-bedrock` | Native stream through Converse or an OpenAI-compatible API |
 | `@tanstack/ai-byteplus` | Native single-request stream on supported models; unsupported models emit `RUN_ERROR` |
+| `@tanstack/ai-llmgateway` | Native single-request stream (Chat Completions, `response_format: json_schema`) |
 | Other adapters (anthropic, gemini, ollama, …) | Fallback: runs non-streaming `structuredOutput` and emits the final object as one `structured-output.complete` event |
 
 The fallback path keeps the consumer code identical across providers — you always read the final object off `structured-output.complete` — but you won't see incremental deltas unless the adapter implements `structuredOutputStream` natively.

@@ -42,6 +42,10 @@ export const Route = createFileRoute('/$provider/$feature')({
         search.serverPersistence === true ||
         search.serverPersistence === 1 ||
         search.serverPersistence === '1',
+      stampMetadata:
+        search.stampMetadata === true ||
+        search.stampMetadata === 1 ||
+        search.stampMetadata === '1',
     }
   },
 })
@@ -306,7 +310,7 @@ function ChatFeature({
   const approvalTools = clientTools(addToCartClient)
   const tools = needsApproval ? approvalTools : undefined
 
-  const { testId, aimockPort, persistence, serverPersistence } =
+  const { testId, aimockPort, persistence, serverPersistence, stampMetadata } =
     Route.useSearch()
   const persistenceEnabled = persistence === 'localStorage'
   const serverPersistenceEnabled = serverPersistence === true
@@ -416,6 +420,14 @@ function ChatFeature({
   return (
     <>
       {runId && <div data-testid="run-id" data-run-id={runId} hidden />}
+      <div data-testid="user-metadata" hidden>
+        {JSON.stringify(messages.find((m) => m.role === 'user')?.metadata)}
+      </div>
+      <div data-testid="assistant-metadata" hidden>
+        {JSON.stringify(
+          messages.filter((m) => m.role === 'assistant').at(-1)?.metadata,
+        )}
+      </div>
       <div
         data-testid="pending-interrupt-count"
         data-count={String(interrupts.length)}
@@ -455,7 +467,14 @@ function ChatFeature({
         queue={queue}
         cancelQueued={cancelQueued}
         onSendMessage={(text) => {
-          sendMessage(text)
+          if (stampMetadata) {
+            sendMessage({
+              content: text,
+              metadata: { author: { id: 'user-42', name: 'Dana' } },
+            })
+          } else {
+            sendMessage(text)
+          }
         }}
         onSendMessageWithImage={
           showImageInput

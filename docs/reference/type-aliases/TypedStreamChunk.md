@@ -13,7 +13,7 @@ type TypedStreamChunk<TTools> = HasTypedTools<TTools> extends true ?
   | KnownCustomEvent;
 ```
 
-Defined in: [packages/ai/src/types.ts:1969](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1969)
+Defined in: [packages/ai/src/types.ts:1977](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1977)
 
 ## Type Parameters
 

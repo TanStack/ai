@@ -1,5 +1,56 @@
 # @tanstack/openai-base
 
+## 0.10.2
+
+### Patch Changes
+
+- [#939](https://github.com/TanStack/ai/pull/939) [`ff27fde`](https://github.com/TanStack/ai/commit/ff27fdeb2e134cb4c2b69e6809774477ffdc26a0) - Undo strict-mode null widening before validating and executing OpenAI-compatible tool calls.
+
+- [#937](https://github.com/TanStack/ai/pull/937) [`66ba92c`](https://github.com/TanStack/ai/commit/66ba92cb5c2cfaf07ee2269306048e2fd4f788fe) - Recover successful OpenAI and OpenRouter Responses API text that is present only on the completed response event.
+
+- Updated dependencies [[`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac), [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e), [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b), [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4)]:
+  - @tanstack/ai@0.47.3
+
+## 0.10.1
+
+### Patch Changes
+
+- [#1176](https://github.com/TanStack/ai/pull/1176) [`0f77dca`](https://github.com/TanStack/ai/commit/0f77dcadf16e076d1e81d75abde352f5e0c2713e) - Recover Groq tool calls rejected after streaming begins so agent loops can repair them.
+
+- Updated dependencies [[`17b4c60`](https://github.com/TanStack/ai/commit/17b4c60c8d237df53a63dcda18c43d8017d45449)]:
+  - @tanstack/ai@0.47.2
+
+## 0.10.0
+
+### Minor Changes
+
+- [#977](https://github.com/TanStack/ai/pull/977) [`11c988b`](https://github.com/TanStack/ai/commit/11c988b8ea2153e0ee0f86ba58083f42c343fd75) - feat(ai-openai): support PDF `document` content parts in the Responses adapter.
+
+  `openaiText`'s Responses adapter now accepts PDF `document` content parts, for any model whose `model-meta` entry declares the `document` input modality. Base64 data sources are sent as `input_file` with a `file_data` data URL and a `filename` (from `metadata.filename`, defaulting to `document.pdf`). URL sources are sent as `input_file` with `file_url`.
+
+  ```ts
+  const adapter = openaiText('gpt-5.5')
+
+  const message = {
+    role: 'user',
+    content: [
+      { type: 'text', content: 'Summarize this document' },
+      {
+        type: 'document',
+        source: { type: 'data', value: pdfBase64, mimeType: 'application/pdf' },
+        metadata: { filename: 'report.pdf' },
+      },
+    ],
+  }
+  ```
+
+  Non-PDF MIME types are rejected before the request is sent — including pre-wrapped `data:` URLs whose media type disagrees with `mimeType` — so callers get an actionable message instead of an opaque provider `400`. Inline base64 payloads are also checked for the `%PDF` magic bytes, so non-PDF data mislabeled (or sent without) a PDF `mimeType` is rejected locally. `OpenAIDocumentMetadata` gains `filename` and `detail`. The Chat Completions adapter throws a document-specific error pointing here, since documents are Responses-only.
+
+### Patch Changes
+
+- Updated dependencies [[`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/ai@0.47.1
+
 ## 0.9.16
 
 ### Patch Changes

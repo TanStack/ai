@@ -1,5 +1,27 @@
 # @tanstack/ai-client
 
+## 0.25.2
+
+### Patch Changes
+
+- [#1012](https://github.com/TanStack/ai/pull/1012) [`2c7381c`](https://github.com/TanStack/ai/commit/2c7381c602d8fd05c20a0b41863f42b2568c0603) - Fix live stream stalling in background browser tabs.
+
+  The live path skips the per-chunk `setTimeout(0)` while `document.hidden` is true, so stream pull is not paced by the hidden-tab timer clamp. Visible tabs, Node, and resume replay (`defer: false`) are unchanged.
+
+- Updated dependencies [[`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac), [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e), [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b), [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4)]:
+  - @tanstack/ai@0.47.3
+
+## 0.25.1
+
+### Patch Changes
+
+- [#1121](https://github.com/TanStack/ai/pull/1121) [`bd221d9`](https://github.com/TanStack/ai/commit/bd221d986433fdf460d9dfc2a9e96ff9fa0f3342) - `onInterruptStateChange` now identifies snapshot restoration (`hydrate`) separately from streamed or client-initiated interrupt updates (`live`). The source follows each state publication, so cancelling a restored batch from the callback produces subsequent `live` updates without re-entering hydration. Client-tool interrupts remain hidden from the public list in both cases; `hydrate` lets an app cancel a restored batch without cancelling one that is still running.
+
+- [#1169](https://github.com/TanStack/ai/pull/1169) [`8bd6f70`](https://github.com/TanStack/ai/commit/8bd6f7054248ddf9bda2929bb105a8aa5054b9d2) - Drain queued post-stream actions after a `joinRun` replay so a client-tool result from a rejoin is sent back to the server.
+
+- Updated dependencies [[`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d)]:
+  - @tanstack/ai@0.47.1
+
 ## 0.25.0
 
 ### Minor Changes

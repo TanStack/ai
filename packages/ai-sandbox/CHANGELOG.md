@@ -1,5 +1,17 @@
 # @tanstack/ai-sandbox
 
+## 0.4.0
+
+### Minor Changes
+
+- [#1108](https://github.com/TanStack/ai/pull/1108) [`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9) - Add portable sandbox checkpoints. `createSandboxSnapshots` and `memorySandboxSnapshots` return one object with `save`, `fork`, and `readArtifact`. `createSnapshotTools` turns those methods into host tools bound to the route `threadId`.
+
+### Patch Changes
+
+- Updated dependencies [[`47699ed`](https://github.com/TanStack/ai/commit/47699ed1bf0c21a3835f012fe95f9dd8f089e41d), [`9b5f841`](https://github.com/TanStack/ai/commit/9b5f841127743ed73fbdaa96038c9b45314e0db9)]:
+  - @tanstack/ai@0.47.1
+  - @tanstack/ai-persistence@0.4.0
+
 ## 0.3.5
 
 ### Patch Changes

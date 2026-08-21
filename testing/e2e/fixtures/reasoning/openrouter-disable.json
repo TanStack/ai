@@ -1,0 +1,16 @@
+{
+  "fixtures": [
+    {
+      "match": { "userMessage": "[reasoning-wire] disable reasoning" },
+      "response": {
+        "content": "Reasoning disabled."
+      }
+    },
+    {
+      "match": { "userMessage": "[reasoning-wire] empty reasoning" },
+      "response": {
+        "content": "Reasoning omitted."
+      }
+    }
+  ]
+}

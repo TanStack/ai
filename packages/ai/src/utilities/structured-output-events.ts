@@ -1,5 +1,5 @@
 import { EventType } from '../types'
-import type { StreamChunk } from '../types'
+import type { AdapterYieldChunk } from './adapter-yield-chunk'
 
 export function structuredOutputStartChunk(args: {
   messageId: string
@@ -7,7 +7,7 @@ export function structuredOutputStartChunk(args: {
   threadId: string
   runId: string
   timestamp?: number
-}): StreamChunk {
+}): AdapterYieldChunk {
   return {
     type: EventType.CUSTOM,
     name: 'structured-output.start',
@@ -27,7 +27,7 @@ export function structuredOutputCompleteChunk(args: {
   object: unknown
   raw: string
   timestamp?: number
-}): StreamChunk {
+}): AdapterYieldChunk {
   return {
     type: EventType.CUSTOM,
     name: 'structured-output.complete',
