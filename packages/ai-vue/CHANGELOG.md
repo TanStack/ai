@@ -1,5 +1,20 @@
 # @tanstack/ai-vue
 
+## 0.18.2
+
+### Patch Changes
+
+- [#1082](https://github.com/TanStack/ai/pull/1082) [`849d666`](https://github.com/TanStack/ai/commit/849d666fa3cfa2b29d814c80d1f9f8cc9abf42d7) - Fix audio-recorder transforming overloads so options without `onComplete`
+  (e.g. `{ onError }`) keep `AudioRecording` instead of collapsing
+  `recording`/`stop()` to `unknown` (issue [#1001](https://github.com/TanStack/ai/issues/1001)).
+
+  The transforming overload now requires `onComplete`, matching the fix already
+  landed in the Octane port ([#1000](https://github.com/TanStack/ai/issues/1000)). Runtime behavior is unchanged.
+
+- Updated dependencies [[`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac), [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e), [`2c7381c`](https://github.com/TanStack/ai/commit/2c7381c602d8fd05c20a0b41863f42b2568c0603), [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b), [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4)]:
+  - @tanstack/ai@0.47.3
+  - @tanstack/ai-client@0.25.2
+
 ## 0.18.1
 
 ### Patch Changes

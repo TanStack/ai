@@ -1,5 +1,20 @@
 # @tanstack/ai-openrouter
 
+## 0.18.2
+
+### Patch Changes
+
+- [#1013](https://github.com/TanStack/ai/pull/1013) [`4338500`](https://github.com/TanStack/ai/commit/4338500c7718f886a4d846ce4d0c4740d528c5c6) - Preserve `reasoning: { enabled: false }` by normalizing it to the
+  SDK-supported `reasoning: { effort: 'none' }`, and omit empty reasoning
+  objects before request serialization.
+
+- [#937](https://github.com/TanStack/ai/pull/937) [`66ba92c`](https://github.com/TanStack/ai/commit/66ba92cb5c2cfaf07ee2269306048e2fd4f788fe) - Recover successful OpenAI and OpenRouter Responses API text that is present only on the completed response event.
+
+- [#1179](https://github.com/TanStack/ai/pull/1179) [`2fd333a`](https://github.com/TanStack/ai/commit/2fd333a134e4cbe79ba38dcc1b999e829be6b998) - Update model metadata from OpenRouter API
+
+- Updated dependencies [[`7c4b73a`](https://github.com/TanStack/ai/commit/7c4b73af5023e7ab7e113121644213c75d611aac), [`87e497f`](https://github.com/TanStack/ai/commit/87e497f2e282c2389579051ec743fa4cc8cf493e), [`c0ba484`](https://github.com/TanStack/ai/commit/c0ba48402a807d6482e1cb36a0cf393d0cd26b2b), [`d34b6c0`](https://github.com/TanStack/ai/commit/d34b6c01fbc9ed83e5dc9bd2725eb05f6b03bfd4)]:
+  - @tanstack/ai@0.47.3
+
 ## 0.18.1
 
 ### Patch Changes
