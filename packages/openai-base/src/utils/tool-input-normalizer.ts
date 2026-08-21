@@ -5,16 +5,24 @@ import {
 } from './schema-converter'
 import type { JSONSchema, Tool } from '@tanstack/ai'
 import type { NullWideningMap } from '@tanstack/ai-utils'
+import type { StructuredOutputCompatibility } from './schema-converter'
 
 type ToolInputNormalizer = (toolName: string, input: unknown) => unknown
 
+type SchemaConverterWithMap = (
+  schema: Record<string, any>,
+  originalRequired?: Array<string>,
+) => StructuredOutputCompatibility
+
 /**
  * Build the inverse transform for the strict tool schemas sent in one request.
- * Non-strict tools are intentionally excluded because their schemas were not
+ * Pass the same converter the request used so subclass schema tweaks stay
+ * aligned with undo. Non-strict tools are excluded because they were not
  * null-widened on the wire.
  */
 export function createToolInputNormalizer(
   tools: Array<Tool> | undefined,
+  convertSchema: SchemaConverterWithMap = makeStructuredOutputCompatibleWithMap,
 ): ToolInputNormalizer {
   const maps = new Map<string, NullWideningMap>()
   const seenNames = new Set<string>()
@@ -36,7 +44,7 @@ export function createToolInputNormalizer(
     }) as JSONSchema
     if (!isStrictModeCompatible(inputSchema)) continue
 
-    const { nullWideningMap } = makeStructuredOutputCompatibleWithMap(
+    const { nullWideningMap } = convertSchema(
       inputSchema,
       inputSchema.required || [],
     )

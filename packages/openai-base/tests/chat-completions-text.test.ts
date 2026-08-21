@@ -507,10 +507,13 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
         chunks.push(chunk)
       }
 
-      expect(
-        chunks.find((chunk) => chunk.type === 'TOOL_CALL_END'),
-      ).toMatchObject({
-        input: { question: 'Which one?', nullableNote: null },
+      const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+      if (toolCallEnd?.type !== 'TOOL_CALL_END') {
+        throw new Error('expected TOOL_CALL_END')
+      }
+      expect(toolCallEnd.input).toEqual({
+        question: 'Which one?',
+        nullableNote: null,
       })
     })
 

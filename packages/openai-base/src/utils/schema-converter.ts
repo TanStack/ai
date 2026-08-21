@@ -66,7 +66,7 @@ export function makeStructuredOutputCompatible(
   return makeStructuredOutputCompatibleWithMap(schema, originalRequired).schema
 }
 
-interface StructuredOutputCompatibility {
+export interface StructuredOutputCompatibility {
   schema: Record<string, any>
   nullWideningMap: NullWideningMap | undefined
 }

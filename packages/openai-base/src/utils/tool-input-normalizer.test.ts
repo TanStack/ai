@@ -116,4 +116,31 @@ describe('createToolInputNormalizer', () => {
 
     expect(normalize(tool.name, input)).toBe(input)
   })
+
+  it('builds the inverse map from the supplied converter', () => {
+    const tool: Tool = {
+      name: 'ask',
+      description: 'Ask',
+      inputSchema: {
+        type: 'object',
+        properties: {
+          note: { type: 'string' },
+        },
+        required: ['note'],
+      },
+    }
+
+    const defaultNormalize = createToolInputNormalizer([tool])
+    expect(defaultNormalize(tool.name, { note: null })).toEqual({ note: null })
+
+    const normalize = createToolInputNormalizer([tool], () => ({
+      schema: {
+        type: 'object',
+        properties: { note: { type: ['string', 'null'] } },
+        required: ['note'],
+      },
+      nullWideningMap: { properties: { note: { widened: true } } },
+    }))
+    expect(normalize(tool.name, { note: null })).toEqual({})
+  })
 })
