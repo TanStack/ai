@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   isStrictModeCompatible,
   makeStructuredOutputCompatible,
+  makeStructuredOutputCompatibleWithMap,
 } from '../src/utils/schema-converter'
 
 describe('makeStructuredOutputCompatible', () => {
@@ -45,6 +46,100 @@ describe('makeStructuredOutputCompatible', () => {
     const result: any = makeStructuredOutputCompatible(schema, ['name'])
     expect(result.properties.name.type).toBe('string')
     expect(result.properties.nickname.type).toEqual(['string', 'null'])
+  })
+
+  it('widens optional enum and const constraints to accept null', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        mode: { type: 'string', enum: ['canary'] },
+        status: { type: 'string', const: 'ready' },
+      },
+      required: [],
+    }
+
+    const { schema: result, nullWideningMap } =
+      makeStructuredOutputCompatibleWithMap(schema, schema.required)
+
+    expect(result.properties.mode).toEqual({
+      type: ['string', 'null'],
+      enum: ['canary', null],
+    })
+    expect(result.properties.status).toEqual({
+      type: ['string', 'null'],
+      enum: ['ready', null],
+    })
+    expect(nullWideningMap).toEqual({
+      properties: {
+        mode: { widened: true },
+        status: { widened: true },
+      },
+    })
+  })
+
+  it('records only nullability introduced by strict conversion', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        name: { type: 'string' },
+        nickname: { type: 'string' },
+        note: { type: ['string', 'null'] },
+      },
+      required: ['name', 'note'],
+    }
+
+    const { nullWideningMap } = makeStructuredOutputCompatibleWithMap(
+      schema,
+      schema.required,
+    )
+
+    expect(nullWideningMap).toEqual({
+      properties: { nickname: { widened: true } },
+    })
+  })
+
+  it('records null widening through nested objects and array items', () => {
+    const schema = {
+      type: 'object',
+      properties: {
+        profile: {
+          type: 'object',
+          properties: {
+            nickname: { type: 'string' },
+            entries: {
+              type: 'array',
+              items: {
+                type: 'object',
+                properties: { label: { type: 'string' } },
+                required: [],
+              },
+            },
+          },
+          required: ['entries'],
+        },
+      },
+      required: ['profile'],
+    }
+
+    const { nullWideningMap } = makeStructuredOutputCompatibleWithMap(
+      schema,
+      schema.required,
+    )
+
+    expect(nullWideningMap).toEqual({
+      properties: {
+        profile: {
+          properties: {
+            nickname: { widened: true },
+            entries: {
+              items: {
+                properties: { label: { widened: true } },
+              },
+            },
+          },
+        },
+      },
+    })
   })
 
   it('should handle anyOf (union types) by transforming each variant', () => {
@@ -366,6 +461,37 @@ describe('isStrictModeCompatible', () => {
         },
       }),
     ).toBe(true)
+  })
+
+  it('returns false when an anyOf variant needs optional-field widening', () => {
+    expect(
+      isStrictModeCompatible({
+        type: 'object',
+        properties: {
+          value: {
+            anyOf: [
+              {
+                type: 'object',
+                properties: {
+                  kind: { const: 'optional' },
+                  note: { type: 'string' },
+                },
+                required: ['kind'],
+              },
+              {
+                type: 'object',
+                properties: {
+                  kind: { const: 'nullable' },
+                  note: { type: ['string', 'null'] },
+                },
+                required: ['kind', 'note'],
+              },
+            ],
+          },
+        },
+        required: ['value'],
+      }),
+    ).toBe(false)
   })
 
   it.each(['oneOf', 'allOf', 'not'])(

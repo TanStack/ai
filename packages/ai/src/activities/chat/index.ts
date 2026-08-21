@@ -1183,9 +1183,8 @@ class TextEngine<
 
       if (!skipAgentLoop) {
         do {
-          if (this.earlyTermination || this.isCancelled()) {
-            return
-          }
+          if (this.earlyTermination) break
+          if (this.isCancelled()) return
 
           this.logger.agentLoop(`iteration=${this.middlewareCtx.iteration}`, {
             iteration: this.middlewareCtx.iteration,
@@ -1216,6 +1215,8 @@ class TextEngine<
             }
 
             yield* this.streamModelResponse()
+
+            if (this.earlyTermination) break
 
             if (
               yield* this.emitBoundaryInterrupts(
@@ -1783,11 +1784,8 @@ class TextEngine<
     chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
   ): void {
     this.earlyTermination = true
-    if (this.finalStructuredOutput && this.finalizationError === null) {
-      const message =
-        chunk.message ||
-        chunk.error?.message ||
-        'Run failed before structured output completed'
+    if (this.finalizationError === null) {
+      const message = chunk.message || chunk.error?.message || 'Run failed'
       this.finalizationError = {
         message,
         ...(chunk.code !== undefined

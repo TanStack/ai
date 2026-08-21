@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.47.2
+
+### Patch Changes
+
+- [#1175](https://github.com/TanStack/ai/pull/1175) [`17b4c60`](https://github.com/TanStack/ai/commit/17b4c60c8d237df53a63dcda18c43d8017d45449) - Route adapter-emitted `RUN_ERROR` events through middleware `onError` hooks and preserve provider error codes in persisted run failures.
+
 ## 0.47.1
 
 ### Patch Changes

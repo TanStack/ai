@@ -451,6 +451,72 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
   })
 
   describe('tool call events', () => {
+    it('undoes strict null-widening before emitting the completed tool input', async () => {
+      const strictTool: Tool = {
+        name: 'ask_user',
+        description: 'Ask a question',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            question: { type: 'string' },
+            options: { type: 'array', items: { type: 'string' } },
+            nullableNote: { type: ['string', 'null'] },
+          },
+          required: ['question', 'nullableNote'],
+        },
+      }
+      setupMockSdkClient([
+        {
+          id: 'chatcmpl-null-input',
+          model: 'test-model',
+          choices: [
+            {
+              delta: {
+                tool_calls: [
+                  {
+                    index: 0,
+                    id: 'call-null-input',
+                    type: 'function',
+                    function: {
+                      name: 'ask_user',
+                      arguments:
+                        '{"question":"Which one?","options":null,"nullableNote":null}',
+                    },
+                  },
+                ],
+              },
+              finish_reason: null,
+            },
+          ],
+        },
+        {
+          id: 'chatcmpl-null-input',
+          model: 'test-model',
+          choices: [{ delta: {}, finish_reason: 'tool_calls' }],
+        },
+      ])
+      const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
+      const chunks: Array<StreamChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'Ask me' }],
+        tools: [strictTool],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const toolCallEnd = chunks.find((chunk) => chunk.type === 'TOOL_CALL_END')
+      if (toolCallEnd?.type !== 'TOOL_CALL_END') {
+        throw new Error('expected TOOL_CALL_END')
+      }
+      expect(toolCallEnd.input).toEqual({
+        question: 'Which one?',
+        nullableNote: null,
+      })
+    })
+
     it('emits TOOL_CALL_START -> TOOL_CALL_ARGS -> TOOL_CALL_END', async () => {
       const streamChunks = [
         {
@@ -691,20 +757,32 @@ describe('OpenAIBaseChatCompletionsTextAdapter', () => {
 
       const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
       const chunks: Array<StreamChunk> = []
+      const errorsSpy = vi.spyOn(testLogger, 'errors')
 
-      for await (const chunk of adapter.chatStream({
-        logger: testLogger,
-        model: 'test-model',
-        messages: [{ role: 'user', content: 'Hello' }],
-      })) {
-        chunks.push(chunk)
-      }
+      try {
+        for await (const chunk of adapter.chatStream({
+          logger: testLogger,
+          model: 'test-model',
+          messages: [{ role: 'user', content: 'Hello' }],
+        })) {
+          chunks.push(chunk)
+          if (chunk.type === EventType.RUN_ERROR) break
+        }
 
-      // Should emit RUN_ERROR
-      const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
-      expect(runErrorChunk).toBeDefined()
-      if (runErrorChunk?.type === 'RUN_ERROR') {
-        expect(runErrorChunk.error!.message).toBe('Stream interrupted')
+        // Should emit RUN_ERROR
+        const runErrorChunk = chunks.find((c) => c.type === 'RUN_ERROR')
+        expect(runErrorChunk).toBeDefined()
+        if (runErrorChunk?.type === 'RUN_ERROR') {
+          expect(runErrorChunk.error!.message).toBe('Stream interrupted')
+        }
+        expect(errorsSpy).toHaveBeenCalledWith(
+          'openai-base.processStreamChunks fatal',
+          expect.objectContaining({
+            source: 'openai-base.processStreamChunks',
+          }),
+        )
+      } finally {
+        errorsSpy.mockRestore()
       }
     })
 

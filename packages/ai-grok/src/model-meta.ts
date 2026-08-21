@@ -233,14 +233,72 @@ const GROK_BUILD_0_1 = {
   },
 } as const satisfies ModelMeta
 
+// Vertex Model Garden IDs. These are not the xAI API catalog.
+// Source: https://docs.cloud.google.com/gemini-enterprise-agent-platform/models/partner-models/grok
+const GROK_4_20_REASONING = {
+  name: 'grok-4.20-reasoning',
+  context_window: 1_000_000,
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+const GROK_4_20_NON_REASONING = {
+  name: 'grok-4.20-non-reasoning',
+  context_window: 1_000_000,
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    capabilities: ['structured_outputs', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+const GROK_4_1_FAST_REASONING = {
+  name: 'grok-4.1-fast-reasoning',
+  context_window: 2_000_000,
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    capabilities: ['reasoning', 'structured_outputs', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
+const GROK_4_1_FAST_NON_REASONING = {
+  name: 'grok-4.1-fast-non-reasoning',
+  context_window: 2_000_000,
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    capabilities: ['structured_outputs', 'tool_calling'],
+    tools: [] as const,
+  },
+} as const satisfies ModelMeta
+
 /**
- * Grok chat models supported by the Responses adapter.
+ * Grok chat models supported by the xAI Responses adapter.
  */
 export const GROK_CHAT_MODELS = [
   GROK_4_5.name,
   GROK_4_6.name,
   GROK_BUILD_0_1.name,
   GROK_4_3.name,
+] as const
+
+/**
+ * Grok chat models on Vertex AI / Gemini Enterprise Agent Platform.
+ * This list is the Google partner catalog, not the xAI API catalog.
+ */
+export const GROK_VERTEX_CHAT_MODELS = [
+  GROK_4_3.name,
+  GROK_4_20_REASONING.name,
+  GROK_4_20_NON_REASONING.name,
+  GROK_4_1_FAST_REASONING.name,
+  GROK_4_1_FAST_NON_REASONING.name,
 ] as const
 
 /**
@@ -349,6 +407,8 @@ export const GROK_DEFAULT_REALTIME_MODEL: GrokRealtimeModel =
   'grok-voice-think-fast-2.0'
 
 export type GrokChatModel = (typeof GROK_CHAT_MODELS)[number]
+export type GrokVertexChatModel = (typeof GROK_VERTEX_CHAT_MODELS)[number]
+export type GrokTextAdapterModel = GrokChatModel | GrokVertexChatModel
 export type GrokImageModel = (typeof GROK_IMAGE_MODELS)[number]
 export type GrokVideoModel = (typeof GROK_VIDEO_MODELS)[number]
 export type GrokTTSModel = (typeof GROK_TTS_MODELS)[number]
@@ -364,6 +424,10 @@ export type GrokModelInputModalitiesByName = {
   [GROK_BUILD_0_1.name]: typeof GROK_BUILD_0_1.supports.input
   [GROK_4_5.name]: typeof GROK_4_5.supports.input
   [GROK_4_6.name]: typeof GROK_4_6.supports.input
+  [GROK_4_20_REASONING.name]: typeof GROK_4_20_REASONING.supports.input
+  [GROK_4_20_NON_REASONING.name]: typeof GROK_4_20_NON_REASONING.supports.input
+  [GROK_4_1_FAST_REASONING.name]: typeof GROK_4_1_FAST_REASONING.supports.input
+  [GROK_4_1_FAST_NON_REASONING.name]: typeof GROK_4_1_FAST_NON_REASONING.supports.input
 }
 
 /**
@@ -374,6 +438,10 @@ export type GrokModelInputModalitiesByName = {
 export type GrokChatModelToolCapabilitiesByName = {
   [GROK_4_3.name]: typeof GROK_4_3.supports.tools
   [GROK_BUILD_0_1.name]: typeof GROK_BUILD_0_1.supports.tools
+  [GROK_4_20_REASONING.name]: typeof GROK_4_20_REASONING.supports.tools
+  [GROK_4_20_NON_REASONING.name]: typeof GROK_4_20_NON_REASONING.supports.tools
+  [GROK_4_1_FAST_REASONING.name]: typeof GROK_4_1_FAST_REASONING.supports.tools
+  [GROK_4_1_FAST_NON_REASONING.name]: typeof GROK_4_1_FAST_NON_REASONING.supports.tools
 }
 
 export type GrokProviderOptions = GrokTextProviderOptions
@@ -384,6 +452,10 @@ export type GrokProviderOptions = GrokTextProviderOptions
 export type GrokChatModelProviderOptionsByName = {
   [GROK_4_3.name]: GrokProviderOptions
   [GROK_BUILD_0_1.name]: GrokBuildProviderOptions
+  [GROK_4_20_REASONING.name]: GrokProviderOptions
+  [GROK_4_20_NON_REASONING.name]: GrokProviderOptions
+  [GROK_4_1_FAST_REASONING.name]: GrokProviderOptions
+  [GROK_4_1_FAST_NON_REASONING.name]: GrokProviderOptions
 }
 
 // ===========================

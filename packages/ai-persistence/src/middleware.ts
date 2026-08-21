@@ -11,6 +11,7 @@ import {
   getGenericInterruptDefinitionRegistry,
   providePendingTurn,
   rehydrateInterruptRequest,
+  toRunErrorPayload,
 } from '@tanstack/ai/adapter-internals'
 import type {
   GenericInterruptRequest,
@@ -1808,14 +1809,14 @@ async function failRun(
   error: unknown,
   usage?: TokenUsage,
 ): Promise<void> {
-  // `RunRecord.error` is a structured `RunError`. Only `message` is filled in
-  // here: the middleware sees an opaque thrown value, and inventing a `code`
-  // from it would fabricate the stable classification consumers branch on. A
-  // provider-supplied code reaches the record through the adapter layer.
+  const runError = toRunErrorPayload(error)
   await runs?.update(runId, {
     status: 'failed',
     finishedAt: Date.now(),
-    error: { message: error instanceof Error ? error.message : String(error) },
+    error: {
+      message: runError.message,
+      ...(runError.code !== undefined ? { code: runError.code } : {}),
+    },
     ...(usage ? { usage } : {}),
   })
 }

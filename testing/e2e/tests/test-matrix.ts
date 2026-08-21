@@ -17,6 +17,9 @@ export const providers: Provider[] = [
   'openai',
   'anthropic',
   'gemini',
+  'vertex',
+  'vertex-grok',
+  'vertex-mistral',
   'ollama',
   'groq',
   'grok',
@@ -30,6 +33,7 @@ export const providers: Provider[] = [
   'mistral',
   'byteplus',
   'elevenlabs',
+  'llmgateway',
 ]
 
 export { isSupported }

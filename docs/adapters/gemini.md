@@ -24,6 +24,8 @@ For a full working example with image generation, see the [media generation exam
 npm install @tanstack/ai-gemini
 ```
 
+Need Gemini on Vertex AI (regional endpoints and Google Cloud credentials)? Use the [Vertex adapter](./vertex).
+
 ## Basic Usage
 
 ```typescript

@@ -20,6 +20,7 @@ import type {
   MISTRAL_CHAT_MODELS,
   MistralChatModelProviderOptionsByName,
   MistralModelInputModalitiesByName,
+  MistralTextAdapterModel,
 } from '../model-meta'
 import type {
   StructuredOutputOptions,
@@ -160,7 +161,7 @@ interface MistralRawChunk {
  * Tree-shakeable adapter for Mistral chat/text completion functionality.
  */
 export class MistralTextAdapter<
-  TModel extends (typeof MISTRAL_CHAT_MODELS)[number],
+  TModel extends MistralTextAdapterModel,
   TProviderOptions extends Record<string, any> = ResolveProviderOptions<TModel>,
   TInputModalities extends ReadonlyArray<Modality> =
     ResolveInputModalities<TModel>,
@@ -708,13 +709,18 @@ export class MistralTextAdapter<
     const serverURL = (config.serverURL ?? 'https://api.mistral.ai')
       .replace(/\/+$/, '')
       .replace(/\/v1$/, '')
-    const url = `${serverURL}/v1/chat/completions`
+    const url =
+      config.resolveRequestUrl?.(true) ?? `${serverURL}/v1/chat/completions`
 
     const body = this.toWireBody(params)
+    const accessToken =
+      config.getAccessToken === undefined
+        ? config.apiKey
+        : await config.getAccessToken()
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      Authorization: `Bearer ${config.apiKey}`,
+      Authorization: `Bearer ${accessToken}`,
       ...config.defaultHeaders,
     }
 
@@ -906,7 +912,7 @@ export class MistralTextAdapter<
     }
 
     return {
-      model: options.model,
+      model: this.rawConfig.requestModel ?? options.model,
       messages: messages,
       temperature: modelOptions?.temperature ?? undefined,
       maxTokens: modelOptions?.max_tokens ?? undefined,
