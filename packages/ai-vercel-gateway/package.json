@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-vercel-gateway",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Vercel AI Gateway adapter for TanStack AI chat, embeddings, and image generation.",
   "author": "Tanner Linsley",
   "license": "MIT",

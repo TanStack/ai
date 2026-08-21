@@ -1,5 +1,12 @@
 # @tanstack/ai-durable-stream
 
+## 0.1.5
+
+### Patch Changes
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai@0.48.0
+
 ## 0.1.4
 
 ### Patch Changes
