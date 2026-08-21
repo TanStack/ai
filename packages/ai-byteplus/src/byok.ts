@@ -5,3 +5,10 @@ export const byteplusByok = defineByokProvider({
   label: 'BytePlus',
   env: ['ARK_API_KEY', 'BYTEPLUS_API_KEY'],
 })
+
+/** Seed Speech TTS/ASR. Different product and key from {@link byteplusByok}. */
+export const byteplusVoiceByok = defineByokProvider({
+  id: 'byteplus-voice',
+  label: 'BytePlus Seed Speech',
+  env: 'BYTEPLUS_VOICE_API_KEY',
+})

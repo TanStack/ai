@@ -22,7 +22,8 @@ import { grokByok } from '@tanstack/ai-grok/byok'
 import { createGroqText } from '@tanstack/ai-groq'
 import { groqByok } from '@tanstack/ai-groq/byok'
 import { bedrockText } from '@tanstack/ai-bedrock'
-import { byteplusText } from '@tanstack/ai-byteplus'
+import { createBytePlusText } from '@tanstack/ai-byteplus'
+import { byteplusByok } from '@tanstack/ai-byteplus/byok'
 import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
 import type { AnyTextAdapter, ChatMiddleware } from '@tanstack/ai'
 import type { ByokProvider } from '@tanstack/ai/byok'
@@ -60,6 +61,7 @@ const BYOK_PROVIDERS: Partial<Record<Provider, ByokProvider>> = {
   openrouter: openrouterByok,
   groq: groqByok,
   grok: grokByok,
+  byteplus: byteplusByok,
 }
 
 function chatByokProvider(provider: Provider): ByokProvider | undefined {
@@ -373,13 +375,13 @@ export const Route = createFileRoute('/api/tanchat')({
                 },
               ),
             }),
-          byteplus: (_apiKey) =>
+          byteplus: (apiKey) =>
             createChatOptions({
-              // BytePlus ModelArk (ARK_API_KEY, falling back to
-              // BYTEPLUS_API_KEY). Keys are region-isolated — an EU key will
+              // BytePlus ModelArk. Keys are region-isolated — an EU key will
               // not work against the Asia-Pacific host.
-              adapter: byteplusText(
+              adapter: createBytePlusText(
                 (model || 'seed-2-0-lite-260428') as 'seed-2-0-lite-260428',
+                requireApiKey(apiKey),
               ),
             }),
           ollama: (_apiKey) =>

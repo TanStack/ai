@@ -75,92 +75,96 @@ export function ByokKeyDialog({
 
       {open ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/60"
           onClick={() => onOpenChange(false)}
         >
-          <div
-            className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-2xl"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-1 flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-white">API keys</h2>
-              <button
-                type="button"
-                onClick={() => onOpenChange(false)}
-                aria-label="Close"
-                className="text-2xl leading-none text-gray-400 hover:text-white"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <p className="mb-4 text-sm leading-snug text-gray-400">
-              {description}
-            </p>
-
-            {snapshot.locked ? (
-              <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-800 p-3 text-sm text-gray-200">
-                <span>Your saved keys are locked ({byok.storage.label}).</span>
+          <div className="flex min-h-full items-center justify-center p-4">
+            <div
+              className="w-full max-w-md rounded-xl border border-gray-700 bg-gray-900 p-5 shadow-2xl"
+              onClick={(event) => event.stopPropagation()}
+            >
+              <div className="mb-1 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-white">API keys</h2>
                 <button
                   type="button"
-                  disabled={unlocking}
-                  className="rounded-md bg-orange-500 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-                  onClick={() => {
-                    setUnlocking(true)
-                    setActionError('')
-                    void byok
-                      .unlock()
-                      .catch((error: unknown) =>
-                        setActionError(
-                          error instanceof Error
-                            ? error.message
-                            : 'Could not unlock keys',
-                        ),
-                      )
-                      .finally(() => setUnlocking(false))
-                  }}
+                  onClick={() => onOpenChange(false)}
+                  aria-label="Close"
+                  className="text-2xl leading-none text-gray-400 hover:text-white"
                 >
-                  {unlocking ? 'Unlocking…' : 'Unlock'}
+                  <X className="h-5 w-5" />
                 </button>
               </div>
-            ) : null}
+              <p className="mb-4 text-sm leading-snug text-gray-400">
+                {description}
+              </p>
 
-            {byok.storage.warning ? (
-              <p className="mb-3 text-xs text-amber-400">
-                {byok.storage.warning}
-              </p>
-            ) : null}
-            {snapshot.storageError ? (
-              <p className="mb-3 text-xs text-red-400">
-                {snapshot.storageError}
-              </p>
-            ) : null}
-            {actionError ? (
-              <p className="mb-3 text-xs text-red-400">{actionError}</p>
-            ) : null}
-            {openRouter?.completing ? (
-              <p className="mb-3 text-xs text-gray-400">
-                Completing OpenRouter sign-in…
-              </p>
-            ) : null}
-            {openRouter?.error ? (
-              <p className="mb-3 text-xs text-red-400">{openRouter.error}</p>
-            ) : null}
+              {snapshot.locked ? (
+                <div className="mb-4 flex items-center justify-between gap-2 rounded-lg border border-gray-700 bg-gray-800 p-3 text-sm text-gray-200">
+                  <span>
+                    Your saved keys are locked ({byok.storage.label}).
+                  </span>
+                  <button
+                    type="button"
+                    disabled={unlocking}
+                    className="rounded-md bg-orange-500 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+                    onClick={() => {
+                      setUnlocking(true)
+                      setActionError('')
+                      void byok
+                        .unlock()
+                        .catch((error: unknown) =>
+                          setActionError(
+                            error instanceof Error
+                              ? error.message
+                              : 'Could not unlock keys',
+                          ),
+                        )
+                        .finally(() => setUnlocking(false))
+                    }}
+                  >
+                    {unlocking ? 'Unlocking…' : 'Unlock'}
+                  </button>
+                </div>
+              ) : null}
 
-            <div className="flex flex-col gap-4">
-              {KEYED_PROVIDERS.map((provider) => (
-                <ProviderRow
-                  key={provider.id}
-                  id={provider.id}
-                  label={provider.label}
-                  status={snapshot.status[provider.id]}
-                  locked={snapshot.locked}
-                  hasEnvKey={Boolean(envStatus?.[provider.id])}
-                  highlight={provider.id === highlightProvider}
-                  openRouter={
-                    provider.id === 'openrouter' ? openRouter : undefined
-                  }
-                />
-              ))}
+              {byok.storage.warning ? (
+                <p className="mb-3 text-xs text-amber-400">
+                  {byok.storage.warning}
+                </p>
+              ) : null}
+              {snapshot.storageError ? (
+                <p className="mb-3 text-xs text-red-400">
+                  {snapshot.storageError}
+                </p>
+              ) : null}
+              {actionError ? (
+                <p className="mb-3 text-xs text-red-400">{actionError}</p>
+              ) : null}
+              {openRouter?.completing ? (
+                <p className="mb-3 text-xs text-gray-400">
+                  Completing OpenRouter sign-in…
+                </p>
+              ) : null}
+              {openRouter?.error ? (
+                <p className="mb-3 text-xs text-red-400">{openRouter.error}</p>
+              ) : null}
+
+              <div className="flex flex-col gap-4">
+                {KEYED_PROVIDERS.map((provider) => (
+                  <ProviderRow
+                    key={provider.id}
+                    id={provider.id}
+                    label={provider.label}
+                    status={snapshot.status[provider.id]}
+                    locked={snapshot.locked}
+                    hasEnvKey={Boolean(envStatus?.[provider.id])}
+                    highlight={provider.id === highlightProvider}
+                    openRouter={
+                      provider.id === 'openrouter' ? openRouter : undefined
+                    }
+                  />
+                ))}
+              </div>
             </div>
           </div>
         </div>

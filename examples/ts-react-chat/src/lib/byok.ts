@@ -1,5 +1,6 @@
 import { anthropicByok } from '@tanstack/ai-anthropic/byok'
 import { defineByok, defaultByokStorage } from '@tanstack/ai-client/byok'
+import { byteplusByok, byteplusVoiceByok } from '@tanstack/ai-byteplus/byok'
 import { geminiByok } from '@tanstack/ai-gemini/byok'
 import { grokByok } from '@tanstack/ai-grok/byok'
 import { groqByok } from '@tanstack/ai-groq/byok'
@@ -16,6 +17,8 @@ export const KEYED_PROVIDERS = [
   openrouterByok,
   groqByok,
   grokByok,
+  byteplusByok,
+  byteplusVoiceByok,
 ] as const
 
 export const byok = defineByok({
