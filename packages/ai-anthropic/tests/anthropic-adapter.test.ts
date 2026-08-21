@@ -134,6 +134,52 @@ describe('Anthropic adapter option mapping', () => {
     })
   })
 
+  it('prefers document title over filename and serializes only cache_control for images', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(createTextStream('ok'))
+
+    const adapter = createAdapter('claude-opus-4-1')
+
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'document',
+              source: {
+                type: 'data',
+                value: 'JVBERi0xLjQ=',
+                mimeType: 'application/pdf',
+              },
+              metadata: { title: 'Q3 Report', filename: 'report.pdf' },
+            },
+            {
+              type: 'image',
+              source: { type: 'url', value: 'https://example.com/a.png' },
+              metadata: {
+                mediaType: 'image/png',
+                cache_control: { type: 'ephemeral' },
+                filename: 'a.png',
+              },
+            },
+          ],
+        },
+      ],
+    })) {
+      // consume stream
+    }
+
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+
+    expect(payload.messages[0].content[0].title).toBe('Q3 Report')
+    expect(payload.messages[0].content[1]).toEqual({
+      type: 'image',
+      source: { type: 'url', url: 'https://example.com/a.png' },
+      cache_control: { type: 'ephemeral' },
+    })
+  })
+
   it('passes systemPrompts as TextBlockParam[] for prompt caching support', async () => {
     const mockStream = (async function* () {
       yield {

@@ -2,4 +2,4 @@
 '@tanstack/ai-anthropic': patch
 ---
 
-Fix document metadata serialization.
+Serialize only Anthropic-supported fields from document and image metadata; use `filename` as a fallback document title.

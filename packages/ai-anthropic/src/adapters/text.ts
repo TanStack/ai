@@ -660,7 +660,9 @@ export class AnthropicTextAdapter<
         return {
           type: 'image',
           source: imageSource,
-          ...metadata,
+          ...(metadata?.cache_control !== undefined && {
+            cache_control: metadata.cache_control,
+          }),
         }
       }
       case 'document': {
