@@ -1,22 +1,5 @@
 import type { NullWideningMap } from '@tanstack/ai-utils'
 
-/**
- * Transform a JSON schema to be compatible with Mistral's structured output
- * requirements when `strict: true` is used.
- *
- * Mistral (in strict mode) requires:
- * - All properties must be in the `required` array
- * - Optional fields should have null added to their type union
- * - additionalProperties must be false for objects
- */
-export function makeMistralStructuredOutputCompatible(
-  schema: Record<string, any>,
-  originalRequired: Array<string> = [],
-): Record<string, any> {
-  return makeMistralStructuredOutputCompatibleWithMap(schema, originalRequired)
-    .schema
-}
-
 interface MistralStructuredOutputCompatibility {
   schema: Record<string, any>
   nullWideningMap: NullWideningMap | undefined
