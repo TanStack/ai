@@ -292,7 +292,9 @@ function sseEncoders(
       return encoder.encode(`${idLine}data: ${JSON.stringify(wire)}\n\n`)
     },
     encodeError: (error) =>
-      encoder.encode(`data: ${JSON.stringify(runErrorChunk(error))}\n\n`),
+      encoder.encode(
+        `data: ${JSON.stringify(stripToSpec(runErrorChunk(error)))}\n\n`,
+      ),
   }
 }
 
@@ -1079,7 +1081,7 @@ function ndjsonEncoders(
       return encoder.encode(`${line}\n`)
     },
     encodeError: (error) =>
-      encoder.encode(`${JSON.stringify(runErrorChunk(error))}\n`),
+      encoder.encode(`${JSON.stringify(stripToSpec(runErrorChunk(error)))}\n`),
   }
 }
 

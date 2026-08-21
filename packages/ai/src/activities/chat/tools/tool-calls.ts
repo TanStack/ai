@@ -236,8 +236,11 @@ export class ToolCallManager<
     for (const existing of this.toolCallsMap.values()) {
       if (existing.id === event.toolCallId) return
     }
-    const index = this.toolCallsMap.size
-    const name = event.toolCallName
+    const index =
+      'index' in event && typeof event.index === 'number'
+        ? event.index
+        : this.toolCallsMap.size
+    const name = event.toolCallName ?? event.toolName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',
@@ -266,7 +269,16 @@ export class ToolCallManager<
    * Complete a tool call with its final input
    * Called when TOOL_CALL_END is received
    */
-  completeToolCall(_event: ToolCallEndEvent): void {}
+  completeToolCall(event: ToolCallEndEvent): void {
+    for (const toolCall of this.toolCallsMap.values()) {
+      if (toolCall.id !== event.toolCallId) continue
+      if (event.input === undefined) return
+      const normalized =
+        event.input && typeof event.input === 'object' ? event.input : {}
+      toolCall.function.arguments = JSON.stringify(normalized)
+      return
+    }
+  }
 
   /**
    * Check if there are any complete tool calls to execute

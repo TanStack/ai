@@ -355,6 +355,21 @@ describe('StreamProcessor', () => {
       expect(msg.createdAt?.toISOString()).toBe(createdAtIso)
     })
 
+    it('ignores invalid tanstack.createdAt timestamps', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        ...ev.textStart('msg-1'),
+        metadata: { tanstack: { createdAt: 'not-a-date' } },
+      })
+      processor.processChunk(ev.textContent('Hello', 'msg-1'))
+      processor.processChunk(ev.textEnd('msg-1'))
+
+      const msg = processor.getMessages()[0]!
+      expect(msg.createdAt).toBeInstanceOf(Date)
+      expect(Number.isNaN(msg.createdAt!.getTime())).toBe(false)
+    })
+
     it('RUN_FINISHED metadata does not merge onto the assistant message', () => {
       const processor = new StreamProcessor()
 
@@ -452,6 +467,37 @@ describe('StreamProcessor', () => {
         providerExecuted: true,
       })
       expect(msg.metadata).toBeUndefined()
+    })
+
+    it('REASONING_ENCRYPTED_VALUE tool-call signature lands on process() toolCalls', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'tc-1',
+          toolCallName: 'search',
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_ARGS, {
+          toolCallId: 'tc-1',
+          delta: '{"q":"hi"}',
+        }),
+      )
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_END, { toolCallId: 'tc-1' }),
+      )
+      processor.processChunk({
+        type: EventType.REASONING_ENCRYPTED_VALUE,
+        subtype: 'tool-call',
+        entityId: 'tc-1',
+        encryptedValue: 'sig-2',
+      })
+      processor.processChunk(ev.runFinished('stop'))
+
+      expect(processor.getState().toolCalls.get('tc-1')?.metadata).toEqual({
+        thoughtSignature: 'sig-2',
+      })
     })
   })
 

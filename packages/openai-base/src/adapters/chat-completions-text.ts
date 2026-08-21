@@ -380,7 +380,6 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         reasoningMessageId = undefined
         stepId = undefined
         hasClosedReasoning = false
-        accumulatedReasoning = ''
       }
     }.bind(this)
 

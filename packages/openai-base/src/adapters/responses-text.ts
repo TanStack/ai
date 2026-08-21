@@ -355,7 +355,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         reasoningMessageId = undefined
         stepId = undefined
         hasClosedReasoning = false
-        accumulatedReasoning = ''
       }
     }.bind(this)
 

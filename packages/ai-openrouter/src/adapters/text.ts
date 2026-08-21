@@ -387,7 +387,6 @@ export class OpenRouterTextAdapter<
         reasoningMessageId = undefined
         stepId = undefined
         hasClosedReasoning = false
-        accumulatedReasoning = ''
       }
     }.bind(this)
 

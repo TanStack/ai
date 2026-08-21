@@ -1817,12 +1817,22 @@ export class ChatClient<
     ) {
       return false
     }
-    return errors.every(
-      (error) =>
+    return errors.every((error) => {
+      if (
+        error == null ||
+        typeof error !== 'object' ||
+        typeof error.threadId !== 'string' ||
+        typeof error.interruptedRunId !== 'string' ||
+        typeof error.generation !== 'number'
+      ) {
+        return false
+      }
+      return (
         error.threadId === submission.threadId &&
         error.interruptedRunId === submission.interruptedRunId &&
-        error.generation === submission.generation,
-    )
+        error.generation === submission.generation
+      )
+    })
   }
 
   private resolveJoinedRun(chunk: StreamChunk): void {

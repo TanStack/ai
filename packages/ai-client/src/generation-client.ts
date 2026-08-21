@@ -392,7 +392,7 @@ export class GenerationClient<
           this.devtoolsBridge.ensureRunStarted(
             chunkRunId ?? streamRunId ?? fallbackRunId,
           )
-          // Prefer spec `message`; fall back to deprecated `error.message`
+          // Spec RUN_ERROR message. Missing message uses this fallback.
           const msg =
             (chunk.message as string | undefined) || 'An error occurred'
           throw new Error(msg)

@@ -116,7 +116,7 @@ goes away. Users of the framework hooks need no change.
 
 Sends a user message and starts the run.
 
-The string form has no metadata. Pass an object to stamp `metadata` on the user `UIMessage`. TanStack writes the `tanstack` key. Your keys stay at the top of the bag.
+`MultimodalContent` is `{ content, id?, metadata? }`. The string form has no metadata. Pass the object form to stamp `metadata` on the user `UIMessage`. TanStack writes the `tanstack` key. Your keys stay at the top of the bag.
 
 ```typescript
 import { client } from "./client";

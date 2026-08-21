@@ -18,12 +18,7 @@ vi.mock('@mistralai/mistralai', () => {
   }
 })
 
-import type {
-  AdapterYieldChunk,
-  StreamChunk,
-  TextOptions,
-  Tool,
-} from '@tanstack/ai'
+import type { AdapterYieldChunk, TextOptions, Tool } from '@tanstack/ai'
 import { z } from 'zod'
 import type { MistralTextProviderOptions } from '../src/adapters/text'
 

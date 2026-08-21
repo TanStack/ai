@@ -700,12 +700,14 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return ui
   const metadata = raw as NonNullable<UIMessage['metadata']>
   const createdAtRaw = tanstackMetadata(metadata)?.createdAt
+  const createdAt =
+    typeof createdAtRaw === 'string' ? new Date(createdAtRaw) : undefined
+  const createdAtValid =
+    createdAt !== undefined && !Number.isNaN(createdAt.getTime())
   return {
     ...ui,
     metadata,
-    ...(typeof createdAtRaw === 'string'
-      ? { createdAt: new Date(createdAtRaw) }
-      : {}),
+    ...(createdAtValid ? { createdAt } : {}),
   }
 }
 

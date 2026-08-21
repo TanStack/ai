@@ -821,14 +821,16 @@ export class StreamProcessor {
     const incomingRecord = incoming as NonNullable<UIMessage['metadata']>
     const metadata = mergeMetadata(message.metadata, incomingRecord)
     const createdAtRaw = tanstackMetadata(incomingRecord)?.createdAt
+    const createdAt =
+      typeof createdAtRaw === 'string' ? new Date(createdAtRaw) : undefined
+    const createdAtValid =
+      createdAt !== undefined && !Number.isNaN(createdAt.getTime())
     this.messages = this.messages.map((msg) =>
       msg.id === messageId
         ? {
             ...msg,
             ...(metadata !== undefined ? { metadata } : {}),
-            ...(typeof createdAtRaw === 'string'
-              ? { createdAt: new Date(createdAtRaw) }
-              : {}),
+            ...(createdAtValid ? { createdAt } : {}),
           }
         : msg,
     )
@@ -1833,6 +1835,14 @@ export class StreamProcessor {
       })
       return changed ? { ...msg, parts } : msg
     })
+    for (const state of this.messageStates.values()) {
+      const call = state.toolCalls.get(toolCallId)
+      if (!call) continue
+      call.metadata = {
+        ...(call.metadata ?? {}),
+        thoughtSignature,
+      }
+    }
     this.emitMessagesChange()
   }
 

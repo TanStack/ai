@@ -273,6 +273,7 @@ describe('toServerSentEventsStream', () => {
 
     expect(output).toContain('"type":"RUN_ERROR"')
     expect(output).toContain('"message":"Stream error"')
+    expect(output).not.toContain('"error":')
   })
 
   it('should not send error if aborted', async () => {
