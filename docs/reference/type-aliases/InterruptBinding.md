@@ -7,9 +7,9 @@ title: InterruptBinding
 
 ```ts
 type InterruptBinding = 
-  | InterruptBindingBase & object
-  | InterruptBindingBase & object
+  | ResponseSchemaInterruptBindingBase & object
+  | ResponseSchemaInterruptBindingBase & object
   | InterruptBindingBase & object;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:91](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L91)
+Defined in: [packages/ai/src/interrupts.ts:94](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L94)

@@ -9,7 +9,7 @@ title: ToolExecutionContext
 type ToolExecutionContext<TContext> = RuntimeContextField<TContext> & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:567](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L567)
+Defined in: [packages/ai/src/types.ts:573](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L573)
 
 Context passed to tool execute functions, providing capabilities like
 emitting custom events during execution.
