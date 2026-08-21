@@ -942,6 +942,128 @@ describe('Anthropic adapter option mapping', () => {
     ])
   })
 
+  it('replays signed thinking on both sides of a provider-executed tool (issue #910)', async () => {
+    mocks.betaMessagesCreate.mockResolvedValueOnce(
+      createTextStream('Follow-up answer'),
+    )
+
+    const adapter = createAdapter('claude-opus-4-1')
+    const providerToolMetadata = {
+      providerExecuted: true,
+      anthropic: {
+        serverToolType: 'web_search',
+        resultBlockType: 'web_search_tool_result',
+        result: [
+          {
+            type: 'web_search_result',
+            title: 'Example result',
+            url: 'https://example.com',
+            encrypted_content: 'opaque-provider-payload',
+          },
+        ],
+      },
+    }
+    const createBlockTool: Tool = {
+      name: 'createBlock',
+      description: 'Create a UI block',
+      inputSchema: z.object({
+        block: z.object({ type: z.string() }),
+      }),
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [
+        {
+          id: 'user-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Research top AI companies' }],
+        },
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'thinking',
+              content: 'First signed thinking block',
+              signature: 'signature-1',
+            },
+            {
+              type: 'tool-call',
+              id: 'srvtoolu_search',
+              name: 'web_search',
+              arguments: '{"query":"top AI companies"}',
+              state: 'input-complete',
+              metadata: providerToolMetadata,
+            },
+            {
+              type: 'thinking',
+              content: 'Second signed thinking block',
+              signature: 'signature-2',
+            },
+            {
+              type: 'tool-call',
+              id: 'toolu_create_block',
+              name: 'createBlock',
+              arguments: '{"block":{"type":"entity-grid"}}',
+              state: 'complete',
+              output: { ok: true },
+            },
+            {
+              type: 'tool-result',
+              toolCallId: 'toolu_create_block',
+              content: '{"ok":true}',
+              state: 'complete',
+            },
+          ],
+        },
+        {
+          id: 'user-2',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Continue' }],
+        },
+      ],
+      tools: [createBlockTool],
+      modelOptions: {
+        thinking: { type: 'enabled', budget_tokens: 1024 },
+      } satisfies AnthropicTextProviderOptions,
+    })) {
+      // consume
+    }
+
+    expect(mocks.betaMessagesCreate).toHaveBeenCalledTimes(1)
+    const [payload] = mocks.betaMessagesCreate.mock.calls[0]!
+    const replayedAssistant = (
+      payload.messages as Array<{
+        role: string
+        content: unknown
+      }>
+    ).find((message) => message.role === 'assistant')
+    expect(Array.isArray(replayedAssistant?.content)).toBe(true)
+    const blocks = replayedAssistant!.content as Array<{
+      type: string
+      thinking?: string
+      signature?: string
+    }>
+    expect(blocks.map((block) => block.type)).toEqual([
+      'thinking',
+      'server_tool_use',
+      'web_search_tool_result',
+      'thinking',
+      'tool_use',
+    ])
+    expect(blocks[0]).toMatchObject({
+      type: 'thinking',
+      thinking: 'First signed thinking block',
+      signature: 'signature-1',
+    })
+    expect(blocks[3]).toMatchObject({
+      type: 'thinking',
+      thinking: 'Second signed thinking block',
+      signature: 'signature-2',
+    })
+  })
+
   it('merges multiple consecutive tool result messages into one user message', async () => {
     // When multiple tools are called, each tool result becomes a role:'user' message.
     // These must be merged into a single user message.

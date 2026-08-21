@@ -262,6 +262,7 @@ describe('Message Converters', () => {
 
       expect(result).toEqual([
         {
+          id: 'assistant-message',
           role: 'assistant',
           content: null,
           toolCalls: [
@@ -283,6 +284,7 @@ describe('Message Converters', () => {
           ],
         },
         {
+          id: 'assistant-message',
           role: 'assistant',
           content: null,
           toolCalls: [
@@ -303,9 +305,81 @@ describe('Message Converters', () => {
           ],
         },
         {
+          id: 'assistant-message',
           role: 'tool',
           content: '{"ok":true}',
           toolCallId: 'toolu_create_block',
+        },
+      ])
+    })
+
+    it('should keep a trailing signed thinking block after a provider-executed tool', () => {
+      const providerToolMetadata = {
+        providerExecuted: true,
+        anthropic: {
+          serverToolType: 'web_search',
+          resultBlockType: 'web_search_tool_result',
+          result: [{ type: 'web_search_result', url: 'https://example.com' }],
+        },
+      }
+      const uiMessage: UIMessage = {
+        id: 'assistant-message',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'thinking',
+            content: 'First signed thinking block',
+            signature: 'signature-1',
+          },
+          {
+            type: 'tool-call',
+            id: 'srvtoolu_search',
+            name: 'web_search',
+            arguments: '{"query":"top AI companies"}',
+            state: 'input-complete',
+            metadata: providerToolMetadata,
+          },
+          {
+            type: 'thinking',
+            content: 'Second signed thinking block',
+            signature: 'signature-2',
+          },
+        ],
+      }
+
+      expect(convertMessagesToModelMessages([uiMessage])).toEqual([
+        {
+          id: 'assistant-message',
+          role: 'assistant',
+          content: null,
+          toolCalls: [
+            {
+              id: 'srvtoolu_search',
+              type: 'function',
+              function: {
+                name: 'web_search',
+                arguments: '{"query":"top AI companies"}',
+              },
+              metadata: providerToolMetadata,
+            },
+          ],
+          thinking: [
+            {
+              content: 'First signed thinking block',
+              signature: 'signature-1',
+            },
+          ],
+        },
+        {
+          id: 'assistant-message',
+          role: 'assistant',
+          content: null,
+          thinking: [
+            {
+              content: 'Second signed thinking block',
+              signature: 'signature-2',
+            },
+          ],
         },
       ])
     })
@@ -352,6 +426,7 @@ describe('Message Converters', () => {
 
       expect(modelMessages).toEqual([
         {
+          id: 'assistant-message',
           role: 'assistant',
           content: null,
           toolCalls: [
@@ -375,11 +450,13 @@ describe('Message Converters', () => {
           thinking: [{ content: 'Thinking between local tool calls' }],
         },
         {
+          id: 'assistant-message',
           role: 'tool',
           content: '{"result":"a"}',
           toolCallId: 'tool-call-a',
         },
         {
+          id: 'assistant-message',
           role: 'tool',
           content: '{"result":"b"}',
           toolCallId: 'tool-call-b',
@@ -391,6 +468,10 @@ describe('Message Converters', () => {
       expect(roundTripped).toHaveLength(1)
       expect(roundTripped[0]?.parts).toEqual(
         expect.arrayContaining([
+          expect.objectContaining({
+            type: 'thinking',
+            content: 'Thinking between local tool calls',
+          }),
           expect.objectContaining({ type: 'tool-call', id: 'tool-call-a' }),
           expect.objectContaining({ type: 'tool-call', id: 'tool-call-b' }),
           expect.objectContaining({
