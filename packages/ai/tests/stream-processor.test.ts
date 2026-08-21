@@ -689,6 +689,30 @@ describe('StreamProcessor', () => {
   // Text-tool interleaving
   // ==========================================================================
   describe('text-tool interleaving', () => {
+    it('does not publish a partial input before TOOL_CALL_END', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.toolStart('tc-1', 'offerTemplates'))
+      processor.processChunk(ev.toolArgs('tc-1', '{"templateIds":["mock-gsk-e'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('Let me look those up. '))
+      processor.processChunk(ev.toolArgs('tc-1', 'fimosfermin"]}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'offerTemplates'))
+      processor.processChunk(ev.runFinished('stop'))
+      processor.finalizeStream()
+
+      const toolCall = processor
+        .getMessages()[0]!
+        .parts.find((part) => part.type === 'tool-call') as ToolCallPart
+      expect(toolCall.state).toBe('input-complete')
+      expect(toolCall.arguments).toBe(
+        '{"templateIds":["mock-gsk-efimosfermin"]}',
+      )
+      expect(toolCall.input).toEqual({ templateIds: ['mock-gsk-efimosfermin'] })
+    })
+
     it('should reset segment text accumulation on TEXT_MESSAGE_START (existing test preserved)', () => {
       const processor = new StreamProcessor()
       processor.prepareAssistantMessage()

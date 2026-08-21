@@ -2080,8 +2080,15 @@ export class StreamProcessor {
     // counts as a completed tool call in getCompletedToolCalls()/getState().
     toolCall.state = 'input-complete'
 
-    // Try final parse
-    toolCall.parsedArguments = this.jsonParser.parse(toolCall.arguments)
+    // Only expose input when the complete argument string is valid JSON.
+    // The streaming parser intentionally accepts partial JSON, but using its
+    // result here can silently publish truncated values when text interleaves
+    // with tool-call argument deltas.
+    try {
+      toolCall.parsedArguments = JSON.parse(toolCall.arguments)
+    } catch {
+      toolCall.parsedArguments = undefined
+    }
 
     // Don't downgrade the rendered part of a call that already reached the
     // terminal 'error' state (e.g. an output-error TOOL_CALL_RESULT arrived
