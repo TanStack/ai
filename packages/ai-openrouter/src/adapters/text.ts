@@ -42,7 +42,6 @@ import type {
 import type {
   ExternalTextProviderOptions,
   OpenRouterSystemPromptMetadata,
-  ReasoningOptions,
 } from '../text/text-provider-options'
 import type {
   OpenRouterImageMetadata,
@@ -69,20 +68,22 @@ type ResolveToolCapabilities<TModel extends string> =
     ? NonNullable<OpenRouterChatModelToolCapabilitiesByName[TModel]>
     : readonly []
 
-function normalizeReasoningOptions(
-  reasoning: ReasoningOptions | undefined,
-): ChatRequest['reasoning'] | undefined {
-  if (!reasoning) return undefined
+function withUsageEnabled(
+  request: Omit<ChatRequest, 'stream'>,
+): Omit<ChatRequest, 'stream'> {
+  const { streamOptions, ...requestWithoutStreamOptions } = request
+  if (streamOptions?.includeUsage === false) {
+    const { includeUsage: _includeUsage, ...callerStreamOptions } =
+      streamOptions
+    return Object.keys(callerStreamOptions).length > 0
+      ? { ...requestWithoutStreamOptions, streamOptions: callerStreamOptions }
+      : requestWithoutStreamOptions
+  }
 
-  const { enabled, ...sdkReasoning } = reasoning
-  const normalized =
-    enabled === false
-      ? { ...sdkReasoning, effort: 'none' as const }
-      : sdkReasoning
-
-  return Object.values(normalized).some((value) => value !== undefined)
-    ? normalized
-    : undefined
+  return {
+    ...request,
+    streamOptions: { ...streamOptions, includeUsage: true },
+  }
 }
 
 /**
@@ -152,6 +153,7 @@ export class OpenRouterTextAdapter<
       // other failure mode here — callers iterating chatStream then only need
       // one error-handling path.
       const chatRequest = this.mapOptionsToRequest(options)
+      const chatRequestWithUsage = withUsageEnabled(chatRequest)
       options.logger.request(
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
         { provider: this.name, model: this.model },
@@ -160,12 +162,8 @@ export class OpenRouterTextAdapter<
       const stream = await this.orClient.chat.send(
         {
           chatRequest: {
-            ...chatRequest,
+            ...chatRequestWithUsage,
             stream: true,
-            streamOptions: {
-              ...(chatRequest.streamOptions ?? {}),
-              includeUsage: true,
-            },
           },
         },
         {
@@ -388,20 +386,21 @@ export class OpenRouterTextAdapter<
     }.bind(this)
 
     try {
-      // Strip streamOptions/tools/responseFormat from the base request before
-      // adding the resolved structured-output format. Structured output
-      // doesn't carry tools — keeping them can confuse strict-mode validation
-      // upstream. (`stream` is already absent — `mapOptionsToRequest` returns
-      // `Omit<ChatRequest, 'stream'>`; we set it explicitly below.)
+      // Strip tools/responseFormat from the base request before adding the
+      // resolved structured-output format. Structured output doesn't carry
+      // tools — keeping them can confuse strict-mode validation upstream.
+      // `withUsageEnabled` preserves caller stream options while omitting the
+      // whole option when usage is explicitly disabled. (`stream` is already
+      // absent — `mapOptionsToRequest` returns `Omit<ChatRequest, 'stream'>`;
+      // we set it explicitly below.)
       const {
-        streamOptions: _so,
         tools: _t,
         responseFormat: _responseFormat,
         ...cleanParams
       } = chatRequest
-      void _so
       void _t
       void _responseFormat
+      const cleanParamsWithUsage = withUsageEnabled(cleanParams)
 
       chatOptions.logger.request(
         `activity=structuredOutputStream provider=${this.name} model=${this.model} messages=${chatOptions.messages.length}`,
@@ -412,9 +411,8 @@ export class OpenRouterTextAdapter<
       const stream = await this.orClient.chat.send(
         {
           chatRequest: {
-            ...cleanParams,
+            ...cleanParamsWithUsage,
             stream: true,
-            streamOptions: { includeUsage: true },
             responseFormat,
           },
         },
@@ -1194,10 +1192,8 @@ export class OpenRouterTextAdapter<
     // `variant` is OpenRouter metadata used only to build the `:variant` model
     // suffix — it must NOT be spread into the request body. Destructure it out
     // so the remaining sampling/provider options flow through `...restModelOptions`.
-    const { variant, reasoning, ...restModelOptions } = (options.modelOptions ??
-      {}) as ExternalTextProviderOptions
+    const { variant, ...restModelOptions } = options.modelOptions ?? {}
     const variantSuffix = variant ? `:${variant}` : ''
-    const normalizedReasoning = normalizeReasoningOptions(reasoning)
 
     const messages: Array<ChatMessages> = []
     const systemPrompts =
@@ -1260,7 +1256,6 @@ export class OpenRouterTextAdapter<
     // SDK validates `chatRequest.metadata` as `Record<string, string>` (#735).
     const request: Omit<ChatRequest, 'stream'> = {
       ...restModelOptions,
-      ...(normalizedReasoning && { reasoning: normalizedReasoning }),
       model: options.model + variantSuffix,
       messages,
       ...(tools && tools.length > 0 && { tools }),

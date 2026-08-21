@@ -1583,6 +1583,37 @@ describe('OpenRouter structured output', () => {
     expect(rawParams.chatRequest.stream).toBe(true)
   })
 
+  it('respects includeUsage false for structured output streams', async () => {
+    setupMockSdkClient([
+      {
+        id: 'c1',
+        model: 'anthropic/claude-sonnet-4.5',
+        choices: [{ delta: { content: '{"ok":true}' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    await chat({
+      adapter,
+      messages: [{ role: 'user', content: 'Respond with ok' }],
+      modelOptions: { streamOptions: { includeUsage: false } },
+      outputSchema: {
+        type: 'object',
+        properties: { ok: { type: 'boolean' } },
+        required: ['ok'],
+      },
+    })
+
+    const structuredCall = mockSend.mock.calls.find(
+      ([args]: Array<any>) => args.chatRequest.responseFormat,
+    )
+    expect(structuredCall).toBeDefined()
+    expect(structuredCall[0].chatRequest).not.toHaveProperty('streamOptions')
+    expect(
+      ChatRequest$outboundSchema.parse(structuredCall[0].chatRequest),
+    ).not.toHaveProperty('stream_options')
+  })
+
   it('parses JSON response content correctly', async () => {
     const nonStreamResponse = {
       choices: [
@@ -1767,54 +1798,6 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.temperature).toBe(0.1)
     expect(params.topP).toBe(0.5)
     expect(params.maxCompletionTokens).toBe(64)
-  })
-
-  it('normalizes reasoning enabled false to effort none on the wire (#1006)', async () => {
-    setupMockSdkClient(minimalStreamChunks)
-    const adapter = createAdapter()
-
-    const modelOptions: OpenRouterTextModelOptions = {
-      reasoning: { enabled: false },
-    }
-
-    for await (const _ of chat({
-      adapter,
-      messages: [{ role: 'user', content: 'test' }],
-      modelOptions,
-    })) {
-      // consume
-    }
-
-    const [rawParams] = mockSend.mock.calls[0]!
-    const params = rawParams.chatRequest
-    expect(params.reasoning).toEqual({ effort: 'none' })
-
-    const serialized = ChatRequest$outboundSchema.parse(params)
-    expect(serialized.reasoning).toEqual({ effort: 'none' })
-  })
-
-  it('omits an empty reasoning object from the SDK request (#1006)', async () => {
-    setupMockSdkClient(minimalStreamChunks)
-    const adapter = createAdapter()
-
-    const modelOptions: OpenRouterTextModelOptions = {
-      reasoning: {},
-    }
-
-    for await (const _ of chat({
-      adapter,
-      messages: [{ role: 'user', content: 'test' }],
-      modelOptions,
-    })) {
-      // consume
-    }
-
-    const [rawParams] = mockSend.mock.calls[0]!
-    const params = rawParams.chatRequest
-    expect(params).not.toHaveProperty('reasoning')
-
-    const serialized = ChatRequest$outboundSchema.parse(params)
-    expect(serialized).not.toHaveProperty('reasoning')
   })
 
   it('uses variant only for the model suffix and never sends it in the request body', async () => {
@@ -2447,6 +2430,32 @@ describe('OpenRouter stream_options conversion', () => {
 
     const serialized = ChatRequest$outboundSchema.parse(params)
     expect((serialized as any).stream_options).toEqual({ include_usage: true })
+  })
+
+  it('respects an explicit includeUsage false override', async () => {
+    setupMockSdkClient([
+      {
+        id: 'x',
+        model: 'anthropic/claude-sonnet-4.5',
+        choices: [{ delta: { content: 'hi' }, finishReason: 'stop' }],
+      },
+    ])
+    const adapter = createAdapter()
+
+    for await (const _ of adapter.chatStream({
+      model: 'anthropic/claude-sonnet-4.5',
+      messages: [{ role: 'user', content: 'hi' }],
+      modelOptions: { streamOptions: { includeUsage: false } },
+      logger: testLogger,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    expect(rawParams.chatRequest).not.toHaveProperty('streamOptions')
+    expect(
+      ChatRequest$outboundSchema.parse(rawParams.chatRequest),
+    ).not.toHaveProperty('stream_options')
   })
 
   it('propagates the abort signal to the SDK call', async () => {
