@@ -6,7 +6,7 @@ import {
   ollamaText,
 } from '../src/adapters/text'
 import type { Mock } from 'vitest'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
 
@@ -30,9 +30,9 @@ async function* asyncIterable<T>(chunks: Array<T>): AsyncIterable<T> {
 }
 
 async function collectStream(
-  iter: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  iter: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const c of iter) out.push(c)
   return out
 }

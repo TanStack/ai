@@ -6,10 +6,10 @@ title: defineChatMiddleware
 # Function: defineChatMiddleware()
 
 ```ts
-function defineChatMiddleware<TContext, TRequires, TProvides>(middleware): DefinedChatMiddleware<TContext, TRequires, TProvides>;
+function defineChatMiddleware<TContext, TRequires, TProvides, TInterruptDefinitions>(middleware): DefinedChatMiddleware<TContext, TRequires, TProvides, TInterruptDefinitions>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/define.ts:23](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L23)
+Defined in: [packages/ai/src/activities/chat/middleware/define.ts:27](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L27)
 
 Identity helper for authoring middleware with precise capability inference.
 Returns the middleware unchanged at runtime; only sharpens its type so the
@@ -30,12 +30,16 @@ exact `requires`/`provides`.
 
 `TProvides` *extends* readonly [`CapabilityHandle`](../type-aliases/CapabilityHandle.md)[] = readonly \[\]
 
+### TInterruptDefinitions
+
+`TInterruptDefinitions` *extends* `AnyInterruptDefinition` = `never`
+
 ## Parameters
 
 ### middleware
 
-[`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`TContext`\> & `object`
+[`ChatMiddleware`](../interfaces/ChatMiddleware.md)\<`TContext`, `TInterruptDefinitions`\> & `object`
 
 ## Returns
 
-[`DefinedChatMiddleware`](../interfaces/DefinedChatMiddleware.md)\<`TContext`, `TRequires`, `TProvides`\>
+[`DefinedChatMiddleware`](../interfaces/DefinedChatMiddleware.md)\<`TContext`, `TRequires`, `TProvides`, `TInterruptDefinitions`\>

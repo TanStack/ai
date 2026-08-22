@@ -754,7 +754,7 @@ describe('connection-adapters', () => {
           .mockResolvedValueOnce({
             done: false,
             value: new TextEncoder().encode(
-              'data: {"type":"RUN_FINISHED","runId":"run-1","finishReason":"stop","timestamp":300}\n\n',
+              'data: {"type":"RUN_FINISHED","runId":"run-1","threadId":"thread-1","timestamp":300,"metadata":{"tanstack":{"finishReason":"stop"}}}\n\n',
             ),
           })
           .mockResolvedValueOnce({ done: true, value: undefined }),
@@ -1062,7 +1062,7 @@ describe('connection-adapters', () => {
           .mockResolvedValueOnce({
             done: false,
             value: new TextEncoder().encode(
-              '{"type":"RUN_FINISHED","runId":"run-1","finishReason":"stop","timestamp":300}\n',
+              '{"type":"RUN_FINISHED","runId":"run-1","threadId":"thread-1","timestamp":300,"metadata":{"tanstack":{"finishReason":"stop"}}}\n',
             ),
           })
           .mockResolvedValueOnce({ done: true, value: undefined }),
@@ -1124,7 +1124,7 @@ describe('connection-adapters', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         }
       })
 
@@ -1281,9 +1281,6 @@ describe('connection-adapters', () => {
           type: EventType.RUN_ERROR,
           message: 'already failed',
           timestamp: Date.now(),
-          error: {
-            message: 'already failed',
-          },
         }
         throw new Error('connect exploded')
       })
@@ -1309,7 +1306,7 @@ describe('connection-adapters', () => {
       expect(received).toHaveLength(1)
       expect(received[0]?.type).toBe('RUN_ERROR')
       if (received[0]?.type === 'RUN_ERROR') {
-        expect(received[0].error?.message).toBe('already failed')
+        expect(received[0].message).toBe('already failed')
       }
     })
   })
@@ -1352,7 +1349,7 @@ describe('connection-adapters', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         }
       })
 

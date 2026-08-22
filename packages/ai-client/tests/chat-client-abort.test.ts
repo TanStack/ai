@@ -39,7 +39,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         }
       },
     }
@@ -280,7 +280,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         }
       },
     }
@@ -324,7 +324,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         }
       },
     }
@@ -373,7 +373,7 @@ describe('ChatClient - Abort Signal Handling', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         }
       },
     }

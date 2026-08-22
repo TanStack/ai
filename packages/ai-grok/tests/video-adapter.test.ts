@@ -507,6 +507,37 @@ describe('Grok Video Adapter', () => {
         'https://proxy.example.com/v1/videos/generations',
       )
     })
+
+    it('invokes fetch as a free function, not as an adapter method', async () => {
+      // workerd's fetch throws if `this` is the adapter. Do not assign
+      // globalThis.fetch — inject a this-sensitive stub through config.
+      function workerdFetch(
+        this: unknown,
+        _input: string | URL | Request,
+        _init?: RequestInit,
+      ): Promise<Response> {
+        if (this !== undefined && this !== globalThis) {
+          throw new TypeError(
+            'Illegal invocation: function called with incorrect `this` reference.',
+          )
+        }
+        return Promise.resolve(jsonResponse({ request_id: 'req-this' }))
+      }
+      const adapter = createGrokVideo(
+        'grok-imagine-video-1.5',
+        'test-api-key',
+        { fetch: workerdFetch },
+      )
+      const result = await adapter.createVideoJob({
+        model: 'grok-imagine-video-1.5',
+        prompt: i2vPrompt(),
+        logger: testLogger,
+      })
+      expect(result).toEqual({
+        jobId: 'req-this',
+        model: 'grok-imagine-video-1.5',
+      })
+    })
   })
 
   describe('reference-to-video', () => {

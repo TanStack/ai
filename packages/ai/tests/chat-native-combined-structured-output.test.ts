@@ -20,7 +20,7 @@ import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
 import { collectChunks, createMockAdapter } from './test-utils'
-import type { StreamChunk } from '../src/types'
+import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 
 const PersonSchema = z.object({
   name: z.string(),
@@ -30,7 +30,7 @@ type Person = z.infer<typeof PersonSchema>
 
 const validPerson: Person = { name: 'Jane Roe', age: 31 }
 
-function textTurn(json: string): Array<StreamChunk> {
+function textTurn(json: string): Array<AdapterYieldChunk> {
   const ts = Date.now()
   return [
     {

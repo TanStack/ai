@@ -104,7 +104,7 @@ describe('generation client devtools bridge', () => {
       runId,
       threadId: 'thread-1',
       timestamp: Date.now(),
-      finishReason: 'stop',
+      metadata: { tanstack: { finishReason: 'stop' } },
     } satisfies StreamChunk
   }
 

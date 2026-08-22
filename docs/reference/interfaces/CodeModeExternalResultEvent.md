@@ -5,7 +5,7 @@ title: CodeModeExternalResultEvent
 
 # Interface: CodeModeExternalResultEvent
 
-Defined in: [packages/ai/src/types.ts:1557](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1557)
+Defined in: [packages/ai/src/types.ts:1565](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1565)
 
 Custom event for extensibility.
 
@@ -28,7 +28,7 @@ erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCu
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1414)
+Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
 
 Model identifier for multi-model support
 
@@ -44,7 +44,7 @@ Model identifier for multi-model support
 name: "code_mode:external_result";
 ```
 
-Defined in: [packages/ai/src/types.ts:1558](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1558)
+Defined in: [packages/ai/src/types.ts:1566](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1566)
 
 #### Overrides
 
@@ -60,7 +60,7 @@ CustomEvent.name
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
+Defined in: [packages/ai/src/types.ts:1430](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1430)
 
 #### Inherited from
 
@@ -74,7 +74,7 @@ Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/
 optional threadId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1421](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1421)
+Defined in: [packages/ai/src/types.ts:1429](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1429)
 
 Routing metadata the TanStack engine attaches when emitting CUSTOM
 events that need to be correlated with a specific thread/run.
@@ -93,7 +93,7 @@ the AG-UI consumer never sees them (when that middleware is enabled).
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1412](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1412)
+Defined in: [packages/ai/src/types.ts:1420](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1420)
 
 #### Inherited from
 
@@ -107,7 +107,7 @@ Defined in: [packages/ai/src/types.ts:1412](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1559](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1559)
+Defined in: [packages/ai/src/types.ts:1567](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1567)
 
 #### duration
 

@@ -35,7 +35,7 @@ import type {
 import type {
   DefaultMessageMetadataByModality,
   Modality,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type { OpencodeSessionHandle } from '../process/server'
@@ -137,7 +137,7 @@ export class OpencodeTextAdapter<
 
   async *chatStream(
     options: TextOptions<OpencodeTextProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     let server:
       | Awaited<ReturnType<typeof startOpencodeServerInSandbox>>
@@ -246,7 +246,7 @@ export class OpencodeTextAdapter<
 
       // Approval-requested events for `ask`-policy actions with no client
       // decision yet, emitted after the stream so the client can approve + re-run.
-      const approvalRequests: Array<StreamChunk> = []
+      const approvalRequests: Array<AdapterYieldChunk> = []
 
       const queue = new AsyncQueue<OpencodeStreamEvent>()
       const mode =
@@ -358,7 +358,7 @@ export class OpencodeTextAdapter<
         })
         .catch((error: unknown) => queue.fail(error))
 
-      let heldFinished: StreamChunk | undefined
+      let heldFinished: AdapterYieldChunk | undefined
       let lastTextMessageId: string | undefined
       for await (const chunk of mergeChunkStreams(
         translateOpencodeStream(queue, {

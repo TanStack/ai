@@ -54,7 +54,7 @@ function finishedEvent(id: string): string {
     runId: 'r',
     model: 'test',
     timestamp: 0,
-    finishReason: 'stop',
+    metadata: { tanstack: { finishReason: 'stop' } },
   }
   return `id: ${id}\ndata: ${JSON.stringify(chunk)}\n\n`
 }

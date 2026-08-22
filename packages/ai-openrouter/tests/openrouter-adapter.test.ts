@@ -4,7 +4,7 @@ import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
 import { ChatRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterText } from '../src/adapters/text'
 import type { OpenRouterTextModelOptions } from '../src/adapters/text'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
 // Test helper: a silent logger for test chatStream calls.
 const testLogger = resolveDebugOption(false)
@@ -122,7 +122,7 @@ describe('OpenRouter adapter option mapping', () => {
       maxCompletionTokens: 1024,
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter,
       systemPrompts: ['Stay concise'],
@@ -365,7 +365,7 @@ describe('OpenRouter adapter option mapping', () => {
     setupMockSdkClient(streamChunks)
 
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of chat({
       adapter,
@@ -460,7 +460,7 @@ describe('OpenRouter adapter option mapping', () => {
 
     const adapter = createAdapter()
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
@@ -525,7 +525,7 @@ describe('OpenRouter adapter option mapping', () => {
 
     const adapter = createAdapter()
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
@@ -649,7 +649,7 @@ describe('OpenRouter adapter option mapping', () => {
 
     const adapter = createAdapter()
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -705,7 +705,7 @@ describe('OpenRouter AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -753,7 +753,7 @@ describe('OpenRouter AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -812,7 +812,7 @@ describe('OpenRouter AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -903,7 +903,7 @@ describe('OpenRouter AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -944,7 +944,7 @@ describe('OpenRouter AG-UI event emission', () => {
     mockSend = vi.fn().mockRejectedValueOnce(new Error('API key invalid'))
 
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -997,7 +997,7 @@ describe('OpenRouter AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -1045,7 +1045,7 @@ describe('OpenRouter AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -1087,7 +1087,7 @@ describe('OpenRouter AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
       model: 'anthropic/claude-sonnet-4.6',
       messages: [{ role: 'user', content: 'Hello' }],
@@ -1118,7 +1118,7 @@ describe('OpenRouter AG-UI event emission', () => {
     ]
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: 'hi' }],
@@ -1182,7 +1182,7 @@ describe('OpenRouter AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/o1-preview',
@@ -1995,7 +1995,7 @@ describe('OpenRouter duplicate event prevention', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -2031,7 +2031,7 @@ describe('OpenRouter duplicate event prevention', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -2070,7 +2070,7 @@ describe('OpenRouter duplicate event prevention', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -2113,7 +2113,7 @@ describe('OpenRouter duplicate event prevention', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -2174,7 +2174,7 @@ describe('OpenRouter STEP event consistency', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/o1-preview',
@@ -2265,7 +2265,7 @@ describe('OpenRouter STEP event consistency', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/o1-preview',
@@ -2329,7 +2329,7 @@ describe('OpenRouter STEP event consistency', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
       model: 'openai/o1-preview',
       messages: [{ role: 'user', content: 'q' }],
@@ -2358,8 +2358,12 @@ describe('OpenRouter STEP event consistency', () => {
     // equivalent to the legacy STEP_FINISHED accumulator without losing data.
     const reasoningDeltas = chunks
       .filter(
-        (c): c is Extract<StreamChunk, { type: 'REASONING_MESSAGE_CONTENT' }> =>
-          c.type === 'REASONING_MESSAGE_CONTENT',
+        (
+          c,
+        ): c is Extract<
+          AdapterYieldChunk,
+          { type: 'REASONING_MESSAGE_CONTENT' }
+        > => c.type === 'REASONING_MESSAGE_CONTENT',
       )
       .map((c) => c.delta)
       .join('')
@@ -2521,7 +2525,7 @@ describe('OpenRouter stream_options conversion', () => {
     })
     mockSend = vi.fn().mockRejectedValueOnce(abortErr)
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
@@ -2553,7 +2557,7 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
     // fail-loud guard surfaces as a RUN_ERROR event instead of an iterator
     // throw — uniform error contract for callers, and we still never make a
     // paid request with an empty user message.
-    const events: Array<StreamChunk> = []
+    const events: Array<AdapterYieldChunk> = []
     for await (const evt of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [{ role: 'user', content: '' }],
@@ -2562,8 +2566,12 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
       events.push(evt)
     }
     const runError = events.find(
-      (e): e is Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> =>
-        e.type === EventType.RUN_ERROR,
+      (
+        e,
+      ): e is Extract<
+        AdapterYieldChunk,
+        { type: typeof EventType.RUN_ERROR }
+      > => e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
     expect(runError!.message).toMatch(/empty text content/i)
@@ -2574,7 +2582,7 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
     setupMockSdkClient([])
     const adapter = createAdapter()
 
-    const events: Array<StreamChunk> = []
+    const events: Array<AdapterYieldChunk> = []
     for await (const evt of adapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [
@@ -2588,8 +2596,12 @@ describe('OpenRouter convertMessage fail-loud guards', () => {
       events.push(evt)
     }
     const runError = events.find(
-      (e): e is Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> =>
-        e.type === EventType.RUN_ERROR,
+      (
+        e,
+      ): e is Extract<
+        AdapterYieldChunk,
+        { type: typeof EventType.RUN_ERROR }
+      > => e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
     expect(runError!.message).toMatch(/unsupported content part/i)
@@ -2810,7 +2822,7 @@ describe('OpenRouter cost tracking', () => {
 
   const runFinished = async (usage: Record<string, unknown>) => {
     setupMockSdkClient(baseStream(usage))
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hi' }],

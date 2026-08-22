@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import { GrokThoughtRouter } from '../src/stream/thought-router'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 async function collectRouter(
   deltas: Array<string>,
   finalize = true,
-): Promise<Array<StreamChunk>> {
+): Promise<Array<AdapterYieldChunk>> {
   const router = new GrokThoughtRouter({
     model: 'grok-build',
     genId: (() => {
@@ -14,7 +14,7 @@ async function collectRouter(
     })(),
     now: () => 1,
   })
-  const out: Array<StreamChunk> = []
+  const out: Array<AdapterYieldChunk> = []
   for (const delta of deltas) {
     for (const chunk of router.push(delta)) out.push(chunk)
   }

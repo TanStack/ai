@@ -11,7 +11,7 @@ import {
   openRouterText,
 } from '@tanstack/ai-openrouter'
 import { z } from 'zod'
-import type { ChatMiddleware, StreamChunk } from '@tanstack/ai'
+import type { ChatMiddleware, AdapterYieldChunk } from '@tanstack/ai'
 
 /**
  * Live confirmation page for OpenRouter native combined mode:
@@ -84,8 +84,10 @@ export type CombinedModeStats = {
 function instrumentAdapter<
   T extends {
     model: string
-    chatStream: (options: never) => AsyncIterable<StreamChunk>
-    structuredOutputStream?: (options: never) => AsyncIterable<StreamChunk>
+    chatStream: (options: never) => AsyncIterable<AdapterYieldChunk>
+    structuredOutputStream?: (
+      options: never,
+    ) => AsyncIterable<AdapterYieldChunk>
     structuredOutput: (options: never) => Promise<unknown>
     supportsCombinedToolsAndSchema: () => boolean
   },
@@ -151,11 +153,11 @@ function phaseCounterMiddleware(): {
 }
 
 async function* withTrailingDiagnostics(
-  stream: AsyncIterable<StreamChunk>,
+  stream: AsyncIterable<AdapterYieldChunk>,
   combinedSnapshot: () => CombinedModeStats,
   phaseSnapshot: () => Record<string, number>,
   model: string,
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   let yielded = false
   for await (const chunk of stream) {
     if (
@@ -247,7 +249,7 @@ export const Route = createFileRoute('/api/openrouter-combined')({
             threadId: params.threadId,
             runId: params.runId,
             abortController,
-          }) as AsyncIterable<StreamChunk>
+          }) as AsyncIterable<AdapterYieldChunk>
 
           const withDiagnostics = withTrailingDiagnostics(
             streamIterable,

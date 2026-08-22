@@ -11,6 +11,7 @@
 import { StreamProcessor } from '../../src/activities/chat/stream/processor'
 import { EventType } from '../../src/types'
 import type { StreamChunk, UIMessage } from '../../src/types'
+import type { AdapterYieldChunk } from '../../src/utilities/adapter-yield-chunk'
 
 /**
  * A RUN_STARTED chunk. Typed factories like this keep the discriminated-union
@@ -65,7 +66,7 @@ export async function runProcessorWithChunks(
 ): Promise<UIMessage> {
   const processor = new StreamProcessor()
 
-  const envelopeChunks: Array<StreamChunk> = [
+  const envelopeChunks: Array<AdapterYieldChunk> = [
     runStartedChunk(),
     textMessageStartChunk(),
     ...chunks,
@@ -83,7 +84,9 @@ export async function runProcessorWithChunks(
     },
   ]
 
-  async function* streamOf(cs: Array<StreamChunk>): AsyncIterable<StreamChunk> {
+  async function* streamOf(
+    cs: Array<AdapterYieldChunk>,
+  ): AsyncIterable<AdapterYieldChunk> {
     for (const c of cs) {
       yield c
     }

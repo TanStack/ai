@@ -7,7 +7,7 @@ import type {
   ConverseStreamCommandInput,
   ConverseStreamOutput,
 } from '@aws-sdk/client-bedrock-runtime'
-import type { StreamChunk, TextOptions } from '@tanstack/ai'
+import type { AdapterYieldChunk, TextOptions } from '@tanstack/ai'
 
 /**
  * Subclass that overrides the protected SDK seams so no real AWS call happens.
@@ -189,7 +189,7 @@ describe('BedrockConverseTextAdapter', () => {
       { contentBlockStop: { contentBlockIndex: 0 } },
       { messageStop: { stopReason: 'tool_use' } },
     ]
-    const events: Array<StreamChunk> = []
+    const events: Array<AdapterYieldChunk> = []
     for await (const c of a.structuredOutputStream({
       chatOptions: textOptions({ messages: [{ role: 'user', content: 'go' }] }),
       outputSchema: { type: 'object', properties: { n: { type: 'number' } } },
@@ -197,7 +197,7 @@ describe('BedrockConverseTextAdapter', () => {
       events.push(c)
     }
     const complete = events.find(
-      (e): e is Extract<StreamChunk, { type: 'CUSTOM' }> =>
+      (e): e is Extract<AdapterYieldChunk, { type: 'CUSTOM' }> =>
         e.type === 'CUSTOM' &&
         'name' in e &&
         e.name === 'structured-output.complete',

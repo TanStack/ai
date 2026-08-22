@@ -3,7 +3,7 @@ import { OpenAIBaseChatCompletionsTextAdapter } from '../src/adapters/chat-compl
 import OpenAI from 'openai'
 import { EventType } from '@tanstack/ai'
 import { resolveDebugOption } from '@tanstack/ai/adapter-internals'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
 
@@ -120,7 +120,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter — usage-only terminal chunk', (
 
     setupMockSdkClient(streamChunks)
     const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       logger: testLogger,
@@ -188,7 +188,7 @@ describe('OpenAIBaseChatCompletionsTextAdapter — usage-only terminal chunk', (
 
     setupMockSdkClient(streamChunks)
     const adapter = new TestChatCompletionsAdapter(testConfig, 'test-model')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       logger: testLogger,
