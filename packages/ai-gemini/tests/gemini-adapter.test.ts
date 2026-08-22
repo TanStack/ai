@@ -746,12 +746,18 @@ describe('GeminiAdapter through AI', () => {
             {
               id: 'call_1',
               type: 'function',
-              function: { name: 'lookupCurrency', arguments: '{"query":"USD"}' },
+              function: {
+                name: 'lookupCurrency',
+                arguments: '{"query":"USD"}',
+              },
             },
             {
               id: 'call_2',
               type: 'function',
-              function: { name: 'lookupCurrency', arguments: '{"query":"EUR"}' },
+              function: {
+                name: 'lookupCurrency',
+                arguments: '{"query":"EUR"}',
+              },
             },
           ],
         },
