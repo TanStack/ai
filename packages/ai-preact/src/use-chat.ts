@@ -159,6 +159,8 @@ export function useChat<
       ...(initialOptions.forwardedProps !== undefined && {
         forwardedProps: initialOptions.forwardedProps,
       }),
+      ...(initialOptions.byok !== undefined && { byok: initialOptions.byok }),
+      byokProvider: () => optionsRef.current.byokProvider?.(),
       ...(initialOptions.initialResumeSnapshot !== undefined && {
         initialResumeSnapshot: initialOptions.initialResumeSnapshot,
       }),

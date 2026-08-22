@@ -16,6 +16,6 @@ type ToolCallState =
   | "error";
 ```
 
-Defined in: [packages/ai/src/types.ts:61](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L61)
+Defined in: [packages/ai/src/types.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L64)
 
 Tool call states - track the lifecycle of a tool call
