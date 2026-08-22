@@ -5,6 +5,7 @@ import type {
   StreamChunk,
 } from '@tanstack/ai/client'
 import type { TokenUsage, TranscriptionResponseFormat } from '@tanstack/ai'
+import type { ByokClient } from './byok'
 import type { ConnectConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type {
@@ -271,6 +272,8 @@ export const GENERATION_EVENTS = {
 export interface GenerationFetcherOptions {
   /** AbortSignal that is triggered when the user calls `stop()` */
   signal: AbortSignal
+  /** Extra request headers for this run (e.g. BYOK keys). */
+  headers?: Record<string, string>
 }
 
 /**
@@ -337,6 +340,19 @@ export interface GenerationClientOptions<_TInput, TResult, TOutput = TResult> {
 
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+
+  /**
+   * Optional BYOK keyring. On each generate the client prepares the resolved
+   * provider and stamps `x-byok-*` request headers. Keys never go in the body.
+   */
+  byok?: ByokClient
+
+  /**
+   * Optional provider id for this generation. If it returns a provider slug,
+   * only that key is prepared and sent. Otherwise `body.provider` is used.
+   * If no slug resolves, generate throws instead of attaching every stored key.
+   */
+  byokProvider?: () => string | undefined
 
   /** Metadata used to register this generation hook with TanStack AI Devtools */
   devtools?: Partial<AIDevtoolsClientMetadata>

@@ -1,5 +1,19 @@
 # @tanstack/openai-base
 
+## 0.10.3
+
+### Patch Changes
+
+- [#1174](https://github.com/TanStack/ai/pull/1174) [`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46) - Put AG-UI extras under `metadata.tanstack`. SSE/HTTP wire events are spec-only.
+
+  `sendMessage({ content, metadata })` stamps user metadata on the user message.
+  In-process `chat()` still yields `toolName`, `TOOL_CALL_END.input`, and TanStack `TokenUsage`.
+  Thinking signatures round-trip on `REASONING_ENCRYPTED_VALUE`.
+  Wire messages use `content` / `toolCalls` / fan-out roles, not `parts`.
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai@0.48.0
+
 ## 0.10.2
 
 ### Patch Changes

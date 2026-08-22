@@ -9,7 +9,7 @@ title: getVideoJobStatus
 function getVideoJobStatus<TAdapter>(options): Promise<VideoJobStatusResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/index.ts:910](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L910)
+Defined in: [packages/ai/src/activities/generateVideo/index.ts:911](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L911)
 
 **`Experimental`**
 

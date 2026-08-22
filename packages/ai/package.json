@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai",
-  "version": "0.47.3",
+  "version": "0.48.0",
   "description": "Type-safe TypeScript AI SDK for streaming chat, tool calling, agents, structured outputs, and multimodal generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -48,6 +48,14 @@
     "./adapter-internals": {
       "types": "./dist/esm/adapter-internals.d.ts",
       "import": "./dist/esm/adapter-internals.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
+    },
+    "./byok/server": {
+      "types": "./dist/esm/byok/server.d.ts",
+      "import": "./dist/esm/byok/server.js"
     }
   },
   "sideEffects": false,

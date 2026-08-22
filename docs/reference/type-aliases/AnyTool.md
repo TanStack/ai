@@ -9,7 +9,7 @@ title: AnyTool
 type AnyTool = Omit<Tool<any, any, any, any>, "execute"> & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:763](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L763)
+Defined in: [packages/ai/src/types.ts:808](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L808)
 
 ## Type Declaration
 
