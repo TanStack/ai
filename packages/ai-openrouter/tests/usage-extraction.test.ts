@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { createOpenRouterText } from '../src/adapters/text'
 import type { Mock } from 'vitest'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 let mockSend: Mock
 
@@ -84,7 +84,7 @@ describe('OpenRouter usage extraction', () => {
       return Promise.resolve({})
     })
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -142,7 +142,7 @@ describe('OpenRouter usage extraction', () => {
       return Promise.resolve({})
     })
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -198,7 +198,7 @@ describe('OpenRouter usage extraction', () => {
       return Promise.resolve({})
     })
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -255,7 +255,7 @@ describe('OpenRouter usage extraction', () => {
       return Promise.resolve({})
     })
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -306,7 +306,7 @@ describe('OpenRouter usage extraction', () => {
       return Promise.resolve({})
     })
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],

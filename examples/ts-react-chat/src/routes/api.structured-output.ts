@@ -20,7 +20,11 @@ import {
   openRouterText,
 } from '@tanstack/ai-openrouter'
 import { z } from 'zod'
-import type { AnyTextAdapter, ChatMiddleware, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  ChatMiddleware,
+  AdapterYieldChunk,
+} from '@tanstack/ai'
 import { EventType } from '@tanstack/ai'
 
 /**
@@ -53,10 +57,10 @@ function phaseCounterMiddleware(): {
  * right before terminating, carrying the counter middleware's snapshot.
  */
 async function* withTrailingPhaseCounts(
-  stream: AsyncIterable<StreamChunk>,
+  stream: AsyncIterable<AdapterYieldChunk>,
   snapshot: () => Record<string, number>,
   model: string,
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   let yieldedCounts = false
   for await (const chunk of stream) {
     if (
@@ -300,7 +304,7 @@ async function* structuredOutputResultStream(args: {
   threadId: string
   runId: string
   model: string
-}): AsyncIterable<StreamChunk> {
+}): AsyncIterable<AdapterYieldChunk> {
   const messageId = `structured-output-${args.runId}`
   const raw = JSON.stringify(args.result)
   const timestamp = Date.now()
@@ -408,7 +412,7 @@ export const Route = createFileRoute('/api/structured-output')({
               threadId: params.threadId,
               runId: params.runId,
               abortController,
-            }) as AsyncIterable<StreamChunk>
+            }) as AsyncIterable<AdapterYieldChunk>
             const withCounts = withTrailingPhaseCounts(
               streamIterable,
               counter.snapshot,

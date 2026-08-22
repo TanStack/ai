@@ -5,7 +5,7 @@ title: TextCompletionChunk
 
 # Interface: TextCompletionChunk
 
-Defined in: [packages/ai/src/types.ts:1978](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1978)
+Defined in: [packages/ai/src/types.ts:1986](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1986)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [packages/ai/src/types.ts:1978](https://github.com/TanStack/ai/blob/
 content: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1981](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1981)
+Defined in: [packages/ai/src/types.ts:1989](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1989)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/ai/src/types.ts:1981](https://github.com/TanStack/ai/blob/
 optional finishReason?: "length" | "stop" | "content_filter" | null;
 ```
 
-Defined in: [packages/ai/src/types.ts:1983](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1983)
+Defined in: [packages/ai/src/types.ts:1991](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1991)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/types.ts:1983](https://github.com/TanStack/ai/blob/
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1979](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1979)
+Defined in: [packages/ai/src/types.ts:1987](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1987)
 
 ***
 
@@ -45,7 +45,7 @@ Defined in: [packages/ai/src/types.ts:1979](https://github.com/TanStack/ai/blob/
 model: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1980](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1980)
+Defined in: [packages/ai/src/types.ts:1988](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1988)
 
 ***
 
@@ -55,7 +55,7 @@ Defined in: [packages/ai/src/types.ts:1980](https://github.com/TanStack/ai/blob/
 optional role?: "assistant";
 ```
 
-Defined in: [packages/ai/src/types.ts:1982](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1982)
+Defined in: [packages/ai/src/types.ts:1990](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1990)
 
 ***
 
@@ -65,4 +65,4 @@ Defined in: [packages/ai/src/types.ts:1982](https://github.com/TanStack/ai/blob/
 optional usage?: TokenUsage<ProviderUsageDetails>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1984](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1984)
+Defined in: [packages/ai/src/types.ts:1992](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1992)

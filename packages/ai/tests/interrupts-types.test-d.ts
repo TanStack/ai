@@ -13,7 +13,7 @@ import type {
   InferToolOutput,
   InputSchemaOf,
   NoSchema,
-  RunErrorEvent,
+  TanStackRunMetadata,
 } from '../src'
 import type { InterruptSubmissionError } from '../src/interrupts'
 
@@ -66,7 +66,7 @@ expectTypeOf<
 expectTypeOf<InputSchemaOf<typeof noInputClient>>().toEqualTypeOf<NoSchema>()
 expectTypeOf<InputSchemaOf<typeof noInputServer>>().toEqualTypeOf<NoSchema>()
 
-expectTypeOf<RunErrorEvent['tanstack:interruptErrors']>().toEqualTypeOf<
+expectTypeOf<TanStackRunMetadata['interruptErrors']>().toEqualTypeOf<
   ReadonlyArray<InterruptSubmissionError> | undefined
 >()
 expectTypeOf<ChatMiddlewareContext['parentRunId']>().toEqualTypeOf<

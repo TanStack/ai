@@ -9,7 +9,7 @@ title: GeneratedAudio
 type GeneratedAudio = GeneratedMediaSource & object;
 ```
 
-Defined in: [packages/ai/src/types.ts:2351](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2351)
+Defined in: [packages/ai/src/types.ts:2359](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2359)
 
 A single generated audio output
 

@@ -9,7 +9,7 @@ title: withoutInterruptBinding
 function withoutInterruptBinding(descriptor): Interrupt;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:818](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L818)
+Defined in: [packages/ai/src/interrupt-resume.ts:949](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L949)
 
 ## Parameters
 

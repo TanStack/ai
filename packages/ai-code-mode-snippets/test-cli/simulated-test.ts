@@ -6,7 +6,7 @@
  * 2. Second run: Use the saved snippet
  */
 
-import { chat, maxIterations } from '@tanstack/ai'
+import { EventType, chat, maxIterations } from '@tanstack/ai'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { codeModeWithSnippets } from '../src/code-mode-with-snippets'
 import {
@@ -197,8 +197,8 @@ export async function runSimulatedTest(): Promise<TestResult> {
         logInfo(`Tool result received for: ${chunk.toolCallId}`)
       } else if (chunk.type === 'content') {
         // Content streaming
-      } else if (chunk.type === 'done') {
-        logInfo(`Phase 1 done: ${chunk.finishReason}`)
+      } else if (chunk.type === EventType.RUN_FINISHED) {
+        logInfo(`Phase 1 done: ${chunk.metadata?.tanstack?.finishReason}`)
       }
     }
 
@@ -360,8 +360,8 @@ export async function runSimulatedTest(): Promise<TestResult> {
         }
       } else if (chunk.type === 'tool_result') {
         logInfo(`Tool result received for: ${chunk.toolCallId}`)
-      } else if (chunk.type === 'done') {
-        logInfo(`Phase 2 done: ${chunk.finishReason}`)
+      } else if (chunk.type === EventType.RUN_FINISHED) {
+        logInfo(`Phase 2 done: ${chunk.metadata?.tanstack?.finishReason}`)
       }
     }
 

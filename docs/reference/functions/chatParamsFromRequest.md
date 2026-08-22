@@ -17,7 +17,7 @@ function chatParamsFromRequest(req): Promise<{
      | null>
     | UIMessage<unknown>)[];
   parentRunId?: string;
-  resume?: ResumeEntry[];
+  resume?: RunAgentResumeItem[];
   runId: string;
   state: unknown;
   threadId: string;
@@ -25,7 +25,7 @@ function chatParamsFromRequest(req): Promise<{
 }>;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:286](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L286)
+Defined in: [packages/ai/src/utilities/chat-params.ts:299](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L299)
 
 Read an HTTP `Request`, parse its JSON body, and validate it as an
 AG-UI `RunAgentInput` — collapsing the standard `req.json()` +
@@ -68,7 +68,7 @@ with try/catch and return the caught Response yourself, or use
      \| `null`\>
     \| [`UIMessage`](../interfaces/UIMessage.md)\<`unknown`\>)[];
   `parentRunId?`: `string`;
-  `resume?`: `ResumeEntry`[];
+  `resume?`: [`RunAgentResumeItem`](../type-aliases/RunAgentResumeItem.md)[];
   `runId`: `string`;
   `state`: `unknown`;
   `threadId`: `string`;

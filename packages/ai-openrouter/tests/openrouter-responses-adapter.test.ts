@@ -5,7 +5,7 @@ import { ResponsesRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
 import { webSearchTool } from '../src/tools/web-search-tool'
 import { webFetchTool } from '../src/tools/web-fetch-tool'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
 let mockSend: any
@@ -254,7 +254,7 @@ describe('OpenRouter responses adapter — request shape', () => {
   it('rejects webSearchTool() as RUN_ERROR pointing at the chat adapter', async () => {
     const adapter = createAdapter()
     const ws = webSearchTool() as Tool
-    const events: Array<StreamChunk> = []
+    const events: Array<AdapterYieldChunk> = []
     for await (const evt of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
@@ -264,8 +264,12 @@ describe('OpenRouter responses adapter — request shape', () => {
       events.push(evt)
     }
     const runError = events.find(
-      (e): e is Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> =>
-        e.type === EventType.RUN_ERROR,
+      (
+        e,
+      ): e is Extract<
+        AdapterYieldChunk,
+        { type: typeof EventType.RUN_ERROR }
+      > => e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
     expect(runError!.message).toMatch(/openRouterText/)
@@ -274,7 +278,7 @@ describe('OpenRouter responses adapter — request shape', () => {
   it('rejects webFetchTool() as RUN_ERROR pointing at the chat adapter', async () => {
     const adapter = createAdapter()
     const wf = webFetchTool() as Tool
-    const events: Array<StreamChunk> = []
+    const events: Array<AdapterYieldChunk> = []
     for await (const evt of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
@@ -284,8 +288,12 @@ describe('OpenRouter responses adapter — request shape', () => {
       events.push(evt)
     }
     const runError = events.find(
-      (e): e is Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> =>
-        e.type === EventType.RUN_ERROR,
+      (
+        e,
+      ): e is Extract<
+        AdapterYieldChunk,
+        { type: typeof EventType.RUN_ERROR }
+      > => e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
     expect(runError!.message).toMatch(/webFetchTool/)
@@ -552,7 +560,7 @@ describe('OpenRouter responses adapter — request shape', () => {
     // inline document data so callers know to use the Responses adapter.
     const { createOpenRouterText } = await import('../src/adapters/text')
     const chatAdapter = createOpenRouterText('openai/gpt-4o-mini' as any, 'k')
-    const events: Array<StreamChunk> = []
+    const events: Array<AdapterYieldChunk> = []
     for await (const evt of chatAdapter.chatStream({
       model: 'openai/gpt-4o-mini',
       messages: [
@@ -571,8 +579,12 @@ describe('OpenRouter responses adapter — request shape', () => {
       events.push(evt)
     }
     const runError = events.find(
-      (e): e is Extract<StreamChunk, { type: typeof EventType.RUN_ERROR }> =>
-        e.type === EventType.RUN_ERROR,
+      (
+        e,
+      ): e is Extract<
+        AdapterYieldChunk,
+        { type: typeof EventType.RUN_ERROR }
+      > => e.type === EventType.RUN_ERROR,
     )
     expect(runError).toBeDefined()
     expect(runError!.message.toLowerCase()).toMatch(
@@ -620,7 +632,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const c of chat({
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
@@ -681,7 +693,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,
@@ -738,7 +750,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: adapter.model,
@@ -777,7 +789,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: adapter.model,
@@ -818,7 +830,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: adapter.model,
@@ -883,7 +895,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     ])
 
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const c of chat({
       adapter,
       messages: [{ role: 'user', content: 'hi' }],
@@ -909,8 +921,11 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(end.toolCallId).toBe('call_abc')
     expect(end.input).toEqual({ location: 'Berlin' })
 
-    const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
-    expect(finished.finishReason).toBe('tool_calls')
+    const finished = chunks.find((c) => c.type === 'RUN_FINISHED')
+    if (finished === undefined) {
+      throw new Error('expected RUN_FINISHED')
+    }
+    expect(finished.metadata?.tanstack?.finishReason).toBe('tool_calls')
   })
 
   it('preserves a streamed function-call name when later items omit it', async () => {
@@ -960,7 +975,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       },
     ])
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'hi' }],
@@ -977,7 +992,8 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     expect(
       chunks.find((chunk) => chunk.type === 'TOOL_CALL_END'),
     ).toMatchObject({
-      toolCallName: 'lookup_weather',
+      toolCallId: 'call_abc',
+      input: { location: 'Berlin' },
     })
   })
 
@@ -1151,7 +1167,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     ])
 
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const c of chat({
       adapter,
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
@@ -1191,7 +1207,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
@@ -1223,7 +1239,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
     )
 
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
@@ -1255,7 +1271,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
@@ -1286,7 +1302,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
@@ -1322,7 +1338,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
@@ -1389,7 +1405,7 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const c of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
@@ -1410,6 +1426,50 @@ describe('OpenRouter responses adapter — stream event bridge', () => {
       .join('')
     expect(allContent).toBe('partial ')
     expect(allContent).not.toContain('after-error')
+  })
+
+  it('emits REASONING_MESSAGE_CONTENT for reasoning_text.delta', async () => {
+    setupMockSdkClient([
+      {
+        type: 'response.created',
+        sequenceNumber: 0,
+        response: { model: 'm', output: [] },
+      },
+      {
+        type: 'response.reasoning_text.delta',
+        sequenceNumber: 1,
+        delta: 'Let me think.',
+      },
+      {
+        type: 'response.output_text.delta',
+        sequenceNumber: 2,
+        delta: 'Done.',
+      },
+      {
+        type: 'response.completed',
+        sequenceNumber: 3,
+        response: {
+          model: 'm',
+          output: [],
+          usage: { inputTokens: 1, outputTokens: 1, totalTokens: 2 },
+        },
+      },
+    ])
+    const adapter = createAdapter()
+    const chunks: Array<AdapterYieldChunk> = []
+    for await (const c of adapter.chatStream({
+      model: 'openai/gpt-4o-mini' as any,
+      messages: [{ role: 'user', content: 'think' }],
+      logger: testLogger,
+    })) {
+      chunks.push(c)
+    }
+
+    const reasoning = chunks.find((c) => c.type === 'REASONING_MESSAGE_CONTENT')
+    expect(reasoning).toBeDefined()
+    if (reasoning?.type === 'REASONING_MESSAGE_CONTENT') {
+      expect(reasoning.delta).toBe('Let me think.')
+    }
   })
 })
 
@@ -1656,7 +1716,7 @@ describe('OpenRouter responses adapter — cost tracking', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],
@@ -1739,7 +1799,7 @@ describe('OpenRouter responses adapter — cost tracking', () => {
       },
     ])
     const adapter = createAdapter()
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-4o-mini' as any,
       messages: [{ role: 'user', content: 'hi' }],

@@ -3,16 +3,16 @@ id: DefinedChatMiddleware
 title: DefinedChatMiddleware
 ---
 
-# Interface: DefinedChatMiddleware\<TContext, TRequires, TProvides\>
+# Interface: DefinedChatMiddleware\<TContext, TRequires, TProvides, TInterruptDefinitions\>
 
-Defined in: [packages/ai/src/activities/chat/middleware/define.ts:8](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L8)
+Defined in: [packages/ai/src/activities/chat/middleware/define.ts:11](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L11)
 
 A middleware whose `requires`/`provides` tuple types are captured precisely
 (via `const` inference) for the array coverage check and the builder.
 
 ## Extends
 
-- [`ChatMiddleware`](ChatMiddleware.md)\<`TContext`\>
+- [`ChatMiddleware`](ChatMiddleware.md)\<`TContext`, `TInterruptDefinitions`\>
 
 ## Type Parameters
 
@@ -28,6 +28,10 @@ A middleware whose `requires`/`provides` tuple types are captured precisely
 
 `TProvides` *extends* `ReadonlyArray`\<[`CapabilityHandle`](../type-aliases/CapabilityHandle.md)\>
 
+### TInterruptDefinitions
+
+`TInterruptDefinitions` *extends* `AnyInterruptDefinition` = `never`
+
 ## Properties
 
 ### name?
@@ -36,7 +40,7 @@ A middleware whose `requires`/`provides` tuple types are captured precisely
 optional name?: string;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:465](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L465)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:570](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L570)
 
 Optional name for debugging and identification
 
@@ -52,7 +56,7 @@ Optional name for debugging and identification
 optional onAbort?: (ctx, info) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:634](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L634)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:758](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L758)
 
 Called when the chat run is aborted.
 Exactly one of onFinish/onAbort/onError will be called per run.
@@ -83,7 +87,7 @@ Exactly one of onFinish/onAbort/onError will be called per run.
 optional onAfterToolCall?: (ctx, info) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:598](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L598)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:722](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L722)
 
 Called after a tool execution completes (success or failure).
 
@@ -115,7 +119,7 @@ optional onBeforeToolCall?: (ctx, hookCtx) =>
 | Promise<BeforeToolCallDecision>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:590](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L590)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:714](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L714)
 
 Called before a tool is executed.
 Can observe, transform args, skip execution, or abort the run.
@@ -152,7 +156,7 @@ optional onChunk?: (ctx, chunk) =>
   | null;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:576](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L576)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:700](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L700)
 
 Called for every chunk yielded by chat().
 Can observe, transform, expand, or drop chunks.
@@ -196,7 +200,7 @@ optional onConfig?: (ctx, config) =>
   | null;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:504](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L504)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:628](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L628)
 
 Called to observe or transform the chat configuration.
 Called at init and at the beginning of each agent iteration.
@@ -236,7 +240,7 @@ Only the fields you return are overwritten — everything else is preserved.
 optional onError?: (ctx, info) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:643](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L643)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:767](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L767)
 
 Called when the chat run encounters an unhandled error.
 Exactly one of onFinish/onAbort/onError will be called per run.
@@ -267,7 +271,7 @@ Exactly one of onFinish/onAbort/onError will be called per run.
 optional onFinish?: (ctx, info) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:625](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L625)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:749](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L749)
 
 Called when the chat run completes normally.
 Exactly one of onFinish/onAbort/onError will be called per run.
@@ -292,13 +296,77 @@ Exactly one of onFinish/onAbort/onError will be called per run.
 
 ***
 
+### onInterruptBoundary?
+
+```ts
+optional onInterruptBoundary?: (ctx) => 
+  | InterruptBoundaryResult<TInterruptDefinitions>
+| Promise<InterruptBoundaryResult<TInterruptDefinitions>>;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:576](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L576)
+
+Called at a lifecycle boundary. Return interrupt requests to pause the run.
+Requests from every middleware in the same boundary form one batch.
+
+#### Parameters
+
+##### ctx
+
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\> & `object`
+
+#### Returns
+
+  \| [`InterruptBoundaryResult`](../type-aliases/InterruptBoundaryResult.md)\<`TInterruptDefinitions`\>
+  \| `Promise`\<[`InterruptBoundaryResult`](../type-aliases/InterruptBoundaryResult.md)\<`TInterruptDefinitions`\>\>
+
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onInterruptBoundary`](ChatMiddleware.md#oninterruptboundary)
+
+***
+
+### onInterruptResolution?
+
+```ts
+optional onInterruptResolution?: (ctx, resolutions) => 
+  | InterruptResolutionResult
+| Promise<InterruptResolutionResult>;
+```
+
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:586](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L586)
+
+Called on a continuation run after the client answers registered interrupts.
+Return `toolResume` to decide whether pending tools continue, cancel, or stop.
+
+#### Parameters
+
+##### ctx
+
+[`ChatMiddlewareContext`](ChatMiddlewareContext.md)\<`TContext`\>
+
+##### resolutions
+
+[`InterruptResolutionCollection`](InterruptResolutionCollection.md)\<`TInterruptDefinitions`\>
+
+#### Returns
+
+  \| [`InterruptResolutionResult`](../type-aliases/InterruptResolutionResult.md)
+  \| `Promise`\<[`InterruptResolutionResult`](../type-aliases/InterruptResolutionResult.md)\>
+
+#### Inherited from
+
+[`ChatMiddleware`](ChatMiddleware.md).[`onInterruptResolution`](ChatMiddleware.md#oninterruptresolution)
+
+***
+
 ### onIteration?
 
 ```ts
 optional onIteration?: (ctx, info) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:546](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L546)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:670](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L670)
 
 Called at the start of each agent loop iteration, after a new assistant message ID
 is created. Use this to observe iteration boundaries.
@@ -329,7 +397,7 @@ is created. Use this to observe iteration boundaries.
 optional onShouldContinue?: (ctx, state) => boolean | void | Promise<boolean | void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:565](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L565)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:689](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L689)
 
 Called when the engine is deciding whether to start another agent-loop
 iteration (after a tool phase or between model turns).
@@ -370,7 +438,7 @@ Receives the same [AgentLoopState](AgentLoopState.md) passed to strategies
 optional onStart?: (ctx) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:540](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L540)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:664](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L664)
 
 Called when the chat run starts (after initial onConfig).
 
@@ -403,7 +471,7 @@ optional onStructuredOutputConfig?: (ctx, config) =>
   | null;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:528](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L528)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:652](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L652)
 
 Called at the start of the final structured-output call (when the chat
 was invoked with outputSchema). Pipes through middleware in order, like
@@ -451,7 +519,7 @@ outputSchema or apply structured-output-specific behavior.
 optional onToolPhaseComplete?: (ctx, info) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:607](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L607)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:731](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L731)
 
 Called after all tool calls in an iteration have been processed.
 Provides aggregate data about tool execution results, approvals, and client tools.
@@ -482,7 +550,7 @@ Provides aggregate data about tool execution results, approvals, and client tool
 optional onUsage?: (ctx, usage) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:616](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L616)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:740](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L740)
 
 Called when usage data is available from a RUN_FINISHED chunk.
 Called once per model iteration that reports usage.
@@ -513,7 +581,7 @@ Called once per model iteration that reports usage.
 optional optionalRequires?: readonly CapabilityHandle[];
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:487](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L487)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:611](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L611)
 
 Capabilities this middleware uses if present but does not require.
 Non-gating: never causes a validation error. Read with
@@ -531,7 +599,7 @@ Non-gating: never causes a validation error. Read with
 optional provides?: TProvides;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/define.ts:14](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L14)
+Defined in: [packages/ai/src/activities/chat/middleware/define.ts:18](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L18)
 
 Capabilities this middleware provides. Each declared capability MUST be
 provided (via its `provide` accessor) inside `setup`, or `chat()` throws
@@ -549,7 +617,7 @@ after the setup phase.
 optional requires?: TRequires;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/define.ts:13](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L13)
+Defined in: [packages/ai/src/activities/chat/middleware/define.ts:17](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/define.ts#L17)
 
 Capabilities this middleware requires. `chat()` validates that some
 middleware (or the adapter) provides each one; unsatisfied requirements are
@@ -568,7 +636,7 @@ the adapter runs.
 optional sandbox?: ChatSandboxHooks<TContext>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:652](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L652)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:776](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L776)
 
 Sandbox file-event hooks. Fire when a sandbox provided by `withSandbox` is
 active during the run and a file is created/changed/deleted. Server-side.
@@ -585,7 +653,7 @@ active during the run and a file is created/changed/deleted. Server-side.
 optional setup?: (ctx) => void | Promise<void>;
 ```
 
-Defined in: [packages/ai/src/activities/chat/middleware/types.ts:495](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L495)
+Defined in: [packages/ai/src/activities/chat/middleware/types.ts:619](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/middleware/types.ts#L619)
 
 Provisioning hook. Runs FIRST — before `onConfig` (init) — across all
 middleware in array order. Use it to call `provide` accessors so later

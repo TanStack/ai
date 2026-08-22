@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { AnthropicTextAdapter } from '../src/adapters/text'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 const mocks = vi.hoisted(() => {
   const betaMessagesCreate = vi.fn()
@@ -91,7 +91,7 @@ describe('Anthropic usage extraction', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -153,7 +153,7 @@ describe('Anthropic usage extraction', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -214,7 +214,7 @@ describe('Anthropic usage extraction', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -273,7 +273,7 @@ describe('Anthropic usage extraction', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -331,7 +331,7 @@ describe('Anthropic usage extraction', () => {
 
     mocks.betaMessagesCreate.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],

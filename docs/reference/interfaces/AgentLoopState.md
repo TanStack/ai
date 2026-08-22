@@ -5,7 +5,7 @@ title: AgentLoopState
 
 # Interface: AgentLoopState
 
-Defined in: [packages/ai/src/types.ts:860](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L860)
+Defined in: [packages/ai/src/types.ts:866](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L866)
 
 State passed to agent loop strategy for determining whether to continue
 
@@ -17,7 +17,7 @@ State passed to agent loop strategy for determining whether to continue
 finishReason: string | null;
 ```
 
-Defined in: [packages/ai/src/types.ts:866](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L866)
+Defined in: [packages/ai/src/types.ts:872](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L872)
 
 Finish reason from the last response
 
@@ -29,7 +29,7 @@ Finish reason from the last response
 iterationCount: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:862](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L862)
+Defined in: [packages/ai/src/types.ts:868](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L868)
 
 Current iteration count (0-indexed). One iteration = one model turn.
 
@@ -41,7 +41,7 @@ Current iteration count (0-indexed). One iteration = one model turn.
 lastTurnToolCallCount: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:878](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L878)
+Defined in: [packages/ai/src/types.ts:884](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L884)
 
 Tool calls in the most recent batch — a live model turn or a
 pending/resume batch (0 when the last phase produced no tool calls).
@@ -57,7 +57,7 @@ messages: ModelMessage<
   | null>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:864](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L864)
+Defined in: [packages/ai/src/types.ts:870](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L870)
 
 Current messages array
 
@@ -69,7 +69,7 @@ Current messages array
 toolCallCount: number;
 ```
 
-Defined in: [packages/ai/src/types.ts:873](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L873)
+Defined in: [packages/ai/src/types.ts:879](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L879)
 
 Cumulative tool calls counted so far in this run (model-emitted during the
 agent loop, including ones skipped by middleware, and pending tools from

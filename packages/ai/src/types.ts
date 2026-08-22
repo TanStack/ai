@@ -6,7 +6,6 @@ import type { InternalLogger } from './logger/internal-logger'
 import type { SystemPrompt } from './system-prompts'
 import type { CapabilityContext } from './activities/chat/middleware/capabilities'
 import type { InterruptSubmissionError } from './interrupts'
-import type { ProviderTool } from './tools/provider-tool'
 // The canonical usage types live in the leaf `@tanstack/ai-event-client`
 // package (which `@tanstack/ai` already depends on) so there is a single source
 // of truth without a dependency cycle. They are re-exported below.
@@ -48,6 +47,10 @@ import type {
   ToolCallStartEvent as AGUIToolCallStartEvent,
   EventType,
 } from '@ag-ui/core'
+import type {
+  SpecTokenUsage,
+  TokenUsageLeftover,
+} from './utilities/ag-ui-usage'
 
 // Re-export ProviderTool so the type is reachable from `@tanstack/ai`'s root
 // entry via `export * from './types'` without forcing the subpath import.
@@ -511,6 +514,43 @@ export type MessagePart<TData = unknown> =
   | UIResourcePart
 
 /**
+ * Shape of `metadata.tanstack` on a message.
+ * `createdAt` is an ISO-8601 string.
+ */
+export interface TanStackMessageMetadata {
+  createdAt?: string
+  model?: string
+  /** Thinking signature for a `role: 'reasoning'` fan-out message. */
+  signature?: string
+  /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */
+  toolCallMetadata?: Record<string, unknown>
+  structuredOutput?: {
+    status?: 'streaming' | 'complete' | 'error'
+    raw?: string
+    errorMessage?: string
+  }
+  uiResources?: Array<UIResourcePart>
+}
+
+/**
+ * Shape of `metadata.tanstack` on run events.
+ */
+export interface TanStackRunMetadata {
+  model?: string
+  finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+  /** TokenUsage fields that have no AG-UI `usage[]` equivalent. */
+  usage?: TokenUsageLeftover
+  interruptErrors?: ReadonlyArray<InterruptSubmissionError>
+  threadId?: string
+  runId?: string
+  sessionId?: string
+  index?: number
+  state?: ToolOutputState
+  /** Parsed `TOOL_CALL_END` input. Spec `TOOL_CALL_END` has no top-level `input`. */
+  input?: unknown
+}
+
+/**
  * UIMessage - Domain-specific message format optimized for building chat UIs
  * Contains parts that can be text, tool calls, or tool results. Generic over
  * the structured-output data type so `useChat({ outputSchema })`'s schema
@@ -522,6 +562,11 @@ export interface UIMessage<TData = unknown> {
   role: 'system' | 'user' | 'assistant'
   parts: Array<MessagePart<TData>>
   createdAt?: Date
+  /**
+   * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
+   * User keys stay at the top.
+   */
+  metadata?: Record<string, any>
 }
 
 export type InputModalitiesTypes = {
@@ -1084,14 +1129,12 @@ export type StreamChunkType = AGUIEventType
 
 /**
  * Base structure for AG-UI events.
- * Extends @ag-ui/core BaseEvent with TanStack AI additions.
+ * Extends @ag-ui/core BaseEvent. TanStack extras ride in `metadata`.
  *
  * @ag-ui/core provides: `type`, `timestamp?`, `rawEvent?`
- * TanStack AI adds: `model?`
  */
 export interface BaseAGUIEvent extends AGUIBaseEvent {
-  /** Model identifier for multi-model support */
-  model?: string
+  metadata?: Record<string, any>
 }
 
 // ============================================================================
@@ -1103,12 +1146,8 @@ export interface BaseAGUIEvent extends AGUIBaseEvent {
  * This is the first event in any streaming response.
  *
  * @ag-ui/core provides: `threadId`, `runId`, `parentRunId?`, `input?`
- * TanStack AI adds: `model?`
  */
-export interface RunStartedEvent extends AGUIRunStartedEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface RunStartedEvent extends AGUIRunStartedEvent {}
 
 // Re-export the canonical usage types (defined in `@tanstack/ai-event-client`)
 // so `@tanstack/ai` consumers keep importing them from here unchanged.
@@ -1141,223 +1180,132 @@ export type RunAgentResumeItem = AGUIResumeEntry & {
 /**
  * Emitted when a run completes successfully.
  *
- * @ag-ui/core provides: `threadId`, `runId`, `result?`
- * TanStack AI adds: `model?`, `finishReason?`, `usage?`
+ * @ag-ui/core provides: `threadId`, `runId`, `result?`, `outcome?`
+ * Spec `usage[]` is provider/model token counts. TanStack leftovers live in
+ * `metadata.tanstack`.
  */
-export interface RunFinishedEvent extends AGUIRunFinishedEvent {
-  /** Model identifier for multi-model support */
+export interface RunFinishedEvent extends Pick<
+  AGUIRunFinishedEvent,
+  'threadId' | 'runId' | 'result' | 'outcome' | 'timestamp' | 'rawEvent'
+> {
+  type: EventType.RUN_FINISHED
+  usage?: Array<SpecTokenUsage> | TokenUsage
+  /** Restored on the client from `metadata.tanstack`. */
   model?: string
-  /** Why the generation stopped */
+  /** Restored on the client from `metadata.tanstack`. */
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  /** Token usage statistics with optional detailed breakdowns and provider-reported cost. */
-  usage?: TokenUsage
+  metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
 /**
  * Emitted when an error occurs during a run.
  *
  * @ag-ui/core provides: `message`, `code?`
- * TanStack AI adds: `model?`, `error?` (deprecated nested form)
+ * Spec `usage[]` is provider/model token counts. Interrupt errors live in
+ * `metadata.tanstack.interruptErrors`.
  */
-export interface RunErrorEvent extends AGUIRunErrorEvent {
-  /** Model identifier for multi-model support */
+export interface RunErrorEvent extends Pick<
+  AGUIRunErrorEvent,
+  'message' | 'code' | 'timestamp' | 'rawEvent'
+> {
+  type: EventType.RUN_ERROR
+  usage?: Array<SpecTokenUsage> | TokenUsage
+  /** Restored on the client from `metadata.tanstack`. */
+  threadId?: string
+  /** Restored on the client from `metadata.tanstack`. */
+  runId?: string
+  /** Restored on the client from `metadata.tanstack`. */
   model?: string
-  /** Exhaustive TanStack interrupt submission failures for this run. */
-  'tanstack:interruptErrors'?: ReadonlyArray<InterruptSubmissionError>
-  /**
-   * @deprecated Use top-level `message` and `code` fields instead.
-   * Kept for backward compatibility.
-   */
-  error?:
-    | {
-        message: string
-        code?: string | undefined
-      }
-    | undefined
+  /** Nested payload kept for in-process / durability consumers. */
+  error?: { message: string; code?: string }
+  metadata?: { tanstack?: TanStackRunMetadata } & Record<string, any>
 }
 
 /**
  * Emitted when a text message starts.
  *
  * @ag-ui/core provides: `messageId`, `role?`, `name?`
- * TanStack AI adds: `model?`
  */
-export interface TextMessageStartEvent extends AGUITextMessageStartEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface TextMessageStartEvent extends AGUITextMessageStartEvent {}
 
 /**
  * Emitted when text content is generated (streaming tokens).
  *
  * @ag-ui/core provides: `messageId`, `delta`
- * TanStack AI adds: `model?`, `content?` (accumulated)
  */
-export interface TextMessageContentEvent extends AGUITextMessageContentEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /** Full accumulated content so far (TanStack AI internal, for debugging) */
-  content?: string
-}
+export interface TextMessageContentEvent extends AGUITextMessageContentEvent {}
 
 /**
  * Emitted when a text message completes.
  *
  * @ag-ui/core provides: `messageId`
- * TanStack AI adds: `model?`
  */
-export interface TextMessageEndEvent extends AGUITextMessageEndEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface TextMessageEndEvent extends AGUITextMessageEndEvent {}
 
 /**
  * Emitted when a tool call starts.
  *
  * @ag-ui/core provides: `toolCallId`, `toolCallName`, `parentMessageId?`
- * TanStack AI adds: `model?`, `toolName` (deprecated alias), `index?`, `metadata?`
  *
  * Field shapes are taken from AG-UI via `Pick` (not `extends`) so Zod
  * `.passthrough()` index signatures do not pollute the StreamChunk
- * discriminated union — required for {@link TypedStreamChunk} narrowing.
- *
- * @typeParam TToolName - Constrained tool name type. Defaults to `string` (untyped).
- *   When the stream is returned from `chat()` with typed tools, `TypedStreamChunk`
- *   intersects a literal onto `toolCallName` and `toolName` for discrimination.
+ * discriminated union — required for {@link KnownCustomEvent} narrowing.
  */
-export interface ToolCallStartEvent<
-  TToolName extends string = string,
-> extends Pick<
+export interface ToolCallStartEvent extends Pick<
   AGUIToolCallStartEvent,
   'toolCallId' | 'toolCallName' | 'parentMessageId' | 'timestamp' | 'rawEvent'
 > {
   type: 'TOOL_CALL_START'
-  /** Model identifier for multi-model support */
-  model?: string
-  /**
-   * @deprecated Use `toolCallName` instead (from @ag-ui/core spec).
-   * Kept for backward compatibility.
-   *
-   * Carries `TToolName` on the base interface; for `toolCallName` narrowing use
-   * {@link TypedStreamChunk} (distributed variants intersect the AG-UI field).
-   */
-  toolName: TToolName
-  /** Index for parallel tool calls */
-  index?: number
-  /** Provider-specific metadata to carry into the ToolCall.
-   * Untyped at the event layer because events flow through a discriminated
-   * union that does not survive generics; adapters cast it to their typed
-   * `TToolCallMetadata` shape when emitting. */
-  metadata?: Record<string, unknown>
+  /** Alias of `toolCallName`. Kept so existing stream readers still compile. */
+  toolName?: string
+  /** Provider-specific metadata to carry into the ToolCall. */
+  metadata?: Record<string, any>
 }
 
 /**
  * Emitted when tool call arguments are streaming.
  *
  * @ag-ui/core provides: `toolCallId`, `delta`
- * TanStack AI adds: `model?`, `args?` (accumulated)
  */
-export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /** Full accumulated arguments so far (TanStack AI internal) */
-  args?: string
-}
+export interface ToolCallArgsEvent extends AGUIToolCallArgsEvent {}
 
 /**
  * Emitted when a tool call completes.
  *
  * @ag-ui/core provides: `toolCallId`
- * TanStack AI adds: `model?`, `toolCallName?`, `toolName?` (deprecated), `input?`, `output?`, `result?`
  *
  * Same `Pick` (not `extends`) rationale as {@link ToolCallStartEvent}.
- *
- * @typeParam TToolName - Constrained tool name type. Defaults to `string` (untyped).
- * @typeParam TInput - Constrained input arguments type. Defaults to `unknown`.
- * @typeParam TOutput - Constrained output type from the tool's `outputSchema`. Defaults to `unknown`.
  */
-export interface ToolCallEndEvent<
-  TToolName extends string = string,
-  TInput = unknown,
-  TOutput = unknown,
-> extends Pick<AGUIToolCallEndEvent, 'toolCallId' | 'timestamp' | 'rawEvent'> {
+export interface ToolCallEndEvent extends Pick<
+  AGUIToolCallEndEvent,
+  'toolCallId' | 'timestamp' | 'rawEvent'
+> {
   type: 'TOOL_CALL_END'
-  /** Model identifier for multi-model support */
-  model?: string
-  /** Name of the tool that completed (AG-UI-compatible optional field) */
-  toolCallName?: TToolName
-  /**
-   * @deprecated Use `toolCallName` instead.
-   * Kept for backward compatibility.
-   */
-  toolName?: TToolName
-  /** Final parsed input arguments (TanStack AI internal) */
-  input?: TInput
-  /**
-   * Tool execution output, validated against the tool's `outputSchema` when
-   * one is declared. Prefer this over parsing `result` when present.
-   * Undefined for tools without execute, client tools pending approval, or
-   * when execution throws.
-   */
-  output?: TOutput
-  /** Tool execution result (TanStack AI internal / wire form) */
-  result?: string | Array<ContentPart>
-  /** Tool execution output state (TanStack AI internal) */
-  state?: ToolOutputState
+  /** Parsed tool arguments when the adapter already parsed them. */
+  input?: unknown
+  metadata?: Record<string, any>
 }
 
 /**
  * Emitted when a tool call result is available.
  *
  * @ag-ui/core provides: `messageId`, `toolCallId`, `content`, `role?`
- * TanStack AI adds: `model?`
  */
-export interface ToolCallResultEvent extends AGUIToolCallResultEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /** Tool execution output state (TanStack AI internal) */
-  state?: ToolOutputState
-}
+export interface ToolCallResultEvent extends AGUIToolCallResultEvent {}
 
 /**
  * Emitted when a thinking/reasoning step starts.
  *
  * @ag-ui/core provides: `stepName`
- * TanStack AI adds: `model?`, `stepId?` (deprecated alias), `stepType?`
  */
-export interface StepStartedEvent extends AGUIStepStartedEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /**
-   * @deprecated Use `stepName` instead (from @ag-ui/core spec).
-   * Kept for backward compatibility.
-   */
-  stepId?: string
-  /** Type of step (e.g., 'thinking', 'planning') */
-  stepType?: string
-}
+export interface StepStartedEvent extends AGUIStepStartedEvent {}
 
 /**
  * Emitted when a thinking/reasoning step finishes.
  *
  * @ag-ui/core provides: `stepName`
- * TanStack AI adds: `model?`, `stepId?` (deprecated alias), `delta?`, `content?`
  */
-export interface StepFinishedEvent extends AGUIStepFinishedEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /**
-   * @deprecated Use `stepName` instead (from @ag-ui/core spec).
-   * Kept for backward compatibility.
-   */
-  stepId?: string
-  /** Incremental thinking content (TanStack AI internal) */
-  delta?: string
-  /** Full accumulated thinking content (TanStack AI internal) */
-  content?: string
-  /** Provider signature for the thinking block */
-  signature?: string
-}
+export interface StepFinishedEvent extends AGUIStepFinishedEvent {}
 
 /**
  * Emitted to provide a snapshot of all messages in a conversation.
@@ -1366,68 +1314,40 @@ export interface StepFinishedEvent extends AGUIStepFinishedEvent {
  * MessagesSnapshot specifically delivers the conversation transcript.
  *
  * @ag-ui/core provides: `messages` (as @ag-ui/core Message[])
- * TanStack AI adds: `model?`
  *
  * Note: The `messages` field uses the @ag-ui/core Message type.
  * Use converters to transform to/from TanStack UIMessage format.
  */
-export interface MessagesSnapshotEvent extends AGUIMessagesSnapshotEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface MessagesSnapshotEvent extends AGUIMessagesSnapshotEvent {}
 
 /**
  * Emitted to provide a full state snapshot.
  *
  * @ag-ui/core provides: `snapshot` (any)
- * TanStack AI adds: `model?`, `state?` (deprecated alias for snapshot)
  */
-export interface StateSnapshotEvent extends AGUIStateSnapshotEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-  /**
-   * @deprecated Use `snapshot` instead (from @ag-ui/core spec).
-   * Kept for backward compatibility.
-   */
-  state?: Record<string, unknown>
-}
+export interface StateSnapshotEvent extends AGUIStateSnapshotEvent {}
 
 /**
  * Emitted to provide an incremental state update.
  *
  * @ag-ui/core provides: `delta` (any[] - JSON Patch RFC 6902)
- * TanStack AI adds: `model?`
  */
-export interface StateDeltaEvent extends AGUIStateDeltaEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface StateDeltaEvent extends AGUIStateDeltaEvent {}
 
 /**
  * Custom event for extensibility.
  *
  * @ag-ui/core provides: `name`, `value`
- * TanStack AI adds: `model?`
  *
  * Uses `Pick` (not `extends`) so the Zod passthrough index signature does not
- * erase discriminant property access on {@link KnownCustomEvent} /
- * {@link TypedStreamChunk} unions.
+ * erase discriminant property access on {@link KnownCustomEvent} unions.
  */
 export interface CustomEvent extends Pick<
   AGUICustomEvent,
   'name' | 'value' | 'timestamp' | 'rawEvent'
 > {
   type: 'CUSTOM'
-  /** Model identifier for multi-model support */
-  model?: string
-  /**
-   * Routing metadata the TanStack engine attaches when emitting CUSTOM
-   * events that need to be correlated with a specific thread/run.
-   * Stripped by `strip-to-spec-middleware` before going on the wire so
-   * the AG-UI consumer never sees them (when that middleware is enabled).
-   */
-  threadId?: string
-  runId?: string
+  metadata?: Record<string, any>
 }
 
 /**
@@ -1673,67 +1593,43 @@ export type StructuredOutputStream<T = unknown> = AsyncIterable<
  * Emitted when reasoning starts for a message.
  *
  * @ag-ui/core provides: `messageId`
- * TanStack AI adds: `model?`
  */
-export interface ReasoningStartEvent extends AGUIReasoningStartEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningStartEvent extends AGUIReasoningStartEvent {}
 
 /**
  * Emitted when a reasoning message starts.
  *
  * @ag-ui/core provides: `messageId`, `role` ("reasoning")
- * TanStack AI adds: `model?`
  */
-export interface ReasoningMessageStartEvent extends AGUIReasoningMessageStartEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningMessageStartEvent extends AGUIReasoningMessageStartEvent {}
 
 /**
  * Emitted when reasoning message content is generated.
  *
  * @ag-ui/core provides: `messageId`, `delta`
- * TanStack AI adds: `model?`
  */
-export interface ReasoningMessageContentEvent extends AGUIReasoningMessageContentEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningMessageContentEvent extends AGUIReasoningMessageContentEvent {}
 
 /**
  * Emitted when a reasoning message ends.
  *
  * @ag-ui/core provides: `messageId`
- * TanStack AI adds: `model?`
  */
-export interface ReasoningMessageEndEvent extends AGUIReasoningMessageEndEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningMessageEndEvent extends AGUIReasoningMessageEndEvent {}
 
 /**
  * Emitted when reasoning ends for a message.
  *
  * @ag-ui/core provides: `messageId`
- * TanStack AI adds: `model?`
  */
-export interface ReasoningEndEvent extends AGUIReasoningEndEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningEndEvent extends AGUIReasoningEndEvent {}
 
 /**
  * Emitted for encrypted reasoning values.
  *
  * @ag-ui/core provides: `subtype`, `entityId`, `encryptedValue`
- * TanStack AI adds: `model?`
  */
-export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {
-  /** Model identifier for multi-model support */
-  model?: string
-}
+export interface ReasoningEncryptedValueEvent extends AGUIReasoningEncryptedValueEvent {}
 
 // ============================================================================
 // AG-UI Event Union
@@ -1772,140 +1668,6 @@ export type AGUIEvent =
  */
 export type StreamChunk = AGUIEvent
 
-// ============================================================================
-// Typed Stream Chunks (tool-aware)
-// ============================================================================
-
-/**
- * Detect the `any` type. Returns `true` for `any`, `false` for everything else.
- * @internal
- */
-type IsAny<T> = 0 extends 1 & T ? true : false
-
-/**
- * Partition out provider-specific tools from a tools array. `ProviderTool`
- * carries opaque provider metadata (e.g. `webSearchTool` from
- * `@tanstack/ai-anthropic`) and intentionally has a generic `string` name —
- * if we included it in the discriminated union, it would widen `toolName`
- * back to `string` and defeat the entire typing exercise.
- *
- * @internal
- */
-type NonProviderTools<TTools extends ReadonlyArray<AnyTool>> = Exclude<
-  TTools[number],
-  ProviderTool<string, string>
->
-
-/**
- * Check whether the tools array carries typed tool definitions.
- * Returns `false` for empty arrays or arrays whose only entries are
- * `ProviderTool`s (which have generic `string` names).
- *
- * The partitioning step matters: a user who passes
- * `[webSearchTool, myTypedTool]` should still get typed narrowing for
- * `myTypedTool`. Evaluating `string extends TTools[number]['name']` without
- * filtering provider tools first would always return `false` (because
- * `ProviderTool`'s `name` is `string`) and silently fall through to the
- * untyped branch.
- *
- * @internal
- */
-type HasTypedTools<TTools extends ReadonlyArray<AnyTool>> = [
-  NonProviderTools<TTools>,
-] extends [never]
-  ? false
-  : string extends NonProviderTools<TTools>['name']
-    ? false
-    : true
-
-/**
- * Safely infer input type for a single tool, guarding against `any` leaks.
- * Returns `unknown` when the tool has no inputSchema, when the schema
- * parameter defaults to `undefined` (no-schema tool definitions), or when
- * InferSchemaType produces `any` (e.g. for plain JSON Schema tools).
- * @internal
- */
-type SafeToolInput<T> = T extends {
-  inputSchema?: infer TInput
-}
-  ? [TInput] extends [undefined]
-    ? unknown
-    : IsAny<InferSchemaType<NonNullable<TInput>>> extends true
-      ? unknown
-      : InferSchemaType<NonNullable<TInput>>
-  : unknown
-
-/**
- * Safely infer output type for a single tool. Mirrors `SafeToolInput`,
- * picking `outputSchema` instead. Returns `unknown` when the tool has no
- * `outputSchema` declared, when the schema parameter defaults to `undefined`,
- * or when `InferSchemaType` produces `any`.
- * @internal
- */
-type SafeToolOutput<T> = T extends {
-  outputSchema?: infer TOutput
-}
-  ? [TOutput] extends [undefined]
-    ? unknown
-    : IsAny<InferSchemaType<NonNullable<TOutput>>> extends true
-      ? unknown
-      : InferSchemaType<NonNullable<TOutput>>
-  : unknown
-
-/**
- * Distribute over each non-provider tool to create a per-tool
- * `ToolCallStartEvent`.
- *
- * This produces a discriminated union — one variant per tool name literal.
- * We distribute over `NonProviderTools<TTools>` (not `TTools[number]`) so
- * that provider tools with generic `string` names do not leak into the
- * union and widen `toolCallName` / `toolName` back to `string`.
- *
- * The trailing `& { toolCallName: TName; toolName: TName }` intersection
- * narrows the base `AGUIToolCallStartEvent['toolCallName']` (declared as
- * `string`) to the literal name — TypeScript intersects `string & TName`
- * down to `TName` for literal `TName`.
- *
- * The `name` parameter constraint on the inner `extends` picks up any
- * tool-like shape — including `ServerTool`, `ClientTool`, and the bare
- * `Tool` definition — because all three expose `name: TName`.
- * @internal
- */
-type DistributedToolCallStart<TTools extends ReadonlyArray<AnyTool>> =
-  NonProviderTools<TTools> extends infer T
-    ? T extends { name: infer TName extends string }
-      ? ToolCallStartEvent<TName> & { toolCallName: TName; toolName: TName }
-      : never
-    : never
-
-/**
- * Distribute over each non-provider tool to create a per-tool
- * `ToolCallEndEvent`.
- *
- * Each variant pairs the tool's name literal with its specific input type,
- * enabling discriminated narrowing: checking `toolName === 'x'` narrows
- * `input`.
- *
- * `toolName`/`toolCallName` are intersected as required in the distributed
- * variants so that `Extract<..., { toolName: 'x' }>` works for consumers
- * relying on the discriminated-union pattern, even though the base
- * interface keeps them optional for compatibility with the broader AG-UI
- * surface.
- *
- * Distribution happens over `NonProviderTools<TTools>` for the same
- * reason as in `DistributedToolCallStart`.
- * @internal
- */
-type DistributedToolCallEnd<TTools extends ReadonlyArray<AnyTool>> =
-  NonProviderTools<TTools> extends infer T
-    ? T extends { name: infer TName extends string }
-      ? ToolCallEndEvent<TName, SafeToolInput<T>, SafeToolOutput<T>> & {
-          toolCallName: TName
-          toolName: TName
-        }
-      : never
-    : never
-
 /**
  * Discriminated union of the orchestrator-tagged `CUSTOM` events. Each variant
  * has a literal `name`, so a single narrow on `chunk.name` yields a typed
@@ -1934,52 +1696,6 @@ export type TaggedCustomEvent<T = unknown> =
   | StructuredOutputCompleteEvent<T>
   | ApprovalRequestedEvent
   | ToolInputAvailableEvent
-
-/**
- * Stream chunk type parameterized by the tools array for type-safe tool call events.
- *
- * When specific tool types are provided (e.g. from `chat({ tools: [myTool] })`):
- * - `TOOL_CALL_START` and `TOOL_CALL_END` events form a **discriminated union**
- *   over tool names — checking `toolName === 'x'` narrows `input` to that tool's type.
- * - `TOOL_CALL_END` events have `input` typed per-tool via Standard Schema inference.
- *
- * `CUSTOM` events are narrowed to the discriminated {@link KnownCustomEvent}
- * union (sandbox, code-mode, structured-output, approvals, UI resources, etc.).
- * Free-form user-emitted custom events (via `emitCustomEvent`) still flow at
- * runtime but are excluded from the type to avoid `any` poisoning the union;
- * cast to `StreamChunk` if you need to read those.
- *
- * When tools are untyped or absent, the tool-call events stay as plain
- * `ToolCallStartEvent` / `ToolCallEndEvent` (no per-tool name narrowing) and
- * the type is equivalent to the element type of {@link ChatStream}.
- */
-/**
- * Replace tool-call and bare CUSTOM variants; keep every other StreamChunk
- * arm. Matches on the string-literal `type` discriminant that TanStack tool
- * events declare (see ToolCallStartEvent / ToolCallEndEvent). AG-UI events
- * that still use the EventType enum are kept as-is via the final branch.
- *
- * Do **not** use `Exclude<StreamChunk, { type: 'TOOL_CALL_*' }>` — under
- * @ag-ui/core passthrough index signatures that form removes *every* arm.
- * @internal
- */
-type RemapStreamChunkForTools<
-  TChunk,
-  TTools extends ReadonlyArray<AnyTool>,
-> = TChunk extends { type: 'TOOL_CALL_START' }
-  ? DistributedToolCallStart<TTools>
-  : TChunk extends { type: 'TOOL_CALL_END' }
-    ? DistributedToolCallEnd<TTools>
-    : TChunk extends { type: 'CUSTOM' }
-      ? never
-      : TChunk
-
-export type TypedStreamChunk<
-  TTools extends ReadonlyArray<AnyTool> = ReadonlyArray<AnyTool>,
-> =
-  HasTypedTools<TTools> extends true
-    ? RemapStreamChunkForTools<StreamChunk, TTools> | KnownCustomEvent
-    : Exclude<StreamChunk, CustomEvent> | KnownCustomEvent
 
 // Simple streaming format for basic text completions
 // Converted to StreamChunk format by convertTextCompletionStream()

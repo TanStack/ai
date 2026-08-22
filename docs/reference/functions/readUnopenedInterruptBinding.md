@@ -7,13 +7,13 @@ title: readUnopenedInterruptBinding
 
 ```ts
 function readUnopenedInterruptBinding(descriptor): 
-  | Omit<InterruptBindingBase & object, "interruptedRunId" | "generation">
-  | Omit<InterruptBindingBase & object, "interruptedRunId" | "generation">
+  | Omit<ResponseSchemaInterruptBindingBase & object, "interruptedRunId" | "generation">
+  | Omit<ResponseSchemaInterruptBindingBase & object, "interruptedRunId" | "generation">
   | Omit<InterruptBindingBase & object, "interruptedRunId" | "generation">
   | undefined;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:700](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L700)
+Defined in: [packages/ai/src/interrupt-resume.ts:804](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L804)
 
 ## Parameters
 
@@ -23,7 +23,7 @@ Defined in: [packages/ai/src/interrupt-resume.ts:700](https://github.com/TanStac
 
 ## Returns
 
-  \| `Omit`\<`InterruptBindingBase` & `object`, `"interruptedRunId"` \| `"generation"`\>
-  \| `Omit`\<`InterruptBindingBase` & `object`, `"interruptedRunId"` \| `"generation"`\>
+  \| `Omit`\<`ResponseSchemaInterruptBindingBase` & `object`, `"interruptedRunId"` \| `"generation"`\>
+  \| `Omit`\<`ResponseSchemaInterruptBindingBase` & `object`, `"interruptedRunId"` \| `"generation"`\>
   \| `Omit`\<`InterruptBindingBase` & `object`, `"interruptedRunId"` \| `"generation"`\>
   \| `undefined`

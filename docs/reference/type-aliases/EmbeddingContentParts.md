@@ -11,7 +11,7 @@ type EmbeddingContentParts = (
   | ImagePart)[];
 ```
 
-Defined in: [packages/ai/src/types.ts:2665](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2665)
+Defined in: [packages/ai/src/types.ts:2673](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2673)
 
 A fused multi-part embedding item: all parts are embedded together into a
 single vector (e.g. a product photo plus its caption). Written as a nested

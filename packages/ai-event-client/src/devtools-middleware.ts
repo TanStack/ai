@@ -1,4 +1,5 @@
 import { aiEventClient } from './index.js'
+import type { TokenUsage } from './index.js'
 
 // Local mirrors of @tanstack/ai middleware types — do not import from `@tanstack/ai`
 // here: during `@tanstack/ai`'s own build that resolves to `dist/*.d.ts` while the
@@ -12,15 +13,16 @@ interface DevtoolsModelMessage {
 
 type DevtoolsSystemPrompt = string | { content: string; metadata?: unknown }
 
-interface DevtoolsUsage {
-  promptTokens: number
-  completionTokens: number
-  totalTokens: number
+interface DevtoolsSpecTokenUsage {
+  inputTokens?: number
+  outputTokens?: number
+  totalTokens?: number
+  reasoningTokens?: number
+  cachedInputTokens?: number
 }
 
 interface DevtoolsTextMessageContentChunk {
   type: 'TEXT_MESSAGE_CONTENT'
-  content?: string
   delta: string
 }
 interface DevtoolsToolCallStartChunk {
@@ -37,7 +39,6 @@ interface DevtoolsToolCallArgsChunk {
 interface DevtoolsToolCallEndChunk {
   type: 'TOOL_CALL_END'
   toolCallId: string
-  result?: string
 }
 interface DevtoolsToolCallResultChunk {
   type: 'TOOL_CALL_RESULT'
@@ -47,18 +48,25 @@ interface DevtoolsToolCallResultChunk {
 interface DevtoolsRunFinishedChunk {
   type: 'RUN_FINISHED'
   finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
-  usage?: DevtoolsUsage
+  usage?: Array<DevtoolsSpecTokenUsage> | TokenUsage
+  metadata?: {
+    tanstack?: {
+      finishReason?: 'stop' | 'length' | 'content_filter' | 'tool_calls' | null
+      usage?: Omit<
+        TokenUsage,
+        'promptTokens' | 'completionTokens' | 'totalTokens'
+      >
+    }
+  }
 }
 interface DevtoolsRunErrorChunk {
   type: 'RUN_ERROR'
   message?: string
   code?: string
-  error?: { message?: string; code?: string }
 }
-interface DevtoolsStepFinishedChunk {
-  type: 'STEP_FINISHED'
-  content?: string
-  delta?: string
+interface DevtoolsReasoningMessageContentChunk {
+  type: 'REASONING_MESSAGE_CONTENT'
+  delta: string
 }
 type DevtoolsKnownChunk =
   | DevtoolsTextMessageContentChunk
@@ -68,13 +76,13 @@ type DevtoolsKnownChunk =
   | DevtoolsToolCallResultChunk
   | DevtoolsRunFinishedChunk
   | DevtoolsRunErrorChunk
-  | DevtoolsStepFinishedChunk
+  | DevtoolsReasoningMessageContentChunk
 
 // The engine emits more chunk types than this middleware acts on
-// (TEXT_MESSAGE_START, MESSAGES_SNAPSHOT, REASONING_*, CUSTOM, etc.); the
-// onChunk signature accepts the open shape, and isKnownChunk narrows to the
-// closed discriminated union before the switch.
-type DevtoolsStreamChunk = DevtoolsKnownChunk | { type: string }
+// (TEXT_MESSAGE_START, MESSAGES_SNAPSHOT, REASONING_*, CUSTOM, etc.).
+// Spec events have no index signature. `unknown` is a supertype of every
+// AG-UI event, so this middleware stays assignable to ChatMiddleware.
+type DevtoolsStreamChunk = { type: string }
 
 const KNOWN_CHUNK_TYPES: ReadonlySet<DevtoolsKnownChunk['type']> = new Set([
   'TEXT_MESSAGE_CONTENT',
@@ -84,11 +92,78 @@ const KNOWN_CHUNK_TYPES: ReadonlySet<DevtoolsKnownChunk['type']> = new Set([
   'TOOL_CALL_RESULT',
   'RUN_FINISHED',
   'RUN_ERROR',
-  'STEP_FINISHED',
+  'REASONING_MESSAGE_CONTENT',
 ])
 
-function isKnownChunk(chunk: DevtoolsStreamChunk): chunk is DevtoolsKnownChunk {
-  return (KNOWN_CHUNK_TYPES as ReadonlySet<string>).has(chunk.type)
+function isTypedChunk(chunk: unknown): chunk is DevtoolsStreamChunk {
+  return (
+    typeof chunk === 'object' &&
+    chunk !== null &&
+    'type' in chunk &&
+    typeof chunk.type === 'string'
+  )
+}
+
+function isKnownChunk(chunk: unknown): chunk is DevtoolsKnownChunk {
+  return (
+    isTypedChunk(chunk) &&
+    (KNOWN_CHUNK_TYPES as ReadonlySet<string>).has(chunk.type)
+  )
+}
+
+function chunkTanstack(chunk: DevtoolsRunFinishedChunk) {
+  const tanstack = chunk.metadata?.tanstack
+  if (tanstack == null || typeof tanstack !== 'object') return undefined
+  return tanstack
+}
+
+function definedDetails<T extends object>(value: T): T | undefined {
+  return Object.keys(value).length > 0 ? value : undefined
+}
+
+// Local copy of `@tanstack/ai`'s fromSpecTokenUsage. This package cannot
+// import `@tanstack/ai` (circular: the engine injects this middleware).
+function fromSpecTokenUsage(
+  usage: ReadonlyArray<DevtoolsSpecTokenUsage> | undefined,
+  leftover?: Omit<
+    TokenUsage,
+    'promptTokens' | 'completionTokens' | 'totalTokens'
+  >,
+): TokenUsage | undefined {
+  const spec = usage?.[0]
+  if (spec == null && leftover == null) {
+    return undefined
+  }
+
+  const {
+    promptTokensDetails: leftoverPromptDetails,
+    completionTokensDetails: leftoverCompletionDetails,
+    ...leftoverRest
+  } = leftover ?? {}
+
+  const promptTokensDetails = definedDetails({
+    ...(spec?.cachedInputTokens !== undefined
+      ? { cachedTokens: spec.cachedInputTokens }
+      : {}),
+    ...leftoverPromptDetails,
+  })
+  const completionTokensDetails = definedDetails({
+    ...(spec?.reasoningTokens !== undefined
+      ? { reasoningTokens: spec.reasoningTokens }
+      : {}),
+    ...leftoverCompletionDetails,
+  })
+
+  return {
+    promptTokens: spec?.inputTokens ?? 0,
+    completionTokens: spec?.outputTokens ?? 0,
+    totalTokens: spec?.totalTokens ?? 0,
+    ...leftoverRest,
+    ...(promptTokensDetails !== undefined ? { promptTokensDetails } : {}),
+    ...(completionTokensDetails !== undefined
+      ? { completionTokensDetails }
+      : {}),
+  }
 }
 
 interface DevtoolsMiddlewareContext {
@@ -159,7 +234,7 @@ export interface DevtoolsChatMiddleware {
   ) => void | Promise<void>
   onChunk?: (
     ctx: DevtoolsMiddlewareContext,
-    chunk: DevtoolsStreamChunk,
+    chunk: unknown,
   ) => void | Promise<void>
   onToolPhaseComplete?: (
     ctx: DevtoolsMiddlewareContext,
@@ -241,6 +316,7 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
   // runs first, before the engine updates ctx.currentMessageId / ctx.accumulatedContent
   let localMessageId: string | null = null
   let localAccumulatedContent = ''
+  let localAccumulatedThinking = ''
   let currentIteration = -1
   let iterationStartTime = 0
   const activeToolCalls = new Map<string, { toolName: string; index: number }>()
@@ -310,6 +386,7 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
       iterationStartTime = now
       localMessageId = info.messageId
       localAccumulatedContent = ''
+      localAccumulatedThinking = ''
 
       // Emit iteration:started with config snapshot
       safeEmit('text:iteration:started', {
@@ -336,11 +413,7 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
 
       switch (chunk.type) {
         case 'TEXT_MESSAGE_CONTENT': {
-          if (chunk.content) {
-            localAccumulatedContent = chunk.content
-          } else {
-            localAccumulatedContent += chunk.delta
-          }
+          localAccumulatedContent += chunk.delta
           safeEmit('text:chunk:content', {
             ...base,
             messageId: localMessageId || undefined,
@@ -383,13 +456,6 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
         }
         case 'TOOL_CALL_END': {
           activeToolCalls.delete(chunk.toolCallId)
-          safeEmit('text:chunk:tool-result', {
-            ...base,
-            messageId: localMessageId || undefined,
-            toolCallId: chunk.toolCallId,
-            result: chunk.result || '',
-            timestamp: Date.now(),
-          })
           break
         }
         case 'TOOL_CALL_RESULT': {
@@ -408,18 +474,30 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
           break
         }
         case 'RUN_FINISHED': {
+          const rawUsage = chunk.usage
+          const usage =
+            rawUsage != null &&
+            typeof rawUsage === 'object' &&
+            !Array.isArray(rawUsage) &&
+            'promptTokens' in rawUsage
+              ? rawUsage
+              : fromSpecTokenUsage(
+                  Array.isArray(rawUsage) ? rawUsage : undefined,
+                  chunkTanstack(chunk)?.usage,
+                )
           safeEmit('text:chunk:done', {
             ...base,
             messageId: localMessageId || undefined,
-            finishReason: chunk.finishReason ?? null,
-            usage: chunk.usage,
+            finishReason:
+              chunk.finishReason ?? chunkTanstack(chunk)?.finishReason ?? null,
+            usage,
             timestamp: Date.now(),
           })
-          if (chunk.usage) {
+          if (usage) {
             safeEmit('text:usage', {
               ...base,
               messageId: localMessageId || undefined,
-              usage: chunk.usage,
+              usage,
               timestamp: Date.now(),
             })
           }
@@ -428,7 +506,6 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
         case 'RUN_ERROR': {
           const errorMessage =
             chunk.message ??
-            chunk.error?.message ??
             `[ai-devtools] RUN_ERROR chunk had no message; raw chunk: ${JSON.stringify(chunk)}`
           safeEmit('text:chunk:error', {
             ...base,
@@ -438,16 +515,15 @@ export function devtoolsMiddleware(): DevtoolsChatMiddleware {
           })
           break
         }
-        case 'STEP_FINISHED': {
-          if (chunk.content || chunk.delta) {
-            safeEmit('text:chunk:thinking', {
-              ...base,
-              messageId: localMessageId || undefined,
-              content: chunk.content || '',
-              delta: chunk.delta,
-              timestamp: Date.now(),
-            })
-          }
+        case 'REASONING_MESSAGE_CONTENT': {
+          localAccumulatedThinking += chunk.delta
+          safeEmit('text:chunk:thinking', {
+            ...base,
+            messageId: localMessageId || undefined,
+            content: localAccumulatedThinking,
+            delta: chunk.delta,
+            timestamp: Date.now(),
+          })
           break
         }
       }
