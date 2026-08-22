@@ -2,7 +2,7 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, or Vercel) and what each one can do."
+description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, or Blaxel) and what each one can do."
 ---
 
 A provider owns the isolation primitive: where the harness actually runs. Every
@@ -30,6 +30,7 @@ completed workspace data in your application persistence for reconstruction.
 | Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; snapshots after setup, port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
 | Vercel | `@tanstack/ai-sandbox-vercel` | microVM | Managed [Vercel Sandbox](https://vercel.com/docs/sandbox) microVMs; exposed-port domains, resume-by-id (persistent). Needs `VERCEL_TOKEN` + team/project. |
 | Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
+| Blaxel | `@tanstack/ai-sandbox-blaxel` | cloud sandbox | Managed [Blaxel](https://blaxel.ai) sandboxes; durable filesystem, per-port preview URLs, native file watch, resume-by-id. Snapshot/fork remain disabled while the source-scoped private-preview semantics are unproven. Needs `BL_API_KEY` + `BL_WORKSPACE`. |
 
 Most providers are their own package. `dockerSandbox()` and `sbxSandbox()` both
 come from `@tanstack/ai-sandbox-docker`. The constructor is the only thing that
@@ -40,16 +41,19 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { dockerSandbox, sbxSandbox } from '@tanstack/ai-sandbox-docker'
 import { daytonaSandbox } from '@tanstack/ai-sandbox-daytona'
 import { vercelSandbox } from '@tanstack/ai-sandbox-vercel'
+import { blaxelSandbox } from '@tanstack/ai-sandbox-blaxel'
 
 const dev = localProcessSandbox() // runs on your host
 const isolated = dockerSandbox({ image: 'node:22' }) // container
 const microvm = sbxSandbox() // Docker Sandboxes microVM
 const daytona = daytonaSandbox({ apiKey: process.env.DAYTONA_API_KEY }) // managed cloud sandbox
 const vercel = vercelSandbox({ runtime: 'node24' }) // managed Vercel microVM
+const blaxel = blaxelSandbox() // managed Blaxel sandbox; reads BL_API_KEY + BL_WORKSPACE
 ```
 
-> Cloud providers (Daytona, Vercel) run as remote VMs. When you drive them from
-> your laptop, [tools](./tools) bridged from `chat()` can't dial your machine's
+> Cloud providers (including Daytona, Vercel, Sprites, and Blaxel) run
+> remotely. When you drive them from your laptop, [tools](./tools) bridged from
+> `chat()` can't dial your machine's
 > `localhost`, you need the bridge tunnel. See the [tools guide](./tools) for the
 > ngrok subpath, and the [Cloudflare guide](./cloudflare) for the edge-native
 > co-located model.
@@ -300,6 +304,60 @@ const sprites = spritesSandbox({ apiKey: process.env.SPRITES_API_KEY })
 - **Bridge:** like Daytona and Vercel, it is a remote VM, so bridged tools need the tunnel in
   local dev (see [tools](./tools)).
 
+## Blaxel
+
+```ts
+import { blaxelSandbox } from '@tanstack/ai-sandbox-blaxel'
+
+const blaxel = blaxelSandbox({
+  apiKey: process.env.BL_API_KEY,
+  workspace: process.env.BL_WORKSPACE,
+})
+```
+
+- **Isolation:** a managed [Blaxel](https://blaxel.ai) cloud sandbox — a remote VM
+  you don't run yourself. Pick the image with `image` (default
+  `blaxel/base-image:latest`) and the size with `memory` (default 2048 MB). Set
+  `region` (or `BL_REGION`) to choose a region and to silence the SDK's warning
+  that it will become required.
+- **Auth / env:** needs `BL_API_KEY` and `BL_WORKSPACE`, either as constructor
+  options or environment variables. `@blaxel/core` authentication is
+  process-global, so use one Blaxel API key/workspace pair per Node.js process
+  and do not call `@blaxel/core.initialize()` again afterward. The provider
+  rejects a second pair at construction time instead of risking cross-workspace
+  requests.
+- **Lifetime:** created sandboxes carry a `1h` TTL by default so an abandoned run
+  cannot strand a paid sandbox. Override with `ttl`, or pass `ttl: null` to manage
+  lifetime yourself.
+- **Resume:** resume-by-id reconnects to the named sandbox, and its filesystem
+  is durable across idle suspend/resume for the sandbox's lifetime. Blaxel's
+  snapshot/fork API is currently a source-scoped private preview, has no
+  entitlement probe, and does not document snapshots surviving source deletion.
+  The framework requires `snapshots` to reconstruct after the source is gone, so
+  this provider conservatively advertises both `snapshots` and `fork` as `false`
+  and does not expose `restoreSnapshot`.
+- **Ports:** `ports.connect(port)` creates a per-port preview URL. Previews are
+  token-gated by default and the returned channel carries both the token and the
+  ready-to-send `X-Blaxel-Preview-Token` header. Set `publicPreviews: true` for
+  unauthenticated URLs.
+- **Files:** `fs.watch()` is native, so file-event and diff hooks work without
+  polling.
+- **Process output:** stdout and stderr remain live-streamed through bounded
+  remote capture pipelines. Each stream has an 8 MiB total limit; exceeding it
+  fails and remotely reaps the process instead of accumulating unbounded logs in
+  the provider host. Cancellation uses the same process-group supervisor because
+  the pinned SDK does not prove named-process kill reaches child processes.
+  Custom images must provide Bash plus `cat`, `mkfifo`, `dd`, `base64`, `tr`,
+  and `wc` (the default Blaxel base image does). The supervisor invokes Bash
+  explicitly so job-control process groups do not depend on the image's
+  `/bin/sh` implementation.
+- **Resume semantics:** a destroyed sandbox does not disappear immediately —
+  Blaxel keeps the record in a teardown state before purging it. `resume()`
+  treats deleting, deactivating, failed, and terminated records as gone, while a
+  `DEACTIVATED` sandbox remains resumable consistently with the pinned SDK.
+- **Bridge:** like Daytona/Vercel, a remote VM — bridged tools need the tunnel in
+  local dev (see [tools](./tools)).
+
 ## Capabilities
 
 Providers declare what they support via `capabilities()`. The flags are:
@@ -311,7 +369,7 @@ Providers declare what they support via `capabilities()`. The flags are:
 | `env` | Inject environment variables. |
 | `ports` | Expose/forward ports (preview URLs). |
 | `backgroundProcesses` | Keep long-running processes alive between calls. |
-| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, and Daytona. `false` for Docker Sandboxes (`sbx`), Vercel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
+| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, and Daytona. `false` for Docker Sandboxes (`sbx`), Vercel, Sprites, Blaxel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
 | `killableProcesses` | A spawned process can be forcibly stopped via `SpawnHandle.kill()` **and** aborted mid-flight via the `signal` passed to `spawn`. |
 | `snapshots` | Capture and restore point-in-time snapshots. |
 | `networkPolicy` | Enforce network allow/deny rules. |
@@ -360,6 +418,7 @@ merely slower while a wrong `follow` is a leak.
 | Daytona | `false` | `kill()` only aborts the client-side poll loop and does not await any termination; the `deleteSession` that might terminate the command runs later from the pump's teardown, is failure-swallowed, and is documented as cleanup for a *completed* session. Unmeasured, needs `DAYTONA_API_KEY`. |
 | Vercel | `false` | The abort signal reaches only the HTTP request that STARTS a detached command, so the old `kill()` was a no-op. It now issues the SDK's server-side `Command.kill`, but whether that reaches a forked child (the follow command is a multi-statement shell, so `tail -f` is always a child) is unmeasured, needs Vercel credentials. |
 | Sprites | `true` (unverified) | Not a client-side detach: `kill()` issues a real server-side `POST /exec/<sessionId>/kill` before closing the socket. What that endpoint signals (process group or pid) is undocumented and unmeasured; needs `SPRITES_API_KEY`. |
+| Blaxel | `false` | The SDK issues a server-side process kill, but whether it terminates the shell's child process group is unmeasured. The shared live conformance suite is credential-gated on `BL_API_KEY` and `BL_WORKSPACE`. |
 | Cloudflare | `false` | `kill()` is a no-op, and the caller's `AbortSignal` reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
 
 Each of the remote providers registers the shared journal conformance suite, so
