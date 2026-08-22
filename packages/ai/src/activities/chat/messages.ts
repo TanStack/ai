@@ -140,12 +140,13 @@ export function convertMessagesToModelMessages(
       continue
     }
 
-    const role = (msg as { role: string }).role
+    const modelMessage = restoreModelMessageCreatedAt(msg)
+    const role = (modelMessage as { role: string }).role
 
     if (
       role === 'tool' &&
-      msg.toolCallId &&
-      anchoredToolCallIds.has(msg.toolCallId)
+      modelMessage.toolCallId &&
+      anchoredToolCallIds.has(modelMessage.toolCallId)
     ) {
       continue
     }
@@ -170,6 +171,9 @@ export function convertMessagesToModelMessages(
       modelMessages.push({
         role: 'system' as ModelMessage['role'],
         content: (msg as { content: string }).content,
+        ...(modelMessage.createdAt !== undefined && {
+          createdAt: modelMessage.createdAt,
+        }),
       })
       continue
     }
@@ -187,7 +191,7 @@ export function convertMessagesToModelMessages(
             part.type === 'text' && 'text' in part && !('content' in part),
         )
       ) {
-        modelMessages.push(msg as ModelMessage)
+        modelMessages.push(modelMessage)
         continue
       }
       const parts = aguiUserContentToParts(
@@ -200,12 +204,15 @@ export function convertMessagesToModelMessages(
         ...((msg as { id?: string }).id !== undefined && {
           id: (msg as { id: string }).id,
         }),
+        ...(modelMessage.createdAt !== undefined && {
+          createdAt: modelMessage.createdAt,
+        }),
       })
       continue
     }
 
     if (role === 'assistant') {
-      const source = msg as ModelMessage
+      const source = modelMessage
       const toolCallMetadata = tanstackMetadata(msg)?.toolCallMetadata
       const toolCalls = source.toolCalls?.map((toolCall) =>
         toolCallFromWire(toolCall, toolCallMetadata?.[toolCall.id]),
@@ -223,9 +230,21 @@ export function convertMessagesToModelMessages(
       continue
     }
 
-    modelMessages.push(msg as ModelMessage)
+    modelMessages.push(modelMessage)
   }
   return modelMessages
+}
+
+function restoreModelMessageCreatedAt(message: ModelMessage): ModelMessage {
+  const createdAt = createdAtFromMetadata(message)
+  return createdAt === undefined ? message : { ...message, createdAt }
+}
+
+function createdAtFromMetadata(source: object): Date | undefined {
+  const createdAtRaw = tanstackMetadata(source)?.createdAt
+  if (typeof createdAtRaw !== 'string') return undefined
+  const createdAt = new Date(createdAtRaw)
+  return Number.isNaN(createdAt.getTime()) ? undefined : createdAt
 }
 
 /**
@@ -719,15 +738,11 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
   const raw = source.metadata
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return ui
   const metadata = raw as NonNullable<UIMessage['metadata']>
-  const createdAtRaw = tanstackMetadata(metadata)?.createdAt
-  const createdAt =
-    typeof createdAtRaw === 'string' ? new Date(createdAtRaw) : undefined
-  const createdAtValid =
-    createdAt !== undefined && !Number.isNaN(createdAt.getTime())
+  const createdAt = createdAtFromMetadata(metadata)
   return {
     ...ui,
     metadata,
-    ...(createdAtValid ? { createdAt } : {}),
+    ...(createdAt !== undefined ? { createdAt } : {}),
   }
 }
 

@@ -113,6 +113,26 @@ describe('uiMessagesToWire', () => {
     })
   })
 
+  it('preserves tool ModelMessage fields', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'result-1',
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: '[]',
+      },
+    ])
+
+    expect(wire).toEqual([
+      {
+        id: 'result-1',
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: '[]',
+      },
+    ])
+  })
+
   it('emits a separate reasoning fan-out before the assistant anchor for each ThinkingPart', () => {
     const messages: Array<UIMessage> = [
       {
@@ -340,6 +360,38 @@ describe('uiMessagesToWire', () => {
         tanstack: { createdAt: '2026-08-20T00:00:00.000Z' },
       },
     })
+  })
+
+  it('restores metadata.tanstack.createdAt on the model message', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'u1',
+        role: 'user',
+        parts: [{ type: 'text', content: 'hi' }],
+        createdAt: new Date('2026-08-20T00:00:00.000Z'),
+      },
+    ])
+
+    const model = convertMessagesToModelMessages(
+      wire as Array<UIMessage | ModelMessage>,
+    )
+
+    expect(model[0]?.createdAt).toEqual(
+      new Date('2026-08-20T00:00:00.000Z'),
+    )
+  })
+
+  it('ignores an invalid metadata.tanstack.createdAt', () => {
+    const model = convertMessagesToModelMessages([
+      {
+        id: 'u1',
+        role: 'user',
+        content: 'hi',
+        metadata: { tanstack: { createdAt: 'not-a-date' } },
+      } as unknown as ModelMessage,
+    ])
+
+    expect(model[0]).not.toHaveProperty('createdAt')
   })
 
   it('does not put parts or createdAt Date on assistant anchors', () => {

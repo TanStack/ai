@@ -1224,7 +1224,7 @@ function buildRunAgentInputBody(
 ): Record<string, unknown> {
   // Precedence (later spreads win): static adapter `body` is the base,
   // overridden by `runContext.forwardedProps`, overridden by per-message `data`.
-  const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
+  const wireMessages = uiMessagesToWire(messages)
   const forwardedProps = {
     ...options.body,
     ...(runContext?.forwardedProps ?? {}),

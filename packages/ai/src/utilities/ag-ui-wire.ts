@@ -1,6 +1,7 @@
 import type {
   ContentPart,
   MessagePart,
+  ModelMessage,
   StructuredOutputPart,
   TanStackMessageMetadata,
   UIMessage,
@@ -53,27 +54,41 @@ export type WireMessage =
   | AGUIReasoningMessage
 
 /**
- * Serialize TanStack `UIMessage`s into the AG-UI `RunAgentInput.messages`
- * wire shape. Anchors are spec-only (`id`, `role`, `name`, `content`,
- * `toolCalls`, `metadata`). Tool results and thinking parts on assistant
- * messages are additionally emitted as fan-out `{role:'tool',...}` and
- * `{role:'reasoning',...}` entries for strict AG-UI server consumers.
+ * Serialize TanStack `UIMessage`s and `ModelMessage`s into the AG-UI
+ * `RunAgentInput.messages` wire shape. Anchors are spec-only (`id`, `role`,
+ * `name`, `content`, `toolCalls`, `metadata`). Tool results and thinking parts
+ * on assistant messages are additionally emitted as fan-out
+ * `{role:'tool',...}` and `{role:'reasoning',...}` entries for strict AG-UI
+ * server consumers.
  */
 export function uiMessagesToWire(
-  messages: Array<UIMessage>,
+  messages: Array<UIMessage | ModelMessage>,
 ): Array<WireMessage> {
   const wire: Array<WireMessage> = []
 
   for (const msg of messages) {
-    // Defensive: ModelMessage-shaped input has no `parts`; fall back to `content`.
     const parts: ReadonlyArray<MessagePart> =
-      // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- runtime input may be ModelMessage-shaped (no `parts`); cast forces the optional-chain fallback below to remain in scope
-      (msg.parts as ReadonlyArray<MessagePart> | undefined) ?? []
+      'parts' in msg ? msg.parts : []
+
+    if (!('parts' in msg) && msg.role === 'tool' && msg.toolCallId) {
+      wire.push({
+        role: 'tool',
+        id: msg.id ?? deriveToolMessageId(msg.toolCallId),
+        toolCallId: msg.toolCallId,
+        content:
+          typeof msg.content === 'string'
+            ? msg.content
+            : JSON.stringify(msg.content),
+      })
+      continue
+    }
+
+    const uiMessage = msg as UIMessage
 
     if (msg.role === 'system') {
       wire.push(
         toAnchor(
-          msg,
+          uiMessage,
           {
             content:
               parts.length > 0
@@ -89,7 +104,7 @@ export function uiMessagesToWire(
     if (msg.role === 'user') {
       wire.push(
         toAnchor(
-          msg,
+          uiMessage,
           {
             content:
               parts.length > 0
@@ -107,7 +122,7 @@ export function uiMessagesToWire(
       if (part.type === 'thinking') {
         const reasoning: AGUIReasoningMessage = {
           role: 'reasoning',
-          id: deriveReasoningId(msg.id, part),
+          id: deriveReasoningId(uiMessage.id, part),
           content: part.content,
         }
         if (part.signature) {
@@ -121,7 +136,7 @@ export function uiMessagesToWire(
     const toolCalls = collectToolCalls(parts)
     wire.push(
       toAnchor(
-        msg,
+        uiMessage,
         {
           ...(text !== '' && { content: text }),
           ...(toolCalls && { toolCalls }),
