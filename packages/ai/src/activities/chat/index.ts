@@ -780,8 +780,11 @@ class TextEngine<
   private readonly loopStrategy: AgentLoopStrategy
   private toolCallManager: ToolCallManager<ReadonlyArray<AnyTool>, TContext>
   private readonly lazyToolManager: LazyToolManager
-  /** A public interruption terminal must always have this run's start event. */
-  private hasPublicRunStarted = false
+  /** The first public start owns the outer lifecycle identity. */
+  private publicRunIdentity: Pick<
+    RunFinishedEvent,
+    'runId' | 'threadId'
+  > | null = null
   private readonly initialMessageCount: number
   private readonly requestId: string
   private readonly streamId: string
@@ -811,9 +814,8 @@ class TextEngine<
   private eventToolNames?: Array<string>
   private finishedEvent: RunFinishedEvent | null = null
   private readonly streamedToolErrorResults = new Map<string, ToolResult>()
-  private deferredToolCallRunFinishedChunks: Array<StreamChunk> = []
-  /** The model terminal is held until afterModel can choose an interrupt. */
-  private deferredModelRunFinishedChunks: Array<StreamChunk> = []
+  /** The provider terminal is held until the agent loop reaches its public boundary. */
+  private deferredRunFinishedChunk: RunFinishedEvent | null = null
 
   private earlyTermination = false
   private toolPhase: ToolPhaseResult = 'continue'
@@ -1227,14 +1229,6 @@ class TextEngine<
               this.setToolPhase('wait')
               return
             }
-            if (this.shouldExecuteToolPhase()) {
-              this.deferredToolCallRunFinishedChunks.push(
-                ...this.deferredModelRunFinishedChunks,
-              )
-              this.deferredModelRunFinishedChunks = []
-            } else {
-              yield* this.flushDeferredModelRunFinishedChunks()
-            }
           } else {
             yield* this.processToolCalls()
           }
@@ -1269,6 +1263,24 @@ class TextEngine<
         } else {
           yield* this.runStructuredFinalization()
         }
+      }
+
+      if (
+        this.deferredRunFinishedChunk &&
+        this.toolPhase !== 'wait' &&
+        !this.isCancelled() &&
+        !this.finalizationError &&
+        !this.earlyTermination
+      ) {
+        const providerFinishedChunk = this.deferredRunFinishedChunk
+        this.deferredRunFinishedChunk = null
+        yield* this.emitSyntheticRunStarted(providerFinishedChunk)
+        const finishedChunk = this.withPublicRunIdentity(providerFinishedChunk)
+        this.logger.output(`type=${finishedChunk.type}`, {
+          chunk: finishedChunk,
+        })
+        yield finishedChunk
+        this.middlewareCtx.chunkIndex++
       }
 
       // Call terminal hook (skip when waiting for client — stream is paused, not finished).
@@ -1625,18 +1637,19 @@ class TextEngine<
             continue
           }
           if (spec.type === EventType.RUN_FINISHED) {
-            this.deferredModelRunFinishedChunks.push(spec)
-            continue
-          }
-          if (this.shouldDeferToolCallRunFinished(spec)) {
-            this.deferredToolCallRunFinishedChunks.push(spec)
+            this.deferredRunFinishedChunk = spec
             continue
           }
           if (spec.type === EventType.RUN_STARTED) {
-            this.hasPublicRunStarted = true
+            if (this.publicRunIdentity) continue
+            this.publicRunIdentity = {
+              runId: spec.runId,
+              threadId: spec.threadId,
+            }
           }
-          this.logger.output(`type=${spec.type}`, { chunk: spec })
-          yield spec
+          const publicChunk = this.withPublicRunIdentity(spec)
+          this.logger.output(`type=${publicChunk.type}`, { chunk: publicChunk })
+          yield publicChunk
           this.middlewareCtx.chunkIndex++
         }
       }
@@ -2059,8 +2072,6 @@ class TextEngine<
       executionResult.needsApproval.length > 0 ||
       executionResult.needsClientExecution.length > 0
     ) {
-      this.discardDeferredToolCallRunFinishedChunks()
-
       if (allResults.length > 0) {
         for (const chunk of this.buildToolResultChunks(
           allResults,
@@ -2141,7 +2152,6 @@ class TextEngine<
     ]
 
     if (executableToolCalls.length === 0) {
-      yield* this.flushDeferredToolCallRunFinishedChunks()
       // All tool calls already have error results — emit them, then continue
       // the loop (strategy / onShouldContinue may stop).
       if (deferredErrorResults.length > 0) {
@@ -2279,8 +2289,6 @@ class TextEngine<
       return
     }
 
-    yield* this.flushDeferredToolCallRunFinishedChunks()
-
     const toolResultChunks = afterToolBoundaryChunks
 
     for (const chunk of toolResultChunks) {
@@ -2303,37 +2311,10 @@ class TextEngine<
     this.setToolPhase('continue')
   }
 
-  private shouldDeferToolCallRunFinished(chunk: StreamChunk): boolean {
-    return (
-      chunk.type === EventType.RUN_FINISHED &&
-      this.lastFinishReason === 'tool_calls' &&
-      this.tools.length > 0 &&
-      this.toolCallManager.hasToolCalls()
-    )
-  }
-
-  private *flushDeferredToolCallRunFinishedChunks(): Generator<StreamChunk> {
-    for (const chunk of this.deferredToolCallRunFinishedChunks) {
-      this.logger.output(`type=${chunk.type}`, { chunk })
-      yield chunk
-      this.middlewareCtx.chunkIndex++
-    }
-    this.deferredToolCallRunFinishedChunks = []
-  }
-
-  private *flushDeferredModelRunFinishedChunks(): Generator<StreamChunk> {
-    for (const chunk of this.deferredModelRunFinishedChunks) {
-      this.logger.output(`type=${chunk.type}`, { chunk })
-      yield chunk
-      this.middlewareCtx.chunkIndex++
-    }
-    this.deferredModelRunFinishedChunks = []
-  }
-
   private async *emitSyntheticRunStarted(
     finishEvent: RunFinishedEvent,
   ): AsyncGenerator<StreamChunk, void, void> {
-    if (this.hasPublicRunStarted) return
+    if (this.publicRunIdentity) return
     yield* this.pipeThroughMiddleware({
       type: EventType.RUN_STARTED,
       runId: finishEvent.runId,
@@ -2357,10 +2338,6 @@ class TextEngine<
       timestamp: Date.now(),
       outcome: { type: 'success' },
     })
-  }
-
-  private discardDeferredToolCallRunFinishedChunks(): void {
-    this.deferredToolCallRunFinishedChunks = []
   }
 
   private shouldExecuteToolPhase(): boolean {
@@ -3900,11 +3877,7 @@ class TextEngine<
 
     // On success, emit the synthetic `structured-output.complete` carrying
     // the parsed object + raw text. Pin the messageId so the client-side
-    // handler can target the right UIMessage even when the agent loop's
-    // terminal RUN_FINISHED has already cleared `activeMessageIds` (the
-    // complete event yields AFTER the loop ends, by which point
-    // `getActiveAssistantMessageId()` returns null and would otherwise drop
-    // the event silently).
+    // handler targets the same UIMessage as `structured-output.start`.
     if (
       this.structuredOutputResult &&
       !this.finalizationError &&
@@ -4399,13 +4372,36 @@ class TextEngine<
     for (const output of outputs) {
       for (const spec of normalizeStreamChunk(output as AdapterYieldChunk)) {
         restorePublicUsage(spec)
-        if (spec.type === EventType.RUN_STARTED) {
-          this.hasPublicRunStarted = true
+        if (
+          spec.type === EventType.RUN_STARTED &&
+          this.publicRunIdentity === null
+        ) {
+          this.publicRunIdentity = {
+            runId: spec.runId,
+            threadId: spec.threadId,
+          }
         }
-        yield spec
+        yield this.withPublicRunIdentity(spec)
         this.middlewareCtx.chunkIndex++
       }
     }
+  }
+
+  private withPublicRunIdentity(chunk: StreamChunk): StreamChunk {
+    if (
+      this.publicRunIdentity === null ||
+      (chunk.type !== EventType.RUN_FINISHED &&
+        chunk.type !== EventType.RUN_ERROR)
+    ) {
+      return chunk
+    }
+    if (chunk.type === EventType.RUN_ERROR) {
+      return withTanstackMetadata(
+        { ...chunk, ...this.publicRunIdentity },
+        this.publicRunIdentity,
+      )
+    }
+    return { ...chunk, ...this.publicRunIdentity }
   }
 
   /**

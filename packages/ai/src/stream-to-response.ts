@@ -560,17 +560,12 @@ export function durableStreamSource<TOffset extends string>(
       // every app that has not wired durability — all of which keep terminalizing
       // and closing exactly as before.
       //
-      // What is ALREADY IN THE LOG is deliberately NOT a conjunct. An agent-loop
-      // run emits one `RUN_FINISHED` PER ITERATION — the intermediate
-      // `finishReason: 'tool_calls'` terminal is flushed at its boundary
-      // mid-run — so `terminalPersisted` means "some terminal is in the log",
-      // never "the run ended". Gating on it terminalized the log of a healthy,
-      // still-running agent for every tool-calling run. Nor can the sink
-      // distinguish a final terminal from an intermediate one by its
-      // `finishReason`: only the run's middleware knows, and that is exactly
-      // what the verdict reports. So a published detach verdict WINS — it
-      // already means "the agent is alive and a successor will terminalize this
-      // log".
+      // What is ALREADY IN THE LOG is deliberately NOT a conjunct. The
+      // durability sink accepts lower-level streams that may append more than
+      // one terminal before closing, so `terminalPersisted` means "some terminal
+      // is in the log", never "the producer ended". Only the run's middleware
+      // knows whether an abort detached a live producer, so its published detach
+      // verdict wins: a successor will terminalize the log.
       const detached =
         cancelled &&
         !isExplicitCancel(abortController.signal) &&

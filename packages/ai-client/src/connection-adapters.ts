@@ -722,13 +722,10 @@ async function* resumableStream(
           sawTerminal = true
         }
         yield chunk
-        // Do NOT stop on a terminal mid-source: an agent loop emits one
-        // RUN_STARTED/RUN_FINISHED pair PER turn, so a tool-calling run carries
-        // several RUN_FINISHED events before the run is truly done. Returning on
-        // the first one would drop every subsequent turn (the tool result and
-        // the final answer). Instead, drain the event source to its natural end
-        // — the server closes the response only when the run is actually
-        // complete — and use `sawTerminal` below to decide done-vs-reconnect.
+        // Do NOT stop on a terminal mid-source. A lower-level stream may contain
+        // multiple terminal events before its source ends, so returning on the
+        // first would drop later chunks. Drain the event source to its natural
+        // end, then use `sawTerminal` below to decide done-vs-reconnect.
       }
     } catch (error) {
       if (abortSignal?.aborted) return

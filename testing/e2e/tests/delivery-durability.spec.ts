@@ -111,26 +111,23 @@ test.describe('delivery durability', () => {
   })
 })
 
-test.describe('delivery durability (agent loop)', () => {
-  test('delivers a full tool-calling run, not truncated at the first RUN_FINISHED', async ({
+test.describe('delivery durability (lower-level multi-terminal stream)', () => {
+  test('delivers all chunks after the first RUN_FINISHED', async ({
     request,
   }) => {
-    // A tool-calling run emits a RUN_FINISHED per iteration (finishReason
-    // "tool_calls" then "stop"). Regression guard: the durable sink must deliver
-    // the tool result and the second iteration that follow the FIRST terminal —
-    // a sink that ended the log on the first RUN_FINISHED stranded tool-calling
-    // runs at the tool call.
+    // A lower-level producer may emit more chunks after a terminal. The durable
+    // sink must continue until the producer closes.
     const produce = await request.post(
-      '/api/durable-delivery?scenario=agent-loop',
+      '/api/durable-delivery?scenario=multi-terminal',
       { data: {} },
     )
     expect(produce.ok()).toBeTruthy()
     const events = parseSse(await produce.text())
     const types = events.map(eventType)
 
-    // Both per-iteration terminals arrive (old behaviour stopped after the first).
+    // Both terminals arrive.
     expect(types.filter((t) => t === 'RUN_FINISHED')).toHaveLength(2)
-    // The tool result and the second iteration's reply survive the first terminal.
+    // The later tool result and reply survive the first terminal.
     expect(types).toContain('TOOL_CALL_RESULT')
     expect(contentDeltas(events)).toEqual(['done'])
     // Every event is offset-tagged, and the log ends on the final 'stop' terminal.
@@ -143,11 +140,11 @@ test.describe('delivery durability (agent loop)', () => {
     expect(metadata?.tanstack?.finishReason).toBe('stop')
   })
 
-  test('a second tab joins a finished tool-calling run in full', async ({
+  test('a second tab joins a finished multi-terminal stream in full', async ({
     request,
   }) => {
     const produce = await request.post(
-      '/api/durable-delivery?scenario=agent-loop',
+      '/api/durable-delivery?scenario=multi-terminal',
       { data: {} },
     )
     const runId = produce.headers()['x-run-id']

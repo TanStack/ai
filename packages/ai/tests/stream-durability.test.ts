@@ -165,18 +165,15 @@ describe('memoryStream', () => {
 
     await producer.append([ev.textContent('c'), ev.textContent('d')])
     await producer.append([ev.runFinished()])
-    // A terminal chunk no longer ends the read; the producer signals completion
-    // by closing (an agent-loop run emits a RUN_FINISHED per iteration).
+    // A terminal chunk does not end the read; only the producer's close does.
     await producer.close()
     await done
     expect(received).toEqual(['a', 'b', 'c', 'd', '[RUN_FINISHED]'])
   })
 
-  it('tails an agent-loop run across per-iteration terminals to close', async () => {
-    // A tool-calling run emits RUN_STARTED/RUN_FINISHED PER iteration. The reader
-    // must not stop on the first RUN_FINISHED (finishReason "tool_calls") — it
-    // must deliver the tool result and the second iteration's reply, ending only
-    // when the producer closes.
+  it('tails a lower-level stream across multiple terminals to close', async () => {
+    // The durability contract permits more chunks after a terminal. The reader
+    // must deliver both batches and end only when the producer closes.
     const producer = memoryStream(
       new Request('https://example.test/api/chat?runId=run-agentloop', {
         method: 'POST',
@@ -197,14 +194,13 @@ describe('memoryStream', () => {
       }
     })()
 
-    // Iteration 1: a tool call, then a per-iteration terminal.
+    // First batch, including a terminal.
     await producer.append([ev.textContent('rolling'), ev.runFinished()])
     await new Promise<void>((resolve) => setTimeout(resolve, 10))
     // The first terminal must NOT have ended the reader.
     expect(received).toEqual(['rolling', '[RUN_FINISHED]'])
 
-    // Iteration 2: the tool result feeds back and the model replies, then the
-    // producer closes.
+    // Second batch, then the producer closes.
     await producer.append([ev.textContent('you rolled a 14'), ev.runFinished()])
     await producer.close()
     await done

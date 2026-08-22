@@ -20,6 +20,57 @@ import {
  */
 
 test.describe('Client Tool E2E Tests', () => {
+  test('invalid client-tool input retries within one outer run', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const requests: Array<string> = []
+    page.on('request', (request) => {
+      if (
+        request.method() === 'POST' &&
+        request.url().includes('/api/tools-test')
+      ) {
+        requests.push(request.url())
+      }
+    })
+
+    await selectScenario(page, 'invalid-client-tool-retry', testId, aimockPort)
+    await runTest(page)
+    await waitForTestComplete(page, 15000, 2)
+    await page.waitForFunction(
+      () =>
+        document
+          .getElementById('test-metadata')
+          ?.getAttribute('data-run-finished-count') === '2',
+      { timeout: 15000 },
+    )
+
+    const metadata = await getMetadata(page)
+    expect(requests).toHaveLength(2)
+    expect(metadata.runStartedCount).toBe('2')
+    expect(metadata.runFinishedCount).toBe('2')
+    expect(metadata.executionCompleteCount).toBe('1')
+
+    const toolCalls = await getToolCalls(page)
+    expect(toolCalls).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ state: 'error' }),
+        expect.objectContaining({
+          name: 'show_notification',
+          state: 'complete',
+        }),
+      ]),
+    )
+
+    const responseText = (await getMessages(page))
+      .flatMap((message) => message.parts)
+      .filter((part) => part.type === 'text')
+      .map((part) => part.content)
+      .join(' ')
+    expect(responseText).toContain('Recovered after client tool input retry.')
+  })
+
   test('single client tool executes and completes', async ({
     page,
     testId,

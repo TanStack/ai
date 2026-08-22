@@ -501,12 +501,10 @@ export function memoryStream(
             yield { offset: entry.offset, chunk: entry.chunk }
           }
         }
-        // A terminal chunk (RUN_FINISHED / RUN_ERROR) does NOT end the read: an
-        // agent-loop run emits one per iteration (finishReason "tool_calls" then
-        // "stop"), so stopping on the first would truncate a tool-calling run at
-        // its first tool call. The producer signals true completion by calling
-        // `close()` (it does so on every exit — see StreamDurability.close), which
-        // sets `log.complete`. Read tails until then, or until the caller aborts.
+        // A terminal chunk (RUN_FINISHED / RUN_ERROR) does NOT end the read.
+        // StreamDurability accepts lower-level streams that append more chunks
+        // after a terminal, so only the producer's `close()` marks the log
+        // complete. Read tails until then, or until the caller aborts.
         if (log.complete || signal?.aborted) return
 
         // Bound only the wait for the very first chunk: once a run has produced

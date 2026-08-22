@@ -17,45 +17,57 @@ const providerFreeScenarios = new Set([
   'client-server-context',
   'malformed-tool-arguments',
   'provider-rejected-tool-call',
+  'invalid-client-tool-retry',
 ])
 
 function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
   const config =
-    scenario === 'provider-rejected-tool-call'
+    scenario === 'invalid-client-tool-retry'
       ? {
-          arguments: '{"component":"database","unexpected":true}',
-          initialText: 'Checking system status.',
-          input: { component: 'database', unexpected: true },
-          name: 'provider-rejected-tool-call-test',
-          responseText: 'Recovered from provider-rejected tool call.',
-          result: JSON.stringify({ error: 'Provider rejected tool call' }),
-          state: 'output-error' as const,
-          toolName: 'check_status',
+          arguments: '{"message":42,"type":"info"}',
+          initialText: 'Checking notification input.',
+          input: { message: 42, type: 'info' },
+          name: 'invalid-client-tool-retry-test',
+          responseText: 'Recovered after client tool input retry.',
+          result: undefined,
+          state: undefined,
+          toolName: 'show_notification',
         }
-      : scenario === 'malformed-tool-arguments'
+      : scenario === 'provider-rejected-tool-call'
         ? {
-            arguments: '{',
+            arguments: '{"component":"database","unexpected":true}',
             initialText: 'Checking system status.',
-            input: undefined,
-            name: 'malformed-tool-arguments-test',
-            responseText: 'Recovered from malformed tool arguments.',
-            result: undefined,
-            state: undefined,
+            input: { component: 'database', unexpected: true },
+            name: 'provider-rejected-tool-call-test',
+            responseText: 'Recovered from provider-rejected tool call.',
+            result: JSON.stringify({ error: 'Provider rejected tool call' }),
+            state: 'output-error' as const,
             toolName: 'check_status',
           }
-        : {
-            arguments: '{}',
-            initialText: 'Reading runtime context.',
-            input: {},
-            name: 'runtime-context-test',
-            responseText: 'Runtime context was read.',
-            result: undefined,
-            state: undefined,
-            toolName:
-              scenario === 'client-context'
-                ? 'read_client_context'
-                : 'read_server_context',
-          }
+        : scenario === 'malformed-tool-arguments'
+          ? {
+              arguments: '{',
+              initialText: 'Checking system status.',
+              input: undefined,
+              name: 'malformed-tool-arguments-test',
+              responseText: 'Recovered from malformed tool arguments.',
+              result: undefined,
+              state: undefined,
+              toolName: 'check_status',
+            }
+          : {
+              arguments: '{}',
+              initialText: 'Reading runtime context.',
+              input: {},
+              name: 'runtime-context-test',
+              responseText: 'Runtime context was read.',
+              result: undefined,
+              state: undefined,
+              toolName:
+                scenario === 'client-context'
+                  ? 'read_client_context'
+                  : 'read_server_context',
+            }
   return {
     kind: 'text',
     name: config.name,
@@ -73,9 +85,12 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
       const runId = options.runId ?? 'runtime-context-run'
       const threadId = options.threadId ?? 'runtime-context-thread'
       const messageId = `${runId}-message`
-      const hasToolResult = options.messages.some(
+      const toolResultCount = options.messages.filter(
         (message) => message.role === 'tool',
-      )
+      ).length
+      const hasToolResult = toolResultCount > 0
+      const retryClientTool =
+        scenario === 'invalid-client-tool-retry' && toolResultCount === 1
 
       yield {
         type: EventType.RUN_STARTED,
@@ -85,8 +100,17 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
         timestamp: Date.now(),
       }
 
-      if (!hasToolResult) {
-        const toolCallId = `${scenario}-tool-call`
+      if (!hasToolResult || retryClientTool) {
+        const toolCallId =
+          scenario === 'invalid-client-tool-retry'
+            ? `${scenario}-tool-call-${toolResultCount + 1}`
+            : `${scenario}-tool-call`
+        const toolArguments = retryClientTool
+          ? '{"message":"done","type":"info"}'
+          : config.arguments
+        const toolInput = retryClientTool
+          ? { message: 'done', type: 'info' }
+          : config.input
 
         yield {
           type: EventType.TEXT_MESSAGE_START,
@@ -119,7 +143,7 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
         yield {
           type: EventType.TOOL_CALL_ARGS,
           toolCallId,
-          delta: config.arguments,
+          delta: toolArguments,
           model,
           timestamp: Date.now(),
         }
@@ -128,7 +152,7 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
           toolCallId,
           toolCallName: config.toolName,
           toolName: config.toolName,
-          ...(config.input === undefined ? {} : { input: config.input }),
+          ...(toolInput === undefined ? {} : { input: toolInput }),
           ...(config.result === undefined
             ? {}
             : { result: config.result, state: config.state }),

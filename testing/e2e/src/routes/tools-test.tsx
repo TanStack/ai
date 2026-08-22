@@ -202,6 +202,7 @@ function ToolsTestPage() {
   const [toolEvents, setToolEvents] = useState<Array<ToolEvent>>([])
   const [testStartTime, setTestStartTime] = useState<number | null>(null)
   const [testComplete, setTestComplete] = useState(false)
+  const [runLifecycle, setRunLifecycle] = useState({ started: 0, finished: 0 })
 
   // Track approvals we've responded to (to avoid duplicate responses)
   const respondedApprovals = useRef<Set<string>>(new Set())
@@ -244,6 +245,16 @@ function ToolsTestPage() {
       tools: clientTools,
       onFinish: () => {
         setTestComplete(true)
+      },
+      onChunk: (chunk) => {
+        if (chunk.type === 'RUN_STARTED') {
+          setRunLifecycle((value) => ({ ...value, started: value.started + 1 }))
+        } else if (chunk.type === 'RUN_FINISHED') {
+          setRunLifecycle((value) => ({
+            ...value,
+            finished: value.finished + 1,
+          }))
+        }
       },
       onCustomEvent: (eventType: string, data: unknown) => {
         addEvent({
@@ -288,6 +299,7 @@ function ToolsTestPage() {
     setToolEvents([])
     setTestComplete(false)
     setTestStartTime(Date.now())
+    setRunLifecycle({ started: 0, finished: 0 })
     respondedApprovals.current.clear()
     sendMessage(`[${scenario}] run test`)
   }, [sendMessage])
@@ -720,6 +732,8 @@ function ToolsTestPage() {
         data-is-loading={isLoading.toString()}
         data-test-complete={testComplete.toString()}
         data-tool-call-count={toolCalls.length}
+        data-run-started-count={runLifecycle.started}
+        data-run-finished-count={runLifecycle.finished}
         data-pending-approval-count={pendingApprovals.length}
         data-complete-tool-count={
           toolCalls.filter(

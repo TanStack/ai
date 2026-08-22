@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
-import { toolDefinition } from '../src'
 import {
   RUN_CANCEL_REASON,
   requestRunCancel,
@@ -13,6 +12,7 @@ import {
   provideDetachableRun,
   provideRunDetached,
 } from '../src/activities/chat/middleware/run-store'
+import { publishRunDetachedSignal } from '../src/delivery-detach'
 import { memoryStream } from '../src/stream-durability'
 import { toServerSentEventsResponse } from '../src/stream-to-response'
 import { EventType } from '../src/types'
@@ -143,46 +143,6 @@ function disconnectingAdapter(
   })
 }
 
-/**
- * An AGENT-LOOP adapter: iteration 1 calls a tool and ends with
- * `RUN_FINISHED(finishReason: 'tool_calls')`, iteration 2 streams text and
- * trips `abortController` mid-stream.
- *
- * This is the ordinary shape of every tool-calling run, and the reason the
- * sink's detach verdict cannot be gated on "is a terminal already in the log":
- * the intermediate `RUN_FINISHED` is flushed to the durability log at its
- * flush boundary long before the run is over.
- */
-function toolCallingDisconnectAdapter(abortController: AbortController) {
-  let call = 0
-  return createMockAdapter({
-    chatStreamFn: () => {
-      call += 1
-      if (call === 1) {
-        return (async function* () {
-          yield ev.runStarted()
-          yield ev.toolStart('call-1', 'ping')
-          yield ev.toolArgs('call-1', '{}')
-          yield ev.toolEnd('call-1', 'ping')
-          yield ev.runFinished('tool_calls')
-        })()
-      }
-      return (async function* () {
-        yield ev.textStart('msg-2')
-        yield ev.textContent('a', 'msg-2')
-        abortController.abort()
-        yield ev.textContent('b', 'msg-2')
-      })()
-    },
-  })
-}
-
-const pingTool = toolDefinition({
-  name: 'ping',
-  description: 'ping',
-  inputSchema: z.object({}),
-}).server(() => 'pong')
-
 /** An adapter whose provider throws part-way through: a GENUINE failure. */
 function throwingAdapter() {
   return createMockAdapter({
@@ -225,7 +185,6 @@ async function deliver(input: {
   adapter: ReturnType<typeof createMockAdapter>['adapter']
   abortController: AbortController
   middleware: ReturnType<typeof fakeSandbox>
-  tools?: Array<typeof pingTool>
 }): Promise<{ types: Array<string>; closes: number }> {
   const log = spyLog(input.id)
   const stream = chat({
@@ -235,7 +194,6 @@ async function deliver(input: {
     threadId: `thread-${input.id}`,
     abortController: input.abortController,
     middleware: [input.middleware],
-    ...(input.tools ? { tools: input.tools } : {}),
   })
 
   // `batch: 1` so each chunk is persisted as produced: a disconnect mid-stream
@@ -278,29 +236,33 @@ describe('durable delivery on a DETACHED disconnect', () => {
     expect(closes).toBe(0)
   })
 
-  it('honours the detach verdict even though an INTERMEDIATE terminal is already in the log', async () => {
-    // An agent-loop run emits one RUN_FINISHED per iteration. The first
-    // iteration's `finishReason: 'tool_calls'` terminal is flushed to the log
-    // mid-run, so "a terminal is persisted" says nothing about whether the run
-    // ended — and gating the detach verdict on it terminalized the log of a
-    // healthy, still-running agent for EVERY tool-calling run.
+  it('honours the detach verdict after lower-level terminal chunks', async () => {
     const id = runId('detached-after-tool-call')
     const abortController = new AbortController()
-    const { types, closes } = await deliver({
-      id,
-      adapter: toolCallingDisconnectAdapter(abortController).adapter,
-      abortController,
-      middleware: fakeSandbox({ detachable: true }),
-      tools: [pingTool],
-    })
+    const log = spyLog(id)
+    const threadId = `thread-${id}`
+    const stream = (async function* () {
+      yield ev.runStarted(id, threadId)
+      yield ev.runFinished('stop', id, undefined, threadId)
+      yield ev.runFinished('stop', id, undefined, threadId)
+      abortController.abort()
+      yield ev.textContent('after-terminal')
+    })()
+    publishRunDetachedSignal(stream, () => true)
 
-    // The intermediate terminal really is in the log — this is the state that
-    // used to defeat the verdict.
-    expect(types).toContain(EventType.RUN_FINISHED)
-    // …and yet no synthetic terminal was appended and the log stays OPEN, so
-    // the takeover can continue appending to it.
+    await drain(
+      toServerSentEventsResponse(stream, {
+        durability: { adapter: log.adapter, batch: 1 },
+        abortController,
+      }),
+    )
+
+    const types = (await log.stored()).map((chunk) => chunk.type)
+    expect(types.filter((type) => type === EventType.RUN_FINISHED)).toHaveLength(
+      2,
+    )
     expect(types).not.toContain(EventType.RUN_ERROR)
-    expect(closes).toBe(0)
+    expect(log.closes()).toBe(0)
   })
 
   it('still terminalizes and closes for an EXPLICIT cancel in the in-process band', async () => {

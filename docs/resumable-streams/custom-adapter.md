@@ -39,23 +39,20 @@ Get these wrong and resume breaks in subtle ways:
   containing `NUL`/CR/LF, one with leading or trailing whitespace, or a
   duplicate.
 - **`read` replays strictly *after* the offset**, oldest first, and ends when the
-  log is **closed** — never when it sees a terminal chunk. This is the rule most
+  log is **closed**, never when it sees a terminal chunk. This is the rule most
   likely to be "simplified" back, so here is the reason, quoted from the
   invariant `memoryStream`'s own `read` loop carries in
   `packages/ai/src/stream-durability.ts` (a test pins it):
 
-  > A terminal chunk (`RUN_FINISHED` / `RUN_ERROR`) does NOT end the read: an
-  > agent-loop run emits one per iteration (`finishReason` `"tool_calls"` then
-  > `"stop"`), so stopping on the first would truncate a tool-calling run at its
-  > first tool call. The producer signals true completion by calling `close()`
-  > (it does so on every exit — see `StreamDurability.close`), which sets
-  > `log.complete`. Read tails until then, or until the caller aborts.
+  > A terminal chunk (`RUN_FINISHED` / `RUN_ERROR`) does NOT end the read.
+  > `StreamDurability` accepts lower-level streams that append more chunks after
+  > a terminal, so only the producer's `close()` marks the log complete. Read
+  > tails until then, or until the caller aborts.
 
-  So an adapter that returns at the first terminal chunk truncates **every**
-  resumed tool-calling run — the resumed client sees the first tool call and
-  then a clean end, which it reads as "the run is over". `close()` is your only
-  end-of-log signal, and core awaits it on every producer exit (completion,
-  cancellation, and failure), so tailing until then always terminates.
+  An adapter that returns at the first terminal chunk can truncate a valid
+  persisted stream. `close()` is your only end-of-log signal, and core awaits it
+  on every producer exit (completion, cancellation, and failure), so tailing
+  until then always terminates.
 - **`read` must never end the response empty while the run is still producing.**
   Park (wait for the next append) instead. A clean end with no new data tells
   the client the run is over; if it isn't, the client fails with
@@ -131,9 +128,8 @@ export function customDurability(
         const entries = await log.readAfter(cursor)
         for (const entry of entries) {
           cursor = entry.cursor
-          // Yield terminal chunks like any other. An agent-loop run emits a
-          // RUN_FINISHED per iteration, so returning on one would truncate a
-          // resumed tool-calling run at its first tool call.
+          // Yield terminal chunks like any other. A lower-level producer may
+          // append more chunks before it closes.
           yield { offset: entry.cursor, chunk: entry.chunk }
         }
         // The ONLY end-of-log condition: the producer called `close()`.
