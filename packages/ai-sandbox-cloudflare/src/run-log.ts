@@ -97,7 +97,8 @@ export interface RunEventLogReadOptions {
  * - `append` assigns the next `seq` (0, 1, 2, …) and returns it.
  * - `read` yields the backlog after `fromSeq` in order, then live-tails new
  *   events, and RETURNS once the run is terminal and the cursor has caught up.
- * - All methods reject for an unknown `runId` except `get`, which resolves null.
+ * - Unknown-run behavior is method-specific: `append`/`finish`/`read` reject,
+ *   `get` resolves null, and `update` is a no-op.
  */
 export interface RunEventLog {
   /**
@@ -120,9 +121,9 @@ export interface RunEventLog {
     error?: RunError,
   ) => Promise<void>
   /**
-   * Patch the record's mutable fields ({@link RunRecordPatch}). Unknown `runId`
-   * is a NO-OP (never a throw, never a create) — core's `RunStore.update`
-   * invariant, which `runLogStore` maps onto this method.
+   * Patch the record's mutable fields ({@link RunRecordPatch}). Unknown and
+   * already-terminal runs are NO-OPs (never a throw, never a create), preserving
+   * the first terminal status against late driver updates.
    *
    * MUST wake blocked readers, exactly like `append`/`finish`: the record and
    * the event log share one status field here, so a driver that terminalizes
@@ -299,9 +300,49 @@ export class InMemoryRunEventLog implements RunEventLog {
     return Promise.resolve()
   }
 
+  touch(runId: string): Promise<void> {
+    const state = this.runs.get(runId)
+    if (!state || isTerminalRunStatus(state.record.status)) {
+      return Promise.resolve()
+    }
+    state.record.updatedAt = this.now()
+    return Promise.resolve()
+  }
+
+  finishIfStale(
+    runId: string,
+    cutoff: number,
+    chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+  ): Promise<boolean> {
+    const state = this.runs.get(runId)
+    if (
+      !state ||
+      isTerminalRunStatus(state.record.status) ||
+      state.record.updatedAt >= cutoff
+    ) {
+      return Promise.resolve(false)
+    }
+
+    const now = this.now()
+    const seq = state.record.lastSeq + 1
+    state.chunks.push(chunk)
+    state.record.lastSeq = seq
+    state.record.status = 'failed'
+    state.record.error = {
+      message: chunk.message,
+      ...(chunk.code !== undefined ? { code: chunk.code } : {}),
+    }
+    state.record.finishedAt = now
+    state.record.updatedAt = now
+    this.wake(state)
+    return Promise.resolve(true)
+  }
+
   update(runId: string, patch: RunRecordPatch): Promise<void> {
     const state = this.runs.get(runId)
-    if (!state) return Promise.resolve() // unknown runId is a no-op
+    if (!state || isTerminalRunStatus(state.record.status)) {
+      return Promise.resolve()
+    }
     state.record = { ...state.record, ...patch, updatedAt: this.now() }
     // A patch may terminalize the shared status field (core's driver writes its
     // terminal status through `RunStore.update`) — parked readers must see it.

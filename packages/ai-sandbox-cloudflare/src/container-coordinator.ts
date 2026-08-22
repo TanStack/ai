@@ -34,6 +34,7 @@ import {
 } from '@tanstack/ai-sandbox'
 import { getSandbox } from '@cloudflare/sandbox'
 import { SandboxCoordinator, resolveBridgeOrigin } from './coordinator'
+import { runWithCallbackActivity } from './coordinator-callbacks'
 import { timingSafeBearerEqualWeb } from './web-crypto'
 import type { StartRunInput } from './coordinator'
 import type { ContainerRunRequest, HarnessId } from './protocol'
@@ -409,29 +410,41 @@ export abstract class ContainerSandboxCoordinator<
     ) {
       return new Response('unauthorized', { status: 401 })
     }
-    let payload: unknown
-    try {
-      payload = await request.json()
-    } catch {
-      return this.jsonResponse({ error: 'body must be valid JSON' }, 400)
-    }
-    if (!isToolExecRequest(payload)) {
-      return this.jsonResponse({ error: 'body must be { name, args }' }, 400)
-    }
-    try {
-      const result = await executeHostTool(
-        state.hostTools,
-        payload.name,
-        payload.args,
-        {
-          ...(state.context !== undefined ? { context: state.context } : {}),
-          signal: state.abort.signal,
-        },
-      )
-      return this.jsonResponse({ result })
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      return this.jsonResponse({ error: message }, 500)
-    }
+    return runWithCallbackActivity(
+      this,
+      runId,
+      (id) => this.log.touch(id),
+      async () => {
+        let payload: unknown
+        try {
+          payload = await request.json()
+        } catch {
+          return this.jsonResponse({ error: 'body must be valid JSON' }, 400)
+        }
+        if (!isToolExecRequest(payload)) {
+          return this.jsonResponse(
+            { error: 'body must be { name, args }' },
+            400,
+          )
+        }
+        try {
+          const result = await executeHostTool(
+            state.hostTools,
+            payload.name,
+            payload.args,
+            {
+              ...(state.context !== undefined
+                ? { context: state.context }
+                : {}),
+              signal: state.abort.signal,
+            },
+          )
+          return this.jsonResponse({ result })
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error)
+          return this.jsonResponse({ error: message }, 500)
+        }
+      },
+    )
   }
 }

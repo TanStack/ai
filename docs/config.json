@@ -699,7 +699,8 @@
         {
           "label": "Reaping & Retention",
           "to": "sandbox/reaping",
-          "addedAt": "2026-08-04"
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Provisioning",
@@ -717,7 +718,7 @@
           "label": "Cloudflare (Edge)",
           "to": "sandbox/cloudflare",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-04"
+          "updatedAt": "2026-08-20"
         }
       ]
     },
