@@ -27,7 +27,7 @@ import type {
 import type {
   JSONSchema,
   Modality,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
   Tool,
 } from '@tanstack/ai'
@@ -197,7 +197,7 @@ export class BedrockConverseTextAdapter<
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     try {
       options.logger.request(
         `activity=chat provider=${this.name} model=${this.model} messages=${options.messages.length} tools=${options.tools?.length ?? 0} stream=true`,
@@ -291,7 +291,7 @@ export class BedrockConverseTextAdapter<
    */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const runId = this.generateId()
     const threadId = chatOptions.threadId ?? this.generateId()

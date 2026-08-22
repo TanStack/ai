@@ -4,7 +4,7 @@ import {
   structuredOutputCompleteChunk,
   structuredOutputStartChunk,
 } from '@tanstack/ai/adapter-internals'
-import type { StreamChunk, TokenUsage } from '@tanstack/ai'
+import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type {
   AgentSdkMessage,
   SdkAssistantMessage,
@@ -129,7 +129,7 @@ function buildUsage(
 export async function* translateSdkStream(
   sdkMessages: AsyncIterable<AgentSdkMessage>,
   ctx: TranslateContext,
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   const { model, runId, threadId, genId } = ctx
   const now = () => Date.now()
 
@@ -152,7 +152,7 @@ export async function* translateSdkStream(
   let partialTextStarted = false
   let partialReasoningId: string | null = null
 
-  function* startRun(): Generator<StreamChunk> {
+  function* startRun(): Generator<AdapterYieldChunk> {
     if (runStarted) return
     runStarted = true
     yield {
@@ -165,7 +165,7 @@ export async function* translateSdkStream(
     }
   }
 
-  function* synthesizeUnresolvedResults(): Generator<StreamChunk> {
+  function* synthesizeUnresolvedResults(): Generator<AdapterYieldChunk> {
     for (const toolCallId of unresolvedToolCalls) {
       yield {
         type: EventType.TOOL_CALL_RESULT,
@@ -179,7 +179,7 @@ export async function* translateSdkStream(
     unresolvedToolCalls.clear()
   }
 
-  function* closePartialText(): Generator<StreamChunk> {
+  function* closePartialText(): Generator<AdapterYieldChunk> {
     if (partialTextStarted && partialTextMessageId) {
       yield {
         type: EventType.TEXT_MESSAGE_END,
@@ -193,7 +193,7 @@ export async function* translateSdkStream(
     partialTextContent = ''
   }
 
-  function* closePartialReasoning(): Generator<StreamChunk> {
+  function* closePartialReasoning(): Generator<AdapterYieldChunk> {
     if (partialReasoningId) {
       yield {
         type: EventType.REASONING_MESSAGE_END,
@@ -211,7 +211,9 @@ export async function* translateSdkStream(
     partialReasoningId = null
   }
 
-  function* emitStructuredOutput(object: unknown): Generator<StreamChunk> {
+  function* emitStructuredOutput(
+    object: unknown,
+  ): Generator<AdapterYieldChunk> {
     const raw = JSON.stringify(object)
     const messageId = genId()
     yield structuredOutputStartChunk({
@@ -234,7 +236,7 @@ export async function* translateSdkStream(
     id: string
     name: string
     input: unknown
-  }): Generator<StreamChunk> {
+  }): Generator<AdapterYieldChunk> {
     const toolCallName = stripMcpPrefix(block.name)
     if (
       ctx.expectStructuredOutput === true &&
@@ -278,7 +280,7 @@ export async function* translateSdkStream(
 
   function* handleAssistant(
     message: SdkAssistantMessage,
-  ): Generator<StreamChunk> {
+  ): Generator<AdapterYieldChunk> {
     const alreadyStreamed =
       message.message.id !== undefined &&
       streamedMessageIds.has(message.message.id)
@@ -354,7 +356,7 @@ export async function* translateSdkStream(
     }
   }
 
-  function* handleUser(message: SdkUserMessage): Generator<StreamChunk> {
+  function* handleUser(message: SdkUserMessage): Generator<AdapterYieldChunk> {
     const content = message.message.content
     if (typeof content === 'string') return
     for (const block of content) {
@@ -381,7 +383,9 @@ export async function* translateSdkStream(
     }
   }
 
-  function* handleResult(message: SdkResultMessage): Generator<StreamChunk> {
+  function* handleResult(
+    message: SdkResultMessage,
+  ): Generator<AdapterYieldChunk> {
     yield* closePartialText()
     yield* closePartialReasoning()
     yield* synthesizeUnresolvedResults()
@@ -448,7 +452,7 @@ export async function* translateSdkStream(
 
   function* handleStreamEvent(
     message: SdkPartialAssistantMessage,
-  ): Generator<StreamChunk> {
+  ): Generator<AdapterYieldChunk> {
     const event = message.event
     if (event.type === 'message_start') {
       partialMessageId = event.message.id ?? genId()

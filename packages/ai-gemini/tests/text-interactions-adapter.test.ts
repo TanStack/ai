@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 import { chat } from '@tanstack/ai'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 import { GeminiTextInteractionsAdapter } from '../src/experimental/text-interactions/adapter'
 import {
   codeExecutionTool,
@@ -53,8 +53,8 @@ const mkStream = (events: Array<Record<string, unknown>>) => {
   })()
 }
 
-const collectChunks = async (stream: AsyncIterable<StreamChunk>) => {
-  const chunks: Array<StreamChunk> = []
+const collectChunks = async (stream: AsyncIterable<AdapterYieldChunk>) => {
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) {
     chunks.push(chunk)
   }
@@ -130,7 +130,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(contents.map((c) => c.delta).join('')).toBe('Hello, world!')
 
     const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
-    expect(finished.finishReason).toBe('stop')
+    expect(finished.metadata.tanstack.finishReason).toBe('stop')
     expect(finished.usage).toEqual({
       promptTokens: 3,
       completionTokens: 2,
@@ -140,7 +140,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     const interactionCustom = chunks.find(
       (c) => c.type === 'CUSTOM' && (c as any).name === 'gemini.interactionId',
     ) as
-      | (Extract<StreamChunk, { type: 'CUSTOM' }> &
+      | (Extract<AdapterYieldChunk, { type: 'CUSTOM' }> &
           Extract<
             GeminiInteractionsCustomEvent,
             { name: 'gemini.interactionId' }
@@ -442,13 +442,13 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(startEvent.toolName).toBe('lookup_weather')
 
     const argsEvent = chunks.find((c) => c.type === 'TOOL_CALL_ARGS') as any
-    expect(argsEvent.args).toBe('{"location":"Madrid"}')
+    expect(argsEvent.delta).toBe('{"location":"Madrid"}')
 
     const endEvent = chunks.find((c) => c.type === 'TOOL_CALL_END') as any
     expect(endEvent.input).toEqual({ location: 'Madrid' })
 
     const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
-    expect(finished.finishReason).toBe('tool_calls')
+    expect(finished.metadata.tanstack.finishReason).toBe('tool_calls')
   })
 
   it('accumulates multi-fragment arguments_delta into the final tool input', async () => {
@@ -512,7 +512,7 @@ describe('GeminiTextInteractionsAdapter', () => {
       (c) => c.type === 'TOOL_CALL_ARGS',
     ) as Array<any>
     expect(argsEvents.length).toBeGreaterThan(1)
-    expect(argsEvents.at(-1)!.args).toBe(
+    expect(argsEvents.map((e) => e.delta).join('')).toBe(
       '{"location":"Berlin","unit":"celsius"}',
     )
 
@@ -643,7 +643,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(textContent.delta).toBe('It is sunny.')
 
     const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
-    expect(finished.finishReason).toBe('stop')
+    expect(finished.metadata.tanstack.finishReason).toBe('stop')
   })
 
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
@@ -1055,7 +1055,7 @@ describe('GeminiTextInteractionsAdapter', () => {
     expect(resultChunk.value.call_id).toBe('call_gs_1')
 
     const finished = chunks.find((c) => c.type === 'RUN_FINISHED') as any
-    expect(finished.finishReason).toBe('stop')
+    expect(finished.metadata.tanstack.finishReason).toBe('stop')
   })
 
   it('rejects google_search_retrieval with a clear error', async () => {

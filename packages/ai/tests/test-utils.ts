@@ -1,5 +1,9 @@
 import { EventType } from '../src/types'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
+import { toSpecTokenUsage } from '../src/utilities/ag-ui-usage'
+import type { SpecTokenUsage } from '../src/utilities/ag-ui-usage'
+import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
+import type { TokenUsage } from '../src/types'
 import type {
   RunErrorEvent,
   RunFinishedEvent,
@@ -69,14 +73,12 @@ export const ev = {
   toolStart: (
     toolCallId: string,
     toolCallName: string,
-    index?: number,
+    _index?: number,
   ): ToolCallStartEvent => ({
     type: EventType.TOOL_CALL_START,
     toolCallId,
     toolCallName,
-    toolName: toolCallName,
     timestamp: Date.now(),
-    ...(index !== undefined ? { index } : {}),
   }),
   toolArgs: (toolCallId: string, delta: string): ToolCallArgsEvent => ({
     type: EventType.TOOL_CALL_ARGS,
@@ -86,15 +88,12 @@ export const ev = {
   }),
   toolEnd: (
     toolCallId: string,
-    toolCallName: string,
-    opts?: { input?: unknown; result?: string },
+    _toolCallName?: string,
+    _opts?: { input?: unknown; result?: string },
   ): ToolCallEndEvent => ({
     type: EventType.TOOL_CALL_END,
     toolCallId,
-    toolCallName,
-    toolName: toolCallName,
     timestamp: Date.now(),
-    ...opts,
   }),
   runFinished: (
     finishReason:
@@ -104,36 +103,41 @@ export const ev = {
       | 'tool_calls'
       | null = 'stop',
     runId = 'run-1',
-    usage?: {
-      promptTokens: number
-      completionTokens: number
-      totalTokens: number
-    },
+    usage?: TokenUsage | Array<SpecTokenUsage>,
     threadId = 'thread-1',
-  ): RunFinishedEvent => ({
-    type: EventType.RUN_FINISHED,
-    runId,
-    threadId,
-    finishReason,
-    timestamp: Date.now(),
-    ...(usage ? { usage } : {}),
-  }),
+  ): RunFinishedEvent => {
+    const spec = usage
+      ? Array.isArray(usage)
+        ? { usage, leftover: undefined }
+        : toSpecTokenUsage(usage)
+      : undefined
+    return {
+      type: EventType.RUN_FINISHED,
+      runId,
+      threadId,
+      timestamp: Date.now(),
+      ...(spec ? { usage: spec.usage } : {}),
+      metadata: {
+        tanstack: {
+          ...(finishReason !== undefined ? { finishReason } : {}),
+          ...(spec?.leftover !== undefined ? { usage: spec.leftover } : {}),
+        },
+      },
+    }
+  },
   runError: (message: string): RunErrorEvent => ({
     type: EventType.RUN_ERROR,
     message,
     timestamp: Date.now(),
-    error: { message },
   }),
   stepStarted: (stepName = 'step-1'): StepStartedEvent => ({
     type: EventType.STEP_STARTED,
     stepName,
     timestamp: Date.now(),
   }),
-  stepFinished: (delta: string, stepName = 'step-1'): StepFinishedEvent => ({
+  stepFinished: (_delta: string, stepName = 'step-1'): StepFinishedEvent => ({
     type: EventType.STEP_FINISHED,
     stepName,
-    stepId: stepName,
-    delta,
     timestamp: Date.now(),
   }),
 }
@@ -149,14 +153,14 @@ export const ev = {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- mock adapter callbacks receive internal SDK types
 export function createMockAdapter(options: {
-  chatStreamFn?: (opts: any) => AsyncIterable<StreamChunk>
+  chatStreamFn?: (opts: any) => AsyncIterable<AdapterYieldChunk>
   /** Array of chunk sequences: chatStream returns iterations[0] on first call, iterations[1] on second, etc. */
-  iterations?: Array<Array<StreamChunk>>
+  iterations?: Array<Array<AdapterYieldChunk>>
   structuredOutput?: (opts: any) => Promise<{ data: unknown; rawText: string }>
   /** Optional native streaming structured output. When omitted, the adapter
    *  has no `structuredOutputStream` and consumers fall through to the
    *  synthesized fallback in `runStructuredFinalization`. */
-  structuredOutputStream?: (opts: any) => AsyncIterable<StreamChunk>
+  structuredOutputStream?: (opts: any) => AsyncIterable<AdapterYieldChunk>
   /** When true, the adapter declares it natively combines tools + a
    *  schema-constrained final answer in one streaming call (issue #605).
    *  The engine then forwards `outputSchema` into `chatStream` and skips

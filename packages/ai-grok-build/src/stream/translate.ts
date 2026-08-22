@@ -5,7 +5,7 @@ import {
   structuredOutputStartChunk,
 } from '@tanstack/ai/adapter-internals'
 import { GrokThoughtRouter } from './thought-router'
-import type { StreamChunk, TokenUsage } from '@tanstack/ai'
+import type { AdapterYieldChunk, TokenUsage } from '@tanstack/ai'
 import type {
   GrokBuildStreamEvent,
   GrokBuildThreadItem,
@@ -124,7 +124,7 @@ function isNativeEvent(
 
 function* finalizeThoughtRouter(
   router: GrokThoughtRouter | null,
-): Generator<StreamChunk> {
+): Generator<AdapterYieldChunk> {
   if (router) yield* router.finalize()
 }
 
@@ -143,7 +143,7 @@ function isLegacyEvent(event: GrokBuildStreamEvent): boolean {
 export async function* translateThreadEvents(
   events: AsyncIterable<GrokBuildStreamEvent>,
   ctx: TranslateContext,
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   const {
     model,
     runId,
@@ -176,7 +176,7 @@ export async function* translateThreadEvents(
     return thoughtRouter
   }
 
-  function* startRun(): Generator<StreamChunk> {
+  function* startRun(): Generator<AdapterYieldChunk> {
     if (runStarted) return
     runStarted = true
     yield {
@@ -189,7 +189,7 @@ export async function* translateThreadEvents(
     }
   }
 
-  function* finishRun(usage?: GrokBuildUsage): Generator<StreamChunk> {
+  function* finishRun(usage?: GrokBuildUsage): Generator<AdapterYieldChunk> {
     if (runFinished) return
     runFinished = true
     yield {
@@ -204,7 +204,7 @@ export async function* translateThreadEvents(
     }
   }
 
-  function* closeReasoning(): Generator<StreamChunk> {
+  function* closeReasoning(): Generator<AdapterYieldChunk> {
     if (reasoningMessageId === null) return
     yield {
       type: EventType.REASONING_MESSAGE_END,
@@ -221,7 +221,7 @@ export async function* translateThreadEvents(
     reasoningMessageId = null
   }
 
-  function* closeAssistant(): Generator<StreamChunk> {
+  function* closeAssistant(): Generator<AdapterYieldChunk> {
     if (assistantMessageId === null) return
     yield {
       type: EventType.TEXT_MESSAGE_END,
@@ -234,7 +234,7 @@ export async function* translateThreadEvents(
 
   function* handleNative(
     event: Extract<GrokBuildStreamEvent, { type: 'thought' | 'text' | 'end' }>,
-  ): Generator<StreamChunk> {
+  ): Generator<AdapterYieldChunk> {
     yield* startRun()
 
     switch (event.type) {
@@ -319,7 +319,7 @@ export async function* translateThreadEvents(
     }
   }
 
-  function* synthesizeUnresolvedResults(): Generator<StreamChunk> {
+  function* synthesizeUnresolvedResults(): Generator<AdapterYieldChunk> {
     for (const toolCallId of unresolvedToolCalls) {
       yield {
         type: EventType.TOOL_CALL_RESULT,
@@ -333,7 +333,7 @@ export async function* translateThreadEvents(
     unresolvedToolCalls.clear()
   }
 
-  function* openToolCall(item: ToolItem): Generator<StreamChunk> {
+  function* openToolCall(item: ToolItem): Generator<AdapterYieldChunk> {
     if (openedToolItems.has(item.id)) return
     openedToolItems.add(item.id)
     const toolCallName = toolNameForItem(item)
@@ -369,7 +369,7 @@ export async function* translateThreadEvents(
 
   function* handleItemCompleted(
     item: GrokBuildThreadItem,
-  ): Generator<StreamChunk> {
+  ): Generator<AdapterYieldChunk> {
     if (item.type === 'agent_message') {
       const messageId = item.id
       yield {

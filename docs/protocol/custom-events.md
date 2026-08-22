@@ -106,6 +106,12 @@ individual interface.
 | `ToolInputAvailableEvent` | `tool-input-available` | `{ toolCallId: string; toolName: string; input: unknown }` | a client tool is invoked — the run pauses; see [Client Tools](../tools/client-tools) |
 | `UIResourceEvent` | `ui-resource` | `{ resource; serverId?: string; toolCallId: string; toolName: string; meta?: Record<string, unknown> }` | an MCP tool returns a `ui://` resource ([MCP Apps](../mcp/apps)) |
 
+## These stay CUSTOM
+
+Harness `*.session-id` events and `structured-output.start` / `structured-output.complete` stay `CUSTOM`. They are not fields on `RUN_FINISHED`.
+
+Read them with the same `chunk.type === "CUSTOM" && chunk.name === "..."` branch as the rest of this page. See [Streaming structured output](../structured-outputs/streaming) for the complete event.
+
 ## Your own custom events aren't in this union
 
 Tools can emit arbitrary, application-defined events through the
@@ -130,7 +136,7 @@ const importRows = toolDefinition({
 });
 ```
 
-These flow over the wire exactly like the built-in events — same `CUSTOM`
+These flow over the wire exactly like the built-in events: same `CUSTOM`
 chunk shape, same runtime behavior. But `'my-app:progress'` isn't one of the
 literal names in `KnownCustomEvent`, so it's intentionally absent from
 `ChatStream`'s type. This is the same tradeoff `StructuredOutputStream`
@@ -167,6 +173,7 @@ for the branches that read your own.
 
 ## Related
 
+- [Event metadata](./metadata) — `metadata.tanstack` fields a custom AG-UI server must send so `useChat` gets `finishReason` and model.
 - [Sandbox Events](../sandbox/events) — the sandbox- and harness-specific rows of this table, in context, plus `sandbox.file.diff`'s opt-in.
 - [Observability](../sandbox/observability) — the server-side hook accessors (`before()`/`after()`/`diff()`) that back `sandbox.file.diff`.
 - [Showing Code Mode in the UI](../code-mode/client-integration) — rendering the `code_mode:*` events live.

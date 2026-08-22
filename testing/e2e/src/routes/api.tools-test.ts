@@ -6,7 +6,7 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import type { AnyTextAdapter, StreamChunk } from '@tanstack/ai'
+import type { AnyTextAdapter, AdapterYieldChunk } from '@tanstack/ai'
 import type { TestRuntimeContext } from '@/lib/tools-test-tools'
 import { createTextAdapter } from '@/lib/providers'
 import { getToolsForScenario } from '@/lib/tools-test-tools'
@@ -80,7 +80,7 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
       toolCallMetadata: undefined,
       systemPromptMetadata: undefined,
     },
-    async *chatStream(options): AsyncGenerator<StreamChunk> {
+    async *chatStream(options): AsyncGenerator<AdapterYieldChunk> {
       const model = config.name
       const runId = options.runId ?? 'runtime-context-run'
       const threadId = options.threadId ?? 'runtime-context-thread'
@@ -212,7 +212,7 @@ function createInterleavedArgsAdapter(): AnyTextAdapter {
       toolCallMetadata: undefined,
       systemPromptMetadata: undefined,
     },
-    async *chatStream(options): AsyncGenerator<StreamChunk> {
+    async *chatStream(options): AsyncGenerator<AdapterYieldChunk> {
       const model = 'interleaved-args-test'
       const runId = options.runId ?? 'interleaved-args-run'
       const threadId = options.threadId ?? 'interleaved-args-thread'
@@ -346,7 +346,7 @@ export const Route = createFileRoute('/api/tools-test')({
           // Special error scenario: return a stream that immediately errors
           if (scenario === 'error') {
             const errorStream =
-              (async function* (): AsyncGenerator<StreamChunk> {
+              (async function* (): AsyncGenerator<AdapterYieldChunk> {
                 yield {
                   type: EventType.RUN_STARTED,
                   runId: 'error-test',

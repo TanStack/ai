@@ -82,30 +82,34 @@ describe('ChatClient interrupt error correlation', () => {
       runId: 'foreign-child-run',
       timestamp: Date.now(),
       message: 'foreign run failed',
-      'tanstack:interruptErrors': [
-        {
-          scope: 'item',
-          interruptId: 'generic-1',
-          code: 'invalid-payload',
-          message: 'foreign item error',
-          source: 'server',
-          retryable: false,
-          threadId: 'foreign-thread',
-          interruptedRunId: 'foreign-parent-run',
-          generation: 7,
+      metadata: {
+        tanstack: {
+          interruptErrors: [
+            {
+              scope: 'item',
+              interruptId: 'generic-1',
+              code: 'invalid-payload',
+              message: 'foreign item error',
+              source: 'server',
+              retryable: false,
+              threadId: 'foreign-thread',
+              interruptedRunId: 'foreign-parent-run',
+              generation: 7,
+            },
+            {
+              scope: 'batch',
+              code: 'item-validation-failed',
+              message: 'foreign batch error',
+              source: 'server',
+              retryable: false,
+              interruptIds: ['generic-1'],
+              threadId: 'foreign-thread',
+              interruptedRunId: 'foreign-parent-run',
+              generation: 7,
+            },
+          ],
         },
-        {
-          scope: 'batch',
-          code: 'item-validation-failed',
-          message: 'foreign batch error',
-          source: 'server',
-          retryable: false,
-          interruptIds: ['generic-1'],
-          threadId: 'foreign-thread',
-          interruptedRunId: 'foreign-parent-run',
-          generation: 7,
-        },
-      ],
+      },
     })
 
     await vi.waitFor(() =>
@@ -130,30 +134,34 @@ describe('ChatClient interrupt error correlation', () => {
       runId: localRunId,
       timestamp: Date.now(),
       message: 'local validation failed',
-      'tanstack:interruptErrors': [
-        {
-          scope: 'item',
-          interruptId: 'generic-1',
-          code: 'invalid-payload',
-          message: 'local item error',
-          source: 'server',
-          retryable: false,
-          threadId: 'thread-1',
-          interruptedRunId,
-          generation: 1,
+      metadata: {
+        tanstack: {
+          interruptErrors: [
+            {
+              scope: 'item',
+              interruptId: 'generic-1',
+              code: 'invalid-payload',
+              message: 'local item error',
+              source: 'server',
+              retryable: false,
+              threadId: 'thread-1',
+              interruptedRunId,
+              generation: 1,
+            },
+            {
+              scope: 'batch',
+              code: 'item-validation-failed',
+              message: 'local batch error',
+              source: 'server',
+              retryable: false,
+              interruptIds: ['generic-1'],
+              threadId: 'thread-1',
+              interruptedRunId,
+              generation: 1,
+            },
+          ],
         },
-        {
-          scope: 'batch',
-          code: 'item-validation-failed',
-          message: 'local batch error',
-          source: 'server',
-          retryable: false,
-          interruptIds: ['generic-1'],
-          threadId: 'thread-1',
-          interruptedRunId,
-          generation: 1,
-        },
-      ],
+      },
     })
 
     await vi.waitFor(() =>

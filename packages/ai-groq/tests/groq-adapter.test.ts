@@ -14,7 +14,7 @@ import {
 } from '../src/adapters/text'
 import { createGroqSummarize, groqSummarize } from '../src/adapters/summarize'
 import { EventType } from '@tanstack/ai'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 import type { GroqTextProviderOptions } from '../src/index'
 
 // Test helper: a silent logger for test chatStream calls.
@@ -264,7 +264,7 @@ describe('Groq AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'llama-3.3-70b-versatile',
@@ -314,7 +314,7 @@ describe('Groq AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'llama-3.3-70b-versatile',
@@ -375,7 +375,7 @@ describe('Groq AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'llama-3.3-70b-versatile',
@@ -468,7 +468,7 @@ describe('Groq AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'llama-3.3-70b-versatile',
@@ -523,7 +523,7 @@ describe('Groq AG-UI event emission', () => {
     )
 
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
@@ -583,7 +583,7 @@ describe('Groq AG-UI event emission', () => {
     pendingMockCreate = vi.fn().mockResolvedValue(errorIterable)
 
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
@@ -633,7 +633,7 @@ describe('Groq AG-UI event emission', () => {
     )
 
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of adapter.chatStream({
       model: 'llama-3.3-70b-versatile',
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
@@ -681,7 +681,7 @@ describe('Groq AG-UI event emission', () => {
     pendingMockCreate = vi.fn().mockResolvedValue(errorIterable)
 
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'llama-3.3-70b-versatile',
@@ -732,7 +732,7 @@ describe('Groq AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'llama-3.3-70b-versatile',
@@ -811,7 +811,7 @@ describe('Groq AG-UI event emission', () => {
 
     setupMockSdkClient(streamChunks)
     const adapter = createGroqText('llama-3.3-70b-versatile', 'test-api-key')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'llama-3.3-70b-versatile',

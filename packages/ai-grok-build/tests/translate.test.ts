@@ -1,17 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import { translateThreadEvents } from '../src/stream/translate'
 import type { GrokBuildStreamEvent } from '../src/stream/sdk-types'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 async function collect(
   events: Array<GrokBuildStreamEvent>,
   expectStructuredOutput = false,
-): Promise<Array<StreamChunk>> {
+): Promise<Array<AdapterYieldChunk>> {
   async function* source() {
     for (const event of events) yield event
   }
   let n = 0
-  const out: Array<StreamChunk> = []
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of translateThreadEvents(source(), {
     model: 'grok-build',
     runId: 'run-1',

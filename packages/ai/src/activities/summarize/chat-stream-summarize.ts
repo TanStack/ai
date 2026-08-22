@@ -1,13 +1,57 @@
 import { EventType } from '@ag-ui/core'
 import { toRunErrorPayload } from '../error-payload'
 import { MAX_TOKENS_KEYS } from '../../utilities/sampling-keys'
+import { rebuildTokenUsage } from '../../utilities/ag-ui-usage'
+import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
+import { tanstackMetadata } from '../../utilities/merge-metadata'
+import { normalizeStreamChunk } from '../../utilities/normalize-stream-chunk'
 import { BaseSummarizeAdapter } from './adapter'
 import type {
   StreamChunk,
   SummarizationOptions,
   SummarizationResult,
   TextOptions,
+  TokenUsage,
 } from '../../types'
+
+function consumeSpecSummarizeChunk(
+  chunk: StreamChunk,
+  state: { summary: string; model: string; usage: TokenUsage },
+): void {
+  if (chunk.type === EventType.TEXT_MESSAGE_CONTENT) {
+    if (chunk.delta) state.summary += chunk.delta
+    return
+  }
+
+  const tanstack = tanstackMetadata(chunk)
+  if (
+    (chunk.type === EventType.RUN_STARTED ||
+      chunk.type === EventType.RUN_FINISHED ||
+      chunk.type === EventType.TEXT_MESSAGE_START) &&
+    typeof tanstack?.model === 'string'
+  ) {
+    state.model = tanstack.model
+  }
+
+  if (chunk.type === EventType.RUN_FINISHED) {
+    const rebuilt = rebuildTokenUsage(chunk.usage, tanstack?.usage)
+    if (rebuilt) state.usage = rebuilt
+  }
+}
+
+function throwRunError(
+  chunk: Extract<StreamChunk, { type: 'RUN_ERROR' }>,
+): never {
+  const message =
+    typeof chunk.message === 'string' && chunk.message.length > 0
+      ? chunk.message
+      : 'Summarization failed'
+  const err = new Error(message)
+  if (typeof chunk.code === 'string') {
+    ;(err as Error & { code?: string }).code = chunk.code
+  }
+  throw err
+}
 
 /**
  * Minimal contract for a text adapter that supports `chatStream`. Lets
@@ -21,7 +65,7 @@ import type {
  * `SummarizationOptions<TProviderOptions>` on the wrapper itself.
  */
 export interface ChatStreamCapable {
-  chatStream: (options: TextOptions<any>) => AsyncIterable<StreamChunk>
+  chatStream: (options: TextOptions<any>) => AsyncIterable<AdapterYieldChunk>
 }
 
 /**
@@ -201,10 +245,12 @@ export class ChatStreamSummarizeAdapter<
   ): Promise<SummarizationResult> {
     const systemPrompt = this.buildSummarizationPrompt(options)
 
-    let summary = ''
     const id = this.generateId()
-    let model = options.model
-    let usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+    const state = {
+      summary: '',
+      model: options.model,
+      usage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    }
 
     options.logger.request(
       `activity=summarize provider=${this.name} model=${options.model} text-length=${options.text.length} maxLength=${options.maxLength ?? 'unset'}`,
@@ -212,41 +258,15 @@ export class ChatStreamSummarizeAdapter<
     )
 
     try {
-      for await (const chunk of this.textAdapter.chatStream(
+      for await (const raw of this.textAdapter.chatStream(
         this.buildTextOptions(options, systemPrompt),
       )) {
-        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-          if (chunk.content) {
-            summary = chunk.content
-          } else if (chunk.delta) {
-            // Append delta only when present — a content-less chunk with no
-            // delta would otherwise concat literal `'undefined'`.
-            summary += chunk.delta
-          }
-          model = chunk.model || model
-        }
-        if (chunk.type === 'RUN_FINISHED') {
-          if (chunk.usage) {
-            usage = chunk.usage
-          }
-        }
-        // Surface failures: the underlying chatStream emits RUN_ERROR instead
-        // of throwing, so without this branch summarize() would return an
-        // empty summary and pretend a failed run succeeded.
-        if (chunk.type === 'RUN_ERROR') {
-          const message =
-            (chunk.error && typeof chunk.error.message === 'string'
-              ? chunk.error.message
-              : null) ?? 'Summarization failed'
-          const code =
-            chunk.error && typeof chunk.error.code === 'string'
-              ? chunk.error.code
-              : undefined
-          const err = new Error(message)
-          if (code) {
-            ;(err as Error & { code?: string }).code = code
-          }
-          throw err
+        for (const chunk of normalizeStreamChunk(raw as AdapterYieldChunk)) {
+          // Surface failures: the underlying chatStream emits RUN_ERROR instead
+          // of throwing, so without this branch summarize() would return an
+          // empty summary and pretend a failed run succeeded.
+          if (chunk.type === EventType.RUN_ERROR) throwRunError(chunk)
+          consumeSpecSummarizeChunk(chunk, state)
         }
       }
     } catch (error: unknown) {
@@ -259,7 +279,12 @@ export class ChatStreamSummarizeAdapter<
       throw error
     }
 
-    return { id, model, summary, usage }
+    return {
+      id,
+      model: state.model,
+      summary: state.summary,
+      usage: state.usage,
+    }
   }
 
   override async *summarizeStream(
@@ -273,46 +298,45 @@ export class ChatStreamSummarizeAdapter<
     )
 
     const id = this.generateId()
-    let summary = ''
-    let model = options.model
-    let usage: SummarizationResult['usage'] = {
-      promptTokens: 0,
-      completionTokens: 0,
-      totalTokens: 0,
+    const state = {
+      summary: '',
+      model: options.model,
+      usage: {
+        promptTokens: 0,
+        completionTokens: 0,
+        totalTokens: 0,
+      } satisfies SummarizationResult['usage'],
     }
 
     try {
-      for await (const chunk of this.textAdapter.chatStream(
+      for await (const raw of this.textAdapter.chatStream(
         this.buildTextOptions(options, systemPrompt),
       )) {
-        // Accumulate the same way `summarize()` does so consumers see deltas
-        // AND the terminal `generation:result` event below carries the same
-        // final summary that non-streaming returns.
-        if (chunk.type === 'TEXT_MESSAGE_CONTENT') {
-          if (chunk.content) {
-            summary = chunk.content
-          } else if (chunk.delta) {
-            summary += chunk.delta
-          }
-          if (chunk.model) model = chunk.model
-        }
+        for (const chunk of normalizeStreamChunk(raw as AdapterYieldChunk)) {
+          // Accumulate the same way `summarize()` does so consumers see deltas
+          // AND the terminal `generation:result` event below carries the same
+          // final summary that non-streaming returns.
+          consumeSpecSummarizeChunk(chunk, state)
 
-        // Emit the GenerationClient-shaped result event just before the
-        // terminal RUN_FINISHED so subscribers (useSummarize) populate
-        // `result` before flipping `status` to success.
-        if (chunk.type === 'RUN_FINISHED') {
-          if (chunk.usage) usage = chunk.usage
-          if (chunk.model) model = chunk.model
-          yield {
-            type: EventType.CUSTOM,
-            name: 'generation:result',
-            value: { id, model, summary, usage } satisfies SummarizationResult,
-            model,
-            timestamp: Date.now(),
+          // Emit the GenerationClient-shaped result event just before the
+          // terminal RUN_FINISHED so subscribers (useSummarize) populate
+          // `result` before flipping `status` to success.
+          if (chunk.type === EventType.RUN_FINISHED) {
+            yield {
+              type: EventType.CUSTOM,
+              name: 'generation:result',
+              value: {
+                id,
+                model: state.model,
+                summary: state.summary,
+                usage: state.usage,
+              } satisfies SummarizationResult,
+              timestamp: Date.now(),
+            }
           }
-        }
 
-        yield chunk
+          yield chunk
+        }
       }
     } catch (error: unknown) {
       options.logger.errors(`${this.name}.summarizeStream fatal`, {

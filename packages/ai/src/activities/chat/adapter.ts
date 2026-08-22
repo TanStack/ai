@@ -2,10 +2,10 @@ import type {
   DefaultMessageMetadataByModality,
   JSONSchema,
   Modality,
-  StreamChunk,
   TextOptions,
   TokenUsage,
 } from '../../types'
+import type { AdapterYieldChunk } from '../../utilities/adapter-yield-chunk'
 import type { CapabilityHandle } from './middleware/capabilities'
 
 /**
@@ -106,7 +106,7 @@ export interface TextAdapter<
    */
   chatStream: (
     options: TextOptions<TProviderOptions>,
-  ) => AsyncIterable<StreamChunk>
+  ) => AsyncIterable<AdapterYieldChunk>
 
   /**
    * Generate structured output using the provider's native structured output API.
@@ -136,7 +136,7 @@ export interface TextAdapter<
    */
   structuredOutputStream?: (
     options: StructuredOutputOptions<TProviderOptions>,
-  ) => AsyncIterable<StreamChunk>
+  ) => AsyncIterable<AdapterYieldChunk>
 
   /**
    * Declares whether the adapter supports combining `tools` and a
@@ -229,7 +229,7 @@ export abstract class BaseTextAdapter<
 
   abstract chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk>
+  ): AsyncIterable<AdapterYieldChunk>
 
   /**
    * Generate structured output using the provider's native structured output API.
