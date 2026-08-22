@@ -125,6 +125,19 @@ describe('exposePreviewTool', () => {
     expect(tunnelDestroyMock).not.toHaveBeenCalled()
   })
 
+  it('leaves the tunnel alone when the edge probe only ever throws (unverified, not stale)', async () => {
+    vi.useFakeTimers()
+    // Timeouts/DNS failures say nothing about the tunnel — it must survive.
+    edgeFetchMock.mockRejectedValue(new Error('subrequest failed'))
+
+    const promise = makeTool().execute?.({ port: 5173 })
+    const assertion = expect(promise).rejects.toThrow(/could not be verified/)
+    await vi.runAllTimersAsync()
+    await assertion
+
+    expect(tunnelDestroyMock).not.toHaveBeenCalled()
+  })
+
   it('replaces a stale tunnel (local healthy, edge stuck on 502) and flags the old URL as dead', async () => {
     vi.useFakeTimers()
     tunnelGetMock
