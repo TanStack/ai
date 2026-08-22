@@ -258,9 +258,9 @@ describe('durable delivery on a DETACHED disconnect', () => {
     )
 
     const types = (await log.stored()).map((chunk) => chunk.type)
-    expect(types.filter((type) => type === EventType.RUN_FINISHED)).toHaveLength(
-      2,
-    )
+    expect(
+      types.filter((type) => type === EventType.RUN_FINISHED),
+    ).toHaveLength(2)
     expect(types).not.toContain(EventType.RUN_ERROR)
     expect(log.closes()).toBe(0)
   })
