@@ -1675,7 +1675,7 @@ export class ChatClient<
     const stream = this.connection.subscribe(signal)
     for await (const chunk of stream) {
       if (signal.aborted) break
-      await this.processIncomingChunk(chunk)
+      this.processIncomingChunk(chunk)
     }
   }
 
@@ -1698,9 +1698,6 @@ export class ChatClient<
    * give up after {@link REJOIN_CONNECT_DEADLINE_MS} if no chunk arrives and
    * clear the dead pointer so it does not retry on the next load.
    *
-   * Replay chunks are processed WITHOUT the per-chunk yield the live path uses,
-   * so the buffered prefix snaps in and only the genuinely-live tail streams at
-   * network speed — a reload looks like the run continued, not like it re-typed.
    */
   private resumeInFlightRun(runId: string): void {
     const joinRun = this.connection.joinRun
@@ -1739,7 +1736,7 @@ export class ChatClient<
             rebuilt = true
             this.dropTrailingInFlightAssistant()
           }
-          await this.processIncomingChunk(chunk, { defer: false })
+          this.processIncomingChunk(chunk)
         }
         // Same contract as `streamResponse`: client tools may finish (and
         // queue a resume) while `isLoading` is still true. Wait for them
@@ -1808,10 +1805,7 @@ export class ChatClient<
     }
   }
 
-  private async processIncomingChunk(
-    chunk: StreamChunk,
-    options?: { defer?: boolean },
-  ): Promise<void> {
+  private processIncomingChunk(chunk: StreamChunk): void {
     chunk = restoreInboundChunk(chunk)
     if (
       chunk.type === 'RUN_ERROR' &&
@@ -1843,15 +1837,6 @@ export class ChatClient<
     this.processor.processChunk(chunk)
     this.updateRunLifecycle(chunk)
     this.observeInterruptState(chunk)
-    // Live path: yield a macrotask so the UI can paint. Skip when the page is
-    // hidden. Browsers clamp setTimeout there, and that wait paces stream pull.
-    // Replay passes defer: false so a backlog applies in one batch.
-    if (
-      options?.defer !== false &&
-      (typeof document === 'undefined' || !document.hidden)
-    ) {
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    }
     this.resolveJoinedRun(chunk)
   }
 
