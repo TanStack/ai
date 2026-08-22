@@ -1,3 +1,8 @@
+import { ByokBlockedError, ByokMissingError } from '@tanstack/ai/byok'
+import {
+  prepareResolvedByokHeaders,
+  resolveByokProviderId,
+} from './byok/resolve'
 import {
   GENERATION_EVENTS,
   GENERATION_STREAM_TRUNCATED_MESSAGE,
@@ -12,6 +17,7 @@ import { createNoOpGenerationDevtoolsBridge } from './devtools-noop'
 import { parseSSEResponse } from './sse-parser'
 import { restoreInboundChunk } from '@tanstack/ai/client'
 import type { StreamChunk } from '@tanstack/ai/client'
+import type { ByokClient } from './byok'
 import type {
   ConnectConnectionAdapter,
   GenerationHydrationResult,
@@ -120,6 +126,8 @@ export class GenerationClient<
   // the client hydrates the last generation for `threadId` from the server.
   private readonly serverDriven: boolean = false
   private body: Record<string, any>
+  private byok: ByokClient | undefined
+  private byokProvider: (() => string | undefined) | undefined
   private result: TOutput | null = null
   private input: TInput | null = null
   private progress: AIDevtoolsGenerationProgress | null = null
@@ -156,6 +164,8 @@ export class GenerationClient<
     this.hydrateGenerationHandler = options.hydrateGeneration
     this.joinRunHandler = options.joinRun
     this.body = options.body ?? {}
+    this.byok = options.byok
+    this.byokProvider = options.byokProvider
     // `persistence` is `false`/omitted (ephemeral) or `true` (server-driven:
     // hydrate the last generation for `threadId` from the server on mount).
     this.serverDriven = options.persistence === true
@@ -265,9 +275,21 @@ export class GenerationClient<
     const { signal } = abortController
 
     try {
+      let headers: Record<string, string> | undefined
+      if (this.byok) {
+        const provider = resolveByokProviderId(
+          this.byokProvider,
+          this.body.provider,
+        )
+        headers = await prepareResolvedByokHeaders(this.byok, provider)
+      }
+
       if (this.fetcher) {
         // Direct fetch path
-        const result = await this.fetcher(input, { signal })
+        const result = await this.fetcher(
+          input,
+          headers === undefined ? { signal } : { signal, headers },
+        )
         if (signal.aborted) return
         if (result instanceof Response) {
           // Server function returned SSE Response — parse stream
@@ -289,7 +311,7 @@ export class GenerationClient<
           [],
           mergedData,
           signal,
-          this.createRunContext(runId),
+          this.createRunContext(runId, headers),
         )
         await this.processStream(stream, runId, signal)
       } else {
@@ -312,6 +334,12 @@ export class GenerationClient<
     } catch (err: unknown) {
       if (signal.aborted) return
       const error = err instanceof Error ? err : new Error(String(err))
+      if (error instanceof ByokMissingError) {
+        this.byok?.request(error.provider, 'missing')
+      }
+      if (error instanceof ByokBlockedError && error.reason === 'locked') {
+        this.byok?.request(error.provider, 'locked')
+      }
       this.setError(error)
       this.setStatus('error')
       this.recordResumeSnapshotError(error)
@@ -462,12 +490,24 @@ export class GenerationClient<
     options: Partial<
       Pick<
         GenerationClientOptions<TInput, TResult, TOutput>,
-        'body' | 'onResult' | 'onError' | 'onProgress' | 'onChunk'
+        | 'body'
+        | 'byok'
+        | 'byokProvider'
+        | 'onResult'
+        | 'onError'
+        | 'onProgress'
+        | 'onChunk'
       >
     >,
   ): void {
     if (options.body !== undefined) {
       this.body = options.body ?? {}
+    }
+    if (options.byok !== undefined) {
+      this.byok = options.byok
+    }
+    if (options.byokProvider !== undefined) {
+      this.byokProvider = options.byokProvider
     }
     if (options.onResult !== undefined) {
       this.callbacksRef.onResult = options.onResult
@@ -645,10 +685,14 @@ export class GenerationClient<
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
-  private createRunContext(runId: string): RunAgentInputContext {
+  private createRunContext(
+    runId: string,
+    headers?: Record<string, string>,
+  ): RunAgentInputContext {
     return {
       threadId: this.threadId,
       runId,
+      ...(headers ? { headers } : {}),
     }
   }
 

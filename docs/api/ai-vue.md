@@ -73,6 +73,8 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 - `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field (reactive -- changes are synced automatically via `watch`)
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire (reactive)
+- `byok?` - Optional BYOK keyring from `defineByok`. On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
+- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise `forwardedProps.provider` then `body.provider` are used. If no slug resolves, the send throws instead of attaching every stored key
 - `context?` - Typed client-local runtime context passed to client tool implementations (reactive). This value is not serialized to the server
 - `live?` - Enable live subscription mode (auto-subscribes/unsubscribes)
 - `onResponse?` - Callback when response is received
@@ -126,6 +128,21 @@ interface UseChatReturn {
 ```
 
 **Note:** Reactive state (`messages`, `isLoading`, `error`, `status`, `isSubscribed`, `connectionStatus`, `sessionGenerating`) is wrapped in `DeepReadonly<ShallowRef<T>>`. In `<script setup>` read the underlying value with `.value` (e.g., `messages.value`); in `<template>` Vue auto-unwraps the ref, so use the bare name (e.g., `v-for="m in messages"`). Cleanup is automatic via `onScopeDispose`.
+
+## `useByok(client)`
+
+Subscribe to a `ByokClient` snapshot in Vue. The return value is a `DeepReadonly<ShallowRef<ByokSnapshot>>`.
+
+```typescript
+import { useByok } from "@tanstack/ai-vue";
+import { byok } from "./byok";
+
+const snapshot = useByok(byok);
+const openai = snapshot.value.status.openai;
+const last4 = openai && "masked" in openai ? openai.masked : "No key";
+```
+
+`snapshot.value` has `status`, `locked`, and `prompt`. Call `byok.update(provider, value)` from your own UI to save a key. See [Bring Your Own Key](../advanced/byok).
 
 ## Connection Adapters
 

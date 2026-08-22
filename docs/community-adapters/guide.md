@@ -199,11 +199,27 @@ Once your adapter is complete:
 2. Open a PR to the [TanStack AI repository](https://github.com/TanStack/ai/pulls)
 3. Add your adapter to the [Community Adapters list in the documentation](https://github.com/TanStack/ai/tree/main/docs/community-adapters)
 
-### 9. Sync documentation configuration
+### 9. Export a BYOK provider
+
+If users can paste an API key for your adapter, export a `defineByokProvider` object from a **`/byok` subpath** (`@scope/ai-acme/byok`). Do not re-export it from the package main entry — that pulls your provider SDK into the browser. `id` is the `x-byok-<id>` slug and is required. Set `env` to the env var **name** your adapter already reads. Names only — this object is imported on the client. Relays call `getByokKey(request, acmeByok)` from `@tanstack/ai/byok/server`.
+
+```typescript
+import { defineByokProvider } from "@tanstack/ai/byok";
+
+export const acmeByok = defineByokProvider({
+  id: "acme",
+  label: "Acme",
+  env: "ACME_API_KEY",
+});
+```
+
+Apps import `{ acmeByok } from "@scope/ai-acme/byok"` and pass it to `getByokKey(request, acmeByok)` on the relay to read the `x-byok-acme` header.
+
+### 10. Sync documentation configuration
 
 After adding your adapter, run the  `pnpm run sync-docs-config` in the root of the TanStack AI monorepo. This ensures your adapter appears correctly in the documentation navigation. Open a PR with the generated changes.
 
-### 10. Maintain your adapter
+### 11. Maintain your adapter
 
 As a community adapter author, you are responsible for ongoing maintenance.
 

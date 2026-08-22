@@ -5,16 +5,14 @@ title: CustomEvent
 
 # Interface: CustomEvent
 
-Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
+Defined in: [packages/ai/src/types.ts:1345](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1345)
 
 Custom event for extensibility.
 
 @ag-ui/core provides: `name`, `value`
-TanStack AI adds: `model?`
 
 Uses `Pick` (not `extends`) so the Zod passthrough index signature does not
-erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCustomEvent.md) /
-[TypedStreamChunk](../type-aliases/TypedStreamChunk.md) unions.
+erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCustomEvent.md) unions.
 
 ## Extends
 
@@ -43,40 +41,13 @@ erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCu
 
 ## Properties
 
-### model?
+### metadata?
 
 ```ts
-optional model?: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
-
-Model identifier for multi-model support
-
-***
-
-### runId?
-
-```ts
-optional runId?: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1430](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1430)
-
-***
-
-### threadId?
-
-```ts
-optional threadId?: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1429](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1429)
-
-Routing metadata the TanStack engine attaches when emitting CUSTOM
-events that need to be correlated with a specific thread/run.
-Stripped by `strip-to-spec-middleware` before going on the wire so
-the AG-UI consumer never sees them (when that middleware is enabled).
+Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1350)
 
 ***
 
@@ -86,4 +57,4 @@ the AG-UI consumer never sees them (when that middleware is enabled).
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1420](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1420)
+Defined in: [packages/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1349)

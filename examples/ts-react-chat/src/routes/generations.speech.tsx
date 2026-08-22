@@ -3,7 +3,9 @@ import { createFileRoute } from '@tanstack/react-router'
 import { useGenerateSpeech } from '@tanstack/ai-react'
 import type { UseGenerateSpeechReturn } from '@tanstack/ai-react'
 import { fetchServerSentEvents } from '@tanstack/ai-client'
+import { byteplusVoiceByok } from '@tanstack/ai-byteplus/byok'
 import { generateSpeechFn, generateSpeechStreamFn } from '../lib/server-fns'
+import { byok } from '../lib/byok'
 import {
   SPEECH_PROVIDERS,
   type SpeechProviderConfig,
@@ -55,6 +57,9 @@ function SpeechGenerationForm({
         body: { provider: config.id },
         persistence: true,
         onResult: toSpeechOutput,
+        ...(config.id === 'byteplus'
+          ? { byok, byokProvider: () => byteplusVoiceByok.id }
+          : {}),
       }
     }
     if (mode === 'direct') {

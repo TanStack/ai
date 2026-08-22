@@ -9,7 +9,7 @@ title: generateVideo
 function generateVideo<TAdapter, TStream>(options): TStream extends true ? AsyncIterable<AGUIEvent, any, any> : Promise<VideoJobResult>;
 ```
 
-Defined in: [packages/ai/src/activities/generateVideo/index.ts:389](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L389)
+Defined in: [packages/ai/src/activities/generateVideo/index.ts:391](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/generateVideo/index.ts#L391)
 
 **`Experimental`**
 

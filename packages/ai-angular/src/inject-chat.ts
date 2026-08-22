@@ -120,6 +120,8 @@ export function injectChat<
     ...(forwardedPropsSource !== undefined && {
       forwardedProps: forwardedPropsSource(),
     }),
+    ...(options.byok !== undefined && { byok: options.byok }),
+    byokProvider: () => options.byokProvider?.(),
     ...(contextSource !== undefined && { context: contextSource() }),
     devtools: {
       ...options.devtools,

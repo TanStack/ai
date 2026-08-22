@@ -19,7 +19,7 @@
           "label": "Quick Start: React",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-08-22"
         },
         {
           "label": "Quick Start: React Native",
@@ -180,7 +180,7 @@
           "label": "Connection Adapters",
           "to": "chat/connection-adapters",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Thinking & Reasoning",
@@ -505,7 +505,7 @@
           "label": "Generation Hooks",
           "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-08-20"
         }
       ]
     },
@@ -763,6 +763,12 @@
           "updatedAt": "2026-07-08"
         },
         {
+          "label": "Bring Your Own Key",
+          "to": "advanced/byok",
+          "addedAt": "2026-08-18",
+          "updatedAt": "2026-08-22"
+        },
+        {
           "label": "Debug Logging",
           "to": "advanced/debug-logging",
           "addedAt": "2026-04-22"
@@ -842,7 +848,7 @@
           "label": "@tanstack/ai",
           "to": "api/ai",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-21"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "@tanstack/ai-client",
@@ -965,7 +971,7 @@
           "label": "OpenRouter Adapter",
           "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Perplexity Search",
@@ -1029,7 +1035,7 @@
           "label": "BytePlus",
           "to": "adapters/byteplus",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-08-21"
         }
       ]
     },
@@ -1040,7 +1046,8 @@
         {
           "label": "Community Adapters Guide",
           "to": "community-adapters/guide",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Decart",

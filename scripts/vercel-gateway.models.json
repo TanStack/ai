@@ -4996,10 +4996,45 @@
     ],
     "temperature": true,
     "pricing": {
-      "input": "0.00000013",
-      "output": "0.00000026",
-      "input_cache_read": "0.000000028",
+      "input": "0.000000076",
+      "output": "0.000000153",
+      "input_cache_read": "0.000000014",
       "varies_by_provider": true
+    }
+  },
+  {
+    "id": "deepseek/deepseek-v4-flash-vision-exp",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787270400,
+    "owned_by": "deepseek",
+    "name": "DeepSeek V4 Flash Vision Exp",
+    "description": "DeepSeek-V4-Flash-Vision-Exp is an experimental multimodal model that combines the agentic reasoning, coding, and world knowledge capabilities of DeepSeek-V4-Flash with advanced visual understanding. It delivers major gains on vision-dependent agent workflows while performing strongly across leading coding, repository, data science, automation, and multimodal benchmarks.",
+    "context_window": 1000000,
+    "max_tokens": 384000,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "implicit-caching", "vision"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000022",
+      "output": "0.00000066",
+      "input_cache_read": "0.000000007"
     }
   },
   {
@@ -12646,8 +12681,44 @@
     ],
     "knowledge": "2026-02-16",
     "pricing": {
-      "input": "0.0000025",
+      "input": "0.000002",
       "input_tiers": [
+        {
+          "cost": "0.000002",
+          "min": 0,
+          "max": 272000
+        },
+        {
+          "cost": "0.000004",
+          "min": 272000
+        }
+      ],
+      "output": "0.00001",
+      "output_tiers": [
+        {
+          "cost": "0.00001",
+          "min": 0,
+          "max": 272000
+        },
+        {
+          "cost": "0.000015",
+          "min": 272000
+        }
+      ],
+      "input_cache_read": "0.0000002",
+      "input_cache_read_tiers": [
+        {
+          "cost": "0.0000002",
+          "min": 0,
+          "max": 272000
+        },
+        {
+          "cost": "0.0000004",
+          "min": 272000
+        }
+      ],
+      "input_cache_write": "0.0000025",
+      "input_cache_write_tiers": [
         {
           "cost": "0.0000025",
           "min": 0,
@@ -12658,214 +12729,178 @@
           "min": 272000
         }
       ],
-      "output": "0.000015",
-      "output_tiers": [
-        {
-          "cost": "0.000015",
-          "min": 0,
-          "max": 272000
-        },
-        {
-          "cost": "0.0000225",
-          "min": 272000
-        }
-      ],
-      "input_cache_read": "0.00000025",
-      "input_cache_read_tiers": [
-        {
-          "cost": "0.00000025",
-          "min": 0,
-          "max": 272000
-        },
-        {
-          "cost": "0.0000005",
-          "min": 272000
-        }
-      ],
-      "input_cache_write": "0.000003125",
-      "input_cache_write_tiers": [
-        {
-          "cost": "0.000003125",
-          "min": 0,
-          "max": 272000
-        },
-        {
-          "cost": "0.00000625",
-          "min": 272000
-        }
-      ],
       "web_search": "10",
       "service_tiers": {
         "flex": {
-          "input": "0.00000125",
-          "output": "0.0000075",
-          "input_cache_read": "0.000000125",
+          "input": "0.000001",
+          "output": "0.000005",
+          "input_cache_read": "0.0000001",
           "long_context": {
             "threshold": 272000,
-            "input": "0.0000025",
-            "output": "0.00001125",
-            "input_cache_read": "0.00000025"
+            "input": "0.000002",
+            "output": "0.0000075",
+            "input_cache_read": "0.0000002"
           }
         },
         "priority": {
-          "input": "0.000005",
-          "output": "0.00003",
-          "input_cache_read": "0.0000005",
+          "input": "0.000004",
+          "output": "0.00002",
+          "input_cache_read": "0.0000004",
           "long_context": {
             "threshold": 272000,
-            "input": "0.00001",
-            "output": "0.000045",
-            "input_cache_read": "0.000001"
+            "input": "0.000008",
+            "output": "0.00003",
+            "input_cache_read": "0.0000008"
           }
         }
       },
       "varies_by_provider": true,
       "fast": {
-        "input": "0.000005",
+        "input": "0.000004",
         "input_tiers": [
           {
-            "cost": "0.000005",
+            "cost": "0.000004",
             "min": 0,
             "max": 272000
           },
           {
-            "cost": "0.00001",
+            "cost": "0.000008",
             "min": 272000
           }
         ],
-        "output": "0.00003",
+        "output": "0.00002",
         "output_tiers": [
           {
-            "cost": "0.00003",
+            "cost": "0.00002",
             "min": 0,
             "max": 272000
           },
           {
-            "cost": "0.000045",
+            "cost": "0.00003",
             "min": 272000
           }
         ],
-        "input_cache_read": "0.0000005",
+        "input_cache_read": "0.0000004",
         "input_cache_read_tiers": [
           {
-            "cost": "0.0000005",
+            "cost": "0.0000004",
             "min": 0,
             "max": 272000
           },
           {
-            "cost": "0.000001",
+            "cost": "0.0000008",
             "min": 272000
           }
         ],
-        "input_cache_write": "0.000003125",
+        "input_cache_write": "0.0000025",
         "input_cache_write_tiers": [
           {
-            "cost": "0.000003125",
+            "cost": "0.0000025",
             "min": 0,
             "max": 272000
           },
           {
-            "cost": "0.00000625",
+            "cost": "0.000005",
             "min": 272000
           }
         ]
       },
       "regional": {
         "us": {
-          "input": "0.00000275",
+          "input": "0.0000022",
           "input_tiers": [
             {
-              "cost": "0.00000275",
+              "cost": "0.0000022",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.0000055",
+              "cost": "0.0000044",
               "min": 272000
             }
           ],
-          "output": "0.0000165",
+          "output": "0.000011",
           "output_tiers": [
             {
-              "cost": "0.0000165",
+              "cost": "0.000011",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.00002475",
+              "cost": "0.0000165",
               "min": 272000
             }
           ],
-          "input_cache_read": "0.000000275",
+          "input_cache_read": "0.00000022",
           "input_cache_read_tiers": [
             {
-              "cost": "0.000000275",
+              "cost": "0.00000022",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.00000055",
+              "cost": "0.00000044",
               "min": 272000
             }
           ],
-          "input_cache_write": "0.0000034375",
+          "input_cache_write": "0.000001375",
           "input_cache_write_tiers": [
             {
-              "cost": "0.0000034375",
+              "cost": "0.000001375",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.000006875",
+              "cost": "0.00000275",
               "min": 272000
             }
           ],
           "fast": {
-            "input": "0.0000055",
+            "input": "0.0000044",
             "input_tiers": [
               {
-                "cost": "0.0000055",
+                "cost": "0.0000044",
                 "min": 0,
                 "max": 272000
               },
               {
-                "cost": "0.000011",
+                "cost": "0.0000088",
                 "min": 272000
               }
             ],
-            "output": "0.000033",
+            "output": "0.000022",
             "output_tiers": [
               {
-                "cost": "0.000033",
+                "cost": "0.000022",
                 "min": 0,
                 "max": 272000
               },
               {
-                "cost": "0.0000495",
+                "cost": "0.000033",
                 "min": 272000
               }
             ],
-            "input_cache_read": "0.00000055",
+            "input_cache_read": "0.00000044",
             "input_cache_read_tiers": [
               {
-                "cost": "0.00000055",
+                "cost": "0.00000044",
                 "min": 0,
                 "max": 272000
               },
               {
-                "cost": "0.0000011",
+                "cost": "0.00000088",
                 "min": 272000
               }
             ],
-            "input_cache_write": "0.0000034375",
+            "input_cache_write": "0.000001375",
             "input_cache_write_tiers": [
               {
-                "cost": "0.0000034375",
+                "cost": "0.000001375",
                 "min": 0,
                 "max": 272000
               },
               {
-                "cost": "0.000006875",
+                "cost": "0.00000275",
                 "min": 272000
               }
             ]
@@ -12921,102 +12956,102 @@
     ],
     "knowledge": "2026-02-16",
     "pricing": {
-      "input": "0.000005",
+      "input": "0.000004",
       "input_tiers": [
         {
-          "cost": "0.000005",
+          "cost": "0.000004",
           "min": 0,
           "max": 272000
         },
         {
-          "cost": "0.00001",
+          "cost": "0.000008",
           "min": 272000
         }
       ],
-      "output": "0.00003",
+      "output": "0.00002",
       "output_tiers": [
         {
-          "cost": "0.00003",
+          "cost": "0.00002",
           "min": 0,
           "max": 272000
         },
         {
-          "cost": "0.000045",
+          "cost": "0.00003",
           "min": 272000
         }
       ],
-      "input_cache_read": "0.0000005",
+      "input_cache_read": "0.0000004",
       "input_cache_read_tiers": [
         {
-          "cost": "0.0000005",
+          "cost": "0.0000004",
           "min": 0,
           "max": 272000
         },
         {
-          "cost": "0.000001",
+          "cost": "0.0000008",
           "min": 272000
         }
       ],
-      "input_cache_write": "0.000003125",
+      "input_cache_write": "0.0000025",
       "input_cache_write_tiers": [
         {
-          "cost": "0.000003125",
+          "cost": "0.0000025",
           "min": 0,
           "max": 272000
         },
         {
-          "cost": "0.00000625",
+          "cost": "0.000005",
           "min": 272000
         }
       ],
       "web_search": "10",
       "regional": {
         "us": {
-          "input": "0.0000055",
+          "input": "0.0000044",
           "input_tiers": [
             {
-              "cost": "0.0000055",
+              "cost": "0.0000044",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.000011",
+              "cost": "0.0000088",
               "min": 272000
             }
           ],
-          "output": "0.000033",
+          "output": "0.000022",
           "output_tiers": [
             {
-              "cost": "0.000033",
+              "cost": "0.000022",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.0000495",
+              "cost": "0.000033",
               "min": 272000
             }
           ],
-          "input_cache_read": "0.00000055",
+          "input_cache_read": "0.00000044",
           "input_cache_read_tiers": [
             {
-              "cost": "0.00000055",
+              "cost": "0.00000044",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.0000011",
+              "cost": "0.00000088",
               "min": 272000
             }
           ],
-          "input_cache_write": "0.0000034375",
+          "input_cache_write": "0.000001375",
           "input_cache_write_tiers": [
             {
-              "cost": "0.0000034375",
+              "cost": "0.000001375",
               "min": 0,
               "max": 272000
             },
             {
-              "cost": "0.000006875",
+              "cost": "0.00000275",
               "min": 272000
             }
           ]

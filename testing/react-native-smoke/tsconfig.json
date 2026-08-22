@@ -10,10 +10,12 @@
     "paths": {
       "@tanstack/ai": ["../../packages/ai/src/index.ts"],
       "@tanstack/ai/client": ["../../packages/ai/src/client.ts"],
+      "@tanstack/ai/byok": ["../../packages/ai/src/byok.ts"],
       "@tanstack/ai-client": ["../../packages/ai-client/src/index.ts"],
       "@tanstack/ai-client/devtools": [
         "../../packages/ai-client/src/devtools.ts"
       ],
+      "@tanstack/ai-client/byok": ["../../packages/ai-client/src/byok.ts"],
       "@tanstack/ai-event-client": [
         "../../packages/ai-event-client/src/index.ts"
       ],

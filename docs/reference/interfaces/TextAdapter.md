@@ -109,7 +109,7 @@ toolCapabilities: TToolCapabilities;
 ### chatStream
 
 ```ts
-chatStream: (options) => AsyncIterable<AGUIEvent>;
+chatStream: (options) => AsyncIterable<AdapterYieldChunk>;
 ```
 
 Defined in: [packages/ai/src/activities/chat/adapter.ts:107](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L107)
@@ -124,7 +124,7 @@ Stream text completions from the model
 
 #### Returns
 
-`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
+`AsyncIterable`\<[`AdapterYieldChunk`](../type-aliases/AdapterYieldChunk.md)\>
 
 ***
 
@@ -240,7 +240,7 @@ Promise with the raw data (validation is done in the chat function)
 ### structuredOutputStream?
 
 ```ts
-optional structuredOutputStream?: (options) => AsyncIterable<AGUIEvent>;
+optional structuredOutputStream?: (options) => AsyncIterable<AdapterYieldChunk>;
 ```
 
 Defined in: [packages/ai/src/activities/chat/adapter.ts:137](https://github.com/TanStack/ai/blob/main/packages/ai/src/activities/chat/adapter.ts#L137)
@@ -266,7 +266,7 @@ their timestamps follow stream order.
 
 #### Returns
 
-`AsyncIterable`\<[`AGUIEvent`](../type-aliases/AGUIEvent.md)\>
+`AsyncIterable`\<[`AdapterYieldChunk`](../type-aliases/AdapterYieldChunk.md)\>
 
 ***
 
