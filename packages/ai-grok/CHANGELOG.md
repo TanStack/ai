@@ -1,5 +1,15 @@
 # @tanstack/ai-grok
 
+## 0.17.1
+
+### Patch Changes
+
+- [#1185](https://github.com/TanStack/ai/pull/1185) [`e7a194c`](https://github.com/TanStack/ai/commit/e7a194cabbac51a0b451b4f9c621801a5a03c1f9) - Fix grok video `fetch` so Cloudflare Workers no longer throw `Illegal invocation` (issue [#1184](https://github.com/TanStack/ai/issues/1184)).
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai@0.48.0
+  - @tanstack/openai-base@0.10.3
+
 ## 0.17.0
 
 ### Minor Changes

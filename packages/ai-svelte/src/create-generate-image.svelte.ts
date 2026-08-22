@@ -24,7 +24,12 @@ export interface CreateGenerateImageOptions<
   TOutput = ImageGenerationResult,
 > extends Pick<
   CreateGenerationOptions<ImageGenerateInput, ImageGenerationResult, TOutput>,
-  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+  | 'persistence'
+  | 'threadId'
+  | 'hydrateGeneration'
+  | 'joinRun'
+  | 'byok'
+  | 'byokProvider'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter

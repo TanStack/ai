@@ -14,10 +14,15 @@ await build({
   alias: {
     '@tanstack/ai': resolve(repoRoot, 'packages/ai/src/index.ts'),
     '@tanstack/ai/client': resolve(repoRoot, 'packages/ai/src/client.ts'),
+    '@tanstack/ai/byok': resolve(repoRoot, 'packages/ai/src/byok.ts'),
     '@tanstack/ai-client': resolve(repoRoot, 'packages/ai-client/src/index.ts'),
     '@tanstack/ai-client/devtools': resolve(
       repoRoot,
       'packages/ai-client/src/devtools.ts',
+    ),
+    '@tanstack/ai-client/byok': resolve(
+      repoRoot,
+      'packages/ai-client/src/byok.ts',
     ),
     '@tanstack/ai-event-client': resolve(
       repoRoot,

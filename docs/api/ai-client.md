@@ -98,6 +98,8 @@ goes away. Users of the framework hooks need no change.
 - `threadId?` - The only identity for this chat. Required when persistence is on. If omitted, minted after mount.
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works — values are merged into `forwardedProps` on the wire and mirrored under the legacy `data` field for backward compatibility
+- `byok?` - Optional BYOK keyring from [`defineByok`](#definebyok). On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
+- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise `forwardedProps.provider` then `body.provider` are used. If no slug resolves, the send throws instead of attaching every stored key
 - `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `tools?` - Registered `.client()` tool implementations. The client automatically executes matching tools when the model calls them
 - `onResponse?` - Callback when response is received
@@ -476,6 +478,70 @@ const chatOptions = createChatClientOptions({
 
 Client runtime context is local to the client instance. Use `forwardedProps` for explicit client-to-server handoff of serializable values, then validate and map those values into server `chat({ context })`.
 
+## `defineByok`
+
+Factory for a headless BYOK keyring. Import it from `@tanstack/ai-client/byok`. Pass the instance into `ChatClient`, `useChat`, or a generation hook. See [Bring Your Own Key](../advanced/byok) for a full client and relay walkthrough.
+
+```typescript
+import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
+
+export const byok = defineByok({
+  storage: defaultByokStorage(),
+});
+```
+
+### Factory options
+
+- `storage?` - A `KeyringStorage` implementation. Default is `memoryStorage()` (session only, not saved)
+
+### Methods
+
+- `update(provider, key)` - Persist a key for a provider slug (`[a-z][a-z0-9-]{0,63}`), then update the snapshot. Throws if the id is not a slug, the key is empty, or storage fails
+- `update(key)` - Persist a key for the current `prompt` provider. Throws if `prompt` is null
+- `clear(provider?)` - Persist the removal, then drop one key, or all keys when you omit `provider`
+- `unlock()` - Decrypt unlockable storage (passkey). No-op for memory storage
+- `headers(provider)` - Return `x-byok-*` headers for that slug. Chat and generation clients throw if no slug resolves — they do not send every stored key
+- `prepare(provider?)` - Wait for hydration, then unlock if needed. If `provider` is set, the key is empty, and the server has no coverage, throw `ByokBlockedError` and set `prompt`
+- `ready()` - Resolve when constructor hydration (peek/load) finishes
+- `setServerCoverage(flags)` - `true` means do not block a send when the browser has no key (the relay can fill from env). `false` restores the default: block. A record merges per-slug flags
+- `request(provider, reason)` - Set `prompt` to `{ provider, reason }` (`missing` | `locked` | `invalid`)
+- `getSnapshot()` - Return the current [`ByokSnapshot`](#snapshot)
+- `subscribe(listener)` - Call `listener` on each change. Returns an unsubscribe function
+- `keys()` - Return a copy of the raw keyring. Do not render this in the UI
+
+### Snapshot
+
+`getSnapshot()` (and framework readers such as `useByok`) return:
+
+```typescript ignore
+type ByokSnapshot = {
+  status: Partial<Record<string, KeyStatus>>;
+  locked: boolean;
+  prompt: { provider: string; reason: "missing" | "locked" | "invalid" } | null;
+  storageError: string | null;
+};
+
+type KeyStatus =
+  | { state: "empty" }
+  | { state: "set"; masked: string }
+  | { state: "locked"; masked: string }
+  | { state: "validating"; masked: string }
+  | { state: "valid"; masked: string }
+  | { state: "invalid"; masked: string }
+  | { state: "error"; masked: string; message: string };
+```
+
+`status` is sparse: only slugs that have a key, a lock, or a validation result appear. A missing entry means no key. `masked` is the last four characters of the key (`maskKey`). Read it with `"masked" in status` — `{ state: "empty" }` has no `masked`. `storageError` is set when peek/load fails. The snapshot never includes the raw key.
+
+### Storage
+
+- `defaultByokStorage(options?)` - Passkey-encrypted IndexedDB when WebAuthn is available in a secure context. Otherwise `memoryStorage()` with a warning. WebAuthn support is not the same as PRF — first save still throws if the authenticator lacks PRF
+- `memoryStorage()` - In-memory on the `ByokClient` instance. This backend does not persist. Keys are gone when the client is dropped or the page reloads
+- `passkeyStorage(options?)` - Encrypt the keyring with a WebAuthn passkey. First save throws if the authenticator does not support PRF
+- `KeyringStorage` - `{ id, label, persistent, unlockable?, peek?, load, save, clear }`
+
+This library does not ship a dialog. Call `byok.update(provider, value)` from your own UI.
+
 ## Types
 
 ### `UIMessage`
@@ -592,5 +658,6 @@ const client = new ChatClient({
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Bring Your Own Key](../advanced/byok) - Store keys in the browser and send `x-byok-*` headers
 - [Connection Adapters](../chat/connection-adapters) - Learn about adapters
 - [@tanstack/ai-react API](./ai-react) - React hooks wrapper

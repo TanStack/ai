@@ -9,7 +9,7 @@ title: RUN_ACCEPTED_EVENT
 const RUN_ACCEPTED_EVENT: "run.accepted" = 'run.accepted';
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:357](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L357)
+Defined in: [packages/ai/src/stream-to-response.ts:361](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L361)
 
 Name of the synthetic `CUSTOM` chunk a fresh durable producer appends to its
 log before pulling the first real chunk.

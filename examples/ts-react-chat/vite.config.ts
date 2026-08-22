@@ -4,7 +4,7 @@ import viteReact from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import { nitro } from 'nitro/vite'
 import { devtools } from '@tanstack/devtools-vite'
-import { webSocketChatPlugin } from './src/lib/websocket-chat-plugin'
+import { webSocketChatPlugin } from './src/lib/websocket-chat-plugin.ts'
 
 // `dockerode` is a server-only dependency that pulls in optional native addons
 // (`ssh2` → `cpu-features`, a `.node` binary that this install does not compile).
@@ -91,7 +91,9 @@ const config = defineConfig({
     webSocketChatPlugin(),
     nitro(),
     tailwindcss(),
-    tanstackStart(),
+    tanstackStart({
+      router: { routeFileIgnorePattern: '\\.test\\.ts$' },
+    }),
     viteReact(),
   ],
 })

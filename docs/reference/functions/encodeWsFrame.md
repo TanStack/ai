@@ -9,7 +9,7 @@ title: encodeWsFrame
 function encodeWsFrame(chunk, id): string;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:34](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L34)
+Defined in: [packages/ai/src/stream-to-websocket.ts:35](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L35)
 
 Encode one server→client frame. Durable frames carry the opaque offset in an
 `{ id, chunk }` envelope (identical to the NDJSON wire); non-durable frames
