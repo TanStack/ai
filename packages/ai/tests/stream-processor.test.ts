@@ -4035,6 +4035,35 @@ describe('StreamProcessor', () => {
       warn.mockRestore()
     })
 
+    it('should preserve an AG-UI tool error in a snapshot', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: 'tool-msg',
+            role: 'tool',
+            toolCallId: 'call-1',
+            content: '{"error":"boom"}',
+            error: 'boom',
+          },
+        ],
+        timestamp: Date.now(),
+      })
+
+      expect(processor.getMessages()[0]?.parts).toContainEqual({
+        type: 'tool-result',
+        toolCallId: 'call-1',
+        content: '{"error":"boom"}',
+        state: 'error',
+        error: 'boom',
+      })
+
+      warn.mockRestore()
+    })
+
     it('should not throw when accessing parts.find() on snapshot-normalized messages', () => {
       // Directly reproduces the TypeError: Cannot read properties of undefined
       // (reading 'find') crash that occurred in the onToolCallStateChange devtools

@@ -133,6 +133,28 @@ describe('uiMessagesToWire', () => {
     ])
   })
 
+  it('preserves a tool ModelMessage error', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'result-1',
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: '{"error":"boom"}',
+        error: 'boom',
+      },
+    ])
+
+    expect(wire).toEqual([
+      {
+        id: 'result-1',
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: '{"error":"boom"}',
+        error: 'boom',
+      },
+    ])
+  })
+
   it('preserves assistant ModelMessage fields', () => {
     const wire = uiMessagesToWire([
       {

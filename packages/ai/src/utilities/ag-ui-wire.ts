@@ -81,6 +81,7 @@ export function uiMessagesToWire(
           typeof msg.content === 'string'
             ? msg.content
             : JSON.stringify(msg.content),
+        ...(msg.error !== undefined && { error: msg.error }),
       })
       continue
     }

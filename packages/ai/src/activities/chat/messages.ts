@@ -433,6 +433,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             role: 'tool',
             content: part.content,
             toolCallId: part.toolCallId,
+            ...(part.error !== undefined && { error: part.error }),
           })
           emittedToolResultIds.add(part.toolCallId)
         }
@@ -577,7 +578,8 @@ export function modelMessageToUIMessage(
       type: 'tool-result',
       toolCallId: modelMessage.toolCallId,
       content: getTextContent(modelMessage.content),
-      state: 'complete',
+      state: modelMessage.error === undefined ? 'complete' : 'error',
+      ...(modelMessage.error !== undefined && { error: modelMessage.error }),
     })
   } else if (Array.isArray(modelMessage.content)) {
     // Multimodal content - preserve all content parts as MessageParts
@@ -700,6 +702,7 @@ export function aguiSnapshotMessageToUIMessage(
             role: 'tool',
             content: message.content,
             toolCallId: message.toolCallId,
+            ...(message.error !== undefined && { error: message.error }),
           },
           id,
         ),
@@ -854,14 +857,15 @@ export function modelMessagesToUIMessages(
 
         if (toolCallPart) {
           toolCallPart.output = parseToolResultContent(content)
-          toolCallPart.state = 'complete'
+          toolCallPart.state = msg.error === undefined ? 'complete' : 'error'
         }
 
         currentAssistantMessage.parts.push({
           type: 'tool-result',
           toolCallId: msg.toolCallId,
           content,
-          state: 'complete',
+          state: msg.error === undefined ? 'complete' : 'error',
+          ...(msg.error !== undefined && { error: msg.error }),
         })
       } else {
         // No assistant message to merge into, create a standalone one

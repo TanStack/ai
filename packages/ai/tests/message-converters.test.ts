@@ -919,6 +919,25 @@ describe('Message Converters', () => {
       })
     })
 
+    it('should preserve a tool message error', () => {
+      const modelMessage: ModelMessage = {
+        role: 'tool',
+        content: '{"error":"boom"}',
+        toolCallId: 'tool-1',
+        error: 'boom',
+      }
+
+      const result = modelMessageToUIMessage(modelMessage)
+
+      expect(result.parts).toContainEqual({
+        type: 'tool-result',
+        toolCallId: 'tool-1',
+        content: '{"error":"boom"}',
+        state: 'error',
+        error: 'boom',
+      })
+    })
+
     it('should convert assistant message with toolCalls and text', () => {
       const modelMessage: ModelMessage = {
         role: 'assistant',
