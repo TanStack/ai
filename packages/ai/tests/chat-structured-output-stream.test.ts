@@ -480,6 +480,85 @@ describe('chat({ outputSchema, stream: true })', () => {
       expect(finished).toBeDefined()
       expect('usage' in finished!).toBe(false)
     })
+
+    it('keeps synthesized lifecycle timestamps ordered after a delayed provider result', async () => {
+      const adapter = makeAdapter({
+        structuredOutput: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          return { data: validPerson, rawText: JSON.stringify(validPerson) }
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      })
+
+      const chunks = await collectChunks(stream)
+      const runStarted = chunks.find((c) => c.type === EventType.RUN_STARTED)
+      const start = chunks.find(
+        (c) =>
+          c.type === EventType.CUSTOM &&
+          (c as { name?: string }).name === 'structured-output.start',
+      )
+      const textStart = chunks.find(
+        (c) => c.type === EventType.TEXT_MESSAGE_START,
+      )
+      const content = chunks.find(
+        (c) => c.type === EventType.TEXT_MESSAGE_CONTENT,
+      )
+      const complete = chunks.find(
+        (c) =>
+          c.type === EventType.CUSTOM &&
+          (c as { name?: string }).name === 'structured-output.complete',
+      )
+      const finished = chunks.find((c) => c.type === EventType.RUN_FINISHED)
+
+      expect(runStarted).toBeDefined()
+      expect(start).toBeDefined()
+      expect(textStart).toBeDefined()
+      expect(content).toBeDefined()
+      expect(complete).toBeDefined()
+      expect(finished).toBeDefined()
+      expect(runStarted!.timestamp!).toBeLessThanOrEqual(start!.timestamp!)
+      expect(start!.timestamp!).toBeLessThanOrEqual(textStart!.timestamp!)
+      expect(textStart!.timestamp!).toBeLessThanOrEqual(content!.timestamp!)
+      expect(content!.timestamp!).toBeLessThanOrEqual(complete!.timestamp!)
+      expect(complete!.timestamp!).toBeLessThanOrEqual(finished!.timestamp!)
+    })
+
+    it('keeps synthesized error lifecycle timestamps ordered after a delayed provider rejection', async () => {
+      const adapter = makeAdapter({
+        structuredOutput: async () => {
+          await new Promise((resolve) => setTimeout(resolve, 5))
+          throw new Error('provider rejected the request')
+        },
+      })
+
+      const stream = chat({
+        adapter,
+        messages: [{ role: 'user', content: 'extract' }],
+        outputSchema: PersonSchema,
+        stream: true,
+      })
+
+      const chunks = await collectChunks(stream)
+      const runStarted = chunks.find((c) => c.type === EventType.RUN_STARTED)
+      const start = chunks.find(
+        (c) =>
+          c.type === EventType.CUSTOM &&
+          (c as { name?: string }).name === 'structured-output.start',
+      )
+      const error = chunks.find((c) => c.type === EventType.RUN_ERROR)
+
+      expect(runStarted).toBeDefined()
+      expect(start).toBeDefined()
+      expect(error).toBeDefined()
+      expect(runStarted!.timestamp!).toBeLessThanOrEqual(start!.timestamp!)
+      expect(start!.timestamp!).toBeLessThanOrEqual(error!.timestamp!)
+    })
   })
 
   describe('lifecycle ordering', () => {
