@@ -17,6 +17,9 @@ test('ChatClient time-slices a large buffered stream', async ({ page }) => {
     ordered: true,
     userBlockingTaskBeforeRunFinished: true,
   })
+  await expect(page.getByTestId('assistant-text')).toHaveText(
+    Array.from({ length: 2_000 }, (_, index) => String(index)).join(''),
+  )
   await expect(page.getByTestId('loading')).toHaveText('false')
   await expect(page.getByTestId('error')).toHaveCount(0)
 })

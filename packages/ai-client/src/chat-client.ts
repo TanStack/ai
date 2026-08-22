@@ -84,6 +84,20 @@ interface InternalQueuedMessage extends QueuedMessage {
   body?: Record<string, any>
 }
 
+const STREAM_PROCESSING_BUDGET_MS = 8
+
+type SchedulerWithYield = {
+  yield?: () => Promise<void>
+}
+
+function yieldToHost(): Promise<void> {
+  const { scheduler } = globalThis as typeof globalThis & {
+    scheduler?: SchedulerWithYield
+  }
+  if (scheduler?.yield) return scheduler.yield()
+  return new Promise((resolve) => setTimeout(resolve, 0))
+}
+
 function assertUniqueInterruptDefinitions(
   interrupts:
     | ReadonlyArray<InterruptDefinition<any, any, any, any>>
@@ -1673,9 +1687,19 @@ export class ChatClient<
    */
   private async consumeSubscription(signal: AbortSignal): Promise<void> {
     const stream = this.connection.subscribe(signal)
+    let processingTime = 0
     for await (const chunk of stream) {
       if (signal.aborted) break
+      const startedAt = performance.now()
       this.processIncomingChunk(chunk)
+      processingTime += performance.now() - startedAt
+      if (
+        processingTime >= STREAM_PROCESSING_BUDGET_MS &&
+        (typeof document === 'undefined' || !document.hidden)
+      ) {
+        await yieldToHost()
+        processingTime = 0
+      }
     }
   }
 

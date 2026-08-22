@@ -77,7 +77,7 @@ messages.forEach((message) => {
 });
 ```
 
-The shared `ChatClient` processes incoming chunks immediately and in order across every framework integration.
+Across every framework integration, the shared `ChatClient` processes ready live chunks in order without inserting a task between every chunk. After a bounded amount of chunk-processing work, it yields to keep the main thread responsive before continuing.
 
 ## Stream Events (AG-UI Protocol)
 

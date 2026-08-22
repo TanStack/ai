@@ -138,7 +138,7 @@ function ChatClientStreamProcessingPage() {
   const [error, setError] = useState<string>()
   const [hydrated, setHydrated] = useState(false)
   const [result, setResult] = useState<DrainResult>()
-  const { isLoading, sendMessage } = useChat({
+  const { isLoading, messages, sendMessage } = useChat({
     connection,
     onChunk(chunk) {
       occupyMainThread()
@@ -175,6 +175,14 @@ function ChatClientStreamProcessingPage() {
       }
     },
   })
+  const assistantText = messages
+    .filter((message) => message.role === 'assistant')
+    .flatMap((message) =>
+      message.parts.flatMap((part) =>
+        part.type === 'text' ? [part.content] : [],
+      ),
+    )
+    .join('')
 
   useEffect(() => {
     setHydrated(true)
@@ -246,6 +254,7 @@ function ChatClientStreamProcessingPage() {
       </button>
       <output data-testid="loading">{String(isLoading)}</output>
       <output data-testid="complete">{String(complete)}</output>
+      <output data-testid="assistant-text">{assistantText}</output>
       {result !== undefined && (
         <output data-testid="result">{JSON.stringify(result)}</output>
       )}
