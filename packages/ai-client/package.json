@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-client",
-  "version": "0.25.2",
+  "version": "0.27.0",
   "description": "Framework-agnostic headless client for TanStack AI chat, realtime sessions, streaming transports, and media generations.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -42,6 +42,10 @@
     "./devtools": {
       "types": "./dist/esm/devtools.d.ts",
       "import": "./dist/esm/devtools.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [

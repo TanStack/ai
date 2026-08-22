@@ -29,7 +29,13 @@ const config = defineConfig({
 export default mergeConfig(
   config,
   tanstackViteConfig({
-    entry: ['./src/index.ts', './src/model-meta.ts', './src/tools/index.ts'],
+    entry: [
+      './src/index.ts',
+      './src/byok.ts',
+      './src/model-meta.ts',
+      './src/tools/index.ts',
+      './src/pkce.ts',
+    ],
     srcDir: './src',
     cjs: false,
   }),

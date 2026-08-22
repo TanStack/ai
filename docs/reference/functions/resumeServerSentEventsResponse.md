@@ -9,7 +9,7 @@ title: resumeServerSentEventsResponse
 function resumeServerSentEventsResponse<TOffset>(options): Response;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:1001](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1001)
+Defined in: [packages/ai/src/stream-to-response.ts:1005](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L1005)
 
 Serve a resumable run from its durability log over Server-Sent Events, without
 re-running the model. Use this in a `GET` handler so a reload or a second tab

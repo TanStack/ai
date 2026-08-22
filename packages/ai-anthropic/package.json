@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-anthropic",
-  "version": "0.17.0",
+  "version": "0.18.0",
   "description": "Anthropic Claude adapter for TanStack AI chat, tool calling, thinking, and structured outputs.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -37,6 +37,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     },
     "./tools": {
       "types": "./dist/esm/tools/index.d.ts",

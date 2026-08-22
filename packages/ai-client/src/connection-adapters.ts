@@ -6,6 +6,7 @@ import {
   uiMessagesToWire,
   withTanstackMetadata,
 } from '@tanstack/ai/client'
+import { ByokMissingError, isByokMissingBody } from '@tanstack/ai/byok'
 import {
   createResponseStreamTextDecoder,
   getResponseStreamReader,
@@ -498,12 +499,35 @@ async function* linesToNdjsonEvents(
   }
 }
 
-function assertResponseOk(response: Response): void {
-  if (!response.ok) {
-    throw new Error(
-      `HTTP error! status: ${response.status} ${response.statusText}`,
-    )
+async function assertResponseOk(response: Response): Promise<void> {
+  if (response.ok) return
+  if (response.status === 401) {
+    const body: unknown = await response
+      .clone()
+      .json()
+      .catch(() => null)
+    if (isByokMissingBody(body)) {
+      throw new ByokMissingError(body.error.provider)
+    }
   }
+  throw new Error(
+    `HTTP error! status: ${response.status} ${response.statusText}`,
+  )
+}
+
+function errorFromXhrStatus(xhr: XMLHttpRequest): Error {
+  if (xhr.status === 401) {
+    let parsed: unknown = null
+    try {
+      parsed = JSON.parse(xhr.responseText)
+    } catch {
+      parsed = null
+    }
+    if (isByokMissingBody(parsed)) {
+      return new ByokMissingError(parsed.error.provider)
+    }
+  }
+  return new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
 }
 
 /**
@@ -525,7 +549,7 @@ async function fetchThreadHydration(
     headers: { Accept: 'application/json', ...headers },
     credentials,
   })
-  assertResponseOk(response)
+  await assertResponseOk(response)
   const data = (await response.json()) as {
     messages?: Array<UIMessage>
     activeRun?: { runId?: unknown } | null
@@ -574,7 +598,7 @@ async function fetchGenerationHydration(
     headers: { Accept: 'application/json', ...headers },
     credentials,
   })
-  assertResponseOk(response)
+  await assertResponseOk(response)
   const raw: unknown = await response.json()
   // A 200 carrying `null` is a legitimate hydration miss — the server has no
   // record for this thread — and reading `.activeRun` off `null` would throw.
@@ -609,7 +633,7 @@ async function* responseToSSEEvents(
   abortSignal?: AbortSignal,
   fallbackIds?: { threadId?: string; runId?: string },
 ): AsyncGenerator<StreamEvent> {
-  assertResponseOk(response)
+  await assertResponseOk(response)
   const reader = getResponseStreamReader(response)
   yield* linesToSSEEvents(readStreamLines(reader, abortSignal), fallbackIds)
 }
@@ -619,7 +643,7 @@ async function* responseToNdjsonEvents(
   response: Response,
   abortSignal?: AbortSignal,
 ): AsyncGenerator<StreamEvent> {
-  assertResponseOk(response)
+  await assertResponseOk(response)
   const reader = getResponseStreamReader(response)
   yield* linesToNdjsonEvents(readStreamLines(reader, abortSignal))
 }
@@ -806,6 +830,8 @@ export interface RunAgentInputContext {
   }>
   /** Arbitrary user-controlled passthrough data. */
   forwardedProps?: Record<string, unknown>
+  /** Extra request headers for this run (e.g. BYOK keys). POST only. */
+  headers?: Record<string, string>
 }
 
 export interface ConnectConnectionAdapter {
@@ -1269,6 +1295,7 @@ export function fetchServerSentEvents(
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
+        ...mergeHeaders(runContext?.headers),
         ...runIdHeader(runContext?.runId),
       }
 
@@ -1440,6 +1467,7 @@ export function fetchHttpStream(
       const requestHeaders: Record<string, string> = {
         'Content-Type': 'application/json',
         ...mergeHeaders(resolvedOptions.headers),
+        ...mergeHeaders(runContext?.headers),
         ...runIdHeader(runContext?.runId),
       }
 
@@ -1593,7 +1621,7 @@ function readXhrLines(
 
   const enqueueDelta = () => {
     if (xhr.status !== 0 && (xhr.status < 200 || xhr.status >= 300)) {
-      error = new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
+      error = errorFromXhrStatus(xhr)
       done = true
       return
     }
@@ -1622,7 +1650,7 @@ function readXhrLines(
     // is an error, but status 0 here is not — treat the trailing buffer as a
     // truncation check instead of fabricating a bogus "status: 0" error.
     if (xhr.status !== 0 && (xhr.status < 200 || xhr.status >= 300)) {
-      error = new Error(`XHR error! status: ${xhr.status} ${xhr.statusText}`)
+      error = errorFromXhrStatus(xhr)
     } else if (buffer.trim() && !aborted) {
       error = new StreamTruncatedError()
     }
@@ -1718,6 +1746,7 @@ function createConfiguredXhrRequest(
   const requestHeaders: Record<string, string> = {
     'Content-Type': 'application/json',
     ...mergeHeaders(options.headers),
+    ...mergeHeaders(method === 'POST' ? runContext?.headers : undefined),
     // Client-chosen run id for durability (POST only; the GET join carries it
     // in the query instead).
     ...(method === 'POST' ? runIdHeader(runContext?.runId) : {}),
@@ -2491,7 +2520,7 @@ export function fetcherToConnectionAdapter(
             ? { resume: runContext.resume }
             : {}),
         },
-        { signal: abortSignal },
+        { signal: abortSignal, headers: runContext.headers },
       )
       if (result instanceof Response) {
         yield* responseToSSEChunks(result, abortSignal)

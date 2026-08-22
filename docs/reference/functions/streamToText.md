@@ -9,7 +9,7 @@ title: streamToText
 function streamToText(stream): Promise<string>;
 ```
 
-Defined in: [packages/ai/src/stream-to-response.ts:44](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L44)
+Defined in: [packages/ai/src/stream-to-response.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-response.ts#L45)
 
 Collect all text content from a StreamChunk async iterable and return as a string.
 

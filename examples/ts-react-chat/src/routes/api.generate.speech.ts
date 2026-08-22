@@ -10,6 +10,8 @@ import {
   withGenerationPersistence,
 } from '@tanstack/ai-persistence'
 import { z } from 'zod'
+import { byokMissing, getByokKey } from '@tanstack/ai/byok/server'
+import { byteplusVoiceByok } from '@tanstack/ai-byteplus/byok'
 import {
   InvalidModelOverrideError,
   UnknownProviderError,
@@ -98,7 +100,14 @@ export const Route = createFileRoute('/api/generate/speech')({
         }
 
         try {
-          const adapter = buildSpeechAdapter(provider ?? 'openai')
+          let adapter
+          if (provider === 'byteplus') {
+            const apiKey = getByokKey(request, byteplusVoiceByok)
+            if (!apiKey) return byokMissing(byteplusVoiceByok)
+            adapter = buildSpeechAdapter('byteplus', apiKey)
+          } else {
+            adapter = buildSpeechAdapter(provider ?? 'openai')
+          }
 
           const stream = generateSpeech({
             adapter,

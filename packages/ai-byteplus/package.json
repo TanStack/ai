@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-byteplus",
-  "version": "0.2.2",
+  "version": "0.3.0",
   "description": "BytePlus ModelArk adapter for TanStack AI: Seed LLM chat, Seedance video, Seedream image, and Seed Speech TTS/ASR.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -24,6 +24,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [

@@ -504,7 +504,10 @@ const myAdapter: ConnectConnectionAdapter = {
   async *connect(messages, data, abortSignal, runContext) {
     const response = await fetch("/api/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...runContext?.headers,
+      },
       body: JSON.stringify({
         threadId: runContext?.threadId,
         runId: runContext?.runId,
@@ -541,7 +544,9 @@ const myAdapter: ConnectConnectionAdapter = {
 const { messages } = useChat({ connection: myAdapter });
 ```
 
-`runContext` carries `threadId`, `runId`, `clientTools`, and `forwardedProps`. Include them in your request payload so the server can build an AG-UI-compliant response.
+`runContext` carries `threadId`, `runId`, `clientTools`, `forwardedProps`, and `headers`. Include the first four in your JSON payload so the server can build an AG-UI-compliant response.
+
+Copy `runContext.headers` onto the **POST request headers**, not the body. Built-in fetch and XHR adapters do this. `stream()` and `rpcStream()` do not — they never see `runContext`. A custom `connect` that skips `headers` drops BYOK keys (`x-byok-*`). See [Bring Your Own Key](../advanced/byok).
 
 The runtime covers the terminal event either way:
 
@@ -562,6 +567,7 @@ export interface RunAgentInputContext {
   parentRunId?: string;
   clientTools?: Array<{ name: string; description: string; parameters: unknown }>;
   forwardedProps?: Record<string, unknown>;
+  headers?: Record<string, string>;
 }
 
 export interface ConnectConnectionAdapter {

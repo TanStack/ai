@@ -28,6 +28,14 @@ afterAll(async () => {
 
 runReaperConformance({
   name: 'local-process',
+  ...(process.platform === 'darwin'
+    ? {
+        mtimeListUnsupported: {
+          reason:
+            'host stat is BSD; the age gate lists with GNU stat -c. Docker alpine is the authority.',
+        },
+      }
+    : {}),
   createHandle: async () => {
     const handle = await provider.create({})
     return { handle, dispose: () => handle.destroy() }
