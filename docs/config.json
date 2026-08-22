@@ -906,6 +906,11 @@
           "addedAt": "2026-08-13"
         },
         {
+          "label": "Parallel Search",
+          "to": "adapters/parallel",
+          "addedAt": "2026-08-22"
+        },
+        {
           "label": "Vercel AI Gateway",
           "to": "adapters/vercel-gateway",
           "addedAt": "2026-08-12",
