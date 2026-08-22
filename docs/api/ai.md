@@ -350,7 +350,7 @@ export const openaiByok = defineByokProvider({
 });
 ```
 
-Import the object from the adapter `/byok` subpath (`openaiByok` from `@tanstack/ai-openai/byok`) and pass it to `defineByok({ providers })`. Do not import it from the adapter main entry — that pulls in the provider SDK. On the relay, pass the same object to `getByokKey` from `@tanstack/ai/byok/server` (that entry is the only BYOK module that reads `process.env`).
+Import the object from the adapter `/byok` subpath (`openaiByok` from `@tanstack/ai-openai/byok`). Pass it to `getByokKey` on the relay. Do not import it from the adapter main entry. That pulls in the provider SDK. Import `getByokKey` from `@tanstack/ai/byok/server`. That entry is the only BYOK module that reads `process.env`.
 
 ### Parameters
 

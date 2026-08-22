@@ -19,7 +19,7 @@
           "label": "Quick Start: React",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-08-22"
         },
         {
           "label": "Quick Start: React Native",
@@ -765,7 +765,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-08-22"
         },
         {
           "label": "Debug Logging",
