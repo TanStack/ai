@@ -85,12 +85,13 @@ async function localProbe(
 ): Promise<number | string> {
   // ponytail: race instead of AbortSignal — a signal doesn't serialize across the
   // sandbox RPC boundary, and a lost in-flight probe response is harmless.
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(
+  let timeoutId: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
       () => reject(new Error(`no response within ${LOCAL_PROBE_TIMEOUT_MS}ms`)),
       LOCAL_PROBE_TIMEOUT_MS,
-    ),
-  )
+    )
+  })
   try {
     const res = await Promise.race([
       sandbox.containerFetch('http://preview/', { method: 'HEAD' }, port),
@@ -99,6 +100,8 @@ async function localProbe(
     return res.status
   } catch (error) {
     return error instanceof Error ? error.message : String(error)
+  } finally {
+    clearTimeout(timeoutId)
   }
 }
 
@@ -109,13 +112,16 @@ async function localProbe(
  * keeps a login redirect from probing some other site), and even those are
  * trusted when the app answered the SAME status locally, so an app's own
  * 502/530 never gets its healthy tunnel destroyed. Success is `null`; repeated
- * failure returns the last symptom.
+ * failure returns the last symptom plus a verdict: 'stale' when a non-matching
+ * 502/530 was actually observed, 'unverified' when only fetch exceptions
+ * (timeout/DNS/subrequest failure) occurred.
  */
 async function edgeProbeFailure(
   url: string,
   localStatus: number,
-): Promise<string | null> {
+): Promise<{ verdict: 'stale' | 'unverified'; symptom: string } | null> {
   let lastFailure = 'no response'
+  let verdict: 'stale' | 'unverified' = 'unverified'
   for (let attempt = 0; attempt < EDGE_PROBE_ATTEMPTS; attempt += 1) {
     if (attempt > 0) {
       await new Promise((resolve) =>
@@ -135,11 +141,12 @@ async function edgeProbeFailure(
         return null
       }
       lastFailure = `HTTP ${res.status}`
+      verdict = 'stale'
     } catch (error) {
       lastFailure = error instanceof Error ? error.message : String(error)
     }
   }
-  return lastFailure
+  return { verdict, symptom: lastFailure }
 }
 
 /**
@@ -187,21 +194,28 @@ export function exposePreviewTool(input: StartRunInput, env: PreviewToolEnv) {
     // can't hijack the preview's asset requests) and needs no custom domain on a
     // deploy. `get(port)` is idempotent per port. See the Sandbox SDK `tunnels` API.
     const tunnel = await sandbox.tunnels.get(port)
-    const staleSymptom = await edgeProbeFailure(tunnel.url, local)
-    if (staleSymptom === null) return { url: tunnel.url }
+    const edgeFailure = await edgeProbeFailure(tunnel.url, local)
+    if (edgeFailure === null) return { url: tunnel.url }
+    // Never destroy on 'unverified': the tunnel may be healthy with only the
+    // probe path broken, so destroying it could kill a working preview.
+    if (edgeFailure.verdict === 'unverified') {
+      throw new Error(
+        `Port ${port} is serving inside the sandbox, but the preview tunnel could not be verified from the edge (${edgeFailure.symptom}). The tunnel was left in place — retry exposePreview in a few seconds.`,
+      )
+    }
     // Local server healthy but the edge kept answering 502/530: the cached tunnel
     // record is suspect. Refresh, bounded to ONE so we never churn tunnels.
     await sandbox.tunnels.destroy(port)
     const fresh = await sandbox.tunnels.get(port)
-    const freshSymptom = await edgeProbeFailure(fresh.url, local)
-    if (freshSymptom === null) {
+    const freshFailure = await edgeProbeFailure(fresh.url, local)
+    if (freshFailure === null) {
       return {
         url: fresh.url,
         note: `The tunnel for port ${port} was stale, so it was replaced. Any previously shared preview URL for this port is dead — share this new URL instead.`,
       }
     }
     throw new Error(
-      `Port ${port} is serving inside the sandbox, but its preview tunnel never became reachable (old tunnel: ${staleSymptom}; replacement tunnel: ${freshSymptom}). Retry exposePreview, and if it keeps failing, restart the dev server and try again.`,
+      `Port ${port} is serving inside the sandbox, but its preview tunnel never became reachable (old tunnel: ${edgeFailure.symptom}; replacement tunnel: ${freshFailure.symptom}). Retry exposePreview, and if it keeps failing, restart the dev server and try again.`,
     )
   })
 }
