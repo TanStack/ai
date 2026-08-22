@@ -13,7 +13,8 @@ import { RUN_ACCEPTED_EVENT } from '../src/stream-to-response'
 import { ev } from './test-utils'
 import type { WebSocketLike } from '../src/stream-to-websocket'
 import type { StreamDurability } from '../src/stream-durability'
-import type { StreamChunk } from '../src/types'
+import { EventType } from '../src/types'
+import type { RunFinishedEvent, StreamChunk } from '../src/types'
 
 describe('ws frame codec', () => {
   it('encodes a durable frame as an { id, chunk } envelope', () => {
@@ -27,6 +28,27 @@ describe('ws frame codec', () => {
   it('encodes a non-durable frame as a bare chunk', () => {
     const chunk = ev.textContent('hi')
     expect(JSON.parse(encodeWsFrame(chunk, undefined))).toEqual(chunk)
+  })
+
+  it('converts TokenUsage to spec usage[] on the wire', () => {
+    const chunk: RunFinishedEvent = {
+      type: EventType.RUN_FINISHED,
+      threadId: 't1',
+      runId: 'r1',
+      usage: {
+        promptTokens: 10,
+        completionTokens: 5,
+        totalTokens: 15,
+        cost: 0.02,
+      },
+    }
+    const encoded = JSON.parse(encodeWsFrame(chunk, undefined))
+    expect(encoded.usage).toEqual([
+      { inputTokens: 10, outputTokens: 5, totalTokens: 15 },
+    ])
+    expect(encoded.metadata).toEqual({
+      tanstack: { usage: { cost: 0.02 } },
+    })
   })
 
   it('decodes a RunAgentInput frame as a run', () => {

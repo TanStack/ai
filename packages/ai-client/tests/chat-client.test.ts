@@ -1308,7 +1308,7 @@ describe('ChatClient', () => {
                   runId: 'run-1',
                   model: 'test',
                   timestamp: Date.now(),
-                  finishReason: 'stop',
+                  metadata: { tanstack: { finishReason: 'stop' } },
                 } as StreamChunk
               }
             })()
@@ -1372,7 +1372,7 @@ describe('ChatClient', () => {
                 runId: 'live-run-1',
                 model: 'test',
                 timestamp: Date.now(),
-                finishReason: 'stop',
+                metadata: { tanstack: { finishReason: 'stop' } },
               } as StreamChunk
             })()
           },
@@ -1478,7 +1478,7 @@ describe('ChatClient', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         },
       ])
       const client = new ChatClient({ connection: adapter })
@@ -1695,7 +1695,7 @@ describe('ChatClient', () => {
             threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
-            finishReason: 'stop',
+            metadata: { tanstack: { finishReason: 'stop' } },
           },
         ]
         const adapter = createSubscribeAdapter(chunks)
@@ -1769,7 +1769,7 @@ describe('ChatClient', () => {
             threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
-            finishReason: 'stop',
+            metadata: { tanstack: { finishReason: 'stop' } },
           },
         ]
         const adapter = createSubscribeAdapter(chunks)
@@ -1902,7 +1902,7 @@ describe('ChatClient', () => {
             threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
-            finishReason: 'stop',
+            metadata: { tanstack: { finishReason: 'stop' } },
           },
           {
             type: EventType.RUN_FINISHED,
@@ -1910,7 +1910,7 @@ describe('ChatClient', () => {
             threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
-            finishReason: 'stop',
+            metadata: { tanstack: { finishReason: 'stop' } },
           },
         ]
         const adapter = createSubscribeAdapter(chunks)
@@ -1950,7 +1950,7 @@ describe('ChatClient', () => {
             threadId: 'thread-1',
             model: 'test',
             timestamp: Date.now(),
-            finishReason: 'stop',
+            metadata: { tanstack: { finishReason: 'stop' } },
           },
         ]
         const adapter = createSubscribeAdapter(chunks)
@@ -2021,7 +2021,7 @@ describe('ChatClient', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         })
 
         await vi.waitFor(() => {
@@ -2035,7 +2035,7 @@ describe('ChatClient', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         })
 
         await vi.waitFor(() => {
@@ -2752,6 +2752,25 @@ describe('ChatClient', () => {
 
       expect(onChunk).toHaveBeenCalled()
       expect(onChunk.mock.calls.length).toBeGreaterThan(0)
+    })
+
+    it('restores finishReason and model onto onChunk RUN_FINISHED', async () => {
+      const chunks = createTextChunks('Hi')
+      const adapter = createMockConnectionAdapter({ chunks })
+      const onChunk = vi.fn()
+
+      const client = new ChatClient({
+        connection: adapter,
+        onChunk,
+      })
+
+      await client.sendMessage('Hello')
+
+      const finished = onChunk.mock.calls
+        .map(([chunk]) => chunk)
+        .find((chunk) => chunk.type === 'RUN_FINISHED')
+      expect(finished?.finishReason).toBe('stop')
+      expect(finished?.model).toBe('test')
     })
 
     it('should call onFinish when stream completes', async () => {
@@ -3763,29 +3782,22 @@ describe('ChatClient', () => {
               {
                 type: EventType.TOOL_CALL_START,
                 toolCallId: 'tc-2',
-                toolName: 'dangerous_tool_2',
-                model: 'test',
                 timestamp: Date.now(),
                 toolCallName: 'dangerous_tool_call_2',
-                index: 0,
               },
               {
                 type: EventType.TOOL_CALL_ARGS,
                 toolCallId: 'tc-2',
-                model: 'test',
                 timestamp: Date.now(),
                 delta: '{}',
               },
               {
                 type: EventType.TOOL_CALL_END,
                 toolCallId: 'tc-2',
-                toolName: 'dangerous_tool_2',
-                model: 'test',
                 timestamp: Date.now(),
               },
               {
                 type: EventType.CUSTOM,
-                model: 'test',
                 timestamp: Date.now(),
                 name: 'approval-requested',
                 value: {
@@ -3809,7 +3821,7 @@ describe('ChatClient', () => {
               threadId: 'thread-1',
               model: 'test',
               timestamp: Date.now(),
-              finishReason: 'tool_calls' as const,
+              metadata: { tanstack: { finishReason: 'tool_calls' } },
             }
           } else if (streamCount === 3) {
             // Third stream (after second approval): final text response
@@ -3951,7 +3963,7 @@ describe('ChatClient', () => {
         threadId: 'thread-1',
         model: 'test',
         timestamp: Date.now(),
-        finishReason: 'stop',
+        metadata: { tanstack: { finishReason: 'stop' } },
       })
 
       await vi.waitFor(() => {
@@ -3992,7 +4004,7 @@ describe('ChatClient', () => {
         threadId: 'thread-1',
         model: 'test',
         timestamp: Date.now(),
-        finishReason: 'stop',
+        metadata: { tanstack: { finishReason: 'stop' } },
       })
 
       await vi.waitFor(() => {
@@ -4050,7 +4062,7 @@ describe('ChatClient', () => {
           threadId: 'thread-1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         },
       )
 

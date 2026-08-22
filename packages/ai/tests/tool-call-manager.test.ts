@@ -27,10 +27,9 @@ function toolCallStart(fields: {
   return {
     type: EventType.TOOL_CALL_START,
     timestamp: Date.now(),
-    ...fields,
-    // `toolName` is the deprecated alias of `toolCallName`; mirror it
-    // so tests don't have to write both.
-    toolName: fields.toolName ?? fields.toolCallName,
+    toolCallId: fields.toolCallId,
+    toolCallName: fields.toolCallName,
+    ...(fields.metadata !== undefined ? { metadata: fields.metadata } : {}),
   }
 }
 
@@ -44,7 +43,8 @@ function toolCallArgs(fields: {
   return {
     type: EventType.TOOL_CALL_ARGS,
     timestamp: Date.now(),
-    ...fields,
+    toolCallId: fields.toolCallId,
+    delta: fields.delta,
   }
 }
 
@@ -61,9 +61,7 @@ function toolCallEnd(fields: {
   return {
     type: EventType.TOOL_CALL_END,
     timestamp: Date.now(),
-    ...fields,
-    // `toolName` is required on the merged event type; mirror the alias.
-    toolName: fields.toolName ?? fields.toolCallName ?? '',
+    toolCallId: fields.toolCallId,
   }
 }
 
@@ -191,8 +189,10 @@ describe('ToolCallManager', () => {
     // Should emit one TOOL_CALL_END event
     expect(emittedChunks).toHaveLength(1)
     expect(emittedChunks[0]?.type).toBe('TOOL_CALL_END')
-    expect(emittedChunks[0]?.toolCallId).toBe('call_123')
-    expect(emittedChunks[0]?.result).toContain('temp')
+    if (emittedChunks[0]?.type === 'TOOL_CALL_END') {
+      expect(emittedChunks[0].toolCallId).toBe('call_123')
+      expect(emittedChunks[0].result).toContain('temp')
+    }
 
     // Should return one tool result message
     expect(finalResult).toHaveLength(1)
@@ -398,8 +398,14 @@ describe('ToolCallManager', () => {
 
     // Should emit two TOOL_CALL_END events
     expect(chunks).toHaveLength(2)
-    expect(chunks[0]?.toolCallId).toBe('call_weather')
-    expect(chunks[1]?.toolCallId).toBe('call_calc')
+    expect(chunks[0]?.type).toBe('TOOL_CALL_END')
+    expect(chunks[1]?.type).toBe('TOOL_CALL_END')
+    if (chunks[0]?.type === 'TOOL_CALL_END') {
+      expect(chunks[0].toolCallId).toBe('call_weather')
+    }
+    if (chunks[1]?.type === 'TOOL_CALL_END') {
+      expect(chunks[1].toolCallId).toBe('call_calc')
+    }
 
     // Should return two tool result messages
     expect(toolResults).toHaveLength(2)
@@ -467,11 +473,17 @@ describe('ToolCallManager', () => {
         }),
       )
 
+      manager.addToolCallArgsEvent(
+        toolCallArgs({
+          toolCallId: 'call_123',
+          delta: '{"location":"New York"}',
+        }),
+      )
+
       manager.completeToolCall(
         toolCallEnd({
           toolCallId: 'call_123',
           toolCallName: 'get_weather',
-          input: { location: 'New York' },
         }),
       )
 

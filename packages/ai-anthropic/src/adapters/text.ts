@@ -51,7 +51,7 @@ import type {
   ContentPart,
   Modality,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type {
@@ -314,7 +314,7 @@ export class AnthropicTextAdapter<
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     try {
       const requestParams = this.mapCommonOptionsToAnthropic(options)
@@ -965,7 +965,7 @@ export class AnthropicTextAdapter<
     options: TextOptions<AnthropicTextProviderOptions>,
     genId: () => string,
     logger: InternalLogger,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const model = options.model
     let accumulatedContent = ''
     let accumulatedThinking = ''

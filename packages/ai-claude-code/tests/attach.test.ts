@@ -29,7 +29,7 @@ import {
   noopLogger,
   pollStrategyHandle,
 } from './fakes'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 import type { AgentSdkMessage } from '../src/stream/sdk-types'
 
 const baseDir = path.join(
@@ -68,9 +68,9 @@ function newRunId(label: string): string {
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }
@@ -83,7 +83,7 @@ async function collect(
  * one id — the caller's on an attach, a generated one otherwise. Anything with
  * more than one entry means the resolution ran twice.
  */
-function threadIdsOf(chunks: Array<StreamChunk>): Array<string> {
+function threadIdsOf(chunks: Array<AdapterYieldChunk>): Array<string> {
   const seen = new Set<string>()
   for (const chunk of chunks) {
     const value = (chunk as { threadId?: unknown }).threadId
@@ -333,7 +333,7 @@ describe('claude-code durable-run wiring (attach path)', () => {
     async function* asMessages(): AsyncIterable<AgentSdkMessage> {
       for (const m of seedMessages) yield m
     }
-    const fullTranslation: Array<StreamChunk> = []
+    const fullTranslation: Array<AdapterYieldChunk> = []
     for await (const chunk of translateSdkStream(asMessages(), {
       model: 'haiku',
       runId,

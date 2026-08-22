@@ -225,7 +225,7 @@ describe('ChatClient devtools bridge', () => {
       threadId: args.threadId,
       runId: args.runId,
       timestamp: Date.now(),
-      finishReason: 'stop',
+      metadata: { tanstack: { finishReason: 'stop' } },
     } satisfies StreamChunk
   }
 
@@ -1231,7 +1231,7 @@ describe('ChatClient devtools bridge', () => {
     const chunks: Array<StreamChunk> = [
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.start',
         value: { messageId: 'msg-structured' },
@@ -1248,7 +1248,7 @@ describe('ChatClient devtools bridge', () => {
       }),
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.complete',
         value: {
@@ -1334,7 +1334,7 @@ describe('ChatClient devtools bridge', () => {
       runStartedChunk({ threadId: 'thread-1', runId: 'run-mem' }),
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'memory:state',
         value: {
@@ -1430,7 +1430,7 @@ describe('ChatClient devtools bridge', () => {
     const chunks: Array<StreamChunk> = [
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.start',
         value: { messageId: 'msg-structured-batched' },
@@ -1444,7 +1444,7 @@ describe('ChatClient devtools bridge', () => {
       ),
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.complete',
         value: {
@@ -1516,14 +1516,14 @@ describe('ChatClient devtools bridge', () => {
     const chunks: Array<StreamChunk> = [
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.start',
         value: { messageId: 'msg-structured-terminal' },
       },
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'structured-output.complete',
         value: {
@@ -1582,14 +1582,14 @@ describe('ChatClient devtools bridge', () => {
           [
             {
               type: EventType.CUSTOM,
-              model: 'test',
+              metadata: { tanstack: { model: 'test' } },
               timestamp: Date.now(),
               name: 'structured-output.start',
               value: { messageId: 'msg-structured-first' },
             },
             {
               type: EventType.CUSTOM,
-              model: 'test',
+              metadata: { tanstack: { model: 'test' } },
               timestamp: Date.now(),
               name: 'structured-output.complete',
               value: {
@@ -1601,7 +1601,7 @@ describe('ChatClient devtools bridge', () => {
           [
             {
               type: EventType.CUSTOM,
-              model: 'test',
+              metadata: { tanstack: { model: 'test' } },
               timestamp: Date.now(),
               name: 'structured-output.start',
               value: { messageId: 'msg-structured-second' },
@@ -1613,7 +1613,7 @@ describe('ChatClient devtools bridge', () => {
             }),
             {
               type: EventType.CUSTOM,
-              model: 'test',
+              metadata: { tanstack: { model: 'test' } },
               timestamp: Date.now(),
               name: 'structured-output.complete',
               value: {
@@ -1671,7 +1671,7 @@ describe('ChatClient devtools bridge', () => {
       ),
       {
         type: EventType.CUSTOM,
-        model: 'test',
+        metadata: { tanstack: { model: 'test' } },
         timestamp: Date.now(),
         name: 'approval-requested',
         value: {

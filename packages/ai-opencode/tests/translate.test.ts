@@ -10,7 +10,7 @@ import type {
   OpencodeAssistantMessage,
   OpencodeStreamEvent,
 } from '../src/stream/sdk-types'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 function makeCtx(overrides: Partial<TranslateContext> = {}): TranslateContext {
   let id = 0
@@ -32,8 +32,8 @@ async function* fromArray(
 async function collect(
   events: Array<OpencodeStreamEvent>,
   ctx: TranslateContext = makeCtx(),
-): Promise<Array<StreamChunk>> {
-  const chunks: Array<StreamChunk> = []
+): Promise<Array<AdapterYieldChunk>> {
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const chunk of translateOpencodeStream(fromArray(events), ctx)) {
     chunks.push(chunk)
   }
@@ -376,7 +376,7 @@ describe('translateOpencodeStream', () => {
       throw new Error('aborted')
     }
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     await expect(async () => {
       for await (const chunk of translateOpencodeStream(failing(), makeCtx())) {
         chunks.push(chunk)

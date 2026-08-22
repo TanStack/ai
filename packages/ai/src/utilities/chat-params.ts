@@ -12,32 +12,6 @@ import type {
   UIMessage,
 } from '../types'
 
-const KNOWN_PART_TYPES = new Set([
-  'text',
-  'image',
-  'audio',
-  'video',
-  'document',
-  'tool-call',
-  'tool-result',
-  'thinking',
-  'structured-output',
-])
-
-function isValidParts(value: unknown): value is Array<{ type: string }> {
-  if (!Array.isArray(value)) return false
-  for (const p of value) {
-    if (!p || typeof p !== 'object') return false
-    const type = (p as { type?: unknown }).type
-    if (typeof type !== 'string' || !KNOWN_PART_TYPES.has(type)) return false
-    if (type === 'structured-output') {
-      const raw = (p as { raw?: unknown }).raw
-      if (raw !== undefined && typeof raw !== 'string') return false
-    }
-  }
-  return true
-}
-
 /**
  * Keyed by `AGUIRole` so a role added upstream fails to compile here until it
  * is handled, rather than silently falling through as an unknown role.
@@ -86,7 +60,7 @@ function requireArray(value: unknown, at: string): Array<unknown> {
 /**
  * Assert one AG-UI `Message`, discriminating on `role` exactly as the upstream
  * `MessageSchema` discriminated union does. The record view is retained on the
- * asserted type so callers can still inspect non-AG-UI extras like `parts`.
+ * asserted type so callers can still inspect extras like `metadata`.
  */
 function assertAGUIMessage(
   value: Record<string, unknown>,
@@ -141,16 +115,25 @@ function validateMessage(value: unknown, index: number): AGUIMessage {
   if (!isRecord(value)) invalidBody(`${at} must be an object`)
   assertAGUIMessage(value, at)
 
-  // `parts` is TanStack's canonical extra, carried through so the UIMessage
-  // path inside `chat()` can use it. Keep it only when it holds recognized
-  // part types — the previous schema-based path dropped `parts` during parse
-  // and re-attached it from the raw body behind this same check.
-  if ('parts' in value && !isValidParts(value.parts)) {
-    const withoutParts = { ...value }
-    Reflect.deleteProperty(withoutParts, 'parts')
-    return withoutParts
+  if (value.metadata !== undefined) {
+    if (!isRecord(value.metadata)) {
+      invalidBody(`${at}.metadata must be an object`)
+    }
   }
-  return value
+
+  // Hard cut: inbound `parts` from old clients are dropped. Content,
+  // toolCalls, and metadata stay on the record. Copy so we do not mutate
+  // the caller's message object.
+  return dropInboundParts(value)
+}
+
+function dropInboundParts(
+  message: AGUIMessage & { parts?: unknown },
+): AGUIMessage {
+  if (!('parts' in message)) return message
+  const rest = { ...message }
+  delete rest.parts
+  return rest
 }
 
 function validateTool(
@@ -330,8 +313,8 @@ export async function chatParamsFromRequest(
 
 /**
  * Client-declared tool stub (no execute). `name` is `string`, so arrays that
- * include these stubs intentionally widen `TypedStreamChunk` tool-name
- * discrimination — pass server tools alone when you need a closed name union.
+ * include these stubs intentionally widen tool-name discrimination —
+ * pass server tools alone when you need a closed name union.
  */
 export type ClientToolDeclaration = {
   name: string
@@ -360,7 +343,7 @@ export type MergedAgentTools<TServerTools extends ReadonlyArray<AnyTool>> =
  * Typing:
  * - Empty `clientTools` preserves the server tuple (closed name union).
  * - Non-empty `clientTools` returns a widened array that honestly includes
- *   client stubs, so `TypedStreamChunk` does not claim a closed server-only
+ *   client stubs, so the merged array does not claim a closed server-only
  *   name union.
  *
  * @param serverTools - The server's tool array (e.g. from

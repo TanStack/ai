@@ -5,7 +5,7 @@ title: CustomEvent
 
 # Interface: CustomEvent
 
-Defined in: [packages/ai/src/types.ts:1408](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1408)
+Defined in: [packages/ai/src/types.ts:1416](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1416)
 
 Custom event for extensibility.
 
@@ -49,7 +49,7 @@ erase discriminant property access on [KnownCustomEvent](../type-aliases/KnownCu
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1414](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1414)
+Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
 
 Model identifier for multi-model support
 
@@ -61,7 +61,7 @@ Model identifier for multi-model support
 optional runId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
+Defined in: [packages/ai/src/types.ts:1430](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1430)
 
 ***
 
@@ -71,7 +71,7 @@ Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/
 optional threadId?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:1421](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1421)
+Defined in: [packages/ai/src/types.ts:1429](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1429)
 
 Routing metadata the TanStack engine attaches when emitting CUSTOM
 events that need to be correlated with a specific thread/run.
@@ -86,4 +86,4 @@ the AG-UI consumer never sees them (when that middleware is enabled).
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1412](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1412)
+Defined in: [packages/ai/src/types.ts:1420](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1420)

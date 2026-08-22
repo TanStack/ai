@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { EventType } from '@tanstack/ai'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 import { processConverseStream } from '../../src/converse/stream-processor'
 import type { ConverseStreamOutput } from '@aws-sdk/client-bedrock-runtime'
 
@@ -128,8 +128,8 @@ describe('processConverseStream', () => {
 
   async function collect(
     ...events: Array<ConverseStreamFixture>
-  ): Promise<Array<StreamChunk>> {
-    const out: Array<StreamChunk> = []
+  ): Promise<Array<AdapterYieldChunk>> {
+    const out: Array<AdapterYieldChunk> = []
     for await (const c of processConverseStream(gen(...events), counter())) {
       out.push(c)
     }
@@ -220,7 +220,7 @@ describe('processConverseStream', () => {
   })
 
   it('threads incoming threadId/parentRunId/model onto the lifecycle', async () => {
-    const out: Array<StreamChunk> = []
+    const out: Array<AdapterYieldChunk> = []
     for await (const c of processConverseStream(
       gen(
         { contentBlockDelta: { delta: { text: 'hi' }, contentBlockIndex: 0 } },

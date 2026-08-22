@@ -9,6 +9,7 @@ import {
   requestRunCancel,
 } from '@tanstack/ai'
 import type {
+  AdapterYieldChunk,
   AnyTextAdapter,
   ChatMiddleware,
   ChatMiddlewareContext,
@@ -184,20 +185,20 @@ describe('chat onAbort status', () => {
             runId: 'usage-abort',
             threadId: 't1',
             timestamp: 1,
-          } satisfies StreamChunk
+          } satisfies AdapterYieldChunk
           yield {
             type: EventType.TOOL_CALL_START,
             toolCallId: 'tool-1',
             toolCallName: 'cancel',
             toolName: 'cancel',
             timestamp: 1,
-          } satisfies StreamChunk
+          } satisfies AdapterYieldChunk
           yield {
             type: EventType.TOOL_CALL_ARGS,
             toolCallId: 'tool-1',
             delta: '{}',
             timestamp: 1,
-          } satisfies StreamChunk
+          } satisfies AdapterYieldChunk
           yield {
             type: EventType.RUN_FINISHED,
             runId: 'usage-abort',
@@ -205,7 +206,7 @@ describe('chat onAbort status', () => {
             finishReason: 'tool_calls',
             timestamp: 1,
             usage,
-          } satisfies StreamChunk
+          } satisfies AdapterYieldChunk
         })(),
       structuredOutput: async () => ({ data: {}, rawText: '{}' }),
     } as unknown as AnyTextAdapter

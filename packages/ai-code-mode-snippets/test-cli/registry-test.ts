@@ -8,7 +8,7 @@
  * 4. The newly registered snippet becomes available as a callable tool
  */
 
-import { chat, maxIterations } from '@tanstack/ai'
+import { EventType, chat, maxIterations } from '@tanstack/ai'
 import { createNodeIsolateDriver } from '@tanstack/ai-isolate-node'
 import { codeModeWithSnippets } from '../src/code-mode-with-snippets'
 import {
@@ -294,8 +294,8 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
             `register_snippet result: ${JSON.stringify(registerSnippetResult)}`,
           )
         }
-      } else if (chunk.type === 'done') {
-        logInfo(`Chat done: ${chunk.finishReason}`)
+      } else if (chunk.type === EventType.RUN_FINISHED) {
+        logInfo(`Chat done: ${chunk.metadata?.tanstack?.finishReason}`)
       }
     }
 
@@ -418,8 +418,8 @@ export async function runRegistryTest(): Promise<RegistryTestResult> {
           snippetToolResultReceived = true
           logInfo('Snippet tool execution completed')
         }
-      } else if (chunk.type === 'done') {
-        logInfo(`Second chat done: ${chunk.finishReason}`)
+      } else if (chunk.type === EventType.RUN_FINISHED) {
+        logInfo(`Second chat done: ${chunk.metadata?.tanstack?.finishReason}`)
       }
     }
 

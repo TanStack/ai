@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { ChatRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterText } from '../src/adapters/text'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
 /**
  * Wire-format verification for function-tool `cacheControl` forwarding.
@@ -69,7 +69,7 @@ function setupMockSend(): void {
 async function captureSerializedTool(tool: Tool): Promise<any> {
   setupMockSend()
   const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key')
-  const chunks: Array<StreamChunk> = []
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const c of chat({
     adapter,
     messages: [{ role: 'user', content: 'hi' }],

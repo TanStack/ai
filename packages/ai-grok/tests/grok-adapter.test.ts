@@ -11,7 +11,7 @@ import {
   grokWebSearchTool,
   grokXSearchTool,
 } from '../src/tools'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
 
@@ -155,7 +155,7 @@ describe('Grok adapters', () => {
         max_output_tokens: 128,
       }
 
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         model: 'grok-build-0.1',
         messages: [{ role: 'user', content: 'Hello' }],
@@ -211,7 +211,7 @@ describe('Grok adapters', () => {
       const adapter = createGrokText('grok-build-0.1', 'test-api-key')
       const mockCreate = injectMockResponsesClient(adapter, [])
 
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
       for await (const chunk of adapter.chatStream({
         model: 'grok-build-0.1',
         messages: [{ role: 'user', content: 'Hello' }],
