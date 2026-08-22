@@ -9,6 +9,15 @@ import {
   restoreInboundChunk,
   tanstackMetadata,
 } from '@tanstack/ai/client'
+import {
+  ByokBlockedError,
+  ByokMissingError,
+  ByokUnresolvedProviderError,
+} from '@tanstack/ai/byok'
+import {
+  prepareResolvedByokHeaders,
+  resolveByokProviderId,
+} from './byok/resolve'
 import { createNoOpChatDevtoolsBridge } from './devtools-noop'
 import {
   fetcherToConnectionAdapter,
@@ -27,6 +36,7 @@ import type {
   RunAgentResumeItem,
   StreamChunk,
 } from '@tanstack/ai/client'
+import type { ByokClient } from './byok'
 import type {
   ChatHydrationResult,
   ConnectionAdapter,
@@ -111,6 +121,8 @@ type ChatClientUpdateOptionsWithoutContext<
   /** @deprecated Use `forwardedProps` instead. */
   body?: Record<string, any>
   forwardedProps?: Record<string, any>
+  byok?: ByokClient
+  byokProvider?: () => string | undefined
   tools?: TTools
   interrupts?: TInterrupts
   queue?: QueueOption
@@ -362,6 +374,8 @@ export class ChatClient<
   // merged on every send, with `forwardedProps` winning on key collision.
   private bodyOption: Record<string, any> = {}
   private forwardedPropsOption: Record<string, any> = {}
+  private byok: ByokClient | undefined
+  private byokProvider: (() => string | undefined) | undefined
   private context: TContext | undefined = undefined
   private pendingMessageBody: Record<string, any> | undefined = undefined
   private queueConfig: NormalizedQueueConfig
@@ -508,6 +522,8 @@ export class ChatClient<
     // winning on key collision.
     this.bodyOption = options.body || {}
     this.forwardedPropsOption = options.forwardedProps || {}
+    this.byok = options.byok
+    this.byokProvider = options.byokProvider
     this.context = options.context
     this.queueConfig = normalizeQueueOption(options.queue)
     this.connection = normalizeConnectionAdapter(resolveTransport(options))
@@ -2240,6 +2256,16 @@ export class ChatClient<
       // AG-UI servers consuming `RunAgentInput.tools[].parameters` expect
       // JSON Schema; sending a Standard Schema instance directly would
       // serialize to an unusable shape.
+      let byokHeaders: Record<string, string> | undefined
+      if (this.byok) {
+        const provider = resolveByokProviderId(
+          this.byokProvider,
+          this.forwardedPropsOption.provider,
+          this.bodyOption.provider,
+        )
+        byokHeaders = await prepareResolvedByokHeaders(this.byok, provider)
+      }
+
       const runContext = {
         threadId: resumeThreadId ?? this.threadId,
         runId,
@@ -2255,6 +2281,7 @@ export class ChatClient<
         })),
         forwardedProps: { ...mergedBody },
         ...(resumeItems ? { resume: resumeItems } : {}),
+        ...(byokHeaders ? { headers: byokHeaders } : {}),
       }
       this.devtoolsBridge.beginRun(runContext.runId, runContext.threadId)
       activeDevtoolsRunId = runContext.runId
@@ -2310,31 +2337,44 @@ export class ChatClient<
       // Finalize (idempotent — may already be done by RUN_FINISHED handler)
       this.processor.finalizeStream()
       streamCompletedSuccessfully = true
-    } catch (err) {
-      if (err instanceof Error) {
-        if (err.name === 'AbortError') {
-          if (activeDevtoolsRunId) {
-            this.devtoolsBridge.emitRunLifecycle(
-              'run:cancelled',
-              activeDevtoolsRunId,
-              'cancelled',
-            )
-            runTerminalEventEmitted = true
-          }
-          return false
+    } catch (err: unknown) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      if (error.name === 'AbortError') {
+        if (activeDevtoolsRunId) {
+          this.devtoolsBridge.emitRunLifecycle(
+            'run:cancelled',
+            activeDevtoolsRunId,
+            'cancelled',
+          )
+          runTerminalEventEmitted = true
         }
-        if (generation === this.streamGeneration) {
-          this.reportStreamError(err)
-          if (activeDevtoolsRunId) {
-            this.devtoolsBridge.emitRunLifecycle(
-              'run:errored',
-              activeDevtoolsRunId,
-              'errored',
-              { error: err.message },
-            )
-            runTerminalEventEmitted = true
-          }
+        return false
+      }
+      if (error instanceof ByokMissingError) {
+        this.byok?.request(error.provider, 'missing')
+      }
+      if (error instanceof ByokBlockedError && error.reason === 'locked') {
+        this.byok?.request(error.provider, 'locked')
+      }
+      if (generation === this.streamGeneration) {
+        this.reportStreamError(error)
+        if (activeDevtoolsRunId) {
+          this.devtoolsBridge.emitRunLifecycle(
+            'run:errored',
+            activeDevtoolsRunId,
+            'errored',
+            { error: error.message },
+          )
+          runTerminalEventEmitted = true
         }
+      }
+      if (
+        generation === this.streamGeneration &&
+        (error instanceof ByokMissingError ||
+          error instanceof ByokBlockedError ||
+          error instanceof ByokUnresolvedProviderError)
+      ) {
+        throw error
       }
     } finally {
       // Only clean up if this is still the active stream.
@@ -2987,6 +3027,12 @@ export class ChatClient<
     }
     if (options.forwardedProps !== undefined) {
       this.forwardedPropsOption = options.forwardedProps
+    }
+    if (options.byok !== undefined) {
+      this.byok = options.byok
+    }
+    if (options.byokProvider !== undefined) {
+      this.byokProvider = options.byokProvider
     }
     if ('context' in options) {
       this.context = options.context

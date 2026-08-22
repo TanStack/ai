@@ -5,7 +5,7 @@ title: WebSocketLike
 
 # Interface: WebSocketLike
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:14](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L14)
+Defined in: [packages/ai/src/stream-to-websocket.ts:15](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L15)
 
 The minimal WHATWG WebSocket surface the core needs. Cloudflare
 `WebSocketPair` server sockets, Deno's upgraded sockets, and `ws` (Node)
@@ -23,7 +23,7 @@ addEventListener: {
 };
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:17](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L17)
+Defined in: [packages/ai/src/stream-to-websocket.ts:18](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L18)
 
 #### Call Signature
 
@@ -73,7 +73,7 @@ Defined in: [packages/ai/src/stream-to-websocket.ts:17](https://github.com/TanSt
 close: (code?, reason?) => void;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:16](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L16)
+Defined in: [packages/ai/src/stream-to-websocket.ts:17](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L17)
 
 #### Parameters
 
@@ -97,7 +97,7 @@ Defined in: [packages/ai/src/stream-to-websocket.ts:16](https://github.com/TanSt
 send: (data) => void;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:15](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L15)
+Defined in: [packages/ai/src/stream-to-websocket.ts:16](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L16)
 
 #### Parameters
 

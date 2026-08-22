@@ -14,6 +14,8 @@ import type {
   VideoGenerationClientOptions,
   VideoStatusInfo,
 } from '@tanstack/ai-client'
+import type { ByokClient } from '@tanstack/ai-client/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 
 /**
  * Options for the useGenerateVideo hook.
@@ -25,6 +27,10 @@ export interface UseGenerateVideoOptions<TOutput = VideoGenerateResult> {
   fetcher?: GenerationFetcher<VideoGenerateInput, VideoGenerateResult>
   /** Additional body parameters to send with connect-based adapter requests */
   body?: Record<string, any>
+  /** Optional BYOK keyring. Keys go in `x-byok-*` headers, never the body. */
+  byok?: ByokClient
+  /** Optional provider id. If it returns a slug, only that key is sent. If no slug resolves (`byokProvider`, then `body.provider`), generate throws. */
+  byokProvider?: () => ProviderId | undefined
   /** Display options for TanStack AI Devtools. */
   devtools?: AIDevtoolsDisplayOptions
   /**
@@ -198,6 +204,8 @@ export function useGenerateVideo<TTransformed = void>(
         hydrateGeneration: opts.hydrateGeneration,
       }),
       ...(opts.joinRun !== undefined && { joinRun: opts.joinRun }),
+      ...(opts.byok !== undefined && { byok: opts.byok }),
+      byokProvider: () => optionsRef.current.byokProvider?.(),
       devtoolsBridgeFactory: createVideoDevtoolsBridge,
       devtools: {
         ...opts.devtools,

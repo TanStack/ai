@@ -1,4 +1,5 @@
 export { useChat } from './use-chat'
+export { useByok } from './use-byok'
 export { useMcpAppBridge } from './use-mcp-app-bridge'
 export type { UseMcpAppBridgeOptions } from './use-mcp-app-bridge'
 export type {

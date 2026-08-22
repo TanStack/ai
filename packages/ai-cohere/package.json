@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-cohere",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Cohere adapter for TanStack AI — multimodal embeddings and document reranking.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -24,6 +24,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     },
     "./adapters/embedding": {
       "types": "./dist/esm/adapters/embedding.d.ts",

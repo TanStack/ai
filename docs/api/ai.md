@@ -336,6 +336,103 @@ const stream = chat({
 
 An `AgentLoopStrategy` function.
 
+## `defineByokProvider({ id, label, env? })`
+
+Declare a BYOK provider from an adapter package. `id` is the `x-byok-<id>` slug and is **required** — an optional or missing `id` does not type-check.
+
+```typescript
+import { defineByokProvider } from "@tanstack/ai/byok";
+
+export const openaiByok = defineByokProvider({
+  id: "openai",
+  label: "OpenAI",
+  env: "OPENAI_API_KEY",
+});
+```
+
+Import the object from the adapter `/byok` subpath (`openaiByok` from `@tanstack/ai-openai/byok`). Pass it to `getByokKey` on the relay. Do not import it from the adapter main entry. That pulls in the provider SDK. Import `getByokKey` from `@tanstack/ai/byok/server`. That entry is the only BYOK module that reads `process.env`.
+
+### Parameters
+
+- `id` - Required slug (`[a-z][a-z0-9-]{0,63}`)
+- `label` - Display name
+- `env?` - Env var **name**, or a list of names tried in order. A string is stored as a one-element array. Names only — this object is imported on the client, so do not put `process.env` values here
+
+### Returns
+
+A `{ id, label, env? }` object. `id` is the literal slug type.
+
+## `getByokKey(request, provider)`
+
+Read a key on the relay. Import from `@tanstack/ai/byok/server` so `process.env` is not in the client graph. Works in any API route — it is not a TanStack Start server function.
+
+The header wins. A `ByokProvider` then tries `provider.env` in order. A slug is header-only. Returns `null` when both are empty. The JSON body is ignored.
+
+```typescript
+import { getByokKey } from "@tanstack/ai/byok/server";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, openaiByok);
+  return new Response(apiKey ? "ok" : "missing");
+}
+```
+
+### Parameters
+
+- `request` - Incoming `Request`
+- `provider` - A `ByokProvider` or a provider slug (`[a-z][a-z0-9-]{0,63}`). Becomes the `x-byok-<slug>` header. Not a fixed catalog.
+
+### Returns
+
+`string | null`
+
+## `byokMissing(provider)`
+
+Return a `401` JSON `Response` with `{ error: { type: "byok_missing", provider, message } }`. The chat and generation clients read this body and set `snapshot.prompt`. Import from `@tanstack/ai/byok` or `@tanstack/ai/byok/server`.
+
+```typescript
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+import { openaiByok } from "@tanstack/ai-openai/byok";
+
+export async function POST(request: Request) {
+  const apiKey = getByokKey(request, openaiByok);
+  if (!apiKey) return byokMissing(openaiByok);
+  return new Response("ok");
+}
+```
+
+### Parameters
+
+- `provider` - A `ByokProvider` or a provider slug to put on the error body
+
+### Returns
+
+A `Response` with status `401` and `content-type: application/json`.
+
+## `maskKey(key)`
+
+Return the last four characters of a key. Keys of four characters or fewer become `"••"`.
+
+```typescript
+import { maskKey } from "@tanstack/ai/byok";
+
+maskKey("sk-abcdefghij"); // "ghij"
+```
+
+## `scrubSecrets(input, secrets)`
+
+Replace each listed secret in `input` with `[redacted]`. Use this before you log an error string.
+
+```typescript
+import { scrubSecrets } from "@tanstack/ai/byok";
+
+scrubSecrets("failed sk-live extra", ["sk-live"]);
+// "failed [redacted] extra"
+```
+
+See [Bring Your Own Key](../advanced/byok) for the client store and a full relay.
+
 ## Types
 
 ### `ModelMessage`
@@ -565,5 +662,6 @@ async function examples() {
 ## Next Steps
 
 - [Getting Started](../getting-started/quick-start) - Learn the basics
+- [Bring Your Own Key](../advanced/byok) - Read user keys on the relay
 - [Tools Guide](../tools/tools) - Learn about tools
 - [Adapters](../adapters/openai) - Explore adapter options

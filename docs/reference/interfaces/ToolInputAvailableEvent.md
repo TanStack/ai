@@ -5,7 +5,7 @@ title: ToolInputAvailableEvent
 
 # ~~Interface: ToolInputAvailableEvent~~
 
-Defined in: [packages/ai/src/types.ts:1502](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1502)
+Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
 
 ## Deprecated
 
@@ -18,19 +18,17 @@ compatibility event remains readable until 1.0.
 
 ## Properties
 
-### ~~model?~~
+### ~~metadata?~~
 
 ```ts
-optional model?: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
-
-Model identifier for multi-model support
+Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1350)
 
 #### Inherited from
 
-[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+[`CustomEvent`](CustomEvent.md).[`metadata`](CustomEvent.md#metadata)
 
 ***
 
@@ -40,7 +38,7 @@ Model identifier for multi-model support
 name: "tool-input-available";
 ```
 
-Defined in: [packages/ai/src/types.ts:1503](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1503)
+Defined in: [packages/ai/src/types.ts:1423](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1423)
 
 #### Overrides
 
@@ -50,46 +48,13 @@ CustomEvent.name
 
 ***
 
-### ~~runId?~~
-
-```ts
-optional runId?: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1430](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1430)
-
-#### Inherited from
-
-[`CustomEvent`](CustomEvent.md).[`runId`](CustomEvent.md#runid)
-
-***
-
-### ~~threadId?~~
-
-```ts
-optional threadId?: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1429](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1429)
-
-Routing metadata the TanStack engine attaches when emitting CUSTOM
-events that need to be correlated with a specific thread/run.
-Stripped by `strip-to-spec-middleware` before going on the wire so
-the AG-UI consumer never sees them (when that middleware is enabled).
-
-#### Inherited from
-
-[`CustomEvent`](CustomEvent.md).[`threadId`](CustomEvent.md#threadid)
-
-***
-
 ### ~~type~~
 
 ```ts
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1420](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1420)
+Defined in: [packages/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1349)
 
 #### Inherited from
 
@@ -103,7 +68,7 @@ Defined in: [packages/ai/src/types.ts:1420](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1504](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1504)
+Defined in: [packages/ai/src/types.ts:1424](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1424)
 
 #### ~~input~~
 
