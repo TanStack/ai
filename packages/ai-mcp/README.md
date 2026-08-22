@@ -9,6 +9,7 @@ Discover and run MCP server tools, resources, and prompts inside any TanStack AI
 - `createMCPClient({ transport })` — connect to a single MCP server (Streamable HTTP, SSE, or stdio)
 - `createMCPClients({ ... })` — connect to many servers at once with auto-prefix collision avoidance
 - Auto-discovery (`client.tools()`) or explicit typed binding (`client.tools([toolDefinition(...)])`)
+- Automatic execution of MCP tools that require the experimental tasks flow
 - `@tanstack/ai-mcp/stdio` subpath — Node-only stdio transport, isolated so edge bundles stay clean
 - Bundled `tanstack-ai-mcp generate` CLI — introspects live servers and emits TypeScript types for `createMCPClient<MyServer>()`
 - `[Symbol.asyncDispose]` support — use `await using` for automatic cleanup
