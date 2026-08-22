@@ -214,8 +214,18 @@ export function exposePreviewTool(input: StartRunInput, env: PreviewToolEnv) {
         note: `The tunnel for port ${port} was stale, so it was replaced. Any previously shared preview URL for this port is dead — share this new URL instead.`,
       }
     }
+    const [diagnosis, hint] =
+      freshFailure.verdict === 'stale'
+        ? [
+            'its preview tunnel never became reachable',
+            'Retry exposePreview, and if it keeps failing, restart the dev server and try again.',
+          ]
+        : [
+            'the replacement preview tunnel could not be verified from the edge',
+            'Retry exposePreview in a few seconds.',
+          ]
     throw new Error(
-      `Port ${port} is serving inside the sandbox, but its preview tunnel never became reachable (old tunnel: ${edgeFailure.symptom}; replacement tunnel: ${freshFailure.symptom}). Retry exposePreview, and if it keeps failing, restart the dev server and try again.`,
+      `Port ${port} is serving inside the sandbox, but ${diagnosis} (old tunnel: ${edgeFailure.symptom}; replacement tunnel: ${freshFailure.symptom}). ${hint}`,
     )
   })
 }
