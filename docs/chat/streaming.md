@@ -77,6 +77,8 @@ messages.forEach((message) => {
 });
 ```
 
+Across every framework integration, the shared `ChatClient` processes ready live chunks in order without inserting a task between every chunk. After a bounded amount of chunk-processing work, it yields to keep the main thread responsive before continuing.
+
 ## Stream Events (AG-UI Protocol)
 
 TanStack AI implements the [AG-UI Protocol](https://docs.ag-ui.com/introduction) for streaming. Stream events contain different types of data:
