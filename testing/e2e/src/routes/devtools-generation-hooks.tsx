@@ -1,10 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useState } from 'react'
 import {
   fetchServerSentEvents,
   useGenerateAudio,
   useGenerateImage,
   useGenerateSpeech,
   useGenerateVideo,
+  useGeneration,
   useSummarize,
   useTranscription,
 } from '@tanstack/ai-react'
@@ -28,10 +30,17 @@ const SPEECH_TEXT = 'welcome to the guitar store'
 const SUMMARY_TEXT =
   '[summarize] The Fender Stratocaster is a versatile electric guitar'
 const VIDEO_PROMPT = 'a guitar being played in a store'
+const CUSTOM_GENERATION_DEVTOOLS = {
+  name: 'Custom Generation',
+  framework: 'vue',
+  hookName: 'somethingElse',
+  outputKind: 'text' as const,
+}
 
 function DevtoolsGenerationHooksRoute() {
   const { testId, aimockPort } = Route.useSearch()
   const sharedBody = { testId, aimockPort }
+  const [customGenerationMounted, setCustomGenerationMounted] = useState(false)
 
   const image = useGenerateImage({
     threadId: 'generation-hooks:useGenerateImage',
@@ -226,7 +235,16 @@ function DevtoolsGenerationHooksRoute() {
           >
             Run All
           </button>
+          <button
+            type="button"
+            data-testid="mount-custom-generation"
+            className="rounded border border-gray-700 px-3 py-2 text-sm text-gray-200"
+            onClick={() => setCustomGenerationMounted(true)}
+          >
+            Mount Custom Generation
+          </button>
         </div>
+        {customGenerationMounted ? <CustomGenerationIdentityProbe /> : null}
         <div className="grid gap-3 md:grid-cols-2">
           {hooks.map((hook) => (
             <section
@@ -299,6 +317,15 @@ function DevtoolsGenerationHooksRoute() {
       </div>
     </DevtoolsHarness>
   )
+}
+
+function CustomGenerationIdentityProbe() {
+  useGeneration({
+    id: 'generation-hooks:useGeneration',
+    fetcher: async () => ({ text: 'custom result' }),
+    devtools: CUSTOM_GENERATION_DEVTOOLS,
+  })
+  return null
 }
 
 function duplicateSingleImageResult(
