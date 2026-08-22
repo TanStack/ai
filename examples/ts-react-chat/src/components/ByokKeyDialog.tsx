@@ -28,9 +28,6 @@ const STATUS_LABEL: Record<
   empty: { label: 'Not set', className: 'text-gray-500' },
   set: { label: 'Saved', className: 'text-gray-400' },
   locked: { label: 'Locked', className: 'text-amber-400' },
-  validating: { label: 'Validating…', className: 'text-amber-400' },
-  valid: { label: 'Valid', className: 'text-emerald-400' },
-  invalid: { label: 'Invalid', className: 'text-red-400' },
   error: { label: 'Check failed', className: 'text-red-400' },
 }
 
@@ -221,25 +218,6 @@ function ProviderRow({
             {masked}
           </code>
           <div className="flex gap-1.5">
-            <button
-              type="button"
-              disabled={isLocked}
-              className="rounded-md border border-gray-600 bg-gray-800 px-2.5 py-1 text-sm text-gray-200 disabled:opacity-50"
-              onClick={() => {
-                setRowError('')
-                void byok
-                  .validate(id)
-                  .catch((error: unknown) =>
-                    setRowError(
-                      error instanceof Error
-                        ? error.message
-                        : 'Could not validate key',
-                    ),
-                  )
-              }}
-            >
-              Validate
-            </button>
             <button
               type="button"
               disabled={isLocked}

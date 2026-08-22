@@ -1,30 +1,22 @@
 import {
   ByokBlockedError,
   byokHeaderName,
-  byokValidateMap,
   isProviderId,
   maskKey,
 } from '@tanstack/ai/byok'
 import { memoryStorage } from './storage'
-import type {
-  ByokProvider,
-  ProviderId,
-  ProviderValidateConfig,
-} from '@tanstack/ai/byok'
+import type { ProviderId } from '@tanstack/ai/byok'
 import type { Keyring, KeyringStorage } from './storage'
 
 export type KeyStatus =
   | { state: 'empty' }
   | { state: 'set'; masked: string }
   | { state: 'locked'; masked: string }
-  | { state: 'validating'; masked: string }
-  | { state: 'valid'; masked: string }
-  | { state: 'invalid'; masked: string }
   | { state: 'error'; masked: string; message: string }
 
 export type ByokPrompt = {
   provider: ProviderId
-  reason: 'missing' | 'locked' | 'invalid'
+  reason: 'missing' | 'locked'
 }
 
 export type ByokSnapshot = {
@@ -34,23 +26,9 @@ export type ByokSnapshot = {
   storageError: string | null
 }
 
-export type ValidationStatus = 'valid' | 'invalid' | 'unsupported'
-
 export interface DefineByokOptions {
   storage?: KeyringStorage
-  /**
-   * Adapter-exported {@link ByokProvider} objects. Each one must have an `id`
-   * slug. Their `validate` entries are used unless `validate` overrides them.
-   */
-  providers?: ReadonlyArray<ByokProvider>
-  /**
-   * Optional per-provider key checks. Ids without an entry stay `set`
-   * (no network). Wins over `providers` for the same slug.
-   */
-  validate?: Readonly<Record<string, ProviderValidateConfig>>
 }
-
-const EMPTY: KeyStatus = { state: 'empty' }
 
 export const EMPTY_BYOK_SNAPSHOT: ByokSnapshot = {
   status: {},
@@ -107,7 +85,6 @@ export class ByokClient {
   #prompt: ByokPrompt | null = null
   #coverageAll = false
   #coverage: Record<string, boolean> = {}
-  readonly #validate: Readonly<Record<string, ProviderValidateConfig>>
   readonly #listeners = new Set<() => void>()
   #snapshot: ByokSnapshot
   #storageError: string | null = null
@@ -115,10 +92,6 @@ export class ByokClient {
 
   constructor(options: DefineByokOptions = {}) {
     this.storage = options.storage ?? memoryStorage()
-    this.#validate = {
-      ...(options.providers ? byokValidateMap(options.providers) : {}),
-      ...options.validate,
-    }
     this.#locked = Boolean(this.storage.unlockable)
     this.#snapshot = this.#buildSnapshot()
     this.#ready = this.#hydrate()
@@ -338,57 +311,6 @@ export class ByokClient {
       if (status?.state === 'locked' && isProviderId(id)) return id
     }
     return undefined
-  }
-
-  async validate(provider: ProviderId, key?: string): Promise<KeyStatus> {
-    requireProviderId(provider)
-    const target = key ?? this.#keys[provider]
-    if (!target) {
-      const existing = this.#statuses[provider]
-      if (existing?.state === 'locked') return existing
-      delete this.#statuses[provider]
-      this.#emit()
-      return EMPTY
-    }
-    const masked = maskKey(target)
-    this.#statuses[provider] = { state: 'validating', masked }
-    this.#emit()
-    const config = this.#validate[provider]
-    if (!config) {
-      const result: KeyStatus = { state: 'set', masked }
-      this.#statuses[provider] = result
-      this.#emit()
-      return result
-    }
-    try {
-      const response = await fetch(config.url, {
-        method: 'GET',
-        headers: config.headers(target),
-      })
-      let result: KeyStatus
-      if (response.ok) result = { state: 'valid', masked }
-      else if (response.status === 401 || response.status === 403) {
-        result = { state: 'invalid', masked }
-      } else {
-        result = {
-          state: 'error',
-          masked,
-          message: `Could not validate ${provider} key: ${response.status} ${response.statusText}`,
-        }
-      }
-      this.#statuses[provider] = result
-      this.#emit()
-      return result
-    } catch (error) {
-      const result: KeyStatus = {
-        state: 'error',
-        masked,
-        message: error instanceof Error ? error.message : String(error),
-      }
-      this.#statuses[provider] = result
-      this.#emit()
-      return result
-    }
   }
 
   async #hydrate(): Promise<void> {

@@ -23,7 +23,6 @@ export const KEYED_PROVIDERS = [
 
 export const byok = defineByok({
   storage: defaultByokStorage(),
-  providers: KEYED_PROVIDERS,
 })
 
 // Let the relay decide when a key is missing. The server prefers the

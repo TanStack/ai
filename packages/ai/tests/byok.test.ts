@@ -5,7 +5,6 @@ import {
   ByokUnresolvedProviderError,
   byokHeaderName,
   byokMissing,
-  byokValidateMap,
   defineByokProvider,
   isByokMissingBody,
   isProviderId,
@@ -46,14 +45,9 @@ describe('defineByokProvider', () => {
     const provider = defineByokProvider({
       id: 'openai',
       label: 'OpenAI',
-      validate: {
-        url: 'https://api.openai.com/v1/models',
-        headers: (key) => ({ Authorization: `Bearer ${key}` }),
-      },
     })
     expect(provider.id).toBe('openai')
     expect(provider.label).toBe('OpenAI')
-    expect(provider.validate?.url).toBe('https://api.openai.com/v1/models')
     expectTypeOf(provider.id).toEqualTypeOf<'openai'>()
   })
 
@@ -91,20 +85,6 @@ describe('defineByokProvider', () => {
         label: 'OpenAI',
       }),
     ).toThrow(/Invalid BYOK provider id/)
-  })
-
-  it('builds a validate map from providers that have one', () => {
-    const openai = defineByokProvider({
-      id: 'openai',
-      label: 'OpenAI',
-      validate: {
-        url: 'https://api.openai.com/v1/models',
-        headers: (key) => ({ Authorization: `Bearer ${key}` }),
-      },
-    })
-    const ollama = defineByokProvider({ id: 'ollama', label: 'Ollama' })
-    const map = byokValidateMap([openai, ollama])
-    expect(Object.keys(map)).toEqual(['openai'])
   })
 })
 

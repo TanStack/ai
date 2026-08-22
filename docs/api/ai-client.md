@@ -484,19 +484,15 @@ Factory for a headless BYOK keyring. Import it from `@tanstack/ai-client/byok`. 
 
 ```typescript
 import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
-import { openaiByok } from "@tanstack/ai-openai/byok";
 
 export const byok = defineByok({
   storage: defaultByokStorage(),
-  providers: [openaiByok],
 });
 ```
 
 ### Factory options
 
 - `storage?` - A `KeyringStorage` implementation. Default is `memoryStorage()` (session only, not saved)
-- `providers?` - Adapter-exported `{ id, label, env?, validate? }` objects from each adapter's `/byok` subpath (`@tanstack/ai-openai/byok`). `id` is required. Their `validate` entries feed `byok.validate()`. `env` is env var names for the relay (`getByokKey` from `@tanstack/ai/byok/server`). Import `/byok` on the client — the adapter main entry pulls in the provider SDK
-- `validate?` - Optional per-slug `{ url, headers(key) }` map. Wins over `providers` for the same slug. Slugs without an entry stay `set`
 
 ### Methods
 
@@ -504,7 +500,6 @@ export const byok = defineByok({
 - `update(key)` - Persist a key for the current `prompt` provider. Throws if `prompt` is null
 - `clear(provider?)` - Persist the removal, then drop one key, or all keys when you omit `provider`
 - `unlock()` - Decrypt unlockable storage (passkey). No-op for memory storage
-- `validate(provider, key?)` - Check a key if you passed `validate` into `defineByok`. Uses the stored key when `key` is omitted. Without a config for that slug, the status stays `set`
 - `headers(provider)` - Return `x-byok-*` headers for that slug. Chat and generation clients throw if no slug resolves — they do not send every stored key
 - `prepare(provider?)` - Wait for hydration, then unlock if needed. If `provider` is set, the key is empty, and the server has no coverage, throw `ByokBlockedError` and set `prompt`
 - `ready()` - Resolve when constructor hydration (peek/load) finishes

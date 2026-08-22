@@ -213,7 +213,7 @@ export const acmeByok = defineByokProvider({
 });
 ```
 
-Apps import `{ acmeByok } from "@scope/ai-acme/byok"` and pass it to `defineByok({ providers: [acmeByok] })`.
+Apps import `{ acmeByok } from "@scope/ai-acme/byok"` and pass it to `getByokKey(request, acmeByok)` on the relay to read the `x-byok-acme` header.
 
 ### 10. Sync documentation configuration
 

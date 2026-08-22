@@ -33,16 +33,13 @@ The slug is an open id (`openai`, `bedrock`, `my-llm`): `[a-z][a-z0-9-]{0,63}`. 
 
 ```typescript group=byok
 import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
-import { openaiByok } from "@tanstack/ai-openai/byok";
-import { anthropicByok } from "@tanstack/ai-anthropic/byok";
 
 export const byok = defineByok({
   storage: defaultByokStorage(),
-  providers: [openaiByok, anthropicByok],
 });
 ```
 
-Each `/byok` export is `{ id, label, env?, validate? }`. `id` is required. `env` is env var **names**, not `process.env` values. `validate` is the optional URL `byok.validate()` hits from the browser.
+The client store only needs storage. It sends whatever slug you resolve at send time. The adapter `/byok` descriptors (`openaiByok`, `{ id, label, env? }`) are imported on the relay, not here (step 4). `env` is env var **names**, not `process.env` values. A wrong key comes back as the provider's own `401` on the first real call, so there is no separate client-side key check.
 
 `defaultByokStorage()` uses a passkey when WebAuthn exists in a secure context. Otherwise keys live in memory on this `ByokClient` (gone on reload). WebAuthn is not the same as PRF — first save throws if the authenticator has no PRF. After a refresh, passkey keys are `locked` until `unlock()` (or until `update` / send, which already call `unlock()`).
 
@@ -179,7 +176,6 @@ OpenRouter can mint a key instead of a paste field. Import from `@tanstack/ai-op
 
 ```tsx
 import { useEffect } from "react";
-import { openrouterByok } from "@tanstack/ai-openrouter/byok";
 import {
   completeOpenRouterPkceIntoByok,
   startOpenRouterPkceLogin,
@@ -204,4 +200,4 @@ export function OpenRouterSignIn() {
 }
 ```
 
-Pass `openrouterByok` in `defineByok({ providers })`. The relay reads `x-byok-openrouter` with `getByokKey(request, openrouterByok)`.
+The helper writes the key straight into the `byok` store under the `openrouter` slug. The relay reads `x-byok-openrouter` with `getByokKey(request, openrouterByok)`.

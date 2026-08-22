@@ -584,7 +584,6 @@ Client: start login, then on return save the key into `defineByok`.
 ```tsx
 import { useEffect } from "react";
 import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
-import { openrouterByok } from "@tanstack/ai-openrouter/byok";
 import {
   completeOpenRouterPkceIntoByok,
   startOpenRouterPkceLogin,
@@ -592,7 +591,6 @@ import {
 
 const byok = defineByok({
   storage: defaultByokStorage(),
-  providers: [openrouterByok],
 });
 
 export function OpenRouterSignIn() {

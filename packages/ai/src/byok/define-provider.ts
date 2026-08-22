@@ -1,10 +1,4 @@
 import { isProviderId } from './providers'
-import type { ProviderId } from './providers'
-
-export interface ProviderValidateConfig {
-  url: string
-  headers: (key: string) => Record<string, string>
-}
 
 /**
  * A BYOK provider declared by an adapter. `id` is the `x-byok-<id>` slug and
@@ -18,7 +12,6 @@ export interface ByokProvider<TId extends string = string> {
    * values here. This object is imported on the client.
    */
   readonly env?: ReadonlyArray<string>
-  readonly validate?: ProviderValidateConfig
 }
 
 /**
@@ -29,7 +22,6 @@ export type ByokProviderInit<TId extends string> = {
   readonly id: undefined extends TId ? never : TId
   readonly label: string
   readonly env?: string | ReadonlyArray<string>
-  readonly validate?: ProviderValidateConfig
 }
 
 function normalizeEnv(
@@ -50,16 +42,5 @@ export function defineByokProvider<const TId extends string>(
     id: provider.id,
     label: provider.label,
     ...(env ? { env } : {}),
-    ...(provider.validate ? { validate: provider.validate } : {}),
   }
-}
-
-export function byokValidateMap(
-  providers: ReadonlyArray<ByokProvider>,
-): Record<ProviderId, ProviderValidateConfig> {
-  const next: Record<ProviderId, ProviderValidateConfig> = {}
-  for (const provider of providers) {
-    if (provider.validate) next[provider.id] = provider.validate
-  }
-  return next
 }

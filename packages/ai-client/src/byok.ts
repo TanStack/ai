@@ -4,14 +4,9 @@ export type {
   ByokSnapshot,
   DefineByokOptions,
   KeyStatus,
-  ValidationStatus,
 } from './byok/client'
 export { defineByokProvider } from '@tanstack/ai/byok'
-export type {
-  ByokProvider,
-  ByokProviderInit,
-  ProviderValidateConfig,
-} from '@tanstack/ai/byok'
+export type { ByokProvider, ByokProviderInit } from '@tanstack/ai/byok'
 export { memoryStorage } from './byok/storage'
 export type { KeyPreview, Keyring, KeyringStorage } from './byok/storage'
 export {

@@ -336,7 +336,7 @@ const stream = chat({
 
 An `AgentLoopStrategy` function.
 
-## `defineByokProvider({ id, label, env?, validate? })`
+## `defineByokProvider({ id, label, env? })`
 
 Declare a BYOK provider from an adapter package. `id` is the `x-byok-<id>` slug and is **required** — an optional or missing `id` does not type-check.
 
@@ -347,10 +347,6 @@ export const openaiByok = defineByokProvider({
   id: "openai",
   label: "OpenAI",
   env: "OPENAI_API_KEY",
-  validate: {
-    url: "https://api.openai.com/v1/models",
-    headers: (key) => ({ Authorization: `Bearer ${key}` }),
-  },
 });
 ```
 
@@ -361,11 +357,10 @@ Import the object from the adapter `/byok` subpath (`openaiByok` from `@tanstack
 - `id` - Required slug (`[a-z][a-z0-9-]{0,63}`)
 - `label` - Display name
 - `env?` - Env var **name**, or a list of names tried in order. A string is stored as a one-element array. Names only — this object is imported on the client, so do not put `process.env` values here
-- `validate?` - Optional `{ url, headers(key) }` used by `byok.validate()`
 
 ### Returns
 
-A `{ id, label, env?, validate? }` object. `id` is the literal slug type.
+A `{ id, label, env? }` object. `id` is the literal slug type.
 
 ## `getByokKey(request, provider)`
 

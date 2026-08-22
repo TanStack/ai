@@ -5,6 +5,6 @@ describe('openaiByok', () => {
   it('exports a required slug', () => {
     expect(openaiByok.id).toBe('openai')
     expect(openaiByok.label).toBe('OpenAI')
-    expect(openaiByok.validate?.url).toContain('api.openai.com')
+    expect(openaiByok.env).toContain('OPENAI_API_KEY')
   })
 })
