@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url'
 import { defineConfig, mergeConfig } from 'vitest/config'
 import { tanstackViteConfig } from '@tanstack/vite-config'
 import packageJson from './package.json'
@@ -12,10 +13,9 @@ const config = defineConfig({
     environment: 'node',
     include: ['tests/**/*.test.ts'],
     alias: {
-      'cloudflare:workers': new URL(
-        './tests/cloudflare-workers.ts',
-        import.meta.url,
-      ).pathname,
+      'cloudflare:workers': fileURLToPath(
+        new URL('./tests/cloudflare-workers.ts', import.meta.url),
+      ),
     },
     coverage: {
       provider: 'v8',
