@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { z } from 'zod'
 import { chat, summarize } from '@tanstack/ai'
-import type { Tool, StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 import {
   Type,
   type HarmBlockThreshold,
@@ -365,7 +365,7 @@ describe('GeminiAdapter through AI', () => {
     mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
 
     const adapter = createTextAdapter()
-    const received: StreamChunk[] = []
+    const received: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Tell me a joke' }],
@@ -448,7 +448,7 @@ describe('GeminiAdapter through AI', () => {
     mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
 
     const adapter = createTextAdapter()
-    const received: StreamChunk[] = []
+    const received: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
@@ -1016,7 +1016,7 @@ describe('Gemini adapter error handling', () => {
     )
 
     const adapter = createTextAdapter()
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of adapter.chatStream({
       model: 'gemini-2.5-pro',
       messages: [{ role: 'user', content: 'hi' }],

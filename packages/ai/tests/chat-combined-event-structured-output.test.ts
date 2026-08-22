@@ -10,6 +10,7 @@ import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
 import { collectChunks, createMockAdapter } from './test-utils'
 import type { StreamChunk } from '../src/types'
+import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 
 const PersonSchema = z.object({
   name: z.string(),
@@ -27,9 +28,9 @@ function eventSourcedTurn(args: {
   prose: string
   complete?: Person
   runError?: string
-}): Array<StreamChunk> {
+}): Array<AdapterYieldChunk> {
   const ts = 1
-  const chunks: Array<StreamChunk> = [
+  const chunks: Array<AdapterYieldChunk> = [
     {
       type: EventType.RUN_STARTED,
       runId: 'run-1',

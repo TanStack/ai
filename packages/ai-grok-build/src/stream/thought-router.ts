@@ -1,5 +1,5 @@
 import { EventType } from '@tanstack/ai'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 /** Harness-native tool names surfaced in Grok `thought` narration. */
 export const GROK_NATIVE_TOOL_NAMES = [
@@ -174,7 +174,7 @@ export class GrokThoughtRouter {
 
   constructor(private readonly ctx: ThoughtRouterContext) {}
 
-  private *ensureReasoning(): Generator<StreamChunk> {
+  private *ensureReasoning(): Generator<AdapterYieldChunk> {
     if (this.reasoningOpen) return
     this.reasoningId = this.ctx.genId()
     this.reasoningOpen = true
@@ -193,7 +193,7 @@ export class GrokThoughtRouter {
     }
   }
 
-  private *closeReasoning(): Generator<StreamChunk> {
+  private *closeReasoning(): Generator<AdapterYieldChunk> {
     if (!this.reasoningOpen || this.reasoningId === null) return
     yield {
       type: EventType.REASONING_MESSAGE_END,
@@ -211,7 +211,7 @@ export class GrokThoughtRouter {
     this.reasoningId = null
   }
 
-  private *emitPlanning(text: string): Generator<StreamChunk> {
+  private *emitPlanning(text: string): Generator<AdapterYieldChunk> {
     if (!text) return
     yield* this.ensureReasoning()
     // ensureReasoning guarantees a reasoningId; capture it so the type is
@@ -227,7 +227,7 @@ export class GrokThoughtRouter {
     }
   }
 
-  private *openActiveTool(): Generator<StreamChunk> {
+  private *openActiveTool(): Generator<AdapterYieldChunk> {
     const tool = this.activeTool
     if (!tool || tool.opened) return
     tool.opened = true
@@ -255,7 +255,7 @@ export class GrokThoughtRouter {
     }
   }
 
-  private *closeActiveTool(narration: string): Generator<StreamChunk> {
+  private *closeActiveTool(narration: string): Generator<AdapterYieldChunk> {
     const tool = this.activeTool
     if (!tool) return
 
@@ -309,7 +309,7 @@ export class GrokThoughtRouter {
   private *startToolAt(
     index: number,
     name: NativeToolName,
-  ): Generator<StreamChunk> {
+  ): Generator<AdapterYieldChunk> {
     yield* this.closeReasoning()
     this.mode = 'tool'
     const resolved = resolveToolAt(index, name, this.buffer)
@@ -326,7 +326,7 @@ export class GrokThoughtRouter {
   // otherwise still 'planning'). Returned rather than read from `this.mode` at
   // the call site so the caller sees the post-mutation value (TS can't narrow a
   // field across the generator call).
-  private *drainPlanning(): Generator<StreamChunk, 'planning' | 'tool'> {
+  private *drainPlanning(): Generator<AdapterYieldChunk, 'planning' | 'tool'> {
     while (this.cursor < this.buffer.length) {
       const entry = findEarliestToolEntry(this.buffer, this.cursor)
       if (!entry) {
@@ -349,7 +349,7 @@ export class GrokThoughtRouter {
     return this.mode
   }
 
-  *push(delta: string): Generator<StreamChunk> {
+  *push(delta: string): Generator<AdapterYieldChunk> {
     if (!delta) return
     this.buffer += delta
 
@@ -399,7 +399,7 @@ export class GrokThoughtRouter {
     }
   }
 
-  *finalize(): Generator<StreamChunk> {
+  *finalize(): Generator<AdapterYieldChunk> {
     if (this.mode === 'planning' && this.cursor < this.buffer.length) {
       const entry = findEarliestToolEntry(this.buffer, this.cursor)
       if (entry) {

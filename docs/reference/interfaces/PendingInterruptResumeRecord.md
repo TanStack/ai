@@ -5,7 +5,7 @@ title: PendingInterruptResumeRecord
 
 # Interface: PendingInterruptResumeRecord
 
-Defined in: [packages/ai/src/interrupt-resume.ts:45](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L45)
+Defined in: [packages/ai/src/interrupt-resume.ts:49](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L49)
 
 The persistence-neutral shape required to validate an interrupt resume.
 
@@ -17,7 +17,19 @@ The persistence-neutral shape required to validate an interrupt resume.
 binding: InterruptBinding;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:48](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L48)
+Defined in: [packages/ai/src/interrupt-resume.ts:52](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L52)
+
+***
+
+### genericRequest?
+
+```ts
+optional genericRequest?: GenericInterruptRequestBase<InterruptDefinition<any, any, any, any, any>>;
+```
+
+Defined in: [packages/ai/src/interrupt-resume.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L54)
+
+Present for a first-party generic interrupt.
 
 ***
 
@@ -27,7 +39,7 @@ Defined in: [packages/ai/src/interrupt-resume.ts:48](https://github.com/TanStack
 interruptId: string;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:46](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L46)
+Defined in: [packages/ai/src/interrupt-resume.ts:50](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L50)
 
 ***
 
@@ -37,4 +49,4 @@ Defined in: [packages/ai/src/interrupt-resume.ts:46](https://github.com/TanStack
 payload: unknown;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L47)
+Defined in: [packages/ai/src/interrupt-resume.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L51)

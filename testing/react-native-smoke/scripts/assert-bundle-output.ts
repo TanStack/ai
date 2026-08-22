@@ -34,6 +34,15 @@ function filesIn(dir: string): Array<string> {
   })
 }
 
+function containsForbiddenToken(source: string, token: string): boolean {
+  // pnpm peer folders look like `_zod@4.2.1` in esbuild path comments.
+  // That is not a real `zod` import. Match `zod` as its own token only.
+  if (token === 'zod') {
+    return /(?:^|[^A-Za-z0-9_])zod(?:$|[^A-Za-z0-9_])/.test(source)
+  }
+  return source.includes(token)
+}
+
 const failures: Array<string> = []
 let scannedJavaScriptFiles = 0
 
@@ -42,7 +51,7 @@ for (const file of filesIn(bundleDir)) {
   if (/\.js$/.test(file)) scannedJavaScriptFiles += 1
   const source = readFileSync(file, 'utf8')
   for (const token of forbidden) {
-    if (source.includes(token)) {
+    if (containsForbiddenToken(source, token)) {
       failures.push(`${file} contains forbidden bundle token ${token}`)
     }
   }

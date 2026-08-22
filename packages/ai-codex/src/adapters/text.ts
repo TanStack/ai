@@ -32,7 +32,7 @@ import type {
 import type {
   DefaultMessageMetadataByModality,
   Modality,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type { CodexModel } from '../model-meta'
@@ -242,7 +242,7 @@ export class CodexTextAdapter<
 
   async *chatStream(
     options: TextOptions<CodexTextProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     let bridge: HostToolBridge | undefined
     const tempFiles: Array<string> = []

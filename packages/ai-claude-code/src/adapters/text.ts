@@ -49,7 +49,7 @@ import type {
 import type {
   DefaultMessageMetadataByModality,
   Modality,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type { ClaudeCodeModel } from '../model-meta'
@@ -293,7 +293,7 @@ export class ClaudeCodeTextAdapter<
     policy: SandboxPolicy | undefined,
     approvals: ReadonlyMap<string, boolean> | undefined,
     scripts: Record<string, string> | undefined,
-    sink: Array<StreamChunk>,
+    sink: Array<AdapterYieldChunk>,
     threadId: string,
     runId: string,
   ): (input: { tool_name?: string; input?: unknown }) => PermissionToolResult {
@@ -352,11 +352,11 @@ export class ClaudeCodeTextAdapter<
 
   async *chatStream(
     options: TextOptions<ClaudeCodeTextProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     let bridge: HostToolBridge | undefined
     let channel: BridgeEventChannel | undefined
-    const approvalRequests: Array<StreamChunk> = []
+    const approvalRequests: Array<AdapterYieldChunk> = []
     // Temp files written for the run (bridge MCP config, redirected prompt) that
     // carry the bearer token / prompt; removed in `finally` so they don't linger
     // in the sandbox after the run.

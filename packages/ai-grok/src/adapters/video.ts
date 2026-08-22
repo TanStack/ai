@@ -147,18 +147,13 @@ export class GrokVideoAdapter<
     this.clientConfig = withGrokDefaults(config)
   }
 
-  private get fetch(): (
-    input: string,
-    init?: RequestInit,
-  ) => Promise<Response> {
-    return this.clientConfig.fetch ?? fetch
-  }
-
   private async request(
     path: string,
     init?: Omit<RequestInit, 'headers'>,
   ): Promise<Response> {
-    return await this.fetch(`${this.clientConfig.baseURL}${path}`, {
+    // workerd's fetch must be invoked with this === globalThis
+    const fetchFn = this.clientConfig.fetch ?? globalThis.fetch.bind(globalThis)
+    return await fetchFn(`${this.clientConfig.baseURL}${path}`, {
       ...init,
       headers: {
         'Content-Type': 'application/json',

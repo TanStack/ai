@@ -83,7 +83,6 @@ const start = (id: string, name: string): StreamChunk => ({
   type: EventType.TOOL_CALL_START,
   toolCallId: id,
   toolCallName: name,
-  toolName: name,
 })
 
 const args = (id: string, delta: string): StreamChunk => ({
@@ -92,22 +91,9 @@ const args = (id: string, delta: string): StreamChunk => ({
   delta,
 })
 
-const end = (id: string, extra?: { input?: unknown }): StreamChunk => ({
+const end = (id: string): StreamChunk => ({
   type: EventType.TOOL_CALL_END,
   toolCallId: id,
-  ...(extra?.input !== undefined ? { input: extra.input } : {}),
-})
-
-/** `TOOL_CALL_ARGS` carrying BOTH a delta and the accumulation so far. */
-const argsWithAccumulated = (
-  id: string,
-  delta: string,
-  accumulated: string,
-): StreamChunk => ({
-  type: EventType.TOOL_CALL_ARGS,
-  toolCallId: id,
-  delta,
-  args: accumulated,
 })
 
 const result = (id: string, content: string): StreamChunk => ({
@@ -200,30 +186,15 @@ describe('withSandbox: harness tool history in the transcript', () => {
     expect(ids).toEqual(['t1', 't1', 't2', 't2'])
   })
 
-  it('prefers the parsed input over the streamed argument fragments', async () => {
+  it('records TOOL_CALL_ARGS deltas; TOOL_CALL_END has no input', async () => {
     const h = await harness()
     await h.chunk(start('t1', 'bash'))
-    // A truncated fragment: the run was cut off mid-arguments, so the accumulated
-    // string is not valid JSON. `input` is the authoritative final value.
     await h.chunk(args('t1', '{"cmd":"l'))
-    await h.chunk(end('t1', { input: { cmd: 'ls -la' } }))
-
-    expect(
-      pairOf(h.ctx.messages, 't1').call?.toolCalls?.[0]?.function.arguments,
-    ).toBe('{"cmd":"ls -la"}')
-  })
-
-  it('uses the accumulated `args` field instead of doubling the deltas', async () => {
-    const h = await harness()
-    await h.chunk(start('t1', 'bash'))
-    // Some adapters send both: `delta` AND the full accumulation so far. Adding both
-    // would produce `{"a":1}{"a":1}`.
-    await h.chunk(argsWithAccumulated('t1', '{"a":1}', '{"a":1}'))
     await h.chunk(end('t1'))
 
     expect(
       pairOf(h.ctx.messages, 't1').call?.toolCalls?.[0]?.function.arguments,
-    ).toBe('{"a":1}')
+    ).toBe('{"cmd":"l')
   })
 
   it('writes once when the same chunks are replayed (journal takeover)', async () => {

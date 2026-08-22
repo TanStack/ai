@@ -3,7 +3,7 @@ import {
   chat,
   StreamProcessor,
   type Tool,
-  type StreamChunk,
+  type AdapterYieldChunk,
   type UIMessage,
 } from '@tanstack/ai'
 import { createAnthropicChatWithClient } from '../src'
@@ -234,7 +234,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
@@ -429,7 +429,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     // Consume the stream to trigger the API call
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -903,7 +903,7 @@ describe('Anthropic adapter option mapping', () => {
     const adapter = createAdapter('claude-opus-4-1')
 
     // Multi-turn: user -> assistant(tool_calls) -> tool_result -> follow-up user
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -975,7 +975,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -1034,7 +1034,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -1222,7 +1222,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -1338,7 +1338,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -1450,7 +1450,7 @@ describe('Anthropic adapter option mapping', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [
@@ -1514,7 +1514,7 @@ describe('Anthropic stream processing', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Hi' }],
@@ -1595,7 +1595,7 @@ describe('Anthropic stream processing', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Weather + fetch' }],
@@ -1621,7 +1621,9 @@ describe('Anthropic stream processing', () => {
       (c) =>
         c.type === 'TOOL_CALL_START' &&
         (c as { toolCallId: string }).toolCallId === 'srv_fetch',
-    ) as (StreamChunk & { metadata?: Record<string, unknown> }) | undefined
+    ) as
+      | (AdapterYieldChunk & { metadata?: Record<string, unknown> })
+      | undefined
     expect(serverStart).toBeDefined()
     expect(serverStart!.metadata).toMatchObject({
       providerExecuted: true,
@@ -1712,7 +1714,7 @@ describe('Anthropic stream processing', () => {
 
       const adapter = createAdapter('claude-opus-4-1')
 
-      const chunks: StreamChunk[] = []
+      const chunks: AdapterYieldChunk[] = []
       for await (const chunk of chat({
         adapter,
         messages: [{ role: 'user', content: 'Use the server tool' }],
@@ -1721,7 +1723,7 @@ describe('Anthropic stream processing', () => {
       }
 
       const start = chunks.find((c) => c.type === 'TOOL_CALL_START') as
-        | (StreamChunk & { metadata?: Record<string, unknown> })
+        | (AdapterYieldChunk & { metadata?: Record<string, unknown> })
         | undefined
       expect(start).toMatchObject({
         toolCallId: 'srv_only',
@@ -2015,7 +2017,7 @@ describe('Anthropic stream processing', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'Weather in Berlin?' }],
@@ -2080,7 +2082,7 @@ describe('Anthropic stream processing', () => {
 
     const adapter = createAdapter('claude-opus-4-1')
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       messages: [{ role: 'user', content: 'What is the weather in Berlin?' }],
@@ -2090,11 +2092,15 @@ describe('Anthropic stream processing', () => {
     }
 
     const textStart = chunks.find(
-      (chunk): chunk is Extract<StreamChunk, { type: 'TEXT_MESSAGE_START' }> =>
+      (
+        chunk,
+      ): chunk is Extract<AdapterYieldChunk, { type: 'TEXT_MESSAGE_START' }> =>
         chunk.type === 'TEXT_MESSAGE_START',
     )
     const toolStart = chunks.find(
-      (chunk): chunk is Extract<StreamChunk, { type: 'TOOL_CALL_START' }> =>
+      (
+        chunk,
+      ): chunk is Extract<AdapterYieldChunk, { type: 'TOOL_CALL_START' }> =>
         chunk.type === 'TOOL_CALL_START',
     )
 
@@ -2119,7 +2125,7 @@ describe('Anthropic adapter error handling', () => {
     )
 
     const adapter = createAdapter('claude-opus-4-1')
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of adapter.chatStream({
       model: 'claude-opus-4-1',
       messages: [{ role: 'user', content: 'hi' }],

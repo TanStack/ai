@@ -10,7 +10,7 @@
  * stream into its translated output — so events interleave live while the agent
  * runs (e.g. code mode's `code_mode:console` logs during a long execution).
  */
-import { EventType } from '@tanstack/ai'
+import { EventType, withTanstackMetadata } from '@tanstack/ai'
 import type { StreamChunk } from '@tanstack/ai'
 
 export interface BridgeEventChannel {
@@ -50,15 +50,21 @@ export function createBridgeEventChannel(meta: {
   return {
     emitCustomEvent(eventName, value) {
       if (closed) return
-      buffer.push({
-        type: EventType.CUSTOM,
-        name: eventName,
-        value,
-        timestamp: Date.now(),
-        model: meta.model,
-        ...(meta.threadId !== undefined && { threadId: meta.threadId }),
-        ...(meta.runId !== undefined && { runId: meta.runId }),
-      })
+      buffer.push(
+        withTanstackMetadata(
+          {
+            type: EventType.CUSTOM,
+            name: eventName,
+            value,
+            timestamp: Date.now(),
+          },
+          {
+            model: meta.model,
+            ...(meta.threadId !== undefined ? { threadId: meta.threadId } : {}),
+            ...(meta.runId !== undefined ? { runId: meta.runId } : {}),
+          },
+        ) as StreamChunk,
+      )
       notify?.()
     },
     close() {

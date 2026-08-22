@@ -9,13 +9,13 @@ title: canonicalizeInterruptResolutions
 function canonicalizeInterruptResolutions(resolutions): object;
 ```
 
-Defined in: [packages/ai/src/interrupts.ts:129](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L129)
+Defined in: [packages/ai/src/interrupts.ts:139](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupts.ts#L139)
 
 ## Parameters
 
 ### resolutions
 
-readonly `ResumeEntry`[]
+readonly [`RunAgentResumeItem`](../type-aliases/RunAgentResumeItem.md)[]
 
 ## Returns
 
@@ -36,5 +36,5 @@ fingerprint: string;
 ### resolutions
 
 ```ts
-resolutions: readonly ResumeEntry[];
+resolutions: readonly RunAgentResumeItem[];
 ```

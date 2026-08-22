@@ -191,7 +191,7 @@ function runChunks(runId: string, threadId: string): Array<StreamChunk> {
       runId,
       threadId,
       timestamp: 5,
-      finishReason: 'stop',
+      metadata: { tanstack: { finishReason: 'stop' } },
     } as StreamChunk,
   ]
 }

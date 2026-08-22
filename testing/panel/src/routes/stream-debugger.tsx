@@ -17,9 +17,9 @@ import {
 } from '@tanstack/ai'
 
 import type {
+  AdapterYieldChunk,
   ChunkRecording,
   ProcessorResult,
-  StreamChunk,
   UIMessage,
 } from '@tanstack/ai'
 
@@ -630,7 +630,7 @@ function ChunkItem({
   isActive,
   isProcessed,
 }: {
-  chunk: StreamChunk
+  chunk: AdapterYieldChunk
   index: number
   isActive: boolean
   isProcessed: boolean
@@ -647,7 +647,7 @@ function ChunkItem({
     [EventType.CUSTOM]: 'text-orange-400',
   }
 
-  const getSummary = (chunk: StreamChunk): string => {
+  const getSummary = (chunk: AdapterYieldChunk): string => {
     switch (chunk.type) {
       case EventType.TEXT_MESSAGE_CONTENT:
         return `δ="${chunk.delta?.slice(0, 30) ?? ''}${(chunk.delta?.length ?? 0) > 30 ? '...' : ''}"`

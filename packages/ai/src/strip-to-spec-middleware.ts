@@ -1,34 +1,58 @@
-import type { ChatMiddleware } from './activities/chat/middleware/types'
 import type { StreamChunk } from './types'
+import { EventType } from './types'
+import type { AdapterYieldChunk } from './utilities/adapter-yield-chunk'
+import { isTanstackUsage, toSpecTokenUsage } from './utilities/ag-ui-usage'
+import {
+  tanstackMetadata,
+  withTanstackMetadata,
+} from './utilities/merge-metadata'
+import { normalizeStreamChunk } from './utilities/normalize-stream-chunk'
+import { isSpecTopLevelKey } from './utilities/spec-event-keys'
 
 /**
- * Strip only the deprecated nested `error` object from RUN_ERROR events.
- * The flat `message`/`code` fields are the spec-compliant form.
- *
- * All other fields pass through unchanged. @ag-ui/core's BaseEventSchema
- * uses `.passthrough()`, so extra fields (model, content, usage,
- * finishReason, toolName, stepId, etc.) are allowed and won't break
- * spec validation or verifyEvents.
+ * Delete unknown top-level keys from a stream chunk.
+ * Keep only AG-UI spec keys for this event type.
+ * Convert TanStack TokenUsage objects to the spec `usage[]` array.
  */
-export function stripToSpec(chunk: StreamChunk): StreamChunk {
-  // Only strip the deprecated nested error object from RUN_ERROR.
-  if (chunk.type === 'RUN_ERROR' && 'error' in chunk) {
-    const { error: _deprecated, ...rest } = chunk
-    return rest
+export function stripToSpec(
+  chunk: StreamChunk | AdapterYieldChunk,
+): StreamChunk {
+  const out: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(chunk)) {
+    if (isSpecTopLevelKey(chunk.type, key) && value !== undefined) {
+      out[key] = value
+    }
   }
-  return chunk
+
+  if (
+    (chunk.type === EventType.RUN_FINISHED ||
+      chunk.type === EventType.RUN_ERROR) &&
+    isTanstackUsage(out.usage)
+  ) {
+    const model = tanstackMetadata(chunk)?.model
+    const { usage, leftover } = toSpecTokenUsage(out.usage, {
+      model: typeof model === 'string' ? model : undefined,
+    })
+    out.usage = usage
+    if (leftover !== undefined) {
+      return withTanstackMetadata(out as StreamChunk, {
+        usage: leftover,
+      }) as StreamChunk
+    }
+  }
+
+  return out as StreamChunk
 }
 
 /**
- * Middleware that ensures events are AG-UI spec compliant.
- * Currently only strips the deprecated nested `error` object from RUN_ERROR.
- * All other fields pass through unchanged (passthrough allowed by spec).
+ * Move TanStack extras into `metadata.tanstack`, then keep only spec keys.
+ * Custom servers that skip `chat()` still round-trip `finishReason` on SSE/HTTP/WS.
+ * Fan-out extras (encrypted-value, TOOL_CALL_RESULT) stay on the `chat()` path;
+ * this encoder is 1:1 with the durability log offset.
  */
-export function stripToSpecMiddleware(): ChatMiddleware {
-  return {
-    name: 'strip-to-spec',
-    onChunk(_ctx, chunk) {
-      return stripToSpec(chunk)
-    },
-  }
+export function toWireChunk(
+  chunk: StreamChunk | AdapterYieldChunk,
+): StreamChunk {
+  const [normalized] = normalizeStreamChunk(chunk)
+  return stripToSpec(normalized ?? chunk)
 }

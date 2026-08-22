@@ -20,7 +20,7 @@ import type {
   ContentPartSource,
   Modality,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type {
@@ -155,7 +155,7 @@ export class BytePlusTextAdapter<
       messageId: string
       hasEmittedRunStarted: boolean
     },
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const captured: { encryptedContent?: string } = {}
 
     for await (const event of super.processStreamChunks(
@@ -328,7 +328,7 @@ export class BytePlusTextAdapter<
 
   override async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const unsupported = this.structuredOutputUnsupportedMessage()
     if (unsupported) {
       // Mirror the base's contract: failures inside structuredOutputStream

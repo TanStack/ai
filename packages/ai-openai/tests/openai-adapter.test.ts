@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { chat, type Tool, type StreamChunk } from '@tanstack/ai'
+import { chat, type AdapterYieldChunk, type Tool } from '@tanstack/ai'
 import { OpenAITextAdapter } from '../src/adapters/text'
 import type { OpenAITextProviderOptions } from '../src/adapters/text'
 
@@ -84,7 +84,7 @@ describe('OpenAI adapter option mapping', () => {
       max_output_tokens: 1024,
     }
 
-    const chunks: StreamChunk[] = []
+    const chunks: AdapterYieldChunk[] = []
     for await (const chunk of chat({
       adapter,
       systemPrompts: ['Stay concise'],
