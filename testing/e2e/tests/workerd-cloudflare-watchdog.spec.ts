@@ -1,3 +1,8 @@
+/**
+ * Exempt from the aimock policy: the harness overrides `buildRunStream` with a
+ * local never-resolving stream and never reaches an LLM provider's HTTP layer,
+ * so there is nothing to mock.
+ */
 import { fileURLToPath } from 'node:url'
 import { expect, test } from '@playwright/test'
 import { Miniflare } from 'miniflare'
@@ -29,7 +34,6 @@ export class TestCoordinator extends SandboxCoordinator {
       const result = await this.startRun({
         runId: RUN_ID, threadId: 'thread-e2e', messages: [],
       })
-      await this.ctx.storage.setAlarm(Date.now() + Number(this.env.STALL_TIMEOUT_MS) * 2)
       return this.jsonResponse(result)
     }
     if (parts[0] === 'state') {

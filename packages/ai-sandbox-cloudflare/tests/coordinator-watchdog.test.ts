@@ -74,6 +74,18 @@ describe('SandboxCoordinator watchdog', () => {
     expect(fixture.storage.alarm).toBeNull()
   })
 
+  it('schedules the next check within a sub-30s stall timeout', async () => {
+    const startedAt = 100
+    vi.spyOn(Date, 'now').mockReturnValue(startedAt)
+    const fixture = fakeCoordinatorState()
+    const coordinator = new TestCoordinator(fixture.state, 1_000)
+    await coordinator.open({ runId: 'run-1', threadId: 'thread-1' })
+
+    await fixture.invokeAlarm(coordinator)
+
+    expect(fixture.storage.alarm).toBe(startedAt + 1_000)
+  })
+
   it('fails closed when arming cannot persist an alarm', async () => {
     const fixture = fakeCoordinatorState()
     const coordinator = new TestCoordinator(fixture.state)

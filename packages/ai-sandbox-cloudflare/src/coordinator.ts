@@ -36,7 +36,7 @@ import { DurableObjectRunEventLog } from './run-log-do'
 import type { ModelMessage, StreamChunk } from '@tanstack/ai'
 import type { RunLogRecord } from './run-log'
 
-/** Re-arm window for the liveness watchdog while a run is in flight (ms). */
+/** Upper bound on the watchdog check interval while a run is in flight (ms). */
 const WATCHDOG_MS = 30_000
 
 /** Default permitted period without persisted run activity (ms). */
@@ -378,7 +378,7 @@ export abstract class SandboxCoordinator<
   /** Arm without allowing a new run to postpone an earlier pending check. */
   private async armWatchdog(): Promise<void> {
     if (this.stallTimeoutMs === false) return
-    const next = Date.now() + WATCHDOG_MS
+    const next = Date.now() + Math.min(WATCHDOG_MS, this.stallTimeoutMs)
     const pending = await this.ctx.storage.getAlarm()
     if (pending === null || pending > next) {
       await this.ctx.storage.setAlarm(next)
