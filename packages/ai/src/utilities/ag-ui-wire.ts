@@ -60,12 +60,16 @@ export type WireMessage =
  * `name`, `content`, `toolCalls`, `metadata`). Tool results and thinking parts
  * on assistant messages are additionally emitted as fan-out
  * `{role:'tool',...}` and `{role:'reasoning',...}` entries for strict AG-UI
- * server consumers.
+ * server consumers. Set `includeSnapshotStructuredOutput` to retain complete
+ * structured-output metadata for UI snapshots.
  */
 export function uiMessagesToWire(
   messages: Array<UIMessage | ModelMessage>,
+  options?: { includeSnapshotStructuredOutput: boolean },
 ): Array<WireMessage> {
   const wire: Array<WireMessage> = []
+  const includeSnapshotStructuredOutput =
+    options?.includeSnapshotStructuredOutput ?? false
 
   for (const msg of messages) {
     if (!('parts' in msg) && msg.role === 'tool' && msg.toolCallId) {
@@ -96,6 +100,7 @@ export function uiMessagesToWire(
                 : ((msg as { content?: string }).content ?? ''),
           },
           parts,
+          includeSnapshotStructuredOutput,
         ),
       )
       continue
@@ -112,6 +117,7 @@ export function uiMessagesToWire(
                 : ((msg as { content?: string }).content ?? ''),
           },
           parts,
+          includeSnapshotStructuredOutput,
         ),
       )
       continue
@@ -142,6 +148,7 @@ export function uiMessagesToWire(
           ...(toolCalls && { toolCalls }),
         },
         parts,
+        includeSnapshotStructuredOutput,
       ),
     )
 
@@ -171,8 +178,13 @@ function toAnchor(
     toolCalls?: Array<AGUIToolCallMirror>
   },
   parts: ReadonlyArray<MessagePart>,
+  includeSnapshotStructuredOutput: boolean,
 ): WireAnchorMessage {
-  const metadata = messageMetadata(msg, parts)
+  const metadata = messageMetadata(
+    msg,
+    parts,
+    includeSnapshotStructuredOutput,
+  )
   const name = (msg as { name?: string }).name
   return {
     id: msg.id,
@@ -186,13 +198,17 @@ function toAnchor(
 function messageMetadata(
   msg: UIMessage,
   parts: ReadonlyArray<MessagePart>,
+  includeSnapshotStructuredOutput: boolean,
 ): MetadataRecord | undefined {
   const base: MetadataRecord = { ...(msg.metadata ?? {}) }
   const tanstack: MetadataRecord = { ...(tanstackMetadata(msg) ?? {}) }
   if (msg.createdAt) tanstack.createdAt = msg.createdAt.toISOString()
 
-  const leftover = unfinishedStructuredOutput(parts)
-  if (leftover) tanstack.structuredOutput = leftover
+  const structuredOutput = serializedStructuredOutput(
+    parts,
+    includeSnapshotStructuredOutput,
+  )
+  if (structuredOutput) tanstack.structuredOutput = structuredOutput
 
   const toolCallMetadata: Record<string, unknown> = {}
   for (const part of parts) {
@@ -213,23 +229,37 @@ function messageMetadata(
   return Object.keys(base).length > 0 ? base : undefined
 }
 
-function unfinishedStructuredOutput(
+function serializedStructuredOutput(
   parts: ReadonlyArray<MessagePart>,
+  includeSnapshotStructuredOutput: boolean,
 ): TanStackMessageMetadata['structuredOutput'] | undefined {
   for (const p of parts) {
-    if (p.type === 'structured-output' && p.status !== 'complete') {
-      return structuredOutputLeftover(p)
+    if (
+      p.type === 'structured-output' &&
+      (includeSnapshotStructuredOutput || p.status !== 'complete')
+    ) {
+      return structuredOutputMetadata(p, includeSnapshotStructuredOutput)
     }
   }
   return undefined
 }
 
-function structuredOutputLeftover(
+function structuredOutputMetadata(
   part: StructuredOutputPart,
+  includeSnapshotStructuredOutput: boolean,
 ): NonNullable<TanStackMessageMetadata['structuredOutput']> {
   return {
     status: part.status,
     raw: part.raw,
+    ...(includeSnapshotStructuredOutput && part.partial !== undefined
+      ? { partial: part.partial }
+      : {}),
+    ...(includeSnapshotStructuredOutput && part.data !== undefined
+      ? { data: part.data }
+      : {}),
+    ...(includeSnapshotStructuredOutput && part.reasoning
+      ? { reasoning: part.reasoning }
+      : {}),
     ...(part.errorMessage !== undefined && { errorMessage: part.errorMessage }),
   }
 }

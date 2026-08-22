@@ -7,10 +7,12 @@ import type {
   MessagePart,
   ModelMessage,
   StructuredOutputPart,
+  TanStackMessageMetadata,
   TextPart,
   ToolCall,
   ToolCallPart,
   UIMessage,
+  UIResourcePart,
 } from '../../types'
 // ===========================
 // Message Converters
@@ -663,7 +665,11 @@ export function aguiSnapshotMessageToUIMessage(
         parts: aguiUserContentToParts(message.content),
       })
     case 'assistant': {
-      const toolCallMetadata = tanstackMetadata(message)?.toolCallMetadata
+      const metadata = tanstackMetadata(message)
+      const toolCallMetadata = metadata?.toolCallMetadata
+      const structuredOutput = snapshotStructuredOutput(
+        metadata?.structuredOutput,
+      )
       const toolCalls = message.toolCalls?.map((toolCall) => {
         const metadata =
           toolCallMetadata != null && typeof toolCallMetadata === 'object'
@@ -678,6 +684,7 @@ export function aguiSnapshotMessageToUIMessage(
             role: 'assistant',
             content: message.content ?? null,
             ...(toolCalls && { toolCalls }),
+            ...(structuredOutput && { structuredOutput }),
           },
           id,
         ),
@@ -739,10 +746,52 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
   if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return ui
   const metadata = raw as NonNullable<UIMessage['metadata']>
   const createdAt = createdAtFromMetadata(metadata)
+  const uiResources = tanstackMetadata(metadata)?.uiResources
+  const resources = Array.isArray(uiResources)
+    ? uiResources.filter(
+        (part): part is UIResourcePart =>
+          part != null &&
+          typeof part === 'object' &&
+          part.type === 'ui-resource',
+      )
+    : []
   return {
     ...ui,
+    ...(resources.length > 0
+      ? {
+          parts: [
+            ...ui.parts,
+            ...resources.filter((resource) => !ui.parts.includes(resource)),
+          ],
+        }
+      : {}),
     metadata,
     ...(createdAt !== undefined ? { createdAt } : {}),
+  }
+}
+
+function snapshotStructuredOutput(
+  value: TanStackMessageMetadata['structuredOutput'],
+): StructuredOutputPart | undefined {
+  if (
+    value == null ||
+    (value.status !== 'streaming' &&
+      value.status !== 'complete' &&
+      value.status !== 'error') ||
+    typeof value.raw !== 'string'
+  ) {
+    return undefined
+  }
+  return {
+    type: 'structured-output',
+    status: value.status,
+    raw: value.raw,
+    ...(value.partial !== undefined ? { partial: value.partial } : {}),
+    ...(value.data !== undefined ? { data: value.data } : {}),
+    ...(value.reasoning ? { reasoning: value.reasoning } : {}),
+    ...(value.errorMessage !== undefined
+      ? { errorMessage: value.errorMessage }
+      : {}),
   }
 }
 

@@ -526,7 +526,10 @@ export interface TanStackMessageMetadata {
   toolCallMetadata?: Record<string, unknown>
   structuredOutput?: {
     status?: 'streaming' | 'complete' | 'error'
+    partial?: unknown
+    data?: unknown
     raw?: string
+    reasoning?: string
     errorMessage?: string
   }
   uiResources?: Array<UIResourcePart>

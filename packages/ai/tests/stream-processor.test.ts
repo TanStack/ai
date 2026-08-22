@@ -430,6 +430,54 @@ describe('StreamProcessor', () => {
       expect(assistant!.createdAt?.toISOString()).toBe(createdAtIso)
     })
 
+    it('MESSAGES_SNAPSHOT restores structured-output and ui-resource parts', () => {
+      const processor = new StreamProcessor()
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/todos',
+          mimeType: 'text/html',
+          text: '<div>todos</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getTodos',
+      }
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: '{"ok":true}',
+              metadata: {
+                tanstack: {
+                  structuredOutput: {
+                    status: 'complete',
+                    raw: '{"ok":true}',
+                    partial: { ok: true },
+                    data: { ok: true },
+                  },
+                  uiResources: [uiResource],
+                },
+              },
+            },
+          ],
+        }),
+      )
+
+      expect(processor.getMessages()[0]?.parts).toEqual([
+        {
+          type: 'structured-output',
+          status: 'complete',
+          raw: '{"ok":true}',
+          partial: { ok: true },
+          data: { ok: true },
+        },
+        uiResource,
+      ])
+    })
+
     it('snapshot that omits user metadata keeps in-memory user metadata', () => {
       const processor = new StreamProcessor()
       processor.addUserMessage('Hello', 'u1', {

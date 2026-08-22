@@ -592,4 +592,42 @@ describe('uiMessagesToWire', () => {
       metadata: { tanstack: { uiResources: [uiResource] } },
     })
   })
+
+  it('stores complete structured-output state in snapshot metadata', () => {
+    const wire = uiMessagesToWire(
+      [
+        {
+          id: 'a1',
+          role: 'assistant',
+          parts: [
+            {
+              type: 'structured-output',
+              status: 'complete',
+              raw: '{"ok":true}',
+              partial: { ok: true },
+              data: { ok: true },
+              reasoning: 'Checked the result',
+            },
+          ],
+        },
+      ],
+      { includeSnapshotStructuredOutput: true },
+    )
+
+    expect(wire[0]).toMatchObject({
+      role: 'assistant',
+      content: '{"ok":true}',
+      metadata: {
+        tanstack: {
+          structuredOutput: {
+            status: 'complete',
+            raw: '{"ok":true}',
+            partial: { ok: true },
+            data: { ok: true },
+            reasoning: 'Checked the result',
+          },
+        },
+      },
+    })
+  })
 })
