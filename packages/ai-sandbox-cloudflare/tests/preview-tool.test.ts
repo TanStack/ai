@@ -61,8 +61,8 @@ function makeTool() {
 
 beforeEach(() => {
   getSandboxMock.mockClear()
-  // mockReset drops leftover `mockResolvedValueOnce` queues, then happy-path
-  // defaults; individual tests override the failing leg.
+  // mockReset, not mockClear: leftover `mockResolvedValueOnce` queues from one
+  // test would leak into the next.
   containerFetchMock.mockReset().mockResolvedValue(http(200))
   tunnelGetMock.mockReset().mockResolvedValue({ url: OLD_URL })
   tunnelDestroyMock.mockReset().mockResolvedValue(undefined)

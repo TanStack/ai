@@ -83,8 +83,8 @@ async function localProbe(
   sandbox: Sandbox,
   port: number,
 ): Promise<number | string> {
-  // ponytail: race instead of AbortSignal — a signal doesn't serialize across the
-  // sandbox RPC boundary, and a lost in-flight probe response is harmless.
+  // A race instead of AbortSignal: signals don't serialize across the sandbox
+  // RPC boundary, and a lost in-flight probe response is harmless.
   let timeoutId: ReturnType<typeof setTimeout> | undefined
   const timeout = new Promise<never>((_, reject) => {
     timeoutId = setTimeout(
@@ -111,10 +111,10 @@ async function localProbe(
  * unreachable (401/403/404 prove the server answered, and `redirect: 'manual'`
  * keeps a login redirect from probing some other site), and even those are
  * trusted when the app answered the SAME status locally, so an app's own
- * 502/530 never gets its healthy tunnel destroyed. Success is `null`; repeated
- * failure returns the last symptom plus a verdict: 'stale' when a non-matching
- * 502/530 was actually observed, 'unverified' when only fetch exceptions
- * (timeout/DNS/subrequest failure) occurred.
+ * 502/530 never gets its healthy tunnel destroyed. The verdict split exists
+ * because only an OBSERVED non-matching 502/530 ('stale') is evidence that
+ * justifies destroying the tunnel; fetch exceptions ('unverified') prove
+ * nothing about it — the probe path itself may be what failed.
  */
 async function edgeProbeFailure(
   url: string,
