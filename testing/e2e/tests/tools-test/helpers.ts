@@ -251,6 +251,8 @@ export async function getMetadata(page: Page): Promise<Record<string, string>> {
       isLoading: el.getAttribute('data-is-loading') || '',
       testComplete: el.getAttribute('data-test-complete') || '',
       toolCallCount: el.getAttribute('data-tool-call-count') || '',
+      runStartedCount: el.getAttribute('data-run-started-count') || '',
+      runFinishedCount: el.getAttribute('data-run-finished-count') || '',
       pendingApprovalCount:
         el.getAttribute('data-pending-approval-count') || '',
       completeToolCount: el.getAttribute('data-complete-tool-count') || '',

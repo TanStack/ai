@@ -283,6 +283,11 @@ export const SCENARIO_LIST = [
     label: 'Text Interleaved in Tool Args (Regression #1017)',
     category: 'race',
   },
+  {
+    id: 'invalid-client-tool-retry',
+    label: 'Invalid Client Tool Retry (Regression #1192)',
+    category: 'race',
+  },
 ]
 
 /**
@@ -298,6 +303,7 @@ export function getToolsForScenario(scenario: string) {
 
     case 'client-tool-single':
     case 'client-tool-reasoning':
+    case 'invalid-client-tool-retry':
       return [clientToolDefinitions.show_notification]
 
     case 'server-context':

@@ -602,6 +602,133 @@ describe('chat()', () => {
   // Client tools (no execute)
   // ==========================================================================
   describe('client tools (no execute)', () => {
+    it('emits one outer lifecycle when invalid client-tool input is retried', async () => {
+      const onUsage = vi.fn()
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted('provider-1'),
+            ev.toolStart('call_1', 'showNotification'),
+            ev.toolArgs('call_1', '{"message":42}'),
+            ev.runFinished('tool_calls', 'provider-1', {
+              promptTokens: 10,
+              completionTokens: 2,
+              totalTokens: 12,
+            }),
+          ],
+          [
+            ev.runStarted('provider-2'),
+            ev.toolStart('call_2', 'showNotification'),
+            ev.toolArgs('call_2', '{"message":"done"}'),
+            ev.runFinished('tool_calls', 'provider-2', {
+              promptTokens: 15,
+              completionTokens: 3,
+              totalTokens: 18,
+            }),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Notify me' }],
+          tools: [
+            {
+              name: 'showNotification',
+              description: 'Show a notification',
+              inputSchema: z.object({ message: z.string() }),
+            },
+          ],
+          middleware: [{ name: 'capture-usage', onUsage }],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(calls).toHaveLength(2)
+      expect(onUsage).toHaveBeenCalledTimes(2)
+      expect(
+        chunks.filter(
+          (chunk) =>
+            chunk.type === EventType.RUN_STARTED ||
+            chunk.type === EventType.RUN_FINISHED,
+        ),
+      ).toMatchObject([
+        { type: EventType.RUN_STARTED, runId: 'provider-1' },
+        { type: EventType.RUN_FINISHED, runId: 'provider-1' },
+      ])
+      expect(
+        chunks.find(
+          (chunk) =>
+            chunk.type === EventType.TOOL_CALL_RESULT &&
+            chunk.toolCallId === 'call_1',
+        ),
+      ).toMatchObject({
+        metadata: { tanstack: { state: 'output-error' } },
+      })
+      expect(expectSingleRunFinished(chunks).outcome).toMatchObject({
+        type: 'interrupt',
+        interrupts: [{ toolCallId: 'call_2' }],
+      })
+    })
+
+    it('keeps the outer lifecycle identity when a retry fails', async () => {
+      const { adapter, calls } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted('provider-1', 'thread-1'),
+            ev.toolStart('call_1', 'showNotification'),
+            ev.toolArgs('call_1', '{"message":42}'),
+            ev.runFinished('tool_calls', 'provider-1', undefined, 'thread-1'),
+          ],
+          [
+            ev.runStarted('provider-2', 'thread-2'),
+            {
+              ...ev.runError('provider failed'),
+              runId: 'provider-2',
+              threadId: 'thread-2',
+            },
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'Notify me' }],
+          tools: [
+            {
+              name: 'showNotification',
+              description: 'Show a notification',
+              inputSchema: z.object({ message: z.string() }),
+            },
+          ],
+        }) as AsyncIterable<StreamChunk>,
+      )
+
+      expect(calls).toHaveLength(2)
+      expect(
+        chunks.filter(
+          (chunk) =>
+            chunk.type === EventType.RUN_STARTED ||
+            chunk.type === EventType.RUN_ERROR,
+        ),
+      ).toMatchObject([
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'provider-1',
+          threadId: 'thread-1',
+        },
+        {
+          type: EventType.RUN_ERROR,
+          runId: 'provider-1',
+          threadId: 'thread-1',
+          metadata: {
+            tanstack: { runId: 'provider-1', threadId: 'thread-1' },
+          },
+        },
+      ])
+    })
+
     it('emits an actionable client-tool interrupt without persistence', async () => {
       const { adapter } = createMockAdapter({
         iterations: [

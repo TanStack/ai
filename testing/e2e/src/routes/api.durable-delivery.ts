@@ -26,8 +26,8 @@ import type { StreamChunk } from '@tanstack/ai'
  */
 // Emits bare TEXT_MESSAGE_CONTENT chunks without TEXT_MESSAGE_START/END
 // bracketing: this harness deliberately exercises raw chunk delivery + resume,
-// not UIMessage reassembly. The durability layer terminalizes on RUN_FINISHED
-// (emitted below), which is all resume/join needs.
+// not UIMessage reassembly. The source ends after RUN_FINISHED (emitted below),
+// then the durability sink closes the log used by resume/join.
 export function fixedRun(
   threadId: string,
   runId: string,
@@ -61,14 +61,10 @@ export function fixedRun(
 }
 
 /**
- * An agent-loop run: one RUN_STARTED/RUN_FINISHED pair PER iteration. The first
- * terminal carries `finishReason: 'tool_calls'` (the model paused to call a
- * tool); the tool result and a second iteration (the real answer) follow, ending
- * on a `'stop'` terminal. This is the shape a tool-calling run takes on the
- * wire, and the case that regressed: a durability sink that ended the log on the
- * FIRST terminal truncated the run at the tool call.
+ * A lower-level stream with two terminal chunks. The durability sink must keep
+ * delivering until the producer closes instead of ending at the first terminal.
  */
-function agentLoopRun(
+function multiTerminalRun(
   threadId: string,
   runId: string,
 ): AsyncIterable<StreamChunk> {
@@ -98,7 +94,7 @@ function agentLoopRun(
       toolCallId: 'call-1',
       timestamp: now(),
     } as StreamChunk
-    // First per-iteration terminal. A sink that stops here drops everything below.
+    // A sink that stops at this first terminal drops everything below.
     yield {
       type: 'RUN_FINISHED',
       threadId,
@@ -107,7 +103,7 @@ function agentLoopRun(
       finishReason: 'tool_calls',
       timestamp: now(),
     } as StreamChunk
-    // The tool result and the second iteration must survive the first terminal.
+    // The later tool result and reply must survive the first terminal.
     yield {
       type: 'TOOL_CALL_RESULT',
       toolCallId: 'call-1',
@@ -139,9 +135,11 @@ function agentLoopRun(
   })()
 }
 
-function isAgentLoop(request: Request): boolean {
+function isMultiTerminal(request: Request): boolean {
   try {
-    return new URL(request.url).searchParams.get('scenario') === 'agent-loop'
+    return (
+      new URL(request.url).searchParams.get('scenario') === 'multi-terminal'
+    )
   } catch {
     return false
   }
@@ -183,8 +181,8 @@ function durableResponse(
   durability: ReturnType<typeof memoryStream>,
   batch?: number,
 ): Response {
-  const stream = isAgentLoop(request)
-    ? agentLoopRun('thread-durable', runId)
+  const stream = isMultiTerminal(request)
+    ? multiTerminalRun('thread-durable', runId)
     : fixedRun('thread-durable', runId)
   const durabilityOption = { adapter: durability, ...(batch ? { batch } : {}) }
   return isNdjson(request)
