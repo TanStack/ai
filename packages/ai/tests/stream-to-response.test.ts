@@ -122,10 +122,8 @@ describe('toServerSentEventsStream', () => {
       {
         type: 'TOOL_CALL_START',
         toolCallId: 'call-1',
-        toolName: 'getWeather',
-        model: 'test',
+        toolCallName: 'getWeather',
         timestamp: Date.now(),
-        index: 0,
       },
     ]
 
@@ -134,7 +132,8 @@ describe('toServerSentEventsStream', () => {
     const output = await readStream(sseStream)
 
     expect(output).toContain('"type":"TOOL_CALL_START"')
-    expect(output).toContain('"toolName":"getWeather"')
+    expect(output).toContain('"toolCallName":"getWeather"')
+    expect(output).not.toContain('"toolName"')
     expect(output).not.toContain('[DONE]')
   })
 
@@ -143,9 +142,9 @@ describe('toServerSentEventsStream', () => {
       {
         type: 'RUN_FINISHED',
         runId: 'run-1',
-        model: 'test',
+        threadId: 'thread-1',
         timestamp: Date.now(),
-        finishReason: 'stop',
+        metadata: { tanstack: { finishReason: 'stop' } },
       },
     ]
 
@@ -154,6 +153,7 @@ describe('toServerSentEventsStream', () => {
     const output = await readStream(sseStream)
 
     expect(output).toContain('"type":"RUN_FINISHED"')
+    expect(output).toContain('"tanstack"')
     expect(output).toContain('"finishReason":"stop"')
     expect(output).not.toContain('[DONE]')
   })
@@ -162,10 +162,8 @@ describe('toServerSentEventsStream', () => {
     const chunks: Array<Record<string, unknown>> = [
       {
         type: 'RUN_ERROR',
-        runId: 'run-1',
-        model: 'test',
         timestamp: Date.now(),
-        error: { message: 'Test error' },
+        message: 'Test error',
       },
     ]
 
@@ -275,6 +273,7 @@ describe('toServerSentEventsStream', () => {
 
     expect(output).toContain('"type":"RUN_ERROR"')
     expect(output).toContain('"message":"Stream error"')
+    expect(output).not.toContain('"error":')
   })
 
   it('should not send error if aborted', async () => {
@@ -329,17 +328,15 @@ describe('toServerSentEventsStream', () => {
       {
         type: 'TOOL_CALL_START',
         toolCallId: 'call-1',
-        toolName: 'getWeather',
-        model: 'test',
+        toolCallName: 'getWeather',
         timestamp: Date.now(),
-        index: 0,
       },
       {
         type: 'RUN_FINISHED',
         runId: 'run-1',
-        model: 'test',
+        threadId: 'thread-1',
         timestamp: Date.now(),
-        finishReason: 'tool_calls',
+        metadata: { tanstack: { finishReason: 'tool_calls' } },
       },
     ]
 
@@ -552,18 +549,14 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
-        model: 'test-model',
         timestamp: 1234567890,
         delta: 'Hello',
-        content: 'Hello',
       },
       {
         type: 'TEXT_MESSAGE_CONTENT',
         messageId: 'msg-1',
-        model: 'test-model',
         timestamp: 1234567891,
         delta: ' world',
-        content: 'Hello world',
       },
     ]
 
@@ -579,7 +572,8 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
       expect(parsed?.['type']).toBe(original?.['type'])
       expect((parsed as any)?.messageId).toBe((original as any)?.messageId)
       expect((parsed as any)?.delta).toBe((original as any)?.delta)
-      expect((parsed as any)?.content).toBe((original as any)?.content)
+      expect(parsed).not.toHaveProperty('content')
+      expect(parsed).not.toHaveProperty('model')
     }
   })
 
@@ -588,23 +582,18 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
       {
         type: 'TOOL_CALL_START',
         toolCallId: 'tc-1',
-        toolName: 'get_weather',
-        model: 'test',
+        toolCallName: 'get_weather',
         timestamp: Date.now(),
-        index: 0,
       },
       {
         type: 'TOOL_CALL_ARGS',
         toolCallId: 'tc-1',
-        model: 'test',
         timestamp: Date.now(),
         delta: '{"city":"NYC"}',
       },
       {
         type: 'TOOL_CALL_END',
         toolCallId: 'tc-1',
-        toolName: 'get_weather',
-        model: 'test',
         timestamp: Date.now(),
       },
     ]
@@ -617,8 +606,9 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     // Verify TOOL_CALL_START
     expect(parsedChunks[0]?.['type']).toBe('TOOL_CALL_START')
     expect((parsedChunks[0] as any)?.toolCallId).toBe('tc-1')
-    expect((parsedChunks[0] as any)?.toolName).toBe('get_weather')
-    expect((parsedChunks[0] as any)?.index).toBe(0)
+    expect((parsedChunks[0] as any)?.toolCallName).toBe('get_weather')
+    expect(parsedChunks[0]).not.toHaveProperty('toolName')
+    expect(parsedChunks[0]).not.toHaveProperty('index')
 
     // Verify TOOL_CALL_ARGS
     expect(parsedChunks[1]?.['type']).toBe('TOOL_CALL_ARGS')
@@ -635,15 +625,15 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
       {
         type: 'RUN_STARTED',
         runId: 'run-1',
-        model: 'test',
+        threadId: 'thread-1',
         timestamp: Date.now(),
       },
       {
         type: 'RUN_FINISHED',
         runId: 'run-1',
-        model: 'test',
+        threadId: 'thread-1',
         timestamp: Date.now(),
-        finishReason: 'stop',
+        metadata: { tanstack: { finishReason: 'stop' } },
       },
     ]
 
@@ -656,17 +646,19 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     expect((parsedChunks[0] as any)?.runId).toBe('run-1')
 
     expect(parsedChunks[1]?.['type']).toBe('RUN_FINISHED')
-    expect((parsedChunks[1] as any)?.finishReason).toBe('stop')
+    expect(parsedChunks[1]).not.toHaveProperty('finishReason')
+    expect((parsedChunks[1] as any)?.metadata?.tanstack?.finishReason).toBe(
+      'stop',
+    )
   })
 
   it('should preserve RUN_ERROR events', async () => {
     const originalChunks: Array<Record<string, unknown>> = [
       {
         type: 'RUN_ERROR',
-        runId: 'run-1',
-        model: 'test',
         timestamp: Date.now(),
-        error: { message: 'Something went wrong', code: 'TEST_ERROR' },
+        message: 'Something went wrong',
+        code: 'TEST_ERROR',
       },
     ]
 
@@ -675,27 +667,22 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
 
     expect(parsedChunks.length).toBe(1)
     expect(parsedChunks[0]?.['type']).toBe('RUN_ERROR')
-    expect((parsedChunks[0] as any)?.error?.message).toBe(
-      'Something went wrong',
-    )
-    expect((parsedChunks[0] as any)?.error?.code).toBe('TEST_ERROR')
+    expect((parsedChunks[0] as any)?.message).toBe('Something went wrong')
+    expect((parsedChunks[0] as any)?.code).toBe('TEST_ERROR')
+    expect(parsedChunks[0]).not.toHaveProperty('error')
   })
 
   it('should preserve STEP_FINISHED events (thinking)', async () => {
     const originalChunks: Array<Record<string, unknown>> = [
       {
         type: 'STEP_STARTED',
-        stepId: 'step-1',
-        model: 'test',
+        stepName: 'step-1',
         timestamp: Date.now(),
       },
       {
         type: 'STEP_FINISHED',
-        stepId: 'step-1',
-        model: 'test',
+        stepName: 'step-1',
         timestamp: Date.now(),
-        delta: 'Let me think...',
-        content: 'Let me think...',
       },
     ]
 
@@ -705,10 +692,11 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
     expect(parsedChunks.length).toBe(2)
 
     expect(parsedChunks[0]?.['type']).toBe('STEP_STARTED')
-    expect((parsedChunks[0] as any)?.stepId).toBe('step-1')
+    expect((parsedChunks[0] as any)?.stepName).toBe('step-1')
 
     expect(parsedChunks[1]?.['type']).toBe('STEP_FINISHED')
-    expect((parsedChunks[1] as any)?.delta).toBe('Let me think...')
+    expect((parsedChunks[1] as any)?.stepName).toBe('step-1')
+    expect(parsedChunks[1]).not.toHaveProperty('delta')
   })
 
   it('should preserve CUSTOM events', async () => {
@@ -819,23 +807,18 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
       {
         type: 'TOOL_CALL_START',
         toolCallId: 'tc-1',
-        toolName: 'search',
-        model: 'test',
+        toolCallName: 'search',
         timestamp: Date.now(),
-        index: 0,
       },
       {
         type: 'TOOL_CALL_ARGS',
         toolCallId: 'tc-1',
-        model: 'test',
         timestamp: Date.now(),
         delta: '{"query":"test"}',
       },
       {
         type: 'TOOL_CALL_END',
         toolCallId: 'tc-1',
-        toolName: 'search',
-        model: 'test',
         timestamp: Date.now(),
       },
       {
@@ -852,9 +835,9 @@ describe('SSE Round-Trip (Encode → Decode)', () => {
       {
         type: 'RUN_FINISHED',
         runId: 'run-1',
-        model: 'test',
+        threadId: 'thread-1',
         timestamp: Date.now(),
-        finishReason: 'tool_calls',
+        metadata: { tanstack: { finishReason: 'tool_calls' } },
       },
     ]
 

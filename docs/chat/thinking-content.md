@@ -16,11 +16,11 @@ keywords:
 
 Some models expose their internal reasoning as "thinking" content -- Claude with extended thinking, OpenAI o-series models with reasoning, and others. TanStack AI captures this as `ThinkingPart` in messages, streamed to your UI in real-time alongside text and tool calls.
 
-Unsigned thinking stays in the UI. Signed thinking is a `ThinkingPart` with a `signature`. Anthropic extended thinking uses this. The next request sends signed thinking back in the same order as the original response, including around provider-executed tools.
+Unsigned thinking stays in the UI. Signed thinking is a `ThinkingPart` with a `signature`. Anthropic extended thinking uses this. The next request sends signed thinking back in the same order as the original response, including around provider-executed tools. The next-turn body puts that signature on spec `encryptedValue` on the `role: "reasoning"` fan-out. Stream events use `REASONING_ENCRYPTED_VALUE`.
 
 ## How It Works
 
-When a model emits reasoning tokens, the adapter emits AG-UI events for them. Adapters emit `REASONING_MESSAGE_*` events (the preferred, canonical form) **and** the older `STEP_STARTED` / `STEP_FINISHED` events. The stream processor reconciles both into a single `ThinkingPart` on the assistant's `UIMessage`, deduplicating overlapping content. You should rely on the `ThinkingPart` in `message.parts` rather than hand-parsing the raw events:
+Read the `ThinkingPart` in `message.parts`. Thinking content comes from `REASONING_*` events and from `REASONING_ENCRYPTED_VALUE`. `STEP_STARTED` and `STEP_FINISHED` only carry `stepName`.
 
 ```typescript
 interface ThinkingPart {
@@ -142,12 +142,14 @@ Thinking content streams **before** the final text response. As reasoning tokens
 
 The typical streaming order is:
 
-1. The reasoning block begins (`REASONING_MESSAGE_START`, plus a legacy `STEP_STARTED`)
-2. Reasoning tokens stream in (`REASONING_MESSAGE_CONTENT`, plus legacy `STEP_FINISHED` events), accumulating into `ThinkingPart.content`
-3. `TEXT_MESSAGE_START` -- the model begins its visible response
-4. `TEXT_MESSAGE_CONTENT` (repeated) -- the response text streams in
+1. Reasoning starts (`REASONING_START` / `REASONING_MESSAGE_START`). Encrypted blobs use `REASONING_ENCRYPTED_VALUE`.
+2. Reasoning tokens stream in (`REASONING_MESSAGE_CONTENT`) and accumulate into `ThinkingPart.content`.
+3. `TEXT_MESSAGE_START` starts the visible response.
+4. `TEXT_MESSAGE_CONTENT` streams the response text.
 
-Adapters emit both the canonical `REASONING_MESSAGE_*` events and the older `STEP_*` events; the stream processor reconciles them into one `ThinkingPart` so you never have to hand-parse the raw events. If you use `useChat` from `@tanstack/ai-react` (or the Solid/Vue/Svelte equivalents), your `messages` array updates automatically with both thinking and text parts as they arrive.
+`STEP_STARTED` and `STEP_FINISHED` only carry `stepName`. They do not carry thinking text.
+
+If you use `useChat` from `@tanstack/ai-react` (or the Solid/Vue/Svelte equivalents), your `messages` array updates with both thinking and text parts as they arrive.
 
 ## Next Steps
 

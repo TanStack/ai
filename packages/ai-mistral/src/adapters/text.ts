@@ -12,7 +12,7 @@ import type {
   ContentPart,
   Modality,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type {
@@ -44,7 +44,7 @@ import type { ToolInputNormalizer } from '../utils/tool-input-normalizer'
  *  literal types which are structurally compatible with the EventType enum. */
 const asChunk = (chunk: Record<string, unknown>) =>
   // oxlint-disable-next-line eslint-js/no-restricted-syntax -- Record<string, unknown> doesn't structurally overlap the StreamChunk discriminated union; events are built with literal `type` fields the union accepts at runtime
-  chunk as unknown as StreamChunk
+  chunk as unknown as AdapterYieldChunk
 
 /**
  * Parse the accumulated streaming arguments for a tool call. Throws a clear
@@ -190,7 +190,7 @@ export class MistralTextAdapter<
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const requestParams = this.mapTextOptionsToMistral(options)
     const timestamp = Date.now()
 
@@ -306,7 +306,7 @@ export class MistralTextAdapter<
       timestamp: number
       hasEmittedRunStarted: boolean
     },
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     let accumulatedContent = ''
     const timestamp = aguiState.timestamp
     let hasEmittedTextMessageStart = false
@@ -1067,9 +1067,9 @@ export class MistralTextAdapter<
    * Normalizes message content to an array of ContentPart.
    */
   private normalizeContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null) return []
+    if (content === null || content === undefined) return []
     if (typeof content === 'string') return [{ type: 'text', content }]
     return content
   }
@@ -1078,9 +1078,9 @@ export class MistralTextAdapter<
    * Extracts text content from a content value that may be string, null, or ContentPart array.
    */
   private extractTextContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null) return ''
+    if (content === null || content === undefined) return ''
     if (typeof content === 'string') return content
     return content
       .filter((p) => p.type === 'text')

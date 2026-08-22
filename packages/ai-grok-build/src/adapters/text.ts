@@ -62,7 +62,7 @@ import type {
 import type {
   DefaultMessageMetadataByModality,
   Modality,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type { GrokBuildModel } from '../model-meta'
@@ -232,7 +232,7 @@ export class GrokBuildTextAdapter<
 
   async *chatStream(
     options: TextOptions<GrokBuildTextProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     if (this.protocol(options) === 'streaming-json') {
       yield* this.chatStreamNdjson(options)
       return
@@ -242,7 +242,7 @@ export class GrokBuildTextAdapter<
 
   private async *chatStreamAcp(
     options: TextOptions<GrokBuildTextProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     let handle: AcpSessionHandle | undefined
     let bridge: HostToolBridge | undefined
@@ -454,7 +454,7 @@ export class GrokBuildTextAdapter<
       const wantsStructured = options.outputSchema !== undefined
       let lastAssistantText = ''
       let lastTextMessageId: string | undefined
-      let heldFinished: StreamChunk | undefined
+      let heldFinished: AdapterYieldChunk | undefined
       for await (const chunk of mergeChunkStreams(
         translateAcpStream(queue, {
           model: this.model,
@@ -551,7 +551,7 @@ export class GrokBuildTextAdapter<
     threadId: string,
     runId: string,
     messageId = this.generateId(),
-  ): Generator<StreamChunk> {
+  ): Generator<AdapterYieldChunk> {
     try {
       const object = parseJsonFromAssistantText(raw)
       yield structuredOutputStartChunk({
@@ -588,7 +588,7 @@ export class GrokBuildTextAdapter<
     cwd: string,
     threadId: string,
     runId: string,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     try {
       const diff = await sandbox.process.exec(`git -C ${q(cwd)} diff`, { cwd })
       if (diff.exitCode === 0 && diff.stdout.trim() !== '') {
@@ -608,7 +608,7 @@ export class GrokBuildTextAdapter<
 
   private async *chatStreamNdjson(
     options: TextOptions<GrokBuildTextProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     let bridge: HostToolBridge | undefined
     try {

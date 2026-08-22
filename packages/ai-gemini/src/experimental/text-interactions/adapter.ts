@@ -26,7 +26,7 @@ import type {
   ContentPart,
   Modality,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
   Tool,
 } from '@tanstack/ai'
@@ -208,7 +208,7 @@ export class GeminiTextInteractionsAdapter<
 
   async *chatStream(
     options: TextOptions<GeminiTextInteractionsProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const runId = options.runId ?? generateId(this.name)
     const threadId = options.threadId ?? generateId(this.name)
     const timestamp = Date.now()
@@ -931,7 +931,7 @@ async function* translateInteractionEvents(
   timestamp: number,
   adapterName: string,
   logger: InternalLogger,
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   const messageId = generateId(adapterName)
   let hasEmittedRunStarted = false
   let hasEmittedTextMessageStart = false
@@ -956,7 +956,7 @@ async function* translateInteractionEvents(
   // fragment isn't yet syntactically complete.
   const argStringByToolCallId = new Map<string, string>()
 
-  const closeReasoningIfNeeded = function* (): Generator<StreamChunk> {
+  const closeReasoningIfNeeded = function* (): Generator<AdapterYieldChunk> {
     if (reasoningMessageId && !hasClosedReasoning) {
       hasClosedReasoning = true
       yield {
@@ -986,7 +986,7 @@ async function* translateInteractionEvents(
   // (`error` SSE event + premature EOF) so the StreamProcessor never
   // sees orphan TEXT_MESSAGE_START / TOOL_CALL_START / REASONING_*
   // events on RUN_ERROR.
-  const closeOpenState = function* (): Generator<StreamChunk> {
+  const closeOpenState = function* (): Generator<AdapterYieldChunk> {
     yield* closeReasoningIfNeeded()
     for (const [toolCallId, state] of toolCalls) {
       if (state.ended) continue
@@ -1011,7 +1011,7 @@ async function* translateInteractionEvents(
     }
   }
 
-  const emitRunStartedIfNeeded = function* (): Generator<StreamChunk> {
+  const emitRunStartedIfNeeded = function* (): Generator<AdapterYieldChunk> {
     if (!hasEmittedRunStarted) {
       hasEmittedRunStarted = true
       yield {

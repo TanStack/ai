@@ -12,6 +12,7 @@ import { chat } from '../src/activities/chat/index'
 import { createMockAdapter, ev } from './test-utils'
 import type { StreamDurability } from '../src/stream-durability'
 import type { StreamChunk } from '../src/types'
+import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 
 function fiveChunkStream(): {
   stream: AsyncIterable<StreamChunk>
@@ -495,7 +496,7 @@ describe('toHttpResponse with durability', () => {
   })
 })
 
-function runFinished(): StreamChunk {
+function runFinished(): AdapterYieldChunk {
   return {
     type: EventType.RUN_FINISHED,
     threadId: 't',

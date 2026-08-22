@@ -37,7 +37,7 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type { AcpSessionHandle } from '../session/acp-client'
@@ -306,7 +306,7 @@ export class AcpCompatibleTextAdapter<
     mode: AcpPermissionMode
     bridgedToolNames: ReadonlySet<string>
     approvals: ReadonlyMap<string, boolean> | undefined
-    approvalRequests: Array<StreamChunk>
+    approvalRequests: Array<AdapterYieldChunk>
     threadId: string
     runId: string
   }): PermissionHandler {
@@ -346,7 +346,7 @@ export class AcpCompatibleTextAdapter<
 
   async *chatStream(
     options: TextOptions<ResolvedOptions<TModelOptions>>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { logger } = options
     let handle: AcpSessionHandle | undefined
     let bridge: HostToolBridge | undefined
@@ -479,7 +479,7 @@ export class AcpCompatibleTextAdapter<
           ? undefined
           : (modelOptions?.authMethodId ?? this.harness.authMethodId)
 
-      const approvalRequests: Array<StreamChunk> = []
+      const approvalRequests: Array<AdapterYieldChunk> = []
       const permissionHandler = this.makePermissionHandler({
         mode,
         bridgedToolNames,
@@ -568,7 +568,7 @@ export class AcpCompatibleTextAdapter<
       const wantsStructured = options.outputSchema !== undefined
       let lastAssistantText = ''
       let lastTextMessageId: string | undefined
-      let heldFinished: StreamChunk | undefined
+      let heldFinished: AdapterYieldChunk | undefined
       for await (const chunk of mergeChunkStreams(
         translateAcpStream(queue, {
           model: this.model,
@@ -692,7 +692,7 @@ export class AcpCompatibleTextAdapter<
     cwd: string,
     threadId: string,
     runId: string,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     try {
       const diff = await sandbox.process.exec(`git -C ${q(cwd)} diff`, { cwd })
       if (diff.exitCode === 0 && diff.stdout.trim() !== '') {
@@ -715,7 +715,7 @@ export class AcpCompatibleTextAdapter<
     threadId: string,
     runId: string,
     messageId = this.generateId(),
-  ): Generator<StreamChunk> {
+  ): Generator<AdapterYieldChunk> {
     try {
       const object = parseJsonFromAssistantText(raw)
       yield structuredOutputStartChunk({

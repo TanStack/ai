@@ -7,6 +7,7 @@ import {
   generateImage,
 } from '@tanstack/ai'
 import type {
+  AdapterYieldChunk,
   AnyTextAdapter,
   GenerationAbortInfo,
   GenerationErrorInfo,
@@ -18,7 +19,7 @@ import { memoryPersistence } from '../src/memory'
 import { withPersistence, withGenerationPersistence } from '../src/middleware'
 import { composePersistence } from '../src/types'
 
-function mockAdapter(iterations: Array<Array<StreamChunk>>) {
+function mockAdapter(iterations: Array<Array<AdapterYieldChunk>>) {
   const calls: Array<unknown> = []
   let i = 0
   const adapter = {

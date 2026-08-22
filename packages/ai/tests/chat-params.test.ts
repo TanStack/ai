@@ -15,7 +15,7 @@ describe('chatParamsFromRequestBody', () => {
         id: 'm1',
         role: 'user',
         content: 'hello',
-        // TanStack canonical (extra) — should pass through untouched
+        // Inbound `parts` from old clients are dropped on ingest.
         parts: [{ type: 'text', content: 'hello' }],
       },
     ],
@@ -57,10 +57,26 @@ describe('chatParamsFromRequestBody', () => {
     expect('cursor' in result).toBe(false)
   })
 
-  it('preserves the `parts` field on messages (AG-UI strip mode tolerates extras in raw JSON)', async () => {
-    const result = await chatParamsFromRequestBody(validBody)
-    const m = result.messages[0] as { parts?: unknown }
-    expect(m.parts).toEqual([{ type: 'text', content: 'hello' }])
+  it('keeps message metadata and drops parts on ingest', async () => {
+    const params = await chatParamsFromRequestBody({
+      threadId: 't1',
+      runId: 'r1',
+      state: {},
+      tools: [],
+      context: [],
+      messages: [
+        {
+          id: 'u1',
+          role: 'user',
+          content: 'hi',
+          parts: [{ type: 'text', content: 'hi' }],
+          metadata: { author: { id: 'user-42' } },
+        },
+      ],
+    })
+    const msg = params.messages[0] as unknown as Record<string, unknown>
+    expect(msg.metadata).toEqual({ author: { id: 'user-42' } })
+    expect(msg).not.toHaveProperty('parts')
   })
 
   it('throws on missing threadId', async () => {
@@ -229,7 +245,7 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
     expect('parts' in result.messages[0]!).toBe(false)
   })
 
-  it('preserves structured-output parts', async () => {
+  it('drops structured-output parts on ingest', async () => {
     const structuredOutput = {
       type: 'structured-output',
       status: 'complete',
@@ -246,7 +262,7 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
         },
       ]),
     )
-    expect(result.messages[0]).toMatchObject({ parts: [structuredOutput] })
+    expect(result.messages[0]).not.toHaveProperty('parts')
   })
 
   it('drops structured-output parts when raw is not a string', async () => {
@@ -351,6 +367,16 @@ describe('chatParamsFromRequestBody — RunAgentInput validation', () => {
         resume: [{ interruptId: 'i1', status: 'cancelled', metadata: 'nope' }],
       }),
     ).rejects.toThrow(/resume\[0\]\.metadata/)
+  })
+
+  it('rejects non-object message metadata', async () => {
+    await expect(
+      chatParamsFromRequestBody(
+        withMessages([
+          { id: 'm1', role: 'user', content: 'hi', metadata: 'nope' },
+        ]),
+      ),
+    ).rejects.toThrow(/messages\[0\]\.metadata/)
   })
 
   it('defaults forwardedProps to {} and rejects a non-object one', async () => {

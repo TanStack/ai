@@ -5,7 +5,7 @@ title: ValidateInterruptResumeBatchInput
 
 # Interface: ValidateInterruptResumeBatchInput
 
-Defined in: [packages/ai/src/interrupt-resume.ts:51](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L51)
+Defined in: [packages/ai/src/interrupt-resume.ts:59](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L59)
 
 ## Properties
 
@@ -15,7 +15,7 @@ Defined in: [packages/ai/src/interrupt-resume.ts:51](https://github.com/TanStack
 generation: number;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:54](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L54)
+Defined in: [packages/ai/src/interrupt-resume.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L62)
 
 ***
 
@@ -25,7 +25,7 @@ Defined in: [packages/ai/src/interrupt-resume.ts:54](https://github.com/TanStack
 interruptedRunId: string;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:53](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L53)
+Defined in: [packages/ai/src/interrupt-resume.ts:61](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L61)
 
 ***
 
@@ -35,7 +35,7 @@ Defined in: [packages/ai/src/interrupt-resume.ts:53](https://github.com/TanStack
 optional now?: number;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:58](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L58)
+Defined in: [packages/ai/src/interrupt-resume.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L66)
 
 ***
 
@@ -45,17 +45,17 @@ Defined in: [packages/ai/src/interrupt-resume.ts:58](https://github.com/TanStack
 pending: readonly PendingInterruptResumeRecord[];
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:55](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L55)
+Defined in: [packages/ai/src/interrupt-resume.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L63)
 
 ***
 
 ### resume?
 
 ```ts
-optional resume?: readonly ResumeEntry[];
+optional resume?: readonly RunAgentResumeItem[];
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:56](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L56)
+Defined in: [packages/ai/src/interrupt-resume.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L64)
 
 ***
 
@@ -65,7 +65,7 @@ Defined in: [packages/ai/src/interrupt-resume.ts:56](https://github.com/TanStack
 threadId: string;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:52](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L52)
+Defined in: [packages/ai/src/interrupt-resume.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L60)
 
 ***
 
@@ -75,4 +75,4 @@ Defined in: [packages/ai/src/interrupt-resume.ts:52](https://github.com/TanStack
 tools: Tool<SchemaInput, SchemaInput, string, unknown>[];
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:57](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L57)
+Defined in: [packages/ai/src/interrupt-resume.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L65)

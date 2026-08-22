@@ -174,7 +174,7 @@
           "label": "Streaming",
           "to": "chat/streaming",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-07-30"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Connection Adapters",
@@ -185,7 +185,8 @@
         {
           "label": "Thinking & Reasoning",
           "to": "chat/thinking-content",
-          "addedAt": "2026-04-15"
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-21"
         }
       ]
     },
@@ -362,10 +363,15 @@
       "label": "Protocol",
       "children": [
         {
+          "label": "Event metadata",
+          "to": "protocol/metadata",
+          "addedAt": "2026-08-21"
+        },
+        {
           "label": "Custom Events Reference",
           "to": "protocol/custom-events",
           "addedAt": "2026-07-03",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-21"
         }
       ]
     },
@@ -389,7 +395,7 @@
           "label": "Streaming UIs",
           "to": "structured-outputs/streaming",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-18"
+          "updatedAt": "2026-08-20"
         },
         {
           "label": "Multi-Turn Chat",
@@ -820,7 +826,7 @@
           "label": "AG-UI Client Compliance",
           "to": "migration/ag-ui-compliance",
           "addedAt": "2026-05-16",
-          "updatedAt": "2026-07-31"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Sampling â†’ modelOptions",
@@ -842,7 +848,7 @@
           "label": "@tanstack/ai-client",
           "to": "api/ai-client",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "@tanstack/ai-react",

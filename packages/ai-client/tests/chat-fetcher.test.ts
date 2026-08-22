@@ -54,7 +54,7 @@ describe('ChatClient — fetcher transport', () => {
           threadId: 't1',
           model: 'test',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         })}`,
         '',
       ].join('\n') + '\n'
@@ -167,7 +167,7 @@ describe('ChatClient — fetcher transport', () => {
         threadId: 't1',
         model: 'test',
         timestamp: Date.now(),
-        finishReason: 'stop',
+        metadata: { tanstack: { finishReason: 'stop' } },
       } as StreamChunk
     })
 

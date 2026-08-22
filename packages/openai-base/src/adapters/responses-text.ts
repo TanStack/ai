@@ -29,7 +29,7 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 
@@ -91,7 +91,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     // Key streamed state by output item ID because argument deltas reference
     // `item_id`. The state separately retains `call_id`, which is the public
     // tool-call ID and the correlation key for function_call_output.
@@ -300,7 +300,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapOptionsToRequest(chatOptions)
 
@@ -327,7 +327,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
     const closeReasoning = function* (this: {
       name: string
-    }): Generator<StreamChunk> {
+    }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId && !hasClosedReasoning) {
         hasClosedReasoning = true
         yield {
@@ -352,12 +352,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             content: accumulatedReasoning,
           }
         }
+        reasoningMessageId = undefined
+        stepId = undefined
+        hasClosedReasoning = false
       }
     }.bind(this)
 
     const openReasoning = function* (this: {
       name: string
-    }): Generator<StreamChunk> {
+    }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId) return
       reasoningMessageId = generateId(this.name)
       stepId = generateId(this.name)
@@ -798,7 +801,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       messageId: string
       hasEmittedRunStarted: boolean
     },
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const normalizeToolInput = createToolInputNormalizer(
       options.tools,
       (schema, required) =>
@@ -817,11 +820,94 @@ export abstract class OpenAIBaseResponsesTextAdapter<
     // AG-UI lifecycle tracking
     let stepId: string | null = null
     let hasEmittedTextMessageStart = false
-    let hasEmittedStepStarted = false
+    let reasoningMessageId: string | undefined
+    let hasClosedReasoning = false
     // Track whether we've emitted a terminal RUN_FINISHED so the
     // end-of-stream fallback below knows to synthesise one when the upstream
     // cuts off without a response.completed event.
     let runFinishedEmitted = false
+
+    const adapterName = this.name
+    const emitModel = () => model || options.model
+
+    const openReasoning = function* (): Generator<AdapterYieldChunk> {
+      if (reasoningMessageId) return
+      reasoningMessageId = generateId(adapterName)
+      stepId = generateId(adapterName)
+      const timestamp = Date.now()
+      const currentModel = emitModel()
+      yield {
+        type: EventType.REASONING_START,
+        messageId: reasoningMessageId,
+        model: currentModel,
+        timestamp,
+      }
+      yield {
+        type: EventType.REASONING_MESSAGE_START,
+        messageId: reasoningMessageId,
+        role: 'reasoning' as const,
+        model: currentModel,
+        timestamp,
+      }
+      yield {
+        type: EventType.STEP_STARTED,
+        stepName: stepId,
+        stepId,
+        model: currentModel,
+        timestamp,
+        stepType: 'thinking',
+      }
+    }
+
+    const closeReasoning = function* (): Generator<AdapterYieldChunk> {
+      if (!reasoningMessageId || hasClosedReasoning) return
+      hasClosedReasoning = true
+      const timestamp = Date.now()
+      const currentModel = emitModel()
+      yield {
+        type: EventType.REASONING_MESSAGE_END,
+        messageId: reasoningMessageId,
+        model: currentModel,
+        timestamp,
+      }
+      yield {
+        type: EventType.REASONING_END,
+        messageId: reasoningMessageId,
+        model: currentModel,
+        timestamp,
+      }
+      if (stepId) {
+        yield {
+          type: EventType.STEP_FINISHED,
+          stepName: stepId,
+          stepId,
+          model: currentModel,
+          timestamp,
+          content: accumulatedReasoning,
+        }
+      }
+      reasoningMessageId = undefined
+      stepId = null
+      hasClosedReasoning = false
+      accumulatedReasoning = ''
+    }
+
+    const emitReasoningDelta = function* (
+      text: string,
+    ): Generator<AdapterYieldChunk> {
+      if (!text) return
+      yield* openReasoning()
+      if (!reasoningMessageId) return
+      accumulatedReasoning += text
+      hasStreamedReasoningDeltas = true
+      yield {
+        type: EventType.REASONING_MESSAGE_CONTENT,
+        messageId: reasoningMessageId,
+        delta: text,
+        model: emitModel(),
+        timestamp: Date.now(),
+      }
+    }
 
     try {
       for await (const chunk of stream) {
@@ -847,7 +933,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           type: string
           text?: string
           refusal?: string
-        }): StreamChunk => {
+        }): AdapterYieldChunk => {
           if (contentPart.type === 'output_text') {
             accumulatedContent += contentPart.text || ''
             return {
@@ -860,25 +946,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             }
           }
 
-          if (contentPart.type === 'reasoning_text') {
-            accumulatedReasoning += contentPart.text || ''
-            // Cache the fallback stepId rather than generating a fresh one
-            // on every call — otherwise multiple reasoning chunks arriving
-            // before STEP_STARTED was emitted (e.g. via response.content_part.done
-            // alone) would each get a different stepId and break correlation.
-            if (!stepId) {
-              stepId = generateId(this.name)
-            }
-            return {
-              type: EventType.STEP_FINISHED,
-              stepName: stepId,
-              stepId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: contentPart.text || '',
-              content: accumulatedReasoning,
-            }
-          }
           // Either a real refusal or an unknown content_part type. Surface
           // the part type in the error so unknown parts are debuggable
           // instead of being misreported as "Unknown refusal".
@@ -913,7 +980,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           hasStreamedContentDeltas = false
           hasStreamedReasoningDeltas = false
           hasEmittedTextMessageStart = false
-          hasEmittedStepStarted = false
+          reasoningMessageId = undefined
+          hasClosedReasoning = false
+          stepId = null
           accumulatedContent = ''
           accumulatedReasoning = ''
         }
@@ -928,6 +997,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           chunk.type === 'response.failed' ||
           chunk.type === 'response.incomplete'
         ) {
+          yield* closeReasoning()
           if (hasEmittedTextMessageStart) {
             yield {
               type: EventType.TEXT_MESSAGE_END,
@@ -983,6 +1053,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               : ''
 
           if (textDelta) {
+            yield* closeReasoning()
             // Emit TEXT_MESSAGE_START on first text content
             if (!hasEmittedTextMessageStart) {
               hasEmittedTextMessageStart = true
@@ -1011,80 +1082,22 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         // Handle reasoning deltas (token-by-token thinking/reasoning streaming)
         // response.reasoning_text.delta provides incremental reasoning updates
         if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
-          // Delta can be an array of strings or a single string
           const reasoningDelta = Array.isArray(chunk.delta)
             ? chunk.delta.join('')
             : typeof chunk.delta === 'string'
               ? chunk.delta
               : ''
-
-          if (reasoningDelta) {
-            // Emit STEP_STARTED on first reasoning content
-            if (!hasEmittedStepStarted) {
-              hasEmittedStepStarted = true
-              stepId = generateId(this.name)
-              yield {
-                type: EventType.STEP_STARTED,
-                stepName: stepId,
-                stepId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                stepType: 'thinking',
-              }
-            }
-
-            accumulatedReasoning += reasoningDelta
-            hasStreamedReasoningDeltas = true
-            const fallbackStepId = stepId || generateId(this.name)
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: fallbackStepId,
-              stepId: fallbackStepId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: reasoningDelta,
-              content: accumulatedReasoning,
-            }
-          }
+          yield* emitReasoningDelta(reasoningDelta)
         }
 
         // Handle reasoning summary deltas (when using reasoning.summary option)
-        // response.reasoning_summary_text.delta provides incremental summary updates
         if (
           chunk.type === 'response.reasoning_summary_text.delta' &&
           chunk.delta
         ) {
           const summaryDelta =
             typeof chunk.delta === 'string' ? chunk.delta : ''
-
-          if (summaryDelta) {
-            // Emit STEP_STARTED on first reasoning content
-            if (!hasEmittedStepStarted) {
-              hasEmittedStepStarted = true
-              stepId = generateId(this.name)
-              yield {
-                type: EventType.STEP_STARTED,
-                stepName: stepId,
-                stepId,
-                model: model || options.model,
-                timestamp: Date.now(),
-                stepType: 'thinking',
-              }
-            }
-
-            accumulatedReasoning += summaryDelta
-            hasStreamedReasoningDeltas = true
-            const fallbackStepId = stepId || generateId(this.name)
-            yield {
-              type: EventType.STEP_FINISHED,
-              stepName: fallbackStepId,
-              stepId: fallbackStepId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              delta: summaryDelta,
-              content: accumulatedReasoning,
-            }
-          }
+          yield* emitReasoningDelta(summaryDelta)
         }
 
         // handle content_part added events for text, reasoning and refusals
@@ -1101,11 +1114,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           ) {
             continue
           }
-          // Emit TEXT_MESSAGE_START if this is text content
+          if (contentPart.type === 'reasoning_text') {
+            yield* emitReasoningDelta(contentPart.text || '')
+            continue
+          }
           if (
             contentPart.type === 'output_text' &&
             !hasEmittedTextMessageStart
           ) {
+            yield* closeReasoning()
             hasEmittedTextMessageStart = true
             yield {
               type: EventType.TEXT_MESSAGE_START,
@@ -1115,27 +1132,12 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               role: 'assistant',
             }
           }
-          // Emit STEP_STARTED if this is reasoning content
-          if (contentPart.type === 'reasoning_text' && !hasEmittedStepStarted) {
-            hasEmittedStepStarted = true
-            stepId = generateId(this.name)
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
-            }
-          }
           // Mark whichever stream we just emitted into so a subsequent
           // `content_part.done` doesn't duplicate the same text. Without
           // this flag, an `added` event carrying the full text followed by
           // a matching `done` event would emit TEXT_MESSAGE_CONTENT twice.
           if (contentPart.type === 'output_text') {
             hasStreamedContentDeltas = true
-          } else if (contentPart.type === 'reasoning_text') {
-            hasStreamedReasoningDeltas = true
           }
           const partChunk = handleContentPart(contentPart)
           yield partChunk
@@ -1172,10 +1174,15 @@ export abstract class OpenAIBaseResponsesTextAdapter<
           // without a start and never see an end. Emit the lifecycle opener
           // for whichever stream this content_part belongs to before yielding
           // the CONTENT chunk; the post-loop block emits the matching END.
+          if (contentPart.type === 'reasoning_text') {
+            yield* emitReasoningDelta(contentPart.text || '')
+            continue
+          }
           if (
             contentPart.type === 'output_text' &&
             !hasEmittedTextMessageStart
           ) {
+            yield* closeReasoning()
             hasEmittedTextMessageStart = true
             yield {
               type: EventType.TEXT_MESSAGE_START,
@@ -1183,20 +1190,6 @@ export abstract class OpenAIBaseResponsesTextAdapter<
               model: model || options.model,
               timestamp: Date.now(),
               role: 'assistant',
-            }
-          } else if (
-            contentPart.type === 'reasoning_text' &&
-            !hasEmittedStepStarted
-          ) {
-            hasEmittedStepStarted = true
-            stepId = generateId(this.name)
-            yield {
-              type: EventType.STEP_STARTED,
-              stepName: stepId,
-              stepId,
-              model: model || options.model,
-              timestamp: Date.now(),
-              stepType: 'thinking',
             }
           }
 
@@ -1573,6 +1566,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
             }
           }
 
+          yield* closeReasoning()
           // Emit TEXT_MESSAGE_END if we had text content
           if (hasEmittedTextMessageStart) {
             yield {
@@ -1655,6 +1649,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
       // mirrors the chat-completions adapter's behavior so consumers always
       // see a terminal event for every started run.
       if (!runFinishedEmitted && aguiState.hasEmittedRunStarted) {
+        yield* closeReasoning()
         if (hasEmittedTextMessageStart) {
           yield {
             type: EventType.TEXT_MESSAGE_END,
@@ -2035,9 +2030,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    * Handles backward compatibility with string content.
    */
   protected normalizeContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null) {
+    if (content === null || content === undefined) {
       return []
     }
     if (typeof content === 'string') {
@@ -2050,9 +2045,9 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    * Extracts text content from a content value that may be string, null, or ContentPart array.
    */
   protected extractTextContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null) {
+    if (content === null || content === undefined) {
       return ''
     }
     if (typeof content === 'string') {

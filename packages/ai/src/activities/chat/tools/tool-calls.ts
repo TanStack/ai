@@ -1,4 +1,6 @@
 import { normalizeToolResult } from '../../../utilities/tool-result'
+import { tanstackMetadata } from '../../../utilities/merge-metadata'
+import type { AdapterYieldChunk } from '../../../utilities/adapter-yield-chunk'
 import { isStandardSchema, parseWithStandardSchema } from './schema-converter'
 import type { ToolApprovalResolution } from '../../../interrupts'
 import type {
@@ -231,10 +233,8 @@ export class ToolCallManager<
    * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
    */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
-    const index = event.index ?? this.toolCallsMap.size
-    const runtimeEvent = event as Partial<ToolCallStartEvent> &
-      Pick<ToolCallStartEvent, 'toolName'>
-    const name = runtimeEvent.toolCallName ?? runtimeEvent.toolName
+    const index = (event as AdapterYieldChunk).index ?? this.toolCallsMap.size
+    const name = event.toolCallName ?? event.toolName
     this.toolCallsMap.set(index, {
       id: event.toolCallId,
       type: 'function',
@@ -250,10 +250,14 @@ export class ToolCallManager<
    * Add a TOOL_CALL_ARGS event to accumulate arguments (AG-UI)
    */
   addToolCallArgsEvent(event: ToolCallArgsEvent): void {
-    // Find the tool call by ID
+    const extra = event as AdapterYieldChunk
     for (const [, toolCall] of this.toolCallsMap.entries()) {
       if (toolCall.id === event.toolCallId) {
-        toolCall.function.arguments += event.delta
+        if (typeof extra.args === 'string' && extra.args !== '') {
+          toolCall.function.arguments = extra.args
+        } else {
+          toolCall.function.arguments += event.delta
+        }
         break
       }
     }
@@ -264,16 +268,13 @@ export class ToolCallManager<
    * Called when TOOL_CALL_END is received
    */
   completeToolCall(event: ToolCallEndEvent): void {
-    for (const [, toolCall] of this.toolCallsMap.entries()) {
-      if (toolCall.id === event.toolCallId) {
-        if (event.input !== undefined) {
-          // Normalize null/non-object to {} (e.g. Anthropic empty tool_use blocks)
-          const normalized =
-            event.input && typeof event.input === 'object' ? event.input : {}
-          toolCall.function.arguments = JSON.stringify(normalized)
-        }
-        break
-      }
+    for (const toolCall of this.toolCallsMap.values()) {
+      if (toolCall.id !== event.toolCallId) continue
+      if (event.input === undefined) return
+      const normalized =
+        event.input && typeof event.input === 'object' ? event.input : {}
+      toolCall.function.arguments = JSON.stringify(normalized)
+      return
     }
   }
 
@@ -301,7 +302,7 @@ export class ToolCallManager<
   async *executeTools(
     finishEvent: RunFinishedEvent,
     ...contextArgs: ExecuteToolsContextArgs<TContext>
-  ): AsyncGenerator<ToolCallEndEvent, Array<ModelMessage>, void> {
+  ): AsyncGenerator<AdapterYieldChunk, Array<ModelMessage>, void> {
     const toolCallsArray = this.getToolCalls()
     const toolResults: Array<ModelMessage> = []
     const hasRuntimeContext = contextArgs.length > 0
@@ -313,9 +314,6 @@ export class ToolCallManager<
       let toolResultContent: string | Array<ContentPart>
       let toolResultState: ToolOutputState | undefined
       // Holds the parsed/validated execution output before serialization.
-      // Surfaced on the emitted `TOOL_CALL_END` event as `output` so
-      // consumers can read it typed (via `TypedStreamChunk` distribution
-      // over the tools array) without re-parsing `result`.
       // Stays `undefined` when the tool has no `execute` (client-only
       // tools) or when execution throws.
       let toolOutput: unknown
@@ -397,7 +395,10 @@ export class ToolCallManager<
         toolCallId: toolCall.id,
         toolCallName: toolCall.function.name,
         toolName: toolCall.function.name,
-        model: finishEvent.model,
+        model: (() => {
+          const model = tanstackMetadata(finishEvent)?.model
+          return typeof model === 'string' ? model : undefined
+        })(),
         timestamp: Date.now(),
         // Typed parsed output (undefined for failed exec / client-only tools).
         ...(toolOutput !== undefined ? { output: toolOutput } : {}),
@@ -433,7 +434,7 @@ export interface ToolResult {
   duration?: number
   /**
    * Parsed tool input (after JSON parse + optional Standard Schema validation).
-   * Surfaced on engine-emitted `TOOL_CALL_END` events for TypedStreamChunk consumers.
+   * Parsed tool input after JSON parse + optional Standard Schema validation.
    */
   input?: unknown
   /**

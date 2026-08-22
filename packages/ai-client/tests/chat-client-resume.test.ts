@@ -160,7 +160,7 @@ describe('ChatClient resume', () => {
           runId: ctx?.runId ?? 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         },
       ],
     ])
@@ -185,7 +185,7 @@ describe('ChatClient resume', () => {
           runId: ctx?.runId ?? 'run-1',
           threadId: 'thread-1',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         },
       ],
     ])
@@ -1173,7 +1173,7 @@ describe('ChatClient resume', () => {
           runId: runContext?.runId ?? 'run-2',
           threadId: runContext?.threadId ?? 'thread-1',
           timestamp: Date.now(),
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
         }
       },
     }
@@ -1274,7 +1274,7 @@ describe('ChatClient resume', () => {
           type: EventType.RUN_FINISHED,
           runId: ctx?.runId ?? 'resume-run',
           threadId: ctx?.threadId ?? 'thread-1',
-          finishReason: 'tool_calls',
+          metadata: { tanstack: { finishReason: 'tool_calls' } },
           timestamp: Date.now(),
         },
       ],
@@ -1291,7 +1291,7 @@ describe('ChatClient resume', () => {
           type: EventType.RUN_FINISHED,
           runId: ctx?.runId ?? 'final-run',
           threadId: ctx?.threadId ?? 'thread-1',
-          finishReason: 'stop',
+          metadata: { tanstack: { finishReason: 'stop' } },
           timestamp: Date.now(),
         },
       ],
