@@ -500,7 +500,10 @@ describe('ToolCallManager', () => {
       // directly so the explicit index survives, matching this issue's repro.
       const startWithIndex = (index: number) =>
         ({
-          ...toolCallStart({ toolCallId: 'call_123', toolCallName: 'get_weather' }),
+          ...toolCallStart({
+            toolCallId: 'call_123',
+            toolCallName: 'get_weather',
+          }),
           index,
         }) as ToolCallStartEvent
 
