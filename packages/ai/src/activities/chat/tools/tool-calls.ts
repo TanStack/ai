@@ -233,6 +233,15 @@ export class ToolCallManager<
    * Add a TOOL_CALL_START event to begin tracking a tool call (AG-UI)
    */
   addToolCallStartEvent(event: ToolCallStartEvent): void {
+    // AG-UI's TOOL_CALL_START carries no index, and a non-first-party or
+    // malformed producer can send a second START for a toolCallId that is
+    // already tracked. Without this guard, a repeat with the same index
+    // overwrites the slot (wiping any TOOL_CALL_ARGS already accumulated),
+    // and a repeat with a missing/different index inserts a duplicate row
+    // that getToolCalls() returns twice, running the tool twice.
+    for (const toolCall of this.toolCallsMap.values()) {
+      if (toolCall.id === event.toolCallId) return
+    }
     const index = (event as AdapterYieldChunk).index ?? this.toolCallsMap.size
     const name = event.toolCallName ?? event.toolName
     this.toolCallsMap.set(index, {
