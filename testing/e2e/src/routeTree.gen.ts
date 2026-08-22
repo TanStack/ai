@@ -27,6 +27,7 @@ import { Route as DevtoolsMemoryRouteImport } from './routes/devtools-memory'
 import { Route as DevtoolsGenerationHooksRouteImport } from './routes/devtools-generation-hooks'
 import { Route as DevtoolsChatRouteImport } from './routes/devtools-chat'
 import { Route as ChatClientDefaultBridgeRouteImport } from './routes/chat-client-default-bridge'
+import { Route as ByokRouteImport } from './routes/byok'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ProviderIndexRouteImport } from './routes/$provider/index'
 import { Route as ApiVideoRouteImport } from './routes/api.video'
@@ -80,6 +81,7 @@ import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-tak
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
+import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
@@ -183,6 +185,11 @@ const DevtoolsChatRoute = DevtoolsChatRouteImport.update({
 const ChatClientDefaultBridgeRoute = ChatClientDefaultBridgeRouteImport.update({
   id: '/chat-client-default-bridge',
   path: '/chat-client-default-bridge',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ByokRoute = ByokRouteImport.update({
+  id: '/byok',
+  path: '/byok',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -465,6 +472,11 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiByokChatRoute = ApiByokChatRouteImport.update({
+  id: '/api/byok-chat',
+  path: '/api/byok-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiByteplusSeedance1080pWireRoute =
   ApiByteplusSeedance1080pWireRouteImport.update({
     id: '/api/byteplus-seedance-1080p-wire',
@@ -530,6 +542,7 @@ const ApiAudioStreamRoute = ApiAudioStreamRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -554,6 +567,7 @@ export interface FileRoutesByFullPath {
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
@@ -615,6 +629,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -639,6 +654,7 @@ export interface FileRoutesByTo {
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
@@ -701,6 +717,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/byok': typeof ByokRoute
   '/chat-client-default-bridge': typeof ChatClientDefaultBridgeRoute
   '/devtools-chat': typeof DevtoolsChatRoute
   '/devtools-generation-hooks': typeof DevtoolsGenerationHooksRoute
@@ -725,6 +742,7 @@ export interface FileRoutesById {
   '/api/anthropic-structured-usage': typeof ApiAnthropicStructuredUsageRoute
   '/api/arktype-tool-wire': typeof ApiArktypeToolWireRoute
   '/api/audio': typeof ApiAudioRouteWithChildren
+  '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
@@ -788,6 +806,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/byok'
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -812,6 +831,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/devtools-memory'
@@ -873,6 +893,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/byok'
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -897,6 +918,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/devtools-memory'
@@ -958,6 +980,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/byok'
     | '/chat-client-default-bridge'
     | '/devtools-chat'
     | '/devtools-generation-hooks'
@@ -982,6 +1005,7 @@ export interface FileRouteTypes {
     | '/api/anthropic-structured-usage'
     | '/api/arktype-tool-wire'
     | '/api/audio'
+    | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
     | '/api/devtools-memory'
@@ -1044,6 +1068,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ByokRoute: typeof ByokRoute
   ChatClientDefaultBridgeRoute: typeof ChatClientDefaultBridgeRoute
   DevtoolsChatRoute: typeof DevtoolsChatRoute
   DevtoolsGenerationHooksRoute: typeof DevtoolsGenerationHooksRoute
@@ -1068,6 +1093,7 @@ export interface RootRouteChildren {
   ApiAnthropicStructuredUsageRoute: typeof ApiAnthropicStructuredUsageRoute
   ApiArktypeToolWireRoute: typeof ApiArktypeToolWireRoute
   ApiAudioRoute: typeof ApiAudioRouteWithChildren
+  ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
@@ -1249,6 +1275,13 @@ declare module '@tanstack/react-router' {
       path: '/chat-client-default-bridge'
       fullPath: '/chat-client-default-bridge'
       preLoaderRoute: typeof ChatClientDefaultBridgeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/byok': {
+      id: '/byok'
+      path: '/byok'
+      fullPath: '/byok'
+      preLoaderRoute: typeof ByokRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -1622,6 +1655,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/byok-chat': {
+      id: '/api/byok-chat'
+      path: '/api/byok-chat'
+      fullPath: '/api/byok-chat'
+      preLoaderRoute: typeof ApiByokChatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/byteplus-seedance-1080p-wire': {
       id: '/api/byteplus-seedance-1080p-wire'
       path: '/api/byteplus-seedance-1080p-wire'
@@ -1769,6 +1809,7 @@ const ApiVideoRouteWithChildren = ApiVideoRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ByokRoute: ByokRoute,
   ChatClientDefaultBridgeRoute: ChatClientDefaultBridgeRoute,
   DevtoolsChatRoute: DevtoolsChatRoute,
   DevtoolsGenerationHooksRoute: DevtoolsGenerationHooksRoute,
@@ -1793,6 +1834,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAnthropicStructuredUsageRoute: ApiAnthropicStructuredUsageRoute,
   ApiArktypeToolWireRoute: ApiArktypeToolWireRoute,
   ApiAudioRoute: ApiAudioRouteWithChildren,
+  ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,

@@ -5,7 +5,7 @@ title: StructuredOutputStartEvent
 
 # Interface: StructuredOutputStartEvent
 
-Defined in: [packages/ai/src/types.ts:1466](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1466)
+Defined in: [packages/ai/src/types.ts:1386](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1386)
 
 Emitted at the start of a streaming structured-output run, before the JSON
 deltas. Tells consumers that the upcoming `TEXT_MESSAGE_CONTENT` deltas
@@ -20,19 +20,17 @@ made per-message rather than globally.
 
 ## Properties
 
-### model?
+### metadata?
 
 ```ts
-optional model?: string;
+optional metadata?: Record<string, any>;
 ```
 
-Defined in: [packages/ai/src/types.ts:1422](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1422)
-
-Model identifier for multi-model support
+Defined in: [packages/ai/src/types.ts:1350](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1350)
 
 #### Inherited from
 
-[`CustomEvent`](CustomEvent.md).[`model`](CustomEvent.md#model)
+[`CustomEvent`](CustomEvent.md).[`metadata`](CustomEvent.md#metadata)
 
 ***
 
@@ -42,7 +40,7 @@ Model identifier for multi-model support
 name: "structured-output.start";
 ```
 
-Defined in: [packages/ai/src/types.ts:1467](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1467)
+Defined in: [packages/ai/src/types.ts:1387](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1387)
 
 #### Overrides
 
@@ -52,46 +50,13 @@ CustomEvent.name
 
 ***
 
-### runId?
-
-```ts
-optional runId?: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1430](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1430)
-
-#### Inherited from
-
-[`CustomEvent`](CustomEvent.md).[`runId`](CustomEvent.md#runid)
-
-***
-
-### threadId?
-
-```ts
-optional threadId?: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1429](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1429)
-
-Routing metadata the TanStack engine attaches when emitting CUSTOM
-events that need to be correlated with a specific thread/run.
-Stripped by `strip-to-spec-middleware` before going on the wire so
-the AG-UI consumer never sees them (when that middleware is enabled).
-
-#### Inherited from
-
-[`CustomEvent`](CustomEvent.md).[`threadId`](CustomEvent.md#threadid)
-
-***
-
 ### type
 
 ```ts
 type: "CUSTOM";
 ```
 
-Defined in: [packages/ai/src/types.ts:1420](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1420)
+Defined in: [packages/ai/src/types.ts:1349](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1349)
 
 #### Inherited from
 
@@ -105,7 +70,7 @@ Defined in: [packages/ai/src/types.ts:1420](https://github.com/TanStack/ai/blob/
 value: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:1468](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1468)
+Defined in: [packages/ai/src/types.ts:1388](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1388)
 
 #### messageId
 

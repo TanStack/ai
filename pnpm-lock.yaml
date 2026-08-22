@@ -2288,11 +2288,10 @@ importers:
         version: 4.3.6
 
   packages/ai-perplexity:
-    dependencies:
-      '@tanstack/ai':
-        specifier: workspace:^
-        version: link:../ai
     devDependencies:
+      '@tanstack/ai':
+        specifier: workspace:*
+        version: link:../ai
       '@vitest/coverage-v8':
         specifier: 4.1.10
         version: 4.1.10(vitest@4.1.10)

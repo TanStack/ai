@@ -1,5 +1,12 @@
 # @tanstack/ai-sandbox-daytona
 
+## 0.3.2
+
+### Patch Changes
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai-sandbox@0.5.0
+
 ## 0.3.1
 
 ### Patch Changes

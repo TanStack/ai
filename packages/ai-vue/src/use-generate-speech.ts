@@ -23,7 +23,12 @@ import type { DeepReadonly, ShallowRef } from 'vue'
  */
 export interface UseGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   UseGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
-  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+  | 'persistence'
+  | 'threadId'
+  | 'hydrateGeneration'
+  | 'joinRun'
+  | 'byok'
+  | 'byokProvider'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter

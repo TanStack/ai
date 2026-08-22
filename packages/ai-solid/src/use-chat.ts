@@ -131,6 +131,8 @@ export function useChat<
       ...(options.forwardedProps !== undefined && {
         forwardedProps: options.forwardedProps,
       }),
+      ...(options.byok !== undefined && { byok: options.byok }),
+      byokProvider: () => options.byokProvider?.(),
       ...(options.context !== undefined && { context: options.context }),
       devtools: {
         ...options.devtools,
