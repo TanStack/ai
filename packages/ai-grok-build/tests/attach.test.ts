@@ -41,7 +41,7 @@ import type { SandboxHandle, SandboxRunDurability } from '@tanstack/ai-sandbox'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
 import type {
   CapabilityContext,
-  StreamChunk,
+  AdapterYieldChunk,
   StreamDurability,
 } from '@tanstack/ai'
 
@@ -102,7 +102,7 @@ const noopLogger = {
  * reflects state rather than always answering empty. Only `snapshot` matters
  * here — the adapter reads the log, it never appends to it.
  */
-function fakeLog(entries: Array<StreamChunk> = []): StreamDurability {
+function fakeLog(entries: Array<AdapterYieldChunk> = []): StreamDurability {
   const stored = [...entries]
   return {
     resumeFrom: () => null,
@@ -146,9 +146,9 @@ function contextWith(
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }
@@ -161,7 +161,7 @@ async function collect(
  * one id — the caller's on an attach, a generated one otherwise. Anything with
  * more than one entry means the resolution ran twice.
  */
-function threadIdsOf(chunks: Array<StreamChunk>): Array<string> {
+function threadIdsOf(chunks: Array<AdapterYieldChunk>): Array<string> {
   const seen = new Set<string>()
   for (const chunk of chunks) {
     const value = (chunk as { threadId?: unknown }).threadId
@@ -171,7 +171,7 @@ function threadIdsOf(chunks: Array<StreamChunk>): Array<string> {
 }
 
 /** Compare chunks ignoring wall-clock fields, exactly as alignment does. */
-function fingerprints(chunks: Array<StreamChunk>): Array<string> {
+function fingerprints(chunks: Array<AdapterYieldChunk>): Array<string> {
   return chunks.map(chunkFingerprint)
 }
 
@@ -228,7 +228,7 @@ function run(
     threadId?: string
     durability?: SandboxRunDurability
   },
-): AsyncIterable<StreamChunk> {
+): AsyncIterable<AdapterYieldChunk> {
   return adapter().chatStream({
     model: 'grok-build',
     messages: [{ role: 'user', content: 'say pong' }],

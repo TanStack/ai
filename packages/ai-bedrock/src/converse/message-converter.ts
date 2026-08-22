@@ -72,8 +72,10 @@ function documentFormat(
   }
 }
 
-function stringContent(content: string | null | Array<ContentPart>): string {
-  if (content === null) return ''
+function stringContent(
+  content: string | null | undefined | Array<ContentPart>,
+): string {
+  if (content === null || content === undefined) return ''
   if (typeof content === 'string') return content
   return content
     .filter((p): p is TextPart => p.type === 'text')

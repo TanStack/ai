@@ -13,7 +13,7 @@ import {
   createVercelGatewayText as _realCreateVercelGatewayText,
   vercelGatewayText as _realVercelGatewayText,
 } from '../src/adapters/factory'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 const testLogger = resolveDebugOption(false)
 
@@ -110,7 +110,7 @@ describe('Vercel Gateway text adapter', () => {
       { id: '1', choices: [{ delta: { content: 'hi' }, index: 0 }] },
     ])
     const adapter = createVercelGatewayText('openai/gpt-5.5', 'k')
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
 
     for await (const chunk of adapter.chatStream({
       model: 'openai/gpt-5.5',

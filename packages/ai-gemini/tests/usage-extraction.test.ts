@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { chat } from '@tanstack/ai'
 import { GeminiTextAdapter } from '../src/adapters/text'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 const mocks = vi.hoisted(() => {
   return {
@@ -73,7 +73,7 @@ describe('Gemini usage extraction', () => {
 
     mocks.generateContentStreamSpy.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -112,7 +112,7 @@ describe('Gemini usage extraction', () => {
 
     mocks.generateContentStreamSpy.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -149,7 +149,7 @@ describe('Gemini usage extraction', () => {
 
     mocks.generateContentStreamSpy.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -189,7 +189,7 @@ describe('Gemini usage extraction', () => {
 
     mocks.generateContentStreamSpy.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -230,7 +230,7 @@ describe('Gemini usage extraction', () => {
 
     mocks.generateContentStreamSpy.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -268,7 +268,7 @@ describe('Gemini usage extraction', () => {
 
     mocks.generateContentStreamSpy.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -305,7 +305,7 @@ describe('Gemini usage extraction', () => {
 
     mocks.generateContentStreamSpy.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],
@@ -337,7 +337,7 @@ describe('Gemini usage extraction', () => {
 
     mocks.generateContentStreamSpy.mockResolvedValueOnce(mockStream)
 
-    const chunks: Array<StreamChunk> = []
+    const chunks: Array<AdapterYieldChunk> = []
     for await (const chunk of chat({
       adapter: createAdapter(),
       messages: [{ role: 'user', content: 'Hello' }],

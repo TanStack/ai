@@ -9,7 +9,11 @@ import {
   toServerSentEventsResponse,
 } from '@tanstack/ai'
 import { z } from 'zod'
-import type { AnyTextAdapter, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type {
+  AnyTextAdapter,
+  ModelMessage,
+  AdapterYieldChunk,
+} from '@tanstack/ai'
 
 /**
  * Provider-free harness for issue #1058: a `joinRun` replay that ends on a
@@ -56,10 +60,10 @@ function waitForDisconnect(signal: AbortSignal): Promise<void> {
 }
 
 async function* holdAfter(
-  stream: AsyncIterable<StreamChunk>,
+  stream: AsyncIterable<AdapterYieldChunk>,
   signal: AbortSignal,
   onRelease: () => void,
-): AsyncGenerator<StreamChunk> {
+): AsyncGenerator<AdapterYieldChunk> {
   try {
     for await (const chunk of stream) {
       yield chunk
@@ -112,7 +116,7 @@ const adapter: AnyTextAdapter = {
     toolCallMetadata: undefined,
     systemPromptMetadata: undefined,
   },
-  async *chatStream(options): AsyncGenerator<StreamChunk> {
+  async *chatStream(options): AsyncGenerator<AdapterYieldChunk> {
     const model = 'join-run-client-tool'
     const runId = options.runId ?? 'join-run-client-tool-run'
     const threadId = options.threadId ?? 'join-run-client-tool-thread'

@@ -283,20 +283,21 @@ describe('delivery durability contract', () => {
     const liveTerminal = events.find(
       (event) => event.chunk.type === 'RUN_ERROR',
     )?.chunk
+    if (liveTerminal?.type !== 'RUN_ERROR') {
+      throw new Error('expected live RUN_ERROR')
+    }
 
     expect(persistedTerminal).toMatchObject({
       type: 'RUN_ERROR',
       message: 'provider exploded',
     })
-    expect(liveTerminal).toMatchObject({
-      type: 'RUN_ERROR',
-      message: expect.stringContaining('provider exploded'),
-    })
-    expect(liveTerminal).toMatchObject({
-      error: {
-        message: expect.stringContaining('close exploded'),
-      },
-    })
+    expect(liveTerminal.message).toEqual(
+      expect.stringContaining('provider exploded'),
+    )
+    expect(liveTerminal.message).toEqual(
+      expect.stringContaining('close exploded'),
+    )
+    expect(liveTerminal).not.toHaveProperty('error')
   })
 
   it('aggregates provider, terminal persistence, and close failures', async () => {
@@ -336,19 +337,20 @@ describe('delivery durability contract', () => {
     const liveTerminal = events.find(
       (event) => event.chunk.type === 'RUN_ERROR',
     )?.chunk
+    if (liveTerminal?.type !== 'RUN_ERROR') {
+      throw new Error('expected live RUN_ERROR')
+    }
 
     expect(appended.at(-1)?.type).toBe('RUN_ERROR')
-    expect(liveTerminal).toMatchObject({
-      type: 'RUN_ERROR',
-      message: expect.stringContaining('aggregate provider exploded'),
-      error: {
-        message: expect.stringContaining('terminal persistence exploded'),
-      },
-    })
-    expect(liveTerminal).toMatchObject({
-      error: {
-        message: expect.stringContaining('aggregate close exploded'),
-      },
-    })
+    expect(liveTerminal.message).toEqual(
+      expect.stringContaining('aggregate provider exploded'),
+    )
+    expect(liveTerminal.message).toEqual(
+      expect.stringContaining('terminal persistence exploded'),
+    )
+    expect(liveTerminal.message).toEqual(
+      expect.stringContaining('aggregate close exploded'),
+    )
+    expect(liveTerminal).not.toHaveProperty('error')
   })
 })

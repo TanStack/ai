@@ -8,6 +8,7 @@ import { wasRunDetached } from './delivery-detach'
 import { notifyRunDisconnected } from './delivery-disconnect'
 import { resolveResumeRunId } from './stream-durability'
 import { EventType } from './types'
+import { toWireChunk } from './strip-to-spec-middleware'
 import { resolveDebugOption } from './logger/resolve'
 import { runErrorEventToError } from './utilities/errors'
 import type { LockStore } from './activities/chat/middleware/locks'
@@ -287,10 +288,13 @@ function sseEncoders(
     encodeChunk: (chunk, index) => {
       const id = getId?.(chunk, index)
       const idLine = id === undefined ? '' : `id: ${id}\n`
-      return encoder.encode(`${idLine}data: ${JSON.stringify(chunk)}\n\n`)
+      const wire = toWireChunk(chunk)
+      return encoder.encode(`${idLine}data: ${JSON.stringify(wire)}\n\n`)
     },
     encodeError: (error) =>
-      encoder.encode(`data: ${JSON.stringify(runErrorChunk(error))}\n\n`),
+      encoder.encode(
+        `data: ${JSON.stringify(toWireChunk(runErrorChunk(error)))}\n\n`,
+      ),
   }
 }
 
@@ -1069,12 +1073,15 @@ function ndjsonEncoders(
   return {
     encodeChunk: (chunk, index) => {
       const id = getId?.(chunk, index)
+      const wire = toWireChunk(chunk)
       const line =
-        id === undefined ? JSON.stringify(chunk) : JSON.stringify({ id, chunk })
+        id === undefined
+          ? JSON.stringify(wire)
+          : JSON.stringify({ id, chunk: wire })
       return encoder.encode(`${line}\n`)
     },
     encodeError: (error) =>
-      encoder.encode(`${JSON.stringify(runErrorChunk(error))}\n`),
+      encoder.encode(`${JSON.stringify(toWireChunk(runErrorChunk(error)))}\n`),
   }
 }
 

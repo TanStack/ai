@@ -9,7 +9,7 @@ import {
 import { openRouterSupportsCombinedToolsAndSchema } from '../src/internal/combined-tools-and-schema'
 import { createOpenRouterResponsesText } from '../src/adapters/responses-text'
 import { createOpenRouterText } from '../src/adapters/text'
-import type { StreamChunk, Tool } from '@tanstack/ai'
+import type { AdapterYieldChunk, Tool } from '@tanstack/ai'
 
 // Mock the SDK with a constructor function, not a class. A class field named
 // `chat` collides with the `chat` import when vitest hoists this mock.
@@ -120,7 +120,7 @@ const responsesJsonChunks = [
   },
 ]
 
-function readCompleteObject(chunks: Array<StreamChunk>): unknown {
+function readCompleteObject(chunks: Array<AdapterYieldChunk>): unknown {
   for (const chunk of chunks) {
     if (
       chunk.type === EventType.CUSTOM &&
@@ -380,7 +380,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
     it('parses final-turn JSON from chat({ tools, outputSchema, stream: true }) in one request', async () => {
       setupChatStream(jsonStopChunks)
       const adapter = createOpenRouterText('openai/gpt-4o', 'k')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of chat({
         adapter,
@@ -403,7 +403,7 @@ describe('OpenRouter combined tools + outputSchema', () => {
     it('parses final-turn JSON from the Responses adapter on the combined path', async () => {
       setupResponsesStream(responsesJsonChunks)
       const adapter = createOpenRouterResponsesText('openai/gpt-4o', 'k')
-      const chunks: Array<StreamChunk> = []
+      const chunks: Array<AdapterYieldChunk> = []
 
       for await (const chunk of chat({
         adapter,

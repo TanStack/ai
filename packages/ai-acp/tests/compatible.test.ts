@@ -16,7 +16,11 @@ import { localProcessSandbox } from '@tanstack/ai-sandbox-local-process'
 import { SandboxCapability } from '@tanstack/ai-sandbox'
 import { acpCompatible, acpCompatibleText, buildAcpPrompt } from '../src/index'
 import type { InternalLogger } from '@tanstack/ai/adapter-internals'
-import type { CapabilityContext, ModelMessage, StreamChunk } from '@tanstack/ai'
+import type {
+  AdapterYieldChunk,
+  CapabilityContext,
+  ModelMessage,
+} from '@tanstack/ai'
 import type { SandboxHandle } from '@tanstack/ai-sandbox'
 
 const require = createRequire(import.meta.url)
@@ -101,14 +105,14 @@ function capabilityContextWith(handle: SandboxHandle): CapabilityContext {
 }
 
 async function collect(
-  stream: AsyncIterable<StreamChunk>,
-): Promise<Array<StreamChunk>> {
-  const out: Array<StreamChunk> = []
+  stream: AsyncIterable<AdapterYieldChunk>,
+): Promise<Array<AdapterYieldChunk>> {
+  const out: Array<AdapterYieldChunk> = []
   for await (const chunk of stream) out.push(chunk)
   return out
 }
 
-function textOf(chunks: Array<StreamChunk>): string {
+function textOf(chunks: Array<AdapterYieldChunk>): string {
   return chunks
     .filter((c) => c.type === 'TEXT_MESSAGE_CONTENT')
     .map((c) => (c as { delta?: string }).delta ?? '')

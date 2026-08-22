@@ -4,7 +4,7 @@ import { ChatRequest$outboundSchema } from '@openrouter/sdk/models'
 import { createOpenRouterText } from '../src/adapters/text'
 import { webSearchTool } from '../src/tools/web-search-tool'
 import { webFetchTool } from '../src/tools/web-fetch-tool'
-import type { StreamChunk } from '@tanstack/ai'
+import type { AdapterYieldChunk } from '@tanstack/ai'
 
 /**
  * Wire-format verification for OpenRouter's server-side web tools.
@@ -78,7 +78,7 @@ function setupMockSend(): void {
 async function captureSerializedTools(tool: unknown): Promise<unknown> {
   setupMockSend()
   const adapter = createOpenRouterText('openai/gpt-4o-mini', 'test-key')
-  const chunks: Array<StreamChunk> = []
+  const chunks: Array<AdapterYieldChunk> = []
   for await (const c of chat({
     adapter,
     messages: [{ role: 'user', content: 'hi' }],

@@ -33,7 +33,7 @@ import type {
   ContentPart,
   Modality,
   ModelMessage,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 import type { ExternalTextProviderOptions } from '../text/text-provider-options'
@@ -121,7 +121,7 @@ export class GeminiTextAdapter<
 
   async *chatStream(
     options: TextOptions<GeminiTextProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const mappedOptions = this.mapCommonOptionsToGemini(options)
     const { logger } = options
 
@@ -243,7 +243,7 @@ export class GeminiTextAdapter<
     result: AsyncGenerator<GenerateContentResponse, unknown, unknown>,
     options: TextOptions<GeminiTextProviderOptions>,
     logger: InternalLogger,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const model = options.model
     let accumulatedContent = ''
     let accumulatedThinking = ''

@@ -27,8 +27,7 @@ import type {
   DefaultMessageMetadataByModality,
   Modality,
   ModelMessage,
-  RunFinishedEvent,
-  StreamChunk,
+  AdapterYieldChunk,
   TextOptions,
 } from '@tanstack/ai'
 
@@ -71,7 +70,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
   async *chatStream(
     options: TextOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     // AG-UI lifecycle tracking (mutable state object for ESLint compatibility)
     const aguiState = {
       runId: generateId(this.name),
@@ -112,7 +111,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     options: TextOptions,
     aguiState: ChatStreamState,
     source: 'chatStream' | 'processStreamChunks',
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     // Narrow before logging: raw SDK errors can carry request metadata
     // (including auth headers) which we must never surface to user loggers.
     const errorPayload = toRunErrorPayload(
@@ -187,6 +186,8 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     yield {
       type: EventType.RUN_ERROR,
+      runId: aguiState.runId,
+      threadId: aguiState.threadId,
       model: options.model,
       timestamp: Date.now(),
       message: errorPayload.message,
@@ -322,7 +323,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
    */
   async *structuredOutputStream(
     options: StructuredOutputOptions<TProviderOptions>,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const { chatOptions, outputSchema } = options
     const requestParams = this.mapOptionsToRequest(chatOptions)
 
@@ -351,7 +352,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
 
     const closeReasoningLifecycle = function* (this: {
       name: string
-    }): Generator<StreamChunk> {
+    }): Generator<AdapterYieldChunk> {
       if (reasoningMessageId && !hasClosedReasoning) {
         hasClosedReasoning = true
         yield {
@@ -376,6 +377,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
             content: accumulatedReasoning,
           }
         }
+        reasoningMessageId = undefined
+        stepId = undefined
+        hasClosedReasoning = false
       }
     }.bind(this)
 
@@ -705,7 +709,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
     stream: AsyncIterable<ChatCompletionChunk>,
     options: TextOptions,
     aguiState: ChatStreamState,
-  ): AsyncIterable<StreamChunk> {
+  ): AsyncIterable<AdapterYieldChunk> {
     const normalizeToolInput = createToolInputNormalizer(
       options.tools,
       (schema, required) =>
@@ -1140,7 +1144,7 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
         // tool results that would never arrive. OpenAI's legacy
         // `function_call` value (from the v1 function-calling API) is
         // normalized to `tool_calls` — semantically the same termination.
-        const finishReason: NonNullable<RunFinishedEvent['finishReason']> =
+        const finishReason: NonNullable<AdapterYieldChunk['finishReason']> =
           emittedAnyToolCallEnd
             ? 'tool_calls'
             : pendingFinishReason === 'tool_calls'
@@ -1427,9 +1431,9 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
    * Handles backward compatibility with string content.
    */
   protected normalizeContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): Array<ContentPart> {
-    if (content === null) {
+    if (content === null || content === undefined) {
       return []
     }
     if (typeof content === 'string') {
@@ -1442,9 +1446,12 @@ export abstract class OpenAIBaseChatCompletionsTextAdapter<
    * Extracts text content from a content value that may be string, null, or ContentPart array.
    */
   protected extractTextContent(
-    content: string | null | Array<ContentPart>,
+    content: string | null | undefined | Array<ContentPart>,
   ): string {
-    if (content === null) {
+    // Tool-call-only assistant turns (e.g. an approval resume replaying the
+    // pending call) carry no text and arrive as `null` or `undefined`; both
+    // must collapse to '' rather than crash on `.filter`.
+    if (content === null || content === undefined) {
       return ''
     }
     if (typeof content === 'string') {
