@@ -134,8 +134,8 @@ and `colocated` mode:
 
 | Value | Behavior |
 | --- | --- |
-| Omitted | Fail after `300000` ms (five minutes) without persisted activity |
-| Positive safe integer | Use that many milliseconds |
+| Omitted | Treat the run as stalled after `300000` ms (five minutes) without persisted activity |
+| Positive safe integer | Use that many milliseconds as the stall threshold |
 | `false` | Disable stall detection |
 
 ```ts
@@ -148,8 +148,9 @@ export const agent = createCloudflareSandboxAgent({
 })
 ```
 
-The alarm checks about every 30 seconds, so detection can occur roughly 30
-seconds after the configured threshold. Persisted run events refresh
+The alarm checks every 30 seconds, or every `stallTimeoutMs` when that is
+shorter, so detection can lag the configured threshold by up to one check
+interval. Persisted run events refresh
 `updatedAt`; authenticated `/_bridge` and `/tool-exec` callbacks also refresh it
 on arrival and completion. Unknown-run and unauthorized requests do not.
 
