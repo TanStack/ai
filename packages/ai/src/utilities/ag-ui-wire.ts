@@ -9,6 +9,7 @@ import type {
 } from '../types'
 import type { MetadataRecord } from './merge-metadata'
 import { tanstackMetadata } from './merge-metadata'
+import { modelMessageToUIMessage } from '../activities/chat/messages'
 
 type AGUITextInputContent = { type: 'text'; text: string }
 type AGUIInputContent =
@@ -67,9 +68,6 @@ export function uiMessagesToWire(
   const wire: Array<WireMessage> = []
 
   for (const msg of messages) {
-    const parts: ReadonlyArray<MessagePart> =
-      'parts' in msg ? msg.parts : []
-
     if (!('parts' in msg) && msg.role === 'tool' && msg.toolCallId) {
       wire.push({
         role: 'tool',
@@ -83,7 +81,9 @@ export function uiMessagesToWire(
       continue
     }
 
-    const uiMessage = msg as UIMessage
+    const uiMessage: UIMessage =
+      'parts' in msg ? msg : modelMessageToUIMessage(msg, msg.id)
+    const parts: ReadonlyArray<MessagePart> = uiMessage.parts
 
     if (msg.role === 'system') {
       wire.push(

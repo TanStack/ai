@@ -133,6 +133,100 @@ describe('uiMessagesToWire', () => {
     ])
   })
 
+  it('preserves assistant ModelMessage fields', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        content: 'I will check.',
+        thinking: [{ content: 'Use the lookup tool', signature: 'sig-1' }],
+        toolCalls: [
+          {
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'lookup', arguments: '{"id":1}' },
+            metadata: { thoughtSignature: 'tool-sig-1' },
+          },
+        ],
+      },
+    ])
+
+    expect(wire).toEqual([
+      {
+        id: expect.any(String),
+        role: 'reasoning',
+        content: 'Use the lookup tool',
+        encryptedValue: 'sig-1',
+      },
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        content: 'I will check.',
+        toolCalls: [
+          {
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'lookup', arguments: '{"id":1}' },
+            encryptedValue: 'tool-sig-1',
+          },
+        ],
+        metadata: {
+          tanstack: {
+            toolCallMetadata: {
+              'call-1': { thoughtSignature: 'tool-sig-1' },
+            },
+          },
+        },
+      },
+    ])
+  })
+
+  it('converts multimodal user ModelMessage content to AG-UI content', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'user-1',
+        role: 'user',
+        content: [
+          { type: 'text', content: 'Look at this' },
+          {
+            type: 'image',
+            source: {
+              type: 'url',
+              value: 'https://example.com/cat.png',
+              mimeType: 'image/png',
+            },
+          },
+        ],
+      },
+    ])
+
+    expect(wire).toEqual([
+      {
+        id: 'user-1',
+        role: 'user',
+        content: [
+          { type: 'text', text: 'Look at this' },
+          {
+            type: 'image',
+            source: {
+              type: 'url',
+              value: 'https://example.com/cat.png',
+              mimeType: 'image/png',
+            },
+          },
+        ],
+      },
+    ])
+  })
+
+  it('generates an AG-UI id for a ModelMessage without one', () => {
+    const wire = uiMessagesToWire([{ role: 'user', content: 'hello' }])
+
+    expect(wire).toEqual([
+      { id: expect.any(String), role: 'user', content: 'hello' },
+    ])
+  })
+
   it('emits a separate reasoning fan-out before the assistant anchor for each ThinkingPart', () => {
     const messages: Array<UIMessage> = [
       {
