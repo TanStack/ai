@@ -9,7 +9,7 @@ title: toWebSocketResponse
 function toWebSocketResponse<TOffset>(request, init): Response;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:387](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L387)
+Defined in: [packages/ai/src/stream-to-websocket.ts:389](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L389)
 
 Cloudflare wrapper (Workers/Durable Objects): creates a `WebSocketPair`,
 accepts the server socket, delegates to [toWebSocketStream](toWebSocketStream.md), and

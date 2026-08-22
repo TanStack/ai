@@ -5,12 +5,11 @@ title: ReasoningMessageStartEvent
 
 # Interface: ReasoningMessageStartEvent
 
-Defined in: [packages/ai/src/types.ts:1689](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1689)
+Defined in: [packages/ai/src/types.ts:1604](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1604)
 
 Emitted when a reasoning message starts.
 
 @ag-ui/core provides: `messageId`, `role` ("reasoning")
-TanStack AI adds: `model?`
 
 ## Extends
 
@@ -21,15 +20,3 @@ TanStack AI adds: `model?`
 ```ts
 [k: string]: unknown
 ```
-
-## Properties
-
-### model?
-
-```ts
-optional model?: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1691](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1691)
-
-Model identifier for multi-model support

@@ -12,7 +12,7 @@ function toWebSocketStream<TOffset>(
    init): void;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:113](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L113)
+Defined in: [packages/ai/src/stream-to-websocket.ts:115](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L115)
 
 Run a full-duplex, conversation-scoped chat over an already-accepted server
 socket. Each inbound RunAgentInput frame starts one chat() turn (via onRun)

@@ -11,7 +11,7 @@ title: mergeAgentTools
 function mergeAgentTools<TServerTools>(serverTools, clientTools): TServerTools;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:372](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L372)
+Defined in: [packages/ai/src/utilities/chat-params.ts:355](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L355)
 
 Merge a server-side tool array with the AG-UI client-declared tools
 received in the request body.
@@ -30,7 +30,7 @@ Rules:
 Typing:
 - Empty `clientTools` preserves the server tuple (closed name union).
 - Non-empty `clientTools` returns a widened array that honestly includes
-  client stubs, so `TypedStreamChunk` does not claim a closed server-only
+  client stubs, so the merged array does not claim a closed server-only
   name union.
 
 ### Type Parameters
@@ -67,7 +67,7 @@ A merged array suitable for `chat({ tools })`.
 function mergeAgentTools<TServerTools>(serverTools, clientTools): MergedAgentTools<TServerTools>;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:375](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L375)
+Defined in: [packages/ai/src/utilities/chat-params.ts:358](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L358)
 
 Merge a server-side tool array with the AG-UI client-declared tools
 received in the request body.
@@ -86,7 +86,7 @@ Rules:
 Typing:
 - Empty `clientTools` preserves the server tuple (closed name union).
 - Non-empty `clientTools` returns a widened array that honestly includes
-  client stubs, so `TypedStreamChunk` does not claim a closed server-only
+  client stubs, so the merged array does not claim a closed server-only
   name union.
 
 ### Type Parameters
