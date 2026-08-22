@@ -17,6 +17,6 @@ type InboundFrame =
 };
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:24](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L24)
+Defined in: [packages/ai/src/stream-to-websocket.ts:25](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L25)
 
 One inbound WS text frame, after JSON parse + shape discrimination.

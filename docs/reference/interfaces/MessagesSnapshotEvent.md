@@ -5,7 +5,7 @@ title: MessagesSnapshotEvent
 
 # Interface: MessagesSnapshotEvent
 
-Defined in: [packages/ai/src/types.ts:1374](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1374)
+Defined in: [packages/ai/src/types.ts:1321](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1321)
 
 Emitted to provide a snapshot of all messages in a conversation.
 
@@ -13,7 +13,6 @@ Unlike StateSnapshot (which carries arbitrary application state),
 MessagesSnapshot specifically delivers the conversation transcript.
 
 @ag-ui/core provides: `messages` (as @ag-ui/core Message[])
-TanStack AI adds: `model?`
 
 Note: The `messages` field uses the @ag-ui/core Message type.
 Use converters to transform to/from TanStack UIMessage format.
@@ -27,15 +26,3 @@ Use converters to transform to/from TanStack UIMessage format.
 ```ts
 [k: string]: unknown
 ```
-
-## Properties
-
-### model?
-
-```ts
-optional model?: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1376](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1376)
-
-Model identifier for multi-model support

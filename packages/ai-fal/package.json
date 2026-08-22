@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-fal",
-  "version": "0.12.0",
+  "version": "0.13.0",
   "description": "fal.ai adapter for TanStack AI image, video, audio, speech, and transcription generation.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -24,6 +24,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [

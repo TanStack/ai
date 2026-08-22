@@ -5,7 +5,7 @@ title: WsRunContext
 
 # Interface: WsRunContext
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:60](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L60)
+Defined in: [packages/ai/src/stream-to-websocket.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L62)
 
 Per-turn context for one inbound `run` frame on a conversation-scoped socket.
 
@@ -17,7 +17,7 @@ Per-turn context for one inbound `run` frame on a conversation-scoped socket.
 optional forwardedProps?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L64)
+Defined in: [packages/ai/src/stream-to-websocket.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L66)
 
 ***
 
@@ -32,7 +32,7 @@ messages: (
   | UIMessage<unknown>)[];
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:61](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L61)
+Defined in: [packages/ai/src/stream-to-websocket.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L63)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [packages/ai/src/stream-to-websocket.ts:61](https://github.com/TanSt
 request: Request;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:66](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L66)
+Defined in: [packages/ai/src/stream-to-websocket.ts:68](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L68)
 
 Synthetic per-turn request carrying `?runId=` so durability keys correctly.
 
@@ -54,7 +54,7 @@ Synthetic per-turn request carrying `?runId=` so durability keys correctly.
 runId: string;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:63](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L63)
+Defined in: [packages/ai/src/stream-to-websocket.ts:65](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L65)
 
 ***
 
@@ -64,7 +64,7 @@ Defined in: [packages/ai/src/stream-to-websocket.ts:63](https://github.com/TanSt
 signal: AbortSignal;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:68](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L68)
+Defined in: [packages/ai/src/stream-to-websocket.ts:70](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L70)
 
 Aborts on socket close or an `abort` control frame for this run.
 
@@ -76,4 +76,4 @@ Aborts on socket close or an `abort` control frame for this run.
 threadId: string;
 ```
 
-Defined in: [packages/ai/src/stream-to-websocket.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L62)
+Defined in: [packages/ai/src/stream-to-websocket.ts:64](https://github.com/TanStack/ai/blob/main/packages/ai/src/stream-to-websocket.ts#L64)

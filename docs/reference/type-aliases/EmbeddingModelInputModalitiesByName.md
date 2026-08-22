@@ -9,7 +9,7 @@ title: EmbeddingModelInputModalitiesByName
 type EmbeddingModelInputModalitiesByName = Record<string, ReadonlyArray<EmbeddingModality>>;
 ```
 
-Defined in: [packages/ai/src/types.ts:2659](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2659)
+Defined in: [packages/ai/src/types.ts:2375](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L2375)
 
 Per-model map from model name to the input modalities it accepts, used as
 an adapter type parameter (`TModelInputModalitiesByName`). Models absent

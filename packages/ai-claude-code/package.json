@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-claude-code",
-  "version": "0.4.3",
+  "version": "0.5.0",
   "description": "Claude Code harness adapter for TanStack AI — run Claude Code as a chat backend with local tool execution and stateful sessions.",
   "author": "",
   "license": "MIT",
@@ -30,6 +30,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [

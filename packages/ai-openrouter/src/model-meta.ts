@@ -152,15 +152,15 @@ const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 262144,
+  max_output_tokens: 1048576,
   pricing: {
     text: {
       input: {
         normal: 0.065,
-        cached: 0.014,
+        cached: 0.02,
       },
       output: {
-        normal: 0.14,
+        normal: 0.18,
       },
     },
     image: 0,
@@ -287,11 +287,11 @@ const _OPENAI_GPT_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 2.5,
-        cached: 3.375,
+        normal: 2,
+        cached: 2.7,
       },
       output: {
-        normal: 15,
+        normal: 10,
       },
     },
     image: 0,
@@ -2060,38 +2060,6 @@ const COHERE_NORTH_MINI_CODE_FREE = {
     image: 0,
   },
 } as const
-const DEEPCOGITO_COGITO_V2_1_671B = {
-  id: 'deepcogito/cogito-v2.1-671b',
-  name: 'Deep Cogito: Cogito v2.1 671B',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'logitBias',
-      'maxCompletionTokens',
-      'presencePenalty',
-      'reasoning',
-      'responseFormat',
-      'stop',
-      'temperature',
-      'topP',
-    ],
-  },
-  context_window: 128000,
-  pricing: {
-    text: {
-      input: {
-        normal: 1.25,
-        cached: 0,
-      },
-      output: {
-        normal: 1.25,
-      },
-    },
-    image: 0,
-  },
-} as const
 const DEEPSEEK_DEEPSEEK_CHAT = {
   id: 'deepseek/deepseek-chat',
   name: 'DeepSeek: DeepSeek V3',
@@ -2185,15 +2153,15 @@ const DEEPSEEK_DEEPSEEK_CHAT_V3_1 = {
     ],
   },
   context_window: 163840,
-  max_output_tokens: 32768,
+  max_output_tokens: 161000,
   pricing: {
     text: {
       input: {
-        normal: 0.25,
-        cached: 0.13,
+        normal: 0.55,
+        cached: 0.55,
       },
       output: {
-        normal: 0.95,
+        normal: 1.65,
       },
     },
     image: 0,
@@ -2360,15 +2328,15 @@ const DEEPSEEK_DEEPSEEK_V3_2 = {
     ],
   },
   context_window: 163840,
-  max_output_tokens: 65536,
+  max_output_tokens: 163840,
   pricing: {
     text: {
       input: {
-        normal: 0.269,
-        cached: 0.1345,
+        normal: 0.26,
+        cached: 0.13,
       },
       output: {
-        normal: 0.4,
+        normal: 0.38,
       },
     },
     image: 0,
@@ -2439,11 +2407,11 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.0826,
-        cached: 0.01652,
+        normal: 0.07266,
+        cached: 0.014532,
       },
       output: {
-        normal: 0.1652,
+        normal: 0.14532,
       },
     },
     image: 0,
@@ -2473,15 +2441,50 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_0731 = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 393216,
+  max_output_tokens: 384000,
   pricing: {
     text: {
       input: {
-        normal: 0.14,
-        cached: 0.028,
+        normal: 0.08,
+        cached: 0.016,
       },
       output: {
-        normal: 0.28,
+        normal: 0.18,
+      },
+    },
+    image: 0,
+  },
+} as const
+const DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP = {
+  id: 'deepseek/deepseek-v4-flash-vision-exp',
+  name: 'DeepSeek: DeepSeek V4 Flash Vision Exp',
+  supports: {
+    input: ['text', 'image'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'logprobs',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'responseFormat',
+      'stop',
+      'temperature',
+      'toolChoice',
+      'topLogprobs',
+      'topP',
+    ],
+  },
+  context_window: 1048576,
+  max_output_tokens: 384000,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.44,
+        cached: 0.014,
+      },
+      output: {
+        normal: 1.32,
       },
     },
     image: 0,
@@ -2511,15 +2514,15 @@ const DEEPSEEK_DEEPSEEK_V4_PRO = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 393216,
+  max_output_tokens: 384000,
   pricing: {
     text: {
       input: {
-        normal: 1.6,
-        cached: 0.135,
+        normal: 0.46458,
+        cached: 0.038715,
       },
       output: {
-        normal: 3.2,
+        normal: 0.92916,
       },
     },
     image: 0,
@@ -4750,6 +4753,35 @@ const META_MUSE_SPARK_1_2 = {
     image: 0,
   },
 } as const
+const META_MUSE_SPARK_1_2_CONTRIBUTOR = {
+  id: 'meta/muse-spark-1.2-contributor',
+  name: 'Meta: Muse Spark 1.2 Contributor',
+  supports: {
+    input: ['text', 'image', 'video', 'document', 'audio'],
+    output: ['text'],
+    supports: [
+      'maxCompletionTokens',
+      'reasoning',
+      'responseFormat',
+      'temperature',
+      'toolChoice',
+      'topP',
+    ],
+  },
+  context_window: 1048576,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.1,
+        cached: 0.002,
+      },
+      output: {
+        normal: 0.2,
+      },
+    },
+    image: 0,
+  },
+} as const
 const MICROSOFT_PHI_4 = {
   id: 'microsoft/phi-4',
   name: 'Microsoft: Phi 4',
@@ -4987,15 +5019,15 @@ const MINIMAX_MINIMAX_M2_5 = {
     ],
   },
   context_window: 204800,
-  max_output_tokens: 32768,
+  max_output_tokens: 128000,
   pricing: {
     text: {
       input: {
         normal: 0.27,
-        cached: 0.03,
+        cached: 0.027,
       },
       output: {
-        normal: 0.95,
+        normal: 1.08,
       },
     },
     image: 0,
@@ -5649,16 +5681,16 @@ const MISTRALAI_MISTRAL_SMALL_3_2_24B_INSTRUCT = {
       'topP',
     ],
   },
-  context_window: 256000,
+  context_window: 131072,
   max_output_tokens: 16384,
   pricing: {
     text: {
       input: {
-        normal: 0.09375,
+        normal: 0.075,
         cached: 0,
       },
       output: {
-        normal: 0.25,
+        normal: 0.2,
       },
     },
     image: 0,
@@ -5894,11 +5926,11 @@ const MOONSHOTAI_KIMI_K2_6 = {
   pricing: {
     text: {
       input: {
-        normal: 0.95,
-        cached: 0.16,
+        normal: 0.5415,
+        cached: 0.0912,
       },
       output: {
-        normal: 4,
+        normal: 2.28,
       },
     },
     image: 0,
@@ -8677,11 +8709,11 @@ const OPENAI_GPT_5_6_SOL = {
   pricing: {
     text: {
       input: {
-        normal: 2.5,
-        cached: 3.375,
+        normal: 2,
+        cached: 2.7,
       },
       output: {
-        normal: 15,
+        normal: 10,
       },
     },
     image: 0,
@@ -8707,11 +8739,11 @@ const OPENAI_GPT_5_6_SOL_PRO = {
   pricing: {
     text: {
       input: {
-        normal: 2.5,
-        cached: 3.375,
+        normal: 2,
+        cached: 2.7,
       },
       output: {
-        normal: 15,
+        normal: 10,
       },
     },
     image: 0,
@@ -8736,11 +8768,11 @@ const OPENAI_GPT_5_6_SOL_PRO_BATCH = {
   pricing: {
     text: {
       input: {
-        normal: 1.25,
-        cached: 0.125,
+        normal: 1,
+        cached: 1.35,
       },
       output: {
-        normal: 7.5,
+        normal: 5,
       },
     },
     image: 0,
@@ -8765,11 +8797,11 @@ const OPENAI_GPT_5_6_SOL_BATCH = {
   pricing: {
     text: {
       input: {
-        normal: 1.25,
-        cached: 0.125,
+        normal: 1,
+        cached: 1.35,
       },
       output: {
-        normal: 7.5,
+        normal: 5,
       },
     },
     image: 0,
@@ -9057,42 +9089,6 @@ const OPENAI_GPT_OSS_20B = {
       },
       output: {
         normal: 0.13,
-      },
-    },
-    image: 0,
-  },
-} as const
-const OPENAI_GPT_OSS_20B_FREE = {
-  id: 'openai/gpt-oss-20b:free',
-  name: 'OpenAI: gpt-oss-20b (free)',
-  supports: {
-    input: ['text'],
-    output: ['text'],
-    supports: [
-      'frequencyPenalty',
-      'logprobs',
-      'maxCompletionTokens',
-      'presencePenalty',
-      'reasoning',
-      'responseFormat',
-      'seed',
-      'stop',
-      'temperature',
-      'toolChoice',
-      'topLogprobs',
-      'topP',
-    ],
-  },
-  context_window: 131072,
-  max_output_tokens: 32768,
-  pricing: {
-    text: {
-      input: {
-        normal: 0,
-        cached: 0,
-      },
-      output: {
-        normal: 0,
       },
     },
     image: 0,
@@ -10113,15 +10109,15 @@ const QWEN_QWEN3_14B = {
     ],
   },
   context_window: 131072,
-  max_output_tokens: 8192,
+  max_output_tokens: 16384,
   pricing: {
     text: {
       input: {
-        normal: 0.2275,
+        normal: 0.12,
         cached: 0,
       },
       output: {
-        normal: 0.91,
+        normal: 0.24,
       },
     },
     image: 0,
@@ -10679,12 +10675,12 @@ const QWEN_QWEN3_NEXT_80B_A3B_INSTRUCT = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 16384,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.09,
-        cached: 0,
+        normal: 0.1,
+        cached: 0.07,
       },
       output: {
         normal: 1.1,
@@ -11583,7 +11579,7 @@ const QWEN_QWEN3_8_2_4T_A95B = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 262144,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
@@ -12402,6 +12398,38 @@ const THINKINGMACHINES_INKLING_SMALL = {
     image: 0,
   },
 } as const
+const THINKINGMACHINES_INKLING_SMALL_FREE = {
+  id: 'thinkingmachines/inkling-small:free',
+  name: 'Thinking Machines: Inkling Small (free)',
+  supports: {
+    input: ['text', 'image', 'audio'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'seed',
+      'stop',
+      'temperature',
+      'topP',
+    ],
+  },
+  context_window: 262144,
+  max_output_tokens: 262144,
+  pricing: {
+    text: {
+      input: {
+        normal: 0,
+        cached: 0,
+      },
+      output: {
+        normal: 0,
+      },
+    },
+    image: 0,
+  },
+} as const
 const THINKINGMACHINES_INKLING_BATCH = {
   id: 'thinkingmachines/inkling:batch',
   name: 'Thinking Machines: Inkling (batch)',
@@ -12429,6 +12457,38 @@ const THINKINGMACHINES_INKLING_BATCH = {
       },
       output: {
         normal: 4.05,
+      },
+    },
+    image: 0,
+  },
+} as const
+const THINKINGMACHINES_INKLING_FREE = {
+  id: 'thinkingmachines/inkling:free',
+  name: 'Thinking Machines: Inkling (free)',
+  supports: {
+    input: ['text', 'image', 'audio'],
+    output: ['text'],
+    supports: [
+      'frequencyPenalty',
+      'maxCompletionTokens',
+      'presencePenalty',
+      'reasoning',
+      'seed',
+      'stop',
+      'temperature',
+      'topP',
+    ],
+  },
+  context_window: 262144,
+  max_output_tokens: 262144,
+  pricing: {
+    text: {
+      input: {
+        normal: 0,
+        cached: 0,
+      },
+      output: {
+        normal: 0,
       },
     },
     image: 0,
@@ -14051,19 +14111,6 @@ export type OpenRouterModelOptionsByName = {
       | 'toolChoice'
       | 'topP'
     >
-  [DEEPCOGITO_COGITO_V2_1_671B.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'logitBias'
-      | 'maxCompletionTokens'
-      | 'presencePenalty'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'stop'
-      | 'temperature'
-      | 'topP'
-    >
   [DEEPSEEK_DEEPSEEK_CHAT.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -14233,6 +14280,21 @@ export type OpenRouterModelOptionsByName = {
       | 'reasoning'
       | 'responseFormat'
       | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topLogprobs'
+      | 'topP'
+    >
+  [DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'logprobs'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'responseFormat'
       | 'stop'
       | 'temperature'
       | 'toolChoice'
@@ -15109,6 +15171,16 @@ export type OpenRouterModelOptionsByName = {
       | 'topP'
     >
   [META_MUSE_SPARK_1_2.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'maxCompletionTokens'
+      | 'reasoning'
+      | 'responseFormat'
+      | 'temperature'
+      | 'toolChoice'
+      | 'topP'
+    >
+  [META_MUSE_SPARK_1_2_CONTRIBUTOR.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
       | 'maxCompletionTokens'
@@ -16751,22 +16823,6 @@ export type OpenRouterModelOptionsByName = {
       | 'topLogprobs'
       | 'topP'
     >
-  [OPENAI_GPT_OSS_20B_FREE.id]: OpenRouterCommonOptions &
-    Pick<
-      OpenRouterBaseOptions,
-      | 'frequencyPenalty'
-      | 'logprobs'
-      | 'maxCompletionTokens'
-      | 'presencePenalty'
-      | 'reasoning'
-      | 'responseFormat'
-      | 'seed'
-      | 'stop'
-      | 'temperature'
-      | 'toolChoice'
-      | 'topLogprobs'
-      | 'topP'
-    >
   [OPENAI_GPT_OSS_SAFEGUARD_20B.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -18062,6 +18118,18 @@ export type OpenRouterModelOptionsByName = {
       | 'topLogprobs'
       | 'topP'
     >
+  [THINKINGMACHINES_INKLING_SMALL_FREE.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
+      | 'topP'
+    >
   [THINKINGMACHINES_INKLING_BATCH.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -18073,6 +18141,18 @@ export type OpenRouterModelOptionsByName = {
       | 'stop'
       | 'temperature'
       | 'toolChoice'
+      | 'topP'
+    >
+  [THINKINGMACHINES_INKLING_FREE.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'frequencyPenalty'
+      | 'maxCompletionTokens'
+      | 'presencePenalty'
+      | 'reasoning'
+      | 'seed'
+      | 'stop'
+      | 'temperature'
       | 'topP'
     >
   [UNDI95_REMM_SLERP_L2_13B.id]: OpenRouterCommonOptions &
@@ -18553,7 +18633,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [COHERE_COMMAND_R_PLUS_08_2024.id]: ReadonlyArray<'text'>
   [COHERE_COMMAND_R7B_12_2024.id]: ReadonlyArray<'text'>
   [COHERE_NORTH_MINI_CODE_FREE.id]: ReadonlyArray<'text'>
-  [DEEPCOGITO_COGITO_V2_1_671B.id]: ReadonlyArray<'text'>
   [DEEPSEEK_DEEPSEEK_CHAT.id]: ReadonlyArray<'text'>
   [DEEPSEEK_DEEPSEEK_CHAT_V3_0324.id]: ReadonlyArray<'text'>
   [DEEPSEEK_DEEPSEEK_CHAT_V3_1.id]: ReadonlyArray<'text'>
@@ -18565,6 +18644,7 @@ export type OpenRouterModelInputModalitiesByName = {
   [DEEPSEEK_DEEPSEEK_V3_2_EXP.id]: ReadonlyArray<'text'>
   [DEEPSEEK_DEEPSEEK_V4_FLASH.id]: ReadonlyArray<'text'>
   [DEEPSEEK_DEEPSEEK_V4_FLASH_0731.id]: ReadonlyArray<'text'>
+  [DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP.id]: ReadonlyArray<'text' | 'image'>
   [DEEPSEEK_DEEPSEEK_V4_PRO.id]: ReadonlyArray<'text'>
   [DEEPSEEK_DEEPSEEK_V4_PRO_0813.id]: ReadonlyArray<'text'>
   [DOTS_STUDIO_DOTS_3_NOTE_PREVIEW_FREE.id]: ReadonlyArray<'text' | 'image'>
@@ -18684,6 +18764,9 @@ export type OpenRouterModelInputModalitiesByName = {
     'text' | 'image' | 'video' | 'document' | 'audio'
   >
   [META_MUSE_SPARK_1_2.id]: ReadonlyArray<
+    'text' | 'image' | 'video' | 'document' | 'audio'
+  >
+  [META_MUSE_SPARK_1_2_CONTRIBUTOR.id]: ReadonlyArray<
     'text' | 'image' | 'video' | 'document' | 'audio'
   >
   [MICROSOFT_PHI_4.id]: ReadonlyArray<'text'>
@@ -18841,7 +18924,6 @@ export type OpenRouterModelInputModalitiesByName = {
   [OPENAI_GPT_CHAT_LATEST.id]: ReadonlyArray<'text' | 'image' | 'document'>
   [OPENAI_GPT_OSS_120B.id]: ReadonlyArray<'text'>
   [OPENAI_GPT_OSS_20B.id]: ReadonlyArray<'text'>
-  [OPENAI_GPT_OSS_20B_FREE.id]: ReadonlyArray<'text'>
   [OPENAI_GPT_OSS_SAFEGUARD_20B.id]: ReadonlyArray<'text'>
   [OPENAI_O1.id]: ReadonlyArray<'text' | 'image' | 'document'>
   [OPENAI_O1_PRO.id]: ReadonlyArray<'text' | 'image' | 'document'>
@@ -18943,7 +19025,11 @@ export type OpenRouterModelInputModalitiesByName = {
   [THEDRUMMER_UNSLOPNEMO_12B.id]: ReadonlyArray<'text'>
   [THINKINGMACHINES_INKLING.id]: ReadonlyArray<'text' | 'image' | 'audio'>
   [THINKINGMACHINES_INKLING_SMALL.id]: ReadonlyArray<'text' | 'image' | 'audio'>
+  [THINKINGMACHINES_INKLING_SMALL_FREE.id]: ReadonlyArray<
+    'text' | 'image' | 'audio'
+  >
   [THINKINGMACHINES_INKLING_BATCH.id]: ReadonlyArray<'text' | 'image' | 'audio'>
+  [THINKINGMACHINES_INKLING_FREE.id]: ReadonlyArray<'text' | 'image' | 'audio'>
   [UNDI95_REMM_SLERP_L2_13B.id]: ReadonlyArray<'text'>
   [UPSTAGE_SOLAR_PRO_3.id]: ReadonlyArray<'text'>
   [UPSTAGE_SOLAR_PRO4.id]: ReadonlyArray<'text'>
@@ -19044,7 +19130,6 @@ export const OPENROUTER_CHAT_MODELS = [
   COHERE_COMMAND_R_PLUS_08_2024.id,
   COHERE_COMMAND_R7B_12_2024.id,
   COHERE_NORTH_MINI_CODE_FREE.id,
-  DEEPCOGITO_COGITO_V2_1_671B.id,
   DEEPSEEK_DEEPSEEK_CHAT.id,
   DEEPSEEK_DEEPSEEK_CHAT_V3_0324.id,
   DEEPSEEK_DEEPSEEK_CHAT_V3_1.id,
@@ -19056,6 +19141,7 @@ export const OPENROUTER_CHAT_MODELS = [
   DEEPSEEK_DEEPSEEK_V3_2_EXP.id,
   DEEPSEEK_DEEPSEEK_V4_FLASH.id,
   DEEPSEEK_DEEPSEEK_V4_FLASH_0731.id,
+  DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP.id,
   DEEPSEEK_DEEPSEEK_V4_PRO.id,
   DEEPSEEK_DEEPSEEK_V4_PRO_0813.id,
   DOTS_STUDIO_DOTS_3_NOTE_PREVIEW_FREE.id,
@@ -19123,6 +19209,7 @@ export const OPENROUTER_CHAT_MODELS = [
   META_MUSE_GLIMMER_30B.id,
   META_MUSE_SPARK_1_1.id,
   META_MUSE_SPARK_1_2.id,
+  META_MUSE_SPARK_1_2_CONTRIBUTOR.id,
   MICROSOFT_PHI_4.id,
   MICROSOFT_WIZARDLM_2_8X22B.id,
   MINIMAX_MINIMAX_01.id,
@@ -19258,7 +19345,6 @@ export const OPENROUTER_CHAT_MODELS = [
   OPENAI_GPT_CHAT_LATEST.id,
   OPENAI_GPT_OSS_120B.id,
   OPENAI_GPT_OSS_20B.id,
-  OPENAI_GPT_OSS_20B_FREE.id,
   OPENAI_GPT_OSS_SAFEGUARD_20B.id,
   OPENAI_O1.id,
   OPENAI_O1_PRO.id,
@@ -19360,7 +19446,9 @@ export const OPENROUTER_CHAT_MODELS = [
   THEDRUMMER_UNSLOPNEMO_12B.id,
   THINKINGMACHINES_INKLING.id,
   THINKINGMACHINES_INKLING_SMALL.id,
+  THINKINGMACHINES_INKLING_SMALL_FREE.id,
   THINKINGMACHINES_INKLING_BATCH.id,
+  THINKINGMACHINES_INKLING_FREE.id,
   UNDI95_REMM_SLERP_L2_13B.id,
   UPSTAGE_SOLAR_PRO_3.id,
   UPSTAGE_SOLAR_PRO4.id,
@@ -19947,6 +20035,7 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     META_MUSE_GLIMMER_30B.id,
     META_MUSE_SPARK_1_1.id,
     META_MUSE_SPARK_1_2.id,
+    META_MUSE_SPARK_1_2_CONTRIBUTOR.id,
     MINIMAX_MINIMAX_M2.id,
     MINIMAX_MINIMAX_M2_5.id,
     MINIMAX_MINIMAX_M2_7.id,
@@ -20055,7 +20144,6 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     OPENAI_GPT_CHAT_LATEST.id,
     OPENAI_GPT_OSS_120B.id,
     OPENAI_GPT_OSS_20B.id,
-    OPENAI_GPT_OSS_20B_FREE.id,
     OPENAI_GPT_OSS_SAFEGUARD_20B.id,
     OPENAI_O1.id,
     OPENAI_O1_BATCH.id,

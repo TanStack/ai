@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-perplexity",
-  "version": "0.2.3",
+  "version": "0.2.5",
   "description": "Perplexity Search API client and tool for TanStack AI",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -24,6 +24,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     },
     "./search": {
       "types": "./dist/esm/search/index.d.ts",
@@ -53,6 +57,7 @@
     "search"
   ],
   "devDependencies": {
+    "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
     "vite": "^8.2.1",
     "zod": "^4.2.0"

@@ -9,15 +9,13 @@ title: uiMessagesToWire
 function uiMessagesToWire(messages): WireMessage[];
 ```
 
-Defined in: [packages/ai/src/utilities/ag-ui-wire.ts:47](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-wire.ts#L47)
+Defined in: [packages/ai/src/utilities/ag-ui-wire.ts:62](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/ag-ui-wire.ts#L62)
 
 Serialize TanStack `UIMessage`s into the AG-UI `RunAgentInput.messages`
-wire shape. Each anchor (system/user/assistant) carries the canonical
-`parts` array verbatim plus AG-UI mirror fields (`content`, `toolCalls`)
-so AG-UI Zod parsing succeeds. Tool results and thinking parts on
-assistant messages are additionally emitted as fan-out
-`{role:'tool',...}` and `{role:'reasoning',...}` entries for strict
-AG-UI server consumers.
+wire shape. Anchors are spec-only (`id`, `role`, `name`, `content`,
+`toolCalls`, `metadata`). Tool results and thinking parts on assistant
+messages are additionally emitted as fan-out `{role:'tool',...}` and
+`{role:'reasoning',...}` entries for strict AG-UI server consumers.
 
 ## Parameters
 

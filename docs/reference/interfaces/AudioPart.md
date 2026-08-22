@@ -5,7 +5,7 @@ title: AudioPart
 
 # Interface: AudioPart\<TMetadata\>
 
-Defined in: [packages/ai/src/types.ts:273](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L273)
+Defined in: [packages/ai/src/types.ts:276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L276)
 
 Audio content part for multimodal messages.
 
@@ -25,7 +25,7 @@ Provider-specific metadata type
 optional metadata?: TMetadata;
 ```
 
-Defined in: [packages/ai/src/types.ts:278](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L278)
+Defined in: [packages/ai/src/types.ts:281](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L281)
 
 Provider-specific metadata (e.g., format, sample rate)
 
@@ -37,7 +37,7 @@ Provider-specific metadata (e.g., format, sample rate)
 source: ContentPartSource;
 ```
 
-Defined in: [packages/ai/src/types.ts:276](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L276)
+Defined in: [packages/ai/src/types.ts:279](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L279)
 
 Source of the audio content
 
@@ -49,4 +49,4 @@ Source of the audio content
 type: "audio";
 ```
 
-Defined in: [packages/ai/src/types.ts:274](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L274)
+Defined in: [packages/ai/src/types.ts:277](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L277)
