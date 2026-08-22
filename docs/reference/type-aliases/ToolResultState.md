@@ -9,6 +9,6 @@ title: ToolResultState
 type ToolResultState = "streaming" | "complete" | "error";
 ```
 
-Defined in: [packages/ai/src/types.ts:73](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L73)
+Defined in: [packages/ai/src/types.ts:76](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L76)
 
 Tool result states - track the lifecycle of a tool result

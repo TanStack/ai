@@ -25,6 +25,7 @@ import type {
   UIResourcePart,
   VideoPart,
 } from '@tanstack/ai/client'
+import type { ByokClient } from './byok'
 import type { ConnectionAdapter } from './connection-adapters'
 import type { AIDevtoolsClientMetadata } from './devtools'
 import type { ChatDevtoolsBridgeFactory } from './devtools-noop'
@@ -291,6 +292,8 @@ export interface ChatFetcherInput {
 export interface ChatFetcherOptions {
   /** Fires when `stop()` is called or the request is superseded. */
   signal: AbortSignal
+  /** Extra request headers for this run (e.g. BYOK keys). */
+  headers?: Record<string, string>
 }
 
 /**
@@ -861,6 +864,20 @@ export interface ChatClientBaseOptions<
    * migrated yet. Will be removed in a future major release.
    */
   body?: Record<string, any>
+
+  /**
+   * Optional BYOK keyring. On each send the client prepares the resolved
+   * provider and stamps `x-byok-*` request headers. Keys never go in the body.
+   */
+  byok?: ByokClient
+
+  /**
+   * Optional provider id for this chat. If it returns a provider slug,
+   * only that key is prepared and sent. Otherwise `forwardedProps.provider`
+   * then `body.provider` are used. If no slug resolves, the send throws
+   * instead of attaching every stored key.
+   */
+  byokProvider?: () => string | undefined
 
   /**
    * Client-local runtime context passed to client tool implementations.

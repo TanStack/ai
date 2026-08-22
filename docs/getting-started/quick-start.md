@@ -247,6 +247,8 @@ ANTHROPIC_API_KEY=your-anthropic-api-key
 GEMINI_API_KEY=your-gemini-api-key
 ```
 
+> If you do not want a server key, you can let users paste one in the browser. See [Bring Your Own Key](../advanced/byok).
+
 ## That's It!
 
 You now have a working chat application. The `useChat` hook handles:

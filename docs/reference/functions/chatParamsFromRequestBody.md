@@ -25,7 +25,7 @@ function chatParamsFromRequestBody(body): Promise<{
 }>;
 ```
 
-Defined in: [packages/ai/src/utilities/chat-params.ts:221](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L221)
+Defined in: [packages/ai/src/utilities/chat-params.ts:204](https://github.com/TanStack/ai/blob/main/packages/ai/src/utilities/chat-params.ts#L204)
 
 Parse and validate an HTTP request body as an AG-UI `RunAgentInput`.
 

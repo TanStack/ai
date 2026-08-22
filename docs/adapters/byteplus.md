@@ -46,6 +46,8 @@ BytePlus splits these models across two products, and they do not share credenti
 | `byteplusText`, `byteplusVideo`, `byteplusImage` | ModelArk (Ark) | `ARK_API_KEY` (falls back to `BYTEPLUS_API_KEY`) | `Authorization: Bearer` |
 | `byteplusSpeech`, `byteplusTranscription` | Seed Speech | `BYTEPLUS_VOICE_API_KEY` | `X-Api-Key` |
 
+BYOK uses two slugs because these are two keys: `byteplusByok` (Ark) and `byteplusVoiceByok` (Seed Speech), both from `@tanstack/ai-byteplus/byok`.
+
 ```bash
 # ModelArk: chat, Seedance video, Seedream image
 ARK_API_KEY=...

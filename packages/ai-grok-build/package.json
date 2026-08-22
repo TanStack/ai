@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-grok-build",
-  "version": "0.4.3",
+  "version": "0.4.4",
   "description": "Grok Build harness adapter for TanStack AI — run Grok Build as a chat backend with local tool execution and stateful sessions.",
   "author": "",
   "license": "MIT",
@@ -30,6 +30,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [

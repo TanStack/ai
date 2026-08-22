@@ -5,7 +5,7 @@ title: UIMessage
 
 # Interface: UIMessage\<TData\>
 
-Defined in: [packages/ai/src/types.ts:520](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L520)
+Defined in: [packages/ai/src/types.ts:560](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L560)
 
 UIMessage - Domain-specific message format optimized for building chat UIs
 Contains parts that can be text, tool calls, or tool results. Generic over
@@ -27,7 +27,7 @@ consumer side without manual casts.
 optional createdAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:524](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L524)
+Defined in: [packages/ai/src/types.ts:564](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L564)
 
 ***
 
@@ -37,7 +37,20 @@ Defined in: [packages/ai/src/types.ts:524](https://github.com/TanStack/ai/blob/m
 id: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:521](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L521)
+Defined in: [packages/ai/src/types.ts:561](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L561)
+
+***
+
+### metadata?
+
+```ts
+optional metadata?: Record<string, any>;
+```
+
+Defined in: [packages/ai/src/types.ts:569](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L569)
+
+Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
+User keys stay at the top.
 
 ***
 
@@ -47,7 +60,7 @@ Defined in: [packages/ai/src/types.ts:521](https://github.com/TanStack/ai/blob/m
 parts: MessagePart<TData>[];
 ```
 
-Defined in: [packages/ai/src/types.ts:523](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L523)
+Defined in: [packages/ai/src/types.ts:563](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L563)
 
 ***
 
@@ -57,4 +70,4 @@ Defined in: [packages/ai/src/types.ts:523](https://github.com/TanStack/ai/blob/m
 role: "user" | "assistant" | "system";
 ```
 
-Defined in: [packages/ai/src/types.ts:522](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L522)
+Defined in: [packages/ai/src/types.ts:562](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L562)

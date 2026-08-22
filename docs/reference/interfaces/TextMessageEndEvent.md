@@ -5,12 +5,11 @@ title: TextMessageEndEvent
 
 # Interface: TextMessageEndEvent
 
-Defined in: [packages/ai/src/types.ts:1209](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1209)
+Defined in: [packages/ai/src/types.ts:1243](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1243)
 
 Emitted when a text message completes.
 
 @ag-ui/core provides: `messageId`
-TanStack AI adds: `model?`
 
 ## Extends
 
@@ -21,15 +20,3 @@ TanStack AI adds: `model?`
 ```ts
 [k: string]: unknown
 ```
-
-## Properties
-
-### model?
-
-```ts
-optional model?: string;
-```
-
-Defined in: [packages/ai/src/types.ts:1211](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L1211)
-
-Model identifier for multi-model support

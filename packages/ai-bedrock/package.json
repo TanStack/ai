@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-bedrock",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "type": "module",
   "description": "Amazon Bedrock adapter for TanStack AI — OpenAI-compatible chat, responses, tools, and reasoning.",
   "author": "",
@@ -16,6 +16,10 @@
     ".": {
       "types": "./dist/esm/index.d.ts",
       "import": "./dist/esm/index.js"
+    },
+    "./byok": {
+      "types": "./dist/esm/byok.d.ts",
+      "import": "./dist/esm/byok.js"
     }
   },
   "files": [

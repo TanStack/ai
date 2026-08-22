@@ -1,5 +1,14 @@
 # @tanstack/ai-grok-build
 
+## 0.4.4
+
+### Patch Changes
+
+- Updated dependencies [[`1c0415b`](https://github.com/TanStack/ai/commit/1c0415bec4bbefcd3abf784d0209af05aca5db46)]:
+  - @tanstack/ai@0.48.0
+  - @tanstack/ai-sandbox@0.5.0
+  - @tanstack/ai-acp@0.3.4
+
 ## 0.4.3
 
 ### Patch Changes

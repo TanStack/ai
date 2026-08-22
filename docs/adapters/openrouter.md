@@ -574,3 +574,68 @@ const stream = chat({
 ```
 
 **Supported models:** all OpenRouter chat models. See [Provider Tools](../tools/provider-tools.md#which-models-support-which-tools).
+
+## Sign in with OpenRouter (BYOK)
+
+OpenRouter can mint a user-owned API key via [OAuth PKCE](https://openrouter.ai/docs/guides/overview/auth/oauth). Import the helpers from `@tanstack/ai-openrouter/pkce`. The key is stored under `openrouterByok.id` (`openrouter`) and sent as `x-byok-openrouter`.
+
+Client: start login, then on return save the key into `defineByok`.
+
+```tsx
+import { useEffect } from "react";
+import { defineByok, defaultByokStorage } from "@tanstack/ai-client/byok";
+import {
+  completeOpenRouterPkceIntoByok,
+  startOpenRouterPkceLogin,
+} from "@tanstack/ai-openrouter/pkce";
+
+const byok = defineByok({
+  storage: defaultByokStorage(),
+});
+
+export function OpenRouterSignIn() {
+  useEffect(() => {
+    void completeOpenRouterPkceIntoByok(byok);
+  }, []);
+
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        void startOpenRouterPkceLogin();
+      }}
+    >
+      Sign in with OpenRouter
+    </button>
+  );
+}
+```
+
+Server: read the same slug the PKCE helper wrote.
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { byokMissing, getByokKey } from "@tanstack/ai/byok/server";
+import { createOpenRouterText } from "@tanstack/ai-openrouter";
+import { openrouterByok } from "@tanstack/ai-openrouter/byok";
+
+export async function POST(request: Request) {
+  const params = await chatParamsFromRequest(request);
+  const apiKey = getByokKey(request, openrouterByok);
+  if (!apiKey) return byokMissing(openrouterByok);
+
+  const stream = chat({
+    adapter: createOpenRouterText("openai/gpt-5.5", apiKey),
+    messages: params.messages,
+    threadId: params.threadId,
+    runId: params.runId,
+  });
+  return toServerSentEventsResponse(stream);
+}
+```
+
+See [Bring Your Own Key](../advanced/byok) for the keyring and passkey storage.

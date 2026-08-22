@@ -22,7 +22,12 @@ import type {
  */
 export interface CreateGenerateSpeechOptions<TOutput = TTSResult> extends Pick<
   CreateGenerationOptions<SpeechGenerateInput, TTSResult, TOutput>,
-  'persistence' | 'threadId' | 'hydrateGeneration' | 'joinRun'
+  | 'persistence'
+  | 'threadId'
+  | 'hydrateGeneration'
+  | 'joinRun'
+  | 'byok'
+  | 'byokProvider'
 > {
   /** Connect-based adapter for streaming transport (SSE, HTTP stream, custom) */
   connection?: ConnectConnectionAdapter
