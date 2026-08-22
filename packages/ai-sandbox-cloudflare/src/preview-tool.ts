@@ -68,6 +68,80 @@ export const PREVIEW_GUIDANCE: string = [
   'Once it is listening, call `exposePreview` with that port, then share the URL.',
 ].join('\n')
 
+const LOCAL_PROBE_TIMEOUT_MS = 5_000
+// Fresh quick tunnels need a few seconds of DNS/edge propagation, hence retries.
+const EDGE_PROBE_ATTEMPTS = 5
+const EDGE_PROBE_BASE_DELAY_MS = 250
+const EDGE_PROBE_FETCH_TIMEOUT_MS = 3_000
+
+/**
+ * Probe the port INSIDE the sandbox via `containerFetch`. Returns the HTTP
+ * status when a listener answered (any response — 4xx/5xx included — proves one
+ * exists), or the failure symptom (a string) when nothing did.
+ */
+async function localProbe(
+  sandbox: Sandbox,
+  port: number,
+): Promise<number | string> {
+  // ponytail: race instead of AbortSignal — a signal doesn't serialize across the
+  // sandbox RPC boundary, and a lost in-flight probe response is harmless.
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(
+      () => reject(new Error(`no response within ${LOCAL_PROBE_TIMEOUT_MS}ms`)),
+      LOCAL_PROBE_TIMEOUT_MS,
+    ),
+  )
+  try {
+    const res = await Promise.race([
+      sandbox.containerFetch('http://preview/', { method: 'HEAD' }, port),
+      timeout,
+    ])
+    return res.status
+  } catch (error) {
+    return error instanceof Error ? error.message : String(error)
+  }
+}
+
+/**
+ * Probe a tunnel URL through the public edge with bounded retries. Only 502/530
+ * — Cloudflare's tunnel/origin-unreachable signatures — mark the URL as
+ * unreachable (401/403/404 prove the server answered, and `redirect: 'manual'`
+ * keeps a login redirect from probing some other site), and even those are
+ * trusted when the app answered the SAME status locally, so an app's own
+ * 502/530 never gets its healthy tunnel destroyed. Success is `null`; repeated
+ * failure returns the last symptom.
+ */
+async function edgeProbeFailure(
+  url: string,
+  localStatus: number,
+): Promise<string | null> {
+  let lastFailure = 'no response'
+  for (let attempt = 0; attempt < EDGE_PROBE_ATTEMPTS; attempt += 1) {
+    if (attempt > 0) {
+      await new Promise((resolve) =>
+        setTimeout(resolve, EDGE_PROBE_BASE_DELAY_MS * 2 ** (attempt - 1)),
+      )
+    }
+    try {
+      const res = await fetch(url, {
+        method: 'HEAD',
+        redirect: 'manual',
+        signal: AbortSignal.timeout(EDGE_PROBE_FETCH_TIMEOUT_MS),
+      })
+      if (
+        (res.status !== 502 && res.status !== 530) ||
+        res.status === localStatus
+      ) {
+        return null
+      }
+      lastFailure = `HTTP ${res.status}`
+    } catch (error) {
+      lastFailure = error instanceof Error ? error.message : String(error)
+    }
+  }
+  return lastFailure
+}
+
 /**
  * Build the `exposePreview` server tool for one run. Starting a tunnel is a
  * HOST-side call on the Sandbox DO stub, so an in-sandbox agent cannot make it from
@@ -100,11 +174,34 @@ export function exposePreviewTool(input: StartRunInput, env: PreviewToolEnv) {
     const sandbox = getSandbox(env.Sandbox, input.threadId, {
       transport: 'rpc',
     })
+    // Gate tunnel work on a live listener: a fresh tunnel to a dead port is still
+    // a dead preview, and the failure the agent can FIX is "start the server".
+    const local = await localProbe(sandbox, port)
+    if (typeof local === 'string') {
+      throw new Error(
+        `No server is listening on port ${port} inside the sandbox (${local}). Start the dev server (bound to 0.0.0.0:${port}) first, then retry exposePreview.`,
+      )
+    }
     // A Cloudflare quick tunnel (`*.trycloudflare.com`) run by `cloudflared` INSIDE
     // the sandbox: it bypasses the local Vite dev server's port entirely (so Vite
     // can't hijack the preview's asset requests) and needs no custom domain on a
     // deploy. `get(port)` is idempotent per port. See the Sandbox SDK `tunnels` API.
     const tunnel = await sandbox.tunnels.get(port)
-    return { url: tunnel.url }
+    const staleSymptom = await edgeProbeFailure(tunnel.url, local)
+    if (staleSymptom === null) return { url: tunnel.url }
+    // Local server healthy but the edge kept answering 502/530: the cached tunnel
+    // record is suspect. Refresh, bounded to ONE so we never churn tunnels.
+    await sandbox.tunnels.destroy(port)
+    const fresh = await sandbox.tunnels.get(port)
+    const freshSymptom = await edgeProbeFailure(fresh.url, local)
+    if (freshSymptom === null) {
+      return {
+        url: fresh.url,
+        note: `The tunnel for port ${port} was stale, so it was replaced. Any previously shared preview URL for this port is dead — share this new URL instead.`,
+      }
+    }
+    throw new Error(
+      `Port ${port} is serving inside the sandbox, but its preview tunnel never became reachable (old tunnel: ${staleSymptom}; replacement tunnel: ${freshSymptom}). Retry exposePreview, and if it keeps failing, restart the dev server and try again.`,
+    )
   })
 }
