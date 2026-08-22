@@ -866,6 +866,18 @@ describe('Message Converters', () => {
       expect(result.id).toBe('custom-id')
     })
 
+    it('should preserve message metadata', () => {
+      const modelMessage: ModelMessage = {
+        role: 'user',
+        content: 'Hello',
+        metadata: { author: { id: 'user-42' } },
+      }
+
+      const result = modelMessageToUIMessage(modelMessage)
+
+      expect(result.metadata).toEqual({ author: { id: 'user-42' } })
+    })
+
     it('should preserve multimodal content parts', () => {
       const modelMessage: ModelMessage = {
         role: 'user',
@@ -1486,6 +1498,28 @@ describe('Message Converters', () => {
       const result = convertMessagesToModelMessages(messages)
 
       expect(result).toEqual([{ id: 'msg-1', role: 'user', content: 'Hello' }])
+    })
+
+    it('should preserve message metadata from UIMessages', () => {
+      const messages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+          metadata: { author: { id: 'user-42' } },
+        },
+      ]
+
+      const result = convertMessagesToModelMessages(messages)
+
+      expect(result).toEqual([
+        {
+          id: 'msg-1',
+          role: 'user',
+          content: 'Hello',
+          metadata: { author: { id: 'user-42' } },
+        },
+      ])
     })
 
     it('should handle mixed UIMessage and ModelMessage array', () => {

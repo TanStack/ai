@@ -176,6 +176,9 @@ export function convertMessagesToModelMessages(
         ...(modelMessage.createdAt !== undefined && {
           createdAt: modelMessage.createdAt,
         }),
+        ...(modelMessage.metadata !== undefined && {
+          metadata: modelMessage.metadata,
+        }),
       })
       continue
     }
@@ -208,6 +211,9 @@ export function convertMessagesToModelMessages(
         }),
         ...(modelMessage.createdAt !== undefined && {
           createdAt: modelMessage.createdAt,
+        }),
+        ...(modelMessage.metadata !== undefined && {
+          metadata: modelMessage.metadata,
         }),
       })
       continue
@@ -305,6 +311,7 @@ function buildUserOrToolMessage(uiMessage: UIMessage): ModelMessage {
     ...(uiMessage.createdAt !== undefined && {
       createdAt: uiMessage.createdAt,
     }),
+    ...(uiMessage.metadata !== undefined && { metadata: uiMessage.metadata }),
   }
 }
 
@@ -358,6 +365,13 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   // A tool call can have BOTH an explicit tool-result part AND an output
   // field on the tool-call part. We only want one per tool call ID.
   const emittedToolResultIds = new Set<string>()
+  const sharedFields = {
+    id: uiMessage.id,
+    ...(uiMessage.createdAt !== undefined && {
+      createdAt: uiMessage.createdAt,
+    }),
+    ...(uiMessage.metadata !== undefined && { metadata: uiMessage.metadata }),
+  }
 
   function flushSegment(): void {
     const content = collapseContentParts(current.contentParts)
@@ -367,16 +381,13 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
 
     if (hasContent || hasToolCalls || hasThinking) {
       messageList.push({
-        id: uiMessage.id,
+        ...sharedFields,
         role: 'assistant',
         content,
         ...(hasToolCalls && { toolCalls: current.toolCalls }),
         ...(hasThinking && { thinking: pendingThinking }),
         ...(current.structuredOutput && {
           structuredOutput: current.structuredOutput,
-        }),
-        ...(uiMessage.createdAt !== undefined && {
-          createdAt: uiMessage.createdAt,
         }),
       })
       pendingThinking = []
@@ -418,13 +429,10 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
           !emittedToolResultIds.has(part.toolCallId)
         ) {
           messageList.push({
-            id: uiMessage.id,
+            ...sharedFields,
             role: 'tool',
             content: part.content,
             toolCallId: part.toolCallId,
-            ...(uiMessage.createdAt !== undefined && {
-              createdAt: uiMessage.createdAt,
-            }),
           })
           emittedToolResultIds.add(part.toolCallId)
         }
@@ -487,13 +495,10 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     // emit the concrete output regardless of approval metadata.
     if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
       messageList.push({
-        id: uiMessage.id,
+        ...sharedFields,
         role: 'tool',
         content: normalizeToolResult(part.output),
         toolCallId: part.id,
-        ...(uiMessage.createdAt !== undefined && {
-          createdAt: uiMessage.createdAt,
-        }),
       })
       emittedToolResultIds.add(part.id)
     }
@@ -507,7 +512,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     ) {
       const approved = part.approval.approved
       messageList.push({
-        id: uiMessage.id,
+        ...sharedFields,
         role: 'tool',
         content: JSON.stringify({
           approved,
@@ -517,9 +522,6 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
             : 'User denied this action',
         }),
         toolCallId: part.id,
-        ...(uiMessage.createdAt !== undefined && {
-          createdAt: uiMessage.createdAt,
-        }),
       })
       emittedToolResultIds.add(part.id)
     }
@@ -528,12 +530,9 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   // If no messages were produced (e.g., empty parts), emit a minimal assistant message
   if (messageList.length === 0) {
     messageList.push({
-      id: uiMessage.id,
+      ...sharedFields,
       role: 'assistant',
       content: null,
-      ...(uiMessage.createdAt !== undefined && {
-        createdAt: uiMessage.createdAt,
-      }),
     })
   }
 
@@ -625,6 +624,9 @@ export function modelMessageToUIMessage(
     parts,
     ...(modelMessage.createdAt !== undefined && {
       createdAt: modelMessage.createdAt,
+    }),
+    ...(modelMessage.metadata !== undefined && {
+      metadata: modelMessage.metadata,
     }),
   }
 }

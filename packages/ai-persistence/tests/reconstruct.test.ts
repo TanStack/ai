@@ -65,6 +65,31 @@ describe('reconstructChat', () => {
     })
   })
 
+  it('restores persisted message metadata', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      {
+        id: 'user-1',
+        role: 'user',
+        content: 'hello',
+        metadata: { author: { id: 'user-42' } },
+      },
+    ])
+
+    const parsed = await body(
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      ),
+    )
+
+    expect(parsed.messages[0]).toMatchObject({
+      id: 'user-1',
+      role: 'user',
+      metadata: { author: { id: 'user-42' } },
+    })
+  })
+
   it('reports the active run for a thread that is still generating', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.messages!.saveThread('t1', [

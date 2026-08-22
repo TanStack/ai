@@ -372,6 +372,8 @@ export interface ModelMessage<
   toolCalls?: Array<ToolCall>
   toolCallId?: string
   thinking?: Array<{ content: string; signature?: string }>
+  /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
+  metadata?: Record<string, any>
   /**
    * Completed structured output represented by this assistant message.
    * `content` remains the provider-facing JSON text; this field preserves the
