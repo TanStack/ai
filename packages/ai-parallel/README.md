@@ -43,7 +43,7 @@ This package is available from the TanStack AI workspace.
    })
    ```
 
-The tool returns source URLs, relevant excerpts, titles, and publication dates. Consecutive searches reuse the same Parallel session.
+The tool returns source URLs, relevant excerpts, titles, and publication dates. Set `sessionId` explicitly when searches should share a Parallel session.
 
 ## Restrict sources
 

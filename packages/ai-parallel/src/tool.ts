@@ -45,7 +45,7 @@ export interface ParallelSearchToolConfig extends ParallelSearchClientConfig {
   defaultMaxResults?: number
   /** Application-controlled source restrictions for every search. */
   sourcePolicy?: ParallelSearchSourcePolicy
-  /** Existing search session to continue. Later searches reuse returned sessions. */
+  /** Explicit search session to use for every request from this tool. */
   sessionId?: string
 }
 
@@ -57,7 +57,7 @@ export function parallelSearchTool(config: ParallelSearchToolConfig = {}) {
     mode,
     defaultMaxResults,
     sourcePolicy,
-    sessionId: configuredSessionId,
+    sessionId,
     ...clientConfig
   } = config
 
@@ -69,7 +69,6 @@ export function parallelSearchTool(config: ParallelSearchToolConfig = {}) {
   }
 
   let client: ParallelSearchClient | undefined
-  let sessionId = configuredSessionId
 
   return toolDefinition({
     name: name ?? 'parallel_search',
@@ -85,24 +84,16 @@ export function parallelSearchTool(config: ParallelSearchToolConfig = {}) {
     const response = await client.search(
       {
         search_queries: [query],
-        ...(objective ? { objective } : {}),
-        ...(mode ? { mode } : {}),
-        ...(sessionId ? { session_id: sessionId } : {}),
-        ...(maxResults !== undefined || sourcePolicy
-          ? {
-              advanced_settings: {
-                ...(maxResults !== undefined
-                  ? { max_results: maxResults }
-                  : {}),
-                ...(sourcePolicy ? { source_policy: sourcePolicy } : {}),
-              },
-            }
-          : {}),
+        objective,
+        mode,
+        session_id: sessionId,
+        advanced_settings:
+          maxResults !== undefined || sourcePolicy
+            ? { max_results: maxResults, source_policy: sourcePolicy }
+            : undefined,
       },
       { signal: context?.abortSignal },
     )
-
-    sessionId = response.session_id
 
     return { results: response.results }
   })

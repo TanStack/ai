@@ -1,4 +1,6 @@
-export type ParallelSearchMode = 'turbo' | 'fast' | 'basic' | 'advanced'
+const searchModes = ['turbo', 'fast', 'basic', 'advanced'] as const
+
+export type ParallelSearchMode = (typeof searchModes)[number]
 
 export interface ParallelSearchSourcePolicy {
   after_date?: string
@@ -43,13 +45,6 @@ export interface ParallelSearchClientConfig {
   fetch?: typeof fetch
 }
 
-const searchModes = new Set<ParallelSearchMode>([
-  'turbo',
-  'fast',
-  'basic',
-  'advanced',
-])
-
 /** A small client for the generally available Parallel Search API. */
 export class ParallelSearchClient {
   private readonly apiKey: string
@@ -90,7 +85,7 @@ export class ParallelSearchClient {
       )
     }
 
-    if (request.mode && !searchModes.has(request.mode)) {
+    if (request.mode && !searchModes.includes(request.mode)) {
       throw new Error('mode must be turbo, fast, basic, or advanced.')
     }
 
@@ -103,11 +98,10 @@ export class ParallelSearchClient {
     }
 
     const sourcePolicy = request.advanced_settings?.source_policy
-    const domains = [
-      ...(sourcePolicy?.include_domains ?? []),
-      ...(sourcePolicy?.exclude_domains ?? []),
-    ]
-    if (domains.length > 200) {
+    const domainCount =
+      (sourcePolicy?.include_domains?.length ?? 0) +
+      (sourcePolicy?.exclude_domains?.length ?? 0)
+    if (domainCount > 200) {
       throw new Error(
         'include_domains and exclude_domains can contain at most 200 domains combined.',
       )
