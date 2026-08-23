@@ -244,6 +244,7 @@ export function convertMessagesToModelMessages(
 }
 
 function restoreModelMessageCreatedAt(message: ModelMessage): ModelMessage {
+  if (message.createdAt !== undefined) return message
   const createdAt = createdAtFromMetadata(message)
   return createdAt === undefined ? message : { ...message, createdAt }
 }
@@ -766,7 +767,16 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
       ? {
           parts: [
             ...ui.parts,
-            ...resources.filter((resource) => !ui.parts.includes(resource)),
+            ...resources.filter(
+              (resource) =>
+                !ui.parts.some(
+                  (part) =>
+                    part.type === 'ui-resource' &&
+                    part.toolCallId === resource.toolCallId &&
+                    part.toolName === resource.toolName &&
+                    part.resource.uri === resource.resource.uri,
+                ),
+            ),
           ],
         }
       : {}),

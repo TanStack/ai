@@ -478,6 +478,39 @@ describe('StreamProcessor', () => {
       ])
     })
 
+    it('MESSAGES_SNAPSHOT does not duplicate restored ui-resource parts', () => {
+      const processor = new StreamProcessor()
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/todos',
+          mimeType: 'text/html',
+          text: '<div>todos</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getTodos',
+      }
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              parts: [uiResource],
+              metadata: {
+                tanstack: {
+                  uiResources: [{ ...uiResource }],
+                },
+              },
+            },
+          ],
+        }),
+      )
+
+      expect(processor.getMessages()[0]?.parts).toEqual([uiResource])
+    })
+
     it('snapshot that omits user metadata keeps in-memory user metadata', () => {
       const processor = new StreamProcessor()
       processor.addUserMessage('Hello', 'u1', {
