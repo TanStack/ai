@@ -177,6 +177,64 @@ export async function POST(request: Request) {
 Without the resource tool, resources are still listed in the `load_skill`
 result, but the model is told they are not loadable in this setup.
 
+## Skills that come with code
+
+Some skills ship scripts, or their instructions say "run `python3 extract.py`".
+`withSkills` lists those scripts in the `load_skill` result but does not run
+them. Running code is your app's job, and you wire it up by passing your own
+tool.
+
+`withSkills` composes with whatever tools you give `chat()`. So add an execution
+tool, and write the skill so it tells the model to call that tool. The skill
+supplies the "how" (the command); your tool supplies the ability to run it.
+
+```ts ignore
+import { chat, toServerSentEventsResponse, toolDefinition } from '@tanstack/ai'
+import { anthropicText } from '@tanstack/ai-anthropic'
+import { inlineSkill, withSkills } from '@tanstack/ai-skills'
+import { z } from 'zod'
+
+// Your own execution tool. Run the command wherever you want: a provider
+// sandbox, a local isolate, a serverless worker. Guard it in production.
+const executeShell = toolDefinition({
+  name: 'execute_shell',
+  description: 'Run a shell command and return its stdout.',
+  inputSchema: z.object({ command: z.string() }),
+  outputSchema: z.object({ stdout: z.string() }),
+}).server(async ({ command }) => {
+  const { stdout } = await runInYourSandbox(command)
+  return { stdout }
+})
+
+const extractPdf = inlineSkill({
+  name: 'pdf-extract',
+  description: 'Extract text from a PDF with a small Python script.',
+  instructions: `
+# Extract PDF text
+Run this with the execute_shell tool, then return the text it prints:
+  python3 -c "import sys, pypdf; ..."
+`,
+})
+
+export async function POST(request: Request) {
+  const { messages } = await request.json()
+
+  const stream = chat({
+    adapter: anthropicText('claude-sonnet-4-5'),
+    messages,
+    tools: [executeShell],
+    middleware: [withSkills(extractPdf)],
+  })
+
+  return toServerSentEventsResponse(stream)
+}
+```
+
+Swap `execute_shell` for any tool: a container runner, a Code Mode sandbox, or
+a remote worker. The skill never changes, only the tool behind it. For hosted
+skills that run in a provider's own sandbox instead, see
+[Provider Skills](../tools/provider-skills).
+
 ## Where to go next
 
 - [Skill sources](./skill-sources) — load skills from a folder, a build-time

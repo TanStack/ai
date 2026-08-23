@@ -54,6 +54,7 @@ TanStack AI publishes skills inside its packages so the guidance travels with `n
 | `@tanstack/ai-mcp` | `ai-mcp` | Connecting to MCP servers, running their tools inside `chat()`, resources, prompts, and the type-generating CLI |
 | `@tanstack/ai-sandbox` | `ai-sandbox` | Running harness adapters inside isolated sandboxes with `defineSandbox` / `withSandbox` |
 | `@tanstack/ai-code-mode` | `ai-code-mode` | Setting up Code Mode with a sandbox driver and registering server tools |
+| `@tanstack/ai-skills` | `ai-skills` | Portable Agent Skills at runtime: the `withSkills` middleware, `load_skill`, the `SkillSource` interface, `inlineSkill` / `skillDirectory` / `staticSkills`, and adding your own tools for skills that carry code |
 
 Skills route to each other: `ai-core` points at the companion packages'
 skills, and `ai-persistence` is an entry point that routes to its own

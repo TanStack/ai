@@ -37,6 +37,7 @@ Always import from the framework package on the client — never from
 | Turn on/off debug logging, pipe into pino/winston | ai-core/debug-logging/SKILL.md                |
 | Persist chats server-side (history, runs)         | See `@tanstack/ai-persistence` package skills |
 | Set up Code Mode (LLM code execution)             | See `@tanstack/ai-code-mode` package skills   |
+| Give the model a catalog of SKILL.md skills       | See `@tanstack/ai-skills` package skills       |
 
 ## Companion packages
 
@@ -83,6 +84,22 @@ framework packages, so read **ai-core/client-persistence** instead.
 ### `@tanstack/ai-code-mode` — LLM code execution
 
 See the `ai-code-mode` skill in that package.
+
+### `@tanstack/ai-skills` — portable Agent Skills at runtime
+
+Gives the model a library of `SKILL.md` skills it can load on demand, on any
+provider, via the `withSkills` middleware and a `load_skill` tool. Skills come
+from `inlineSkill`, `skillDirectory`, or a build-time bundle. This is the
+runtime feature for the model **inside your app**, not the coding-assistant
+skills this file is part of, and not the hosted `codeExecutionTool` /
+`shellTool` skills (those run in a provider sandbox).
+
+```bash
+pnpm add @tanstack/ai-skills
+npx @tanstack/intent@latest install
+```
+
+Entry point: `node_modules/@tanstack/ai-skills/skills/ai-skills/SKILL.md`
 
 ## Quick Decision Tree
 

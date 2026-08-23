@@ -61,7 +61,7 @@
           "label": "Agent Skills (TanStack Intent)",
           "to": "getting-started/agent-skills",
           "addedAt": "2026-04-17",
-          "updatedAt": "2026-08-22"
+          "updatedAt": "2026-08-23"
         }
       ]
     },
@@ -135,7 +135,8 @@
         {
           "label": "Portable Agent Skills",
           "to": "skills/agent-skills",
-          "addedAt": "2026-08-22"
+          "addedAt": "2026-08-22",
+          "updatedAt": "2026-08-23"
         },
         {
           "label": "Skill Sources",

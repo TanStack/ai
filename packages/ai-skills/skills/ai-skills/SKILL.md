@@ -85,6 +85,33 @@ To let the model read a skill's bundled files, pass `createResourceTool(source)`
 in `tools`. `withSkills` detects it and advertises `read_skill_resource`. Paths
 that escape the skill root are rejected.
 
+## Skills that carry code
+
+`withSkills` inventories a skill's `scripts/` in the `load_skill` result but does
+NOT run them (script execution is a later phase). To let a skill run code, pass
+your own execution tool to `chat({ tools })` alongside `withSkills` and write the
+skill so it tells the model to call that tool. `withSkills` composes with any
+tools you provide.
+
+```ts ignore
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const executeShell = toolDefinition({
+  name: 'execute_shell',
+  description: 'Run a shell command and return its stdout.',
+  inputSchema: z.object({ command: z.string() }),
+  outputSchema: z.object({ stdout: z.string() }),
+}).server(async ({ command }) => ({ stdout: await runSomewhere(command) }))
+
+// chat({ tools: [executeShell], middleware: [withSkills(source)] })
+```
+
+The skill supplies the command; your tool supplies the ability to run it. Swap in
+a provider sandbox, a Code Mode isolate, or a remote worker without changing the
+skill. For hosted skills that run in the provider's own sandbox, use
+`codeExecutionTool` / `shellTool` instead (see provider-skills).
+
 ## Write a custom source
 
 Implement `SkillSource` (`list` + `load`, optional `revision`/`listResources`/
