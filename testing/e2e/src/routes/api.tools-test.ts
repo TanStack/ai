@@ -9,17 +9,22 @@ import {
 import type { AnyTextAdapter, AdapterYieldChunk } from '@tanstack/ai'
 import type { TestRuntimeContext } from '@/lib/tools-test-tools'
 import { createTextAdapter } from '@/lib/providers'
-import { getToolsForScenario } from '@/lib/tools-test-tools'
+import {
+  getToolsForScenario,
+  STOP_CLIENT_TOOL_MESSAGE,
+} from '@/lib/tools-test-tools'
 
 const providerFreeScenarios = new Set([
   'server-context',
   'client-context',
   'client-server-context',
+  'client-tool-stop',
   'malformed-tool-arguments',
   'provider-rejected-tool-call',
 ])
 
 function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
+  const stopsPendingTool = scenario === 'client-tool-stop'
   const config =
     scenario === 'provider-rejected-tool-call'
       ? {
@@ -44,15 +49,29 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
             toolName: 'check_status',
           }
         : {
-            arguments: '{}',
-            initialText: 'Reading runtime context.',
-            input: {},
-            name: 'runtime-context-test',
-            responseText: 'Runtime context was read.',
+            arguments: stopsPendingTool
+              ? JSON.stringify({
+                  message: STOP_CLIENT_TOOL_MESSAGE,
+                  type: 'info',
+                })
+              : '{}',
+            initialText: stopsPendingTool
+              ? 'Showing a notification.'
+              : 'Reading runtime context.',
+            input: stopsPendingTool
+              ? { message: STOP_CLIENT_TOOL_MESSAGE, type: 'info' }
+              : {},
+            name: stopsPendingTool
+              ? 'client-tool-stop-test'
+              : 'runtime-context-test',
+            responseText: stopsPendingTool
+              ? 'The notification was shown.'
+              : 'Runtime context was read.',
             result: undefined,
             state: undefined,
-            toolName:
-              scenario === 'client-context'
+            toolName: stopsPendingTool
+              ? 'show_notification'
+              : scenario === 'client-context'
                 ? 'read_client_context'
                 : 'read_server_context',
           }

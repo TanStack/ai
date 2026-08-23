@@ -511,6 +511,7 @@ export class InterruptManager<
     resuming: false,
   })
   private activeTransaction: TransactionToken | undefined
+  private activeSubmission: InterruptManagerSubmission | undefined
   private retrySubmission: InterruptManagerSubmission | undefined
   private resuming = false
   private tools: TTools | undefined
@@ -597,6 +598,7 @@ export class InterruptManager<
     preserveRootErrors?: boolean
     source?: InterruptManagerChangeSource
   }): void {
+    this.activeSubmission = undefined
     this.hydration = undefined
     this.items = []
     this.snapshot = Object.freeze([])
@@ -1528,6 +1530,7 @@ export class InterruptManager<
   }
 
   private submitBatch(submission: InterruptManagerSubmission): void {
+    this.activeSubmission = submission
     this.resuming = true
     this.retrySubmission = undefined
     for (const item of this.items) {
@@ -1540,13 +1543,20 @@ export class InterruptManager<
   private async performSubmission(
     submission: InterruptManagerSubmission,
   ): Promise<void> {
+    // `reset()` may invalidate this submission while it is settling. Only the
+    // submission that still owns the manager may publish its result.
     try {
       await this.options.submit(submission)
     } catch (error) {
-      this.handleSubmissionFailure(error, submission)
+      if (this.activeSubmission === submission) {
+        this.handleSubmissionFailure(error, submission)
+      }
     } finally {
-      this.resuming = false
-      this.publish()
+      if (this.activeSubmission === submission) {
+        this.activeSubmission = undefined
+        this.resuming = false
+        this.publish()
+      }
     }
   }
 
