@@ -1682,14 +1682,20 @@ export class ChatClient<
       })
   }
 
-  /**
-   * Consume chunks from the connection subscription.
-   */
-  private async consumeSubscription(signal: AbortSignal): Promise<void> {
-    const stream = this.connection.subscribe(signal)
+  private consumeSubscription(signal: AbortSignal): Promise<void> {
+    return this.consumeChunks(this.connection.subscribe(signal), signal)
+  }
+
+  /** Consume chunks in order, yielding after bounded processing work. */
+  private async consumeChunks(
+    stream: AsyncIterable<StreamChunk>,
+    signal: AbortSignal,
+    beforeProcess?: (chunk: StreamChunk) => void,
+  ): Promise<void> {
     let processingTime = 0
     for await (const chunk of stream) {
       if (signal.aborted) break
+      beforeProcess?.(chunk)
       const startedAt = performance.now()
       this.processIncomingChunk(chunk)
       processingTime += performance.now() - startedAt
@@ -1750,18 +1756,20 @@ export class ChatClient<
         if (!attached) controller.abort()
       }, REJOIN_CONNECT_DEADLINE_MS)
       try {
-        for await (const chunk of joinRun(runId, controller.signal)) {
-          if (controller.signal.aborted) break
-          if (!attached) {
-            attached = true
-            clearTimeout(connectTimer)
-          }
-          if (!rebuilt && REJOIN_REBUILD_TRIGGERS.has(chunk.type)) {
-            rebuilt = true
-            this.dropTrailingInFlightAssistant()
-          }
-          this.processIncomingChunk(chunk)
-        }
+        await this.consumeChunks(
+          joinRun(runId, controller.signal),
+          controller.signal,
+          (chunk) => {
+            if (!attached) {
+              attached = true
+              clearTimeout(connectTimer)
+            }
+            if (!rebuilt && REJOIN_REBUILD_TRIGGERS.has(chunk.type)) {
+              rebuilt = true
+              this.dropTrailingInFlightAssistant()
+            }
+          },
+        )
         // Same contract as `streamResponse`: client tools may finish (and
         // queue a resume) while `isLoading` is still true. Wait for them
         // before teardown so `drainPostStreamActions` below sees the queue.
