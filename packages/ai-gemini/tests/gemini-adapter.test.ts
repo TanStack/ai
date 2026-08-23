@@ -409,6 +409,72 @@ describe('GeminiAdapter through AI', () => {
     })
   })
 
+  it('emits exactly one TOOL_CALL_START/TOOL_CALL_END per tool call when the final chunk carries both functionCall parts and finishReason UNEXPECTED_TOOL_CALL', async () => {
+    // The per-part loop already registers and emits events for functionCall
+    // parts on every chunk, including the final one. The UNEXPECTED_TOOL_CALL
+    // finish handling must not re-emit for those same parts.
+    const streamChunks = [
+      {
+        candidates: [
+          {
+            content: {
+              parts: [
+                {
+                  functionCall: {
+                    id: 'call_1',
+                    name: 'lookup_weather',
+                    args: { location: 'Berlin' },
+                  },
+                },
+                {
+                  functionCall: {
+                    name: 'lookup_weather',
+                    args: { location: 'Madrid' },
+                  },
+                },
+              ],
+            },
+            finishReason: 'UNEXPECTED_TOOL_CALL',
+          },
+        ],
+        usageMetadata: {
+          promptTokenCount: 4,
+          candidatesTokenCount: 2,
+          totalTokenCount: 6,
+        },
+      },
+    ]
+
+    mocks.generateContentStreamSpy.mockResolvedValue(createStream(streamChunks))
+
+    const adapter = createTextAdapter()
+    const received: AdapterYieldChunk[] = []
+    for await (const chunk of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'What is the weather?' }],
+      tools: [weatherTool],
+    })) {
+      received.push(chunk)
+    }
+
+    const starts = received.filter((c) => c.type === 'TOOL_CALL_START')
+    const ends = received.filter((c) => c.type === 'TOOL_CALL_END')
+
+    // Two tool calls in the chunk: exactly one START and one END for each.
+    expect(starts).toHaveLength(2)
+    expect(ends).toHaveLength(2)
+
+    const startIds = starts.map((c) =>
+      c.type === 'TOOL_CALL_START' ? c.toolCallId : '',
+    )
+    const endIds = ends.map((c) =>
+      c.type === 'TOOL_CALL_END' ? c.toolCallId : '',
+    )
+    expect(new Set(startIds).size).toBe(2)
+    expect(startIds).toContain('call_1')
+    expect(endIds.sort()).toEqual(startIds.sort())
+  })
+
   it('emits parentMessageId on tool-first tool calls matching the assistant message id', async () => {
     // A functionCall part arrives before any text. parentMessageId must bind the
     // tool call to the same assistant message id the eventual TEXT_MESSAGE_START
