@@ -607,24 +607,43 @@ describe('chat()', () => {
       const { adapter, calls } = createMockAdapter({
         iterations: [
           [
-            ev.runStarted('provider-1'),
+            ev.runStarted('provider-1', 'thread-1'),
             ev.toolStart('call_1', 'showNotification'),
             ev.toolArgs('call_1', '{"message":42}'),
-            ev.runFinished('tool_calls', 'provider-1', {
-              promptTokens: 10,
-              completionTokens: 2,
-              totalTokens: 12,
-            }),
+            ev.runFinished(
+              'tool_calls',
+              'provider-1',
+              {
+                promptTokens: 10,
+                completionTokens: 2,
+                totalTokens: 12,
+              },
+              'thread-1',
+            ),
           ],
           [
-            ev.runStarted('provider-2'),
+            ev.runStarted('provider-2', 'thread-2'),
             ev.toolStart('call_2', 'showNotification'),
             ev.toolArgs('call_2', '{"message":"done"}'),
-            ev.runFinished('tool_calls', 'provider-2', {
-              promptTokens: 15,
-              completionTokens: 3,
-              totalTokens: 18,
-            }),
+            {
+              ...ev.runFinished(
+                'tool_calls',
+                'provider-2',
+                {
+                  promptTokens: 15,
+                  completionTokens: 3,
+                  totalTokens: 18,
+                },
+                'thread-2',
+              ),
+              metadata: {
+                tanstack: {
+                  finishReason: 'tool_calls',
+                  runId: 'provider-2',
+                  threadId: 'thread-2',
+                },
+              },
+            },
           ],
         ],
       })
@@ -653,8 +672,19 @@ describe('chat()', () => {
             chunk.type === EventType.RUN_FINISHED,
         ),
       ).toMatchObject([
-        { type: EventType.RUN_STARTED, runId: 'provider-1' },
-        { type: EventType.RUN_FINISHED, runId: 'provider-1' },
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'provider-1',
+          threadId: 'thread-1',
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'provider-1',
+          threadId: 'thread-1',
+          metadata: {
+            tanstack: { runId: 'provider-1', threadId: 'thread-1' },
+          },
+        },
       ])
       expect(
         chunks.find(

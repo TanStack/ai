@@ -4401,7 +4401,15 @@ class TextEngine<
         this.publicRunIdentity,
       )
     }
-    return { ...chunk, ...this.publicRunIdentity }
+    const publicChunk = { ...chunk, ...this.publicRunIdentity }
+    const metadataIdentity = tanstackMetadata(chunk)
+    if (
+      metadataIdentity?.runId !== undefined ||
+      metadataIdentity?.threadId !== undefined
+    ) {
+      return withTanstackMetadata(publicChunk, this.publicRunIdentity)
+    }
+    return publicChunk
   }
 
   /**

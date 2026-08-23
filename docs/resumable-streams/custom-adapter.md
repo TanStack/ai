@@ -50,9 +50,10 @@ Get these wrong and resume breaks in subtle ways:
   > tails until then, or until the caller aborts.
 
   An adapter that returns at the first terminal chunk can truncate a valid
-  persisted stream. `close()` is your only end-of-log signal, and core awaits it
-  on every producer exit (completion, cancellation, and failure), so tailing
-  until then always terminates.
+  persisted stream. `close()` is your only end-of-log signal. Core awaits it
+  when a producer completes, is cancelled, or fails. During a detached handoff,
+  core leaves the log open so the successor producer can continue it and close
+  it later.
 - **`read` must never end the response empty while the run is still producing.**
   Park (wait for the next append) instead. A clean end with no new data tells
   the client the run is over; if it isn't, the client fails with
