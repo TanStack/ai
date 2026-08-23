@@ -26,7 +26,7 @@ Each test iterates over supported providers using `providersFor('feature')`:
 | tool-approval            | 6         | `tests/tool-approval.spec.ts`            |
 | text-tool-text           | 6         | `tests/text-tool-text.spec.ts`           |
 | agentic-structured       | 7         | `tests/agentic-structured.spec.ts`       |
-| reasoning                | 3         | `tests/reasoning.spec.ts`                |
+| reasoning                | 8         | `tests/reasoning.spec.ts`                |
 | multimodal-image         | 5         | `tests/multimodal-image.spec.ts`         |
 | multimodal-document      | 1         | `tests/multimodal-document.spec.ts`      |
 | multimodal-structured    | 5         | `tests/multimodal-structured.spec.ts`    |

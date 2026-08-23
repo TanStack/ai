@@ -60,7 +60,7 @@ const legacyReasoningFetch: typeof fetch = async (input, init) => {
     new TransformStream<Uint8Array, Uint8Array>({
       transform(chunk, controller) {
         buffer += decoder.decode(chunk, { stream: true })
-        const frames = buffer.split('\n\n')
+        const frames = buffer.split(/\r?\n\r?\n/)
         buffer = frames.pop() ?? ''
         for (const frame of frames) {
           controller.enqueue(encoder.encode(rewriteFrame(frame) + '\n\n'))
