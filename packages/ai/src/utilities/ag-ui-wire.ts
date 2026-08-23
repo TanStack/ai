@@ -181,11 +181,7 @@ function toAnchor(
   parts: ReadonlyArray<MessagePart>,
   includeSnapshotStructuredOutput: boolean,
 ): WireAnchorMessage {
-  const metadata = messageMetadata(
-    msg,
-    parts,
-    includeSnapshotStructuredOutput,
-  )
+  const metadata = messageMetadata(msg, parts, includeSnapshotStructuredOutput)
   const name = (msg as { name?: string }).name
   return {
     id: msg.id,

@@ -492,9 +492,7 @@ describe('uiMessagesToWire', () => {
       wire as Array<UIMessage | ModelMessage>,
     )
 
-    expect(model[0]?.createdAt).toEqual(
-      new Date('2026-08-20T00:00:00.000Z'),
-    )
+    expect(model[0]?.createdAt).toEqual(new Date('2026-08-20T00:00:00.000Z'))
   })
 
   it('preserves an explicit model message createdAt over metadata', () => {
