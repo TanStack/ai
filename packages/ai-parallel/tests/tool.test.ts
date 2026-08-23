@@ -94,7 +94,21 @@ describe('parallelSearchTool', () => {
     })
   })
 
-  it('reuses the returned session across later tool calls', async () => {
+  it('does not leak returned sessions between unrelated tool calls', async () => {
+    const fetchMock = mockFetch(searchResponse([], 'session_returned'))
+    const tool = parallelSearchTool({
+      apiKey: 'test-key',
+      fetch: fetchMock,
+    })
+
+    await tool.execute!({ query: 'first search' }, context)
+    await tool.execute!({ query: 'second search' }, context)
+
+    expect(fetchCall(fetchMock, 0).body).not.toHaveProperty('session_id')
+    expect(fetchCall(fetchMock, 1).body).not.toHaveProperty('session_id')
+  })
+
+  it('uses only the explicitly configured search session', async () => {
     const fetchMock = mockFetch(searchResponse([], 'session_returned'))
     const tool = parallelSearchTool({
       apiKey: 'test-key',
@@ -106,7 +120,7 @@ describe('parallelSearchTool', () => {
     await tool.execute!({ query: 'second search' }, context)
 
     expect(fetchCall(fetchMock, 0).body.session_id).toBe('session_existing')
-    expect(fetchCall(fetchMock, 1).body.session_id).toBe('session_returned')
+    expect(fetchCall(fetchMock, 1).body.session_id).toBe('session_existing')
   })
 
   it('forwards the chat cancellation signal to Parallel', async () => {

@@ -55,7 +55,7 @@ const stream = chat({
 })
 ```
 
-The tool runs on the server and returns each source URL, relevant excerpts, title, and publication date. Later searches reuse the current Parallel session.
+The tool runs on the server and returns each source URL, relevant excerpts, title, and publication date. Set `sessionId` explicitly when searches should share a Parallel session.
 
 ## Control search behavior
 
