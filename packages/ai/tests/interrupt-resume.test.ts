@@ -237,6 +237,23 @@ describe('validateInterruptResumeBatch', () => {
     ).toBe(true)
   })
 
+  it('accepts a cancelled approval when its runtime tool is unavailable', async () => {
+    const fixture = approvalFixture()
+    const result = await validateInterruptResumeBatch({
+      ...baseInput(pendingOf(fixture), [
+        {
+          interruptId: fixture.binding.interruptId,
+          status: 'cancelled',
+        },
+      ]),
+      tools: [],
+    })
+    expect(result.errors).toEqual([])
+    expect(result.resumeToolState?.cancelledToolCallIds).toEqual(
+      new Set(['call-1']),
+    )
+  })
+
   it('rejects invalid status values', async () => {
     const fixture = approvalFixture()
     const result = await validateInterruptResumeBatch(
