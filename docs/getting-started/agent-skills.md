@@ -14,7 +14,13 @@ keywords:
   - SKILL.md
   - AGENTS.md
 ---
-> **Looking for runtime snippets inside Code Mode?** Those are a different feature — see [Code Mode with Snippets](../code-mode/code-mode-with-snippets). This page is about _agent-authoring_ skills: markdown files that teach your coding assistant how TanStack AI works.
+> **Looking for runtime snippets inside Code Mode?** Those are a different feature, see [Code Mode with Snippets](../code-mode/code-mode-with-snippets). This page is about _agent-authoring_ skills: markdown files that teach your coding assistant how TanStack AI works.
+
+> **Want your app's model to load `SKILL.md` skills at runtime?** That is a
+> different feature with a confusingly similar name. See
+> [Portable Agent Skills](../skills/agent-skills): a runtime catalog plus a
+> `load_skill` tool, for the model inside your app. This page is only about
+> teaching your _coding assistant_ how to use TanStack AI.
 ## Step 1: Install TanStack AI
 
 If you haven't already, install `@tanstack/ai` plus any adapter packages you need. See the [Quick Start](./quick-start) for a full walkthrough.

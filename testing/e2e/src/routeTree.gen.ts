@@ -40,6 +40,7 @@ import { Route as ApiSandboxToolHistoryRouteImport } from './routes/api.sandbox-
 import { Route as ApiSandboxFilePersistenceRouteImport } from './routes/api.sandbox-file-persistence'
 import { Route as ApiSandboxDurabilityRouteImport } from './routes/api.sandbox-durability'
 import { Route as ApiProviderToolDispatchWireRouteImport } from './routes/api.provider-tool-dispatch-wire'
+import { Route as ApiPortableSkillsWireRouteImport } from './routes/api.portable-skills-wire'
 import { Route as ApiPersistenceDurabilityRouteImport } from './routes/api.persistence-durability'
 import { Route as ApiOtelUsageRouteImport } from './routes/api.otel-usage'
 import { Route as ApiOtelTranscriptionRouteImport } from './routes/api.otel-transcription'
@@ -80,8 +81,8 @@ import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-tak
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
-import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
+import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
@@ -254,6 +255,11 @@ const ApiProviderToolDispatchWireRoute =
     path: '/api/provider-tool-dispatch-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPortableSkillsWireRoute = ApiPortableSkillsWireRouteImport.update({
+  id: '/api/portable-skills-wire',
+  path: '/api/portable-skills-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPersistenceDurabilityRoute =
   ApiPersistenceDurabilityRouteImport.update({
     id: '/api/persistence-durability',
@@ -466,17 +472,17 @@ const ApiChatRoute = ApiChatRouteImport.update({
   path: '/api/chat',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiByokChatRoute = ApiByokChatRouteImport.update({
-  id: '/api/byok-chat',
-  path: '/api/byok-chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiByteplusSeedance1080pWireRoute =
   ApiByteplusSeedance1080pWireRouteImport.update({
     id: '/api/byteplus-seedance-1080p-wire',
     path: '/api/byteplus-seedance-1080p-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiByokChatRoute = ApiByokChatRouteImport.update({
+  id: '/api/byok-chat',
+  path: '/api/byok-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioRoute = ApiAudioRouteImport.update({
   id: '/api/audio',
   path: '/api/audio',
@@ -603,6 +609,7 @@ export interface FileRoutesByFullPath {
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
@@ -689,6 +696,7 @@ export interface FileRoutesByTo {
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
@@ -776,6 +784,7 @@ export interface FileRoutesById {
   '/api/otel-transcription': typeof ApiOtelTranscriptionRoute
   '/api/otel-usage': typeof ApiOtelUsageRoute
   '/api/persistence-durability': typeof ApiPersistenceDurabilityRoute
+  '/api/portable-skills-wire': typeof ApiPortableSkillsWireRoute
   '/api/provider-tool-dispatch-wire': typeof ApiProviderToolDispatchWireRoute
   '/api/sandbox-durability': typeof ApiSandboxDurabilityRoute
   '/api/sandbox-file-persistence': typeof ApiSandboxFilePersistenceRoute
@@ -864,6 +873,7 @@ export interface FileRouteTypes {
     | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/portable-skills-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
@@ -950,6 +960,7 @@ export interface FileRouteTypes {
     | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/portable-skills-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
@@ -1036,6 +1047,7 @@ export interface FileRouteTypes {
     | '/api/otel-transcription'
     | '/api/otel-usage'
     | '/api/persistence-durability'
+    | '/api/portable-skills-wire'
     | '/api/provider-tool-dispatch-wire'
     | '/api/sandbox-durability'
     | '/api/sandbox-file-persistence'
@@ -1123,6 +1135,7 @@ export interface RootRouteChildren {
   ApiOtelTranscriptionRoute: typeof ApiOtelTranscriptionRoute
   ApiOtelUsageRoute: typeof ApiOtelUsageRoute
   ApiPersistenceDurabilityRoute: typeof ApiPersistenceDurabilityRoute
+  ApiPortableSkillsWireRoute: typeof ApiPortableSkillsWireRoute
   ApiProviderToolDispatchWireRoute: typeof ApiProviderToolDispatchWireRoute
   ApiSandboxDurabilityRoute: typeof ApiSandboxDurabilityRoute
   ApiSandboxFilePersistenceRoute: typeof ApiSandboxFilePersistenceRoute
@@ -1353,6 +1366,13 @@ declare module '@tanstack/react-router' {
       path: '/api/provider-tool-dispatch-wire'
       fullPath: '/api/provider-tool-dispatch-wire'
       preLoaderRoute: typeof ApiProviderToolDispatchWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/portable-skills-wire': {
+      id: '/api/portable-skills-wire'
+      path: '/api/portable-skills-wire'
+      fullPath: '/api/portable-skills-wire'
+      preLoaderRoute: typeof ApiPortableSkillsWireRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/persistence-durability': {
@@ -1635,18 +1655,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/byok-chat': {
-      id: '/api/byok-chat'
-      path: '/api/byok-chat'
-      fullPath: '/api/byok-chat'
-      preLoaderRoute: typeof ApiByokChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/byteplus-seedance-1080p-wire': {
       id: '/api/byteplus-seedance-1080p-wire'
       path: '/api/byteplus-seedance-1080p-wire'
       fullPath: '/api/byteplus-seedance-1080p-wire'
       preLoaderRoute: typeof ApiByteplusSeedance1080pWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/byok-chat': {
+      id: '/api/byok-chat'
+      path: '/api/byok-chat'
+      fullPath: '/api/byok-chat'
+      preLoaderRoute: typeof ApiByokChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/audio': {
@@ -1856,6 +1876,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiOtelTranscriptionRoute: ApiOtelTranscriptionRoute,
   ApiOtelUsageRoute: ApiOtelUsageRoute,
   ApiPersistenceDurabilityRoute: ApiPersistenceDurabilityRoute,
+  ApiPortableSkillsWireRoute: ApiPortableSkillsWireRoute,
   ApiProviderToolDispatchWireRoute: ApiProviderToolDispatchWireRoute,
   ApiSandboxDurabilityRoute: ApiSandboxDurabilityRoute,
   ApiSandboxFilePersistenceRoute: ApiSandboxFilePersistenceRoute,
