@@ -30,6 +30,7 @@ export const providers: Provider[] = [
   'vercel-gateway',
   'vercel-gateway-responses',
   'openai-compatible',
+  'openai-compatible-legacy',
   'mistral',
   'byteplus',
   'elevenlabs',

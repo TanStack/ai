@@ -51,6 +51,10 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // OpenAI-compatible chunk builder emits for a fixture's `reasoning` channel —
   // so each adapter's `extractReasoning` override is exercised end-to-end
   // against the shared fixture.
+  // `openai-compatible-legacy` re-keys aimock's reasoning frames to the
+  // pre-July-2025 `response.reasoning.delta` event name that OpenAI-compatible
+  // endpoints frozen on the older spec still emit (see providers.ts), pinning
+  // openai-base's legacy-event mapping end-to-end. Reasoning-only on purpose.
   reasoning: new Set([
     'openai',
     'anthropic',
@@ -59,6 +63,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'mistral',
     'byteplus',
     'llmgateway',
+    'openai-compatible-legacy',
   ]),
   'multi-turn': new Set([
     'openai',

@@ -987,7 +987,7 @@
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-08-13"
+          "updatedAt": "2026-08-23"
         },
         {
           "label": "LLM Gateway",
@@ -1028,7 +1028,7 @@
           "label": "Amazon Bedrock",
           "to": "adapters/bedrock",
           "addedAt": "2026-06-25",
-          "updatedAt": "2026-07-22"
+          "updatedAt": "2026-08-23"
         },
         {
           "label": "BytePlus",

@@ -17,6 +17,7 @@ export type Provider =
   | 'vercel-gateway'
   | 'vercel-gateway-responses'
   | 'openai-compatible'
+  | 'openai-compatible-legacy'
   | 'mistral'
   | 'byteplus'
   | 'elevenlabs'
@@ -71,6 +72,7 @@ export const ALL_PROVIDERS: Provider[] = [
   'vercel-gateway',
   'vercel-gateway-responses',
   'openai-compatible',
+  'openai-compatible-legacy',
   'mistral',
   'byteplus',
   'elevenlabs',

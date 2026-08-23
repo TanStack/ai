@@ -149,6 +149,42 @@ describe('OpenAIBaseResponsesTextAdapter.structuredOutputStream', () => {
       expect(complete!.value.raw).toBe(json)
     })
 
+    // response.reasoning.delta is the pre-2025-07 spec name for
+    // response.reasoning_text.delta; providers frozen on the older spec
+    // (e.g. Amazon Bedrock's Mantle endpoint serving Gemma) still emit it.
+    it('streams reasoning from the legacy reasoning.delta and carries it on structured-output.complete', async () => {
+      setupStreamingMock([
+        eventCreated(),
+        { type: 'response.reasoning.delta', delta: 'Comparing the fields.' },
+        eventOutputTextDelta('{"name":"John","age":30}'),
+        eventCompleted(),
+      ])
+      const adapter = new TestAdapter()
+
+      const chunks = await collect(
+        adapter.structuredOutputStream!({
+          chatOptions: {
+            model: 'test-model',
+            messages: [{ role: 'user', content: 'extract' }],
+            logger: testLogger,
+          },
+          outputSchema: personSchema,
+        }),
+      )
+
+      const reasoningContent = chunks.find(
+        (c) => c.type === 'REASONING_MESSAGE_CONTENT',
+      ) as { delta?: string } | undefined
+      expect(reasoningContent?.delta).toBe('Comparing the fields.')
+
+      const complete = chunks.find(
+        (c) =>
+          c.type === 'CUSTOM' &&
+          (c as { name?: string }).name === 'structured-output.complete',
+      ) as { value: { reasoning?: string } } | undefined
+      expect(complete!.value.reasoning).toBe('Comparing the fields.')
+    })
+
     it('timestamps lifecycle events when they are emitted', async () => {
       vi.useFakeTimers()
       try {

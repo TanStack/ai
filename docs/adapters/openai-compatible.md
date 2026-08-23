@@ -130,6 +130,8 @@ const provider = openaiCompatible({
 });
 ```
 
+**Reasoning:** Reasoning deltas stream as thinking content. Endpoints frozen on the pre-July-2025 OpenAI spec may still emit the legacy event name `response.reasoning.delta` (removed from the spec in favor of `response.reasoning_text.delta`); the adapter recognizes both and maps them identically.
+
 ## Supported Providers
 
 Any provider implementing the OpenAI Chat Completions API works. Common ones are below — **verify the `baseURL` and model ids against each provider's current docs**, since they change over time. Set the API key via the provider's own environment variable and pass it as `apiKey`.

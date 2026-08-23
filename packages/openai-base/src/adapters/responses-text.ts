@@ -59,6 +59,16 @@ interface StreamedFunctionCallMetadata {
 }
 
 /**
+ * The pre-2025-07 spec name for `response.reasoning_text.delta`. Removed from
+ * the openai SDK, but OpenAI-compatible providers frozen on the older spec
+ * (e.g. Amazon Bedrock's Mantle endpoint serving Gemma) still emit it.
+ */
+interface LegacyReasoningDeltaEvent {
+  type: 'response.reasoning.delta'
+  delta?: unknown
+}
+
+/**
  * Shared implementation of the OpenAI Responses API. Holds the stream-event
  * accumulator + AG-UI lifecycle and calls the OpenAI SDK directly. Subclasses
  * (today: ai-openai) construct an OpenAI client with their provider-specific
@@ -289,7 +299,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    * Stream structured output via the Responses API: single request with
    * `text.format: json_schema` + `stream: true`. Consumes Responses-API
    * events (`response.output_text.delta`, `response.reasoning_text.delta`,
-   * `response.reasoning_summary_text.delta`, `response.refusal.delta`,
+   * `response.reasoning_summary_text.delta`, the legacy
+   * `response.reasoning.delta`, `response.refusal.delta`,
    * `response.completed`, `response.failed`) and re-emits the standard AG-UI
    * lifecycle ending with `CUSTOM 'structured-output.complete'`.
    *
@@ -396,21 +407,22 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
 
-      const stream = await this.client.responses.create(
-        {
-          ...cleanParams,
-          stream: true,
-          text: {
-            format: {
-              type: 'json_schema',
-              name: 'structured_output',
-              schema: jsonSchema,
-              strict: true,
+      const stream: AsyncIterable<ResponseStreamEvent | LegacyReasoningDeltaEvent> =
+        await this.client.responses.create(
+          {
+            ...cleanParams,
+            stream: true,
+            text: {
+              format: {
+                type: 'json_schema',
+                name: 'structured_output',
+                schema: jsonSchema,
+                strict: true,
+              },
             },
           },
-        },
-        extractRequestOptions(chatOptions.request),
-      )
+          extractRequestOptions(chatOptions.request),
+        )
 
       for await (const chunk of stream) {
         chatOptions.logger.provider(
@@ -459,7 +471,8 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
         if (
           chunk.type === 'response.reasoning_text.delta' ||
-          chunk.type === 'response.reasoning_summary_text.delta'
+          chunk.type === 'response.reasoning_summary_text.delta' ||
+          chunk.type === 'response.reasoning.delta'
         ) {
           const raw = (chunk as { delta?: unknown }).delta
           const reasoningDelta = Array.isArray(raw)
@@ -784,6 +797,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    * - response.created / response.incomplete / response.failed
    * - response.output_text.delta
    * - response.reasoning_text.delta
+   * - response.reasoning.delta (the legacy type used before response.reasoning_text.delta)
    * - response.reasoning_summary_text.delta
    * - response.content_part.added / response.content_part.done
    * - response.output_item.added
@@ -792,7 +806,7 @@ export abstract class OpenAIBaseResponsesTextAdapter<
    * - error
    */
   protected async *processStreamChunks(
-    stream: AsyncIterable<ResponseStreamEvent>,
+    stream: AsyncIterable<ResponseStreamEvent | LegacyReasoningDeltaEvent>,
     toolCallMetadata: Map<string, StreamedFunctionCallMetadata>,
     options: TextOptions<TProviderOptions>,
     aguiState: {
@@ -1081,7 +1095,11 @@ export abstract class OpenAIBaseResponsesTextAdapter<
 
         // Handle reasoning deltas (token-by-token thinking/reasoning streaming)
         // response.reasoning_text.delta provides incremental reasoning updates
-        if (chunk.type === 'response.reasoning_text.delta' && chunk.delta) {
+        if (
+          (chunk.type === 'response.reasoning_text.delta' ||
+            chunk.type === 'response.reasoning.delta') &&
+          chunk.delta
+        ) {
           const reasoningDelta = Array.isArray(chunk.delta)
             ? chunk.delta.join('')
             : typeof chunk.delta === 'string'
