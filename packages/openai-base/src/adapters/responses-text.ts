@@ -407,22 +407,23 @@ export abstract class OpenAIBaseResponsesTextAdapter<
         { provider: this.name, model: this.model },
       )
 
-      const stream: AsyncIterable<ResponseStreamEvent | LegacyReasoningDeltaEvent> =
-        await this.client.responses.create(
-          {
-            ...cleanParams,
-            stream: true,
-            text: {
-              format: {
-                type: 'json_schema',
-                name: 'structured_output',
-                schema: jsonSchema,
-                strict: true,
-              },
+      const stream: AsyncIterable<
+        ResponseStreamEvent | LegacyReasoningDeltaEvent
+      > = await this.client.responses.create(
+        {
+          ...cleanParams,
+          stream: true,
+          text: {
+            format: {
+              type: 'json_schema',
+              name: 'structured_output',
+              schema: jsonSchema,
+              strict: true,
             },
           },
-          extractRequestOptions(chatOptions.request),
-        )
+        },
+        extractRequestOptions(chatOptions.request),
+      )
 
       for await (const chunk of stream) {
         chatOptions.logger.provider(
