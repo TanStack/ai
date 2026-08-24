@@ -1,7 +1,12 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { chat, createChatOptions, maxIterations } from '@tanstack/ai'
 import { createOpenaiChat } from '@tanstack/ai-openai'
-import { withCompaction } from '@tanstack/ai-compaction'
+import {
+  clearToolResults,
+  evictOldest,
+  withCompaction,
+} from '@tanstack/ai-compaction'
+import type { CompactionStrategy } from '@tanstack/ai-compaction'
 import type { ModelMessage } from '@tanstack/ai'
 
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
@@ -60,37 +65,69 @@ function makeTextStream(): ReadableStream<Uint8Array> {
 
 const FILLER = 'x'.repeat(160)
 
+// evict: oldest message carries SECRET_ALPHA_ONE, newest carries KEEP_ME_LAST.
+const evictMessages: Array<ModelMessage> = [
+  { role: 'user', content: `SECRET_ALPHA_ONE ${FILLER}` },
+  { role: 'assistant', content: FILLER },
+  { role: 'user', content: FILLER },
+  { role: 'assistant', content: FILLER },
+  { role: 'user', content: `KEEP_ME_LAST ${FILLER}` },
+]
+
+// clear: two tool results. Oldest carries SECRET_TOOL_ALPHA (should be stubbed),
+// newest carries KEEP_TOOL_BETA (kept). All messages stay in place.
+const clearMessages: Array<ModelMessage> = [
+  { role: 'user', content: 'run the tools' },
+  {
+    role: 'assistant',
+    content: '',
+    toolCalls: [
+      { id: 'a', type: 'function', function: { name: 'f', arguments: '{}' } },
+    ],
+  },
+  { role: 'tool', content: `SECRET_TOOL_ALPHA ${FILLER}`, toolCallId: 'a' },
+  {
+    role: 'assistant',
+    content: '',
+    toolCalls: [
+      { id: 'b', type: 'function', function: { name: 'f', arguments: '{}' } },
+    ],
+  },
+  { role: 'tool', content: `KEEP_TOOL_BETA ${FILLER}`, toolCallId: 'b' },
+  { role: 'user', content: 'done?' },
+]
+
 /**
  * Wire-format verification for `withCompaction`. A capturing `fetch` records the
- * outgoing request body. We send a long history whose oldest message carries a
- * marker (`SECRET_ALPHA_ONE`) and whose newest carries another (`KEEP_ME_LAST`),
- * with a small `maxTokens`. The captured body must show the old marker evicted,
- * the compaction note present, and the recent marker preserved.
+ * outgoing request body so the spec can assert what each strategy sent.
+ *
+ * `?strategy=clear` uses `clearToolResults` on a tool-heavy history; anything
+ * else uses `evictOldest` on a plain chat history.
  */
 export const Route = createFileRoute('/api/compaction-wire')({
   server: {
     handlers: {
-      POST: async () => {
+      POST: async ({ request }) => {
+        const clear =
+          new URL(request.url).searchParams.get('strategy') === 'clear'
+
         let firstRequestBody: unknown
 
         const mockFetch: typeof fetch = async (input, init) => {
-          const request =
+          const req =
             input instanceof Request ? input : new Request(input, init)
           if (firstRequestBody === undefined) {
-            firstRequestBody = JSON.parse(await request.text())
+            firstRequestBody = JSON.parse(await req.text())
           }
           return new Response(makeTextStream(), {
             headers: { 'Content-Type': 'text/event-stream' },
           })
         }
 
-        const messages: Array<ModelMessage> = [
-          { role: 'user', content: `SECRET_ALPHA_ONE ${FILLER}` },
-          { role: 'assistant', content: FILLER },
-          { role: 'user', content: FILLER },
-          { role: 'assistant', content: FILLER },
-          { role: 'user', content: `KEEP_ME_LAST ${FILLER}` },
-        ]
+        const messages = clear ? clearMessages : evictMessages
+        const strategy: CompactionStrategy = clear
+          ? clearToolResults({ keepRecentToolResults: 1 })
+          : evictOldest({ keepRecentTokens: 45 })
 
         const adapter = createOpenaiChat('gpt-5.2', DUMMY_KEY, {
           fetch: mockFetch,
@@ -100,9 +137,7 @@ export const Route = createFileRoute('/api/compaction-wire')({
           for await (const _ of chat({
             ...createChatOptions({ adapter }),
             messages,
-            middleware: [
-              withCompaction({ maxTokens: 60, keepRecentTokens: 45 }),
-            ],
+            middleware: [withCompaction({ maxTokens: 60, strategy })],
             agentLoopStrategy: maxIterations(1),
           })) {
             // Drain the stream.

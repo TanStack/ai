@@ -27,4 +27,25 @@ test.describe('withCompaction — wire format', () => {
     // The oldest message is gone.
     expect(wire).not.toContain('SECRET_ALPHA_ONE')
   })
+
+  test('clearToolResults stubs old tool output and keeps the recent one', async ({
+    request,
+  }) => {
+    const response = await request.post('/api/compaction-wire?strategy=clear')
+    expect(response.ok()).toBe(true)
+    const result = (await response.json()) as {
+      ok: boolean
+      error?: string
+      firstRequestBody: unknown
+    }
+    if (!result.ok) throw new Error(`Route failed: ${result.error}`)
+
+    const wire = JSON.stringify(result.firstRequestBody)
+    // The most recent tool result is preserved verbatim.
+    expect(wire).toContain('KEEP_TOOL_BETA')
+    // The old tool result content is replaced by the stub.
+    expect(wire).toContain('tool output cleared')
+    // The old tool result content is gone.
+    expect(wire).not.toContain('SECRET_TOOL_ALPHA')
+  })
 })

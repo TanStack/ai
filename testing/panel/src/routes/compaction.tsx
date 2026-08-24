@@ -13,8 +13,8 @@ const THREAD_STORAGE_KEY = 'panel-compaction-thread'
 interface CompactionEvent {
   before: number
   after: number
-  droppedMessages: number
-  summarized: boolean
+  messagesBefore: number
+  messagesAfter: number
   at: number
 }
 interface InspectResponse {
@@ -34,6 +34,7 @@ function CompactionPage() {
   )
   const [threadId, setThreadId] = useState('')
   const [maxTokens, setMaxTokens] = useState(400)
+  const [strategy, setStrategy] = useState<'evict' | 'summarize'>('evict')
   const [inspect, setInspect] = useState<InspectResponse | null>(null)
   const [input, setInput] = useState('')
 
@@ -52,8 +53,15 @@ function CompactionPage() {
       model: selectedModel.model,
       threadId,
       maxTokens,
+      strategy,
     }),
-    [selectedModel.provider, selectedModel.model, threadId, maxTokens],
+    [
+      selectedModel.provider,
+      selectedModel.model,
+      threadId,
+      maxTokens,
+      strategy,
+    ],
   )
 
   const { messages, sendMessage, isLoading } = useChat({
@@ -146,6 +154,26 @@ function CompactionPage() {
               onChange={(e) => setMaxTokens(parseInt(e.target.value))}
               className="w-full accent-cyan-500"
             />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-gray-400">
+              Strategy:
+            </label>
+            <select
+              value={strategy}
+              onChange={(e) =>
+                setStrategy(
+                  e.target.value === 'summarize' ? 'summarize' : 'evict',
+                )
+              }
+              disabled={isLoading}
+              className="w-full rounded-lg border border-cyan-500/20 bg-gray-900 px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-cyan-500/50 disabled:opacity-50"
+            >
+              <option value="evict">Evict oldest (drop + marker)</option>
+              <option value="summarize">
+                Summarize oldest (extra model call)
+              </option>
+            </select>
           </div>
         </div>
 
@@ -247,9 +275,7 @@ function CompactionPage() {
                 >
                   <div className="mb-1 flex items-center gap-2 text-sm font-medium text-cyan-400">
                     <Scissors size={14} />
-                    {ev.summarized ? 'Summarized' : 'Evicted'}{' '}
-                    {ev.droppedMessages} message
-                    {ev.droppedMessages === 1 ? '' : 's'}
+                    Compacted {ev.messagesBefore} → {ev.messagesAfter} messages
                   </div>
                   <div className="font-mono text-xs text-gray-300">
                     {ev.before} → {ev.after} tokens (−

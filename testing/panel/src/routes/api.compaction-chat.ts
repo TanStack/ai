@@ -5,7 +5,11 @@ import {
   maxIterations,
   toServerSentEventsResponse,
 } from '@tanstack/ai'
-import { withCompaction } from '@tanstack/ai-compaction'
+import {
+  evictOldest,
+  summarizeOldest,
+  withCompaction,
+} from '@tanstack/ai-compaction'
 import { anthropicText } from '@tanstack/ai-anthropic'
 import { geminiText } from '@tanstack/ai-gemini'
 import { grokText } from '@tanstack/ai-grok'
@@ -13,7 +17,30 @@ import { openaiText } from '@tanstack/ai-openai'
 import { ollamaText } from '@tanstack/ai-ollama'
 import { openRouterText } from '@tanstack/ai-openrouter'
 import { recordCompaction } from '@/lib/compaction-store'
+import type { AnyTextAdapter, ModelMessage } from '@tanstack/ai'
 import type { Provider } from '@/lib/model-selection'
+
+// Provider-agnostic summary: one throwaway chat() turn on the same adapter.
+async function summarizeWith(
+  adapter: AnyTextAdapter,
+  messages: Array<ModelMessage>,
+): Promise<string> {
+  let text = ''
+  for await (const chunk of chat({
+    adapter,
+    messages: [
+      ...messages,
+      {
+        role: 'user',
+        content: 'Summarize the conversation above in 3-4 sentences.',
+      },
+    ],
+    agentLoopStrategy: maxIterations(1),
+  })) {
+    if (chunk.type === 'TEXT_MESSAGE_CONTENT') text += chunk.delta
+  }
+  return text
+}
 
 const SYSTEM_PROMPT = `You are a helpful assistant. Keep answers reasonably long
 (a paragraph or two) so this demo's context fills up quickly.`
@@ -51,6 +78,8 @@ export const Route = createFileRoute('/api/compaction-chat')({
           typeof data.maxTokens === 'number' && data.maxTokens > 0
             ? data.maxTokens
             : 400
+        const strategyName: 'evict' | 'summarize' =
+          data.strategy === 'summarize' ? 'summarize' : 'evict'
 
         try {
           const adapterConfig = {
@@ -83,8 +112,16 @@ export const Route = createFileRoute('/api/compaction-chat')({
           const options = adapterConfig[provider]()
           const { adapter } = options
 
+          const strategy =
+            strategyName === 'summarize'
+              ? summarizeOldest({
+                  summarize: (msgs) => summarizeWith(adapter, msgs),
+                })
+              : evictOldest()
+
           const compaction = withCompaction({
             maxTokens,
+            strategy,
             onCompact: (info) => recordCompaction(threadId, info),
           })
 
