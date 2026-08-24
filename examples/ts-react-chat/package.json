@@ -83,8 +83,8 @@
     "concurrently": "^9.1.2",
     "jsdom": "^27.4.0",
     "typescript": "5.9.3",
-    "vite": "^8.2.1",
-    "vitest": "^4.1.10",
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11",
     "web-vitals": "^5.1.0"
   }
 }

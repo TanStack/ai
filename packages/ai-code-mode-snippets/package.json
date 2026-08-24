@@ -83,7 +83,7 @@
     "@tanstack/ai-gemini": "workspace:*",
     "@tanstack/ai-isolate-node": "workspace:*",
     "@tanstack/ai-openai": "workspace:*",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.11",
     "commander": "^13.1.0",
     "dotenv": "^17.2.3",
     "tsx": "^4.23.12",

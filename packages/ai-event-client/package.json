@@ -45,7 +45,7 @@
     "@tanstack/devtools-event-client": "^0.4.1"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.1.10"
+    "@vitest/coverage-v8": "4.1.11"
   },
   "keywords": [
     "ai",
