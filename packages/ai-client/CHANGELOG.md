@@ -1,5 +1,22 @@
 # @tanstack/ai-client
 
+## 0.28.0
+
+### Minor Changes
+
+- [#1227](https://github.com/TanStack/ai/pull/1227) [`a955710`](https://github.com/TanStack/ai/commit/a9557101048286c225145bad058ca81ff275b330) - Add `body` to `SendMessageOptions` so framework hooks can pass per-call request JSON through `sendMessage(content, { body })`. Chat-level `body`, the positional `ChatClient` argument, and `sendOptions.body` shallow-merge into `forwardedProps`. `sendOptions.body` wins on key collisions.
+
+### Patch Changes
+
+- [#1231](https://github.com/TanStack/ai/pull/1231) [`ad3840c`](https://github.com/TanStack/ai/commit/ad3840c44bd09860b29cd22f24a0cdce3adaf9dc) - Resolve BYOK request headers from the merged send body `provider`. A per-call `sendOptions.body.provider` now selects the same key as the wire `forwardedProps`.
+
+- [#1221](https://github.com/TanStack/ai/pull/1221) [`365efb8`](https://github.com/TanStack/ai/commit/365efb870e5a3fe084d0969f71781ffc772e39a0) - Prevent stale interrupt submissions from mutating reset or rehydrated state.
+
+- [#1191](https://github.com/TanStack/ai/pull/1191) [`a74817a`](https://github.com/TanStack/ai/commit/a74817a38e8deb4c7ff86d81067db12befbadf5d) - Prevent server-owned tool results from starting a legacy client continuation.
+
+- Updated dependencies [[`67ce4e5`](https://github.com/TanStack/ai/commit/67ce4e529c42e64d4591f996c7e3e32458d5dd7c)]:
+  - @tanstack/ai@0.49.1
+
 ## 0.27.0
 
 ### Minor Changes
