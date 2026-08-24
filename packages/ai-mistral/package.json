@@ -57,7 +57,7 @@
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
-    "google-auth-library": "^10.5.0",
+    "google-auth-library": "^10.9.1",
     "vite": "^8.2.1"
   },
   "peerDependencies": {

@@ -67,7 +67,7 @@
     "@vitest/coverage-v8": "4.1.10",
     "jsdom": "^27.4.0",
     "solid-js": "^1.9.10",
-    "tsdown": "^0.17.0-beta.6",
+    "tsdown": "^0.22.14",
     "typescript": "5.9.3",
     "vitest": "^4.1.10"
   }

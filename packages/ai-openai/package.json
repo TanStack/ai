@@ -82,6 +82,6 @@
     "@tanstack/ai": "workspace:*",
     "@vitest/coverage-v8": "4.1.10",
     "vite": "^8.2.1",
-    "zod": "^4.2.0"
+    "zod": "^4.4.3"
   }
 }
