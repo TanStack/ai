@@ -214,7 +214,7 @@ export class ClaudeCodeTextAdapter<
     const exeParts = (config.claudeExecutable ?? 'claude').split(' ')
     const settingSources = config.settingSources ?? ['user']
 
-    // `--setting-sources user` before `-p`. Do not pass `--bare`: that flag
+    // `--setting-sources` before `-p`. Do not pass `--bare`: that flag
     // skips stored `claude login` credentials and prints
     // "Not logged in · Please run /login" (claude-code#51047).
     // `-p` can take the next token as the prompt, so these flags stay first.
