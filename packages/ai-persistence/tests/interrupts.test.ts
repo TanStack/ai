@@ -638,7 +638,7 @@ describe('interrupt persistence', () => {
   // and must therefore put the cancelled toolCallId on `cancelledToolCallIds`.
   // Otherwise the engine treats the stored tool call as unhandled and emits
   // another `client_tool_*` interrupt instead of an output-error.
-  it('completes a cancelled client-tool resume from persisted state with empty client messages', async () => {
+  it('completes a cancelled client-tool resume after its output schema changes', async () => {
     const persistence = memoryPersistence()
     await persistClientToolTurn(persistence, [clientTool('clientSearch')])
 
@@ -654,7 +654,12 @@ describe('interrupt persistence', () => {
       chat({
         adapter: afterCancel.adapter,
         messages: [],
-        tools: [clientTool('clientSearch')],
+        tools: [
+          {
+            ...clientTool('clientSearch'),
+            outputSchema: transformedDisplaySchema,
+          },
+        ],
         runId: 'r1',
         threadId: 't1',
         resume: [

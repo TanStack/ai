@@ -1,0 +1,77 @@
+{
+  "name": "@tanstack/svelte-ai-devtools",
+  "version": "0.0.0",
+  "description": "Svelte Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/svelte-ai-devtools"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "scripts": {
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:lib": "vitest --passWithNoTests",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc",
+    "test:build": "publint --strict",
+    "build": "vite build"
+  },
+  "type": "module",
+  "svelte": "./dist/esm/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "svelte": "./dist/esm/index.js",
+      "import": "./dist/esm/index.js"
+    },
+    "./production": {
+      "types": "./dist/esm/production.d.ts",
+      "svelte": "./dist/esm/production.js",
+      "import": "./dist/esm/production.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "src"
+  ],
+  "dependencies": {
+    "@tanstack/ai-devtools-core": "workspace:^",
+    "@tanstack/devtools-utils": "^0.7.0"
+  },
+  "peerDependencies": {
+    "svelte": "^5.0.0"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.1.10",
+    "svelte": "^5.56.9",
+    "vite": "^8.2.1"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "svelte",
+    "svelte5",
+    "devtools",
+    "debugging",
+    "observability",
+    "chat",
+    "tool-calling"
+  ]
+}

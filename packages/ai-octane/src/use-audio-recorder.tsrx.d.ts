@@ -4,6 +4,7 @@ import type {
   AudioRecording,
   InferAudioRecordingOutput,
 } from '@tanstack/ai-client'
+
 export type UseAudioRecorderOptions<TOnComplete> = AudioRecorderOptions & {
   /**
    * Optional transform applied to the recording when `stop()` resolves. Its

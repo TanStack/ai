@@ -613,6 +613,86 @@ describe('OpenAIBaseResponsesTextAdapter', () => {
       expect(textContent.length).toBe(1)
     })
 
+    // response.reasoning.delta is the pre-2025-07 spec name for
+    // response.reasoning_text.delta; providers frozen on the older spec
+    // (e.g. Amazon Bedrock's Mantle endpoint serving Gemma) still emit it.
+    it('emits REASONING_MESSAGE_CONTENT for the legacy reasoning.delta', async () => {
+      const streamChunks = [
+        {
+          type: 'response.created',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'in_progress',
+          },
+        },
+        {
+          type: 'response.reasoning.delta',
+          delta: 'Let me think about this...',
+        },
+        {
+          type: 'response.reasoning.delta',
+          delta: ' The answer is clear.',
+        },
+        {
+          type: 'response.output_text.delta',
+          delta: 'The answer is 42.',
+        },
+        {
+          type: 'response.completed',
+          response: {
+            id: 'resp-123',
+            model: 'test-model',
+            status: 'completed',
+            output: [],
+            usage: {
+              input_tokens: 10,
+              output_tokens: 20,
+              total_tokens: 30,
+            },
+          },
+        },
+      ]
+
+      setupMockResponsesClient(streamChunks)
+      const adapter = new TestResponsesAdapter(testConfig, 'test-model')
+      const chunks: Array<AdapterYieldChunk> = []
+
+      for await (const chunk of adapter.chatStream({
+        logger: testLogger,
+        model: 'test-model',
+        messages: [{ role: 'user', content: 'What is the meaning of life?' }],
+      })) {
+        chunks.push(chunk)
+      }
+
+      const reasoningDeltas = chunks
+        .filter(
+          (
+            c,
+          ): c is Extract<
+            AdapterYieldChunk,
+            { type: 'REASONING_MESSAGE_CONTENT' }
+          > => c.type === 'REASONING_MESSAGE_CONTENT',
+        )
+        .map((c) => c.delta)
+      expect(reasoningDeltas).toEqual([
+        'Let me think about this...',
+        ' The answer is clear.',
+      ])
+
+      const types = chunks.map((c) => c.type)
+      const reasoningMessageEnd = types.indexOf(EventType.REASONING_MESSAGE_END)
+      expect(reasoningMessageEnd).toBeGreaterThan(
+        types.indexOf(EventType.REASONING_MESSAGE_START),
+      )
+
+      const textContent = chunks.filter(
+        (c) => c.type === 'TEXT_MESSAGE_CONTENT',
+      )
+      expect(textContent.length).toBe(1)
+    })
+
     it('emits REASONING_MESSAGE_CONTENT for reasoning_summary_text.delta', async () => {
       const streamChunks = [
         {

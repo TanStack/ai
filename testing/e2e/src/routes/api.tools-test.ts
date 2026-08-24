@@ -16,6 +16,7 @@ const providerFreeScenarios = new Set([
   'client-context',
   'client-tool-error',
   'client-server-context',
+  'client-tool-input-error',
   'malformed-tool-arguments',
   'provider-rejected-tool-call',
 ])
@@ -55,7 +56,18 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
               state: undefined,
               toolName: 'fail_client_tool',
             }
-          : {
+          : scenario === 'client-tool-input-error'
+            ? {
+                arguments: '{"message":42,"type":"info"}',
+                initialText: 'Showing a notification.',
+                input: { message: 42, type: 'info' },
+                name: 'client-tool-input-error-test',
+                responseText: 'Unexpected client continuation.',
+                result: undefined,
+                state: undefined,
+                toolName: 'show_notification',
+              }
+            : {
               arguments: '{}',
               initialText: 'Reading runtime context.',
               input: {},
@@ -408,7 +420,9 @@ export const Route = createFileRoute('/api/tools-test')({
             runId: params.runId,
             ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
             ...(params.resume ? { resume: params.resume } : {}),
-            agentLoopStrategy: maxIterations(20),
+            agentLoopStrategy: maxIterations(
+              scenario === 'client-tool-input-error' ? 1 : 20,
+            ),
             abortController,
           })
 

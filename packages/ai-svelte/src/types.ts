@@ -157,6 +157,8 @@ interface BaseCreateChatReturn<
   /**
    * Send a message and get a response.
    * Can be a simple string or multimodal content with images, audio, etc.
+   * Pass `{ whenBusy }` to override the queue policy for a single send, or
+   * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
    */
   sendMessage: (
     content: string | MultimodalContent,

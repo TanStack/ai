@@ -120,4 +120,48 @@ test.describe('Tool Error Handling', () => {
       'Recovered from provider-rejected tool call.',
     )
   })
+
+  test('server-owned client tool input error does not start another request', async ({
+    page,
+    testId,
+    aimockPort,
+  }) => {
+    const requestBodies: Array<any> = []
+    page.on('request', (request) => {
+      if (
+        request.url().includes('/api/tools-test') &&
+        request.method() === 'POST'
+      ) {
+        const body = request.postDataJSON()
+        if (body) requestBodies.push(body)
+      }
+    })
+
+    await selectScenario(page, 'client-tool-input-error', testId, aimockPort)
+    await runTest(page)
+    await waitForTestComplete(page, 15000, 1)
+    await page.waitForFunction(
+      () =>
+        document
+          .getElementById('test-metadata')
+          ?.getAttribute('data-is-loading') === 'false',
+    )
+
+    const metadata = await getMetadata(page)
+    expect(metadata.hasError).toBe('false')
+    expect(metadata.executionCompleteCount).toBe('0')
+
+    const toolCalls = await getToolCalls(page)
+    expect(toolCalls).toContainEqual(
+      expect.objectContaining({ name: 'show_notification', state: 'error' }),
+    )
+
+    const messages = await getMessages(page)
+    const toolResult = messages
+      .flatMap((message) => message.parts)
+      .find((part) => part.type === 'tool-result')
+    expect(toolResult?.content).toContain('Input validation failed')
+    expect(requestBodies).toHaveLength(1)
+    expect(requestBodies[0]?.resume).toBeUndefined()
+  })
 })

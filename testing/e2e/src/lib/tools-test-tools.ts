@@ -253,6 +253,11 @@ export const SCENARIO_LIST = [
     label: 'Provider-Rejected Tool Call',
     category: 'basic',
   },
+  {
+    id: 'client-tool-input-error',
+    label: 'Client Tool Input Error',
+    category: 'basic',
+  },
   // Race condition / event flow scenarios
   {
     id: 'sequential-client-tools',
@@ -310,6 +315,7 @@ export function getToolsForScenario(scenario: string) {
 
     case 'client-tool-single':
     case 'client-tool-reasoning':
+    case 'client-tool-input-error':
       return [clientToolDefinitions.show_notification]
 
     case 'client-tool-error':

@@ -1000,6 +1000,93 @@ describe('InterruptManager transactions', () => {
     expect(submit).toHaveBeenCalledTimes(2)
   })
 
+  it('ignores a submission failure after reset', async () => {
+    let rejectSubmission!: (reason?: unknown) => void
+    const submit = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSubmission = reject
+        }),
+    )
+    const manager = new InterruptManager({ submit })
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [genericDescriptor('generic')],
+    })
+    const item = manager.getInterrupts()[0]
+    if (item?.kind !== 'generic') throw new Error('Expected generic interrupt')
+    item.resolveInterrupt('answer')
+
+    manager.reset()
+    const resetState = manager.getState()
+    rejectSubmission(new Error('offline'))
+    await settle()
+
+    expect(manager.getState()).toBe(resetState)
+    expect(manager.getInterruptErrors()).toEqual([])
+    expect(manager.getResuming()).toBe(false)
+  })
+
+  it('does not let a stale submission settle a rehydrated submission', async () => {
+    const operations: Array<{
+      resolve: () => void
+      reject: (reason?: unknown) => void
+    }> = []
+    const submit = vi.fn(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          operations.push({ resolve, reject })
+        }),
+    )
+    const manager = new InterruptManager({ submit })
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 1,
+      interrupts: [genericDescriptor('old')],
+    })
+    const oldItem = manager.getInterrupts()[0]
+    if (oldItem?.kind !== 'generic') {
+      throw new Error('Expected generic interrupt')
+    }
+    oldItem.resolveInterrupt('old answer')
+
+    manager.hydrate({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-2',
+      generation: 2,
+      interrupts: [
+        descriptor({
+          v: INTERRUPT_BINDING_VERSION,
+          kind: 'generic',
+          interruptId: 'current',
+          interruptedRunId: 'run-2',
+          generation: 2,
+          responseSchemaHash: 'none',
+        }),
+      ],
+    })
+    const currentItem = manager.getInterrupts()[0]
+    if (currentItem?.kind !== 'generic') {
+      throw new Error('Expected generic interrupt')
+    }
+    currentItem.resolveInterrupt('current answer')
+
+    expect(operations).toHaveLength(2)
+    operations[0]!.reject(new Error('old failure'))
+    await settle()
+
+    expect(manager.getInterruptErrors()).toEqual([])
+    expect(manager.getResuming()).toBe(true)
+    expect(manager.getInterrupts()).toEqual([])
+
+    operations[1]!.resolve()
+    await settle()
+    expect(manager.getResuming()).toBe(false)
+  })
+
   it('does not enable retry for expired/stale/conflict server failures', async () => {
     for (const code of ['expired', 'stale', 'conflict'] as const) {
       const submit = vi.fn(async () => {

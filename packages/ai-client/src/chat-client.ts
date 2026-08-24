@@ -1899,8 +1899,12 @@ export class ChatClient<
    *   - A MultimodalContent object with content array and optional custom ID
    * @param body - Optional body parameters to merge with the client's base body for this request.
    *               Uses shallow merge with per-message body taking priority.
-   * @param sendOptions - Per-call overrides, e.g. `{ whenBusy: 'interrupt' }` to
-   *                      override the configured queue policy for this one send.
+   * @param sendOptions - Per-call overrides. `{ whenBusy }` overrides the
+   *                      queue policy for this one send. `{ body }`
+   *                      shallow-merges with `body` and with the chat-level
+   *                      `body` / `forwardedProps`. `sendOptions.body` wins
+   *                      on key collisions. Framework hooks forward this
+   *                      object as their second argument.
    *
    * @example
    * ```ts
@@ -1910,8 +1914,12 @@ export class ChatClient<
    * // Text message with custom body params
    * await client.sendMessage('Hello!', { temperature: 0.7 })
    *
-   * // Per-call whenBusy override (body must still be the 2nd arg on ChatClient)
+   * // Per-call whenBusy override
    * await client.sendMessage('Urgent', undefined, { whenBusy: 'interrupt' })
+   *
+   * // Per-call body via options. Same effect as the positional arg.
+   * // This is the shape the framework hooks (`useChat`, `injectChat`) forward.
+   * await client.sendMessage('Hello!', undefined, { body: { temperature: 0.7 } })
    *
    * // Multimodal message with image
    * await client.sendMessage({
@@ -1950,13 +1958,15 @@ export class ChatClient<
       )
     }
 
+    const resolvedBody = { ...body, ...sendOptions?.body }
+
     if (this.isSendBusy()) {
       const { action, id } = this.decideWhenBusy(content, sendOptions)
       if (action === 'drop') {
         return
       }
       if (action === 'queue') {
-        this.enqueueMessage(content, body, id)
+        this.enqueueMessage(content, resolvedBody, id)
         return
       }
       // 'interrupt': abort the current stream, then send now.
@@ -1973,7 +1983,7 @@ export class ChatClient<
     }
 
     try {
-      await this.deliverMessage(content, body)
+      await this.deliverMessage(content, resolvedBody)
     } finally {
       this.sendInFlight = false
     }
@@ -2208,7 +2218,7 @@ export class ChatClient<
       // order (later spreads win):
       //   1. Legacy `body` option (deprecated).
       //   2. Canonical `forwardedProps` option (wins over `body`).
-      //   3. Per-message `body` arg passed to `sendMessage` (highest).
+      //   3. Per-call body (`pendingMessageBody`: positional + sendOptions.body).
       // The AG-UI standard `threadId` is sent at the wire's top level for
       // run/conversation correlation, so we no longer auto-emit a separate
       // `conversationId` here — `chat({ threadId })` server-side covers the
@@ -2252,8 +2262,7 @@ export class ChatClient<
       if (this.byok) {
         const provider = resolveByokProviderId(
           this.byokProvider,
-          this.forwardedPropsOption.provider,
-          this.bodyOption.provider,
+          mergedBody.provider,
         )
         byokHeaders = await prepareResolvedByokHeaders(this.byok, provider)
       }
@@ -2402,43 +2411,18 @@ export class ChatClient<
         // Drain any actions that were queued while the stream was in progress
         await this.drainPostStreamActions()
 
-        // Continue conversation if the stream ended with a tool result (server tool completed)
-        // but ONLY if the model indicated it wants to continue (finishReason !== 'stop').
-        // When finishReason is 'stop', the model is done — don't re-send.
         if (streamCompletedSuccessfully) {
-          const messages = this.processor.getMessages()
-          const lastPart = messages.at(-1)?.parts.at(-1)
-          const { finishReason } = this.processor.getState()
-
-          if (
-            lastPart?.type === 'tool-result' &&
-            finishReason !== 'stop' &&
-            this.shouldAutoSend()
-          ) {
-            try {
-              await this.checkForContinuation()
-            } catch (error) {
-              console.error('Failed to continue flow after tool result:', error)
-              // Continuation failed without starting a new stream — don't
-              // leave queued user messages stranded forever. (isLoading is
-              // already false in this finally block.)
-              await this.drainQueue()
-            }
-          } else {
-            if (this.status !== 'ready') {
-              // Terminal run, but onStreamEnd never fired: the processor had
-              // no assistant message to emit it for (e.g. a bare
-              // RUN_FINISHED{stop}, #421). The normal path already set
-              // 'ready', so this is a no-op.
-              this.setStatus('ready')
-            }
-            // Auto-send queued messages once the run fully settles. When a
-            // continuation runs instead (tool-result branch above), that
-            // continuation's own finally drains the queue. Skip if a drain
-            // loop is already walking the queue (avoids nested re-entry).
-            if (!this.messageQueueDraining) {
-              await this.drainQueue()
-            }
+          if (this.status !== 'ready') {
+            // Terminal run, but onStreamEnd never fired: the processor had
+            // no assistant message to emit it for (e.g. a bare
+            // RUN_FINISHED{stop}, #421). The normal path already set
+            // 'ready', so this is a no-op.
+            this.setStatus('ready')
+          }
+          // Auto-send queued messages once the run fully settles. Skip if a
+          // drain loop is already walking the queue (avoids nested re-entry).
+          if (!this.messageQueueDraining) {
+            await this.drainQueue()
           }
         } else {
           // Error/abort settle for the active generation: don't strand or

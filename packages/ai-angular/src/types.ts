@@ -133,7 +133,11 @@ interface BaseInjectChatResult<
 > {
   /** Current messages in the conversation. */
   messages: Signal<Array<UIMessage<TTools, TData>>>
-  /** Send a message (string or multimodal content). */
+  /**
+   * Send a message (string or multimodal content).
+   * Pass `{ whenBusy }` to override the queue policy for a single send, or
+   * `{ body }` to merge per-call JSON into this request's `forwardedProps`.
+   */
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,

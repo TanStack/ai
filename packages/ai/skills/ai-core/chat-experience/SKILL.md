@@ -458,8 +458,8 @@ const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
 
 The top-level `queue` option also accepts a plain `WhenBusy` string
 shorthand (e.g. `queue: 'interrupt'`) or a `QueueStrategy` function for
-per-send action control. Strategy form always drains FIFO; actions are
-`'queue' | 'drop' | 'interrupt'`.
+per-send action control. Strategy form always drains FIFO. Actions use
+the `WhenBusy` type.
 
 **Drain vs flush:** queued messages auto-send only after a **successful**
 settle. They are **discarded** on stream error/abort of the active

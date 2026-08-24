@@ -124,6 +124,31 @@ describe('injectChat — streaming', () => {
     expect(result.isLoading()).toBe(false)
   })
 
+  it('merges sendMessage options.body into the request', async () => {
+    let capturedData: Record<string, unknown> | undefined
+    const adapter = createMockConnectionAdapter({
+      chunks: createTextChunks('Hello there'),
+      onConnect: (_messages, data) => {
+        capturedData = data
+      },
+    })
+    const { result, flush } = renderInjectChat({
+      connection: adapter,
+      body: { provider: 'openai' },
+    })
+
+    await result.sendMessage('Hi', {
+      whenBusy: 'queue',
+      body: { provider: 'anthropic', attachmentIds: ['a1', 'a2'] },
+    })
+    await tick()
+    flush()
+
+    expect(capturedData?.['provider']).toBe('anthropic')
+    expect(capturedData?.['attachmentIds']).toEqual(['a1', 'a2'])
+    expect(capturedData?.['whenBusy']).toBeUndefined()
+  })
+
   it('initializes with provided messages', () => {
     const adapter = createMockConnectionAdapter()
     const initialMessages = [
