@@ -419,7 +419,11 @@ import type { CreateMcpAppBridgeOptions } from '@tanstack/ai-client'
 const options: CreateMcpAppBridgeOptions = {
   threadId: 'weather-chat', // identifies the thread for the call handler
   callEndpoint: '/api/mcp-apps/call', // POST route mounting createMcpAppCallHandler
-  chat: { sendMessage: async (text) => console.log(text) }, // prompt-intent path
+  chat: {
+    sendMessage: async (content, body) => {
+      console.log(content, body)
+    },
+  }, // prompt-intent path
   fetchImpl: fetch, // optional; injectable for testing
   onLink: (url) => window.open(url, '_blank'), // absent → link is dropped (warned), openLink returns { isError: true }
 }

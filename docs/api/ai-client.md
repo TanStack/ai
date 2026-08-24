@@ -142,6 +142,36 @@ await client.sendMessage("Summarize the attached files", undefined, {
 });
 ```
 
+Your server reads the merged JSON from `chatParamsFromRequest`:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages, forwardedProps } = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+  });
+  if (
+    forwardedProps &&
+    typeof forwardedProps === "object" &&
+    "attachmentIds" in forwardedProps
+  ) {
+    const { attachmentIds } = forwardedProps;
+    if (Array.isArray(attachmentIds) && attachmentIds.length > 0) {
+      // Look up the uploads. Do not add them to `messages`.
+    }
+  }
+  return toServerSentEventsResponse(stream);
+}
+```
+
 #### `append(message: ModelMessage | UIMessage)`
 
 Appends a message to the conversation. If you pass a `UIMessage`, `append` copies `uiMessage.metadata` onto the stored message.
