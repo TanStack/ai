@@ -38,7 +38,10 @@ const summarize = async (msgs) => {
     adapter,
     messages: [
       ...msgs,
-      { role: 'user', content: 'Summarize the conversation above in a few sentences.' },
+      {
+        role: 'user',
+        content: 'Summarize the conversation above in a few sentences.',
+      },
     ],
   })
   return text
@@ -53,14 +56,14 @@ chat({
 
 ## Options
 
-| Option | Default | What it does |
-|---|---|---|
-| `maxTokens` | — (required) | Compact when estimated tokens exceed this. |
-| `keepRecentTokens` | `floor(maxTokens / 2)` | Recent tokens always kept verbatim. Must be `< maxTokens`. |
-| `estimateTokens` | chars / 4 | Per-message token estimate. Swap in a real tokenizer for accuracy. |
-| `summarize` | — | Summarize the dropped head. Omit to evict with a marker. |
-| `summaryRole` | `'user'` | Role of the injected note. |
-| `onCompact` | — | Observe each compaction (`before`/`after`/`droppedMessages`/`summarized`). |
+| Option             | Default                | What it does                                                               |
+| ------------------ | ---------------------- | -------------------------------------------------------------------------- |
+| `maxTokens`        | — (required)           | Compact when estimated tokens exceed this.                                 |
+| `keepRecentTokens` | `floor(maxTokens / 2)` | Recent tokens always kept verbatim. Must be `< maxTokens`.                 |
+| `estimateTokens`   | chars / 4              | Per-message token estimate. Swap in a real tokenizer for accuracy.         |
+| `summarize`        | —                      | Summarize the dropped head. Omit to evict with a marker.                   |
+| `summaryRole`      | `'user'`               | Role of the injected note.                                                 |
+| `onCompact`        | —                      | Observe each compaction (`before`/`after`/`droppedMessages`/`summarized`). |
 
 The token estimate is a rough `chars / 4` heuristic — good enough to trigger on,
 not exact. Pass `estimateTokens` if you need provider-accurate counts.
