@@ -1800,6 +1800,54 @@ describe('OpenRouter modelOptions pass-through', () => {
     expect(params.maxCompletionTokens).toBe(64)
   })
 
+  it('normalizes reasoning enabled false to effort none on the wire (#1006)', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    const modelOptions: OpenRouterTextModelOptions = {
+      reasoning: { enabled: false },
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      modelOptions,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    expect(params.reasoning).toEqual({ effort: 'none' })
+
+    const serialized = ChatRequest$outboundSchema.parse(params)
+    expect(serialized.reasoning).toEqual({ effort: 'none' })
+  })
+
+  it('omits an empty reasoning object from the SDK request (#1006)', async () => {
+    setupMockSdkClient(minimalStreamChunks)
+    const adapter = createAdapter()
+
+    const modelOptions: OpenRouterTextModelOptions = {
+      reasoning: {},
+    }
+
+    for await (const _ of chat({
+      adapter,
+      messages: [{ role: 'user', content: 'test' }],
+      modelOptions,
+    })) {
+      // consume
+    }
+
+    const [rawParams] = mockSend.mock.calls[0]!
+    const params = rawParams.chatRequest
+    expect(params).not.toHaveProperty('reasoning')
+
+    const serialized = ChatRequest$outboundSchema.parse(params)
+    expect(serialized).not.toHaveProperty('reasoning')
+  })
+
   it('uses variant only for the model suffix and never sends it in the request body', async () => {
     setupMockSdkClient(minimalStreamChunks)
     const adapter = createAdapter()
