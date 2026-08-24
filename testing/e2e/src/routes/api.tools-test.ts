@@ -68,18 +68,18 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
                 toolName: 'show_notification',
               }
             : {
-              arguments: '{}',
-              initialText: 'Reading runtime context.',
-              input: {},
-              name: 'runtime-context-test',
-              responseText: 'Runtime context was read.',
-              result: undefined,
-              state: undefined,
-              toolName:
-                scenario === 'client-context'
-                  ? 'read_client_context'
-                  : 'read_server_context',
-            }
+                arguments: '{}',
+                initialText: 'Reading runtime context.',
+                input: {},
+                name: 'runtime-context-test',
+                responseText: 'Runtime context was read.',
+                result: undefined,
+                state: undefined,
+                toolName:
+                  scenario === 'client-context'
+                    ? 'read_client_context'
+                    : 'read_server_context',
+              }
   return {
     kind: 'text',
     name: config.name,
