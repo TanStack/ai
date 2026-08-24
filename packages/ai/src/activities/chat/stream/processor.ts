@@ -19,6 +19,7 @@
  */
 import {
   aguiSnapshotMessageToUIMessage,
+  coerceCreatedAt,
   generateMessageId,
   uiMessageToModelMessages,
 } from '../messages.js'
@@ -835,11 +836,10 @@ export class StreamProcessor {
           }
         : incomingRecord
     const metadata = mergeMetadata(message.metadata, toMerge)
-    const createdAtRaw = tanstackMetadata(incomingRecord)?.createdAt
-    const createdAt =
-      typeof createdAtRaw === 'string' ? new Date(createdAtRaw) : undefined
-    const createdAtValid =
-      createdAt !== undefined && !Number.isNaN(createdAt.getTime())
+    const createdAt = coerceCreatedAt(
+      tanstackMetadata(incomingRecord)?.createdAt,
+    )
+    const createdAtValid = createdAt !== undefined
     this.messages = this.messages.map((msg) =>
       msg.id === messageId
         ? {

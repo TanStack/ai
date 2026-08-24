@@ -1,7 +1,22 @@
 import { describe, it, expect } from 'vitest'
 import { convertMessagesToModelMessages } from '../src/activities/chat/messages'
-import { uiMessagesToWire } from '../src/utilities/ag-ui-wire'
+import { uiMessagesToWire, type WireMessage } from '../src/utilities/ag-ui-wire'
 import type { ModelMessage, UIMessage } from '../src/types'
+
+function anchorContent(
+  wire: Array<WireMessage>,
+  role: 'user' | 'assistant' | 'system',
+) {
+  const message = wire.find((item) => item.role === role)
+  if (
+    message == null ||
+    message.role === 'tool' ||
+    message.role === 'reasoning'
+  ) {
+    throw new Error(`missing ${role} wire message`)
+  }
+  return message.content
+}
 
 describe('uiMessagesToWire', () => {
   it('mirrors a system UIMessage to a string content field', () => {
@@ -51,13 +66,17 @@ describe('uiMessagesToWire', () => {
     ]
     const wire = uiMessagesToWire(messages)
     expect(wire).toHaveLength(1)
-    expect(Array.isArray((wire[0]! as any).content)).toBe(true)
-    expect((wire[0]! as any).content).toHaveLength(2)
-    expect((wire[0]! as any).content[0]).toEqual({
+    const content = anchorContent(wire, 'user')
+    expect(Array.isArray(content)).toBe(true)
+    if (!Array.isArray(content)) {
+      throw new Error('expected multimodal user content')
+    }
+    expect(content).toHaveLength(2)
+    expect(content[0]).toEqual({
       type: 'text',
       text: 'look at this',
     })
-    expect((wire[0]! as any).content[1]).toMatchObject({
+    expect(content[1]).toMatchObject({
       type: 'image',
       source: {
         type: 'url',
@@ -403,9 +422,7 @@ describe('uiMessagesToWire', () => {
       },
     ]
     const wire = uiMessagesToWire(messages)
-    const assistant = wire.find((m) => m.role === 'assistant') as any
-    expect(assistant).toBeDefined()
-    expect(assistant.content).toBe(raw)
+    expect(anchorContent(wire, 'assistant')).toBe(raw)
   })
 
   it('skips streaming and errored structured-output parts so partial JSON is never sent as history', () => {
@@ -426,8 +443,7 @@ describe('uiMessagesToWire', () => {
       },
     ]
     expect(
-      (uiMessagesToWire(streaming).find((m) => m.role === 'assistant') as any)
-        .content,
+      anchorContent(uiMessagesToWire(streaming), 'assistant'),
     ).toBeUndefined()
 
     const errored: Array<UIMessage> = [
@@ -445,8 +461,7 @@ describe('uiMessagesToWire', () => {
       },
     ]
     expect(
-      (uiMessagesToWire(errored).find((m) => m.role === 'assistant') as any)
-        .content,
+      anchorContent(uiMessagesToWire(errored), 'assistant'),
     ).toBeUndefined()
   })
 
@@ -465,9 +480,9 @@ describe('uiMessagesToWire', () => {
         ],
       },
     ]
-    const wire = uiMessagesToWire(messages)
-    const assistant = wire.find((m) => m.role === 'assistant') as any
-    expect(assistant.content).toBeUndefined()
+    expect(
+      anchorContent(uiMessagesToWire(messages), 'assistant'),
+    ).toBeUndefined()
   })
 
   it('preserves per-part metadata on multimodal content (not via parts)', () => {
@@ -486,8 +501,11 @@ describe('uiMessagesToWire', () => {
     ]
     const wire = uiMessagesToWire(messages)
     expect(wire[0]).not.toHaveProperty('parts')
-    const content = (wire[0]! as { content: Array<{ metadata?: unknown }> })
-      .content
+    const content = anchorContent(wire, 'user')
+    expect(Array.isArray(content)).toBe(true)
+    if (!Array.isArray(content)) {
+      throw new Error('expected multimodal user content')
+    }
     expect(content[0]?.metadata).toEqual({ detail: 'high' })
   })
 
@@ -510,6 +528,44 @@ describe('uiMessagesToWire', () => {
         author: { id: 'user-42', name: 'Dana' },
         tanstack: { createdAt: '2026-08-20T00:00:00.000Z' },
       },
+    })
+  })
+
+  it('serializes a JSON-revived createdAt string without throwing', () => {
+    const iso = '2026-08-20T00:00:00.000Z'
+    const message: UIMessage = {
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'hi' }],
+      createdAt: new Date(iso),
+    }
+    Object.assign(message, {
+      createdAt: JSON.parse(JSON.stringify(message.createdAt)),
+    })
+    expect(typeof message.createdAt).toBe('string')
+
+    const wire = uiMessagesToWire([message])
+    expect(wire[0]).toEqual({
+      id: 'u1',
+      role: 'user',
+      content: 'hi',
+      metadata: { tanstack: { createdAt: iso } },
+    })
+  })
+
+  it('ignores an invalid createdAt string instead of throwing', () => {
+    const message: UIMessage = {
+      id: 'u1',
+      role: 'user',
+      parts: [{ type: 'text', content: 'hi' }],
+    }
+    Object.assign(message, { createdAt: 'not-a-date' })
+
+    const wire = uiMessagesToWire([message])
+    expect(wire[0]).toEqual({
+      id: 'u1',
+      role: 'user',
+      content: 'hi',
     })
   })
 

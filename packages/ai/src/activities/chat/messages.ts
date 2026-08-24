@@ -177,9 +177,7 @@ export function convertMessagesToModelMessages(
         role: 'system' as ModelMessage['role'],
         content: (msg as { content: string }).content,
         ...optionalName(modelMessage),
-        ...(modelMessage.createdAt !== undefined && {
-          createdAt: modelMessage.createdAt,
-        }),
+        ...optionalCreatedAt(modelMessage),
         ...(modelMessage.metadata !== undefined && {
           metadata: modelMessage.metadata,
         }),
@@ -214,9 +212,7 @@ export function convertMessagesToModelMessages(
           id: (msg as { id: string }).id,
         }),
         ...optionalName(modelMessage),
-        ...(modelMessage.createdAt !== undefined && {
-          createdAt: modelMessage.createdAt,
-        }),
+        ...optionalCreatedAt(modelMessage),
         ...(modelMessage.metadata !== undefined && {
           metadata: modelMessage.metadata,
         }),
@@ -249,16 +245,41 @@ export function convertMessagesToModelMessages(
 }
 
 function restoreModelMessageCreatedAt(message: ModelMessage): ModelMessage {
-  if (message.createdAt !== undefined) return message
-  const createdAt = createdAtFromMetadata(message)
-  return createdAt === undefined ? message : { ...message, createdAt }
+  const createdAt =
+    coerceCreatedAt(message.createdAt) ?? createdAtFromMetadata(message)
+  if (createdAt === undefined) {
+    if (message.createdAt === undefined) return message
+    const { createdAt: _invalid, ...rest } = message
+    return rest
+  }
+  return Object.is(message.createdAt, createdAt)
+    ? message
+    : { ...message, createdAt }
+}
+
+/**
+ * Rebuild a `Date` from a live `Date` or from an ISO string.
+ * `JSON.stringify` turns `Date` into a string, so persistence reload
+ * and AG-UI wire both land here as strings.
+ */
+export function coerceCreatedAt(value: unknown): Date | undefined {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? undefined : value
+  }
+  if (typeof value !== 'string') return undefined
+  const createdAt = new Date(value)
+  return Number.isNaN(createdAt.getTime()) ? undefined : createdAt
 }
 
 function createdAtFromMetadata(source: object): Date | undefined {
-  const createdAtRaw = tanstackMetadata(source)?.createdAt
-  if (typeof createdAtRaw !== 'string') return undefined
-  const createdAt = new Date(createdAtRaw)
-  return Number.isNaN(createdAt.getTime()) ? undefined : createdAt
+  return coerceCreatedAt(tanstackMetadata(source)?.createdAt)
+}
+
+function optionalCreatedAt(source: { createdAt?: unknown }): {
+  createdAt?: Date
+} {
+  const createdAt = coerceCreatedAt(source.createdAt)
+  return createdAt !== undefined ? { createdAt } : {}
 }
 
 function optionalName(source: { name?: string }): { name?: string } {
@@ -372,9 +393,7 @@ function buildUserOrToolMessage(uiMessage: UIMessage): ModelMessage {
     role: uiMessage.role as 'user' | 'assistant' | 'tool',
     content: collapseContentParts(contentParts),
     ...optionalName(uiMessage),
-    ...(uiMessage.createdAt !== undefined && {
-      createdAt: uiMessage.createdAt,
-    }),
+    ...optionalCreatedAt(uiMessage),
     ...(uiMessage.metadata !== undefined && { metadata: uiMessage.metadata }),
   }
 }
@@ -432,9 +451,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   const identityFields = {
     id: uiMessage.id,
     ...optionalName(uiMessage),
-    ...(uiMessage.createdAt !== undefined && {
-      createdAt: uiMessage.createdAt,
-    }),
+    ...optionalCreatedAt(uiMessage),
   }
   const metadata = assistantMetadata(uiMessage)
   const assistantFields = {
@@ -697,9 +714,7 @@ export function modelMessageToUIMessage(
     role: modelMessage.role === 'tool' ? 'assistant' : modelMessage.role,
     parts,
     ...optionalName(modelMessage),
-    ...(modelMessage.createdAt !== undefined && {
-      createdAt: modelMessage.createdAt,
-    }),
+    ...optionalCreatedAt(modelMessage),
     ...(modelMessage.metadata !== undefined && {
       metadata: modelMessage.metadata,
     }),
@@ -833,24 +848,32 @@ function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
     'name' in source && typeof source.name === 'string'
       ? source.name
       : undefined
-  const named = name !== undefined ? { ...ui, name } : ui
-  if (!('metadata' in source)) return named
-  const raw = source.metadata
-  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return named
-  const metadata = raw as NonNullable<UIMessage['metadata']>
-  const createdAt = createdAtFromMetadata(metadata)
+  let next = name !== undefined ? { ...ui, name } : ui
+
+  let metadata: NonNullable<UIMessage['metadata']> | undefined
+  if ('metadata' in source) {
+    const raw = source.metadata
+    if (raw != null && typeof raw === 'object' && !Array.isArray(raw)) {
+      metadata = raw as NonNullable<UIMessage['metadata']>
+      next = { ...next, metadata }
+    }
+  }
+
+  const createdAt =
+    (metadata !== undefined ? createdAtFromMetadata(metadata) : undefined) ??
+    coerceCreatedAt(next.createdAt)
+  if (createdAt !== undefined && !Object.is(createdAt, next.createdAt)) {
+    next = { ...next, createdAt }
+  } else if (createdAt === undefined && next.createdAt !== undefined) {
+    const { createdAt: _invalid, ...rest } = next
+    next = rest
+  }
+
   const uiResources = tanstackMetadata(metadata)?.uiResources
   const resources = Array.isArray(uiResources)
     ? uiResources.filter(isUiResourcePart)
     : []
-  return appendUiResources(
-    {
-      ...named,
-      metadata,
-      ...(createdAt !== undefined ? { createdAt } : {}),
-    },
-    resources,
-  )
+  return appendUiResources(next, resources)
 }
 
 function snapshotStructuredOutput(
@@ -985,13 +1008,13 @@ export function normalizeToUIMessage(
     return {
       ...message,
       id: message.id || generateId(),
-      createdAt: message.createdAt || new Date(),
+      createdAt: coerceCreatedAt(message.createdAt) ?? new Date(),
     }
   } else {
     // ModelMessage - convert to UIMessage
     return {
       ...modelMessageToUIMessage(message, generateId()),
-      createdAt: message.createdAt ?? new Date(),
+      createdAt: coerceCreatedAt(message.createdAt) ?? new Date(),
     }
   }
 }

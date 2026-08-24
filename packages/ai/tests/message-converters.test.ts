@@ -1549,6 +1549,35 @@ describe('Message Converters', () => {
       expect(model[0]).not.toHaveProperty('createdAt')
     })
 
+    it('coerces a JSON-revived createdAt string into a Date', () => {
+      const iso = '2026-08-21T00:00:00.000Z'
+      const message: ModelMessage = {
+        id: 'u1',
+        role: 'user',
+        content: 'hi',
+        createdAt: new Date(iso),
+      }
+      Object.assign(message, {
+        createdAt: JSON.parse(JSON.stringify(message.createdAt)),
+      })
+      expect(typeof message.createdAt).toBe('string')
+
+      const model = convertMessagesToModelMessages([message])
+      expect(model[0]?.createdAt).toEqual(new Date(iso))
+    })
+
+    it('drops an invalid createdAt string on the model message', () => {
+      const message: ModelMessage = {
+        id: 'u1',
+        role: 'user',
+        content: 'hi',
+      }
+      Object.assign(message, { createdAt: 'not-a-date' })
+
+      const model = convertMessagesToModelMessages([message])
+      expect(model[0]).not.toHaveProperty('createdAt')
+    })
+
     it('should preserve message metadata from UIMessages', () => {
       const messages: Array<UIMessage> = [
         {

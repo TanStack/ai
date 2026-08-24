@@ -1,4 +1,4 @@
-import type { ChatPersistedState, ChatStorageAdapter } from './types'
+import type { ChatPersistedState, ChatStorageAdapter, UIMessage } from './types'
 
 export interface WebStoragePersistenceOptions {
   keyPrefix?: string
@@ -45,6 +45,29 @@ function stringifyJson(value: ChatPersistedState): string {
   return serialized
 }
 
+function coerceCreatedAt(value: unknown): Date | undefined {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? undefined : value
+  }
+  if (typeof value !== 'string') return undefined
+  const createdAt = new Date(value)
+  return Number.isNaN(createdAt.getTime()) ? undefined : createdAt
+}
+
+function reviveMessageCreatedAt(message: UIMessage): UIMessage {
+  const createdAt = coerceCreatedAt(message.createdAt)
+  if (createdAt === undefined || Object.is(createdAt, message.createdAt)) {
+    return message
+  }
+  return { ...message, createdAt }
+}
+
+function revivePersistedState(state: ChatPersistedState): ChatPersistedState {
+  if (state == null || typeof state !== 'object') return state
+  if (!Array.isArray(state.messages)) return state
+  return { ...state, messages: state.messages.map(reviveMessageCreatedAt) }
+}
+
 function createWebStoragePersistence(
   storageName: 'localStorage' | 'sessionStorage',
   options: WebStoragePersistenceOptions,
@@ -69,7 +92,7 @@ function createWebStoragePersistence(
   return {
     getItem(id) {
       const item = getStorage().getItem(key(id))
-      return item === null ? null : deserialize(item)
+      return item === null ? null : revivePersistedState(deserialize(item))
     },
     setItem(id, value) {
       getStorage().setItem(key(id), serialize(value))

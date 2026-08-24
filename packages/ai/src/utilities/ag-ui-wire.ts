@@ -9,7 +9,10 @@ import type {
 } from '../types'
 import type { MetadataRecord } from './merge-metadata'
 import { tanstackMetadata } from './merge-metadata'
-import { modelMessageToUIMessage } from '../activities/chat/messages'
+import {
+  coerceCreatedAt,
+  modelMessageToUIMessage,
+} from '../activities/chat/messages'
 
 type AGUITextInputContent = { type: 'text'; text: string }
 type AGUIInputContent =
@@ -205,7 +208,8 @@ function messageMetadata(
 ): MetadataRecord | undefined {
   const base: MetadataRecord = { ...(msg.metadata ?? {}) }
   const tanstack: MetadataRecord = { ...(tanstackMetadata(msg) ?? {}) }
-  if (msg.createdAt) tanstack.createdAt = msg.createdAt.toISOString()
+  const createdAt = coerceCreatedAt(msg.createdAt)
+  if (createdAt !== undefined) tanstack.createdAt = createdAt.toISOString()
 
   const structuredOutput = serializedStructuredOutput(
     parts,
