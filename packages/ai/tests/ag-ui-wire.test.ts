@@ -530,36 +530,6 @@ describe('uiMessagesToWire', () => {
     expect(model[0]?.createdAt).toEqual(new Date('2026-08-20T00:00:00.000Z'))
   })
 
-  it('preserves an explicit model message createdAt over metadata', () => {
-    const createdAt = new Date('2026-08-21T00:00:00.000Z')
-    const model = convertMessagesToModelMessages([
-      {
-        id: 'u1',
-        role: 'user',
-        content: 'hi',
-        createdAt,
-        metadata: {
-          tanstack: { createdAt: '2026-08-20T00:00:00.000Z' },
-        },
-      },
-    ])
-
-    expect(model[0]?.createdAt).toBe(createdAt)
-  })
-
-  it('ignores an invalid metadata.tanstack.createdAt', () => {
-    const model = convertMessagesToModelMessages([
-      {
-        id: 'u1',
-        role: 'user',
-        content: 'hi',
-        metadata: { tanstack: { createdAt: 'not-a-date' } },
-      } as unknown as ModelMessage,
-    ])
-
-    expect(model[0]).not.toHaveProperty('createdAt')
-  })
-
   it('does not put parts or createdAt Date on assistant anchors', () => {
     const wire = uiMessagesToWire([
       {

@@ -526,7 +526,9 @@ describe('StreamProcessor', () => {
               parts: [uiResource],
               metadata: {
                 tanstack: {
-                  uiResources: [{ ...uiResource }],
+                  uiResources: [
+                    { ...uiResource, resource: { ...uiResource.resource } },
+                  ],
                 },
               },
             },
