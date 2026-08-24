@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { parallelSearchTool } from '../src/tool'
-import { fetchCall, mockFetch, searchResponse } from './test-utils'
+import { parallelSearchTool } from './tool'
+import { fetchCall, mockFetch, searchResponse } from '../tests/test-utils'
 
 const context = {
   emitCustomEvent: () => {},
@@ -47,7 +47,7 @@ describe('parallelSearchTool', () => {
       },
     })
 
-    const results = await tool.execute!(
+    const results = await tool.execute?.(
       {
         query: 'recent AI research',
         objective: 'Find recent primary sources.',
@@ -87,7 +87,7 @@ describe('parallelSearchTool', () => {
       defaultMaxResults: 5,
     })
 
-    await tool.execute!({ query: 'news', max_results: 2 }, context)
+    await tool.execute?.({ query: 'news', max_results: 2 }, context)
 
     expect(fetchCall(fetchMock).body.advanced_settings).toEqual({
       max_results: 2,
@@ -101,8 +101,8 @@ describe('parallelSearchTool', () => {
       fetch: fetchMock,
     })
 
-    await tool.execute!({ query: 'first search' }, context)
-    await tool.execute!({ query: 'second search' }, context)
+    await tool.execute?.({ query: 'first search' }, context)
+    await tool.execute?.({ query: 'second search' }, context)
 
     expect(fetchCall(fetchMock, 0).body).not.toHaveProperty('session_id')
     expect(fetchCall(fetchMock, 1).body).not.toHaveProperty('session_id')
@@ -116,8 +116,8 @@ describe('parallelSearchTool', () => {
       sessionId: 'session_existing',
     })
 
-    await tool.execute!({ query: 'first search' }, context)
-    await tool.execute!({ query: 'second search' }, context)
+    await tool.execute?.({ query: 'first search' }, context)
+    await tool.execute?.({ query: 'second search' }, context)
 
     expect(fetchCall(fetchMock, 0).body.session_id).toBe('session_existing')
     expect(fetchCall(fetchMock, 1).body.session_id).toBe('session_existing')
@@ -131,12 +131,15 @@ describe('parallelSearchTool', () => {
       fetch: fetchMock,
     })
 
-    await tool.execute!(
+    await tool.execute?.(
       { query: 'news' },
       { ...context, abortSignal: controller.signal },
     )
 
-    expect(fetchCall(fetchMock).init.signal).toBe(controller.signal)
+    const forwardedSignal = fetchCall(fetchMock).init.signal
+    expect(forwardedSignal).toBeInstanceOf(AbortSignal)
+    controller.abort()
+    expect(forwardedSignal?.aborted).toBe(true)
   })
 
   it('rejects invalid application result limits', () => {

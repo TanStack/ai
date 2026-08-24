@@ -32,7 +32,7 @@ export function fetchCall(fetchMock: ReturnType<typeof mockFetch>, index = 0) {
   }
 
   return {
-    url: typeof input === 'string' ? input : String(input),
+    url: input instanceof Request ? input.url : String(input),
     init,
     body: JSON.parse(String(init.body)) as Record<string, unknown>,
   }

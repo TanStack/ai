@@ -908,7 +908,7 @@
         {
           "label": "Parallel Search",
           "to": "adapters/parallel",
-          "addedAt": "2026-08-22"
+          "addedAt": "2026-08-23"
         },
         {
           "label": "Vercel AI Gateway",
