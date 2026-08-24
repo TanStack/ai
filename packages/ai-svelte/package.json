@@ -68,11 +68,11 @@
     "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "@tanstack/ai": "workspace:*",
     "@types/node": "^24.10.1",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.11",
     "jsdom": "^27.4.0",
     "svelte": "^5.56.9",
     "svelte-check": "^4.2.0",
     "typescript": "5.9.3",
-    "vite": "^8.2.1"
+    "vite": "^8.2.2"
   }
 }

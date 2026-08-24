@@ -78,9 +78,9 @@
     "@tanstack/ai": "workspace:*",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.7",
-    "@vitest/coverage-v8": "4.1.10",
+    "@vitest/coverage-v8": "4.1.11",
     "jsdom": "^27.4.0",
     "react": "^19.2.3",
-    "vite": "^8.2.1"
+    "vite": "^8.2.2"
   }
 }

@@ -68,6 +68,6 @@
     "@vitejs/plugin-react": "^5.2.0",
     "miniflare": "^4.20260609.0",
     "typescript": "5.9.3",
-    "vite": "^8.2.1"
+    "vite": "^8.2.2"
   }
 }
