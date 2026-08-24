@@ -138,6 +138,24 @@ const keepLastOnly: CompactionStrategy = (messages) => {
 withCompaction({ maxTokens: 100_000, strategy: keepLastOnly });
 ```
 
+## Combine strategies
+
+`composeStrategies` runs several strategies in order and **escalates**: it stops as soon as the result is back under `maxTokens`. Put the cheap, targeted strategy first and a broad fallback last. Here it clears old tool output first, and only drops old messages if that was not enough.
+
+```typescript
+import {
+  withCompaction,
+  composeStrategies,
+  clearToolResults,
+  evictOldest,
+} from "@tanstack/ai-compaction";
+
+withCompaction({
+  maxTokens: 100_000,
+  strategy: composeStrategies(clearToolResults(), evictOldest()),
+});
+```
+
 ## Options
 
 ### withCompaction

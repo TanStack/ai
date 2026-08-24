@@ -63,6 +63,26 @@ withCompaction({
 })
 ```
 
+### Combine them
+
+`composeStrategies` runs strategies in order and escalates: it stops once the
+result is back under `maxTokens`. Put the cheap one first.
+
+```ts
+import {
+  withCompaction,
+  composeStrategies,
+  clearToolResults,
+  evictOldest,
+} from '@tanstack/ai-compaction'
+
+// Clear old tool output first; only drop old messages if that isn't enough.
+withCompaction({
+  maxTokens: 100_000,
+  strategy: composeStrategies(clearToolResults(), evictOldest()),
+})
+```
+
 ### Write your own
 
 A strategy gets the messages and the budget, and returns the rewritten messages

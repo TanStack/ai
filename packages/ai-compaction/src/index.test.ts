@@ -7,6 +7,7 @@ import type {
 } from '@tanstack/ai'
 import {
   clearToolResults,
+  composeStrategies,
   estimateMessageTokens,
   evictOldest,
   summarizeOldest,
@@ -166,6 +167,61 @@ describe('clearToolResults', () => {
       strategy: clearToolResults({ keepRecentToolResults: 3 }),
     })
     expect(await runOnConfig(mw, msgs)).toBeUndefined()
+  })
+})
+
+describe('composeStrategies', () => {
+  const assistantCall = (id: string): ModelMessage => ({
+    role: 'assistant',
+    content: '',
+    toolCalls: [
+      { id, type: 'function', function: { name: 'f', arguments: '{}' } },
+    ],
+  })
+  const toolMsg = (id: string): ModelMessage => ({
+    role: 'tool',
+    content: 'x'.repeat(800), // ~200 tokens
+    toolCallId: id,
+  })
+  const history = (): Array<ModelMessage> => [
+    text('user', 'HEAD_MARKER'),
+    assistantCall('a'),
+    toolMsg('a'),
+    assistantCall('b'),
+    toolMsg('b'),
+    text('user', 'last'),
+  ]
+
+  it('stops after the first strategy once back under budget', async () => {
+    const mw = withCompaction({
+      maxTokens: 260,
+      strategy: composeStrategies(
+        clearToolResults({ keepRecentToolResults: 1 }),
+        evictOldest({ keepRecentTokens: 50 }),
+      ),
+    })
+    const msgs = history()
+    const out = (await runOnConfig(mw, msgs))?.messages ?? []
+    // Clearing one tool result was enough, so evict never ran:
+    // the head message and full message count survive.
+    expect(out.length).toBe(msgs.length)
+    expect(out.some((m) => m.content === 'HEAD_MARKER')).toBe(true)
+    expect(out[2]?.content).toBe('[tool output cleared to save context]')
+  })
+
+  it('escalates to the next strategy when the first is not enough', async () => {
+    const mw = withCompaction({
+      maxTokens: 60,
+      strategy: composeStrategies(
+        clearToolResults({ keepRecentToolResults: 1 }),
+        evictOldest({ keepRecentTokens: 30 }),
+      ),
+    })
+    const msgs = history()
+    const out = (await runOnConfig(mw, msgs))?.messages ?? []
+    // Clearing was not enough, so evict ran too: the head is dropped.
+    expect(out.some((m) => m.content === 'HEAD_MARKER')).toBe(false)
+    expect(out[0]?.content).toContain('omitted')
   })
 })
 

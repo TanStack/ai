@@ -184,6 +184,39 @@ export function clearToolResults(
 }
 
 /**
+ * Run several strategies in order, escalating: stop as soon as the running
+ * estimate is back under `maxTokens`. Put the cheap, targeted strategy first
+ * (for example {@link clearToolResults}) and a broad fallback last (for example
+ * {@link evictOldest}) — the fallback only runs when clearing was not enough.
+ * A strategy that returns `null` (no change) is skipped and the next one runs.
+ *
+ * @example
+ * ```ts
+ * withCompaction({
+ *   maxTokens: 100_000,
+ *   strategy: composeStrategies(clearToolResults(), evictOldest()),
+ * })
+ * ```
+ */
+export function composeStrategies(
+  ...strategies: Array<CompactionStrategy>
+): CompactionStrategy {
+  return async (messages, ctx) => {
+    let current: ReadonlyArray<ModelMessage> = messages
+    let result: Array<ModelMessage> | null = null
+    for (const strategy of strategies) {
+      if (sum(current, ctx.estimate) <= ctx.maxTokens) break
+      const out = await strategy(current, ctx)
+      if (out) {
+        current = out
+        result = out
+      }
+    }
+    return result
+  }
+}
+
+/**
  * Context-compaction middleware. Add to `chat({ middleware: [...] })`.
  *
  * @example
