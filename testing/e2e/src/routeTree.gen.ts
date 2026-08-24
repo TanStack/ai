@@ -79,9 +79,10 @@ import { Route as ApiEmbeddingRouteImport } from './routes/api.embedding'
 import { Route as ApiDurableTakeoverRouteImport } from './routes/api.durable-takeover'
 import { Route as ApiDurableDeliveryRouteImport } from './routes/api.durable-delivery'
 import { Route as ApiDevtoolsMemoryRouteImport } from './routes/api.devtools-memory'
+import { Route as ApiCompactionWireRouteImport } from './routes/api.compaction-wire'
 import { Route as ApiChatRouteImport } from './routes/api.chat'
-import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiByteplusSeedance1080pWireRouteImport } from './routes/api.byteplus-seedance-1080p-wire'
+import { Route as ApiByokChatRouteImport } from './routes/api.byok-chat'
 import { Route as ApiAudioRouteImport } from './routes/api.audio'
 import { Route as ApiArktypeToolWireRouteImport } from './routes/api.arktype-tool-wire'
 import { Route as ApiAnthropicStructuredUsageRouteImport } from './routes/api.anthropic-structured-usage'
@@ -461,14 +462,14 @@ const ApiDevtoolsMemoryRoute = ApiDevtoolsMemoryRouteImport.update({
   path: '/api/devtools-memory',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCompactionWireRoute = ApiCompactionWireRouteImport.update({
+  id: '/api/compaction-wire',
+  path: '/api/compaction-wire',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiChatRoute = ApiChatRouteImport.update({
   id: '/api/chat',
   path: '/api/chat',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiByokChatRoute = ApiByokChatRouteImport.update({
-  id: '/api/byok-chat',
-  path: '/api/byok-chat',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiByteplusSeedance1080pWireRoute =
@@ -477,6 +478,11 @@ const ApiByteplusSeedance1080pWireRoute =
     path: '/api/byteplus-seedance-1080p-wire',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiByokChatRoute = ApiByokChatRouteImport.update({
+  id: '/api/byok-chat',
+  path: '/api/byok-chat',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAudioRoute = ApiAudioRouteImport.update({
   id: '/api/audio',
   path: '/api/audio',
@@ -564,6 +570,7 @@ export interface FileRoutesByFullPath {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -650,6 +657,7 @@ export interface FileRoutesByTo {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -737,6 +745,7 @@ export interface FileRoutesById {
   '/api/byok-chat': typeof ApiByokChatRoute
   '/api/byteplus-seedance-1080p-wire': typeof ApiByteplusSeedance1080pWireRoute
   '/api/chat': typeof ApiChatRoute
+  '/api/compaction-wire': typeof ApiCompactionWireRoute
   '/api/devtools-memory': typeof ApiDevtoolsMemoryRoute
   '/api/durable-delivery': typeof ApiDurableDeliveryRoute
   '/api/durable-takeover': typeof ApiDurableTakeoverRoute
@@ -825,6 +834,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -911,6 +921,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -997,6 +1008,7 @@ export interface FileRouteTypes {
     | '/api/byok-chat'
     | '/api/byteplus-seedance-1080p-wire'
     | '/api/chat'
+    | '/api/compaction-wire'
     | '/api/devtools-memory'
     | '/api/durable-delivery'
     | '/api/durable-takeover'
@@ -1084,6 +1096,7 @@ export interface RootRouteChildren {
   ApiByokChatRoute: typeof ApiByokChatRoute
   ApiByteplusSeedance1080pWireRoute: typeof ApiByteplusSeedance1080pWireRoute
   ApiChatRoute: typeof ApiChatRoute
+  ApiCompactionWireRoute: typeof ApiCompactionWireRoute
   ApiDevtoolsMemoryRoute: typeof ApiDevtoolsMemoryRoute
   ApiDurableDeliveryRoute: typeof ApiDurableDeliveryRoute
   ApiDurableTakeoverRoute: typeof ApiDurableTakeoverRoute
@@ -1628,6 +1641,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiDevtoolsMemoryRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/compaction-wire': {
+      id: '/api/compaction-wire'
+      path: '/api/compaction-wire'
+      fullPath: '/api/compaction-wire'
+      preLoaderRoute: typeof ApiCompactionWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/chat': {
       id: '/api/chat'
       path: '/api/chat'
@@ -1635,18 +1655,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiChatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/byok-chat': {
-      id: '/api/byok-chat'
-      path: '/api/byok-chat'
-      fullPath: '/api/byok-chat'
-      preLoaderRoute: typeof ApiByokChatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/byteplus-seedance-1080p-wire': {
       id: '/api/byteplus-seedance-1080p-wire'
       path: '/api/byteplus-seedance-1080p-wire'
       fullPath: '/api/byteplus-seedance-1080p-wire'
       preLoaderRoute: typeof ApiByteplusSeedance1080pWireRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/byok-chat': {
+      id: '/api/byok-chat'
+      path: '/api/byok-chat'
+      fullPath: '/api/byok-chat'
+      preLoaderRoute: typeof ApiByokChatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/audio': {
@@ -1817,6 +1837,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiByokChatRoute: ApiByokChatRoute,
   ApiByteplusSeedance1080pWireRoute: ApiByteplusSeedance1080pWireRoute,
   ApiChatRoute: ApiChatRoute,
+  ApiCompactionWireRoute: ApiCompactionWireRoute,
   ApiDevtoolsMemoryRoute: ApiDevtoolsMemoryRoute,
   ApiDurableDeliveryRoute: ApiDurableDeliveryRoute,
   ApiDurableTakeoverRoute: ApiDurableTakeoverRoute,
