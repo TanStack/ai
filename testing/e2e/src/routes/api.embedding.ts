@@ -5,6 +5,7 @@ import { createGeminiEmbedding } from '@tanstack/ai-gemini'
 import { createMistralEmbedding } from '@tanstack/ai-mistral'
 import { createOllamaEmbedding } from '@tanstack/ai-ollama'
 import { createVercelGatewayEmbedding } from '@tanstack/ai-vercel-gateway'
+import { createLovableEmbedding } from '@tanstack/ai-lovable'
 import type { Provider } from '@/lib/types'
 
 const LLMOCK_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
@@ -67,6 +68,11 @@ function createEmbeddingAdapter(
       }),
     'vercel-gateway': () =>
       createVercelGatewayEmbedding('openai/text-embedding-3-small', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    lovable: () =>
+      createLovableEmbedding('openai/text-embedding-3-small', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),

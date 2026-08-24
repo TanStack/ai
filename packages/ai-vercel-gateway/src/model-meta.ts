@@ -156,6 +156,7 @@ export const VERCEL_GATEWAY_CHAT_MODELS = [
   'nvidia/nemotron-3-super-120b-a12b',
   'nvidia/nemotron-3-ultra-550b-a55b',
   'nvidia/nemotron-3.5-lightning',
+  'nvidia/nemotron-3.5-lightning-free',
   'nvidia/nemotron-nano-12b-v2-vl',
   'nvidia/nemotron-nano-9b-v2',
   'openai/gpt-3.5-turbo',
@@ -1540,6 +1541,16 @@ export type VercelGatewayChatModelProviderOptionsByName = {
       | 'reasoning'
       | 'include_reasoning'
     >
+  'nvidia/nemotron-3.5-lightning-free': VercelGatewayCommonOptions &
+    Pick<
+      VercelGatewayBaseOptions,
+      | 'max_tokens'
+      | 'max_output_tokens'
+      | 'temperature'
+      | 'stop'
+      | 'reasoning'
+      | 'include_reasoning'
+    >
   'nvidia/nemotron-nano-12b-v2-vl': VercelGatewayCommonOptions &
     Pick<
       VercelGatewayBaseOptions,
@@ -2643,6 +2654,7 @@ export type VercelGatewayModelInputModalitiesByName = {
   'nvidia/nemotron-3-super-120b-a12b': readonly ['text']
   'nvidia/nemotron-3-ultra-550b-a55b': readonly ['text']
   'nvidia/nemotron-3.5-lightning': readonly ['text']
+  'nvidia/nemotron-3.5-lightning-free': readonly ['text']
   'nvidia/nemotron-nano-12b-v2-vl': readonly ['text', 'image']
   'nvidia/nemotron-nano-9b-v2': readonly ['text']
   'openai/gpt-3.5-turbo': readonly ['text']

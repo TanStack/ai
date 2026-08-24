@@ -23,13 +23,20 @@ Do not run it on a human-only `git push` in another terminal. Do not add a git h
 
 A later push must rewrite the GitHub text. Do not leave a stale description.
 
+A **fix** PR must pass `bugfix-pr` first. If those gates fail, stop. Do not run `gh pr create`. Do not run `gh pr edit`.
+
 ## Required skills for the title and body
 
 `simple-english` and `i-have-adhd` are prerequisites. They apply to the PR title and body, not to the rest of the session.
 
-Load both immediately before writing the title and body. Use the Skill tool if this harness has one. If it does not, Read each skill's SKILL.md. Do not write from memory of those skills.
+Load both immediately before writing the title and body. Use the Skill tool if this harness has one. If it does not, Read:
 
-If either skill is missing, stop. Do not post a weaker substitute.
+- `.claude/skills/simple-english/SKILL.md`
+- `.claude/skills/i-have-adhd/SKILL.md`
+
+Copies also live at `.agents/skills/` (Codex) and `.grok/skills/` (Grok). Keep those three files identical.
+
+If either file is missing, stop. Do not post a weaker substitute.
 
 When `i-have-adhd` is loaded from this skill, ignore its persistence section. Do not switch the rest of the session into ADHD mode.
 
@@ -68,7 +75,8 @@ A **feat** PR cannot be posted until the branch has at least one of:
 
 If none of those exist, stop. Do not run `gh pr create`. Do not run `gh pr edit`. Tell the user what is missing. Wait until they add one, then continue.
 
-A **fix** does not use this gate. A **chore / docs** PR does not use this gate.
+A **fix** does not use this gate. A **fix** uses `bugfix-pr`. Load it first.
+A **chore / docs** PR does not use this gate.
 </HARD-GATE>
 
 ### 4. Write the title
@@ -161,4 +169,5 @@ Do not attach screenshots to the PR. Do not commit screenshot files for this ski
 | "I'll update the description later" after a push       | Rewrite now with `gh pr edit`.                      |
 | Waiting for the user to approve the text               | Post. This skill does not wait.                     |
 | Uploading or committing screenshots for the PR body    | Skip. Do not put images on the PR.                  |
-| Writing without loading simple-english and i-have-adhd | Load both. If missing, stop.                        |
+| Writing without loading simple-english and i-have-adhd | Load both from the repo copies. If missing, stop.   |
+| Posting a fix before `bugfix-pr` gates pass            | Stop. Load `bugfix-pr`. Do not create or edit.      |
