@@ -22,6 +22,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -41,6 +42,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -79,6 +81,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -100,6 +103,8 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'openrouter-responses',
     'vercel-gateway',
     'vercel-gateway-responses',
+    'lovable',
+    'lovable-responses',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -118,6 +123,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -137,6 +143,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -156,6 +163,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -175,6 +183,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -193,6 +202,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'openai-compatible',
     'byteplus',
     'llmgateway',
@@ -227,6 +237,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'openai-compatible',
     'byteplus',
     'llmgateway',
@@ -245,6 +256,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'openai-compatible',
     'mistral',
     'byteplus',
@@ -318,6 +330,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'mistral',
     'llmgateway',
   ]),
@@ -335,6 +348,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'bedrock-responses',
     'openrouter',
     'vercel-gateway',
+    'lovable',
     'mistral',
     'llmgateway',
   ]),
@@ -357,11 +371,18 @@ export const matrix: Record<Feature, Set<Provider>> = {
     'ollama',
     'mistral',
     'vercel-gateway',
+    'lovable',
   ]),
   // Gemini excluded: aimock doesn't mock Gemini's Imagen predict endpoint format
   // vercel-gateway uses POST /v1/images/generations, the same path aimock
   // already mocks for openai. Drop this entry if the first run has no fixture.
-  'image-gen': new Set(['openai', 'grok', 'byteplus', 'vercel-gateway']),
+  'image-gen': new Set([
+    'openai',
+    'grok',
+    'byteplus',
+    'vercel-gateway',
+    'lovable',
+  ]),
   // image-to-image (image parts in the generateImage prompt). aimock 1.29
   // mocks OpenAI's multipart `/v1/images/edits` (matches on the `prompt` form
   // field, ignores the binary image/mask fields), so the OpenAI route runs
@@ -374,7 +395,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // endpoint (reference images ride an `image` array in the JSON body), so
   // there is no `/v1/images/edits` request for this spec's journal assertion
   // to find. The reference-image mapping is unit-tested instead.
-  'image-to-image': new Set(['openai']),
+  'image-to-image': new Set(['openai', 'lovable']),
   // byteplus excluded: BytePlus has no music/audio generation product —
   // Seed Speech is TTS + ASR only.
   // Vertex excluded for the same media-path reason as embedding: the
@@ -383,8 +404,22 @@ export const matrix: Record<Feature, Set<Provider>> = {
   'audio-gen': new Set(['gemini', 'elevenlabs']),
   // byteplus excluded: no sound-effects endpoint (see audio-gen above).
   'sound-effects': new Set(['elevenlabs']),
-  tts: new Set(['openai', 'gemini', 'grok', 'elevenlabs', 'byteplus']),
-  transcription: new Set(['openai', 'grok', 'groq', 'elevenlabs', 'byteplus']),
+  tts: new Set([
+    'openai',
+    'gemini',
+    'grok',
+    'elevenlabs',
+    'byteplus',
+    'lovable',
+  ]),
+  transcription: new Set([
+    'openai',
+    'grok',
+    'groq',
+    'elevenlabs',
+    'byteplus',
+    'lovable',
+  ]),
   // byteplus excluded: this spec asserts named-speaker segments
   // (`agent`/`customer`), which is OpenAI's `diarized_json` shape. Seed ASR's
   // nearest equivalent is `enable_speaker_info`, whose response shape is
@@ -405,7 +440,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // (packages/ai-openrouter/tests/video-adapter.test.ts). Add it here when
   // aimock learns the OpenRouter job endpoints
   // (https://github.com/CopilotKit/aimock/issues/261).
-  'video-gen': new Set(['openai', 'gemini', 'byteplus']),
+  'video-gen': new Set(['openai', 'gemini', 'byteplus', 'lovable']),
   // image-to-video (image parts in the generateVideo prompt). aimock 1.29's
   // `/v1/videos` handler parses Sora's multipart upload (the SDK switches to
   // multipart when `input_reference` carries a File) and matches on the
@@ -418,7 +453,7 @@ export const matrix: Record<Feature, Set<Provider>> = {
   // role inside the task body's `content[]`, so the spec's assertion that a
   // multipart POST /v1/videos carried the prompt can't hold. The role mapping
   // is unit-tested instead.
-  'image-to-video': new Set(['openai']),
+  'image-to-video': new Set(['openai', 'lovable']),
   // Gemini Omni Flash video generation over the Interactions API. Runs
   // through a dedicated aimock mount (see geminiOmniVideoMount in
   // global-setup.ts) — aimock handles synchronous text interactions natively

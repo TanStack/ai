@@ -28,6 +28,12 @@ import {
   createBytePlusVideo,
 } from '@tanstack/ai-byteplus'
 import { createVercelGatewayImage } from '@tanstack/ai-vercel-gateway'
+import {
+  createLovableImage,
+  createLovableSpeech,
+  createLovableTranscription,
+  createLovableVideo,
+} from '@tanstack/ai-lovable'
 import type { TranscriptionResponseFormat } from '@tanstack/ai'
 import type { Feature, Provider } from '@/lib/types'
 
@@ -111,6 +117,11 @@ export function createImageAdapter(
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
+    lovable: () =>
+      createLovableImage('openai/gpt-image-2', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
   }
   const factory = factories[provider]
   if (!factory) throw new Error(`No image adapter for provider: ${provider}`)
@@ -149,6 +160,11 @@ export function createTTSAdapter(
     byteplus: () =>
       createBytePlusSpeech('seed-audio-1.0', DUMMY_KEY, {
         baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
+    lovable: () =>
+      createLovableSpeech('openai/gpt-4o-mini-tts', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
   }
@@ -191,6 +207,11 @@ export function createTranscriptionAdapter(
     byteplus: () =>
       createBytePlusTranscription('seed-asr', DUMMY_KEY, {
         baseURL: llmockBase(aimockPort),
+        defaultHeaders: headers,
+      }),
+    lovable: () =>
+      createLovableTranscription('openai/gpt-4o-mini-transcribe', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
   }
@@ -239,6 +260,11 @@ export function createVideoAdapter(
     byteplus: () =>
       createBytePlusVideo('seedance-1-0-pro-fast-251015', DUMMY_KEY, {
         baseURL: bytePlusArkUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    lovable: () =>
+      createLovableVideo('google/veo-3.1-lite', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
   }

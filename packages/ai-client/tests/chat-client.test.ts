@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { EventType } from '@tanstack/ai/client'
+import { EventType, withTanstackMetadata } from '@tanstack/ai/client'
 import { ChatClient } from '../src/chat-client'
 import {
   createApprovalToolCallChunks,
@@ -2866,6 +2866,90 @@ describe('ChatClient', () => {
           expect(toolCallPart.name).toBe('get_weather')
         }
       }
+    })
+
+    it('does not continue a server-owned client tool input error', async () => {
+      const execute = vi.fn()
+      const errorResult = JSON.stringify({
+        error: 'Input validation failed for tool show_notification',
+      })
+      const errorChunks: Array<StreamChunk> = [
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'tool-1',
+          toolCallName: 'show_notification',
+          toolName: 'show_notification',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'tool-1',
+          delta: '{"message":42,"type":"info"}',
+          timestamp: Date.now(),
+        },
+        {
+          type: EventType.TOOL_CALL_END,
+          toolCallId: 'tool-1',
+          input: { message: 42, type: 'info' },
+          timestamp: Date.now(),
+        },
+        withTanstackMetadata(
+          {
+            type: EventType.TOOL_CALL_RESULT,
+            toolCallId: 'tool-1',
+            messageId: 'tool-result-1',
+            content: errorResult,
+            role: 'tool',
+            timestamp: Date.now(),
+          },
+          { state: 'output-error' },
+        ) as StreamChunk,
+        withTanstackMetadata(
+          {
+            type: EventType.RUN_FINISHED,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          },
+          { finishReason: 'tool_calls', model: 'test' },
+        ) as StreamChunk,
+      ]
+      let requestCount = 0
+      const adapter: ConnectConnectionAdapter = {
+        async *connect(_messages, _data, abortSignal) {
+          requestCount++
+          const chunks =
+            requestCount === 1
+              ? errorChunks
+              : createTextChunks('Unexpected continuation')
+          for (const chunk of chunks) {
+            if (abortSignal?.aborted) return
+            yield chunk
+          }
+        },
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        tools: [
+          {
+            __toolSide: 'client' as const,
+            name: 'show_notification',
+            description: 'Show a notification',
+            execute,
+          },
+        ],
+      })
+
+      await client.sendMessage('Show a notification')
+
+      expect(requestCount).toBe(1)
+      expect(execute).not.toHaveBeenCalled()
+      expect(
+        client
+          .getMessages()
+          .flatMap((message) => message.parts)
+          .find((part) => part.type === 'tool-call' && part.id === 'tool-1'),
+      ).toEqual(expect.objectContaining({ state: 'error' }))
     })
 
     // Tests for legacy onToolCall removed - now using client tools with execute functions

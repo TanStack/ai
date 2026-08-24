@@ -18,6 +18,7 @@ import {
   createOpenRouterText,
 } from '@tanstack/ai-openrouter'
 import { createVercelGatewayText } from '@tanstack/ai-vercel-gateway'
+import { createLovableText } from '@tanstack/ai-lovable'
 import { createMistralText } from '@tanstack/ai-mistral'
 import { createBytePlusText } from '@tanstack/ai-byteplus'
 import { createLLMGatewayText } from '@tanstack/ai-llmgateway'
@@ -94,6 +95,8 @@ const defaultModels: Record<Provider, string> = {
   'openrouter-responses': 'openai/gpt-4o',
   'vercel-gateway': 'openai/gpt-5.5',
   'vercel-gateway-responses': 'openai/gpt-5.5',
+  lovable: 'openai/gpt-5.5',
+  'lovable-responses': 'openai/gpt-5.5',
   'openai-compatible': 'gpt-4o',
   // Arbitrary id on purpose: the provider models "any model behind an
   // OpenAI-compatible Responses endpoint frozen on the pre-July-2025 spec",
@@ -319,6 +322,22 @@ export function createTextAdapter(
     'vercel-gateway-responses': () =>
       createChatOptions({
         adapter: createVercelGatewayText(model as 'openai/gpt-5.5', DUMMY_KEY, {
+          api: 'responses',
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    lovable: () =>
+      createChatOptions({
+        adapter: createLovableText(model as 'openai/gpt-5.5', DUMMY_KEY, {
+          api: 'chat',
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    'lovable-responses': () =>
+      createChatOptions({
+        adapter: createLovableText(model as 'openai/gpt-5.5', DUMMY_KEY, {
           api: 'responses',
           baseURL: openaiUrl,
           defaultHeaders: testHeaders,

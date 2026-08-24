@@ -13,7 +13,7 @@
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-21"
+          "updatedAt": "2026-08-24"
         },
         {
           "label": "Quick Start: React",
@@ -30,7 +30,7 @@
           "label": "Devtools",
           "to": "getting-started/devtools",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-08-21"
         },
         {
           "label": "Quick Start: Vue",
@@ -394,7 +394,7 @@
           "label": "Streaming UIs",
           "to": "structured-outputs/streaming",
           "addedAt": "2026-05-19",
-          "updatedAt": "2026-08-20"
+          "updatedAt": "2026-08-24"
         },
         {
           "label": "Multi-Turn Chat",
@@ -765,7 +765,7 @@
           "label": "Bring Your Own Key",
           "to": "advanced/byok",
           "addedAt": "2026-08-18",
-          "updatedAt": "2026-08-22"
+          "updatedAt": "2026-08-24"
         },
         {
           "label": "Debug Logging",
@@ -984,10 +984,16 @@
           "updatedAt": "2026-08-12"
         },
         {
+          "label": "Lovable AI Gateway",
+          "to": "adapters/lovable",
+          "addedAt": "2026-08-24",
+          "updatedAt": "2026-08-24"
+        },
+        {
           "label": "OpenAI-Compatible",
           "to": "adapters/openai-compatible",
           "addedAt": "2026-06-01",
-          "updatedAt": "2026-08-23"
+          "updatedAt": "2026-08-24"
         },
         {
           "label": "LLM Gateway",
