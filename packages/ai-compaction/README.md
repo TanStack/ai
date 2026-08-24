@@ -30,11 +30,11 @@ chat({
 
 Pass `strategy` to change how the history shrinks. Three are built in.
 
-| Strategy | What it does | Cost |
-| --- | --- | --- |
-| `evictOldest` (default) | Drop the oldest messages, leave a marker | No extra model call |
-| `summarizeOldest` | Replace the oldest messages with an LLM summary | One summarize call |
-| `clearToolResults` | Stub the content of old tool results, keep the messages | No extra model call |
+| Strategy                | What it does                                            | Cost                |
+| ----------------------- | ------------------------------------------------------- | ------------------- |
+| `evictOldest` (default) | Drop the oldest messages, leave a marker                | No extra model call |
+| `summarizeOldest`       | Replace the oldest messages with an LLM summary         | One summarize call  |
+| `clearToolResults`      | Stub the content of old tool results, keep the messages | No extra model call |
 
 ```ts
 import {
@@ -45,7 +45,10 @@ import {
 } from '@tanstack/ai-compaction'
 
 // Tune how much recent history to keep.
-withCompaction({ maxTokens: 100_000, strategy: evictOldest({ keepRecentTokens: 40_000 }) })
+withCompaction({
+  maxTokens: 100_000,
+  strategy: evictOldest({ keepRecentTokens: 40_000 }),
+})
 
 // Summarize instead of dropping. `summarize` gets the messages being removed.
 withCompaction({
@@ -54,7 +57,10 @@ withCompaction({
 })
 
 // Best for agent loops: stub old tool output, keep the messages in place.
-withCompaction({ maxTokens: 100_000, strategy: clearToolResults({ keepRecentToolResults: 5 }) })
+withCompaction({
+  maxTokens: 100_000,
+  strategy: clearToolResults({ keepRecentToolResults: 5 }),
+})
 ```
 
 ### Write your own
@@ -74,20 +80,20 @@ const keepLastOnly: CompactionStrategy = (messages) =>
 
 ### `withCompaction`
 
-| Option | Default | What it does |
-| --- | --- | --- |
-| `maxTokens` | (required) | Compact when estimated tokens exceed this. |
-| `strategy` | `evictOldest()` | How to shrink the messages. |
-| `estimateTokens` | chars / 4 | Per-message token estimate. Swap in a real tokenizer for accuracy. |
-| `onCompact` | — | Observe each compaction (`before`/`after`/`messagesBefore`/`messagesAfter`). |
+| Option           | Default         | What it does                                                                 |
+| ---------------- | --------------- | ---------------------------------------------------------------------------- |
+| `maxTokens`      | (required)      | Compact when estimated tokens exceed this.                                   |
+| `strategy`       | `evictOldest()` | How to shrink the messages.                                                  |
+| `estimateTokens` | chars / 4       | Per-message token estimate. Swap in a real tokenizer for accuracy.           |
+| `onCompact`      | —               | Observe each compaction (`before`/`after`/`messagesBefore`/`messagesAfter`). |
 
 ### Strategy options
 
-| Strategy | Options |
-| --- | --- |
-| `evictOldest` | `keepRecentTokens` (default `maxTokens / 2`), `marker` |
-| `summarizeOldest` | `summarize` (required), `keepRecentTokens`, `summaryRole` |
-| `clearToolResults` | `keepRecentToolResults` (default `3`), `stub` |
+| Strategy           | Options                                                   |
+| ------------------ | --------------------------------------------------------- |
+| `evictOldest`      | `keepRecentTokens` (default `maxTokens / 2`), `marker`    |
+| `summarizeOldest`  | `summarize` (required), `keepRecentTokens`, `summaryRole` |
+| `clearToolResults` | `keepRecentToolResults` (default `3`), `stub`             |
 
 The token estimate is a rough `chars / 4` heuristic, good enough to trigger on,
 not exact. Pass `estimateTokens` if you need provider-accurate counts.
