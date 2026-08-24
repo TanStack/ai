@@ -12,6 +12,7 @@ import { grokVertexSummarize } from '@tanstack/ai-grok/vertex'
 import { createLLMGatewaySummarize } from '@tanstack/ai-llmgateway'
 import { createOpenRouterSummarize } from '@tanstack/ai-openrouter'
 import { createVercelGatewaySummarize } from '@tanstack/ai-vercel-gateway'
+import { createLovableSummarize } from '@tanstack/ai-lovable'
 import { HTTPClient } from '@openrouter/sdk'
 import type { Provider } from '@/lib/types'
 
@@ -118,6 +119,11 @@ function createSummarizeAdapter(
       }),
     'vercel-gateway': () =>
       createVercelGatewaySummarize('openai/gpt-5.5', DUMMY_KEY, {
+        baseURL: openaiUrl(aimockPort),
+        defaultHeaders: headers,
+      }),
+    lovable: () =>
+      createLovableSummarize('openai/gpt-5.5', DUMMY_KEY, {
         baseURL: openaiUrl(aimockPort),
         defaultHeaders: headers,
       }),
