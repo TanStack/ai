@@ -2,7 +2,11 @@ import OpenAI from 'openai'
 import { BaseTTSAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64, generateId } from '@tanstack/ai-utils'
-import { getLovableApiKeyFromEnv, withLovableDefaults } from '../utils/client'
+import {
+  getLovableApiKeyFromEnv,
+  openaiRequestOptions,
+  withLovableDefaults,
+} from '../utils/client'
 import type { TTSOptions, TTSResult } from '@tanstack/ai'
 import type OpenAI_SDK from 'openai'
 import type { LovableTTSModel } from '../model-meta'
@@ -51,7 +55,10 @@ export class LovableTTSAdapter<
         `activity=tts provider=${this.name} model=${model} format=${request.response_format ?? 'default'} voice=${request.voice}`,
         { provider: this.name, model },
       )
-      const response = await this.client.audio.speech.create(request)
+      const response = await this.client.audio.speech.create(
+        request,
+        openaiRequestOptions(options.abortSignal),
+      )
       const arrayBuffer = await response.arrayBuffer()
       const base64 = arrayBufferToBase64(arrayBuffer)
       const outputFormat = (request.response_format as string) || 'mp3'

@@ -3,7 +3,11 @@ import { resolveMediaPrompt } from '@tanstack/ai'
 import { BaseVideoAdapter, snapToDurationOption } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { arrayBufferToBase64 } from '@tanstack/ai-utils'
-import { getLovableApiKeyFromEnv, withLovableDefaults } from '../utils/client'
+import {
+  getLovableApiKeyFromEnv,
+  openaiRequestOptions,
+  withLovableDefaults,
+} from '../utils/client'
 import { imagePartToFile } from '../image/image-input-to-file'
 import {
   toApiSeconds,
@@ -127,6 +131,7 @@ export class LovableVideoAdapter<
         inputReference,
         'input-reference',
         this.clientConfig.allowUrlFetch ?? false,
+        options.abortSignal,
       )
     }
     if (resolvedSize) {
@@ -146,7 +151,10 @@ export class LovableVideoAdapter<
         `activity=video.create provider=${this.name} model=${model} size=${request.size ?? 'default'} seconds=${request.seconds ?? 'default'}`,
         { provider: this.name, model },
       )
-      const response = await this.client.videos.create(request)
+      const response = await this.client.videos.create(
+        request,
+        openaiRequestOptions(options.abortSignal),
+      )
       return { jobId: response.id, model }
     } catch (error: unknown) {
       options.logger.errors(`${this.name}.createVideoJob fatal`, {
@@ -184,8 +192,8 @@ export class LovableVideoAdapter<
         return {
           jobId,
           url: directUrl,
-          ...(videoInfo.expires_at !== null && {
-            expiresAt: new Date(videoInfo.expires_at),
+          ...(videoInfo.expires_at != null && {
+            expiresAt: new Date(videoInfo.expires_at * 1000),
           }),
         }
       }

@@ -35,6 +35,7 @@ describe('Lovable TTS adapter', () => {
       .spyOnSpeechCreate()
       .mockResolvedValueOnce(new Response(bytes))
 
+    const abortSignal = new AbortController().signal
     const result = await adapter.generateSpeech({
       model: 'openai/gpt-4o-mini-tts',
       text: 'Hello',
@@ -42,15 +43,19 @@ describe('Lovable TTS adapter', () => {
       format: 'mp3',
       logger: testLogger,
       modelOptions: { instructions: 'speak slowly and warmly' },
+      abortSignal,
     })
 
-    expect(mockCreate).toHaveBeenCalledWith({
-      model: 'openai/gpt-4o-mini-tts',
-      input: 'Hello',
-      voice: 'nova',
-      response_format: 'mp3',
-      instructions: 'speak slowly and warmly',
-    })
+    expect(mockCreate).toHaveBeenCalledWith(
+      {
+        model: 'openai/gpt-4o-mini-tts',
+        input: 'Hello',
+        voice: 'nova',
+        response_format: 'mp3',
+        instructions: 'speak slowly and warmly',
+      },
+      { signal: abortSignal },
+    )
     expect(result.audio).toBe(Buffer.from(bytes).toString('base64'))
     expect(result.format).toBe('mp3')
     expect(result.contentType).toBe('audio/mpeg')

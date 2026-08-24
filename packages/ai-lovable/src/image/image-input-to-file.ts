@@ -33,6 +33,7 @@ export async function imagePartToFile(
   part: ImagePart<MediaInputMetadata>,
   fallbackName: string,
   allowUrlFetch: boolean,
+  abortSignal?: AbortSignal,
 ): Promise<File> {
   ensureFileSupport()
 
@@ -54,7 +55,10 @@ export async function imagePartToFile(
     )
   }
 
-  const response = await fetch(part.source.value)
+  const response = await fetch(
+    part.source.value,
+    abortSignal ? { signal: abortSignal } : undefined,
+  )
   if (!response.ok) {
     throw new Error(
       `Failed to fetch image input (${response.status} ${response.statusText}): ${part.source.value}`,

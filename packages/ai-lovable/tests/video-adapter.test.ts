@@ -12,6 +12,9 @@ class TestLovableVideoAdapter<
   spyOnVideosCreate() {
     return vi.spyOn(this.client.videos, 'create')
   }
+  spyOnVideosRetrieve() {
+    return vi.spyOn(this.client.videos, 'retrieve')
+  }
 }
 
 function queuedVideo(id: string): OpenAI.Videos.Video {
@@ -60,24 +63,49 @@ describe('Lovable video adapter', () => {
       .spyOnVideosCreate()
       .mockResolvedValueOnce(queuedVideo('video-job-1'))
 
+    const abortSignal = new AbortController().signal
     const result = await adapter.createVideoJob({
       model: 'google/veo-3.1-lite',
       prompt: 'A cat walking through fog',
       size: '1280x720',
       duration: 4,
       logger: testLogger,
+      abortSignal,
     })
 
     expect(result).toEqual({
       jobId: 'video-job-1',
       model: 'google/veo-3.1-lite',
     })
-    expect(mockCreate).toHaveBeenCalledWith({
-      model: 'google/veo-3.1-lite',
-      prompt: 'A cat walking through fog',
-      size: '1280x720',
-      seconds: '4',
-    })
+    expect(mockCreate).toHaveBeenCalledWith(
+      {
+        model: 'google/veo-3.1-lite',
+        prompt: 'A cat walking through fog',
+        size: '1280x720',
+        seconds: '4',
+      },
+      { signal: abortSignal },
+    )
+  })
+
+  it('converts expires_at Unix seconds to a Date', async () => {
+    const adapter = new TestLovableVideoAdapter(
+      { apiKey: 'test-api-key' },
+      'google/veo-3.1-lite',
+    )
+    const expiresAtSeconds = 1_700_000_000
+    const completed: OpenAI.Videos.Video & { url: string } = {
+      ...queuedVideo('video-job-1'),
+      status: 'completed',
+      expires_at: expiresAtSeconds,
+      url: 'https://cdn.example/clip.mp4',
+    }
+    adapter.spyOnVideosRetrieve().mockResolvedValueOnce(completed)
+
+    const result = await adapter.getVideoUrl('video-job-1')
+
+    expect(result.url).toBe('https://cdn.example/clip.mp4')
+    expect(result.expiresAt).toEqual(new Date(expiresAtSeconds * 1000))
   })
 
   it('uploads a single image part as input_reference', async () => {

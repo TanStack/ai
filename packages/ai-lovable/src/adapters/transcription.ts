@@ -2,7 +2,11 @@ import OpenAI from 'openai'
 import { BaseTranscriptionAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { base64ToArrayBuffer, generateId } from '@tanstack/ai-utils'
-import { getLovableApiKeyFromEnv, withLovableDefaults } from '../utils/client'
+import {
+  getLovableApiKeyFromEnv,
+  openaiRequestOptions,
+  withLovableDefaults,
+} from '../utils/client'
 import type {
   TokenUsage,
   TranscriptionOptions,
@@ -81,7 +85,10 @@ export class LovableTranscriptionAdapter<
         { provider: this.name, model },
       )
 
-      const response = await this.client.audio.transcriptions.create(request)
+      const response = await this.client.audio.transcriptions.create(
+        request,
+        openaiRequestOptions(options.abortSignal),
+      )
       const usage =
         typeof response === 'string'
           ? undefined

@@ -1,6 +1,4 @@
-import type { TranscriptionResponseFormat } from '@tanstack/ai'
-
-export type LovableTranscriptionResponseFormat = TranscriptionResponseFormat
+export type LovableTranscriptionResponseFormat = 'json' | 'text'
 
 export interface LovableTranscriptionProviderOptions {
   temperature?: number

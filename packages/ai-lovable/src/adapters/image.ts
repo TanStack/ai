@@ -4,7 +4,11 @@ import { BaseImageAdapter } from '@tanstack/ai/adapters'
 import { toRunErrorPayload } from '@tanstack/ai/adapter-internals'
 import { buildImagesUsage } from '@tanstack/openai-base'
 import { generateId } from '@tanstack/ai-utils'
-import { getLovableApiKeyFromEnv, withLovableDefaults } from '../utils/client'
+import {
+  getLovableApiKeyFromEnv,
+  openaiRequestOptions,
+  withLovableDefaults,
+} from '../utils/client'
 import { imagePartToFile } from '../image/image-input-to-file'
 import type {
   GeneratedImage,
@@ -122,6 +126,7 @@ export class LovableImageAdapter<
         modelOptions,
         imageInputs: resolved.images,
         logger: options.logger,
+        abortSignal: options.abortSignal,
       })
     }
 
@@ -140,10 +145,13 @@ export class LovableImageAdapter<
         `activity=image provider=${this.name} model=${model} n=${request.n ?? 1} size=${request.size ?? 'default'}`,
         { provider: this.name, model },
       )
-      const response = await this.client.images.generate({
-        ...request,
-        stream: false,
-      })
+      const response = await this.client.images.generate(
+        {
+          ...request,
+          stream: false,
+        },
+        openaiRequestOptions(options.abortSignal),
+      )
 
       const images = generatedImagesFromResponse(
         response.data,
@@ -174,8 +182,17 @@ export class LovableImageAdapter<
     modelOptions?: LovableImageProviderOptions
     imageInputs: ReadonlyArray<ImagePart<MediaInputMetadata>>
     logger: ImageGenerationOptions<LovableImageProviderOptions>['logger']
+    abortSignal?: AbortSignal
   }): Promise<ImageGenerationResult> {
-    const { model, prompt, numberOfImages, size, modelOptions, logger } = args
+    const {
+      model,
+      prompt,
+      numberOfImages,
+      size,
+      modelOptions,
+      logger,
+      abortSignal,
+    } = args
 
     const maskParts = args.imageInputs.filter(
       (part) => part.metadata?.role === 'mask',
@@ -207,12 +224,17 @@ export class LovableImageAdapter<
 
     const sourceFiles = await Promise.all(
       sourceParts.map((part, i) =>
-        imagePartToFile(part, `source-${i}`, this.allowUrlFetch),
+        imagePartToFile(part, `source-${i}`, this.allowUrlFetch, abortSignal),
       ),
     )
     const [firstSourceFile] = sourceFiles
     const maskFile = maskParts[0]
-      ? await imagePartToFile(maskParts[0], 'mask', this.allowUrlFetch)
+      ? await imagePartToFile(
+          maskParts[0],
+          'mask',
+          this.allowUrlFetch,
+          abortSignal,
+        )
       : undefined
 
     const request: OpenAI_SDK.Images.ImageEditParamsNonStreaming = {
@@ -239,7 +261,10 @@ export class LovableImageAdapter<
         `activity=imageEdit provider=${this.name} model=${model} n=${request.n ?? 1} size=${request.size ?? 'default'} sources=${sourceFiles.length}${maskFile ? ' mask' : ''}`,
         { provider: this.name, model },
       )
-      const response = await this.client.images.edit(request)
+      const response = await this.client.images.edit(
+        request,
+        openaiRequestOptions(abortSignal),
+      )
 
       const images = generatedImagesFromResponse(
         response.data,

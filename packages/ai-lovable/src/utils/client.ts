@@ -41,3 +41,10 @@ export function withLovableDefaults(
     },
   }
 }
+
+export function openaiRequestOptions(
+  abortSignal?: AbortSignal,
+): { signal: AbortSignal } | undefined {
+  if (!abortSignal) return undefined
+  return { signal: abortSignal }
+}

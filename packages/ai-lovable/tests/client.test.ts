@@ -18,6 +18,7 @@ describe('getLovableApiKeyFromEnv', () => {
   })
 
   it('throws when LOVABLE_API_KEY is unset', () => {
+    vi.stubEnv('LOVABLE_API_KEY', '')
     expect(() => getLovableApiKeyFromEnv()).toThrow(/LOVABLE_API_KEY/)
   })
 })

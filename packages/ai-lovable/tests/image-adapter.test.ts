@@ -36,22 +36,27 @@ describe('Lovable image adapter', () => {
       data: [{ b64_json: 'abc' }],
     })
 
+    const abortSignal = new AbortController().signal
     const result = await adapter.generateImages({
       model: 'openai/gpt-image-2',
       prompt: 'a red guitar',
       numberOfImages: 1,
       size: '1024x1024',
       logger: testLogger,
+      abortSignal,
     })
 
     expect(result.images[0]?.b64Json).toBe('abc')
-    expect(mockGenerate).toHaveBeenCalledWith({
-      model: 'openai/gpt-image-2',
-      prompt: 'a red guitar',
-      n: 1,
-      size: '1024x1024',
-      stream: false,
-    })
+    expect(mockGenerate).toHaveBeenCalledWith(
+      {
+        model: 'openai/gpt-image-2',
+        prompt: 'a red guitar',
+        n: 1,
+        size: '1024x1024',
+        stream: false,
+      },
+      { signal: abortSignal },
+    )
   })
 
   it('throws when the response contains no usable images', async () => {
@@ -88,6 +93,7 @@ describe('Lovable image adapter', () => {
         .mockResolvedValueOnce(imagesEditResponse)
       const generateSpy = adapter.spyOnImagesGenerate()
 
+      const abortSignal = new AbortController().signal
       const result = await adapter.generateImages({
         model: 'openai/gpt-image-2',
         prompt: [
@@ -102,6 +108,7 @@ describe('Lovable image adapter', () => {
           },
         ],
         logger: testLogger,
+        abortSignal,
       })
 
       expect(generateSpy).not.toHaveBeenCalled()
@@ -110,6 +117,7 @@ describe('Lovable image adapter', () => {
       expect(editArgs.model).toBe('openai/gpt-image-2')
       expect(editArgs.prompt).toBe('Make it cinematic')
       expect(editArgs.image).toBeInstanceOf(File)
+      expect(editSpy.mock.calls[0]![1]).toEqual({ signal: abortSignal })
       expect(result.images[0]!.b64Json).toBe('edited-base64')
     })
 

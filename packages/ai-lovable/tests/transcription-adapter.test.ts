@@ -41,11 +41,13 @@ describe('Lovable transcription adapter', () => {
     const audio = new File([new Uint8Array([1, 2, 3])], 'clip.mp3', {
       type: 'audio/mpeg',
     })
+    const abortSignal = new AbortController().signal
     const result = await adapter.transcribe({
       model: 'openai/gpt-4o-mini-transcribe',
       audio,
       language: 'en',
       logger: testLogger,
+      abortSignal,
     })
 
     expect(mockCreate).toHaveBeenCalledWith(
@@ -55,6 +57,7 @@ describe('Lovable transcription adapter', () => {
         language: 'en',
         response_format: 'json',
       }),
+      { signal: abortSignal },
     )
     expect(result.text).toBe('hello world')
   })
