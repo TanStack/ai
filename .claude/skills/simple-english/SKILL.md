@@ -37,19 +37,19 @@ When asked to CHECK text instead of writing it, report each violation as: rule n
 
 ## Two Modes
 
-| Mode | When | What you apply |
-|---|---|---|
-| **Pragmatic** (default) | Docs, READMEs, error messages — the user wants clear text | All structural rules. Domain words stay ("idempotent", "webhook"). |
-| **Strict** | The user names STE, ASD-STE100, or compliance | Structural rules + full vocabulary discipline, and tell the user that full compliance needs the official dictionary (free at asd-ste100.org). |
+| Mode                    | When                                                      | What you apply                                                                                                                                |
+| ----------------------- | --------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Pragmatic** (default) | Docs, READMEs, error messages — the user wants clear text | All structural rules. Domain words stay ("idempotent", "webhook").                                                                            |
+| **Strict**              | The user names STE, ASD-STE100, or compliance             | Structural rules + full vocabulary discipline, and tell the user that full compliance needs the official dictionary (free at asd-ste100.org). |
 
 ## Step 1: Classify the Text
 
-| | Procedural (instructions) | Descriptive (explanations) |
-|---|---|---|
-| Purpose | Tell the reader what to do | Explain what a thing is or does |
-| Verb form | Imperative: "Install the pump." | Simple present/past/future |
-| Sentence limit | **20 words** (Rule 5.1) | **25 words** (Rule 6.3) |
-| Unit rule | One instruction per sentence (5.2) | One topic per paragraph (6.5), max six sentences per paragraph (6.6) |
+|                | Procedural (instructions)          | Descriptive (explanations)                                           |
+| -------------- | ---------------------------------- | -------------------------------------------------------------------- |
+| Purpose        | Tell the reader what to do         | Explain what a thing is or does                                      |
+| Verb form      | Imperative: "Install the pump."    | Simple present/past/future                                           |
+| Sentence limit | **20 words** (Rule 5.1)            | **25 words** (Rule 6.3)                                              |
+| Unit rule      | One instruction per sentence (5.2) | One topic per paragraph (6.5), max six sentences per paragraph (6.6) |
 
 Do not mix the two in one passage. A "Getting started" section is procedural. An "Architecture" section is descriptive. A note inside a procedure is descriptive (25-word limit, no imperative).
 
@@ -59,22 +59,22 @@ Do not mix the two in one passage. A "Getting started" section is procedural. An
 
 ### Section 1 — Words (Rules 1.1-1.14)
 
-| Rule | Instruction |
-|---|---|
-| 1.1 | Use only approved words, technical nouns, or technical verbs. |
-| 1.2 | Use an approved word only as its listed part of speech. |
-| 1.3 | Use an approved word only with its approved meaning. |
-| 1.4 | Use only the approved forms of verbs and adjectives. |
-| 1.5 | You can use domain words as technical nouns ("webhook", "commit", "endpoint"). |
-| 1.6 | Use an unapproved word only when it is a technical noun or part of one. |
-| 1.7 | Do not use technical nouns as verbs. |
-| 1.8 | Use the technical nouns of your project or industry. |
-| 1.9 | When you pick a technical noun, pick a short and clear one. |
-| 1.10 | No regional, slang, or jargon words as technical nouns. |
-| 1.11 | One item, one name. Do not call it "config" here and "settings" there. |
-| 1.12 | You can use domain verbs as technical verbs ("deploy", "compile", "merge"). |
-| 1.13 | Do not use technical verbs as nouns. |
-| 1.14 | Use American English spelling. |
+| Rule | Instruction                                                                    |
+| ---- | ------------------------------------------------------------------------------ |
+| 1.1  | Use only approved words, technical nouns, or technical verbs.                  |
+| 1.2  | Use an approved word only as its listed part of speech.                        |
+| 1.3  | Use an approved word only with its approved meaning.                           |
+| 1.4  | Use only the approved forms of verbs and adjectives.                           |
+| 1.5  | You can use domain words as technical nouns ("webhook", "commit", "endpoint"). |
+| 1.6  | Use an unapproved word only when it is a technical noun or part of one.        |
+| 1.7  | Do not use technical nouns as verbs.                                           |
+| 1.8  | Use the technical nouns of your project or industry.                           |
+| 1.9  | When you pick a technical noun, pick a short and clear one.                    |
+| 1.10 | No regional, slang, or jargon words as technical nouns.                        |
+| 1.11 | One item, one name. Do not call it "config" here and "settings" there.         |
+| 1.12 | You can use domain verbs as technical verbs ("deploy", "compile", "merge").    |
+| 1.13 | Do not use technical verbs as nouns.                                           |
+| 1.14 | Use American English spelling.                                                 |
 
 In pragmatic mode, rules 1.5, 1.8, and 1.12 do the heavy lifting: your domain vocabulary is legal. The ones agents break are 1.7, 1.11, and 1.13.
 
@@ -83,10 +83,10 @@ In pragmatic mode, rules 1.5, 1.8, and 1.12 do the heavy lifting: your domain vo
 
 ### Section 2 — Multi-word nouns (Rules 2.1-2.2)
 
-| Rule | Instruction |
-|---|---|
-| 2.1 | Write multi-word nouns of three words or fewer. |
-| 2.2 | When a technical noun needs more than three words, write it in full once, then give a short form or hyphenate the units. |
+| Rule | Instruction                                                                                                              |
+| ---- | ------------------------------------------------------------------------------------------------------------------------ |
+| 2.1  | Write multi-word nouns of three words or fewer.                                                                          |
+| 2.2  | When a technical noun needs more than three words, write it in full once, then give a short form or hyphenate the units. |
 
 Break long noun chains with prepositions (of, on, in, for):
 
@@ -95,15 +95,15 @@ Break long noun chains with prepositions (of, on, in, for):
 
 ### Section 3 — Verbs (Rules 3.1-3.7)
 
-| Rule | Instruction |
-|---|---|
-| 3.1 | Use only the verb forms that the dictionary gives. |
-| 3.2 | Use only: infinitive, imperative, simple present, simple past, simple future, past participle as adjective. |
-| 3.3 | Use the past participle only as an adjective ("the cached response"). |
-| 3.4 | No auxiliary verbs for complex constructions. No present perfect, no "is to be installed". |
-| 3.5 | Use an "-ing" form only as a technical noun or inside one ("logging", "the mounting bracket") — never as a verb. |
-| 3.6 | Active voice. In descriptive text, passive is legal only when the agent is unknown. |
-| 3.7 | Describe an action with a verb, not a noun ("compress the file", not "perform compression of the file"). |
+| Rule | Instruction                                                                                                      |
+| ---- | ---------------------------------------------------------------------------------------------------------------- |
+| 3.1  | Use only the verb forms that the dictionary gives.                                                               |
+| 3.2  | Use only: infinitive, imperative, simple present, simple past, simple future, past participle as adjective.      |
+| 3.3  | Use the past participle only as an adjective ("the cached response").                                            |
+| 3.4  | No auxiliary verbs for complex constructions. No present perfect, no "is to be installed".                       |
+| 3.5  | Use an "-ing" form only as a technical noun or inside one ("logging", "the mounting bracket") — never as a verb. |
+| 3.6  | Active voice. In descriptive text, passive is legal only when the agent is unknown.                              |
+| 3.7  | Describe an action with a verb, not a noun ("compress the file", not "perform compression of the file").         |
 
 **Approved modals: can, will, must. Banned: should, would, may, might, could.**
 The standard rejects "could" even for possibility: write "an explosion can occur", never "could occur". For "should": a requirement becomes "must"; a suggestion is stated as fact or deleted. This matters double for agent instructions — models read "should" as optional.
@@ -119,13 +119,13 @@ The standard rejects "could" even for possibility: write "an explosion can occur
 
 ### Section 4 — Sentences (Rules 4.1-4.5)
 
-| Rule | Instruction |
-|---|---|
-| 4.1 | Write short and clear sentences. |
-| 4.2 | Do not omit words or use contractions to shorten sentences. Keep articles, keep "that". |
-| 4.3 | Use a vertical list for complex text. |
-| 4.4 | Use connecting words between sentences on related topics ("Then", "As a result"). |
-| 4.5 | Put an article (the, a, an) or a demonstrative adjective (this, these) before nouns where applicable. |
+| Rule | Instruction                                                                                           |
+| ---- | ----------------------------------------------------------------------------------------------------- |
+| 4.1  | Write short and clear sentences.                                                                      |
+| 4.2  | Do not omit words or use contractions to shorten sentences. Keep articles, keep "that".               |
+| 4.3  | Use a vertical list for complex text.                                                                 |
+| 4.4  | Use connecting words between sentences on related topics ("Then", "As a result").                     |
+| 4.5  | Put an article (the, a, an) or a demonstrative adjective (this, these) before nouns where applicable. |
 
 Rule 4.2 is the anti-terseness rule. STE is short sentences with complete grammar, not telegraph style:
 
@@ -134,37 +134,37 @@ Rule 4.2 is the anti-terseness rule. STE is short sentences with complete gramma
 
 ### Section 5 — Procedural writing (Rules 5.1-5.5)
 
-| Rule | Instruction |
-|---|---|
-| 5.1 | Maximum 20 words per sentence. Warnings and cautions included. |
-| 5.2 | One instruction per sentence, unless two actions happen at the same time. |
-| 5.3 | Write instructions in the imperative: "Run the migration." |
-| 5.4 | Put a required condition before the command, divided by a comma: "If the build fails, read the log." |
-| 5.5 | Notes give information, never instructions. Notes get the 25-word limit. |
+| Rule | Instruction                                                                                          |
+| ---- | ---------------------------------------------------------------------------------------------------- |
+| 5.1  | Maximum 20 words per sentence. Warnings and cautions included.                                       |
+| 5.2  | One instruction per sentence, unless two actions happen at the same time.                            |
+| 5.3  | Write instructions in the imperative: "Run the migration."                                           |
+| 5.4  | Put a required condition before the command, divided by a comma: "If the build fails, read the log." |
+| 5.5  | Notes give information, never instructions. Notes get the 25-word limit.                             |
 
 **Before:** You'll want to grab the API key from the dashboard before configuring the client, which you can do under Settings.
 **After:** Get the API key from the dashboard, under Settings. Then configure the client with this key.
 
 ### Section 6 — Descriptive writing (Rules 6.1-6.6)
 
-| Rule | Instruction |
-|---|---|
-| 6.1 | Give information gradually: one new fact per sentence. |
-| 6.2 | Use key words and phrases to give the text a logical structure. |
-| 6.3 | Maximum 25 words per sentence. |
-| 6.4 | Group related information in paragraphs. |
-| 6.5 | One topic per paragraph. |
-| 6.6 | Maximum six sentences per paragraph. |
+| Rule | Instruction                                                     |
+| ---- | --------------------------------------------------------------- |
+| 6.1  | Give information gradually: one new fact per sentence.          |
+| 6.2  | Use key words and phrases to give the text a logical structure. |
+| 6.3  | Maximum 25 words per sentence.                                  |
+| 6.4  | Group related information in paragraphs.                        |
+| 6.5  | One topic per paragraph.                                        |
+| 6.6  | Maximum six sentences per paragraph.                            |
 
 No imperative in descriptive text. Descriptions explain; procedures instruct.
 
 ### Section 7 — Safety instructions (Rules 7.1-7.3)
 
-| Rule | Instruction |
-|---|---|
-| 7.1 | Use a word that shows the risk level ("WARNING" = injury, "CAUTION" = damage). |
-| 7.2 | Start with a clear command or condition. |
-| 7.3 | Then give the risk or the possible result. |
+| Rule | Instruction                                                                    |
+| ---- | ------------------------------------------------------------------------------ |
+| 7.1  | Use a word that shows the risk level ("WARNING" = injury, "CAUTION" = damage). |
+| 7.2  | Start with a clear command or condition.                                       |
+| 7.3  | Then give the risk or the possible result.                                     |
 
 Never bury the instruction after the explanation. The pattern transfers directly to destructive CLI flags, irreversible migrations, and dangerous API options.
 
@@ -173,26 +173,26 @@ Never bury the instruction after the explanation. The pattern transfers directly
 
 ### Section 8 — Punctuation and word count (Rules 8.1-8.7)
 
-| Rule | Instruction |
-|---|---|
-| 8.1 | All standard punctuation is legal except the semicolon. Write two sentences instead. |
-| 8.2 | Use hyphens to connect words that act as one unit. |
-| 8.3 | Parentheses are legal for references, item numbers, abbreviations, plural forms, explanations, alternatives. |
-| 8.4 | In a vertical list, the lead-in colon ends a sentence for word count. |
-| 8.5 | Text inside parentheses counts as one word. |
-| 8.6 | Count as one word each: numbers, numbers with units, abbreviations, alphanumeric identifiers, quoted text, titles, labels, proper nouns. |
-| 8.7 | A hyphenated word counts as one word. |
+| Rule | Instruction                                                                                                                              |
+| ---- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| 8.1  | All standard punctuation is legal except the semicolon. Write two sentences instead.                                                     |
+| 8.2  | Use hyphens to connect words that act as one unit.                                                                                       |
+| 8.3  | Parentheses are legal for references, item numbers, abbreviations, plural forms, explanations, alternatives.                             |
+| 8.4  | In a vertical list, the lead-in colon ends a sentence for word count.                                                                    |
+| 8.5  | Text inside parentheses counts as one word.                                                                                              |
+| 8.6  | Count as one word each: numbers, numbers with units, abbreviations, alphanumeric identifiers, quoted text, titles, labels, proper nouns. |
+| 8.7  | A hyphenated word counts as one word.                                                                                                    |
 
 Rule 8.6 matters for software text: `sqlpipe run --config sqlpipe.yaml` in backticks is quoted text and counts as one word. Long identifiers do not blow your sentence budget.
 
 ### Section 9 — Writing practices (Rules 9.1-9.4, GR-1 to GR-8)
 
-| Rule | Instruction |
-|---|---|
-| 9.1 | When a word-for-word replacement does not work, restructure the sentence. |
-| 9.2 | Use each approved word correctly: approved meaning, approved part of speech. |
-| 9.3 | Do not build phrasal verbs ("go down" → "decrease", "set up" → "install" or "configure"). |
-| 9.4 | Keep one consistent style and terminology through the whole document. |
+| Rule | Instruction                                                                               |
+| ---- | ----------------------------------------------------------------------------------------- |
+| 9.1  | When a word-for-word replacement does not work, restructure the sentence.                 |
+| 9.2  | Use each approved word correctly: approved meaning, approved part of speech.              |
+| 9.3  | Do not build phrasal verbs ("go down" → "decrease", "set up" → "install" or "configure"). |
+| 9.4  | Keep one consistent style and terminology through the whole document.                     |
 
 General recommendations GR-1 to GR-8: keep the conjunction "that", be careful with "with", give pronouns clear referents, prefer "this + noun" over bare "this", avoid false friends, avoid Latin abbreviations, use inclusive language, and use the possessive apostrophe form only when you are sure it is correct (GR-8: if unsure, do not use it — non-native readers find it hard).
 
@@ -204,57 +204,57 @@ The official dictionary (~900 approved words, ~1,200 banned words with alternati
 
 Known part-of-speech rulings, useful as patterns:
 
-| Word | Ruling |
-|---|---|
+| Word              | Ruling                                                                                  |
+| ----------------- | --------------------------------------------------------------------------------------- |
 | test, check, work | Noun only. "Do a test", not "test the pump". "Check that X" becomes "make sure that X". |
-| oil | Noun only as used in STE examples. For the verb, the dictionary gives "lubricate". |
-| help | Verb only. For the noun, the dictionary gives "aid": "with the aid of". |
-| fall | "To move down by gravity" only, never "decrease". |
-| follow | "To come after" only, never "obey". Write "obey the instructions". |
-| above, below | Physical positions only. For limits write "more than", "less than". |
+| oil               | Noun only as used in STE examples. For the verb, the dictionary gives "lubricate".      |
+| help              | Verb only. For the noun, the dictionary gives "aid": "with the aid of".                 |
+| fall              | "To move down by gravity" only, never "decrease".                                       |
+| follow            | "To come after" only, never "obey". Write "obey the instructions".                      |
+| above, below      | Physical positions only. For limits write "more than", "less than".                     |
 
 ### The modal ladder
 
-| You wrote | STE writes |
-|---|---|
-| should (requirement) | must |
-| should (recommendation) | Delete it, or state it as fact: "X is better because Y." |
-| may / might / could (possibility) | can |
-| may (permission) | can |
-| would (hypothetical) | Restructure: "If X occurs, Y occurs." |
+| You wrote                         | STE writes                                               |
+| --------------------------------- | -------------------------------------------------------- |
+| should (requirement)              | must                                                     |
+| should (recommendation)           | Delete it, or state it as fact: "X is better because Y." |
+| may / might / could (possibility) | can                                                      |
+| may (permission)                  | can                                                      |
+| would (hypothetical)              | Restructure: "If X occurs, Y occurs."                    |
 
 ### Slop-to-simple substitutions
 
 This table is ours, not the ASD dictionary. It maps the words AI-generated docs overuse to plain replacements. If the word carries no fact, delete it instead of replacing it.
 
-| Slop | Write instead |
-|---|---|
-| leverage, utilize | use |
-| in order to | to |
-| prior to | before |
-| ensure | make sure that |
-| it is worth noting that | (delete) |
-| it's important to, crucially | (delete — state the fact) |
-| simply, just, easily, seamlessly, effortlessly | (delete) |
-| robust, powerful, comprehensive, performant | (delete, or give the measurable property) |
-| functionality | function, feature |
-| enables you to, allows you to | you can |
-| is designed to, aims to | (delete — say what it does) |
-| facilitate | help, make possible |
-| dive into, delve into | read, examine |
-| when it comes to | for |
-| in the event that | if |
-| due to the fact that | because |
-| as needed, as necessary | (state the condition) |
-| and/or | Pick one, or write "X, or Y, or both" |
-| e.g. / i.e. / etc. | for example / that is / (name the items) |
-| gracefully handles | (say what it does: "retries three times, then stops") |
-| out of the box | by default |
-| under the hood | internally |
-| blazingly fast, state-of-the-art | fast (give the number) / (delete) |
-| streamline | make simpler, make faster |
-| plethora, myriad | many |
-| addresses the issue, tackles | corrects the fault, removes the error |
+| Slop                                           | Write instead                                         |
+| ---------------------------------------------- | ----------------------------------------------------- |
+| leverage, utilize                              | use                                                   |
+| in order to                                    | to                                                    |
+| prior to                                       | before                                                |
+| ensure                                         | make sure that                                        |
+| it is worth noting that                        | (delete)                                              |
+| it's important to, crucially                   | (delete — state the fact)                             |
+| simply, just, easily, seamlessly, effortlessly | (delete)                                              |
+| robust, powerful, comprehensive, performant    | (delete, or give the measurable property)             |
+| functionality                                  | function, feature                                     |
+| enables you to, allows you to                  | you can                                               |
+| is designed to, aims to                        | (delete — say what it does)                           |
+| facilitate                                     | help, make possible                                   |
+| dive into, delve into                          | read, examine                                         |
+| when it comes to                               | for                                                   |
+| in the event that                              | if                                                    |
+| due to the fact that                           | because                                               |
+| as needed, as necessary                        | (state the condition)                                 |
+| and/or                                         | Pick one, or write "X, or Y, or both"                 |
+| e.g. / i.e. / etc.                             | for example / that is / (name the items)              |
+| gracefully handles                             | (say what it does: "retries three times, then stops") |
+| out of the box                                 | by default                                            |
+| under the hood                                 | internally                                            |
+| blazingly fast, state-of-the-art               | fast (give the number) / (delete)                     |
+| streamline                                     | make simpler, make faster                             |
+| plethora, myriad                               | many                                                  |
+| addresses the issue, tackles                   | corrects the fault, removes the error                 |
 
 ### Consistency pass
 

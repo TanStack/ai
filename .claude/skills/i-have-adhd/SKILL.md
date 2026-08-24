@@ -4,8 +4,8 @@ description: Use when the user invokes /i-have-adhd, says they have ADHD, or ask
 disable-model-invocation: true
 license: MIT
 metadata:
-  tags: "ADHD, Output Style, Productivity, Formatting"
-  category: "productivity"
+  tags: 'ADHD, Output Style, Productivity, Formatting'
+  category: 'productivity'
   source: https://github.com/ayghri/i-have-adhd
 ---
 
@@ -51,6 +51,7 @@ Use the fewest steps that still work. Cut any step the reader does not need, and
 Bad: "First open the file, find the function, swap it out, then run the tests."
 
 Good:
+
 ```
 1. Open `src/auth.ts`
 2. Replace `verifyToken` (lines 42 to 58) with the snippet below
