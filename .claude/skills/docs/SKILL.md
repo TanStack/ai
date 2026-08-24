@@ -37,9 +37,14 @@ Docs ship with the code. Run this skill at three moments, not only when asked.
 
 `simple-english` and `i-have-adhd` are prerequisites. They apply to the documentation pages, not to this planning chat.
 
-Load both immediately before writing page content. Use the Skill tool if this harness has one. If it does not, Read each skill's SKILL.md from the local skills directory. Do not write pages from memory of those skills.
+Load both immediately before writing page content. Use the Skill tool if this harness has one. If it does not, Read:
 
-If either skill is missing, stop and tell the user. Do not write the pages without them.
+- `.claude/skills/simple-english/SKILL.md`
+- `.claude/skills/i-have-adhd/SKILL.md`
+
+Copies also live at `.agents/skills/` (Codex) and `.grok/skills/` (Grok). Keep those three files identical.
+
+If either file is missing, stop and tell the user. Do not write the pages without them.
 
 How they compose:
 
