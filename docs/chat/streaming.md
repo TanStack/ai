@@ -350,11 +350,11 @@ const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
   - `"queue"` (default) — hold the message; it sends once the run settles **successfully**. Clear the composer once the message appears in `queue` or `messages`.
   - `"drop"` — ignore the send (promise still resolves; does not throw). The message never appears in `queue` or `messages` — keep the composer text and show feedback if you want the user to retry.
   - `"interrupt"` — abort the current stream and send the new message immediately. Unlike `stop()`, this does **not** clear already-queued messages — they still drain after the interrupting send succeeds.
-- **`drain`** — how queued items leave the queue: `"fifo"` (default) sends them one at a time in order; `"batch"` merges everything currently queued into a single send once the run settles successfully (string contents joined with `\n`, multimodal content concatenated in order; when sending via `ChatClient` with per-message `body`, the last item's `body` wins — framework hooks do not forward per-send `body`).
+- **`drain`** — how queued items leave the queue: `"fifo"` (default) sends them one at a time in order; `"batch"` merges everything currently queued into a single send once the run settles successfully (string contents joined with `\n`, multimodal content concatenated in order; when sending with per-message `body`, the last item's `body` wins).
 - **`maxSize`** — caps how many messages can be queued (`0` means never queue).
 - **`onOverflow`** — `"reject"` (default) silently ignores a send once `maxSize` is reached (does not throw); `"drop-oldest"` evicts the oldest queued item to make room.
 
-You can also pass a plain `WhenBusy` string (e.g. `queue: "interrupt"`) as shorthand for `{ whenBusy: "interrupt" }`, or a `QueueStrategy` function for per-send action control. Strategy form always drains FIFO (no `batch`); actions are `'queue' | 'drop' | 'interrupt'` (no concurrent streams). Per-call `whenBusy` overrides both config and strategy.
+You can also pass a plain `WhenBusy` string (e.g. `queue: "interrupt"`) as shorthand for `{ whenBusy: "interrupt" }`, or a `QueueStrategy` function for per-send action control. Strategy form always drains FIFO (no `batch`). Actions use the `WhenBusy` type. Per-call `whenBusy` on `sendMessage`'s second argument overrides both config and strategy.
 
 ### When the queue drains vs flushes
 
@@ -379,10 +379,13 @@ function PendingQueue() {
 }
 ```
 
-Override the configured policy for a single send with the second argument to `sendMessage`:
+Override the configured policy for a single send with the second argument to `sendMessage`. The same object also accepts `body` for extra JSON on that request only (merged into `forwardedProps`):
 
 ```tsx group=queueing-messages
-sendMessage("Never mind, do this instead", { whenBusy: "interrupt" });
+sendMessage("Never mind, do this instead", {
+  whenBusy: "interrupt",
+  body: { source: "composer" },
+});
 ```
 
 > **Note:** This is a default-behavior change — messages sent while streaming used to be silently dropped. They are now queued unless you opt into `queue: "drop"` (or `{ whenBusy: "drop" }`) to restore the old behavior, or `queue: "interrupt"`.

@@ -445,6 +445,20 @@ export async function validateInterruptResumeBatch(
       continue
     }
 
+    if (entry.status === 'cancelled') {
+      if (entry.payload !== undefined) {
+        errors.push(
+          interruptItemError(
+            input,
+            record.interruptId,
+            'invalid-payload',
+            `Cancelled interrupt ${record.interruptId} must not include a payload.`,
+          ),
+        )
+      }
+      continue
+    }
+
     const tool = runtimeTool(input.tools, binding.toolName)
     if (!tool) {
       errors.push(
@@ -511,19 +525,6 @@ export async function validateInterruptResumeBatch(
       }
     }
 
-    if (entry.status === 'cancelled') {
-      if (entry.payload !== undefined) {
-        errors.push(
-          interruptItemError(
-            input,
-            record.interruptId,
-            'invalid-payload',
-            `Cancelled interrupt ${record.interruptId} must not include a payload.`,
-          ),
-        )
-      }
-      continue
-    }
     if (schemaDrifted) continue
 
     if (binding.kind === 'client-tool-execution') {

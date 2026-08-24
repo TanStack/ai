@@ -87,6 +87,34 @@ describe('ChatClient byok', () => {
     expect(record.headers).not.toHaveProperty('x-byok-anthropic')
   })
 
+  it('stamps BYOK headers for per-call body.provider', async () => {
+    const byok = defineByok({ storage: memoryStorage() })
+    await byok.update('openai', OPENAI_KEY)
+    await byok.update('anthropic', 'sk-anthropic-secret')
+    const record: {
+      headers?: Record<string, string>
+      data?: Record<string, unknown>
+    } = {}
+    const client = new ChatClient({
+      connection: recordingConnection(record),
+      byok,
+      forwardedProps: { provider: 'openai', model: 'gpt-5.5' },
+    })
+
+    await client.sendMessage('Hello', undefined, {
+      body: { provider: 'anthropic' },
+    })
+
+    expect(record.headers).toEqual({
+      'x-byok-anthropic': 'sk-anthropic-secret',
+    })
+    expect(record.headers).not.toHaveProperty('x-byok-openai')
+    expect(record.data).toEqual({
+      provider: 'anthropic',
+      model: 'gpt-5.5',
+    })
+  })
+
   it('throws and does not connect when no provider slug resolves', async () => {
     const byok = defineByok({ storage: memoryStorage() })
     await byok.update('openai', OPENAI_KEY)

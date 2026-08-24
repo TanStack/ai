@@ -184,6 +184,8 @@ Set `api: 'responses'` to use Bedrock's OpenAI-compatible Responses API. Returns
 
 **Model scope:** Currently the OpenAI gpt-oss family. The Responses API is stateful — pass `previous_response_id` and `store` through `modelOptions` to continue a conversation server-side.
 
+**Reasoning:** Reasoning deltas stream as thinking content. Mantle-served models may still emit the pre-July-2025 event name `response.reasoning.delta` (removed from the OpenAI spec in favor of `response.reasoning_text.delta`); the adapter recognizes both and maps them identically.
+
 ```typescript ignore
 // ignore: see the Converse quick-start above — iterating a chat() stream and
 // reading chunk.type/chunk.delta needs @ag-ui/core base fields kiira can't

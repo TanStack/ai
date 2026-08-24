@@ -102,6 +102,10 @@ interface TransactionToken {
   active: boolean
 }
 
+interface SubmissionOperation {
+  submission: InterruptManagerSubmission
+}
+
 interface RuntimeInterruptCheckpoint {
   status: InterruptItemStatus
   resolution?: RunAgentResumeItem
@@ -511,6 +515,7 @@ export class InterruptManager<
     resuming: false,
   })
   private activeTransaction: TransactionToken | undefined
+  private activeSubmissionOperation: SubmissionOperation | undefined
   private retrySubmission: InterruptManagerSubmission | undefined
   private resuming = false
   private tools: TTools | undefined
@@ -544,6 +549,7 @@ export class InterruptManager<
     hydration: InterruptManagerHydration,
     source: InterruptManagerChangeSource = 'live',
   ): void {
+    this.activeSubmissionOperation = undefined
     this.hydration = {
       threadId: hydration.threadId,
       interruptedRunId: hydration.interruptedRunId,
@@ -597,6 +603,7 @@ export class InterruptManager<
     preserveRootErrors?: boolean
     source?: InterruptManagerChangeSource
   }): void {
+    this.activeSubmissionOperation = undefined
     this.hydration = undefined
     this.items = []
     this.snapshot = Object.freeze([])
@@ -1528,25 +1535,32 @@ export class InterruptManager<
   }
 
   private submitBatch(submission: InterruptManagerSubmission): void {
+    // Track ownership so a superseded submission cannot mutate current state.
+    const operation = { submission }
+    this.activeSubmissionOperation = operation
     this.resuming = true
     this.retrySubmission = undefined
     for (const item of this.items) {
       if (isClientOwnedInterrupt(item)) item.status = 'submitting'
     }
     this.publish()
-    void this.performSubmission(submission)
+    void this.performSubmission(operation)
   }
 
   private async performSubmission(
-    submission: InterruptManagerSubmission,
+    operation: SubmissionOperation,
   ): Promise<void> {
     try {
-      await this.options.submit(submission)
+      await this.options.submit(operation.submission)
     } catch (error) {
-      this.handleSubmissionFailure(error, submission)
+      if (this.activeSubmissionOperation !== operation) return
+      this.handleSubmissionFailure(error, operation.submission)
     } finally {
-      this.resuming = false
-      this.publish()
+      if (this.activeSubmissionOperation === operation) {
+        this.activeSubmissionOperation = undefined
+        this.resuming = false
+        this.publish()
+      }
     }
   }
 
