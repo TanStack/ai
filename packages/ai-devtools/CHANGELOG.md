@@ -1,5 +1,14 @@
 # @tanstack/ai-devtools-core
 
+## 0.5.8
+
+### Patch Changes
+
+- [#1186](https://github.com/TanStack/ai/pull/1186) [`0279284`](https://github.com/TanStack/ai/commit/0279284957b2d1baf5473c3f18763e6a3df0c782) - Add the Svelte plugin and panel package for TanStack AI Devtools, and update the existing Devtools packages to `@tanstack/devtools-utils` 0.7.
+
+- Updated dependencies [[`67ce4e5`](https://github.com/TanStack/ai/commit/67ce4e529c42e64d4591f996c7e3e32458d5dd7c)]:
+  - @tanstack/ai@0.49.1
+
 ## 0.5.7
 
 ### Patch Changes
