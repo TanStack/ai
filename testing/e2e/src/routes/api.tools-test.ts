@@ -14,6 +14,7 @@ import { getToolsForScenario } from '@/lib/tools-test-tools'
 const providerFreeScenarios = new Set([
   'server-context',
   'client-context',
+  'client-tool-error',
   'client-server-context',
   'malformed-tool-arguments',
   'provider-rejected-tool-call',
@@ -43,19 +44,30 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
             state: undefined,
             toolName: 'check_status',
           }
-        : {
-            arguments: '{}',
-            initialText: 'Reading runtime context.',
-            input: {},
-            name: 'runtime-context-test',
-            responseText: 'Runtime context was read.',
-            result: undefined,
-            state: undefined,
-            toolName:
-              scenario === 'client-context'
-                ? 'read_client_context'
-                : 'read_server_context',
-          }
+        : scenario === 'client-tool-error'
+          ? {
+              arguments: '{}',
+              initialText: 'Running the client tool.',
+              input: {},
+              name: 'client-tool-error-test',
+              responseText: 'Recovered from client tool failure.',
+              result: undefined,
+              state: undefined,
+              toolName: 'fail_client_tool',
+            }
+          : {
+              arguments: '{}',
+              initialText: 'Reading runtime context.',
+              input: {},
+              name: 'runtime-context-test',
+              responseText: 'Runtime context was read.',
+              result: undefined,
+              state: undefined,
+              toolName:
+                scenario === 'client-context'
+                  ? 'read_client_context'
+                  : 'read_server_context',
+            }
   return {
     kind: 'text',
     name: config.name,

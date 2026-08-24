@@ -68,7 +68,28 @@ describe('joinRun client-tool continuation (issue #1058)', () => {
       return { answer: 42 }
     })
     const outputSchemaHash = hashSchemaInput(outputSchema)
-    const responseSchema = convertSchemaToJsonSchema(outputSchema) ?? {}
+    const responseSchema = {
+      oneOf: [
+        {
+          type: 'object',
+          properties: {
+            state: { const: 'output-available' },
+            output: convertSchemaToJsonSchema(outputSchema) ?? {},
+          },
+          required: ['state', 'output'],
+          additionalProperties: false,
+        },
+        {
+          type: 'object',
+          properties: {
+            state: { const: 'output-error' },
+            errorText: { type: 'string' },
+          },
+          required: ['state', 'errorText'],
+          additionalProperties: false,
+        },
+      ],
+    }
     const responseSchemaHash = digestInterruptJson(
       canonicalInterruptJson(responseSchema),
     )
@@ -200,7 +221,7 @@ describe('joinRun client-tool continuation (issue #1058)', () => {
       {
         interruptId: 'client_tool_tool-call-1',
         status: 'resolved',
-        payload: { answer: 42 },
+        payload: { state: 'output-available', output: { answer: 42 } },
       },
     ])
     expect(client.getInterruptState().interruptErrors).toEqual([])

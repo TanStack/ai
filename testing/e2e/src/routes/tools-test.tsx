@@ -139,6 +139,19 @@ function createTrackedTools(
     }
   })
 
+  const failClientTool = toolDefinition({
+    name: 'fail_client_tool',
+    description: 'Fail while executing in the client',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ completed: z.boolean() }),
+  }).client(async () => {
+    addEvent({
+      type: 'execution-start',
+      toolName: 'fail_client_tool',
+    })
+    throw new Error('Client tool failed')
+  })
+
   // Client-side stub for the server `delete_file` approval tool. Must be
   // registered with `needsApproval: true` so InterruptManager hydrates the
   // pause as `kind: 'tool-approval'` (matching schema hashes) instead of
@@ -157,6 +170,7 @@ function createTrackedTools(
     readClientContextTool,
     showNotificationTool,
     displayChartTool,
+    failClientTool,
     deleteFileApprovalTool,
   ]
 }

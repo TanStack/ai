@@ -120,11 +120,13 @@ function resolutionWithContinuation(
   const continuation = genericInterruptContinuationFromDescriptor(
     item.descriptor,
   )
-  if (!continuation) return resolution
-  return {
-    ...resolution,
-    metadata: wrapGenericInterruptContinuation(continuation),
+  if (continuation) {
+    return {
+      ...resolution,
+      metadata: wrapGenericInterruptContinuation(continuation),
+    }
   }
+  return resolution
 }
 
 function isRootResolvableInterrupt<
@@ -677,6 +679,25 @@ export class InterruptManager<
   }
 
   resolveClientToolOutput(toolCallId: string, output: unknown): boolean {
+    return this.resolveClientToolResult(toolCallId, {
+      state: 'output-available',
+      output,
+    })
+  }
+
+  resolveClientToolError(toolCallId: string, errorText: string): boolean {
+    return this.resolveClientToolResult(toolCallId, {
+      state: 'output-error',
+      errorText,
+    })
+  }
+
+  private resolveClientToolResult(
+    toolCallId: string,
+    result:
+      | { state: 'output-available'; output: unknown }
+      | { state: 'output-error'; errorText: string },
+  ): boolean {
     const item = this.items.find(
       (candidate) =>
         (candidate.kind === 'client-tool-execution' &&
@@ -688,7 +709,14 @@ export class InterruptManager<
           isLegacyClientToolMetadata(candidate.descriptor.metadata)),
     )
     if (!item) return false
-    this.resolveItem(item.descriptor.id, output)
+    this.resolveItem(
+      item.descriptor.id,
+      item.kind === 'client-tool-execution'
+        ? result
+        : result.state === 'output-error'
+          ? { error: result.errorText }
+          : result.output,
+    )
     return true
   }
 
@@ -714,7 +742,9 @@ export class InterruptManager<
     const interrupt = cloneAndDeepFreezeJson(descriptor)
     const candidate = getDescriptorBinding(interrupt)
     const legacyResumable =
-      candidate === undefined && isLegacyInterruptMetadata(interrupt)
+      candidate === undefined &&
+      !hasReservedFirstPartyBindingMarker(interrupt) &&
+      isLegacyInterruptMetadata(interrupt)
 
     // No binding we understand, and nothing else identifying the descriptor as
     // ours, means this interrupt was not produced by this package's resume
@@ -1272,11 +1302,60 @@ export class InterruptManager<
         : preserveInput(validation)
     }
     if (item.kind === 'client-tool-execution') {
-      return validateWithSchema(
+      if (!isUnknownObject(payload)) {
+        return {
+          code: 'invalid-tool-output',
+          message: 'Client tool results require a result state.',
+        }
+      }
+      if (
+        payload['state'] === 'output-error' &&
+        typeof payload['errorText'] === 'string' &&
+        Object.keys(payload).length === 2
+      ) {
+        return {
+          valid: true,
+          payload: cloneAndDeepFreezeJson({
+            state: 'output-error',
+            errorText: payload['errorText'],
+          }),
+        }
+      }
+      if (
+        payload['state'] !== 'output-available' ||
+        !Object.hasOwn(payload, 'output') ||
+        Object.keys(payload).length !== 2
+      ) {
+        return {
+          code: 'invalid-tool-output',
+          message: 'Client tool results require output or errorText.',
+        }
+      }
+      const validation = validateWithSchema(
         item.tool?.outputSchema,
-        payload,
+        payload['output'],
         'invalid-tool-output',
       )
+      const canonicalize = (result: ValidationResult): ValidationResult => {
+        if (!('valid' in result)) return result
+        try {
+          return {
+            valid: true,
+            payload: cloneAndDeepFreezeJson({
+              state: 'output-available',
+              output: result.payload,
+            }),
+          }
+        } catch (error) {
+          return {
+            code: 'invalid-tool-output',
+            message: error instanceof Error ? error.message : String(error),
+          }
+        }
+      }
+      return isPromiseLike(validation)
+        ? Promise.resolve(validation).then(canonicalize)
+        : canonicalize(validation)
     }
     return this.validateApprovalCandidate(item, payload)
   }

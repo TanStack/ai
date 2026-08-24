@@ -1704,7 +1704,10 @@ describe('chat()', () => {
             {
               interruptId: 'client_tool_call_search',
               status: 'resolved',
-              payload: { result: 'found' },
+              payload: {
+                state: 'output-available',
+                output: { result: 'found' },
+              },
             },
           ],
         }) as AsyncIterable<StreamChunk>,
@@ -1779,7 +1782,10 @@ describe('chat()', () => {
             {
               interruptId: 'client_tool_call_1',
               status: 'resolved',
-              payload: { browserValue: 'sensor-reading-for-manual-lab' },
+              payload: {
+                state: 'output-available',
+                output: { browserValue: 'sensor-reading-for-manual-lab' },
+              },
             },
           ],
         }) as AsyncIterable<StreamChunk>,
@@ -1861,7 +1867,10 @@ describe('chat()', () => {
             {
               interruptId: 'client_tool_call_client',
               status: 'resolved',
-              payload: { result: 'done' },
+              payload: {
+                state: 'output-available',
+                output: { result: 'done' },
+              },
             },
           ],
         }) as AsyncIterable<StreamChunk>,
@@ -1930,7 +1939,10 @@ describe('chat()', () => {
             {
               interruptId: 'client_tool_call_client',
               status: 'resolved',
-              payload: { result: 'done' },
+              payload: {
+                state: 'output-available',
+                output: { result: 'done' },
+              },
             },
           ],
         }) as AsyncIterable<StreamChunk>,

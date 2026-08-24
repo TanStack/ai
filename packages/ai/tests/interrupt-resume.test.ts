@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import {
   defineInterrupt,
+  digestInterruptJson,
   hashSchemaInput,
+  canonicalInterruptJson,
+  convertSchemaToJsonSchema,
   normalizeApprovalSchema,
   toolDefinition,
   validateInterruptResumeBatch,
@@ -23,6 +26,64 @@ const transferDef = toolDefinition({
 })
 
 const transfer = transferDef.server(async () => ({ receipt: 'ok' }))
+
+const lookupDef = toolDefinition({
+  name: 'lookup',
+  description: 'Look up an account',
+  outputSchema: z.object({ accountId: z.string() }),
+})
+
+const lookup = lookupDef.client()
+
+function clientToolFixture() {
+  const outputSchema = convertSchemaToJsonSchema(lookupDef.outputSchema) ?? {}
+  const responseSchema = {
+    oneOf: [
+      {
+        type: 'object',
+        properties: {
+          state: { const: 'output-available' },
+          output: outputSchema,
+        },
+        required: ['state', 'output'],
+        additionalProperties: false,
+      },
+      {
+        type: 'object',
+        properties: {
+          state: { const: 'output-error' },
+          errorText: { type: 'string' },
+        },
+        required: ['state', 'errorText'],
+        additionalProperties: false,
+      },
+    ],
+  }
+  const binding: Extract<InterruptBinding, { kind: 'client-tool-execution' }> =
+    {
+      v: INTERRUPT_BINDING_VERSION,
+      kind: 'client-tool-execution',
+      interruptId: 'client_tool_call-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      toolName: 'lookup',
+      toolCallId: 'call-1',
+      outputSchemaHash: hashSchemaInput(lookupDef.outputSchema),
+      responseSchemaHash: digestInterruptJson(
+        canonicalInterruptJson(responseSchema),
+      ),
+    }
+  return {
+    binding,
+    pending: [
+      {
+        interruptId: binding.interruptId,
+        payload: { responseSchema },
+        binding,
+      },
+    ],
+  }
+}
 
 function approvalFixture(
   overrides: Partial<Extract<InterruptBinding, { kind: 'tool-approval' }>> = {},
@@ -90,6 +151,79 @@ function pendingOf(fixture: ReturnType<typeof approvalFixture>) {
 }
 
 describe('validateInterruptResumeBatch', () => {
+  it('preserves successful client-tool resume state', async () => {
+    const fixture = clientToolFixture()
+    const result = await validateInterruptResumeBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      pending: fixture.pending,
+      resume: [
+        {
+          interruptId: fixture.binding.interruptId,
+          status: 'resolved',
+          payload: {
+            state: 'output-available',
+            output: { accountId: 'account-1' },
+          },
+        },
+      ],
+      tools: [lookup],
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.resumeToolState?.clientToolResults?.get('call-1')).toEqual({
+      accountId: 'account-1',
+    })
+  })
+
+  it('preserves failed client-tool resume state without validating the success schema', async () => {
+    const fixture = clientToolFixture()
+    const result = await validateInterruptResumeBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      pending: fixture.pending,
+      resume: [
+        {
+          interruptId: fixture.binding.interruptId,
+          status: 'resolved',
+          payload: { state: 'output-error', errorText: 'Lookup failed' },
+        },
+      ],
+      tools: [lookup],
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.resumeToolState?.clientToolResults?.has('call-1')).toBe(false)
+    expect(result.resumeToolState?.clientToolErrors?.get('call-1')).toBe(
+      'Lookup failed',
+    )
+  })
+
+  it('rejects malformed client-tool result envelopes', async () => {
+    const fixture = clientToolFixture()
+    const result = await validateInterruptResumeBatch({
+      threadId: 'thread-1',
+      interruptedRunId: 'run-1',
+      generation: 0,
+      pending: fixture.pending,
+      resume: [
+        {
+          interruptId: fixture.binding.interruptId,
+          status: 'resolved',
+          payload: { error: 'Lookup failed' },
+        },
+      ],
+      tools: [lookup],
+    })
+
+    expect(
+      result.errors.some((error) => error.code === 'invalid-tool-output'),
+    ).toBe(true)
+    expect(result.resumeToolState).toBeUndefined()
+  })
+
   it('accepts a complete payload-bearing approval batch', async () => {
     const fixture = approvalFixture()
     const result = await validateInterruptResumeBatch(

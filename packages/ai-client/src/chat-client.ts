@@ -1,13 +1,14 @@
 import {
   StreamProcessor,
+  cloneAndDeepFreezeJson,
   convertSchemaToJsonSchema,
   generateMessageId,
   isStandardSchema,
   mergeMetadata,
   normalizeToUIMessage,
-  parseWithStandardSchema,
   restoreInboundChunk,
   tanstackMetadata,
+  validateWithStandardSchema,
 } from '@tanstack/ai/client'
 import {
   ByokBlockedError,
@@ -2576,11 +2577,15 @@ export class ChatClient<
     clientTool: AnyClientTool | undefined,
     context?: ChatClientRunEventContext,
   ): Promise<void> {
-    if (clientTool && result.state !== 'output-error') {
+    if (result.state !== 'output-error') {
       try {
         result = {
           ...result,
-          output: this.validateClientToolOutput(clientTool, result.output),
+          output:
+            clientTool?.outputSchema &&
+            isStandardSchema(clientTool.outputSchema)
+              ? await this.validateClientToolOutput(clientTool, result.output)
+              : cloneAndDeepFreezeJson(result.output),
         }
       } catch (error: any) {
         result = {
@@ -2611,12 +2616,16 @@ export class ChatClient<
     )
     this.devtoolsBridge.emitSnapshot()
 
-    const resolvedViaInterrupt = this.interruptManager.resolveClientToolOutput(
-      result.toolCallId,
+    const resolvedViaInterrupt =
       result.state === 'output-error'
-        ? { error: result.errorText || 'Tool execution failed' }
-        : result.output,
-    )
+        ? this.interruptManager.resolveClientToolError(
+            result.toolCallId,
+            result.errorText || 'Tool execution failed',
+          )
+        : this.interruptManager.resolveClientToolOutput(
+            result.toolCallId,
+            result.output,
+          )
     if (resolvedViaInterrupt) {
       // Interrupt manager stages/submits the resume batch (deferred until the
       // parent stream settles when still loading). Skip legacy continuation.
@@ -2632,15 +2641,20 @@ export class ChatClient<
     await this.checkForContinuation()
   }
 
-  private validateClientToolOutput(
+  private async validateClientToolOutput(
     clientTool: AnyClientTool,
-    output: any,
-  ): any {
-    if (clientTool.outputSchema && isStandardSchema(clientTool.outputSchema)) {
-      return parseWithStandardSchema(clientTool.outputSchema, output)
+    output: unknown,
+  ): Promise<unknown> {
+    const validation = await validateWithStandardSchema<unknown>(
+      clientTool.outputSchema,
+      output,
+    )
+    if (!validation.success) {
+      throw new Error(
+        validation.issues.map((issue) => issue.message).join(', '),
+      )
     }
-
-    return output
+    return cloneAndDeepFreezeJson(validation.data)
   }
 
   /**

@@ -322,6 +322,7 @@ export interface ChatMiddlewareConfig {
 export interface ChatResumeToolState {
   approvals?: ReadonlyMap<string, ToolApprovalResolution> | undefined
   clientToolResults?: ReadonlyMap<string, unknown> | undefined
+  clientToolErrors?: ReadonlyMap<string, string> | undefined
   genericInterrupts?:
     | ReadonlyMap<string, ChatResumeGenericResolution>
     | undefined

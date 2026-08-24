@@ -130,6 +130,13 @@ export const clientToolDefinitions = {
       data: z.array(z.number()),
     }),
   }).client(),
+
+  fail_client_tool: toolDefinition({
+    name: 'fail_client_tool',
+    description: 'Fail while executing in the client',
+    inputSchema: z.object({}),
+    outputSchema: z.object({ completed: z.boolean() }),
+  }).client(),
 }
 
 export const searchInventory = toolDefinition({
@@ -227,6 +234,11 @@ export const SCENARIO_LIST = [
     category: 'basic',
   },
   {
+    id: 'client-tool-error',
+    label: 'Client Tool Throws Error',
+    category: 'basic',
+  },
+  {
     id: 'null-tool-input',
     label: 'Null Tool Input (Regression #265)',
     category: 'basic',
@@ -299,6 +311,9 @@ export function getToolsForScenario(scenario: string) {
     case 'client-tool-single':
     case 'client-tool-reasoning':
       return [clientToolDefinitions.show_notification]
+
+    case 'client-tool-error':
+      return [clientToolDefinitions.fail_client_tool]
 
     case 'server-context':
       return [serverTools.read_server_context]

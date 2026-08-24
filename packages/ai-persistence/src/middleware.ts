@@ -327,6 +327,7 @@ function mergeResumeToolState(
       left.clientToolResults,
       right.clientToolResults,
     ),
+    clientToolErrors: mergeMaps(left.clientToolErrors, right.clientToolErrors),
     genericInterrupts: mergeMaps(
       left.genericInterrupts,
       right.genericInterrupts,
@@ -850,6 +851,7 @@ function resumeToolStateFromPending(
   for (const interrupt of pending) {
     const entry = resumeByInterruptId.get(interrupt.interruptId)
     if (!entry) continue
+    if (hasReservedInterruptBinding(interrupt.payload)) continue
 
     const kind = interruptKind(interrupt)
     const reason = stringField(interrupt.payload, 'reason')

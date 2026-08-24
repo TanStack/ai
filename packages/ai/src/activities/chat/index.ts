@@ -823,6 +823,7 @@ class TextEngine<
   private readonly initialClientToolResults: Map<string, any>
   private readonly resumeApprovals = new Map<string, ToolApprovalResolution>()
   private readonly resumeClientToolResults = new Map<string, any>()
+  private readonly resumeClientToolErrors = new Map<string, string>()
   private readonly resumeDeniedToolResults = new Map<string, unknown>()
   private readonly resumeCancelledToolCallIds = new Set<string>()
   private readonly resumeGenericInterrupts = new Map<
@@ -2031,6 +2032,7 @@ class TextEngine<
       this.middlewareCtx.context,
       this.toolAbortSignal,
       {
+        clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
       },
@@ -2209,6 +2211,7 @@ class TextEngine<
       this.middlewareCtx.context,
       this.toolAbortSignal,
       {
+        clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
       },
@@ -2635,7 +2638,29 @@ class TextEngine<
       const tool = this.tools.find(
         (candidate) => candidate.name === clientTool.toolName,
       )
-      const responseSchema = convertSchemaToJsonSchema(tool?.outputSchema) ?? {}
+      const outputSchema = convertSchemaToJsonSchema(tool?.outputSchema) ?? {}
+      const responseSchema = {
+        oneOf: [
+          {
+            type: 'object',
+            properties: {
+              state: { const: 'output-available' },
+              output: outputSchema,
+            },
+            required: ['state', 'output'],
+            additionalProperties: false,
+          },
+          {
+            type: 'object',
+            properties: {
+              state: { const: 'output-error' },
+              errorText: { type: 'string' },
+            },
+            required: ['state', 'errorText'],
+            additionalProperties: false,
+          },
+        ],
+      }
       interrupts.push({
         id: `client_tool_${clientTool.toolCallId}`,
         reason: 'tanstack:client_tool_execution',
@@ -2999,6 +3024,7 @@ class TextEngine<
       } else if (
         !tool.execute &&
         !clientToolResults.has(toolCall.id) &&
+        !this.resumeClientToolErrors.has(toolCall.id) &&
         !this.resumeCancelledToolCallIds.has(toolCall.id)
       ) {
         clientRequests.push({
@@ -3956,6 +3982,7 @@ class TextEngine<
       resumeToolState: {
         approvals: this.resumeApprovals,
         clientToolResults: this.resumeClientToolResults,
+        clientToolErrors: this.resumeClientToolErrors,
         deniedToolResults: this.resumeDeniedToolResults,
         cancelledToolCallIds: this.resumeCancelledToolCallIds,
       },
@@ -4299,6 +4326,11 @@ class TextEngine<
     if (state?.clientToolResults) {
       for (const [toolCallId, result] of state.clientToolResults) {
         this.resumeClientToolResults.set(toolCallId, result)
+      }
+    }
+    if (state?.clientToolErrors) {
+      for (const [toolCallId, errorText] of state.clientToolErrors) {
+        this.resumeClientToolErrors.set(toolCallId, errorText)
       }
     }
     if (state?.deniedToolResults) {
