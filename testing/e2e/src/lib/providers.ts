@@ -18,6 +18,7 @@ import {
   createOpenRouterText,
 } from '@tanstack/ai-openrouter'
 import { createVercelGatewayText } from '@tanstack/ai-vercel-gateway'
+import { createLovableText } from '@tanstack/ai-lovable'
 import { createMistralText } from '@tanstack/ai-mistral'
 import { createBytePlusText } from '@tanstack/ai-byteplus'
 import { createLLMGatewayText } from '@tanstack/ai-llmgateway'
@@ -28,6 +29,55 @@ import type { Feature, Provider } from '@/lib/types'
 
 const LLMOCK_DEFAULT_BASE = process.env.LLMOCK_URL || 'http://127.0.0.1:4010'
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
+
+/**
+ * Re-keys aimock's reasoning frames to the pre-July-2025
+ * `response.reasoning.delta` event name that Mantle-served Bedrock models
+ * still emit, so openai-base's legacy-event mapping is exercised over a real
+ * wire. aimock authors everything else about the stream.
+ */
+const legacyReasoningFetch: typeof fetch = async (input, init) => {
+  const response = await fetch(input, init)
+  if (
+    !response.body ||
+    !response.headers.get('content-type')?.includes('text/event-stream')
+  ) {
+    return response
+  }
+  const decoder = new TextDecoder()
+  const encoder = new TextEncoder()
+  const rewriteFrame = (frame: string) =>
+    frame
+      .replace(
+        'event: response.reasoning_summary_text.delta',
+        'event: response.reasoning.delta',
+      )
+      .replace(
+        '"type":"response.reasoning_summary_text.delta"',
+        '"type":"response.reasoning.delta"',
+      )
+  let buffer = ''
+  const rewritten = response.body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(chunk, controller) {
+        buffer += decoder.decode(chunk, { stream: true })
+        const frames = buffer.split(/\r?\n\r?\n/)
+        buffer = frames.pop() ?? ''
+        for (const frame of frames) {
+          controller.enqueue(encoder.encode(rewriteFrame(frame) + '\n\n'))
+        }
+      },
+      flush(controller) {
+        if (buffer) controller.enqueue(encoder.encode(rewriteFrame(buffer)))
+      },
+    }),
+  )
+  return new Response(rewritten, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers,
+  })
+}
 
 const defaultModels: Record<Provider, string> = {
   openai: 'gpt-4o',
@@ -45,7 +95,13 @@ const defaultModels: Record<Provider, string> = {
   'openrouter-responses': 'openai/gpt-4o',
   'vercel-gateway': 'openai/gpt-5.5',
   'vercel-gateway-responses': 'openai/gpt-5.5',
+  lovable: 'openai/gpt-5.5',
+  'lovable-responses': 'openai/gpt-5.5',
   'openai-compatible': 'gpt-4o',
+  // Arbitrary id on purpose: the provider models "any model behind an
+  // OpenAI-compatible Responses endpoint frozen on the pre-July-2025 spec",
+  // not a specific vendor model.
+  'openai-compatible-legacy': 'legacy-spec-model',
   mistral: 'mistral-large-latest',
   // Structured-output features override this in `features.ts`:
   // seed-2-0-lite-260428 rejects both `response_format: json_schema` and
@@ -271,12 +327,40 @@ export function createTextAdapter(
           defaultHeaders: testHeaders,
         }),
       }),
+    lovable: () =>
+      createChatOptions({
+        adapter: createLovableText(model as 'openai/gpt-5.5', DUMMY_KEY, {
+          api: 'chat',
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
+    'lovable-responses': () =>
+      createChatOptions({
+        adapter: createLovableText(model as 'openai/gpt-5.5', DUMMY_KEY, {
+          api: 'responses',
+          baseURL: openaiUrl,
+          defaultHeaders: testHeaders,
+        }),
+      }),
     'openai-compatible': () =>
       createChatOptions({
         adapter: openaiCompatibleText(model, {
           baseURL: openaiUrl,
           apiKey: DUMMY_KEY,
           defaultHeaders: testHeaders,
+        }),
+      }),
+    // Same wire on the Responses API, but reasoning frames arrive under the
+    // legacy `response.reasoning.delta` name via `legacyReasoningFetch`.
+    'openai-compatible-legacy': () =>
+      createChatOptions({
+        adapter: openaiCompatibleText(model, {
+          baseURL: openaiUrl,
+          apiKey: DUMMY_KEY,
+          defaultHeaders: testHeaders,
+          api: 'responses',
+          fetch: legacyReasoningFetch,
         }),
       }),
     mistral: () =>

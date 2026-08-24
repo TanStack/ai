@@ -179,3 +179,4 @@ For other cases:
 
 - Image and audio POSTs use the same store. See [Generation Hooks](../media/generation-hooks#usegenerateaudio).
 - OpenRouter can mint a key with OAuth. See [Sign in with OpenRouter](../adapters/openrouter#sign-in-with-openrouter-byok).
+- Lovable uses `lovableByok` from `@tanstack/ai-lovable/byok`. See [Lovable AI Gateway](../adapters/lovable#bring-your-own-key).

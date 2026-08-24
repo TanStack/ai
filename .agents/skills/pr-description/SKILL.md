@@ -101,7 +101,32 @@ No preamble. No "This PR aims to". Start with the fact.
 
 Fill every section honestly. Leave a checkbox unchecked when the claim is false. Do not tick "I ran `pnpm test:pr`" if you did not run it.
 
-**Extra sections after the template, in this order.** Testing and Risk / rollback are always present. Linked issues and Public API change are omitted when they do not apply.
+**Extra sections after the template, in this order.** Testing and Risk / rollback are always present. For a **fix**, Root cause and Possible alternatives are also always present. Linked issues and Public API change are omitted when they do not apply.
+
+#### Root cause (fix only)
+
+Required for a **fix**. Copy from the `bugfix-pr` report. Do not paste
+the diff. Write:
+
+```markdown
+## Root cause
+
+**Issue.** What is broken, for whom, under which inputs.
+**Cause.** Why it happens in the code. Name the function or path.
+**Fix.** How this PR's change kills that cause.
+```
+
+#### Possible alternatives (fix only)
+
+Required for a **fix**. Copy from the `bugfix-pr` report. Write:
+
+```markdown
+## Possible alternatives
+
+- **<name>.** What it is. Why this PR did not take it.
+```
+
+If there is no other real way, write **None.** Do not omit the heading.
 
 #### Testing
 
@@ -171,3 +196,4 @@ Do not attach screenshots to the PR. Do not commit screenshot files for this ski
 | Uploading or committing screenshots for the PR body    | Skip. Do not put images on the PR.                  |
 | Writing without loading simple-english and i-have-adhd | Load both from the repo copies. If missing, stop.   |
 | Posting a fix before `bugfix-pr` gates pass            | Stop. Load `bugfix-pr`. Do not create or edit.      |
+| A fix PR with no Root cause or Possible alternatives   | Copy both sections from the `bugfix-pr` report.     |

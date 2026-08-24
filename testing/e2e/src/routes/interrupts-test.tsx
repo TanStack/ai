@@ -113,6 +113,7 @@ function InterruptsTestPage() {
     sendMessage,
     isLoading,
     stop,
+    clear,
     interrupts,
     resolveInterrupts,
     cancelInterrupts,
@@ -345,6 +346,9 @@ function InterruptsTestPage() {
             Stop
           </button>
         )}
+        <button id="clear-button" onClick={clear}>
+          Clear
+        </button>
       </div>
 
       {/* Tool-approval interrupts */}

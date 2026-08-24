@@ -21,7 +21,7 @@ keywords:
 
 Many providers expose the OpenAI **Chat Completions** API (`/chat/completions`) — DeepSeek, Moonshot/Kimi, Together, Fireworks, Cerebras, Alibaba Qwen, Perplexity, NVIDIA NIM, and local servers like LM Studio, Ollama, and vLLM. Instead of a dedicated package per provider, TanStack AI ships one generic adapter: point it at any compatible `baseURL`, give it your models, and you get the same type-safe `chat()` experience as the first-class adapters.
 
-Use this when your provider speaks the OpenAI Chat Completions wire format but doesn't have its own `@tanstack/ai-*` package. If a dedicated adapter exists (OpenAI, Grok, Groq, OpenRouter), prefer it — those carry curated per-model metadata. For Vercel AI Gateway, install `@tanstack/ai-vercel-gateway` and use `vercelGatewayText`. See [Vercel AI Gateway](./vercel-gateway.md).
+Use this when your provider speaks the OpenAI Chat Completions wire format but doesn't have its own `@tanstack/ai-*` package. If a dedicated adapter exists (OpenAI, Grok, Groq, OpenRouter), prefer it. Those carry curated per-model metadata. For Vercel AI Gateway, install `@tanstack/ai-vercel-gateway` and use `vercelGatewayText`. See [Vercel AI Gateway](./vercel-gateway.md). For Lovable AI Gateway, install `@tanstack/ai-lovable` and use `lovableText` (plus image, video, embeddings, and speech factories). See [Lovable AI Gateway](./lovable.md).
 
 Perplexity Sonar chat stays on this adapter. [`@tanstack/ai-perplexity`](./perplexity.md) is Search/grounding only — it does not replace `openaiCompatible` for `chat()`. Optional: pass `defaultHeaders: getPerplexityIntegrationHeaders()` from that package to send Perplexity's `X-Pplx-Integration` attribution header.
 
@@ -129,6 +129,8 @@ const provider = openaiCompatible({
   api: "responses", // default is "chat-completions"
 });
 ```
+
+**Reasoning:** Reasoning deltas stream as thinking content. Endpoints frozen on the pre-July-2025 OpenAI spec may still emit the legacy event name `response.reasoning.delta` (removed from the spec in favor of `response.reasoning_text.delta`); the adapter recognizes both and maps them identically.
 
 ## Supported Providers
 
