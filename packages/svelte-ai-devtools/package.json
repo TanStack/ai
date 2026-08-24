@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/svelte-ai-devtools",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Svelte Devtools plugin for inspecting TanStack AI chat messages, tool calls, streams, and errors.",
   "author": "Tanner Linsley",
   "license": "MIT",
