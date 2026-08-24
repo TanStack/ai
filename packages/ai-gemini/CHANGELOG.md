@@ -1,5 +1,14 @@
 # @tanstack/ai-gemini
 
+## 0.26.1
+
+### Patch Changes
+
+- [#1216](https://github.com/TanStack/ai/pull/1216) [`dbb25bf`](https://github.com/TanStack/ai/commit/dbb25bfb01d3d9660c4bc8becc7c54b81b23f949) - Fix duplicate TOOL_CALL_START/TOOL_CALL_END events when a Gemini stream chunk carries both functionCall parts and finishReason UNEXPECTED_TOOL_CALL. The finish handler re-registered and re-emitted tool calls the per-part loop had already processed, which crashed the chat run with "Duplicate interrupt id in final batch".
+
+- Updated dependencies [[`67ce4e5`](https://github.com/TanStack/ai/commit/67ce4e529c42e64d4591f996c7e3e32458d5dd7c)]:
+  - @tanstack/ai@0.49.1
+
 ## 0.26.0
 
 ### Minor Changes

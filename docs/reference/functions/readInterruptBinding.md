@@ -9,7 +9,7 @@ title: readInterruptBinding
 function readInterruptBinding(descriptor): InterruptBinding | undefined;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:926](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L926)
+Defined in: [packages/ai/src/interrupt-resume.ts:927](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L927)
 
 Read the opened resume binding off a descriptor, or `undefined` when the
 descriptor carries no binding of a version we understand.
