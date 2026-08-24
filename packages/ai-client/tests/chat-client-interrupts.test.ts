@@ -1434,6 +1434,7 @@ describe('ChatClient native interrupts', () => {
     ['a client-tool success lands after Stop', 'resolve-after'],
     ['a client-tool error lands after Stop', 'reject-after'],
     ['a native resume is queued before Stop', 'resolve-before'],
+    ['addToolResult is called after Stop', 'add-result-after'],
   ] as const)('does not continue when %s', async (_label, toolTiming) => {
     let resolveTool!: (value: { accountId: string }) => void
     let rejectToolExecution!: (reason: unknown) => void
@@ -1518,6 +1519,22 @@ describe('ChatClient native interrupts', () => {
           return
         }
         yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: `msg-${calls}`,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: `msg-${calls}`,
+          delta: 'ok',
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: `msg-${calls}`,
+          timestamp: Date.now(),
+        }
+        yield {
           type: EventType.RUN_FINISHED,
           runId,
           threadId,
@@ -1543,7 +1560,7 @@ describe('ChatClient native interrupts', () => {
     }
     const messagesAtStop = structuredClone(client.getMessages())
     client.stop()
-    if (toolTiming === 'resolve-after') {
+    if (toolTiming === 'resolve-after' || toolTiming === 'add-result-after') {
       resolveTool({ accountId: 'account-1' })
     } else if (toolTiming === 'reject-after') {
       rejectToolExecution(new Error('tool failed'))
@@ -1551,6 +1568,16 @@ describe('ChatClient native interrupts', () => {
     releaseFirstRun()
     await send
     await settle()
+
+    if (toolTiming === 'add-result-after') {
+      await client.addToolResult({
+        toolCallId: 'call-1',
+        tool: 'lookup',
+        output: { accountId: 'late-result' },
+        state: 'output-available',
+      })
+      await settle()
+    }
 
     expect(contexts).toHaveLength(1)
     expect(client.getMessages()).toEqual(messagesAtStop)

@@ -310,7 +310,7 @@ const { stop } = useChat({
 stop();
 ```
 
-Calling `stop()` aborts the underlying fetch; the resulting `AbortError` is expected and normal. This differs from a connection being cut mid-line: a truncated stream throws a `StreamTruncatedError` and moves the client into its `error` state. See [Connection Adapters](./connection-adapters) for the underlying behavior.
+Calling `stop()` aborts the underlying fetch. The resulting `AbortError` is expected and normal. Pending client-tool work for that turn does not resume. A later `addToolResult()` for that turn is ignored. This differs from a connection being cut mid-line: a truncated stream throws a `StreamTruncatedError` and moves the client into its `error` state. See [Connection Adapters](./connection-adapters) for the underlying behavior.
 
 On the server, pass an `AbortController` to `toServerSentEventsResponse(stream, { abortController })` so the chat run is cancelled when the client disconnects:
 

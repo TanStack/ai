@@ -418,6 +418,10 @@ export class ChatClient<
   private errorReportedGeneration: number | null = null
   private streamGeneration = 0
   private continuationGeneration = 0
+  // Generation of the run that opened the current stream. Public
+  // `addToolResult` must use this, not the live counter: `stop()` increments
+  // the live counter, so a post-stop call would otherwise look current.
+  private streamContinuationGeneration = 0
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
@@ -1710,6 +1714,7 @@ export class ChatClient<
     // persisted pointer with the provider id — so a SECOND reload would
     // `joinRun` an id the log isn't keyed by and never re-attach.
     this.lastResume = { threadId: this.threadId, runId }
+    this.streamContinuationGeneration = this.continuationGeneration
     this.setIsLoading(true)
     this.setStatus('streaming')
     void (async () => {
@@ -2185,6 +2190,7 @@ export class ChatClient<
 
     // Track generation so a superseded stream's cleanup doesn't clobber the new one
     const generation = ++this.streamGeneration
+    this.streamContinuationGeneration = this.continuationGeneration
     // Native interrupt continuation is a fresh child run. The interrupted run
     // is carried as parentRunId and the complete resolution batch as resume.
     const resumeThreadId = this.pendingResumeThreadId
@@ -2608,7 +2614,7 @@ export class ChatClient<
     await this.addToolResultForClientTool(
       result,
       clientTool,
-      this.continuationGeneration,
+      this.streamContinuationGeneration,
     )
   }
 
