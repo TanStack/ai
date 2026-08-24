@@ -29,6 +29,8 @@ export const providers: Provider[] = [
   'openrouter-responses',
   'vercel-gateway',
   'vercel-gateway-responses',
+  'lovable',
+  'lovable-responses',
   'openai-compatible',
   'mistral',
   'byteplus',

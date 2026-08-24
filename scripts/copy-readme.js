@@ -21,6 +21,7 @@ const targets = [
   'packages/preact-ai-devtools/README.md',
   'packages/react-ai-devtools/README.md',
   'packages/solid-ai-devtools/README.md',
+  'packages/svelte-ai-devtools/README.md',
 ]
 
 for (const target of targets) {

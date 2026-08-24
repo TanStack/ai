@@ -2411,43 +2411,18 @@ export class ChatClient<
         // Drain any actions that were queued while the stream was in progress
         await this.drainPostStreamActions()
 
-        // Continue conversation if the stream ended with a tool result (server tool completed)
-        // but ONLY if the model indicated it wants to continue (finishReason !== 'stop').
-        // When finishReason is 'stop', the model is done — don't re-send.
         if (streamCompletedSuccessfully) {
-          const messages = this.processor.getMessages()
-          const lastPart = messages.at(-1)?.parts.at(-1)
-          const { finishReason } = this.processor.getState()
-
-          if (
-            lastPart?.type === 'tool-result' &&
-            finishReason !== 'stop' &&
-            this.shouldAutoSend()
-          ) {
-            try {
-              await this.checkForContinuation()
-            } catch (error) {
-              console.error('Failed to continue flow after tool result:', error)
-              // Continuation failed without starting a new stream — don't
-              // leave queued user messages stranded forever. (isLoading is
-              // already false in this finally block.)
-              await this.drainQueue()
-            }
-          } else {
-            if (this.status !== 'ready') {
-              // Terminal run, but onStreamEnd never fired: the processor had
-              // no assistant message to emit it for (e.g. a bare
-              // RUN_FINISHED{stop}, #421). The normal path already set
-              // 'ready', so this is a no-op.
-              this.setStatus('ready')
-            }
-            // Auto-send queued messages once the run fully settles. When a
-            // continuation runs instead (tool-result branch above), that
-            // continuation's own finally drains the queue. Skip if a drain
-            // loop is already walking the queue (avoids nested re-entry).
-            if (!this.messageQueueDraining) {
-              await this.drainQueue()
-            }
+          if (this.status !== 'ready') {
+            // Terminal run, but onStreamEnd never fired: the processor had
+            // no assistant message to emit it for (e.g. a bare
+            // RUN_FINISHED{stop}, #421). The normal path already set
+            // 'ready', so this is a no-op.
+            this.setStatus('ready')
+          }
+          // Auto-send queued messages once the run fully settles. Skip if a
+          // drain loop is already walking the queue (avoids nested re-entry).
+          if (!this.messageQueueDraining) {
+            await this.drainQueue()
           }
         } else {
           // Error/abort settle for the active generation: don't strand or
