@@ -13,20 +13,20 @@
     "@tailwindcss/vite": "^4.1.18",
     "@tanstack/ai": "workspace:*",
     "@tanstack/ai-anthropic": "workspace:*",
-    "@tanstack/react-devtools": "^0.9.10",
-    "@tanstack/react-router": "^1.158.4",
-    "@tanstack/react-router-devtools": "^1.158.4",
-    "@tanstack/react-start": "^1.159.0",
-    "@tanstack/router-plugin": "^1.158.4",
-    "capnweb": "^0.10.0",
+    "@tanstack/react-devtools": "^0.10.12",
+    "@tanstack/react-router": "^1.170.32",
+    "@tanstack/react-router-devtools": "^1.167.1",
+    "@tanstack/react-start": "^1.168.49",
+    "@tanstack/router-plugin": "^1.168.35",
+    "capnweb": "^0.12.0",
     "nitro": "3.0.260610-beta",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
     "tailwindcss": "^4.1.18",
-    "ws": "^8.18.3"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
-    "@tanstack/devtools-vite": "^0.5.3",
+    "@tanstack/devtools-vite": "^0.8.5",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/react": "^16.3.2",
     "@types/node": "^24.10.1",
@@ -38,6 +38,6 @@
     "typescript": "5.9.3",
     "vite": "^8.2.1",
     "vitest": "^4.1.10",
-    "web-vitals": "^5.1.0"
+    "web-vitals": "^5.3.0"
   }
 }
