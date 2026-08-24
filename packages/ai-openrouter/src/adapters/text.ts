@@ -42,6 +42,7 @@ import type {
 import type {
   ExternalTextProviderOptions,
   OpenRouterSystemPromptMetadata,
+  ReasoningOptions,
 } from '../text/text-provider-options'
 import type {
   OpenRouterImageMetadata,
@@ -67,6 +68,22 @@ type ResolveToolCapabilities<TModel extends string> =
   TModel extends keyof OpenRouterChatModelToolCapabilitiesByName
     ? NonNullable<OpenRouterChatModelToolCapabilitiesByName[TModel]>
     : readonly []
+
+function normalizeReasoningOptions(
+  reasoning: ReasoningOptions | undefined,
+): ChatRequest['reasoning'] | undefined {
+  if (!reasoning) return undefined
+
+  const { enabled, ...sdkReasoning } = reasoning
+  const normalized =
+    enabled === false
+      ? { ...sdkReasoning, effort: 'none' as const }
+      : sdkReasoning
+
+  return Object.values(normalized).some((value) => value !== undefined)
+    ? normalized
+    : undefined
+}
 
 function withUsageEnabled(
   request: Omit<ChatRequest, 'stream'>,
@@ -1195,8 +1212,10 @@ export class OpenRouterTextAdapter<
     // `variant` is OpenRouter metadata used only to build the `:variant` model
     // suffix — it must NOT be spread into the request body. Destructure it out
     // so the remaining sampling/provider options flow through `...restModelOptions`.
-    const { variant, ...restModelOptions } = options.modelOptions ?? {}
+    const { variant, reasoning, ...restModelOptions } = (options.modelOptions ??
+      {}) as ExternalTextProviderOptions
     const variantSuffix = variant ? `:${variant}` : ''
+    const normalizedReasoning = normalizeReasoningOptions(reasoning)
 
     const messages: Array<ChatMessages> = []
     const systemPrompts =
@@ -1259,6 +1278,7 @@ export class OpenRouterTextAdapter<
     // SDK validates `chatRequest.metadata` as `Record<string, string>` (#735).
     const request: Omit<ChatRequest, 'stream'> = {
       ...restModelOptions,
+      ...(normalizedReasoning && { reasoning: normalizedReasoning }),
       model: options.model + variantSuffix,
       messages,
       ...(tools && tools.length > 0 && { tools }),
