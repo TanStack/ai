@@ -226,6 +226,67 @@ describe('ParallelSearchClient', () => {
     )
   })
 
+  it('rejects an already cancelled search before issuing a request', async () => {
+    const controller = new AbortController()
+    const reason = new Error('Search was cancelled.')
+    const fetchMock = mockFetch(searchResponse())
+    const client = new ParallelSearchClient({
+      apiKey: 'test-key',
+      fetch: fetchMock,
+    })
+
+    controller.abort(reason)
+
+    await expect(
+      client.search(
+        { search_queries: ['news'] },
+        { signal: controller.signal },
+      ),
+    ).rejects.toBe(reason)
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects when cancellation interrupts an unfinished response body', async () => {
+    const controller = new AbortController()
+    const reason = new Error('Search was cancelled.')
+    const fetchMock = vi.fn(async () => {
+      const body = new ReadableStream({
+        start(stream) {
+          stream.enqueue(
+            new TextEncoder().encode(
+              '{"search_id":"search_test","session_id":"session_test","results":[',
+            ),
+          )
+        },
+      })
+
+      return new Response(body, {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    })
+    const client = new ParallelSearchClient({
+      apiKey: 'test-key',
+      fetch: fetchMock,
+    })
+    const search = client.search(
+      { search_queries: ['news'] },
+      { signal: controller.signal },
+    )
+
+    await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce())
+    controller.abort(reason)
+
+    const outcome = await Promise.race([
+      search.then(
+        () => 'fulfilled',
+        (error: unknown) => error,
+      ),
+      new Promise((resolve) => setTimeout(() => resolve('still pending'), 0)),
+    ])
+
+    expect(outcome).toBe(reason)
+  })
+
   it('forwards cancellation and honors custom base URLs', async () => {
     const controller = new AbortController()
     const fetchMock = mockFetch(searchResponse())

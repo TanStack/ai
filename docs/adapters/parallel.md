@@ -62,6 +62,8 @@ The tool runs on the server and returns each source URL, relevant excerpts, titl
 Configure source restrictions when you create the tool:
 
 ```ts
+import { parallelSearchTool } from '@tanstack/ai-parallel'
+
 const search = parallelSearchTool({
   mode: 'basic',
   defaultMaxResults: 3,

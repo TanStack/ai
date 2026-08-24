@@ -96,15 +96,30 @@ export class ParallelSearchClient {
       )
     }
 
-    return normalizeSearchResponse(
-      await this.client.search(
-        {
-          ...request,
-          search_queries: searchQueries,
-        },
-        options,
-      ),
+    const { signal } = options
+    signal?.throwIfAborted()
+
+    const search = this.client.search(
+      {
+        ...request,
+        search_queries: searchQueries,
+      },
+      options,
     )
+
+    if (!signal) return normalizeSearchResponse(await search)
+
+    const response = await new Promise<Parallel.SearchResult>(
+      (resolve, reject) => {
+        const onAbort = () => reject(signal.reason)
+        signal.addEventListener('abort', onAbort, { once: true })
+        search
+          .then(resolve, reject)
+          .finally(() => signal.removeEventListener('abort', onAbort))
+      },
+    )
+
+    return normalizeSearchResponse(response)
   }
 }
 
