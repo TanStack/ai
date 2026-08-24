@@ -1957,12 +1957,7 @@ export class ChatClient<
       )
     }
 
-    // Chat-level `body` still merges later at send time. Here the two
-    // per-call sources merge, with `sendOptions.body` winning on conflicts.
-    const resolvedBody =
-      body === undefined && sendOptions?.body === undefined
-        ? undefined
-        : { ...body, ...sendOptions?.body }
+    const resolvedBody = { ...body, ...sendOptions?.body }
 
     if (this.isSendBusy()) {
       const { action, id } = this.decideWhenBusy(content, sendOptions)
