@@ -1,6 +1,9 @@
 import { isProviderExecutedToolCall } from '../../utilities/provider-executed'
 import { normalizeToolResult } from '../../utilities/tool-result'
-import { tanstackMetadata } from '../../utilities/merge-metadata'
+import {
+  tanstackMetadata,
+  withTanstackMetadata,
+} from '../../utilities/merge-metadata'
 import type { Message as AGUIMessage } from '@ag-ui/core'
 import type {
   ContentPart,
@@ -173,6 +176,7 @@ export function convertMessagesToModelMessages(
       modelMessages.push({
         role: 'system' as ModelMessage['role'],
         content: (msg as { content: string }).content,
+        ...optionalName(modelMessage),
         ...(modelMessage.createdAt !== undefined && {
           createdAt: modelMessage.createdAt,
         }),
@@ -209,6 +213,7 @@ export function convertMessagesToModelMessages(
         ...((msg as { id?: string }).id !== undefined && {
           id: (msg as { id: string }).id,
         }),
+        ...optionalName(modelMessage),
         ...(modelMessage.createdAt !== undefined && {
           createdAt: modelMessage.createdAt,
         }),
@@ -254,6 +259,63 @@ function createdAtFromMetadata(source: object): Date | undefined {
   if (typeof createdAtRaw !== 'string') return undefined
   const createdAt = new Date(createdAtRaw)
   return Number.isNaN(createdAt.getTime()) ? undefined : createdAt
+}
+
+function optionalName(source: { name?: string }): { name?: string } {
+  return source.name !== undefined ? { name: source.name } : {}
+}
+
+function isUiResourcePart(value: unknown): value is UIResourcePart {
+  if (value == null || typeof value !== 'object' || Array.isArray(value)) {
+    return false
+  }
+  if (!('type' in value) || value.type !== 'ui-resource') return false
+  if (!('toolCallId' in value) || typeof value.toolCallId !== 'string') {
+    return false
+  }
+  if (!('toolName' in value) || typeof value.toolName !== 'string') {
+    return false
+  }
+  if (
+    !('resource' in value) ||
+    value.resource == null ||
+    typeof value.resource !== 'object' ||
+    Array.isArray(value.resource)
+  ) {
+    return false
+  }
+  const resource = value.resource
+  return (
+    'uri' in resource &&
+    typeof resource.uri === 'string' &&
+    'mimeType' in resource &&
+    typeof resource.mimeType === 'string'
+  )
+}
+
+function uiResourceKey(part: UIResourcePart): string {
+  return `${part.toolCallId}\0${part.toolName}\0${part.resource.uri}`
+}
+
+function appendUiResources(
+  ui: UIMessage,
+  resources: ReadonlyArray<UIResourcePart>,
+): UIMessage {
+  if (resources.length === 0) return ui
+  const seen = new Set(
+    ui.parts.filter(isUiResourcePart).map((part) => uiResourceKey(part)),
+  )
+  const extra = resources.filter((part) => !seen.has(uiResourceKey(part)))
+  if (extra.length === 0) return ui
+  return { ...ui, parts: [...ui.parts, ...extra] }
+}
+
+function assistantMetadata(
+  uiMessage: UIMessage,
+): UIMessage['metadata'] | undefined {
+  const fromParts = uiMessage.parts.filter(isUiResourcePart)
+  if (fromParts.length === 0) return uiMessage.metadata
+  return withTanstackMetadata(uiMessage, { uiResources: fromParts }).metadata
 }
 
 /**
@@ -309,6 +371,7 @@ function buildUserOrToolMessage(uiMessage: UIMessage): ModelMessage {
     id: uiMessage.id,
     role: uiMessage.role as 'user' | 'assistant' | 'tool',
     content: collapseContentParts(contentParts),
+    ...optionalName(uiMessage),
     ...(uiMessage.createdAt !== undefined && {
       createdAt: uiMessage.createdAt,
     }),
@@ -366,12 +429,17 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   // A tool call can have BOTH an explicit tool-result part AND an output
   // field on the tool-call part. We only want one per tool call ID.
   const emittedToolResultIds = new Set<string>()
-  const sharedFields = {
+  const identityFields = {
     id: uiMessage.id,
+    ...optionalName(uiMessage),
     ...(uiMessage.createdAt !== undefined && {
       createdAt: uiMessage.createdAt,
     }),
-    ...(uiMessage.metadata !== undefined && { metadata: uiMessage.metadata }),
+  }
+  const metadata = assistantMetadata(uiMessage)
+  const assistantFields = {
+    ...identityFields,
+    ...(metadata !== undefined && { metadata }),
   }
 
   function flushSegment(): void {
@@ -382,7 +450,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
 
     if (hasContent || hasToolCalls || hasThinking) {
       messageList.push({
-        ...sharedFields,
+        ...assistantFields,
         role: 'assistant',
         content,
         ...(hasToolCalls && { toolCalls: current.toolCalls }),
@@ -430,7 +498,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
           !emittedToolResultIds.has(part.toolCallId)
         ) {
           messageList.push({
-            ...sharedFields,
+            ...identityFields,
             role: 'tool',
             content: part.content,
             toolCallId: part.toolCallId,
@@ -497,7 +565,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     // emit the concrete output regardless of approval metadata.
     if (part.output !== undefined && !emittedToolResultIds.has(part.id)) {
       messageList.push({
-        ...sharedFields,
+        ...identityFields,
         role: 'tool',
         content: normalizeToolResult(part.output),
         toolCallId: part.id,
@@ -514,7 +582,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
     ) {
       const approved = part.approval.approved
       messageList.push({
-        ...sharedFields,
+        ...identityFields,
         role: 'tool',
         content: JSON.stringify({
           approved,
@@ -532,7 +600,7 @@ function buildAssistantMessages(uiMessage: UIMessage): Array<ModelMessage> {
   // If no messages were produced (e.g., empty parts), emit a minimal assistant message
   if (messageList.length === 0) {
     messageList.push({
-      ...sharedFields,
+      ...assistantFields,
       role: 'assistant',
       content: null,
     })
@@ -572,8 +640,11 @@ export function modelMessageToUIMessage(
 
   // Handle tool results (when role is "tool") - only produce tool-result part,
   // not a text part (the content IS the tool result, not display text)
-  if (modelMessage.role === 'assistant' && modelMessage.structuredOutput) {
-    parts.push(modelMessage.structuredOutput)
+  const structuredOutput =
+    modelMessage.structuredOutput ??
+    snapshotStructuredOutput(tanstackMetadata(modelMessage)?.structuredOutput)
+  if (modelMessage.role === 'assistant' && structuredOutput) {
+    parts.push(structuredOutput)
   } else if (modelMessage.role === 'tool' && modelMessage.toolCallId) {
     parts.push({
       type: 'tool-result',
@@ -621,10 +692,11 @@ export function modelMessageToUIMessage(
     }
   }
 
-  return {
+  const ui: UIMessage = {
     id: id || generateMessageId(),
     role: modelMessage.role === 'tool' ? 'assistant' : modelMessage.role,
     parts,
+    ...optionalName(modelMessage),
     ...(modelMessage.createdAt !== undefined && {
       createdAt: modelMessage.createdAt,
     }),
@@ -632,6 +704,13 @@ export function modelMessageToUIMessage(
       metadata: modelMessage.metadata,
     }),
   }
+  const storedResources = tanstackMetadata(modelMessage)?.uiResources
+  return appendUiResources(
+    ui,
+    Array.isArray(storedResources)
+      ? storedResources.filter(isUiResourcePart)
+      : [],
+  )
 }
 
 /**
@@ -676,11 +755,13 @@ export function aguiSnapshotMessageToUIMessage(
         metadata?.structuredOutput,
       )
       const toolCalls = message.toolCalls?.map((toolCall) => {
-        const metadata =
+        const callMetadata =
           toolCallMetadata != null && typeof toolCallMetadata === 'object'
             ? (toolCallMetadata as Record<string, unknown>)[toolCall.id]
             : undefined
-        return metadata !== undefined ? { ...toolCall, metadata } : toolCall
+        return callMetadata !== undefined
+          ? { ...toolCall, metadata: callMetadata }
+          : toolCall
       })
       return applySnapshotMetadata(
         message,
@@ -688,6 +769,7 @@ export function aguiSnapshotMessageToUIMessage(
           {
             role: 'assistant',
             content: message.content ?? null,
+            ...optionalName(message),
             ...(toolCalls && { toolCalls }),
             ...(structuredOutput && { structuredOutput }),
           },
@@ -747,42 +829,28 @@ export function aguiSnapshotMessageToUIMessage(
 
 /** Copy snapshot metadata when it is a record. Rebuild createdAt from tanstack.createdAt. */
 function applySnapshotMetadata(source: object, ui: UIMessage): UIMessage {
-  if (!('metadata' in source)) return ui
+  const name =
+    'name' in source && typeof source.name === 'string'
+      ? source.name
+      : undefined
+  const named = name !== undefined ? { ...ui, name } : ui
+  if (!('metadata' in source)) return named
   const raw = source.metadata
-  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return ui
+  if (raw == null || typeof raw !== 'object' || Array.isArray(raw)) return named
   const metadata = raw as NonNullable<UIMessage['metadata']>
   const createdAt = createdAtFromMetadata(metadata)
   const uiResources = tanstackMetadata(metadata)?.uiResources
   const resources = Array.isArray(uiResources)
-    ? uiResources.filter(
-        (part): part is UIResourcePart =>
-          part != null &&
-          typeof part === 'object' &&
-          part.type === 'ui-resource',
-      )
+    ? uiResources.filter(isUiResourcePart)
     : []
-  return {
-    ...ui,
-    ...(resources.length > 0
-      ? {
-          parts: [
-            ...ui.parts,
-            ...resources.filter(
-              (resource) =>
-                !ui.parts.some(
-                  (part) =>
-                    part.type === 'ui-resource' &&
-                    part.toolCallId === resource.toolCallId &&
-                    part.toolName === resource.toolName &&
-                    part.resource.uri === resource.resource.uri,
-                ),
-            ),
-          ],
-        }
-      : {}),
-    metadata,
-    ...(createdAt !== undefined ? { createdAt } : {}),
-  }
+  return appendUiResources(
+    {
+      ...named,
+      metadata,
+      ...(createdAt !== undefined ? { createdAt } : {}),
+    },
+    resources,
+  )
 }
 
 function snapshotStructuredOutput(

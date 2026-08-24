@@ -1832,6 +1832,75 @@ describe('Message Converters', () => {
         },
       ])
     })
+
+    it('round-trips name, metadata, tool error, and ui-resource parts', () => {
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/todos',
+          mimeType: 'text/html',
+          text: '<div>todos</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getTodos',
+      }
+      const original: UIMessage = {
+        id: 'msg-1',
+        role: 'assistant',
+        name: 'Ada',
+        metadata: { author: { id: 'user-42' } },
+        parts: [
+          { type: 'text', content: 'Checking.' },
+          {
+            type: 'tool-call',
+            id: 'tc-1',
+            name: 'getTodos',
+            arguments: '{}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'tc-1',
+            content: '{"error":"boom"}',
+            state: 'error',
+            error: 'boom',
+          },
+          uiResource,
+        ],
+      }
+
+      const modelMessages = uiMessageToModelMessages(original)
+      expect(
+        modelMessages.find((msg) => msg.role === 'assistant'),
+      ).toMatchObject({
+        name: 'Ada',
+        metadata: {
+          author: { id: 'user-42' },
+          tanstack: { uiResources: [uiResource] },
+        },
+      })
+      expect(modelMessages.find((msg) => msg.role === 'tool')).toMatchObject({
+        error: 'boom',
+      })
+      expect(
+        modelMessages.find((msg) => msg.role === 'tool'),
+      ).not.toHaveProperty('metadata')
+
+      const uiMessages = modelMessagesToUIMessages(modelMessages)
+      expect(uiMessages).toHaveLength(1)
+      expect(uiMessages[0]?.name).toBe('Ada')
+      expect(uiMessages[0]?.metadata).toMatchObject({
+        author: { id: 'user-42' },
+      })
+      expect(uiMessages[0]?.parts).toContainEqual(uiResource)
+      expect(uiMessages[0]?.parts).toContainEqual({
+        type: 'tool-result',
+        toolCallId: 'tc-1',
+        content: '{"error":"boom"}',
+        state: 'error',
+        error: 'boom',
+      })
+    })
   })
 
   describe('Round-trip symmetry: Model -> UI -> Model', () => {
@@ -1967,6 +2036,33 @@ describe('Message Converters', () => {
           role: 'tool',
           content: '{"temp":72}',
           toolCallId: 'tc-1',
+        },
+      ]
+
+      const uiMessages = modelMessagesToUIMessages(original)
+      const modelMessages = convertMessagesToModelMessages(uiMessages)
+
+      expect(modelMessages).toEqual(original)
+    })
+
+    it('round-trips ModelMessage name and ui-resource metadata', () => {
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/todos',
+          mimeType: 'text/html',
+          text: '<div>todos</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getTodos',
+      }
+      const original: Array<ModelMessage> = [
+        {
+          id: 'assistant-1',
+          role: 'assistant',
+          content: 'here',
+          name: 'Ada',
+          metadata: { tanstack: { uiResources: [uiResource] } },
         },
       ]
 

@@ -41,6 +41,18 @@ Defined in: [packages/ai/src/types.ts:561](https://github.com/TanStack/ai/blob/m
 
 ***
 
+### name?
+
+```ts
+optional name?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:573](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L573)
+
+Optional AG-UI sender name. Converters preserve it across wire and persist.
+
+***
+
 ### metadata?
 
 ```ts

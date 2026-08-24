@@ -55,6 +55,18 @@ resume the SAME message bubble in place (see `@tanstack/ai-persistence`).
 
 ***
 
+### metadata?
+
+```ts
+optional metadata?: Record<string, any>;
+```
+
+Defined in: [packages/ai/src/types.ts:378](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L378)
+
+Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`.
+
+***
+
 ### name?
 
 ```ts
@@ -62,6 +74,18 @@ optional name?: string;
 ```
 
 Defined in: [packages/ai/src/types.ts:371](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L371)
+
+***
+
+### error?
+
+```ts
+optional error?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:376](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L376)
+
+Error reported by an AG-UI tool message.
 
 ***
 

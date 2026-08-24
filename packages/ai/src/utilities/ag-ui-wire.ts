@@ -71,11 +71,18 @@ export function uiMessagesToWire(
   const includeSnapshotStructuredOutput =
     options?.includeSnapshotStructuredOutput ?? false
 
+  const assistantIds = new Set<string>()
+  for (const msg of messages) {
+    if (msg.role === 'assistant' && msg.id !== undefined) {
+      assistantIds.add(msg.id)
+    }
+  }
+
   for (const msg of messages) {
     if (!('parts' in msg) && msg.role === 'tool' && msg.toolCallId) {
       wire.push({
         role: 'tool',
-        id: msg.id ?? deriveToolMessageId(msg.toolCallId),
+        id: toolWireId(msg.id, msg.toolCallId, assistantIds),
         toolCallId: msg.toolCallId,
         content:
           typeof msg.content === 'string'
@@ -182,11 +189,10 @@ function toAnchor(
   includeSnapshotStructuredOutput: boolean,
 ): WireAnchorMessage {
   const metadata = messageMetadata(msg, parts, includeSnapshotStructuredOutput)
-  const name = (msg as { name?: string }).name
   return {
     id: msg.id,
     role: msg.role,
-    ...(name !== undefined && { name }),
+    ...(msg.name !== undefined && { name: msg.name }),
     ...extras,
     ...(metadata !== undefined && { metadata }),
   }
@@ -353,6 +359,16 @@ function deriveReasoningId(messageId: string, part: MessagePart): string {
 
 function deriveToolMessageId(toolCallId: string): string {
   return `tool-${toolCallId}`
+}
+
+function toolWireId(
+  id: string | undefined,
+  toolCallId: string,
+  assistantIds: ReadonlySet<string>,
+): string {
+  const derived = deriveToolMessageId(toolCallId)
+  if (id === undefined || assistantIds.has(id)) return derived
+  return id
 }
 
 function hashContent(s: string): string {

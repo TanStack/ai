@@ -478,6 +478,32 @@ describe('StreamProcessor', () => {
       ])
     })
 
+    it('MESSAGES_SNAPSHOT ignores a malformed ui-resource without throwing', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: 'ok',
+              name: 'Ada',
+              metadata: {
+                tanstack: {
+                  uiResources: [{ type: 'ui-resource' }],
+                },
+              },
+            },
+          ],
+        }),
+      )
+
+      const restored = processor.getMessages()[0]
+      expect(restored?.name).toBe('Ada')
+      expect(restored?.parts).toEqual([{ type: 'text', content: 'ok' }])
+    })
+
     it('MESSAGES_SNAPSHOT does not duplicate restored ui-resource parts', () => {
       const processor = new StreamProcessor()
       const uiResource = {

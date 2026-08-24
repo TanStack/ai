@@ -569,6 +569,8 @@ export interface UIMessage<TData = unknown> {
   role: 'system' | 'user' | 'assistant'
   parts: Array<MessagePart<TData>>
   createdAt?: Date
+  /** Optional AG-UI sender name. Converters preserve it across wire and persist. */
+  name?: string
   /**
    * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
    * User keys stay at the top.

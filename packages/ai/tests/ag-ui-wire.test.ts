@@ -113,6 +113,41 @@ describe('uiMessagesToWire', () => {
     })
   })
 
+  it('preserves ModelMessage name on the AG-UI wire', () => {
+    const wire = uiMessagesToWire([
+      { id: 'u1', role: 'user', content: 'hi', name: 'Dana' },
+    ])
+
+    expect(wire[0]).toMatchObject({
+      id: 'u1',
+      role: 'user',
+      content: 'hi',
+      name: 'Dana',
+    })
+  })
+
+  it('uses a unique tool wire id when a tool ModelMessage reuses the assistant id', () => {
+    const wire = uiMessagesToWire([
+      { id: 'a1', role: 'assistant', content: 'ok' },
+      {
+        id: 'a1',
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: '[]',
+      },
+    ])
+
+    expect(wire).toEqual([
+      { id: 'a1', role: 'assistant', content: 'ok' },
+      {
+        id: 'tool-call-1',
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: '[]',
+      },
+    ])
+  })
+
   it('preserves tool ModelMessage fields', () => {
     const wire = uiMessagesToWire([
       {
