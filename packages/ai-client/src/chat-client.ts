@@ -1898,12 +1898,12 @@ export class ChatClient<
    *   - A MultimodalContent object with content array and optional custom ID
    * @param body - Optional body parameters to merge with the client's base body for this request.
    *               Uses shallow merge with per-message body taking priority.
-   * @param sendOptions - Per-call overrides. `{ whenBusy: 'interrupt' }`
-   *                      overrides the queue policy for this one send.
-   *                      `{ body }` is the same extra JSON as the positional
-   *                      `body` argument (the positional argument wins if
-   *                      both are set). Framework hooks forward this object
-   *                      as their second argument.
+   * @param sendOptions - Per-call overrides. `{ whenBusy }` overrides the
+   *                      queue policy for this one send. `{ body }`
+   *                      shallow-merges with `body` and with the chat-level
+   *                      `body` / `forwardedProps`. `sendOptions.body` wins
+   *                      on key collisions. Framework hooks forward this
+   *                      object as their second argument.
    *
    * @example
    * ```ts
@@ -1957,9 +1957,12 @@ export class ChatClient<
       )
     }
 
-    // Positional `body` wins over `sendOptions.body`. The positional arg
-    // predates the option and existing callers may pass both.
-    const resolvedBody = body ?? sendOptions?.body
+    // Chat-level `body` still merges later at send time. Here the two
+    // per-call sources merge, with `sendOptions.body` winning on conflicts.
+    const resolvedBody =
+      body === undefined && sendOptions?.body === undefined
+        ? undefined
+        : { ...body, ...sendOptions?.body }
 
     if (this.isSendBusy()) {
       const { action, id } = this.decideWhenBusy(content, sendOptions)
@@ -2219,7 +2222,7 @@ export class ChatClient<
       // order (later spreads win):
       //   1. Legacy `body` option (deprecated).
       //   2. Canonical `forwardedProps` option (wins over `body`).
-      //   3. Per-message `body` arg passed to `sendMessage` (highest).
+      //   3. Per-call body (`pendingMessageBody`: positional + sendOptions.body).
       // The AG-UI standard `threadId` is sent at the wire's top level for
       // run/conversation correlation, so we no longer auto-emit a separate
       // `conversationId` here — `chat({ threadId })` server-side covers the

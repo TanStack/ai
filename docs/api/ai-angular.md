@@ -92,14 +92,18 @@ import type {
   DeepPartial,
 } from "@tanstack/ai-angular";
 import type { ModelMessage, InferSchemaType } from "@tanstack/ai/client";
-import type { ChatClientState, ConnectionStatus } from "@tanstack/ai-client";
+import type {
+  ChatClientState,
+  ConnectionStatus,
+  SendMessageOptions,
+} from "@tanstack/ai-client";
 type TSchema = any;
 
 interface InjectChatResult {
   messages: Signal<UIMessage[]>;
   sendMessage: (
     content: string | MultimodalContent,
-    options?: { whenBusy?: "queue" | "drop" | "interrupt"; body?: Record<string, unknown> },
+    options?: SendMessageOptions,
   ) => Promise<void>;
   append: (message: ModelMessage | UIMessage) => Promise<void>;
   addToolResult: (result: {

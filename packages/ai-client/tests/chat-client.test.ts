@@ -3387,7 +3387,7 @@ describe('ChatClient', () => {
       expect(capturedData?.['maxTokens']).toBe(100)
     })
 
-    it('positional body wins over sendOptions.body', async () => {
+    it('merges chat body, positional body, and sendOptions.body with sendOptions.body winning conflicts', async () => {
       const chunks = createTextChunks('Response')
       let capturedData: Record<string, unknown> | undefined
       const adapter = createMockConnectionAdapter({
@@ -3397,17 +3397,22 @@ describe('ChatClient', () => {
         },
       })
 
-      const client = new ChatClient({ connection: adapter })
+      const client = new ChatClient({
+        connection: adapter,
+        body: { a: 1, b: 1, c: 1 },
+      })
 
       await client.sendMessage(
         'Hello',
-        { tag: 'positional' },
-        { body: { tag: 'options', extra: true } },
+        { b: 2, d: 2 },
+        { body: { c: 3, e: 3 } },
       )
 
-      // The positional arg replaces (does not merge with) sendOptions.body.
-      expect(capturedData?.['tag']).toBe('positional')
-      expect(capturedData?.['extra']).toBeUndefined()
+      expect(capturedData?.['a']).toBe(1)
+      expect(capturedData?.['b']).toBe(2)
+      expect(capturedData?.['c']).toBe(3)
+      expect(capturedData?.['d']).toBe(2)
+      expect(capturedData?.['e']).toBe(3)
     })
 
     it('does not leak sendOptions.whenBusy onto the wire next to body', async () => {

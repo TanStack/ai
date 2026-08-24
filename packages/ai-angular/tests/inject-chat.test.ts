@@ -139,12 +139,12 @@ describe('injectChat — streaming', () => {
 
     await result.sendMessage('Hi', {
       whenBusy: 'queue',
-      body: { attachmentIds: ['a1', 'a2'] },
+      body: { provider: 'anthropic', attachmentIds: ['a1', 'a2'] },
     })
     await tick()
     flush()
 
-    expect(capturedData?.['provider']).toBe('openai')
+    expect(capturedData?.['provider']).toBe('anthropic')
     expect(capturedData?.['attachmentIds']).toEqual(['a1', 'a2'])
     expect(capturedData?.['whenBusy']).toBeUndefined()
   })

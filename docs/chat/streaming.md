@@ -352,7 +352,7 @@ const { messages, queue, sendMessage, cancelQueued, isLoading } = useChat({
 - **`maxSize`** — caps how many messages can be queued (`0` means never queue).
 - **`onOverflow`** — `"reject"` (default) silently ignores a send once `maxSize` is reached (does not throw); `"drop-oldest"` evicts the oldest queued item to make room.
 
-You can also pass a plain `WhenBusy` string (e.g. `queue: "interrupt"`) as shorthand for `{ whenBusy: "interrupt" }`, or a `QueueStrategy` function for per-send action control. Strategy form always drains FIFO (no `batch`); actions are `'queue' | 'drop' | 'interrupt'` (no concurrent streams). Per-call `whenBusy` on `sendMessage`'s second argument overrides both config and strategy.
+You can also pass a plain `WhenBusy` string (e.g. `queue: "interrupt"`) as shorthand for `{ whenBusy: "interrupt" }`, or a `QueueStrategy` function for per-send action control. Strategy form always drains FIFO (no `batch`). Actions use the `WhenBusy` type. Per-call `whenBusy` on `sendMessage`'s second argument overrides both config and strategy.
 
 ### When the queue drains vs flushes
 

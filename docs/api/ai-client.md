@@ -120,9 +120,11 @@ Sends a user message and starts the run.
 
 `MultimodalContent` is `{ content, id?, metadata? }`. The string form has no metadata. Pass the object form to stamp `metadata` on the user `UIMessage`. TanStack writes the `tanstack` key. Your keys stay at the top of the bag.
 
-The second argument is extra JSON merged into this request's `forwardedProps`. The third argument is `SendMessageOptions`: `{ whenBusy }` overrides the queue policy for this send, and `{ body }` is the same extra JSON as the second argument. If both the second argument and `sendOptions.body` are set, the second argument wins.
+The second argument is extra JSON merged into this request's `forwardedProps`. The third argument is `SendMessageOptions`. `{ whenBusy }` overrides the queue policy for this send. `{ body }` is extra JSON too.
 
-Framework hooks expose `sendMessage(content, sendOptions)` with no positional body. Pass `{ body }` there.
+Chat-level `body`, the positional argument, and `sendOptions.body` shallow-merge. `sendOptions.body` wins on key collisions.
+
+Framework hooks expose `sendMessage(content, sendOptions)` with no positional body. Pass `{ body }` there. It merges with the hook's `body` the same way.
 
 ```typescript
 import { client } from "./client";

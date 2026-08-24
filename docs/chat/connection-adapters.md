@@ -81,7 +81,7 @@ const { messages } = useChat({
 
 > **Tip:** `body` and `forwardedProps` populate the same wire field. Use adapter `body` for static defaults. Use the `forwardedProps` constructor option, or `sendMessage(content, { body })`, for values that change. Runtime values always win.
 
-**Per-call body.** Pass extra JSON for one send in `sendMessage`'s second argument. It is shallow-merged into `forwardedProps` with the highest priority, for that request only.
+**Per-call body.** Pass extra JSON for one send in `sendMessage`'s second argument. It is shallow-merged into `forwardedProps` with the chat-level `body` (`{ ...chatBody, ...sendOptions.body }`). Shared keys take the `sendMessage` value. That merge is for this request only.
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -126,7 +126,7 @@ export async function POST(request: Request) {
 }
 ```
 
-On `ChatClient` directly, the positional second argument is the same extra JSON. If you pass both that argument and `sendOptions.body`, the positional argument wins.
+On `ChatClient` directly, the positional second argument is the same extra JSON. It shallow-merges with `sendOptions.body`. `sendOptions.body` wins on key collisions.
 
 `reload()` starts a new request. It uses chat-level `forwardedProps` / `body` only. It does not replay the previous send's per-call `body`.
 

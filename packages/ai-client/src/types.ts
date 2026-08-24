@@ -477,9 +477,9 @@ export interface QueueConfig {
  * function form (no `batch` via function). Per-call `sendOptions.whenBusy`
  * overrides the strategy for that send.
  *
- * Actions match {@link WhenBusy}: `'queue' | 'drop' | 'interrupt'`. Concurrent
- * streams are not supported. `pending.id` is the id that will be stored if the
- * action is `'queue'` (safe to pass to `cancelQueued`).
+ * Actions match {@link WhenBusy}. Concurrent streams are not supported.
+ * `pending.id` is the id that will be stored if the action is `'queue'`
+ * (safe to pass to `cancelQueued`).
  */
 export type QueueStrategy = (ctx: {
   pending: QueuedMessage
@@ -496,12 +496,10 @@ export interface SendMessageOptions {
   whenBusy?: WhenBusy
   /**
    * Extra JSON merged into this request's wire `forwardedProps`.
-   * Shallow merge. Highest priority: wins over the chat-level `body` and
-   * `forwardedProps` options on key collisions.
+   * Shallow merge: `{ ...chatBody, ...positionalBody, ...body }`.
+   * This field wins on key collisions.
    *
-   * Same payload as the positional `body` argument of
-   * `ChatClient.sendMessage`. If both are provided, the positional argument
-   * wins. Framework hooks (`useChat`, `injectChat`, `createChat`) expose
+   * Framework hooks (`useChat`, `injectChat`, `createChat`) expose
    * `sendMessage(content, options)` with no positional body, so this field
    * is the per-call body channel on those surfaces.
    */
