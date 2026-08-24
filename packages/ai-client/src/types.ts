@@ -883,8 +883,9 @@ export interface ChatClientBaseOptions<
 
   /**
    * Optional provider id for this chat. If it returns a provider slug,
-   * only that key is prepared and sent. Otherwise `forwardedProps.provider`
-   * then `body.provider` are used. If no slug resolves, the send throws
+   * only that key is prepared and sent. Otherwise the merged `provider`
+   * from `forwardedProps`, `body`, and per-call `sendMessage` `body` is
+   * used. Later sources win. If no slug resolves, the send throws
    * instead of attaching every stored key.
    */
   byokProvider?: () => string | undefined

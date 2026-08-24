@@ -56,7 +56,7 @@ Extends `ChatClientOptions` from `@tanstack/ai-client` (minus internal state cal
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field. Reactive — accepts a plain value, an Angular `Signal`, or a zero-arg getter; changes sync automatically via `effect`
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works for backward compatibility; values are merged into `forwardedProps` on the wire. Reactive (same forms as `forwardedProps`)
 - `byok?` - Optional BYOK keyring from `defineByok`. On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
-- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise `forwardedProps.provider` then `body.provider` are used. If no slug resolves, the send throws instead of attaching every stored key
+- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise the merged `provider` from `forwardedProps`, `body`, and per-call `sendMessage` `body` is used. Later sources win. If no slug resolves, the send throws instead of attaching every stored key
 - `context?` - Typed client-local runtime context passed to client tool implementations. Reactive (same forms). This value is not serialized to the server
 - `live?` - Enable live subscription mode (auto-subscribes/unsubscribes). Reactive (same forms)
 - `outputSchema?` - Standard-schema-compatible schema (Zod, Valibot, ArkType, or JSON Schema). When provided, adds typed `partial` and `final` signals to the return value

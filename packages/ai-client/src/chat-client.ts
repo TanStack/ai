@@ -2261,8 +2261,7 @@ export class ChatClient<
       if (this.byok) {
         const provider = resolveByokProviderId(
           this.byokProvider,
-          this.forwardedPropsOption.provider,
-          this.bodyOption.provider,
+          mergedBody.provider,
         )
         byokHeaders = await prepareResolvedByokHeaders(this.byok, provider)
       }
