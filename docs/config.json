@@ -537,13 +537,18 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-08-24"
         },
         {
           "label": "Built-in Middleware",
           "to": "advanced/built-in-middleware",
           "addedAt": "2026-06-03",
           "updatedAt": "2026-07-21"
+        },
+        {
+          "label": "Compaction",
+          "to": "advanced/compaction",
+          "addedAt": "2026-08-24"
         },
         {
           "label": "Locks",

@@ -1140,6 +1140,7 @@ import type {
 ## Next Steps
 
 - [Built-in Middleware](./built-in-middleware) — `toolCacheMiddleware`, `contentGuardMiddleware`, `otelMiddleware`
+- [Compaction](./compaction): keep long chats under the context limit with `withCompaction`
 - [OpenTelemetry](./otel) — emit traces and metrics via `otelMiddleware`- [Tools](../tools/tools) — Learn about the isomorphic tool system
 - [Agentic Cycle](../chat/agentic-cycle) — Understand the multi-step agent loop
 - [Streaming](../chat/streaming) — How streaming works in TanStack AI
