@@ -156,7 +156,7 @@ interface BaseUseChatReturn<
    * `messages[i].parts.find(p => p.type === 'structured-output')` is typed
    * by the schema — `data: T`, `partial: DeepPartial<T>`.
    */
-  messages: Readonly<ShallowRef<Array<UIMessage<TTools, TData>>>>
+  messages: Readonly<ShallowRef<ReadonlyArray<UIMessage<TTools, TData>>>>
 
   /**
    * Send a message and get a response.
@@ -172,7 +172,7 @@ interface BaseUseChatReturn<
   /**
    * Pending messages queued while a stream is in flight.
    */
-  queue: Readonly<ShallowRef<Array<QueuedMessage>>>
+  queue: Readonly<ShallowRef<ReadonlyArray<QueuedMessage>>>
 
   /**
    * Cancel a queued message before it drains. No-op if already sent.
@@ -275,7 +275,7 @@ interface BaseUseChatReturn<
   /**
    * Set messages manually
    */
-  setMessages: (messages: Array<UIMessage<TTools, TData>>) => void
+  setMessages: (messages: ReadonlyArray<UIMessage<TTools, TData>>) => void
 
   /**
    * Clear all messages

@@ -301,7 +301,7 @@ export function createChat<
     syncResumeState()
   }
 
-  const setMessages = (newMessages: Array<UIMessage<TTools>>) => {
+  const setMessages = (newMessages: ReadonlyArray<UIMessage<TTools>>) => {
     client.setMessagesManually(newMessages)
   }
 

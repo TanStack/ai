@@ -170,7 +170,7 @@ import type {
 import type { ModelMessage } from "@tanstack/ai";
 
 interface CreateChatReturn<TContext = unknown> {
-  readonly messages: UIMessage[];
+  readonly messages: ReadonlyArray<UIMessage>;
   sendMessage: (
     content: string | MultimodalContent,
     options?: SendMessageOptions,
@@ -195,7 +195,7 @@ interface CreateChatReturn<TContext = unknown> {
   readonly isSubscribed: boolean;
   readonly connectionStatus: ConnectionStatus;
   readonly sessionGenerating: boolean;
-  setMessages: (messages: UIMessage[]) => void;
+  setMessages: (messages: ReadonlyArray<UIMessage>) => void;
   clear: () => void;
   /** @deprecated Use `updateForwardedProps` instead. */
   updateBody: (body: Record<string, any>) => void;

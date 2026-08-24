@@ -223,7 +223,7 @@ function Messages({
   messages,
   toolCallEvents,
 }: {
-  messages: Array<UIMessage>
+  messages: ReadonlyArray<UIMessage>
   toolCallEvents: Map<string, Array<VMEvent>>
 }) {
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -437,12 +437,12 @@ function EmptyState() {
 }
 
 // Calculate context sizes
-function calculateActualSize(messages: Array<UIMessage>): number {
+function calculateActualSize(messages: ReadonlyArray<UIMessage>): number {
   return new TextEncoder().encode(JSON.stringify(messages)).length
 }
 
 function calculateTheoreticalSize(
-  messages: Array<UIMessage>,
+  messages: ReadonlyArray<UIMessage>,
   toolCallEvents: Map<string, Array<VMEvent>>,
 ): number {
   let theoreticalSize = calculateActualSize(messages)
