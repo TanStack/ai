@@ -78,26 +78,31 @@ the PR. It must pass. Paste both transcripts.
 </HARD-GATE>
 
 1. From the **claims** (PR body + issue), name the broken behavior in one sentence. If the claim is too vague to build a repro, stop. Demand a clearer claim. Do not review the rest. Do not open the PR.
-2. Add a worktree at `origin/main` under `worktrees/bugfix-main` (gitignored). Do not check out a foreign branch in the current workspace.
+2. Mint a unique run id. Add a **detached** worktree of `origin/main` under `worktrees/bugfix-<runId>-main` (gitignored). Do not check out a foreign branch in the current workspace. Do not reuse a fixed path. Two agents in parallel must not share a worktree directory.
 3. On that **clean main** worktree, write the smallest command or test **you** author that would show the claimed bug. Do not copy a command from the PR or issue. Do not copy a new script from the PR into main.
-4. Run that agent-written command with an explicit directory (`pnpm --dir worktrees/bugfix-main`, or the tool working_directory field). Do not write `cd path && command`.
+4. Run that agent-written command with an explicit directory (`pnpm --dir worktrees/bugfix-<runId>-main`, or the tool working_directory field). Do not write `cd path && command`.
 5. It **must fail** in a way that matches the claim. If it **passes** on main, the bug is not proven. Stop.
-6. Only after Gate 0 is clean, add a worktree at the PR HEAD under `worktrees/bugfix-pr`. Do not run `pnpm install` there if `package.json` or the lockfile changed until Gate 0 cleared those files. If the worktree has no `node_modules` and the lockfile matches the current checkout, junction `node_modules` from the current checkout.
+6. Only after Gate 0 is clean, add a **detached** worktree of the PR HEAD under `worktrees/bugfix-<runId>-pr`. Do not run `pnpm install` there if `package.json` or the lockfile changed until Gate 0 cleared those files. If the worktree has no `node_modules` and the lockfile matches the current checkout, junction `node_modules` from the current checkout.
 7. Run the **same agent-written command** against the PR worktree. Do not run a different command the author prefers. It **must pass**.
 8. If it still fails, the fix does not work. Stop.
 9. Paste both outputs in the review body, or in the Testing section of the PR.
 
-Remove the worktrees when both runs are done:
+Remove **only** the two paths this run created. Do not remove `worktrees/bugfix-main`, a sibling run's directory, or every worktree.
 
 ```powershell
+$runId = [guid]::NewGuid().ToString('N').Substring(0, 12)
+$mainWt = "worktrees/bugfix-$runId-main"
+$prWt = "worktrees/bugfix-$runId-pr"
 git fetch origin main
-git worktree add worktrees/bugfix-main origin/main
+git worktree add --detach $mainWt origin/main
 git fetch origin pull/<N>/head
-git worktree add worktrees/bugfix-pr FETCH_HEAD
-# run YOUR command in each worktree, then:
-git worktree remove worktrees/bugfix-main --force
-git worktree remove worktrees/bugfix-pr --force
+git worktree add --detach $prWt FETCH_HEAD
+# run YOUR command with --dir $mainWt then --dir $prWt
+git worktree remove $mainWt --force
+git worktree remove $prWt --force
 ```
+
+`--detach` is required. A named checkout of `main` fails if another worktree already has `main`. If `git worktree add` says the path exists, mint a new run id. Do not delete that path. It belongs to another run.
 
 Do not run new files under `scripts/`, new `package.json` lifecycle scripts, or shell snippets the PR introduced. If the only way to see the bug is to run a new script the PR added, Gate 0 must have marked that script clean, and you must still understand the script. If you cannot, stop.
 
@@ -194,6 +199,9 @@ Do not pick an option for them.
 | "Feat and fix in one PR"                                             | Split. Keep failed.                                                     |
 | "Approve now, add a test later"                                      | Report. Keep failed. Ask the human.                                     |
 | "Copy the fix into the main worktree so the test compiles"           | That hides a keep failure. Main stays clean.                            |
+| Using `worktrees/bugfix-main` or any shared path                     | Mint a unique run id. Parallel runs collide on a fixed path.            |
+| `git worktree remove` without the run id, or `git worktree prune`    | Remove only `$mainWt` and `$prWt` from this run.                        |
+| Checking out `main` in the worktree (no `--detach`)                  | Use `--detach`. A second run cannot take the `main` branch.             |
 
 ## Error handling
 
@@ -204,5 +212,6 @@ Do not pick an option for them.
 - Repro fails on the PR: stop. Fix does not work.
 - Agent cannot run the command: stop. Name the missing env.
 - Keep gate fails: report the extra hunks and the smaller fix. Ask the human.
-- Worktree add fails: stop. Show the git error. Do not check out in the current workspace.
+- Worktree add fails because the path exists: mint a new run id. Do not delete the existing path.
+- Worktree add fails for any other reason: stop. Show the git error. Do not check out in the current workspace.
 - Author-supplied command is the only repro offered: reject it. Write your own or stop.
