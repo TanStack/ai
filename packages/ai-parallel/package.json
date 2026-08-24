@@ -49,6 +49,9 @@
     "search",
     "web-search"
   ],
+  "dependencies": {
+    "parallel-web": "^1.3.0"
+  },
   "devDependencies": {
     "@tanstack/ai": "workspace:*",
     "vite": "^8.2.1",

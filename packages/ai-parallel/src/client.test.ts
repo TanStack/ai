@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { ParallelSearchClient } from '../src/client'
-import { fetchCall, mockFetch, searchResponse } from './test-utils'
+import { ParallelSearchClient } from './client'
+import { fetchCall, mockFetch, searchResponse } from '../tests/test-utils'
 
 afterEach(() => {
   vi.unstubAllEnvs()
@@ -23,9 +23,10 @@ describe('ParallelSearchClient', () => {
       apiKey: 'test-key',
       fetch: fetchMock,
     })
+    const searchQueries = ['  recent research  '] as const
 
     const response = await client.search({
-      search_queries: ['  recent research  '],
+      search_queries: searchQueries,
       objective: 'Find current research.',
       mode: 'fast',
       advanced_settings: {
@@ -35,11 +36,11 @@ describe('ParallelSearchClient', () => {
     })
 
     expect(fetchCall(fetchMock).url).toBe('https://api.parallel.ai/v1/search')
-    expect(fetchCall(fetchMock).init.headers).toEqual({
-      'x-api-key': 'test-key',
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-    })
+    const headers = new Headers(fetchCall(fetchMock).init.headers)
+    expect(headers.get('x-api-key')).toBe('test-key')
+    expect(headers.get('Content-Type')).toBe('application/json')
+    expect(headers.get('Accept')).toBe('application/json')
+    expect(searchQueries).toEqual(['  recent research  '])
     expect(fetchCall(fetchMock).body).toEqual({
       search_queries: ['recent research'],
       objective: 'Find current research.',
@@ -61,16 +62,16 @@ describe('ParallelSearchClient', () => {
     )
   })
 
-  it('reads and trims PARALLEL_API_KEY when no explicit key is provided', async () => {
+  it('falls back to the trimmed environment key for blank explicit credentials', async () => {
     vi.stubEnv('PARALLEL_API_KEY', '  environment-key  ')
     const fetchMock = mockFetch(searchResponse())
-    const client = new ParallelSearchClient({ fetch: fetchMock })
+    const client = new ParallelSearchClient({ apiKey: '  ', fetch: fetchMock })
 
     await client.search({ search_queries: ['news'] })
 
-    expect(fetchCall(fetchMock).init.headers).toMatchObject({
-      'x-api-key': 'environment-key',
-    })
+    expect(
+      new Headers(fetchCall(fetchMock).init.headers).get('x-api-key'),
+    ).toBe('environment-key')
   })
 
   it('rejects missing API keys without issuing a request', () => {
@@ -80,6 +81,9 @@ describe('ParallelSearchClient', () => {
     expect(() => new ParallelSearchClient({ fetch: fetchMock })).toThrow(
       /PARALLEL_API_KEY/,
     )
+    expect(
+      () => new ParallelSearchClient({ apiKey: '  ', fetch: fetchMock }),
+    ).toThrow(/PARALLEL_API_KEY/)
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
@@ -157,8 +161,9 @@ describe('ParallelSearchClient', () => {
     })
 
     await expect(client.search({ search_queries: ['news'] })).rejects.toThrow(
-      /429.*Too Many Requests.*Rate limited/,
+      /429.*Rate limited/,
     )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('rejects malformed response payloads', async () => {
@@ -199,6 +204,28 @@ describe('ParallelSearchClient', () => {
     ])
   })
 
+  it('preserves SDK usage and warning metadata', async () => {
+    const response = {
+      ...searchResponse(),
+      usage: [{ count: 1, name: 'search' }],
+      warnings: [
+        {
+          type: 'input_validation_warning',
+          message: 'One source was excluded.',
+        },
+      ],
+    }
+    const fetchMock = mockFetch(response)
+    const client = new ParallelSearchClient({
+      apiKey: 'test-key',
+      fetch: fetchMock,
+    })
+
+    await expect(client.search({ search_queries: ['news'] })).resolves.toEqual(
+      response,
+    )
+  })
+
   it('forwards cancellation and honors custom base URLs', async () => {
     const controller = new AbortController()
     const fetchMock = mockFetch(searchResponse())
@@ -214,6 +241,9 @@ describe('ParallelSearchClient', () => {
     )
 
     expect(fetchCall(fetchMock).url).toBe('https://proxy.example.com/v1/search')
-    expect(fetchCall(fetchMock).init.signal).toBe(controller.signal)
+    const forwardedSignal = fetchCall(fetchMock).init.signal
+    expect(forwardedSignal).toBeInstanceOf(AbortSignal)
+    controller.abort()
+    expect(forwardedSignal?.aborted).toBe(true)
   })
 })
