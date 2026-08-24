@@ -1807,8 +1807,8 @@ importers:
         specifier: ^0.5.1
         version: 0.5.1(csstype@3.2.3)(solid-js@1.9.10)
       '@tanstack/devtools-utils':
-        specifier: ^0.4.0
-        version: 0.4.0(@types/react@19.2.7)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@7.0.2))
+        specifier: ^0.7.0
+        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
       goober:
         specifier: ^2.1.18
         version: 2.1.18(csstype@3.2.3)
@@ -2805,8 +2805,8 @@ importers:
         specifier: workspace:^
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
-        specifier: ^0.4.0
-        version: 0.4.0(@types/react@19.2.7)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@7.0.2))
+        specifier: ^0.7.0
+        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
       preact:
         specifier: ^10.0.0
         version: 10.28.1
@@ -2824,8 +2824,8 @@ importers:
         specifier: workspace:^
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
-        specifier: ^0.4.0
-        version: 0.4.0(@types/react@19.2.7)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@7.0.2))
+        specifier: ^0.7.0
+        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.7)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
     devDependencies:
       '@types/react':
         specifier: ^19.2.7
@@ -2846,8 +2846,8 @@ importers:
         specifier: workspace:^
         version: link:../ai-devtools
       '@tanstack/devtools-utils':
-        specifier: ^0.4.0
-        version: 0.4.0(@types/react@19.2.7)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@7.0.2))
+        specifier: ^0.7.0
+        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
     devDependencies:
       '@vitest/coverage-v8':
         specifier: 4.1.10
@@ -2861,6 +2861,25 @@ importers:
       vite-plugin-solid:
         specifier: ^2.11.14
         version: 2.11.14(solid-js@1.9.10)(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))
+
+  packages/svelte-ai-devtools:
+    dependencies:
+      '@tanstack/ai-devtools-core':
+        specifier: workspace:^
+        version: link:../ai-devtools
+      '@tanstack/devtools-utils':
+        specifier: ^0.7.0
+        version: 0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))
+    devDependencies:
+      '@vitest/coverage-v8':
+        specifier: 4.1.10
+        version: 4.1.10(vitest@4.1.10)
+      svelte:
+        specifier: ^5.56.9
+        version: 5.56.9(@typescript-eslint/types@8.59.4)
+      vite:
+        specifier: ^8.2.1
+        version: 8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0)
 
   testing/e2e:
     dependencies:
@@ -8907,17 +8926,21 @@ packages:
     peerDependencies:
       solid-js: '>=1.9.7'
 
-  '@tanstack/devtools-utils@0.4.0':
-    resolution: {integrity: sha512-KsGzYhA8L/fCNgyyMyoUy+TKtx+DjNbzWwqH6wXL48Llzo7kvV9RynYJlaO8Qkzwm+NdHXSgsljQNjQ3CKPpZA==}
+  '@tanstack/devtools-utils@0.7.0':
+    resolution: {integrity: sha512-D9oosgtwvOe5nHQuhCqO/pxZz923REExp2kTc2YaJQ5+0QjTU3xRU+KkwRbFmlJwEXRcJCeAGF5j9Y72TZQ/xQ==}
     engines: {node: '>=18'}
     hasBin: true
     peerDependencies:
+      '@angular/core': '>=19.0.0'
       '@types/react': '>=17.0.0'
       preact: '>=10.0.0'
       react: '>=17.0.0'
       solid-js: '>=1.9.7'
+      svelte: '>=5.0.0'
       vue: '>=3.2.0'
     peerDependenciesMeta:
+      '@angular/core':
+        optional: true
       '@types/react':
         optional: true
       preact:
@@ -8925,6 +8948,8 @@ packages:
       react:
         optional: true
       solid-js:
+        optional: true
+      svelte:
         optional: true
       vue:
         optional: true
@@ -23189,20 +23214,34 @@ snapshots:
     transitivePeerDependencies:
       - csstype
 
-  '@tanstack/devtools-utils@0.4.0(@types/react@19.2.7)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@7.0.2))':
+  '@tanstack/devtools-utils@0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@10.28.1)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))':
     optionalDependencies:
-      '@types/react': 19.2.7
+      '@angular/core': 21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1)
+      '@types/react': 19.2.18
       preact: 10.28.1
       react: 19.2.3
       solid-js: 1.9.10
+      svelte: 5.56.9(@typescript-eslint/types@8.59.4)
       vue: 3.5.25(typescript@7.0.2)
 
-  '@tanstack/devtools-utils@0.4.0(@types/react@19.2.7)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(vue@3.5.25(typescript@7.0.2))':
+  '@tanstack/devtools-utils@0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.18)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))':
     optionalDependencies:
+      '@angular/core': 21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1)
+      '@types/react': 19.2.18
+      preact: 10.28.2
+      react: 19.2.3
+      solid-js: 1.9.10
+      svelte: 5.56.9(@typescript-eslint/types@8.59.4)
+      vue: 3.5.25(typescript@7.0.2)
+
+  '@tanstack/devtools-utils@0.7.0(@angular/core@21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1))(@types/react@19.2.7)(preact@10.28.2)(react@19.2.3)(solid-js@1.9.10)(svelte@5.56.9(@typescript-eslint/types@8.59.4))(vue@3.5.25(typescript@7.0.2))':
+    optionalDependencies:
+      '@angular/core': 21.2.20(@angular/compiler@21.2.20)(rxjs@7.8.2)(zone.js@0.15.1)
       '@types/react': 19.2.7
       preact: 10.28.2
       react: 19.2.3
       solid-js: 1.9.10
+      svelte: 5.56.9(@typescript-eslint/types@8.59.4)
       vue: 3.5.25(typescript@7.0.2)
 
   '@tanstack/devtools-vite@0.5.3(vite@8.2.1(@types/node@24.10.3)(esbuild@0.28.1)(jiti@2.7.0)(less@4.6.6)(sass@1.101.0)(terser@5.44.1)(tsx@4.23.12)(yaml@2.9.0))':

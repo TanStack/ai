@@ -9652,12 +9652,12 @@
     "owned_by": "nvidia",
     "name": "Nemotron 3.5 Lightning 30B",
     "description": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 is a large language model (LLM) trained by NVIDIA.\n\nThe model employs a hybrid Mixture-of-Experts architecture, utilizing interleaved Mamba-2 and MoE layers, along with select Attention layers. The Lightning 3.5 model is released alongside a number of speculative decoding methods for faster text generation. The model has 3B active parameters and 30B parameters in total.",
-    "context_window": 262144,
-    "max_tokens": 131072,
+    "context_window": 1000000,
+    "max_tokens": 32768,
     "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["reasoning", "tool-use", "implicit-caching"],
+    "zdr": "some",
+    "no_training": "some",
+    "tags": ["reasoning", "tool-use", "implicit-caching", "free"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9674,10 +9674,43 @@
     ],
     "temperature": true,
     "pricing": {
-      "input": "0.00000005",
-      "output": "0.0000002",
-      "input_cache_read": "0.00000001",
+      "input": "0",
+      "output": "0",
       "varies_by_provider": true
+    }
+  },
+  {
+    "id": "nvidia/nemotron-3.5-lightning-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1786406400,
+    "owned_by": "nvidia",
+    "name": "Nemotron 3.5 Lightning 30B (Free)",
+    "description": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 is a large language model (LLM) trained by NVIDIA.\n\nThe model employs a hybrid Mixture-of-Experts architecture, utilizing interleaved Mamba-2 and MoE layers, along with select Attention layers. The Lightning 3.5 model is released alongside a number of speculative decoding methods for faster text generation. The model has 3B active parameters and 30B parameters in total.",
+    "context_window": 1000000,
+    "max_tokens": 32768,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "implicit-caching", "free"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0",
+      "output": "0"
     }
   },
   {
@@ -12330,7 +12363,6 @@
           }
         }
       },
-      "varies_by_provider": true,
       "fast": {
         "input": "0.0000004",
         "input_tiers": [
@@ -13179,7 +13211,6 @@
           }
         }
       },
-      "varies_by_provider": true,
       "fast": {
         "input": "0.000004",
         "input_tiers": [
@@ -16542,8 +16573,8 @@
     "context_window": 1000000,
     "max_tokens": 1000000,
     "type": "language",
-    "zdr": "all",
-    "no_training": "all",
+    "zdr": "some",
+    "no_training": "some",
     "tags": [
       "reasoning",
       "tool-use",
