@@ -3361,6 +3361,102 @@ describe('ChatClient', () => {
       expect(capturedData?.['maxTokens']).toBe(100) // From per-message body
     })
 
+    it('should merge sendOptions.body into the request (hook-style per-call body)', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, unknown> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        body: { model: 'gpt-5.5', temperature: 0.7 },
+      })
+
+      // Framework hooks call sendMessage(content, undefined, sendOptions),
+      // so `sendOptions.body` is their only per-call body channel.
+      await client.sendMessage('Hello', undefined, {
+        body: { model: 'gpt-6', maxTokens: 100 },
+      })
+
+      expect(capturedData?.['model']).toBe('gpt-6')
+      expect(capturedData?.['temperature']).toBe(0.7)
+      expect(capturedData?.['maxTokens']).toBe(100)
+    })
+
+    it('positional body wins over sendOptions.body', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, unknown> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage(
+        'Hello',
+        { tag: 'positional' },
+        { body: { tag: 'options', extra: true } },
+      )
+
+      // The positional arg replaces (does not merge with) sendOptions.body.
+      expect(capturedData?.['tag']).toBe('positional')
+      expect(capturedData?.['extra']).toBeUndefined()
+    })
+
+    it('does not leak sendOptions.whenBusy onto the wire next to body', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, unknown> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const client = new ChatClient({ connection: adapter })
+
+      await client.sendMessage('Hello', undefined, {
+        whenBusy: 'queue',
+        body: { attachmentIds: ['a1'] },
+      })
+
+      expect(capturedData?.['attachmentIds']).toEqual(['a1'])
+      expect(capturedData?.['whenBusy']).toBeUndefined()
+    })
+
+    it('reload does not replay a previous per-call body', async () => {
+      const captures: Array<Record<string, unknown> | undefined> = []
+      const adapter = createMockConnectionAdapter({
+        chunks: createTextChunks('Response'),
+        onConnect: (_messages, data) => {
+          captures.push(data)
+        },
+      })
+
+      const client = new ChatClient({
+        connection: adapter,
+        body: { provider: 'openai' },
+      })
+
+      await client.sendMessage('Hello', undefined, {
+        body: { tag: 'once' },
+      })
+      await client.reload()
+
+      expect(captures).toHaveLength(2)
+      expect(captures[0]?.['tag']).toBe('once')
+      expect(captures[0]?.['provider']).toBe('openai')
+      expect(captures[1]?.['tag']).toBeUndefined()
+      expect(captures[1]?.['provider']).toBe('openai')
+    })
+
     it('should accept forwardedProps option and merge into request body', async () => {
       const chunks = createTextChunks('Response')
       let capturedData: Record<string, any> | undefined

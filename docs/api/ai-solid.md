@@ -98,7 +98,10 @@ import type { ModelMessage } from "@tanstack/ai/client";
 
 interface UseChatReturn {
   messages: Accessor<UIMessage[]>;
-  sendMessage: (content: string) => Promise<void>;
+  sendMessage: (
+    content: string,
+    options?: { whenBusy?: "queue" | "drop" | "interrupt"; body?: Record<string, unknown> },
+  ) => Promise<void>;
   append: (message: ModelMessage | UIMessage) => Promise<void>;
   addToolResult: (result: {
     toolCallId: string;

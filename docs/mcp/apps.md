@@ -299,7 +299,7 @@ export function Chat() {
   const bridge = useMcpAppBridge({
     threadId,
     callEndpoint: '/api/mcp-apps/call',
-    chat: { sendMessage: async (content) => void sendMessage({ content }) },
+    chat: { sendMessage: (content, body) => sendMessage(content, { body }) },
     // Opt in to link navigation — absent means links are blocked.
     onLink: (url) => window.open(url, '_blank', 'noopener'),
   })
@@ -446,7 +446,7 @@ function useBridge(threadId: string) {
   return useMcpAppBridge({
     threadId,
     callEndpoint: '/api/mcp-apps/call',
-    chat: { sendMessage: async (content) => void sendMessage({ content }) },
+    chat: { sendMessage: (content, body) => sendMessage(content, { body }) },
     onLink: (url) => window.open(url, '_blank', 'noopener'),
   })
 }

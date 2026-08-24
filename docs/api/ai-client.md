@@ -114,11 +114,15 @@ goes away. Users of the framework hooks need no change.
 
 ### Methods
 
-#### `sendMessage(content: string | MultimodalContent)`
+#### `sendMessage(content: string | MultimodalContent, body?, sendOptions?)`
 
 Sends a user message and starts the run.
 
 `MultimodalContent` is `{ content, id?, metadata? }`. The string form has no metadata. Pass the object form to stamp `metadata` on the user `UIMessage`. TanStack writes the `tanstack` key. Your keys stay at the top of the bag.
+
+The second argument is extra JSON merged into this request's `forwardedProps`. The third argument is `SendMessageOptions`: `{ whenBusy }` overrides the queue policy for this send, and `{ body }` is the same extra JSON as the second argument. If both the second argument and `sendOptions.body` are set, the second argument wins.
+
+Framework hooks expose `sendMessage(content, sendOptions)` with no positional body. Pass `{ body }` there.
 
 ```typescript
 import { client } from "./client";
@@ -128,6 +132,11 @@ await client.sendMessage("Hello!");
 await client.sendMessage({
   content: "Show me failed logins",
   metadata: { author: { id: "user-42", name: "Dana" } },
+});
+
+await client.sendMessage("Summarize the attached files", undefined, {
+  body: { attachmentIds: ["att_1", "att_2"] },
+  whenBusy: "interrupt",
 });
 ```
 
@@ -323,8 +332,8 @@ XHR adapters accept:
 - `xhrFactory?: () => XMLHttpRequest`
 
 `body` is merged into the AG-UI `forwardedProps` payload. Values from
-`forwardedProps` on the client and per-message `sendMessage(..., data)` calls
-override static adapter `body` values.
+`forwardedProps` on the client and per-message `sendMessage` `body` (positional
+or `sendOptions.body`) override static adapter `body` values.
 
 ### Stream errors
 

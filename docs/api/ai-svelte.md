@@ -97,7 +97,10 @@ import type { ModelMessage } from "@tanstack/ai";
 
 interface CreateChatReturn<TContext = unknown> {
   readonly messages: UIMessage[];
-  sendMessage: (content: string | MultimodalContent) => Promise<void>;
+  sendMessage: (
+    content: string | MultimodalContent,
+    options?: { whenBusy?: "queue" | "drop" | "interrupt"; body?: Record<string, unknown> },
+  ) => Promise<void>;
   append: (message: ModelMessage | UIMessage) => Promise<void>;
   addToolResult: (result: {
     toolCallId: string;

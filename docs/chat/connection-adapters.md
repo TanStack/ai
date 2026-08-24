@@ -67,7 +67,7 @@ const { messages } = useChat({
 });
 ```
 
-**Static body.** Anything in `options.body` is merged into the AG-UI `forwardedProps` payload sent to your server. Per-message data passed to `sendMessage` wins over this:
+**Static body.** Anything in `options.body` is merged into the AG-UI `forwardedProps` payload sent to your server. Per-message `sendMessage` `body` wins over this:
 
 ```typescript
 import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
@@ -79,7 +79,56 @@ const { messages } = useChat({
 });
 ```
 
-> **Tip:** `body` and `forwardedProps` populate the same wire field. Use `body` for static defaults, the `forwardedProps` constructor option (or per-`sendMessage` `data`) for dynamic values. Runtime values always win.
+> **Tip:** `body` and `forwardedProps` populate the same wire field. Use adapter `body` for static defaults. Use the `forwardedProps` constructor option, or `sendMessage(content, { body })`, for values that change. Runtime values always win.
+
+**Per-call body.** Pass extra JSON for one send in `sendMessage`'s second argument. It is shallow-merged into `forwardedProps` with the highest priority, for that request only.
+
+```typescript
+import { useChat, fetchServerSentEvents } from "@tanstack/ai-react";
+
+const { sendMessage } = useChat({
+  connection: fetchServerSentEvents("/api/chat"),
+  forwardedProps: { provider: "openai" },
+});
+
+await sendMessage("Summarize the attached files", {
+  body: { attachmentIds: ["att_1", "att_2"] },
+});
+```
+
+Your server reads the merged object from `chatParamsFromRequest`. If the model must not see those keys, do not copy them into `messages`.
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages, forwardedProps } = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+  });
+  if (
+    forwardedProps &&
+    typeof forwardedProps === "object" &&
+    "attachmentIds" in forwardedProps
+  ) {
+    const { attachmentIds } = forwardedProps
+    if (Array.isArray(attachmentIds) && attachmentIds.length > 0) {
+      // Look up the uploads. Do not add them to `messages`.
+    }
+  }
+  return toServerSentEventsResponse(stream);
+}
+```
+
+On `ChatClient` directly, the positional second argument is the same extra JSON. If you pass both that argument and `sendOptions.body`, the positional argument wins.
+
+`reload()` starts a new request. It uses chat-level `forwardedProps` / `body` only. It does not replay the previous send's per-call `body`.
 
 ### Resumable SSE
 

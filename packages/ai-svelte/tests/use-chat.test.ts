@@ -197,6 +197,30 @@ describe('createChat', () => {
     expect(typeof chat.sendMessage).toBe('function')
   })
 
+  it('should merge sendMessage options.body into the request', async () => {
+    let capturedData: Record<string, unknown> | undefined
+    const mockConnection = createMockConnectionAdapter({
+      chunks: createTextChunks('Response'),
+      onConnect: (_messages, data) => {
+        capturedData = data
+      },
+    })
+
+    const chat = createChat({
+      connection: mockConnection,
+      body: { provider: 'openai' },
+    })
+
+    await chat.sendMessage('Test', {
+      whenBusy: 'queue',
+      body: { attachmentIds: ['a1', 'a2'] },
+    })
+
+    expect(capturedData?.['provider']).toBe('openai')
+    expect(capturedData?.['attachmentIds']).toEqual(['a1', 'a2'])
+    expect(capturedData?.['whenBusy']).toBeUndefined()
+  })
+
   it('should have stop method', () => {
     const mockConnection = createMockConnectionAdapter({ chunks: [] })
 
