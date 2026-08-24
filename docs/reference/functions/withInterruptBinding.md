@@ -9,7 +9,7 @@ title: withInterruptBinding
 function withInterruptBinding(descriptor, binding): Interrupt;
 ```
 
-Defined in: [packages/ai/src/interrupt-resume.ts:902](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L902)
+Defined in: [packages/ai/src/interrupt-resume.ts:903](https://github.com/TanStack/ai/blob/main/packages/ai/src/interrupt-resume.ts#L903)
 
 Attach a resume binding to an interrupt descriptor, under
 [INTERRUPT\_BINDING\_METADATA\_KEY](../variables/INTERRUPT_BINDING_METADATA_KEY.md).
