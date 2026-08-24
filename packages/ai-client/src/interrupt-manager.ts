@@ -102,6 +102,10 @@ interface TransactionToken {
   active: boolean
 }
 
+interface SubmissionOperation {
+  submission: InterruptManagerSubmission
+}
+
 interface RuntimeInterruptCheckpoint {
   status: InterruptItemStatus
   resolution?: RunAgentResumeItem
@@ -511,7 +515,7 @@ export class InterruptManager<
     resuming: false,
   })
   private activeTransaction: TransactionToken | undefined
-  private activeSubmission: InterruptManagerSubmission | undefined
+  private activeSubmissionOperation: SubmissionOperation | undefined
   private retrySubmission: InterruptManagerSubmission | undefined
   private resuming = false
   private tools: TTools | undefined
@@ -545,6 +549,7 @@ export class InterruptManager<
     hydration: InterruptManagerHydration,
     source: InterruptManagerChangeSource = 'live',
   ): void {
+    this.activeSubmissionOperation = undefined
     this.hydration = {
       threadId: hydration.threadId,
       interruptedRunId: hydration.interruptedRunId,
@@ -598,7 +603,7 @@ export class InterruptManager<
     preserveRootErrors?: boolean
     source?: InterruptManagerChangeSource
   }): void {
-    this.activeSubmission = undefined
+    this.activeSubmissionOperation = undefined
     this.hydration = undefined
     this.items = []
     this.snapshot = Object.freeze([])
@@ -1530,30 +1535,29 @@ export class InterruptManager<
   }
 
   private submitBatch(submission: InterruptManagerSubmission): void {
-    this.activeSubmission = submission
+    // Track ownership so a superseded submission cannot mutate current state.
+    const operation = { submission }
+    this.activeSubmissionOperation = operation
     this.resuming = true
     this.retrySubmission = undefined
     for (const item of this.items) {
       if (isClientOwnedInterrupt(item)) item.status = 'submitting'
     }
     this.publish()
-    void this.performSubmission(submission)
+    void this.performSubmission(operation)
   }
 
   private async performSubmission(
-    submission: InterruptManagerSubmission,
+    operation: SubmissionOperation,
   ): Promise<void> {
-    // `reset()` may invalidate this submission while it is settling. Only the
-    // submission that still owns the manager may publish its result.
     try {
-      await this.options.submit(submission)
+      await this.options.submit(operation.submission)
     } catch (error) {
-      if (this.activeSubmission === submission) {
-        this.handleSubmissionFailure(error, submission)
-      }
+      if (this.activeSubmissionOperation !== operation) return
+      this.handleSubmissionFailure(error, operation.submission)
     } finally {
-      if (this.activeSubmission === submission) {
-        this.activeSubmission = undefined
+      if (this.activeSubmissionOperation === operation) {
+        this.activeSubmissionOperation = undefined
         this.resuming = false
         this.publish()
       }

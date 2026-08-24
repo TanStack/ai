@@ -1,5 +1,11 @@
 # @tanstack/ai
 
+## 0.49.1
+
+### Patch Changes
+
+- [#1217](https://github.com/TanStack/ai/pull/1217) [`67ce4e5`](https://github.com/TanStack/ai/commit/67ce4e529c42e64d4591f996c7e3e32458d5dd7c) - Allow cancelling a tool interrupt when its runtime tool is unavailable or its schema has changed
+
 ## 0.49.0
 
 ### Minor Changes

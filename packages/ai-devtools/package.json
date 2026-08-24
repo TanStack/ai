@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-devtools-core",
-  "version": "0.5.7",
+  "version": "0.5.8",
   "description": "Core TanStack AI Devtools plugin for inspecting chat messages, tool calls, streams, and errors.",
   "author": "Tanner Linsley",
   "license": "MIT",
@@ -93,7 +93,7 @@
     "@tanstack/ai": "workspace:^",
     "@tanstack/ai-event-client": "workspace:^",
     "@tanstack/devtools-ui": "^0.5.1",
-    "@tanstack/devtools-utils": "^0.4.0",
+    "@tanstack/devtools-utils": "^0.7.0",
     "goober": "^2.1.18",
     "solid-js": "^1.9.10"
   },

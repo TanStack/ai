@@ -3,6 +3,7 @@ import type {
   CreateMcpAppBridgeOptions,
   McpAppBridge,
 } from '@tanstack/ai-client'
+
 export type UseMcpAppBridgeOptions = CreateMcpAppBridgeOptions
 /**
  * Octane wrapper around `createMcpAppBridge` that returns a **stable** bridge for
@@ -16,7 +17,7 @@ export type UseMcpAppBridgeOptions = CreateMcpAppBridgeOptions
  * const bridge = useMcpAppBridge({
  *   threadId,
  *   callEndpoint: '/api/mcp-apps-call',
- *   chat: { sendMessage: async (content) => void sendMessage(content) },
+ *   chat: { sendMessage: (content, body) => sendMessage(content, { body }) },
  *   onLink: (url) => window.open(url, '_blank', 'noopener,noreferrer'),
  * })
  * // pass `bridge` to <MCPAppResource bridge={bridge} … />

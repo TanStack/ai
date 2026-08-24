@@ -99,7 +99,7 @@ goes away. Users of the framework hooks need no change.
 - `forwardedProps?` - Arbitrary client-controlled JSON forwarded to the server in the AG-UI `RunAgentInput.forwardedProps` field
 - `body?` - **Deprecated.** Use `forwardedProps` instead. Still works — values are merged into `forwardedProps` on the wire and mirrored under the legacy `data` field for backward compatibility
 - `byok?` - Optional BYOK keyring from [`defineByok`](#definebyok). On each send the client prepares the resolved provider and stamps `x-byok-*` request headers. Keys never go in the body
-- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise `forwardedProps.provider` then `body.provider` are used. If no slug resolves, the send throws instead of attaching every stored key
+- `byokProvider?` - Optional function that returns the provider slug for this chat. If it returns a slug, only that key is prepared and sent. Otherwise the merged `provider` from `forwardedProps`, `body`, and per-call `sendMessage` `body` is used. Later sources win. If no slug resolves, the send throws instead of attaching every stored key
 - `context?` - Typed client-local runtime context passed to client tool implementations. This value is not serialized to the server
 - `tools?` - Registered `.client()` tool implementations. The client automatically executes matching tools when the model calls them
 - `onResponse?` - Callback when response is received
@@ -114,11 +114,17 @@ goes away. Users of the framework hooks need no change.
 
 ### Methods
 
-#### `sendMessage(content: string | MultimodalContent)`
+#### `sendMessage(content: string | MultimodalContent, body?, sendOptions?)`
 
 Sends a user message and starts the run.
 
 `MultimodalContent` is `{ content, id?, metadata? }`. The string form has no metadata. Pass the object form to stamp `metadata` on the user `UIMessage`. TanStack writes the `tanstack` key. Your keys stay at the top of the bag.
+
+The second argument is extra JSON merged into this request's `forwardedProps`. The third argument is `SendMessageOptions`. `{ whenBusy }` overrides the queue policy for this send. `{ body }` is extra JSON too.
+
+Chat-level `body`, the positional argument, and `sendOptions.body` shallow-merge. `sendOptions.body` wins on key collisions.
+
+Framework hooks expose `sendMessage(content, sendOptions)` with no positional body. Pass `{ body }` there. It merges with the hook's `body` the same way.
 
 ```typescript
 import { client } from "./client";
@@ -129,6 +135,41 @@ await client.sendMessage({
   content: "Show me failed logins",
   metadata: { author: { id: "user-42", name: "Dana" } },
 });
+
+await client.sendMessage("Summarize the attached files", undefined, {
+  body: { attachmentIds: ["att_1", "att_2"] },
+  whenBusy: "interrupt",
+});
+```
+
+Your server reads the merged JSON from `chatParamsFromRequest`:
+
+```typescript
+import {
+  chat,
+  chatParamsFromRequest,
+  toServerSentEventsResponse,
+} from "@tanstack/ai";
+import { openaiText } from "@tanstack/ai-openai";
+
+export async function POST(request: Request) {
+  const { messages, forwardedProps } = await chatParamsFromRequest(request);
+  const stream = chat({
+    adapter: openaiText("gpt-5.5"),
+    messages,
+  });
+  if (
+    forwardedProps &&
+    typeof forwardedProps === "object" &&
+    "attachmentIds" in forwardedProps
+  ) {
+    const { attachmentIds } = forwardedProps;
+    if (Array.isArray(attachmentIds) && attachmentIds.length > 0) {
+      // Look up the uploads. Do not add them to `messages`.
+    }
+  }
+  return toServerSentEventsResponse(stream);
+}
 ```
 
 #### `append(message: ModelMessage | UIMessage)`
@@ -327,8 +368,8 @@ XHR adapters accept:
 - `xhrFactory?: () => XMLHttpRequest`
 
 `body` is merged into the AG-UI `forwardedProps` payload. Values from
-`forwardedProps` on the client and per-message `sendMessage(..., data)` calls
-override static adapter `body` values.
+`forwardedProps` on the client and per-message `sendMessage` `body` (positional
+or `sendOptions.body`) override static adapter `body` values.
 
 ### Stream errors
 

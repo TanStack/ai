@@ -472,9 +472,16 @@ function ChatFeature({
               content: text,
               metadata: { author: { id: 'user-42', name: 'Dana' } },
             })
-          } else {
-            sendMessage(text)
+            return
           }
+          // Exercises SendMessageOptions.body: the marker must reach the
+          // wire under forwardedProps, merged with the chat-level body
+          // keys. Asserted by per-call-body.spec.ts.
+          if (text.startsWith('[per-call-body]')) {
+            sendMessage(text, { body: { perCallBodyMarker: testId } })
+            return
+          }
+          sendMessage(text)
         }}
         onSendMessageWithImage={
           showImageInput
