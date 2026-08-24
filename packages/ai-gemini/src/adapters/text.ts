@@ -497,68 +497,9 @@ export class GeminiTextAdapter<
       if (chunk.candidates?.[0]?.finishReason) {
         const finishReason = chunk.candidates[0].finishReason
 
-        if (finishReason === FinishReason.UNEXPECTED_TOOL_CALL) {
-          if (chunk.candidates[0].content?.parts) {
-            for (const part of chunk.candidates[0].content.parts) {
-              const functionCall = part.functionCall
-              if (functionCall) {
-                const toolCallId =
-                  functionCall.id ||
-                  `${functionCall.name}_${Date.now()}_${nextToolIndex}`
-                const functionArgs = functionCall.args || {}
-
-                const argsString =
-                  typeof functionArgs === 'string'
-                    ? functionArgs
-                    : JSON.stringify(functionArgs)
-
-                toolCallMap.set(toolCallId, {
-                  name: functionCall.name || '',
-                  args: argsString,
-                  index: nextToolIndex++,
-                  started: true,
-                })
-
-                // Emit TOOL_CALL_START
-                yield {
-                  type: EventType.TOOL_CALL_START,
-                  toolCallId,
-                  toolCallName: functionCall.name || '',
-                  toolName: functionCall.name || '',
-                  parentMessageId: messageId,
-                  model,
-                  timestamp: Date.now(),
-                  index: nextToolIndex - 1,
-                }
-
-                // Emit TOOL_CALL_END with parsed input
-                let parsedInput: unknown = {}
-                try {
-                  const parsed =
-                    typeof functionArgs === 'string'
-                      ? JSON.parse(functionArgs)
-                      : functionArgs
-                  parsedInput =
-                    parsed && typeof parsed === 'object' ? parsed : {}
-                } catch {
-                  parsedInput = {}
-                }
-
-                yield {
-                  type: EventType.TOOL_CALL_END,
-                  toolCallId,
-                  toolCallName: functionCall.name || '',
-                  toolName: functionCall.name || '',
-                  model,
-                  timestamp: Date.now(),
-                  input: parsedInput,
-                }
-              }
-            }
-          }
-        }
-
-        // Emit TOOL_CALL_END for all tracked tool calls
+        // Emit TOOL_CALL_END for all tracked tool calls. functionCall parts on
+        // this chunk (including UNEXPECTED_TOOL_CALL finishes) were already
+        // registered and started by the per-part loop above.
         for (const [toolCallId, toolCallData] of toolCallMap.entries()) {
           let parsedInput: unknown = {}
           try {

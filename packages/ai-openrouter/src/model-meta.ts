@@ -156,11 +156,11 @@ const _DEEPSEEK_DEEPSEEK_V4_FLASH_LATEST = {
   pricing: {
     text: {
       input: {
-        normal: 0.065,
-        cached: 0.02,
+        normal: 0.035,
+        cached: 0.01,
       },
       output: {
-        normal: 0.18,
+        normal: 0.13,
       },
     },
     image: 0,
@@ -2407,11 +2407,11 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH = {
   pricing: {
     text: {
       input: {
-        normal: 0.07266,
-        cached: 0.014532,
+        normal: 0.0574,
+        cached: 0.01148,
       },
       output: {
-        normal: 0.14532,
+        normal: 0.1148,
       },
     },
     image: 0,
@@ -2441,15 +2441,15 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_0731 = {
     ],
   },
   context_window: 1310720,
-  max_output_tokens: 384000,
+  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
-        normal: 0.08,
-        cached: 0.016,
+        normal: 0.14,
+        cached: 0.028,
       },
       output: {
-        normal: 0.18,
+        normal: 0.28,
       },
     },
     image: 0,
@@ -2480,11 +2480,11 @@ const DEEPSEEK_DEEPSEEK_V4_FLASH_VISION_EXP = {
   pricing: {
     text: {
       input: {
-        normal: 0.44,
-        cached: 0.014,
+        normal: 0.22,
+        cached: 0.007,
       },
       output: {
-        normal: 1.32,
+        normal: 0.66,
       },
     },
     image: 0,
@@ -2518,11 +2518,11 @@ const DEEPSEEK_DEEPSEEK_V4_PRO = {
   pricing: {
     text: {
       input: {
-        normal: 0.46458,
-        cached: 0.038715,
+        normal: 0.526176,
+        cached: 0.043848,
       },
       output: {
-        normal: 0.92916,
+        normal: 1.052352,
       },
     },
     image: 0,
@@ -2554,11 +2554,11 @@ const DEEPSEEK_DEEPSEEK_V4_PRO_0813 = {
   pricing: {
     text: {
       input: {
-        normal: 1.188,
-        cached: 0.0396,
+        normal: 1.122,
+        cached: 0.0374,
       },
       output: {
-        normal: 3.564,
+        normal: 3.366,
       },
     },
     image: 0,
@@ -4681,15 +4681,14 @@ const META_MUSE_GLIMMER_30B = {
     ],
   },
   context_window: 131072,
-  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
-        normal: 0.3,
+        normal: 0.35,
         cached: 0.04,
       },
       output: {
-        normal: 1.1,
+        normal: 1.5,
       },
     },
     image: 0,
@@ -5056,15 +5055,14 @@ const MINIMAX_MINIMAX_M2_7 = {
     ],
   },
   context_window: 204800,
-  max_output_tokens: 131072,
   pricing: {
     text: {
       input: {
-        normal: 0.3,
-        cached: 0.06,
+        normal: 0.24,
+        cached: 0.048,
       },
       output: {
-        normal: 1.2,
+        normal: 0.96,
       },
     },
     image: 0,
@@ -5922,15 +5920,14 @@ const MOONSHOTAI_KIMI_K2_6 = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.5415,
-        cached: 0.0912,
+        normal: 0.95,
+        cached: 0.16,
       },
       output: {
-        normal: 2.28,
+        normal: 4,
       },
     },
     image: 0,
@@ -6030,6 +6027,7 @@ const MOONSHOTAI_KIMI_K3 = {
     ],
   },
   context_window: 1048576,
+  max_output_tokens: 1048576,
   pricing: {
     text: {
       input: {
@@ -9047,8 +9045,8 @@ const OPENAI_GPT_OSS_120B = {
   pricing: {
     text: {
       input: {
-        normal: 0.03,
-        cached: 0.03,
+        normal: 0.037,
+        cached: 0,
       },
       output: {
         normal: 0.17,
@@ -10250,15 +10248,15 @@ const QWEN_QWEN3_30B_A3B = {
     ],
   },
   context_window: 131072,
-  max_output_tokens: 8192,
+  max_output_tokens: 16384,
   pricing: {
     text: {
       input: {
-        normal: 0.13,
+        normal: 0.12,
         cached: 0,
       },
       output: {
-        normal: 0.52,
+        normal: 0.5,
       },
     },
     image: 0,
@@ -11000,7 +10998,7 @@ const QWEN_QWEN3_5_122B_A10B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 65536,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
@@ -11111,15 +11109,15 @@ const QWEN_QWEN3_5_397B_A17B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 65536,
+  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.39,
-        cached: 0,
+        normal: 0.5,
+        cached: 0.3,
       },
       output: {
-        normal: 2.34,
+        normal: 3.6,
       },
     },
     image: 0,
@@ -11291,15 +11289,15 @@ const QWEN_QWEN3_6_27B = {
     ],
   },
   context_window: 262144,
-  max_output_tokens: 262144,
+  max_output_tokens: 81920,
   pricing: {
     text: {
       input: {
-        normal: 0.6,
-        cached: 0.12,
+        normal: 0.32,
+        cached: 0,
       },
       output: {
-        normal: 3.6,
+        normal: 3.2,
       },
     },
     image: 0,
@@ -11620,11 +11618,11 @@ const QWEN_QWEN3_8_27B = {
   pricing: {
     text: {
       input: {
-        normal: 0.45,
+        normal: 0.4,
         cached: 0.05,
       },
       output: {
-        normal: 3.2,
+        normal: 3,
       },
     },
     image: 0,
@@ -12121,6 +12119,35 @@ const TENCENT_HY_MT2_30B_A3B = {
     image: 0,
   },
 } as const
+const TENCENT_HY_MT2_7B = {
+  id: 'tencent/hy-mt2-7b',
+  name: 'Tencent: Hy-MT2-7B',
+  supports: {
+    input: ['text'],
+    output: ['text'],
+    supports: [
+      'maxCompletionTokens',
+      'maxCompletionTokens',
+      'responseFormat',
+      'stop',
+      'temperature',
+    ],
+  },
+  context_window: 8192,
+  max_output_tokens: 4096,
+  pricing: {
+    text: {
+      input: {
+        normal: 0.074,
+        cached: 0,
+      },
+      output: {
+        normal: 0.295,
+      },
+    },
+    image: 0,
+  },
+} as const
 const TENCENT_HY3 = {
   id: 'tencent/hy3',
   name: 'Tencent: Hy3',
@@ -12313,7 +12340,7 @@ const THEDRUMMER_UNSLOPNEMO_12B = {
     ],
   },
   context_window: 1024000,
-  max_output_tokens: 1024000,
+  max_output_tokens: 32768,
   pricing: {
     text: {
       input: {
@@ -12348,12 +12375,11 @@ const THINKINGMACHINES_INKLING = {
     ],
   },
   context_window: 1048576,
-  max_output_tokens: 262144,
   pricing: {
     text: {
       input: {
-        normal: 0.95,
-        cached: 0.16,
+        normal: 1,
+        cached: 0.17,
       },
       output: {
         normal: 4.05,
@@ -12515,7 +12541,7 @@ const UNDI95_REMM_SLERP_L2_13B = {
     ],
   },
   context_window: 6144,
-  max_output_tokens: 6144,
+  max_output_tokens: 4096,
   pricing: {
     text: {
       input: {
@@ -18000,6 +18026,15 @@ export type OpenRouterModelOptionsByName = {
       | 'stop'
       | 'temperature'
     >
+  [TENCENT_HY_MT2_7B.id]: OpenRouterCommonOptions &
+    Pick<
+      OpenRouterBaseOptions,
+      | 'maxCompletionTokens'
+      | 'maxCompletionTokens'
+      | 'responseFormat'
+      | 'stop'
+      | 'temperature'
+    >
   [TENCENT_HY3.id]: OpenRouterCommonOptions &
     Pick<
       OpenRouterBaseOptions,
@@ -19017,6 +19052,7 @@ export type OpenRouterModelInputModalitiesByName = {
   [TENCENT_HUNYUAN_A13B_INSTRUCT.id]: ReadonlyArray<'text'>
   [TENCENT_HY_MT2_1_8B.id]: ReadonlyArray<'text'>
   [TENCENT_HY_MT2_30B_A3B.id]: ReadonlyArray<'text'>
+  [TENCENT_HY_MT2_7B.id]: ReadonlyArray<'text'>
   [TENCENT_HY3.id]: ReadonlyArray<'text'>
   [TENCENT_HY3_PREVIEW.id]: ReadonlyArray<'text'>
   [THEDRUMMER_CYDONIA_24B_V4_1.id]: ReadonlyArray<'text'>
@@ -19438,6 +19474,7 @@ export const OPENROUTER_CHAT_MODELS = [
   TENCENT_HUNYUAN_A13B_INSTRUCT.id,
   TENCENT_HY_MT2_1_8B.id,
   TENCENT_HY_MT2_30B_A3B.id,
+  TENCENT_HY_MT2_7B.id,
   TENCENT_HY3.id,
   TENCENT_HY3_PREVIEW.id,
   THEDRUMMER_CYDONIA_24B_V4_1.id,
@@ -20208,7 +20245,6 @@ export const OPENROUTER_COMBINED_TOOLS_AND_SCHEMA_MODELS: ReadonlySet<string> =
     STEPFUN_STEP_3_7_FLASH.id,
     TENCENT_HY3.id,
     THEDRUMMER_UNSLOPNEMO_12B.id,
-    THINKINGMACHINES_INKLING_SMALL.id,
     UPSTAGE_SOLAR_PRO_3.id,
     UPSTAGE_SOLAR_PRO4.id,
     X_AI_GROK_4_20.id,

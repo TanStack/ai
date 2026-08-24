@@ -23,13 +23,20 @@ Do not run it on a human-only `git push` in another terminal. Do not add a git h
 
 A later push must rewrite the GitHub text. Do not leave a stale description.
 
+A **fix** PR must pass `bugfix-pr` first. If those gates fail, stop. Do not run `gh pr create`. Do not run `gh pr edit`.
+
 ## Required skills for the title and body
 
 `simple-english` and `i-have-adhd` are prerequisites. They apply to the PR title and body, not to the rest of the session.
 
-Load both immediately before writing the title and body. Use the Skill tool if this harness has one. If it does not, Read each skill's SKILL.md. Do not write from memory of those skills.
+Load both immediately before writing the title and body. Use the Skill tool if this harness has one. If it does not, Read:
 
-If either skill is missing, stop. Do not post a weaker substitute.
+- `.claude/skills/simple-english/SKILL.md`
+- `.claude/skills/i-have-adhd/SKILL.md`
+
+Copies also live at `.agents/skills/` (Codex) and `.grok/skills/` (Grok). Keep those three files identical.
+
+If either file is missing, stop. Do not post a weaker substitute.
 
 When `i-have-adhd` is loaded from this skill, ignore its persistence section. Do not switch the rest of the session into ADHD mode.
 
@@ -68,7 +75,8 @@ A **feat** PR cannot be posted until the branch has at least one of:
 
 If none of those exist, stop. Do not run `gh pr create`. Do not run `gh pr edit`. Tell the user what is missing. Wait until they add one, then continue.
 
-A **fix** does not use this gate. A **chore / docs** PR does not use this gate.
+A **fix** does not use this gate. A **fix** uses `bugfix-pr`. Load it first.
+A **chore / docs** PR does not use this gate.
 </HARD-GATE>
 
 ### 4. Write the title
@@ -93,7 +101,32 @@ No preamble. No "This PR aims to". Start with the fact.
 
 Fill every section honestly. Leave a checkbox unchecked when the claim is false. Do not tick "I ran `pnpm test:pr`" if you did not run it.
 
-**Extra sections after the template, in this order.** Testing and Risk / rollback are always present. Linked issues and Public API change are omitted when they do not apply.
+**Extra sections after the template, in this order.** Testing and Risk / rollback are always present. For a **fix**, Root cause and Possible alternatives are also always present. Linked issues and Public API change are omitted when they do not apply.
+
+#### Root cause (fix only)
+
+Required for a **fix**. Copy from the `bugfix-pr` report. Do not paste
+the diff. Write:
+
+```markdown
+## Root cause
+
+**Issue.** What is broken, for whom, under which inputs.
+**Cause.** Why it happens in the code. Name the function or path.
+**Fix.** How this PR's change kills that cause.
+```
+
+#### Possible alternatives (fix only)
+
+Required for a **fix**. Copy from the `bugfix-pr` report. Write:
+
+```markdown
+## Possible alternatives
+
+- **<name>.** What it is. Why this PR did not take it.
+```
+
+If there is no other real way, write **None.** Do not omit the heading.
 
 #### Testing
 
@@ -161,4 +194,6 @@ Do not attach screenshots to the PR. Do not commit screenshot files for this ski
 | "I'll update the description later" after a push       | Rewrite now with `gh pr edit`.                      |
 | Waiting for the user to approve the text               | Post. This skill does not wait.                     |
 | Uploading or committing screenshots for the PR body    | Skip. Do not put images on the PR.                  |
-| Writing without loading simple-english and i-have-adhd | Load both. If missing, stop.                        |
+| Writing without loading simple-english and i-have-adhd | Load both from the repo copies. If missing, stop.   |
+| Posting a fix before `bugfix-pr` gates pass            | Stop. Load `bugfix-pr`. Do not create or edit.      |
+| A fix PR with no Root cause or Possible alternatives   | Copy both sections from the `bugfix-pr` report.     |

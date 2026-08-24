@@ -15,6 +15,7 @@ const providerFreeScenarios = new Set([
   'server-context',
   'client-context',
   'client-server-context',
+  'client-tool-input-error',
   'malformed-tool-arguments',
   'provider-rejected-tool-call',
   'invalid-client-tool-retry',
@@ -55,19 +56,30 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
               state: undefined,
               toolName: 'check_status',
             }
-          : {
-              arguments: '{}',
-              initialText: 'Reading runtime context.',
-              input: {},
-              name: 'runtime-context-test',
-              responseText: 'Runtime context was read.',
-              result: undefined,
-              state: undefined,
-              toolName:
-                scenario === 'client-context'
-                  ? 'read_client_context'
-                  : 'read_server_context',
-            }
+          : scenario === 'client-tool-input-error'
+            ? {
+                arguments: '{"message":42,"type":"info"}',
+                initialText: 'Showing a notification.',
+                input: { message: 42, type: 'info' },
+                name: 'client-tool-input-error-test',
+                responseText: 'Unexpected client continuation.',
+                result: undefined,
+                state: undefined,
+                toolName: 'show_notification',
+              }
+            : {
+                arguments: '{}',
+                initialText: 'Reading runtime context.',
+                input: {},
+                name: 'runtime-context-test',
+                responseText: 'Runtime context was read.',
+                result: undefined,
+                state: undefined,
+                toolName:
+                  scenario === 'client-context'
+                    ? 'read_client_context'
+                    : 'read_server_context',
+              }
   return {
     kind: 'text',
     name: config.name,
@@ -420,7 +432,9 @@ export const Route = createFileRoute('/api/tools-test')({
             runId: params.runId,
             ...(params.parentRunId ? { parentRunId: params.parentRunId } : {}),
             ...(params.resume ? { resume: params.resume } : {}),
-            agentLoopStrategy: maxIterations(20),
+            agentLoopStrategy: maxIterations(
+              scenario === 'client-tool-input-error' ? 1 : 20,
+            ),
             abortController,
           })
 

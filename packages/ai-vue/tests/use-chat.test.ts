@@ -341,6 +341,32 @@ describe('useChat', () => {
       }
     })
 
+    it('should merge sendMessage options.body into the request', async () => {
+      const chunks = createTextChunks('Response')
+      let capturedData: Record<string, unknown> | undefined
+      const adapter = createMockConnectionAdapter({
+        chunks,
+        onConnect: (_messages, data) => {
+          capturedData = data
+        },
+      })
+
+      const { result } = renderUseChat({
+        connection: adapter,
+        body: { provider: 'openai' },
+      })
+
+      await result.current.sendMessage('Test', {
+        whenBusy: 'queue',
+        body: { provider: 'anthropic', attachmentIds: ['a1', 'a2'] },
+      })
+      await flushPromises()
+
+      expect(capturedData?.['provider']).toBe('anthropic')
+      expect(capturedData?.['attachmentIds']).toEqual(['a1', 'a2'])
+      expect(capturedData?.['whenBusy']).toBeUndefined()
+    })
+
     it('should create assistant message from stream chunks', async () => {
       const chunks = createTextChunks('Hello, world!')
       const adapter = createMockConnectionAdapter({ chunks })
