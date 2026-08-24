@@ -1,6 +1,13 @@
 import { ChatClient } from '@tanstack/ai-client'
 import { createChatDevtoolsBridge } from '@tanstack/ai-client/devtools'
-import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
+import {
+  useCallback,
+  useEffect,
+  useId,
+  useMemo,
+  useRef,
+  useSyncExternalStore,
+} from 'react'
 import type {
   AnyClientTool,
   InferSchemaType,
@@ -11,13 +18,9 @@ import type {
   StreamChunk,
 } from '@tanstack/ai/client'
 import type {
-  ChatClientState,
   ResolvableChatInterrupt,
-  ChatInterruptState,
   ChatResumeState,
-  ConnectionStatus,
   InferredClientContext,
-  QueuedMessage,
   SendMessageOptions,
   StructuredOutputPart,
 } from '@tanstack/ai-client'
@@ -29,9 +32,6 @@ import type {
   UseChatOptions,
   UseChatReturn,
 } from './types'
-
-const EMPTY_INTERRUPTS = Object.freeze([])
-const EMPTY_INTERRUPT_ERRORS = Object.freeze([])
 
 export function useChat<
   const TTools extends ReadonlyArray<AnyClientTool> = any,
@@ -49,35 +49,9 @@ export function useChat<
   const hookId = useId()
   const clientId = options.threadId ?? hookId
 
-  const [messages, setMessages] = useState<Array<UIMessage<TTools>>>(
-    options.initialMessages || [],
-  )
-  const [isLoading, setIsLoading] = useState(false)
-  const [error, setError] = useState<Error | undefined>(undefined)
-  const [status, setStatus] = useState<ChatClientState>('ready')
-  const [isSubscribed, setIsSubscribed] = useState(false)
-  const [connectionStatus, setConnectionStatus] =
-    useState<ConnectionStatus>('disconnected')
-  const [sessionGenerating, setSessionGenerating] = useState(false)
-  const [queue, setQueue] = useState<Array<QueuedMessage>>([])
-  const [runId, setRunId] = useState<string | null>(null)
-  const [interruptState, setInterruptState] = useState<
-    ChatInterruptState<TTools, TInterrupts>
-  >(() => ({
-    interrupts: EMPTY_INTERRUPTS,
-    pendingInterrupts: EMPTY_INTERRUPTS,
-    interruptErrors: EMPTY_INTERRUPT_ERRORS,
-    resuming: false,
-  }))
-
   type Partial = DeepPartial<InferSchemaType<NonNullable<TSchema>>>
   type Final = InferSchemaType<NonNullable<TSchema>>
 
-  // Track current messages in a ref to preserve them when client is recreated
-  const messagesRef = useRef<Array<UIMessage<TTools>>>(
-    options.initialMessages || [],
-  )
-  const isFirstMountRef = useRef(true)
   const subscribedRef = useRef(false)
   const activeClientRef = useRef<ChatClient | null>(null)
   const cleanupInvalidationRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -88,24 +62,14 @@ export function useChat<
     timeout: ReturnType<typeof setTimeout>
   } | null>(null)
 
-  // Update ref synchronously during render so it's always current when useMemo runs.
-  messagesRef.current = messages
-
   // Track current options in a ref to avoid recreating client when options change
   const optionsRef =
     useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts>>(options)
   optionsRef.current = options
 
-  const syncResumeState = useCallback((target: ChatClient | null) => {
-    if (!target) return
-    setRunId(target.getCurrentRunId())
-    setInterruptState(target.getInterruptState())
-  }, [])
-
   // Create ChatClient instance with callbacks to sync state
   const { client, initialization } = useMemo(() => {
     const messagesToUse = options.initialMessages || []
-    isFirstMountRef.current = false
 
     // Build options with conditional spreads for fields whose source
     // type is `T | undefined` but the ChatClient target uses a strict
@@ -211,69 +175,11 @@ export function useChat<
       ...(options.streamProcessor !== undefined && {
         streamProcessor: options.streamProcessor,
       }),
-      onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
-        runOrQueueForActiveInstance(() => {
-          setMessages(newMessages)
-        })
-      },
-      onLoadingChange: (newIsLoading: boolean) => {
-        runOrQueueForActiveInstance(() => {
-          const currentInstance = getActiveInstance()
-          if (!currentInstance) return
-          setIsLoading(newIsLoading)
-          syncResumeState(currentInstance)
-        })
-      },
-      onErrorChange: (newError: Error | undefined) => {
-        runOrQueueForActiveInstance(() => {
-          setError(newError)
-        })
-      },
-      onStatusChange: (status: ChatClientState) => {
-        runOrQueueForActiveInstance(() => {
-          setStatus(status)
-        })
-      },
-      onSubscriptionChange: (nextIsSubscribed: boolean) => {
-        runOrQueueForActiveInstance(() => {
-          setIsSubscribed(nextIsSubscribed)
-        })
-      },
-      onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
-        runOrQueueForActiveInstance(() => {
-          setConnectionStatus(nextStatus)
-        })
-      },
-      onSessionGeneratingChange: (isGenerating: boolean) => {
-        runOrQueueForActiveInstance(() => {
-          setSessionGenerating(isGenerating)
-        })
-      },
       ...(optionsRef.current.queue !== undefined && {
         queue: optionsRef.current.queue,
       }),
-      onQueueChange: (nextQueue: Array<QueuedMessage>) => {
-        runOrQueueForActiveInstance(() => {
-          setQueue(nextQueue)
-        })
-      },
-      onRunIdChange: (nextRunId) => {
-        runOrQueueForActiveInstance(() => {
-          setRunId(nextRunId)
-        })
-      },
-      onResumeStateChange: (_nextResumeState, nextPendingInterrupts) => {
-        runOrQueueForActiveInstance(() => {
-          setInterruptState((current) => ({
-            ...current,
-            interrupts: nextPendingInterrupts,
-            pendingInterrupts: nextPendingInterrupts,
-          }))
-        })
-      },
       onInterruptStateChange: (nextInterruptState, context) => {
         runOrQueueForActiveInstance(() => {
-          setInterruptState(nextInterruptState)
           optionsRef.current.onInterruptStateChange?.(
             nextInterruptState,
             context,
@@ -283,7 +189,7 @@ export function useChat<
     })
     instanceHolder.current = instance
     return { client: instance, initialization: initializationState }
-  }, [clientId, syncResumeState])
+  }, [clientId])
 
   useEffect(() => {
     activeClientRef.current = client
@@ -303,12 +209,11 @@ export function useChat<
     }
   }, [client, initialization])
 
-  useEffect(() => {
-    const clientMessages = client.getMessages()
-    if (clientMessages !== messagesRef.current) {
-      setMessages(clientMessages)
-    }
-  }, [client])
+  const snapshot = useSyncExternalStore(
+    client.subscribeSnapshot,
+    client.getSnapshot,
+    client.getSnapshot,
+  )
 
   // Sync each wire-payload slot in its own effect so an unrelated option
   // changing doesn't re-run the others. `updateOptions` declares strict-optional
@@ -387,10 +292,6 @@ export function useChat<
       cleanupInvalidationRef.current = null
     }
     client.mountDevtools()
-    // Delivery-durability resume is transparent: the resumable SSE connection
-    // adapter re-attaches via the browser's native Last-Event-ID on reconnect.
-    // We only seed interrupt (state) resume from the client here.
-    syncResumeState(client)
 
     return () => {
       cleanupInvalidationRef.current = setTimeout(() => {
@@ -423,47 +324,35 @@ export function useChat<
       }
       cleanupDisposalRef.current = disposal
     }
-  }, [client, syncResumeState])
+  }, [client])
 
   const sendMessage = useCallback(
     async (
       content: string | MultimodalContent,
       sendOptions?: SendMessageOptions,
     ) => {
-      try {
-        await client.sendMessage(content, undefined, sendOptions)
-      } finally {
-        syncResumeState(client)
-      }
+      await client.sendMessage(content, undefined, sendOptions)
     },
-    [client, syncResumeState],
+    [client],
   )
 
   const cancelQueued = useCallback(
     (id: string) => {
       client.cancelQueued(id)
     },
-    [client, syncResumeState],
+    [client],
   )
 
   const append = useCallback(
     async (message: ModelMessage | UIMessage) => {
-      try {
-        await client.append(message)
-      } finally {
-        syncResumeState(client)
-      }
+      await client.append(message)
     },
-    [client, syncResumeState],
+    [client],
   )
 
   const reload = useCallback(async () => {
-    try {
-      await client.reload()
-    } finally {
-      syncResumeState(client)
-    }
-  }, [client, syncResumeState])
+    await client.reload()
+  }, [client])
 
   const stop = useCallback(() => {
     client.stop()
@@ -471,8 +360,7 @@ export function useChat<
 
   const clear = useCallback(() => {
     client.clear()
-    syncResumeState(client)
-  }, [client, syncResumeState])
+  }, [client])
 
   const setMessagesManually = useCallback(
     (newMessages: Array<UIMessage<TTools>>) => {
@@ -497,21 +385,15 @@ export function useChat<
   const addToolApprovalResponse = useCallback(
     async (response: { id: string; approved: boolean }) => {
       await client.addToolApprovalResponse(response)
-      syncResumeState(client)
     },
-    [client, syncResumeState],
+    [client],
   )
 
   const resumeInterrupts = useCallback(
     async (resumeItems: Array<RunAgentResumeItem>, state?: ChatResumeState) => {
-      const result = await client.resumeInterrupts(
-        resumeItems,
-        state ?? undefined,
-      )
-      syncResumeState(client)
-      return result
+      return await client.resumeInterrupts(resumeItems, state ?? undefined)
     },
-    [client, syncResumeState],
+    [client],
   )
 
   const resolveInterrupts = useCallback(
@@ -555,7 +437,7 @@ export function useChat<
   // a stale assistant turn or a system prompt) we deliberately return null
   // rather than scanning historical assistants — otherwise a `final` from a
   // previous session would leak into the hook value on first render.
-  const renderedMessages = client.getMessages()
+  const renderedMessages = snapshot.messages
 
   const activeStructuredPart = useMemo<StructuredOutputPart | null>(() => {
     let lastUserIndex = -1
@@ -600,23 +482,23 @@ export function useChat<
     append,
     reload,
     stop,
-    isLoading,
-    error,
-    status,
-    isSubscribed,
-    connectionStatus,
-    sessionGenerating,
+    isLoading: snapshot.isLoading,
+    error: snapshot.error,
+    status: snapshot.status,
+    isSubscribed: snapshot.isSubscribed,
+    connectionStatus: snapshot.connectionStatus,
+    sessionGenerating: snapshot.sessionGenerating,
     setMessages: setMessagesManually,
     clear,
     addToolResult,
     addToolApprovalResponse,
-    queue,
+    queue: snapshot.queue,
     cancelQueued,
-    runId,
-    interrupts: interruptState.interrupts,
-    pendingInterrupts: interruptState.pendingInterrupts,
-    interruptErrors: interruptState.interruptErrors,
-    resuming: interruptState.resuming,
+    runId: snapshot.runId,
+    interrupts: snapshot.interruptState.interrupts,
+    pendingInterrupts: snapshot.interruptState.pendingInterrupts,
+    interruptErrors: snapshot.interruptState.interruptErrors,
+    resuming: snapshot.interruptState.resuming,
     resolveInterrupts,
     cancelInterrupts,
     retryInterrupts,

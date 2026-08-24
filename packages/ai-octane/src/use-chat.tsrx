@@ -90,12 +90,6 @@ export function useChat<
     useRef<UseChatOptions<TTools, TSchema, TContext, TInterrupts>>(options)
   optionsRef.current = options
 
-  const syncResumeState = useCallback((target: ChatClient | null) => {
-    if (!target) return
-    setRunId(target.getCurrentRunId())
-    setInterruptState(target.getInterruptState())
-  }, [])
-
   // Create ChatClient instance with callbacks to sync state
   const { client, initialization } = useMemo(() => {
     const messagesToUse = options.initialMessages || []
@@ -203,69 +197,11 @@ export function useChat<
       ...(options.streamProcessor !== undefined && {
         streamProcessor: options.streamProcessor,
       }),
-      onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
-        runOrQueueForActiveInstance(() => {
-          setMessages(newMessages)
-        })
-      },
-      onLoadingChange: (newIsLoading: boolean) => {
-        runOrQueueForActiveInstance(() => {
-          const currentInstance = getActiveInstance()
-          if (!currentInstance) return
-          setIsLoading(newIsLoading)
-          syncResumeState(currentInstance)
-        })
-      },
-      onErrorChange: (newError: Error | undefined) => {
-        runOrQueueForActiveInstance(() => {
-          setError(newError)
-        })
-      },
-      onStatusChange: (status: ChatClientState) => {
-        runOrQueueForActiveInstance(() => {
-          setStatus(status)
-        })
-      },
-      onSubscriptionChange: (nextIsSubscribed: boolean) => {
-        runOrQueueForActiveInstance(() => {
-          setIsSubscribed(nextIsSubscribed)
-        })
-      },
-      onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
-        runOrQueueForActiveInstance(() => {
-          setConnectionStatus(nextStatus)
-        })
-      },
-      onSessionGeneratingChange: (isGenerating: boolean) => {
-        runOrQueueForActiveInstance(() => {
-          setSessionGenerating(isGenerating)
-        })
-      },
       ...(optionsRef.current.queue !== undefined && {
         queue: optionsRef.current.queue,
       }),
-      onQueueChange: (nextQueue: Array<QueuedMessage>) => {
-        runOrQueueForActiveInstance(() => {
-          setQueue(nextQueue)
-        })
-      },
-      onRunIdChange: (nextRunId) => {
-        runOrQueueForActiveInstance(() => {
-          setRunId(nextRunId)
-        })
-      },
-      onResumeStateChange: (_nextResumeState, nextPendingInterrupts) => {
-        runOrQueueForActiveInstance(() => {
-          setInterruptState((current) => ({
-            ...current,
-            interrupts: nextPendingInterrupts,
-            pendingInterrupts: nextPendingInterrupts,
-          }))
-        })
-      },
       onInterruptStateChange: (nextInterruptState, context) => {
         runOrQueueForActiveInstance(() => {
-          setInterruptState(nextInterruptState)
           optionsRef.current.onInterruptStateChange?.(
             nextInterruptState,
             context,
@@ -275,7 +211,7 @@ export function useChat<
     })
     instanceHolder.current = instance
     return { client: instance, initialization: initializationState }
-  }, [clientId, syncResumeState])
+  }, [clientId])
 
   useEffect(() => {
     activeClientRef.current = client
@@ -296,10 +232,21 @@ export function useChat<
   }, [client, initialization])
 
   useEffect(() => {
-    const clientMessages = client.getMessages()
-    if (clientMessages !== messagesRef.current) {
-      setMessages(clientMessages)
+    const applySnapshot = () => {
+      const next = client.getSnapshot()
+      setMessages(next.messages)
+      setIsLoading(next.isLoading)
+      setError(next.error)
+      setStatus(next.status)
+      setIsSubscribed(next.isSubscribed)
+      setConnectionStatus(next.connectionStatus)
+      setSessionGenerating(next.sessionGenerating)
+      setQueue(next.queue)
+      setRunId(next.runId)
+      setInterruptState(next.interruptState)
     }
+    applySnapshot()
+    return client.subscribeSnapshot(applySnapshot)
   }, [client])
 
   // OCTANE DIVERGENCE: upstream captures the initial transport. ChatClient
@@ -369,7 +316,6 @@ export function useChat<
   useEffect(() => {
     client.attach()
     client.mountDevtools()
-    syncResumeState(client)
     return () => {
       client.detach()
       if (optionsRef.current.live) {
@@ -382,20 +328,16 @@ export function useChat<
         activeClientRef.current = null
       }
     }
-  }, [client, syncResumeState])
+  }, [client])
 
   const sendMessage = useCallback(
     async (
       content: string | MultimodalContent,
       sendOptions?: SendMessageOptions,
     ) => {
-      try {
-        await client.sendMessage(content, undefined, sendOptions)
-      } finally {
-        syncResumeState(client)
-      }
+      await client.sendMessage(content, undefined, sendOptions)
     },
-    [client, syncResumeState],
+    [client],
   )
 
   const cancelQueued = useCallback(
@@ -407,22 +349,14 @@ export function useChat<
 
   const append = useCallback(
     async (message: ModelMessage | UIMessage) => {
-      try {
-        await client.append(message)
-      } finally {
-        syncResumeState(client)
-      }
+      await client.append(message)
     },
-    [client, syncResumeState],
+    [client],
   )
 
   const reload = useCallback(async () => {
-    try {
-      await client.reload()
-    } finally {
-      syncResumeState(client)
-    }
-  }, [client, syncResumeState])
+    await client.reload()
+  }, [client])
 
   const stop = useCallback(() => {
     client.stop()
@@ -430,8 +364,7 @@ export function useChat<
 
   const clear = useCallback(() => {
     client.clear()
-    syncResumeState(client)
-  }, [client, syncResumeState])
+  }, [client])
 
   const setMessagesManually = useCallback(
     (newMessages: Array<UIMessage<TTools>>) => {
@@ -456,21 +389,15 @@ export function useChat<
   const addToolApprovalResponse = useCallback(
     async (response: { id: string; approved: boolean }) => {
       await client.addToolApprovalResponse(response)
-      syncResumeState(client)
     },
-    [client, syncResumeState],
+    [client],
   )
 
   const resumeInterrupts = useCallback(
     async (resumeItems: Array<RunAgentResumeItem>, state?: ChatResumeState) => {
-      const result = await client.resumeInterrupts(
-        resumeItems,
-        state ?? undefined,
-      )
-      syncResumeState(client)
-      return result
+      return await client.resumeInterrupts(resumeItems, state ?? undefined)
     },
-    [client, syncResumeState],
+    [client],
   )
 
   const resolveInterrupts = useCallback(

@@ -273,6 +273,34 @@ Stop tailing and drop the connection. Keeps messages, the run pointer and the ru
 id, so a later `attach()` continues where it left off. See
 [Lifecycle](#lifecycle-attach-and-detach).
 
+#### `getSnapshot()`
+
+Returns the current UI snapshot: messages, status, loading, error, queue, run
+id, subscription, connection, session generating, and interrupt state.
+
+`subscribeSnapshot(listener)` calls `listener` after that snapshot changes. It
+does not fire with the current value. Read `getSnapshot()` first. This is not
+`subscribe()`, which starts the live connection loop.
+
+```typescript
+import { ChatClient, fetchServerSentEvents } from "@tanstack/ai-client";
+
+const client = new ChatClient({
+  connection: fetchServerSentEvents("/api/chat"),
+});
+
+const stop = client.subscribeSnapshot(() => {
+  render(client.getSnapshot());
+});
+
+client.attach();
+client.sendMessage("Hello");
+```
+
+`GenerationClient`, `VideoGenerationClient`, `RealtimeClient`, `AudioRecorder`,
+and `ByokClient` use `subscribe(listener)` / `getSnapshot()` for the same job.
+Their `subscribe` name does not collide with a live connection method.
+
 #### `stop()`
 
 Stops the current response generation. It aborts the in-flight request.

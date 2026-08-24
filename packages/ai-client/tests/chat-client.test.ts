@@ -68,6 +68,36 @@ describe('ChatClient', () => {
       expect(client.getError()).toBeUndefined()
     })
 
+    it('exposes a UI snapshot that subscribeSnapshot notifies', () => {
+      const adapter = createMockConnectionAdapter()
+      const initialMessages: Array<UIMessage> = [
+        {
+          id: 'msg-1',
+          role: 'user',
+          parts: [{ type: 'text', content: 'Hello' }],
+          createdAt: new Date(),
+        },
+      ]
+      const client = new ChatClient({
+        connection: adapter,
+        initialMessages,
+      })
+
+      const snapshot = client.getSnapshot()
+      expect(snapshot.messages).toEqual(initialMessages)
+      expect(snapshot.status).toBe('ready')
+      expect(snapshot.isLoading).toBe(false)
+      expect(client.getSnapshot()).toBe(snapshot)
+
+      const listener = vi.fn()
+      const stop = client.subscribeSnapshot(listener)
+      client.setMessagesManually([])
+      expect(listener).toHaveBeenCalledTimes(1)
+      expect(client.getSnapshot().messages).toEqual([])
+      expect(client.getSnapshot()).not.toBe(snapshot)
+      stop()
+    })
+
     it('should initialize with provided messages', () => {
       const adapter = createMockConnectionAdapter()
       const initialMessages: Array<UIMessage> = [

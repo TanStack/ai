@@ -1,4 +1,6 @@
 import { convertSchemaToJsonSchema } from '@tanstack/ai/client'
+import { createAtom, patchAtom, subscribeAtom } from './snapshot-atom'
+import type { Atom } from './snapshot-atom'
 import type {
   AnyClientTool,
   AudioVisualization,
@@ -49,13 +51,18 @@ export class RealtimeClient {
     new Set()
   private unsubscribers: Array<() => void> = []
 
-  private state: RealtimeClientState = {
-    status: 'idle',
-    mode: 'idle',
-    messages: [],
-    pendingUserTranscript: null,
-    pendingAssistantTranscript: null,
-    error: null,
+  private readonly snapshotAtom: Atom<RealtimeClientState> =
+    createAtom<RealtimeClientState>({
+      status: 'idle',
+      mode: 'idle',
+      messages: [],
+      pendingUserTranscript: null,
+      pendingAssistantTranscript: null,
+      error: null,
+    })
+
+  private get state(): RealtimeClientState {
+    return this.snapshotAtom.get()
   }
 
   constructor(options: RealtimeClientOptions) {
@@ -88,7 +95,13 @@ export class RealtimeClient {
       return
     }
 
-    this.updateState({ status: 'connecting', error: null })
+    this.updateState({
+      status: 'connecting',
+      error: null,
+      messages: [],
+      pendingUserTranscript: null,
+      pendingAssistantTranscript: null,
+    })
 
     try {
       // Fetch token from server
@@ -195,6 +208,7 @@ export class RealtimeClient {
       return
     }
     this.connection.interrupt()
+    this.updateState({ pendingAssistantTranscript: null })
   }
 
   // ============================================================================
@@ -331,6 +345,16 @@ export class RealtimeClient {
     }
   }
 
+  /**
+   * Subscribe to UI snapshot changes. Does not fire with the current value;
+   * read {@link getSnapshot} first.
+   */
+  subscribe = (listener: () => void): (() => void) =>
+    subscribeAtom(this.snapshotAtom, listener)
+
+  /** Current UI snapshot. */
+  getSnapshot = (): RealtimeClientState => this.snapshotAtom.get()
+
   // ============================================================================
   // Cleanup
   // ============================================================================
@@ -349,7 +373,7 @@ export class RealtimeClient {
   // ============================================================================
 
   private updateState(updates: Partial<RealtimeClientState>): void {
-    this.state = { ...this.state, ...updates }
+    patchAtom(this.snapshotAtom, updates)
 
     // Notify callbacks
     for (const callback of this.stateChangeCallbacks) {

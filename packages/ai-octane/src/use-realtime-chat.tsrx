@@ -124,17 +124,14 @@ export function useRealtimeChat(
         semanticEagerness: initial.semanticEagerness,
       }),
       onStatusChange: (newStatus) => {
-        setStatus(newStatus)
         // OCTANE DIVERGENCE: upstream declares this callback but does not
         // forward status changes beyond its own hook state.
         optionsRef.current.onStatusChange?.(newStatus)
       },
       onModeChange: (newMode) => {
-        setMode(newMode)
         optionsRef.current.onModeChange?.(newMode)
       },
       onMessage: (message) => {
-        setMessages((prev) => [...prev, message])
         optionsRef.current.onMessage?.(message)
       },
       onUsage: (usage) => {
@@ -144,30 +141,35 @@ export function useRealtimeChat(
         optionsRef.current.onGoAway?.(timeLeft)
       },
       onError: (err) => {
-        setError(err)
         optionsRef.current.onError?.(err)
       },
       onConnect: () => {
-        setError(null)
         optionsRef.current.onConnect?.()
       },
       onDisconnect: () => {
         optionsRef.current.onDisconnect?.()
       },
       onInterrupted: () => {
-        setPendingAssistantTranscript(null)
         optionsRef.current.onInterrupted?.()
       },
-    })
-
-    // Subscribe to state changes for transcripts
-    clientRef.current.onStateChange((state) => {
-      setPendingUserTranscript(state.pendingUserTranscript)
-      setPendingAssistantTranscript(state.pendingAssistantTranscript)
     })
   }
 
   const client = clientRef.current
+
+  useEffect(() => {
+    const applySnapshot = () => {
+      const next = client.getSnapshot()
+      setStatus(next.status)
+      setMode(next.mode)
+      setMessages(next.messages)
+      setPendingUserTranscript(next.pendingUserTranscript)
+      setPendingAssistantTranscript(next.pendingAssistantTranscript)
+      setError(next.error)
+    }
+    applySnapshot()
+    return client.subscribe(applySnapshot)
+  }, [client])
 
   // Audio level animation loop
   useEffect(() => {
@@ -200,10 +202,6 @@ export function useRealtimeChat(
 
   // Connection methods
   const connect = useCallback(async () => {
-    setError(null)
-    setMessages([])
-    setPendingUserTranscript(null)
-    setPendingAssistantTranscript(null)
     await client.connect()
   }, [client])
 

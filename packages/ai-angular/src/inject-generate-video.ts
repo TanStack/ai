@@ -181,27 +181,6 @@ export function injectGenerateVideo<TTransformed = void>(
     onStatusUpdate: (s: VideoStatusInfo) => {
       if (!disposed) options.onStatusUpdate?.(s)
     },
-    onResultChange: (r: TOutput | null) => {
-      if (!disposed) result.set(r)
-    },
-    onLoadingChange: (l: boolean) => {
-      if (!disposed) isLoading.set(l)
-    },
-    onErrorChange: (e: Error | undefined) => {
-      if (!disposed) error.set(e)
-    },
-    onStatusChange: (s: GenerationClientState) => {
-      if (!disposed) status.set(s)
-    },
-    onJobIdChange: (id: string | null) => {
-      if (!disposed) jobId.set(id)
-    },
-    onVideoStatusChange: (s: VideoStatusInfo | null) => {
-      if (!disposed) videoStatus.set(s)
-    },
-    onResumeStateChange: (rs: { runId: string } | null) => {
-      if (!disposed) runId.set(rs?.runId ?? null)
-    },
   }
 
   let client: VideoGenerationClient<TOutput>
@@ -220,6 +199,19 @@ export function injectGenerateVideo<TTransformed = void>(
       'injectGenerateVideo requires either a connection or fetcher option',
     )
   }
+
+  const applySnapshot = () => {
+    const next = client.getSnapshot()
+    result.set(next.result)
+    isLoading.set(next.isLoading)
+    error.set(next.error)
+    status.set(next.status)
+    runId.set(next.runId)
+    jobId.set(next.jobId)
+    videoStatus.set(next.videoStatus)
+  }
+  applySnapshot()
+  const unsubscribeSnapshot = client.subscribe(applySnapshot)
 
   if (bodySource) {
     effect(
@@ -242,6 +234,7 @@ export function injectGenerateVideo<TTransformed = void>(
   )
   destroyRef.onDestroy(() => {
     disposed = true
+    unsubscribeSnapshot()
     client.dispose()
   })
 

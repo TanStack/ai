@@ -365,6 +365,27 @@ export type ToolResultState =
 export type ChatClientState = 'ready' | 'submitted' | 'streaming' | 'error'
 
 /**
+ * UI snapshot published by {@link ChatClient.subscribeSnapshot} /
+ * {@link ChatClient.getSnapshot}.
+ */
+export interface ChatClientSnapshot<
+  TTools extends ReadonlyArray<AnyClientTool> = any,
+  TInterrupts extends ReadonlyArray<InterruptDefinition<any, any, any, any>> =
+    readonly [],
+> {
+  messages: Array<UIMessage<TTools>>
+  status: ChatClientState
+  isLoading: boolean
+  error: Error | undefined
+  isSubscribed: boolean
+  connectionStatus: ConnectionStatus
+  sessionGenerating: boolean
+  queue: Array<QueuedMessage>
+  runId: string | null
+  interruptState: ChatInterruptState<TTools, TInterrupts>
+}
+
+/**
  * Connection lifecycle state for the subscription loop.
  */
 export type ConnectionStatus =

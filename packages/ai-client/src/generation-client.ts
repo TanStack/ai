@@ -29,8 +29,11 @@ import type {
   GenerationDevtoolsBridge,
   GenerationDevtoolsBridgeOptions,
 } from './devtools'
+import { createAtom, patchAtom, subscribeAtom } from './snapshot-atom'
+import type { Atom } from './snapshot-atom'
 import type {
   GenerationClientOptions,
+  GenerationClientSnapshot,
   GenerationClientState,
   GenerationFetcher,
   GenerationPersistenceOptions,
@@ -134,6 +137,14 @@ export class GenerationClient<
   private isLoading = false
   private error: Error | undefined = undefined
   private status: GenerationClientState = 'idle'
+  private readonly snapshotAtom: Atom<GenerationClientSnapshot<TOutput>> =
+    createAtom<GenerationClientSnapshot<TOutput>>({
+      result: null,
+      isLoading: false,
+      error: undefined,
+      status: 'idle',
+      runId: null,
+    })
   private resumeSnapshot: GenerationResumeSnapshot | undefined
   private lastEmittedResumeState: string | undefined
   private abortController: AbortController | null = null
@@ -551,6 +562,16 @@ export class GenerationClient<
   // Getters
   // ===========================
 
+  /**
+   * Subscribe to UI snapshot changes. Does not fire with the current value;
+   * read {@link getSnapshot} first.
+   */
+  subscribe = (listener: () => void): (() => void) =>
+    subscribeAtom(this.snapshotAtom, listener)
+
+  /** Current UI snapshot. */
+  getSnapshot = (): GenerationClientSnapshot<TOutput> => this.snapshotAtom.get()
+
   getResult(): TOutput | null {
     return this.result
   }
@@ -601,6 +622,7 @@ export class GenerationClient<
   private setResult(rawResult: TResult | null): void {
     if (rawResult === null) {
       this.result = null
+      patchAtom(this.snapshotAtom, { result: null })
       this.callbacksRef.onResultChange?.(null)
       this.devtoolsBridge.recordResultChange()
       return
@@ -616,6 +638,7 @@ export class GenerationClient<
       if (transformed !== undefined) {
         // Non-null, non-undefined → use transformed value
         this.result = transformed
+        patchAtom(this.snapshotAtom, { result: this.result })
         this.callbacksRef.onResultChange?.(this.result)
         this.devtoolsBridge.recordResultChange()
         return
@@ -627,24 +650,28 @@ export class GenerationClient<
     // `TOutput` defaults to `TResult`, so the runtime cast is sound.
     // oxlint-disable-next-line eslint-js/no-restricted-syntax -- TOutput defaults to TResult when no onResult transform is supplied
     this.result = rawResult as unknown as TOutput
+    patchAtom(this.snapshotAtom, { result: this.result })
     this.callbacksRef.onResultChange?.(this.result)
     this.devtoolsBridge.recordResultChange()
   }
 
   private setIsLoading(isLoading: boolean): void {
     this.isLoading = isLoading
+    patchAtom(this.snapshotAtom, { isLoading })
     this.callbacksRef.onLoadingChange?.(isLoading)
     this.devtoolsBridge.recordLoadingChange()
   }
 
   private setError(error: Error | undefined): void {
     this.error = error
+    patchAtom(this.snapshotAtom, { error })
     this.callbacksRef.onErrorChange?.(error)
     this.devtoolsBridge.recordErrorChange(error)
   }
 
   private setStatus(status: GenerationClientState): void {
     this.status = status
+    patchAtom(this.snapshotAtom, { status })
     this.callbacksRef.onStatusChange?.(status)
     this.devtoolsBridge.recordStatusChange(status)
   }
@@ -741,6 +768,7 @@ export class GenerationClient<
       return
     }
     this.lastEmittedResumeState = signature
+    patchAtom(this.snapshotAtom, { runId: resumeState?.runId ?? null })
     this.callbacksRef.onResumeStateChange?.(resumeState)
   }
 

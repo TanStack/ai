@@ -29,6 +29,8 @@ import type {
   VideoDevtoolsBridge,
   VideoDevtoolsBridgeOptions,
 } from './devtools'
+import { createAtom, patchAtom, subscribeAtom } from './snapshot-atom'
+import type { Atom } from './snapshot-atom'
 import type {
   GenerationClientState,
   GenerationFetcher,
@@ -39,6 +41,7 @@ import type {
   VideoGenerateInput,
   VideoGenerateResult,
   VideoGenerationClientOptions,
+  VideoGenerationClientSnapshot,
   VideoStatusInfo,
 } from './generation-types'
 
@@ -139,6 +142,16 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private isLoading = false
   private error: Error | undefined = undefined
   private status: GenerationClientState = 'idle'
+  private readonly snapshotAtom: Atom<VideoGenerationClientSnapshot<TOutput>> =
+    createAtom<VideoGenerationClientSnapshot<TOutput>>({
+      result: null,
+      isLoading: false,
+      error: undefined,
+      status: 'idle',
+      runId: null,
+      jobId: null,
+      videoStatus: null,
+    })
   private resumeSnapshot: GenerationResumeSnapshot | undefined
   private abortController: AbortController | null = null
   private rejoinedRunId: string | undefined
@@ -558,6 +571,17 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   // Getters
   // ===========================
 
+  /**
+   * Subscribe to UI snapshot changes. Does not fire with the current value;
+   * read {@link getSnapshot} first.
+   */
+  subscribe = (listener: () => void): (() => void) =>
+    subscribeAtom(this.snapshotAtom, listener)
+
+  /** Current UI snapshot. */
+  getSnapshot = (): VideoGenerationClientSnapshot<TOutput> =>
+    this.snapshotAtom.get()
+
   getResult(): TOutput | null {
     return this.result
   }
@@ -616,6 +640,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
   private setResult(rawResult: VideoGenerateResult | null): void {
     if (rawResult === null) {
       this.result = null
+      patchAtom(this.snapshotAtom, { result: null })
       this.callbacksRef.onResultChange?.(null)
       this.devtoolsBridge.recordResultChange()
       return
@@ -638,6 +663,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
       if (transformed !== undefined) {
         // Non-null, non-undefined → use transformed value
         this.result = transformed
+        patchAtom(this.snapshotAtom, { result: this.result })
         this.callbacksRef.onResultChange?.(this.result)
         this.devtoolsBridge.recordResultChange()
         return
@@ -650,36 +676,42 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
     // sound.
     // oxlint-disable-next-line eslint-js/no-restricted-syntax -- TOutput defaults to VideoGenerateResult when no onResult transform is supplied
     this.result = rawResult as unknown as TOutput
+    patchAtom(this.snapshotAtom, { result: this.result })
     this.callbacksRef.onResultChange?.(this.result)
     this.devtoolsBridge.recordResultChange()
   }
 
   private setJobId(jobId: string | null): void {
     this.jobId = jobId
+    patchAtom(this.snapshotAtom, { jobId })
     this.callbacksRef.onJobIdChange?.(jobId)
     this.devtoolsBridge.recordJobIdChange()
   }
 
   private setVideoStatus(status: VideoStatusInfo | null): void {
     this.videoStatus = status
+    patchAtom(this.snapshotAtom, { videoStatus: status })
     this.callbacksRef.onVideoStatusChange?.(status)
     this.devtoolsBridge.recordVideoStatusChange()
   }
 
   private setIsLoading(isLoading: boolean): void {
     this.isLoading = isLoading
+    patchAtom(this.snapshotAtom, { isLoading })
     this.callbacksRef.onLoadingChange?.(isLoading)
     this.devtoolsBridge.recordLoadingChange()
   }
 
   private setError(error: Error | undefined): void {
     this.error = error
+    patchAtom(this.snapshotAtom, { error })
     this.callbacksRef.onErrorChange?.(error)
     this.devtoolsBridge.recordErrorChange(error)
   }
 
   private setStatus(status: GenerationClientState): void {
     this.status = status
+    patchAtom(this.snapshotAtom, { status })
     this.callbacksRef.onStatusChange?.(status)
     this.devtoolsBridge.recordStatusChange(status)
   }
@@ -768,6 +800,7 @@ export class VideoGenerationClient<TOutput = VideoGenerateResult> {
             : {}),
         }
       : null
+    patchAtom(this.snapshotAtom, { runId: resumeState?.runId ?? null })
     this.callbacksRef.onResumeStateChange?.(resumeState)
   }
 

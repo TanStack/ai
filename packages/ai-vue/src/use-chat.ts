@@ -149,48 +149,28 @@ export function useChat<
     ...(options.streamProcessor !== undefined && {
       streamProcessor: options.streamProcessor,
     }),
-    onMessagesChange: (newMessages: Array<UIMessage<TTools>>) => {
-      messages.value = newMessages
-    },
-    onLoadingChange: (newIsLoading: boolean) => {
-      isLoading.value = newIsLoading
-      syncResumeState()
-    },
-    onStatusChange: (newStatus: ChatClientState) => {
-      status.value = newStatus
-    },
-    onErrorChange: (newError: Error | undefined) => {
-      error.value = newError
-    },
-    onSubscriptionChange: (nextIsSubscribed: boolean) => {
-      isSubscribed.value = nextIsSubscribed
-    },
-    onConnectionStatusChange: (nextStatus: ConnectionStatus) => {
-      connectionStatus.value = nextStatus
-    },
-    onSessionGeneratingChange: (isGenerating: boolean) => {
-      sessionGenerating.value = isGenerating
-    },
     ...(options.queue !== undefined && { queue: options.queue }),
-    onQueueChange: (nextQueue: Array<QueuedMessage>) => {
-      queue.value = nextQueue
-    },
-    onRunIdChange: (nextRunId) => {
-      runId.value = nextRunId
-    },
     onInterruptStateChange: (nextInterruptState, context) => {
-      interruptState.value = nextInterruptState
       options.onInterruptStateChange?.(nextInterruptState, context)
     },
   })
 
-  function syncResumeState() {
-    runId.value = client.getCurrentRunId()
-    interruptState.value = client.getInterruptState()
+  function applySnapshot() {
+    const next = client.getSnapshot()
+    messages.value = next.messages
+    isLoading.value = next.isLoading
+    error.value = next.error
+    status.value = next.status
+    isSubscribed.value = next.isSubscribed
+    connectionStatus.value = next.connectionStatus
+    sessionGenerating.value = next.sessionGenerating
+    queue.value = next.queue
+    runId.value = next.runId
+    interruptState.value = next.interruptState
   }
 
-  messages.value = client.getMessages()
-  interruptState.value = client.getInterruptState()
+  applySnapshot()
+  onScopeDispose(client.subscribeSnapshot(applySnapshot))
 
   // Sync body / forwardedProps changes to the client.
   // Both populate the same wire payload; `forwardedProps` is preferred
@@ -236,10 +216,6 @@ export function useChat<
     // connections per origin until the page reloaded.
     client.attach()
     client.mountDevtools()
-    // Delivery-durability resume is transparent: the resumable SSE connection
-    // adapter reattaches via the browser's native Last-Event-ID on reconnect.
-    // We only seed interrupt (state) resume from the client here.
-    syncResumeState()
   })
 
   // Cleanup on unmount: stop any in-flight requests
@@ -263,29 +239,17 @@ export function useChat<
     content: string | MultimodalContent,
     sendOptions?: SendMessageOptions,
   ) => {
-    try {
-      await client.sendMessage(content, undefined, sendOptions)
-    } finally {
-      syncResumeState()
-    }
+    await client.sendMessage(content, undefined, sendOptions)
   }
 
   const cancelQueued = (id: string) => client.cancelQueued(id)
 
   const append = async (message: ModelMessage | UIMessage<TTools>) => {
-    try {
-      await client.append(message)
-    } finally {
-      syncResumeState()
-    }
+    await client.append(message)
   }
 
   const reload = async () => {
-    try {
-      await client.reload()
-    } finally {
-      syncResumeState()
-    }
+    await client.reload()
   }
 
   const stop = () => {
@@ -294,7 +258,6 @@ export function useChat<
 
   const clear = () => {
     client.clear()
-    syncResumeState()
   }
 
   const setMessagesManually = (newMessages: Array<UIMessage<TTools>>) => {
@@ -316,16 +279,13 @@ export function useChat<
     approved: boolean
   }) => {
     await client.addToolApprovalResponse(response)
-    syncResumeState()
   }
 
   const resumeInterrupts = async (
     resumeItems: Array<RunAgentResumeItem>,
     state?: ChatResumeState,
   ) => {
-    const result = await client.resumeInterrupts(resumeItems, state)
-    syncResumeState()
-    return result
+    return await client.resumeInterrupts(resumeItems, state)
   }
 
   const interrupts = computed(() => interruptState.value.interrupts)
