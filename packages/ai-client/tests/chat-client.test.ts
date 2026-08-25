@@ -2318,15 +2318,13 @@ describe('ChatClient', () => {
             threadId,
             timestamp: Date.now(),
           }
-          yield withTanstackMetadata(
-            {
-              type: EventType.RUN_FINISHED,
-              runId,
-              threadId,
-              timestamp: Date.now(),
-            },
-            { finishReason: 'tool_calls' },
-          )
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            metadata: { tanstack: { finishReason: 'tool_calls' } },
+          }
           yield {
             type: EventType.RUN_STARTED,
             runId: 'provider-2',
