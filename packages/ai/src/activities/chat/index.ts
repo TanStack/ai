@@ -1613,13 +1613,13 @@ class TextEngine<
         outboundChunk,
       )
       // When a streaming structured-output finalization step will run after
-      // the agent loop, suppress the agent-loop's RUN_STARTED/RUN_FINISHED
-      // here — the finalization step emits the single outer lifecycle pair
-      // that reaches the consumer.
+      // the agent loop, suppress the agent-loop's RUN_FINISHED here. Its first
+      // RUN_STARTED owns the outer lifecycle, and the finalization step emits
+      // the terminal that closes it.
       //
       // Native combined mode does NOT issue a second adapter stream — the
       // agent loop's lifecycle IS the outer pair the consumer sees.
-      const suppressAgentLifecycle =
+      const suppressAgentRunFinished =
         !!this.finalStructuredOutput &&
         this.finalStructuredOutput.yieldChunks &&
         this.finalStructuredOutput.nativeCombined !== true
@@ -1629,9 +1629,8 @@ class TextEngine<
         )) {
           restorePublicUsage(spec)
           if (
-            suppressAgentLifecycle &&
-            (spec.type === EventType.RUN_STARTED ||
-              spec.type === EventType.RUN_FINISHED)
+            suppressAgentRunFinished &&
+            spec.type === EventType.RUN_FINISHED
           ) {
             continue
           }
@@ -3655,12 +3654,16 @@ class TextEngine<
         )
 
         // 7c. Decide consumer visibility — only yieldChunks=true callers get them.
-        // We do NOT strip the finalization stream's RUN_STARTED/RUN_FINISHED:
-        // they are the single outer lifecycle pair the consumer sees (the
-        // agent-loop's pair was suppressed in streamModelResponse when
-        // finalStructuredOutput.yieldChunks is true).
+        // Keep the finalization's full lifecycle when the no-tools path skipped
+        // the agent loop. Otherwise, the agent start already owns the public
+        // lifecycle, so only the finalization terminal remains public.
         if (this.finalStructuredOutput.yieldChunks) {
-          for (const spec of this.emitPublicChunks(outputChunks)) {
+          const publicOutputChunks = this.publicRunIdentity
+            ? outputChunks.filter(
+                (output) => output.type !== EventType.RUN_STARTED,
+              )
+            : outputChunks
+          for (const spec of this.emitPublicChunks(publicOutputChunks)) {
             if (spec.type === EventType.RUN_ERROR) {
               runErrorYielded = true
             }

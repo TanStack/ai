@@ -232,6 +232,9 @@ function MiddlewareTestPage() {
           <option value="structured-output-stream">
             Structured Output (Stream)
           </option>
+          <option value="structured-output-run-error">
+            Structured Output Run Error
+          </option>
           <option value="generic-before-model">Generic Before Model</option>
           <option value="generic-after-model">Generic After Model</option>
           <option value="generic-before-tools-continue">

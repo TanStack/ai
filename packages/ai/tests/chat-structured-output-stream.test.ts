@@ -19,7 +19,12 @@ import { z } from 'zod'
 import { chat } from '../src/activities/chat/index'
 import { EventType } from '../src/types'
 import { tanstackMetadata } from '../src/utilities/merge-metadata'
-import { collectChunks } from './test-utils'
+import {
+  collectChunks,
+  createMockAdapter,
+  ev,
+  serverTool,
+} from './test-utils'
 import type { StreamChunk, TokenUsage } from '../src/types'
 import type { AdapterYieldChunk } from '../src/utilities/adapter-yield-chunk'
 import type { AnyTextAdapter } from '../src/activities/chat/adapter'
@@ -483,6 +488,92 @@ describe('chat({ outputSchema, stream: true })', () => {
   })
 
   describe('lifecycle ordering', () => {
+    it('uses the agent start and finalization finish for one outer lifecycle', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted('agent-run', 'agent-thread'),
+            ev.runFinished('stop', 'agent-run', undefined, 'agent-thread'),
+          ],
+        ],
+        structuredOutputStream: () =>
+          (async function* () {
+            for (const chunk of structuredStreamChunks(
+              JSON.stringify(validPerson),
+              validPerson,
+            )) {
+              yield chunk
+            }
+          })(),
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'extract' }],
+          tools: [serverTool('noop', () => null)],
+          outputSchema: PersonSchema,
+          stream: true,
+        }),
+      )
+
+      expect(
+        chunks.filter(
+          (chunk) =>
+            chunk.type === EventType.RUN_STARTED ||
+            chunk.type === EventType.RUN_FINISHED,
+        ),
+      ).toMatchObject([
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'agent-run',
+          threadId: 'agent-thread',
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'agent-run',
+          threadId: 'agent-thread',
+        },
+      ])
+    })
+
+    it('emits the agent run start before an agent iteration error', async () => {
+      const { adapter } = createMockAdapter({
+        iterations: [
+          [
+            ev.runStarted('agent-run', 'agent-thread'),
+            ev.runError('agent iteration failed'),
+          ],
+        ],
+      })
+
+      const chunks = await collectChunks(
+        chat({
+          adapter,
+          messages: [{ role: 'user', content: 'extract' }],
+          tools: [serverTool('noop', () => null)],
+          outputSchema: PersonSchema,
+          stream: true,
+        }),
+      )
+
+      expect(chunks).toMatchObject([
+        {
+          type: EventType.RUN_STARTED,
+          runId: 'agent-run',
+          threadId: 'agent-thread',
+        },
+        {
+          type: EventType.RUN_ERROR,
+          runId: 'agent-run',
+          threadId: 'agent-thread',
+          metadata: {
+            tanstack: { runId: 'agent-run', threadId: 'agent-thread' },
+          },
+        },
+      ])
+    })
+
     it('emits structured-output.start before the first TEXT_MESSAGE_CONTENT', async () => {
       // Client-side routing (PR #577) requires `structured-output.start`
       // BEFORE any TEXT_MESSAGE_CONTENT. Without it, JSON deltas would land

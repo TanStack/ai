@@ -537,7 +537,8 @@ export const Route = createFileRoute('/api/middleware-test')({
 
         try {
           const adapterOptions =
-            scenario === 'run-error'
+            scenario === 'run-error' ||
+            scenario === 'structured-output-run-error'
               ? { adapter: createRunErrorAdapter() }
               : createTextAdapter(
                   provider as Parameters<typeof createTextAdapter>[0],
@@ -643,7 +644,8 @@ export const Route = createFileRoute('/api/middleware-test')({
           const tools =
             genericScenario && testId
               ? genericTools(testId, genericScenario)
-              : scenario === 'with-tool'
+              : scenario === 'with-tool' ||
+                  scenario === 'structured-output-run-error'
                 ? [weatherTool]
                 : []
 
@@ -653,12 +655,14 @@ export const Route = createFileRoute('/api/middleware-test')({
           // outputSchema branch keeps the route narrow.
           const isStructured =
             scenario === 'structured-output' ||
-            scenario === 'structured-output-stream'
+            scenario === 'structured-output-stream' ||
+            scenario === 'structured-output-run-error'
 
           const rawStream = isStructured
             ? chat({
                 ...adapterOptions,
                 messages: params.messages,
+                tools,
                 middleware,
                 threadId: params.threadId,
                 runId: params.runId,

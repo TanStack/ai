@@ -68,6 +68,37 @@ test.describe('Middleware Lifecycle', () => {
     )
   })
 
+  test('structured-output agent errors retain their run start', async ({
+    page,
+    testId,
+    baseURL,
+  }) => {
+    const params = new URLSearchParams()
+    if (testId) params.set('testId', testId)
+    const qs = params.toString()
+    await page.goto(`/middleware-test${qs ? '?' + qs : ''}`)
+    await page.waitForTimeout(2000)
+    await page
+      .locator('#mw-scenario-select')
+      .selectOption('structured-output-run-error')
+    await page.locator('#mw-mode-select').selectOption('phase-recorder')
+    await page.locator('#mw-run-button').click()
+
+    await expect
+      .poll(async () => {
+        const capture = await fetchPhaseCapture(page, baseURL, testId)
+        return capture.onErrorCount
+      })
+      .toBe(1)
+
+    const capture = await fetchPhaseCapture(page, baseURL, testId)
+    expect(capture.yieldedChunks.map((chunk: { type: string }) => chunk.type))
+      .toEqual(['RUN_STARTED', 'RUN_ERROR'])
+    expect(capture.yieldedChunks[1]?.runId).toBe(
+      capture.yieldedChunks[0]?.runId,
+    )
+  })
+
   test('onChunk transforms text content', async ({
     page,
     testId,
