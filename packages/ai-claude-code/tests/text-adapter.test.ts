@@ -221,7 +221,7 @@ describe('claude-code in-sandbox adapter', () => {
     await sbx.destroy()
   })
 
-  it('uses user as the default setting source', async () => {
+  it('uses project as the default setting source', async () => {
     const fake = [
       `import { writeFileSync } from 'node:fs'`,
       `writeFileSync('argv.txt', process.argv.slice(2).join(' '))`,
@@ -252,7 +252,7 @@ describe('claude-code in-sandbox adapter', () => {
       )
 
       expect(await sbx.fs.read('/workspace/argv.txt')).toMatch(
-        /--setting-sources user(?:\s|$)/,
+        /--setting-sources project(?:\s|$)/,
       )
     } finally {
       await sbx.destroy()

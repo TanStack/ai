@@ -87,7 +87,12 @@ export interface ClaudeCodeTextConfig {
   addDirs?: Array<string>
   /** Maximum harness-internal turns (`--max-turns`). */
   maxTurns?: number
-  /** Claude Code filesystem settings loaded via `--setting-sources`. Defaults to `['user']`. */
+  /**
+   * Claude Code settings tiers loaded via `--setting-sources`. Defaults to
+   * `['project']`: workspace projections (instructions, skills, MCP config)
+   * are project-scoped, and the host's `~/.claude` stays out of local-process
+   * runs. Pass `['user', 'project', 'local']` for CLI-equivalent behavior.
+   */
   settingSources?: Array<ClaudeCodeSettingSource>
   /**
    * How `systemPrompts` from `chat()` are applied:
@@ -212,7 +217,10 @@ export class ClaudeCodeTextAdapter<
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exeParts = (config.claudeExecutable ?? 'claude').split(' ')
-    const settingSources = config.settingSources ?? ['user']
+    // Claude only reads project-scoped config (CLAUDE.md, `.claude/skills`,
+    // `.mcp.json`) with `project` in the sources. `user` is off by default so
+    // a local-process run does not pull in the host's `~/.claude`.
+    const settingSources = config.settingSources ?? ['project']
 
     // `--setting-sources` before `-p`. Do not pass `--bare`: that flag
     // skips stored `claude login` credentials and prints

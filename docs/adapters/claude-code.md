@@ -74,7 +74,7 @@ const stream = chat({
 | `pathToClaudeCodeExecutable` | Use a specific Claude Code executable instead of the SDK's bundled one.                                                                             |
 | `streamPartials`             | Emit true token-level text deltas (default `true`).                                                                                                 |
 | `canUseTool`                 | Custom permission handler; replaces the adapter's default handler.                                                                                  |
-| `settingSources`             | Claude Code settings tiers to load. Default `['user']`: user-level config on the host (`~/.claude` plugins, hooks, skills) is loaded. Pass `['user', 'project', 'local']` for CLI-equivalent behavior, or `[]` for full isolation. |
+| `settingSources`             | Claude Code settings tiers to load. Default `['project']`: the workspace's `CLAUDE.md`, `.claude/skills`, and `.mcp.json` apply, and the host's `~/.claude` (plugins, hooks, skills) is not loaded. Pass `['user', 'project', 'local']` for CLI-equivalent behavior, or `[]` to load no settings. |
 
 **Permissions on headless servers.** Without an explicit `permissionMode` or `canUseTool`, the adapter installs a safe default handler: bridged TanStack tools always run, and any built-in tool call that would normally prompt a human is denied with guidance instead of hanging the request. To let the harness edit files or run commands, set `permissionMode: 'acceptEdits'` / `'bypassPermissions'`, or enumerate `allowedTools`.
 
@@ -184,7 +184,7 @@ const stream = chat({
 
 Pass `outputSchema` on `chat()`. Claude Code runs one harness turn, uses its native tools, and returns a typed object. The schema JSON is passed to `--json-schema` as inline JSON (the CLI rejects a file path). Tool activity and prose stream as usual. The object arrives as `structured-output.complete`, including when Claude delivers it through its built-in `StructuredOutput` tool.
 
-By default, the adapter loads only user settings (`--setting-sources user`). Configure `settingSources` to include project or local settings when needed. A cloned repo's `.claude/settings.json` does not block headless `-p`. The adapter does not pass `--bare`, because that flag ignores a host `claude login`.
+By default, the adapter loads only project settings (`--setting-sources project`). Workspace projections (instructions, skills, MCP config) are project-scoped, so they apply. The host's `~/.claude` is not loaded, so a local-process run does not pick up your personal skills and hooks. A cloned repo's `.claude/settings.json` and hooks apply to the run. Set `settingSources` to change this. The adapter does not pass `--bare`, because that flag ignores a host `claude login`.
 
 On local-process, Claude uses your host `claude login`. On Docker, pass `ANTHROPIC_API_KEY` in the process env. A container has no host login.
 
