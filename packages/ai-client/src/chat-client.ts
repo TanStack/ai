@@ -27,6 +27,7 @@ import {
 } from './connection-adapters'
 import { ChatPersistor } from './client-persistor'
 import { ClearedStreamTracker } from './cleared-stream-tracker'
+import { normalizeMessagesDates } from './message-date-normalizer'
 import { InterruptManager } from './interrupt-manager'
 import type {
   AnyClientTool,
@@ -418,6 +419,11 @@ export class ChatClient<
   private processingResolve: (() => void) | null = null
   private errorReportedGeneration: number | null = null
   private streamGeneration = 0
+  private continuationGeneration = 0
+  // Generation of the run that opened the current stream. Public
+  // `addToolResult` must use this, not the live counter: `stop()` increments
+  // the live counter, so a post-stop call would otherwise look current.
+  private streamContinuationGeneration = 0
   // Tracks whether a queued checkForContinuation was skipped because
   // continuationPending was true (chained approval scenario)
   private continuationSkipped = false
@@ -738,6 +744,7 @@ export class ChatClient<
           const clientTool = clientTools.get(args.toolName)
           const executeFunc = clientTool?.execute
           if (executeFunc) {
+            const continuationGeneration = this.continuationGeneration
             // Capture the run context at execution-start so a tool whose
             // result lands AFTER the originating run finishes still reports
             // back against the originating run, not whatever run is
@@ -764,6 +771,7 @@ export class ChatClient<
                     state: 'output-available',
                   },
                   clientTool,
+                  continuationGeneration,
                   runEventContext,
                 )
               } catch (error: any) {
@@ -776,6 +784,7 @@ export class ChatClient<
                     errorText: error.message,
                   },
                   clientTool,
+                  continuationGeneration,
                   runEventContext,
                 )
               } finally {
@@ -1018,7 +1027,7 @@ export class ChatClient<
       // A send may have started while the fetch was in flight — don't stomp it.
       if (this.isLoading || this.abortController) return
       if (result.messages.length > 0) {
-        this.processor.setMessages(result.messages)
+        this.processor.setMessages(normalizeMessagesDates(result.messages))
       }
       if (result.interrupts && result.interrupts.pending.length > 0) {
         // Pending interrupt = the thread is paused awaiting a human decision, so
@@ -1305,6 +1314,21 @@ export class ChatClient<
   ): Promise<boolean> {
     const target = state ?? this.lastResume
     if (!target) return Promise.resolve(false)
+    return this.resumeInterruptsUnsafeForGeneration(
+      resume,
+      target,
+      this.continuationGeneration,
+    )
+  }
+
+  private resumeInterruptsUnsafeForGeneration(
+    resume: Array<RunAgentResumeItem>,
+    target: ChatResumeState,
+    continuationGeneration: number,
+  ): Promise<boolean> {
+    if (continuationGeneration !== this.continuationGeneration) {
+      return Promise.resolve(false)
+    }
     // Auto-executed client tools resolve during the parent stream's
     // `pendingToolExecutions` wait — while `isLoading` is still true.
     // Defer the child continuation until that stream settles so we do not
@@ -1313,7 +1337,13 @@ export class ChatClient<
       return new Promise<boolean>((resolve, reject) => {
         this.queuePostStreamAction(async () => {
           try {
-            resolve(await this.resumeInterruptsUnsafe(resume, target))
+            resolve(
+              await this.resumeInterruptsUnsafeForGeneration(
+                resume,
+                target,
+                continuationGeneration,
+              ),
+            )
           } catch (error) {
             reject(error)
           }
@@ -1337,6 +1367,7 @@ export class ChatClient<
   private async submitInterruptBatch(
     submission: InterruptManagerSubmission,
   ): Promise<void> {
+    const continuationGeneration = this.continuationGeneration
     this.activeInterruptSubmission = submission
     this.interruptSubmissionFailure = undefined
     // Reflect approval decisions in the local message tree immediately so a
@@ -1348,15 +1379,21 @@ export class ChatClient<
       const approvalId = resolution.interruptId
       this.processor.addToolApprovalResponse(approvalId, approved)
     }
-    const resumed = await this.resumeInterruptsUnsafe(
+    const resumed = await this.resumeInterruptsUnsafeForGeneration(
       [...submission.resolutions],
       {
         threadId: submission.threadId,
         runId: submission.interruptedRunId,
       },
+      continuationGeneration,
     ).finally(() => {
-      this.activeInterruptSubmission = undefined
+      // Only clear if this resume still owns the client: `stop()` may have
+      // invalidated it while the submission was settling.
+      if (this.activeInterruptSubmission === submission) {
+        this.activeInterruptSubmission = undefined
+      }
     })
+    if (continuationGeneration !== this.continuationGeneration) return
     const failure = this.takeInterruptSubmissionFailure()
     if (failure !== undefined) {
       throw { errors: failure.errors }
@@ -1679,6 +1716,7 @@ export class ChatClient<
     // persisted pointer with the provider id — so a SECOND reload would
     // `joinRun` an id the log isn't keyed by and never re-attach.
     this.lastResume = { threadId: this.threadId, runId }
+    this.streamContinuationGeneration = this.continuationGeneration
     this.setIsLoading(true)
     this.setStatus('streaming')
     void (async () => {
@@ -2164,6 +2202,7 @@ export class ChatClient<
 
     // Track generation so a superseded stream's cleanup doesn't clobber the new one
     const generation = ++this.streamGeneration
+    this.streamContinuationGeneration = this.continuationGeneration
     // Native interrupt continuation is a fresh child run. The interrupted run
     // is carried as parentRunId and the complete resolution batch as resume.
     const resumeThreadId = this.pendingResumeThreadId
@@ -2507,9 +2546,14 @@ export class ChatClient<
    * Stop the current stream
    */
   stop(): void {
+    // Invalidate deferred work from the stopped continuation.
+    this.continuationGeneration++
     const hadLocalStream = this.abortController !== null
     this.cancelInFlightStream({ setReadyStatus: true })
     this.discardPendingSends()
+    this.lastResume = null
+    this.activeInterruptSubmission = undefined
+    this.interruptManager.reset()
     if (hadLocalStream) {
       this.resetSessionGenerating()
     }
@@ -2553,12 +2597,17 @@ export class ChatClient<
    */
   async addToolResult(result: ClientToolResult): Promise<void> {
     const clientTool = this.clientToolsRef.current.get(result.tool)
-    await this.addToolResultForClientTool(result, clientTool)
+    await this.addToolResultForClientTool(
+      result,
+      clientTool,
+      this.streamContinuationGeneration,
+    )
   }
 
   private async addToolResultForClientTool(
     result: ClientToolResult,
     clientTool: AnyClientTool | undefined,
+    continuationGeneration: number,
     context?: ChatClientRunEventContext,
   ): Promise<void> {
     if (result.state !== 'output-error') {
@@ -2589,6 +2638,8 @@ export class ChatClient<
       context,
     )
 
+    if (continuationGeneration !== this.continuationGeneration) return
+
     // Always update local message state so the tool-call part is terminal in
     // the UI even when the AG-UI interrupt path owns server continuation.
     this.processor.addToolResult(
@@ -2618,7 +2669,11 @@ export class ChatClient<
 
     // If stream is in progress, queue continuation check for after it ends
     if (this.isLoading) {
-      this.queuePostStreamAction(() => this.checkForContinuation())
+      this.queuePostStreamAction(() =>
+        continuationGeneration === this.continuationGeneration
+          ? this.checkForContinuation()
+          : Promise.resolve(),
+      )
       return
     }
 
@@ -2703,7 +2758,11 @@ export class ChatClient<
    * Queue an action to be executed after the current stream ends
    */
   private queuePostStreamAction(action: () => Promise<void>): void {
-    this.postStreamActions.push(action)
+    const continuationGeneration = this.continuationGeneration
+    this.postStreamActions.push(async () => {
+      if (continuationGeneration !== this.continuationGeneration) return
+      await action()
+    })
   }
 
   /**
@@ -2726,6 +2785,10 @@ export class ChatClient<
    * Check if we should continue the flow and do so if needed
    */
   private async checkForContinuation(): Promise<void> {
+    // stop() bumps continuationGeneration without opening a new stream.
+    if (this.streamContinuationGeneration !== this.continuationGeneration) {
+      return
+    }
     if (this.hasPendingInterrupts()) return
 
     // Prevent duplicate continuation attempts

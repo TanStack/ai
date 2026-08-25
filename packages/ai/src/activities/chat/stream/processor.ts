@@ -19,6 +19,7 @@
  */
 import {
   aguiSnapshotMessageToUIMessage,
+  coerceCreatedAt,
   generateMessageId,
   uiMessageToModelMessages,
 } from '../messages.js'
@@ -835,11 +836,10 @@ export class StreamProcessor {
           }
         : incomingRecord
     const metadata = mergeMetadata(message.metadata, toMerge)
-    const createdAtRaw = tanstackMetadata(incomingRecord)?.createdAt
-    const createdAt =
-      typeof createdAtRaw === 'string' ? new Date(createdAtRaw) : undefined
-    const createdAtValid =
-      createdAt !== undefined && !Number.isNaN(createdAt.getTime())
+    const createdAt = coerceCreatedAt(
+      tanstackMetadata(incomingRecord)?.createdAt,
+    )
+    const createdAtValid = createdAt !== undefined
     this.messages = this.messages.map((msg) =>
       msg.id === messageId
         ? {
@@ -1050,8 +1050,10 @@ export class StreamProcessor {
       msg.parts.every((part) => part.type === 'thinking')
     const isToolResultOnly = (msg: UIMessage) =>
       msg.role === 'assistant' &&
-      msg.parts.length === 1 &&
-      msg.parts[0]?.type === 'tool-result'
+      msg.parts.some((part) => part.type === 'tool-result') &&
+      msg.parts.every(
+        (part) => part.type === 'tool-result' || part.type === 'ui-resource',
+      )
     const flushPending = () => {
       out.push(...pending)
       pending = []
@@ -1109,9 +1111,16 @@ export class StreamProcessor {
 
     const reconciled: Array<UIMessage> = []
     for (const msg of snapshot) {
+      const toolResultParts = msg.parts.filter(
+        (part): part is ToolResultPart => part.type === 'tool-result',
+      )
       const toolResultPart =
-        msg.role === 'assistant' && msg.parts.length === 1
-          ? msg.parts.find((p): p is ToolResultPart => p.type === 'tool-result')
+        msg.role === 'assistant' &&
+        toolResultParts.length === 1 &&
+        msg.parts.every(
+          (part) => part.type === 'tool-result' || part.type === 'ui-resource',
+        )
+          ? toolResultParts[0]
           : undefined
 
       if (!toolResultPart) {
@@ -1170,7 +1179,7 @@ export class StreamProcessor {
           )
         }
       }
-      parts.push(toolResultPart)
+      parts.push(...msg.parts)
       // Replace rather than push into `target.parts`: a snapshot message that
       // arrived already carrying `parts` (TanStack server echoing UIMessages)
       // shares its array with the incoming chunk, and mutating it in place

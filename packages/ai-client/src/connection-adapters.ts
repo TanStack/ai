@@ -20,6 +20,7 @@ import type {
   UIMessage,
 } from '@tanstack/ai/client'
 import type { ChatFetcher, ChatPendingInterrupt } from './types'
+import { normalizeMessagesDates } from './message-date-normalizer'
 
 /**
  * Associates connect-wrapped chunks with the run they were produced under.
@@ -573,7 +574,9 @@ async function fetchThreadHydration(
         }
       : null
   return {
-    messages: Array.isArray(data.messages) ? data.messages : [],
+    messages: Array.isArray(data.messages)
+      ? normalizeMessagesDates(data.messages)
+      : [],
     activeRun,
     interrupts,
   }
@@ -1224,7 +1227,7 @@ function buildRunAgentInputBody(
 ): Record<string, unknown> {
   // Precedence (later spreads win): static adapter `body` is the base,
   // overridden by `runContext.forwardedProps`, overridden by per-message `data`.
-  const wireMessages = uiMessagesToWire(messages as Array<UIMessage>)
+  const wireMessages = uiMessagesToWire(messages)
   const forwardedProps = {
     ...options.body,
     ...(runContext?.forwardedProps ?? {}),

@@ -22,6 +22,7 @@ import {
 } from './memory-registry'
 import type { ContentPartSource, TokenUsage } from '@tanstack/ai'
 import type {
+  ContentPart,
   DevtoolsToolFixtureApplyEvent,
   RunLifecycleEvent,
 } from '@tanstack/ai-event-client'
@@ -40,7 +41,7 @@ interface MessagePart {
     | 'video'
     | 'document'
     | 'structured-output'
-  content?: string
+  content?: string | Array<ContentPart>
   status?: 'streaming' | 'complete' | 'error'
   raw?: string
   partial?: unknown

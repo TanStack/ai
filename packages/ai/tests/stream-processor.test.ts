@@ -23,6 +23,8 @@ import type {
   UIMessage,
 } from '../src/types'
 import type { Message as AGUIMessage } from '@ag-ui/core'
+import { aguiSnapshotMessageToUIMessage } from '../src/activities/chat/messages'
+import { uiMessagesToWire } from '../src/utilities/ag-ui-wire'
 
 // ============================================================================
 // Helpers
@@ -134,6 +136,31 @@ function spyEvents(): MockedEvents {
 // ============================================================================
 
 describe('StreamProcessor', () => {
+  it('normalizes nested dates on snapshot existing tool-result parts', () => {
+    const message = aguiSnapshotMessageToUIMessage({
+      id: 'a1',
+      role: 'assistant',
+      parts: [
+        {
+          type: 'tool-result',
+          toolCallId: 'tc1',
+          content: 'ok',
+          state: 'complete',
+          createdAt: '2026-08-20T00:00:00.000Z',
+        },
+        {
+          type: 'tool-result',
+          toolCallId: 'tc2',
+          content: 'bad',
+          state: 'complete',
+          createdAt: 'not-a-date',
+        },
+      ],
+    } as unknown as AGUIMessage)
+    const parts = message.parts.filter((part) => part.type === 'tool-result')
+    expect(parts[0]?.createdAt).toEqual(new Date('2026-08-20T00:00:00.000Z'))
+    expect(parts[1]).not.toHaveProperty('createdAt')
+  })
   // ==========================================================================
   // Constructor and options
   // ==========================================================================
@@ -430,6 +457,115 @@ describe('StreamProcessor', () => {
       expect(assistant!.createdAt?.toISOString()).toBe(createdAtIso)
     })
 
+    it('MESSAGES_SNAPSHOT restores structured-output and ui-resource parts', () => {
+      const processor = new StreamProcessor()
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/todos',
+          mimeType: 'text/html',
+          text: '<div>todos</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getTodos',
+      }
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: '{"ok":true}',
+              metadata: {
+                tanstack: {
+                  structuredOutput: {
+                    status: 'complete',
+                    raw: '{"ok":true}',
+                    partial: { ok: true },
+                    data: { ok: true },
+                  },
+                  uiResources: [uiResource],
+                },
+              },
+            },
+          ],
+        }),
+      )
+
+      expect(processor.getMessages()[0]?.parts).toEqual([
+        {
+          type: 'structured-output',
+          status: 'complete',
+          raw: '{"ok":true}',
+          partial: { ok: true },
+          data: { ok: true },
+        },
+        uiResource,
+      ])
+    })
+
+    it('MESSAGES_SNAPSHOT ignores a malformed ui-resource without throwing', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              content: 'ok',
+              name: 'Ada',
+              metadata: {
+                tanstack: {
+                  uiResources: [{ type: 'ui-resource' }],
+                },
+              },
+            },
+          ],
+        }),
+      )
+
+      const restored = processor.getMessages()[0]
+      expect(restored?.name).toBe('Ada')
+      expect(restored?.parts).toEqual([{ type: 'text', content: 'ok' }])
+    })
+
+    it('MESSAGES_SNAPSHOT does not duplicate restored ui-resource parts', () => {
+      const processor = new StreamProcessor()
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/todos',
+          mimeType: 'text/html',
+          text: '<div>todos</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getTodos',
+      }
+
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              parts: [uiResource],
+              metadata: {
+                tanstack: {
+                  uiResources: [
+                    { ...uiResource, resource: { ...uiResource.resource } },
+                  ],
+                },
+              },
+            },
+          ],
+        }),
+      )
+
+      expect(processor.getMessages()[0]?.parts).toEqual([uiResource])
+    })
+
     it('snapshot that omits user metadata keeps in-memory user metadata', () => {
       const processor = new StreamProcessor()
       processor.addUserMessage('Hello', 'u1', {
@@ -445,6 +581,40 @@ describe('StreamProcessor', () => {
       expect(processor.getMessages()[0]!.metadata).toEqual({
         author: { id: 'user-42', name: 'Dana' },
       })
+    })
+
+    it('restores per-tool fields from a messages snapshot', () => {
+      const processor = new StreamProcessor()
+      processor.processChunk(
+        chunk(EventType.MESSAGES_SNAPSHOT, {
+          messages: [
+            {
+              id: 'r1',
+              role: 'tool',
+              toolCallId: 'c1',
+              content: '1',
+              name: 'one',
+              metadata: { n: 1 },
+            },
+            {
+              id: 'r2',
+              role: 'tool',
+              toolCallId: 'c2',
+              content: '2',
+              name: 'two',
+              metadata: { n: 2 },
+            },
+          ],
+        }),
+      )
+      const results = processor
+        .getMessages()
+        .flatMap((message) => message.parts)
+        .filter((part) => part.type === 'tool-result')
+      expect(results).toMatchObject([
+        { id: 'r1', name: 'one', metadata: { n: 1 } },
+        { id: 'r2', name: 'two', metadata: { n: 2 } },
+      ])
     })
 
     it('TOOL_CALL_START spec metadata lands on ToolCallPart, not parent UIMessage', () => {
@@ -3355,11 +3525,134 @@ describe('StreamProcessor', () => {
         },
         {
           type: 'tool-result',
+          id: 't1',
           toolCallId: 'tc-1',
           content: '{"temp":72}',
           state: 'complete',
         },
       ])
+    })
+
+    it('anchors a tool message that also has a valid UI resource', () => {
+      const processor = new StreamProcessor()
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/weather',
+          mimeType: 'text/html',
+          text: '<div>72</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+      }
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Checking.',
+            toolCalls: [
+              {
+                id: 'tc-1',
+                type: 'function',
+                function: { name: 'getWeather', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '{"temp":72}',
+            toolCallId: 'tc-1',
+            metadata: { tanstack: { uiResources: [uiResource] } },
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      expect(messages[0]?.id).toBe('a1')
+      expect(messages[0]?.parts).toContainEqual(uiResource)
+      expect(messages[0]?.parts).toContainEqual(
+        expect.objectContaining({
+          type: 'tool-result',
+          id: 't1',
+          toolCallId: 'tc-1',
+          content: '{"temp":72}',
+          state: 'complete',
+        }),
+      )
+    })
+
+    it('keeps one UI resource through repeated wire snapshot round trips', () => {
+      const processor = new StreamProcessor()
+      const uiResource = {
+        type: 'ui-resource' as const,
+        resource: {
+          uri: 'ui://widget/weather',
+          mimeType: 'text/html',
+          text: '<div>72</div>',
+        },
+        toolCallId: 'tc-1',
+        toolName: 'getWeather',
+      }
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: 'a1',
+            role: 'assistant',
+            content: 'Checking.',
+            toolCalls: [
+              {
+                id: 'tc-1',
+                type: 'function',
+                function: { name: 'getWeather', arguments: '{}' },
+              },
+            ],
+          },
+          {
+            id: 't1',
+            role: 'tool',
+            content: '{"temp":72}',
+            toolCallId: 'tc-1',
+            metadata: { tanstack: { uiResources: [uiResource] } },
+          },
+        ],
+        timestamp: Date.now(),
+      } as unknown as StreamChunk)
+
+      for (let cycle = 0; cycle < 2; cycle++) {
+        const messages = JSON.parse(
+          JSON.stringify(uiMessagesToWire(processor.getMessages())),
+        ) as Array<AGUIMessage>
+        processor.processChunk({
+          type: EventType.MESSAGES_SNAPSHOT,
+          messages,
+          timestamp: Date.now(),
+        } as unknown as StreamChunk)
+
+        const assistant = processor
+          .getMessages()
+          .find((message) =>
+            message.parts.some(
+              (part) => part.type === 'tool-call' && part.id === 'tc-1',
+            ),
+          )
+        expect(assistant).toBeDefined()
+        expect(
+          assistant?.parts.filter((part) => part.type === 'ui-resource'),
+        ).toEqual([uiResource])
+        expect(
+          assistant?.parts.filter(
+            (part) => part.type === 'tool-result' && part.toolCallId === 'tc-1',
+          ),
+        ).toHaveLength(1)
+      }
     })
 
     it('should preserve an in-flight tool-call part the snapshot omits so addToolResult still works (#859)', () => {
@@ -3510,6 +3803,7 @@ describe('StreamProcessor', () => {
       expect(resultsIn(1)).toEqual([
         {
           type: 'tool-result',
+          id: 't1',
           toolCallId: 'tc-1',
           content: '{"temp":72}',
           state: 'complete',
@@ -3519,6 +3813,7 @@ describe('StreamProcessor', () => {
       expect(resultsIn(2)).toEqual([
         {
           type: 'tool-result',
+          id: 't2',
           toolCallId: 'tc-2',
           content: '{"temp":65}',
           state: 'complete',
@@ -3983,6 +4278,36 @@ describe('StreamProcessor', () => {
       expect(warn).toHaveBeenCalledWith(
         expect.stringContaining('no assistant message to anchor into'),
       )
+
+      warn.mockRestore()
+    })
+
+    it('should preserve an AG-UI tool error in a snapshot', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+      const processor = new StreamProcessor()
+
+      processor.processChunk({
+        type: EventType.MESSAGES_SNAPSHOT,
+        messages: [
+          {
+            id: 'tool-msg',
+            role: 'tool',
+            toolCallId: 'call-1',
+            content: '{"error":"boom"}',
+            error: 'boom',
+          },
+        ],
+        timestamp: Date.now(),
+      })
+
+      expect(processor.getMessages()[0]?.parts).toContainEqual({
+        type: 'tool-result',
+        id: 'tool-msg',
+        toolCallId: 'call-1',
+        content: '{"error":"boom"}',
+        state: 'error',
+        error: 'boom',
+      })
 
       warn.mockRestore()
     })

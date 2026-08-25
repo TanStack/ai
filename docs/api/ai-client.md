@@ -218,7 +218,9 @@ id, so a later `attach()` continues where it left off. See
 
 #### `stop()`
 
-Stops the current response generation.
+Stops the current response generation. It aborts the in-flight request.
+Pending client-tool results for that turn are ignored. A later
+`addToolResult()` call for that turn is ignored. It does not start a resume.
 
 ```typescript
 import { client } from "./client";
@@ -250,7 +252,9 @@ client.setMessagesManually([...newMessages]);
 
 #### `addToolResult(result)`
 
-Adds the result of a client-side tool execution.
+Adds the result of a client-side tool execution. After `stop()`, a result for
+the stopped turn is ignored. A new user message starts a new turn. Then
+`addToolResult()` applies to that turn.
 
 ```typescript
 import { client } from "./client";
@@ -590,8 +594,9 @@ This library does not ship a dialog. Call `byok.update(provider, value)` from yo
 ```typescript ignore
 interface UIMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "system" | "user" | "assistant";
   parts: MessagePart[];
+  name?: string;
   createdAt?: Date;
   metadata?: Record<string, any>;
 }
@@ -649,10 +654,14 @@ When you pass a typed `tools` array (a plain array works — `clientTools()` is 
 ```typescript ignore
 interface ToolResultPart {
   type: "tool-result";
+  id?: string;
+  name?: string;
   toolCallId: string;
-  content: string;
+  content: string | ContentPart[];
   state: ToolResultState;
   error?: string;
+  metadata?: Record<string, unknown>;
+  createdAt?: Date;
 }
 ```
 

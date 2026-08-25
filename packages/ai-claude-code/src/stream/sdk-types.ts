@@ -14,6 +14,7 @@ export interface SdkInitMessage {
   session_id: string
   model: string
   tools: Array<string>
+  skills?: Array<string>
   cwd?: string
 }
 
