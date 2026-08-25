@@ -1,5 +1,5 @@
-import { Box, BoxError } from '@upstash/box'
-import { UPSTASH_BOX_CAPS, UpstashBoxHandle } from './handle'
+import { Box } from '@upstash/box'
+import { UPSTASH_BOX_CAPS, UpstashBoxHandle, isNotFoundError } from './handle'
 import type { PublicUrlAuth } from './handle'
 import type { BoxConfig, BoxSize, Runtime } from '@upstash/box'
 import type {
@@ -44,16 +44,6 @@ export interface UpstashBoxSandboxConfig {
 }
 
 const DEFAULT_RUNTIME: Runtime = 'node'
-
-/**
- * Measured against the API: a missing box and a deleted box both answer 404
- * ("Box not found" / "Box has been deleted"). Anything else, notably 401 for a
- * bad key, is a real failure and must not be reported as "gone" — that would
- * silently create a duplicate box on an auth blip or a transport error.
- */
-function isGone(error: unknown): boolean {
-  return error instanceof BoxError && error.statusCode === 404
-}
 
 class UpstashBoxProvider implements SandboxProvider {
   readonly name = 'upstash-box'
@@ -160,7 +150,7 @@ class UpstashBoxProvider implements SandboxProvider {
         publicUrlAuth: this.config.publicUrlAuth,
       })
     } catch (error) {
-      if (isGone(error)) return null
+      if (isNotFoundError(error)) return null
       throw error
     }
   }
@@ -190,7 +180,7 @@ class UpstashBoxProvider implements SandboxProvider {
     } catch (error) {
       // Already gone is success; anything else must surface so the caller does
       // not believe a still-running box was destroyed.
-      if (!isGone(error)) throw error
+      if (!isNotFoundError(error)) throw error
     }
   }
 }

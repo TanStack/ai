@@ -13,7 +13,7 @@ import {
   UnsupportedCapabilityError,
   createExecBackedGit,
 } from '@tanstack/ai-sandbox'
-import { Box } from '@upstash/box'
+import { Box, BoxError } from '@upstash/box'
 import type { BoxConfig, ExecSessionHandle } from '@upstash/box'
 import type {
   ExecResult,
@@ -49,6 +49,30 @@ export const UPSTASH_BOX_CAPS: SandboxCapabilities = {
 
 /** The `/workspace` virtual root maps to Box's session home. */
 export const WORKSPACE_ROOT = '/workspace/home'
+
+/**
+ * A missing path, a missing box, and a deleted box all answer 404. Anything
+ * else (401, a transport failure) is a real error and must not be flattened
+ * into "absent".
+ */
+export function isNotFoundError(error: unknown): boolean {
+  return error instanceof BoxError && error.statusCode === 404
+}
+
+/**
+ * Env names reach a shell through `export <key>=...`, so a key carrying `;`
+ * would inject commands. Values are quoted; keys cannot be, so they are
+ * rejected instead.
+ */
+const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+function assertEnvName(key: string): void {
+  if (!ENV_NAME.test(key)) {
+    throw new Error(
+      `upstash-box: invalid environment variable name ${JSON.stringify(key)}`,
+    )
+  }
+}
 
 /** Signals the box agent accepts; anything else is delivered as TERM. */
 const BOX_SIGNALS = new Set(['TERM', 'KILL', 'INT', 'HUP'])
@@ -231,8 +255,9 @@ export class UpstashBoxHandle implements SandboxHandle {
         try {
           await this.box.files.stat(this.abs(p))
           return true
-        } catch {
-          return false
+        } catch (error) {
+          if (isNotFoundError(error)) return false
+          throw error
         }
       },
     }
@@ -266,16 +291,20 @@ export class UpstashBoxHandle implements SandboxHandle {
 
   /** Accumulated env plus per-command overrides, as Box's `KEY=VALUE` list. */
   private envList(extra?: Record<string, string>): Array<string> {
-    return Object.entries({ ...this.envVars, ...extra }).map(
-      ([k, v]) => `${k}=${v}`,
-    )
+    return Object.entries({ ...this.envVars, ...extra }).map(([k, v]) => {
+      assertEnvName(k)
+      return `${k}=${v}`
+    })
   }
 
   /** Prefix a command with `export`s for the accumulated env vars. */
   private withEnv(command: string, extra?: Record<string, string>): string {
     const merged = { ...this.envVars, ...extra }
     const exports = Object.entries(merged)
-      .map(([k, v]) => `export ${k}=${q(v)}; `)
+      .map(([k, v]) => {
+        assertEnvName(k)
+        return `export ${k}=${q(v)}; `
+      })
       .join('')
     return `${exports}${command}`
   }
@@ -336,13 +365,12 @@ export class UpstashBoxHandle implements SandboxHandle {
     })
 
     started.session = session
+    // A queue can overflow while the handshake is still settling, when
+    // `onOverflow` had no session to kill. Re-check now that there is one.
+    if (stdoutQ.overflowed || stderrQ.overflowed) session.kill('TERM')
 
     const onAbort = (): void => session.kill('TERM')
     opts?.signal?.addEventListener('abort', onAbort, { once: true })
-    // The SDK cannot cancel an in-flight handshake, so an abort raised while it
-    // was settling is only observable now. Honour it rather than handing back a
-    // process the caller already cancelled.
-    if (opts?.signal?.aborted === true) onAbort()
 
     const exit = session.wait().finally(() => {
       opts?.signal?.removeEventListener('abort', onAbort)
@@ -354,6 +382,15 @@ export class UpstashBoxHandle implements SandboxHandle {
     // spawn() is often fire-and-forget, so `exit` may never be observed via
     // wait(). Mark it handled here; wait() still surfaces the rejection.
     exit.catch(() => undefined)
+
+    // The SDK cannot cancel an in-flight handshake, so an abort raised while it
+    // was settling is only observable now. Signal the process and reject, as
+    // the pre-flight check would have, rather than handing back a handle for an
+    // operation the caller already cancelled.
+    if (opts?.signal?.aborted === true) {
+      onAbort()
+      opts.signal.throwIfAborted()
+    }
 
     return {
       pid: session.pid,

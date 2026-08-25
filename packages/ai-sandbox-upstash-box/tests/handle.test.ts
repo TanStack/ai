@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { UnsupportedCapabilityError } from '@tanstack/ai-sandbox'
 import { UPSTASH_BOX_CAPS, UpstashBoxHandle } from '../src/handle'
+import { BoxError } from '@upstash/box'
 import type { Box } from '@upstash/box'
 import type { PublicUrlAuth } from '../src/handle'
 
@@ -64,6 +65,7 @@ function fakeBox(
       exitCode: number | null
     }
     session?: ReturnType<typeof fakeSession>
+    duringHandshake?: (fake: ReturnType<typeof fakeSession>) => void
     files?: Partial<Box['files']>
     getPublicURL?: Box['getPublicURL']
     snapshot?: Box['snapshot']
@@ -90,6 +92,8 @@ function fakeBox(
             onStderr?: (d: Uint8Array) => void
           },
         )
+        // Lets a test push output or abort while the handshake is still pending.
+        overrides.duringHandshake?.(fake)
         return fake.session
       }),
     },
@@ -264,8 +268,11 @@ describe('UpstashBoxHandle', () => {
     for (let i = 0; i < 9; i += 1) fake.session.emitStdout(mb)
     let out = ''
     for await (const c of proc.stdout) out += c
+    // Measure the payload apart from the notice, or a regression past the cap
+    // hides inside a bound loose enough to swallow it.
+    const payload = out.slice(0, out.indexOf('\n[upstash-box]'))
+    expect(payload.length).toBeLessThanOrEqual(8 * 1024 * 1024)
     expect(out).toContain('output truncated')
-    expect(out.length).toBeLessThan(9 * 1024 * 1024)
     // Overflow signals the process rather than leaving it writing into a dead stream.
     expect(fake.session.kill).toHaveBeenCalledWith('TERM')
   })
@@ -378,12 +385,71 @@ describe('UpstashBoxHandle', () => {
     const missing = fakeBox({
       files: {
         stat: vi.fn(async () => {
-          throw new Error('404')
+          throw new BoxError('Not found', 404)
         }) as unknown as Box['files']['stat'],
       },
     })
     const handle2 = new UpstashBoxHandle({ box: missing.box })
     await expect(handle2.fs.exists('/workspace/gone')).resolves.toBe(false)
+  })
+
+  // Flattening a 401 or a transport error into "absent" makes a caller
+  // overwrite a file it could not read.
+  it('exists rethrows a non-404 instead of reporting absent', async () => {
+    const { box } = fakeBox({
+      files: {
+        stat: vi.fn(async () => {
+          throw new BoxError('Invalid box API key', 401)
+        }) as unknown as Box['files']['stat'],
+      },
+    })
+    const handle = new UpstashBoxHandle({ box })
+    await expect(handle.fs.exists('/workspace/x')).rejects.toThrow(
+      'Invalid box API key',
+    )
+  })
+
+  it('rejects env names that could inject shell syntax', async () => {
+    const { box, commands } = fakeBox()
+    const handle = new UpstashBoxHandle({ box })
+    await expect(
+      handle.process.exec('echo hi', { env: { 'X;rm -rf /': 'v' } }),
+    ).rejects.toThrow(/invalid environment variable name/)
+    expect(commands).toEqual([])
+    await handle.env.set({ 'BAD-NAME': 'v' })
+    await expect(handle.process.spawn('run')).rejects.toThrow(
+      /invalid environment variable name/,
+    )
+  })
+
+  it('kills a session that overflowed while the handshake was settling', async () => {
+    const fake = fakeSession()
+    const { box } = fakeBox({
+      session: fake,
+      // Overflow BEFORE exec.session() resolves, when there is no session to kill.
+      duringHandshake: (f) => {
+        for (let i = 0; i < 9; i += 1) f.session.emitStdout('x'.repeat(1024 * 1024))
+      },
+    })
+    const handle = new UpstashBoxHandle({ box })
+    const proc = await handle.process.spawn('noisy')
+    expect(proc.pid).toBeGreaterThan(0)
+    expect(fake.session.kill).toHaveBeenCalledWith('TERM')
+  })
+
+  it('rejects spawn when the signal aborts during the handshake', async () => {
+    const controller = new AbortController()
+    const fake = fakeSession()
+    const { box } = fakeBox({
+      session: fake,
+      duringHandshake: () => controller.abort(),
+    })
+    const handle = new UpstashBoxHandle({ box })
+    await expect(
+      handle.process.spawn('run', { signal: controller.signal }),
+    ).rejects.toThrow()
+    // The started process is signalled rather than left running unowned.
+    expect(fake.session.kill).toHaveBeenCalledWith('TERM')
   })
 
   it('maps a bare public URL to a plain channel', async () => {
