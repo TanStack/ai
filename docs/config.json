@@ -987,7 +987,7 @@
           "label": "Lovable AI Gateway",
           "to": "adapters/lovable",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-08-25"
         },
         {
           "label": "OpenAI-Compatible",
