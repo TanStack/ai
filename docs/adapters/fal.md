@@ -138,7 +138,7 @@ const result = await generateImage({
 
 ## Image Size Options
 
-The fal adapter supports a flexible `size` paramater that maps either to `image_size` or to `aspect_ratio` and `resolution` parameters:
+The fal adapter supports a flexible `size` parameter that maps either to `image_size` or to `aspect_ratio` and `resolution` parameters:
 
 |  | `size` | Maps To |
 |--------|---------|---------|
