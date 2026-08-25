@@ -164,6 +164,16 @@ function resolveTransport(transport: {
   throw new Error('ChatClient: either `connection` or `fetcher` is required.')
 }
 
+function connectionDrainsOnSend(connection: ConnectionAdapter): boolean {
+  return 'connect' in connection
+}
+
+function isIntermediateToolTurn(chunk: StreamChunk): boolean {
+  if (chunk.type !== 'RUN_FINISHED') return false
+  if (chunk.outcome?.type === 'interrupt') return false
+  return tanstackMetadata(chunk)?.finishReason === 'tool_calls'
+}
+
 export interface NormalizedQueueConfig {
   whenBusy: WhenBusy
   drain: 'fifo' | 'batch'
@@ -416,6 +426,12 @@ export class ChatClient<
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
   private processingResolve: (() => void) | null = null
+  /**
+   * `connect()` adapters push the full HTTP body into the subscribe queue, then
+   * wait until that queue is idle. After `send()` returns, every chunk from this
+   * request has been processed. Subscribe/send sockets do not drain that way.
+   */
+  private connectionDrainsOnSend = false
   private errorReportedGeneration: number | null = null
   private streamGeneration = 0
   private continuationGeneration = 0
@@ -518,7 +534,9 @@ export class ChatClient<
     this.byokProvider = options.byokProvider
     this.context = options.context
     this.queueConfig = normalizeQueueOption(options.queue)
-    this.connection = normalizeConnectionAdapter(resolveTransport(options))
+    const transport = resolveTransport(options)
+    this.connectionDrainsOnSend = connectionDrainsOnSend(transport)
+    this.connection = normalizeConnectionAdapter(transport)
 
     // Build client tools map
     this.clientToolsRef = { current: new Map() }
@@ -1140,7 +1158,9 @@ export class ChatClient<
       this.clearedStreamTracker.onSessionRunError()
     }
     this.setSessionGenerating(this.activeRunIds.size > 0)
-    if (options?.resolveProcessing !== false) {
+    const skipProcessingResolve =
+      chunk.type === 'RUN_FINISHED' && isIntermediateToolTurn(chunk)
+    if (options?.resolveProcessing !== false && !skipProcessingResolve) {
       this.resolveProcessing()
     }
   }
@@ -2344,6 +2364,14 @@ export class ChatClient<
         return false
       }
 
+      // connect() send() already waited until the subscribe queue was idle.
+      // Kick the processing wait so a stream that ends on tool_calls (no
+      // interrupt / stop) cannot hang. Subscribe/send sockets still wait for
+      // a request-ending terminal below.
+      if (this.connectionDrainsOnSend) {
+        this.resolveProcessing()
+      }
+
       // Wait for subscription loop to finish processing all chunks
       await processingComplete
 
@@ -3045,12 +3073,12 @@ export class ChatClient<
       this.resetSessionGenerating()
       this.setIsSubscribed(false)
       this.setConnectionStatus('disconnected')
-      this.connection = normalizeConnectionAdapter(
-        resolveTransport({
-          connection: options.connection,
-          fetcher: options.fetcher,
-        }),
-      )
+      const transport = resolveTransport({
+        connection: options.connection,
+        fetcher: options.fetcher,
+      })
+      this.connectionDrainsOnSend = connectionDrainsOnSend(transport)
+      this.connection = normalizeConnectionAdapter(transport)
 
       if (wasSubscribed) {
         this.subscribe()

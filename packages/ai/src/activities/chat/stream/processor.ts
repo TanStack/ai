@@ -1647,8 +1647,14 @@ export class StreamProcessor {
     }
 
     if (this.activeRuns.size === 0) {
-      this.isDone = true
       this.completeAllToolCalls()
+      const isIntermediateToolTurn =
+        this.finishReason === 'tool_calls' &&
+        chunk.outcome?.type !== 'interrupt'
+      if (isIntermediateToolTurn) {
+        return
+      }
+      this.isDone = true
       this.finalizeStream()
     }
   }
@@ -2344,6 +2350,7 @@ export class StreamProcessor {
    * @see docs/chat-architecture.md#single-shot-text-response — Finalization step
    */
   finalizeStream(): void {
+    this.isDone = true
     let lastAssistantMessage: UIMessage | undefined
 
     // Finalize ALL active messages

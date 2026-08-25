@@ -2976,7 +2976,9 @@ describe('StreamProcessor', () => {
       expect(state.toolCalls.size).toBe(1)
       expect(state.toolCallOrder).toEqual(['tc-1'])
       expect(state.finishReason).toBe('tool_calls')
-      expect(state.done).toBe(true)
+      expect(state.done).toBe(false)
+      processor.finalizeStream()
+      expect(processor.getState().done).toBe(true)
     })
 
     it('should return independent copies (mutations do not affect internal state)', () => {
@@ -4603,6 +4605,26 @@ describe('StreamProcessor', () => {
       expect(processor.getState().done).toBe(true)
     })
 
+    it('does not fire onStreamEnd on a sequential tool_calls terminal', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+
+      processor.processChunk(ev.runStarted('run-1'))
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('calling', 'msg-1'))
+      processor.processChunk(ev.runFinished('tool_calls', 'run-1'))
+
+      expect(events.onStreamEnd).not.toHaveBeenCalled()
+      expect(processor.getState().done).toBe(false)
+
+      processor.processChunk(ev.runStarted('run-2'))
+      processor.processChunk(ev.textContent(' done', 'msg-1'))
+      processor.processChunk(ev.runFinished('stop', 'run-2'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
     it('single run should finalize normally (backward compat)', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
@@ -4656,6 +4678,8 @@ describe('StreamProcessor', () => {
       expect(processor.getState().toolCalls.get('tc-a')?.state).toBe(
         'input-complete',
       )
+      expect(processor.getState().done).toBe(false)
+      processor.finalizeStream()
       expect(processor.getState().done).toBe(true)
     })
 

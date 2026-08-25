@@ -1055,6 +1055,28 @@ export function normalizeConnectionAdapter(
     }
   }
 
+  async function waitUntilSubscriberIdle(
+    abortSignal?: AbortSignal,
+  ): Promise<void> {
+    let lastBuffer = activeBuffer.length
+    let stalledTicks = 0
+    while (!abortSignal?.aborted) {
+      if (activeBuffer.length === 0 && activeWaiters.length > 0) {
+        return
+      }
+      if (activeBuffer.length < lastBuffer) {
+        stalledTicks = 0
+      } else {
+        stalledTicks++
+      }
+      lastBuffer = activeBuffer.length
+      if (activeWaiters.length === 0 && stalledTicks >= 8) {
+        return
+      }
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+    }
+  }
+
   return {
     subscribe(abortSignal?: AbortSignal): AsyncIterable<StreamChunk> {
       // Transfer ownership to the latest subscriber so only one active
@@ -1161,6 +1183,8 @@ export function normalizeConnectionAdapter(
           }
         }
         throw err
+      } finally {
+        await waitUntilSubscriberIdle(abortSignal)
       }
     },
     // Expose joinRun only when the underlying connection is resumable. Require

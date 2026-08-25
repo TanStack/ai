@@ -253,6 +253,11 @@ export const SCENARIO_LIST = [
     label: 'Client Tool Input Error',
     category: 'basic',
   },
+  {
+    id: 'invalid-client-tool-retry',
+    label: 'Invalid Client Tool Retry (Regression #1192)',
+    category: 'race',
+  },
   // Race condition / event flow scenarios
   {
     id: 'sequential-client-tools',
@@ -312,6 +317,7 @@ export function getToolsForScenario(scenario: string) {
     case 'client-tool-reasoning':
     case 'client-tool-stop':
     case 'client-tool-input-error':
+    case 'invalid-client-tool-retry':
       return [clientToolDefinitions.show_notification]
 
     case 'server-context':
