@@ -1701,8 +1701,8 @@ export class ChatClient<
         await pendingYield
         if (signal.aborted) break
       }
-      beforeProcess?.(chunk)
       const startedAt = performance.now()
+      beforeProcess?.(chunk)
       this.processIncomingChunk(chunk)
       this.chunkProcessingTime += performance.now() - startedAt
       if (
