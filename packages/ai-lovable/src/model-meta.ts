@@ -43,10 +43,9 @@ export const LOVABLE_CHAT_MODELS = [
 export type LovableChatModel = (typeof LOVABLE_CHAT_MODELS)[number]
 
 /**
- * A curated chat model id, or any other id the gateway accepts.
- * Uncurated ids fall back to text-only input and the generic provider options.
+ * A curated chat model id from `LOVABLE_CHAT_MODELS`.
  */
-export type LovableModelId = LovableChatModel | (string & {})
+export type LovableModelId = LovableChatModel
 
 export type LovableChatModelProviderOptionsByName = {
   [K in LovableChatModel]: LovableTextProviderOptions

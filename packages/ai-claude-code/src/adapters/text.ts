@@ -62,6 +62,8 @@ export type ClaudeCodePermissionMode =
   | 'bypassPermissions'
   | 'plan'
 
+export type ClaudeCodeSettingSource = 'user' | 'project' | 'local'
+
 const DEFAULT_WORKDIR = '/workspace'
 
 export interface ClaudeCodeTextConfig {
@@ -85,6 +87,13 @@ export interface ClaudeCodeTextConfig {
   addDirs?: Array<string>
   /** Maximum harness-internal turns (`--max-turns`). */
   maxTurns?: number
+  /**
+   * Claude Code settings tiers loaded via `--setting-sources`. Defaults to
+   * `['project']`: workspace projections (instructions, skills, MCP config)
+   * are project-scoped, and the host's `~/.claude` stays out of local-process
+   * runs. Pass `['user', 'project', 'local']` for CLI-equivalent behavior.
+   */
+  settingSources?: Array<ClaudeCodeSettingSource>
   /**
    * How `systemPrompts` from `chat()` are applied:
    * - `'append'` (default): `--append-system-prompt` on top of the preset.
@@ -208,15 +217,19 @@ export class ClaudeCodeTextAdapter<
     const config = this.adapterConfig
     const modelOptions = options.modelOptions
     const exeParts = (config.claudeExecutable ?? 'claude').split(' ')
+    // Claude only reads project-scoped config (CLAUDE.md, `.claude/skills`,
+    // `.mcp.json`) with `project` in the sources. `user` is off by default so
+    // a local-process run does not pull in the host's `~/.claude`.
+    const settingSources = config.settingSources ?? ['project']
 
-    // `--setting-sources user` before `-p`. Do not pass `--bare`: that flag
+    // `--setting-sources` before `-p`. Do not pass `--bare`: that flag
     // skips stored `claude login` credentials and prints
     // "Not logged in · Please run /login" (claude-code#51047).
     // `-p` can take the next token as the prompt, so these flags stay first.
     const args: Array<string> = [
       ...exeParts,
       '--setting-sources',
-      'user',
+      settingSources.join(','),
       '-p',
       '--output-format',
       'stream-json',
