@@ -5,7 +5,8 @@
 ## ✅ Checklist
 
 - [ ] I have followed the steps in the [Contributing guide](https://github.com/TanStack/ai/blob/main/CONTRIBUTING.md).
-- [ ] I have tested this code locally with `pnpm run test:pr`.
+- [ ] I have tested code changes locally with `pnpm run test:pr`, or these tests do not apply to this pull request.
+- [ ] I fully understand the code in this pull request, including any code generated with AI assistance.
 - [ ] Docs: I updated `docs/` for this change, or this change is not user-facing.
 - [ ] Changeset: I added a changeset (`pnpm changeset`), or this PR does not change a published package.
 
