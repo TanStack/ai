@@ -65,6 +65,68 @@ describe('reconstructChat', () => {
     })
   })
 
+  it('restores persisted ui-resource widgets into parts', async () => {
+    const persistence = memoryPersistence()
+    const uiResource = {
+      type: 'ui-resource' as const,
+      resource: {
+        uri: 'ui://widget/todos',
+        mimeType: 'text/html',
+        text: '<div>todos</div>',
+      },
+      toolCallId: 'tc-1',
+      toolName: 'getTodos',
+    }
+    await persistence.stores.messages!.saveThread('t1', [
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        content: 'here',
+        name: 'Ada',
+        metadata: { tanstack: { uiResources: [uiResource] } },
+      },
+    ])
+
+    const parsed = await body(
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      ),
+    )
+
+    expect(parsed.messages[0]).toMatchObject({
+      id: 'assistant-1',
+      role: 'assistant',
+      name: 'Ada',
+      parts: [{ type: 'text', content: 'here' }, uiResource],
+    })
+  })
+
+  it('restores persisted message metadata', async () => {
+    const persistence = memoryPersistence()
+    await persistence.stores.messages!.saveThread('t1', [
+      {
+        id: 'user-1',
+        role: 'user',
+        content: 'hello',
+        metadata: { author: { id: 'user-42' } },
+      },
+    ])
+
+    const parsed = await body(
+      await reconstructChat(
+        persistence,
+        new Request('http://example.test/api/chat?threadId=t1'),
+      ),
+    )
+
+    expect(parsed.messages[0]).toMatchObject({
+      id: 'user-1',
+      role: 'user',
+      metadata: { author: { id: 'user-42' } },
+    })
+  })
+
   it('reports the active run for a thread that is still generating', async () => {
     const persistence = memoryPersistence()
     await persistence.stores.messages!.saveThread('t1', [

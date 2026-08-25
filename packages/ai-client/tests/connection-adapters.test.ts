@@ -779,6 +779,78 @@ describe('connection-adapters', () => {
   })
 
   describe('fetchHttpStream', () => {
+    it('normalizes only owned dates during fetch hydration', async () => {
+      const metadata = {
+        createdAt: 'message-metadata',
+        tanstack: { createdAt: 'metadata-tanstack-date' },
+        nested: { createdAt: 'nested-date' },
+      }
+      const content = [
+        {
+          type: 'text',
+          content: 'result',
+          metadata: { createdAt: 'content-date' },
+        },
+      ]
+      fetchMock.mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          messages: [
+            {
+              id: 'a1',
+              role: 'assistant',
+              createdAt: '2026-08-20T00:00:00.000Z',
+              parts: [
+                {
+                  type: 'tool-result',
+                  toolCallId: 'call-1',
+                  content,
+                  state: 'complete',
+                  createdAt: '2026-08-20T00:00:01.000Z',
+                  metadata: { createdAt: 'part-metadata' },
+                },
+              ],
+              metadata,
+            },
+            {
+              id: 'a2',
+              role: 'assistant',
+              createdAt: 'invalid-message-date',
+              parts: [
+                {
+                  type: 'tool-result',
+                  toolCallId: 'call-2',
+                  content: 'ok',
+                  state: 'complete',
+                  createdAt: 'invalid-part-date',
+                },
+              ],
+            },
+          ],
+          activeRun: null,
+        }),
+      })
+      const adapter = fetchHttpStream('/api/chat')
+      if (adapter.hydrate === undefined)
+        throw new Error('expected hydration support')
+
+      const result = await adapter.hydrate('thread-1')
+
+      expect(result.messages[0]?.createdAt).toEqual(
+        new Date('2026-08-20T00:00:00.000Z'),
+      )
+      expect(result.messages[0]?.parts[0]).toHaveProperty(
+        'createdAt',
+        new Date('2026-08-20T00:00:01.000Z'),
+      )
+      expect(result.messages[0]?.metadata).toEqual(metadata)
+      const part = result.messages[0]?.parts[0]
+      expect(part).toHaveProperty('metadata', { createdAt: 'part-metadata' })
+      expect(part).toHaveProperty('content', content)
+      expect(result.messages[1]).not.toHaveProperty('createdAt')
+      expect(result.messages[1]?.parts[0]).not.toHaveProperty('createdAt')
+    })
+
     it('should parse newline-delimited JSON', async () => {
       const mockReader = {
         read: vi

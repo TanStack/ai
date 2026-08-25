@@ -372,6 +372,10 @@ export interface ModelMessage<
   toolCalls?: Array<ToolCall>
   toolCallId?: string
   thinking?: Array<{ content: string; signature?: string }>
+  /** Error reported by an AG-UI tool message. */
+  error?: string
+  /** Optional AG-UI message metadata. TanStack-owned fields live under `tanstack`. */
+  metadata?: Record<string, any>
   /**
    * Completed structured output represented by this assistant message.
    * `content` remains the provider-facing JSON text; this field preserves the
@@ -435,10 +439,14 @@ export interface ToolCallPart<TMetadata = unknown> {
 
 export interface ToolResultPart {
   type: 'tool-result'
+  id?: string
+  name?: string
   toolCallId: string
   content: string | Array<ContentPart>
   state: ToolResultState
   error?: string // Error message if state is "error"
+  metadata?: Record<string, unknown>
+  createdAt?: Date
 }
 
 export interface ThinkingPart {
@@ -524,9 +532,17 @@ export interface TanStackMessageMetadata {
   signature?: string
   /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */
   toolCallMetadata?: Record<string, unknown>
+  toolResult?: {
+    id?: string
+    createdAt?: string
+    content?: Array<ContentPart>
+  }
   structuredOutput?: {
     status?: 'streaming' | 'complete' | 'error'
+    partial?: unknown
+    data?: unknown
     raw?: string
+    reasoning?: string
     errorMessage?: string
   }
   uiResources?: Array<UIResourcePart>
@@ -562,6 +578,8 @@ export interface UIMessage<TData = unknown> {
   role: 'system' | 'user' | 'assistant'
   parts: Array<MessagePart<TData>>
   createdAt?: Date
+  /** Optional AG-UI sender name. Converters preserve it across wire and persist. */
+  name?: string
   /**
    * Optional AG-UI metadata bag. TanStack writes the `tanstack` key.
    * User keys stay at the top.

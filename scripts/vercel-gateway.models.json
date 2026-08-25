@@ -2162,6 +2162,100 @@
     }
   },
   {
+    "id": "alibaba/wan-v3.0-video",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1787443200,
+    "owned_by": "alibaba",
+    "name": "Wan v3.0 Video",
+    "description": "All-in-one video generation model supporting text-to-video, image-to-video, first/last-frame, and omni-modal reference-based generation (image, video, and audio references) with synchronized audio, at up to 30 seconds per clip.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "video",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["vision", "video-input", "audio-input"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "audio", "image", "video"],
+      "output": ["video"]
+    },
+    "video_capabilities": {
+      "supported_operations": [
+        "text-to-video",
+        "image-to-video",
+        "first-last-frame",
+        "reference-to-video"
+      ],
+      "supported_resolutions": ["480p", "720p", "1080p"],
+      "supported_aspect_ratios": [
+        "16:9",
+        "4:3",
+        "1:1",
+        "3:4",
+        "9:16",
+        "adaptive"
+      ],
+      "supported_durations_seconds": [
+        2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+        22, 23, 24, 25, 26, 27, 28, 29, 30
+      ],
+      "supported_fps": [30],
+      "max_sample_count": 1,
+      "input_limits": {
+        "text": {
+          "max_chars": 20000
+        },
+        "image": {
+          "max_count": 10,
+          "max_file_size_mb": 20,
+          "supported_formats": ["jpeg", "jpg", "png", "bmp", "webp"],
+          "supported_sources": ["url", "base64"],
+          "min_dimension_pixels": 240,
+          "max_dimension_pixels": 8000,
+          "min_aspect_ratio": "1:8",
+          "max_aspect_ratio": "8:1"
+        },
+        "video": {
+          "max_count": 5,
+          "max_file_size_mb": 100,
+          "supported_formats": ["mp4", "mov"],
+          "supported_sources": ["url"],
+          "min_duration_seconds": 1,
+          "max_duration_seconds": 15,
+          "min_dimension_pixels": 240,
+          "max_dimension_pixels": 4096
+        },
+        "audio": {
+          "max_file_size_mb": 15,
+          "supported_formats": ["wav", "mp3"],
+          "supported_sources": ["url"],
+          "min_duration_seconds": 1,
+          "max_duration_seconds": 15
+        }
+      }
+    },
+    "pricing": {
+      "video_duration_pricing": [
+        {
+          "resolution": "480p",
+          "cost_per_second": "0.05"
+        },
+        {
+          "resolution": "720p",
+          "cost_per_second": "0.1"
+        },
+        {
+          "resolution": "1080p",
+          "cost_per_second": "0.2"
+        },
+        {
+          "cost_per_second": "0.2"
+        }
+      ]
+    }
+  },
+  {
     "id": "amazon/nova-2-lite",
     "object": "model",
     "created": 1755815280,
@@ -3532,39 +3626,6 @@
     }
   },
   {
-    "id": "arcee-ai/trinity-mini",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1764547200,
-    "owned_by": "arcee-ai",
-    "name": "Trinity Mini",
-    "description": "Trinity Mini is a 26B-parameter (3B active) sparse mixture-of-experts language model, engineered for efficient inference over long contexts with robust function calling and multi-step agent workflows.",
-    "context_window": 131072,
-    "max_tokens": 131072,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["tool-use"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice"
-    ],
-    "temperature": true,
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0.000000045",
-      "output": "0.00000015"
-    }
-  },
-  {
     "id": "bfl/flux-2-flex",
     "object": "model",
     "created": 1755815280,
@@ -4157,6 +4218,37 @@
             }
           }
         ],
+        "notes": "Pricing varies based on whether the input contains video. When video is included in the input, all tokens are billed at the reduced rate. Token count includes both input and output video and is subject to minimum token floors based on output duration."
+      }
+    }
+  },
+  {
+    "id": "bytedance/seedance-2.0-mini",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1782086400,
+    "owned_by": "bytedance",
+    "name": "Seedance 2.0 Mini",
+    "description": "Seedance 2.0 Mini is a cost-effective multimodal video creation model, retaining the core functions and advantages of Seedance 2.0 at a lower price.",
+    "context_window": 0,
+    "max_tokens": 0,
+    "type": "video",
+    "zdr": "none",
+    "no_training": "all",
+    "tags": ["vision", "video-generation"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["video"]
+    },
+    "pricing": {
+      "video_token_pricing": {
+        "no_video_input": {
+          "cost_per_million_tokens": "3.5"
+        },
+        "with_video_input": {
+          "cost_per_million_tokens": "2.1"
+        },
         "notes": "Pricing varies based on whether the input contains video. When video is included in the input, all tokens are billed at the reduced rate. Token count includes both input and output video and is subject to minimum token floors based on output duration."
       }
     }
@@ -5122,9 +5214,9 @@
     ],
     "temperature": true,
     "pricing": {
-      "input": "0.00000132",
-      "output": "0.00000396",
-      "input_cache_read": "0.000000132",
+      "input": "0.00000066",
+      "output": "0.00000198",
+      "input_cache_read": "0.000000066",
       "varies_by_provider": true
     }
   },
@@ -6555,10 +6647,16 @@
     "type": "language",
     "zdr": "some",
     "no_training": "all",
-    "tags": ["file-input", "reasoning", "vision", "video-generation"],
+    "tags": [
+      "file-input",
+      "reasoning",
+      "vision",
+      "video-generation",
+      "video-input"
+    ],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
-      "input": ["text", "image", "pdf"],
+      "input": ["text", "image", "pdf", "video"],
       "output": ["text", "video"]
     },
     "supported_parameters": [
@@ -8434,7 +8532,7 @@
     "type": "language",
     "zdr": "some",
     "no_training": "some",
-    "tags": ["tool-use", "reasoning", "implicit-caching"],
+    "tags": ["tool-use", "reasoning", "implicit-caching", "free"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -8455,12 +8553,47 @@
       "output": "0.0000012",
       "input_cache_read": "0.00000006",
       "input_cache_write": "0.000000375",
+      "varies_by_provider": true,
       "fast": {
         "input": "0.0000006",
         "output": "0.0000024",
         "input_cache_read": "0.00000006",
         "input_cache_write": "0.000000375"
       }
+    }
+  },
+  {
+    "id": "minimax/minimax-m2.7-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1773792000,
+    "owned_by": "minimax",
+    "name": "Minimax M2.7 (Free)",
+    "description": "M2.7 delivers outstanding performance in real-world software engineering, including end-to-end full project delivery, log analysis and bug troubleshooting, code security, machine learning, and more.",
+    "context_window": 196608,
+    "max_tokens": 196608,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["reasoning", "tool-use", "implicit-caching", "free"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0",
+      "output": "0"
     }
   },
   {
@@ -8517,6 +8650,7 @@
       "tool-use",
       "vision",
       "implicit-caching",
+      "free",
       "file-input"
     ],
     "supported_specifications": ["v2", "v3", "v4"],
@@ -8577,6 +8711,73 @@
         }
       ],
       "varies_by_provider": true
+    }
+  },
+  {
+    "id": "minimax/minimax-m3-free",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1780185600,
+    "owned_by": "minimax",
+    "name": "MiniMax M3 (Free)",
+    "description": "MiniMax-M3 is a frontier-class foundation model that unites the three capabilities defining today's frontier: a 1M-token context window, frontier coding and agentic performance, and native multimodality — the first open-weight model to deliver all three in a single system.",
+    "context_window": 1048576,
+    "max_tokens": 1048576,
+    "type": "language",
+    "zdr": "none",
+    "no_training": "none",
+    "tags": ["implicit-caching", "reasoning", "tool-use", "vision", "free"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text", "image"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0",
+      "input_tiers": [
+        {
+          "cost": "0",
+          "min": 0,
+          "max": 512000
+        },
+        {
+          "cost": "0",
+          "min": 512000
+        }
+      ],
+      "output": "0",
+      "output_tiers": [
+        {
+          "cost": "0",
+          "min": 0,
+          "max": 512000
+        },
+        {
+          "cost": "0",
+          "min": 512000
+        }
+      ],
+      "input_cache_read_tiers": [
+        {
+          "cost": "0",
+          "min": 0,
+          "max": 512000
+        },
+        {
+          "cost": "0",
+          "min": 512000
+        }
+      ]
     }
   },
   {
@@ -8698,76 +8899,6 @@
     "pricing": {
       "input": "0.0000001",
       "output": "0.0000003"
-    }
-  },
-  {
-    "id": "mistral/magistral-medium",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1749513600,
-    "owned_by": "mistral",
-    "name": "Magistral Medium 2509",
-    "description": "Complex thinking, backed by deep understanding, with transparent reasoning you can follow and verify. The model excels in maintaining high-fidelity reasoning across numerous languages, even when switching between languages mid-task.",
-    "context_window": 128000,
-    "max_tokens": 64000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["reasoning", "tool-use", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "knowledge": "2025-06",
-    "pricing": {
-      "input": "0.000002",
-      "output": "0.000005"
-    }
-  },
-  {
-    "id": "mistral/magistral-small",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1749513600,
-    "owned_by": "mistral",
-    "name": "Magistral Small 2509",
-    "description": "Complex thinking, backed by deep understanding, with transparent reasoning you can follow and verify. The model excels in maintaining high-fidelity reasoning across numerous languages, even when switching between languages mid-task.",
-    "context_window": 128000,
-    "max_tokens": 64000,
-    "type": "language",
-    "zdr": "all",
-    "no_training": "all",
-    "tags": ["reasoning", "tool-use", "vision"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "knowledge": "2025-06",
-    "pricing": {
-      "input": "0.0000005",
-      "output": "0.0000015"
     }
   },
   {
@@ -9260,7 +9391,6 @@
       "input": "0.00000095",
       "output": "0.000004",
       "input_cache_read": "0.00000016",
-      "varies_by_provider": true,
       "regional": {
         "us": {
           "input": "0.00000095",
@@ -9419,9 +9549,9 @@
       },
       "regional": {
         "us": {
-          "input": "0.0000033",
-          "output": "0.0000165",
-          "input_cache_read": "0.00000033"
+          "input": "0.000003",
+          "output": "0.000015",
+          "input_cache_read": "0.0000003"
         }
       }
     }
@@ -9652,12 +9782,12 @@
     "owned_by": "nvidia",
     "name": "Nemotron 3.5 Lightning 30B",
     "description": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 is a large language model (LLM) trained by NVIDIA.\n\nThe model employs a hybrid Mixture-of-Experts architecture, utilizing interleaved Mamba-2 and MoE layers, along with select Attention layers. The Lightning 3.5 model is released alongside a number of speculative decoding methods for faster text generation. The model has 3B active parameters and 30B parameters in total.",
-    "context_window": 1000000,
-    "max_tokens": 32768,
+    "context_window": 262144,
+    "max_tokens": 131072,
     "type": "language",
-    "zdr": "some",
-    "no_training": "some",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "free"],
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -9674,43 +9804,10 @@
     ],
     "temperature": true,
     "pricing": {
-      "input": "0",
-      "output": "0",
+      "input": "0.00000005",
+      "output": "0.0000002",
+      "input_cache_read": "0.00000001",
       "varies_by_provider": true
-    }
-  },
-  {
-    "id": "nvidia/nemotron-3.5-lightning-free",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1786406400,
-    "owned_by": "nvidia",
-    "name": "Nemotron 3.5 Lightning 30B (Free)",
-    "description": "NVIDIA-Nemotron-3.5-Lightning-30B-A3B-NVFP4 is a large language model (LLM) trained by NVIDIA.\n\nThe model employs a hybrid Mixture-of-Experts architecture, utilizing interleaved Mamba-2 and MoE layers, along with select Attention layers. The Lightning 3.5 model is released alongside a number of speculative decoding methods for faster text generation. The model has 3B active parameters and 30B parameters in total.",
-    "context_window": 1000000,
-    "max_tokens": 32768,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "none",
-    "tags": ["reasoning", "tool-use", "implicit-caching", "free"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "pricing": {
-      "input": "0",
-      "output": "0"
     }
   },
   {
@@ -10338,34 +10435,6 @@
       "input": "0.00000025",
       "output": "0.000001",
       "input_cache_read": "0.000000125",
-      "web_search": "10"
-    }
-  },
-  {
-    "id": "openai/gpt-4o-mini-search-preview",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1741737600,
-    "owned_by": "openai",
-    "name": "GPT 4o Mini Search Preview",
-    "description": "GPT-4o mini Search Preview is a specialized model trained to understand and execute web search queries with the Chat Completions API. In addition to token fees, web search queries have a fee per tool call.",
-    "context_window": 128000,
-    "max_tokens": 16384,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": ["web-search"],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text"],
-      "output": ["text"]
-    },
-    "supported_parameters": ["max_tokens", "temperature", "stop"],
-    "temperature": true,
-    "knowledge": "2023-09",
-    "pricing": {
-      "input": "0.00000015",
-      "output": "0.0000006",
       "web_search": "10"
     }
   },
@@ -13707,6 +13776,40 @@
     }
   },
   {
+    "id": "openai/gpt-oss-safeguard-120b",
+    "object": "model",
+    "created": 1755815280,
+    "released": 1764633600,
+    "owned_by": "openai",
+    "name": "GPT OSS Safeguard 120B",
+    "description": "GPT OSS Safeguard 120B is OpenAI’s open-weight safety model for content moderation and guardrail enforcement. It helps teams evaluate content against custom safety policies and build scalable, adaptable protections for production AI applications.",
+    "context_window": 128000,
+    "max_tokens": 16000,
+    "type": "language",
+    "zdr": "all",
+    "no_training": "all",
+    "tags": ["reasoning", "tool-use"],
+    "supported_specifications": ["v2", "v3", "v4"],
+    "modalities": {
+      "input": ["text"],
+      "output": ["text"]
+    },
+    "supported_parameters": [
+      "max_tokens",
+      "temperature",
+      "stop",
+      "tools",
+      "tool_choice",
+      "reasoning",
+      "include_reasoning"
+    ],
+    "temperature": true,
+    "pricing": {
+      "input": "0.00000015",
+      "output": "0.0000006"
+    }
+  },
+  {
     "id": "openai/gpt-oss-safeguard-20b",
     "object": "model",
     "created": 1755815280,
@@ -13714,12 +13817,12 @@
     "owned_by": "openai",
     "name": "GPT OSS Safeguard 20B",
     "description": "OpenAI's first open weight reasoning model specifically trained for safety classification tasks. Fine-tuned from GPT-OSS, this model helps classify text content based on customizable policies, enabling bring-your-own-policy Trust & Safety AI where your own taxonomy, definitions, and thresholds guide classification decisions.",
-    "context_window": 131072,
-    "max_tokens": 65536,
+    "context_window": 128000,
+    "max_tokens": 16000,
     "type": "language",
     "zdr": "all",
     "no_training": "all",
-    "tags": ["implicit-caching", "reasoning", "tool-use"],
+    "tags": ["reasoning", "tool-use", "implicit-caching"],
     "supported_specifications": ["v2", "v3", "v4"],
     "modalities": {
       "input": ["text"],
@@ -13743,9 +13846,9 @@
     ],
     "knowledge": "2024-10",
     "pricing": {
-      "input": "0.000000075",
-      "output": "0.0000003",
-      "input_cache_read": "0.000000037"
+      "input": "0.00000007",
+      "output": "0.0000002",
+      "varies_by_provider": true
     }
   },
   {
@@ -14010,56 +14113,6 @@
         "output": "0.000014",
         "input_cache_read": "0.000000875"
       }
-    }
-  },
-  {
-    "id": "openai/o3-deep-research",
-    "object": "model",
-    "created": 1755815280,
-    "released": 1750896000,
-    "owned_by": "openai",
-    "name": "o3-deep-research",
-    "description": "o3-deep-research is OpenAI's most advanced model for deep research, designed to tackle complex, multi-step research tasks. It can search and synthesize information from across the internet as well as from your own data—brought in through MCP connectors.",
-    "context_window": 200000,
-    "max_tokens": 100000,
-    "type": "language",
-    "zdr": "none",
-    "no_training": "all",
-    "tags": [
-      "file-input",
-      "implicit-caching",
-      "reasoning",
-      "tool-use",
-      "vision",
-      "web-search"
-    ],
-    "supported_specifications": ["v2", "v3", "v4"],
-    "modalities": {
-      "input": ["text", "image", "pdf"],
-      "output": ["text"]
-    },
-    "supported_parameters": [
-      "max_tokens",
-      "temperature",
-      "stop",
-      "tools",
-      "tool_choice",
-      "reasoning",
-      "include_reasoning"
-    ],
-    "temperature": true,
-    "reasoning_options": [
-      {
-        "type": "effort",
-        "values": ["medium"]
-      }
-    ],
-    "knowledge": "2024-10",
-    "pricing": {
-      "input": "0.00001",
-      "output": "0.00004",
-      "input_cache_read": "0.0000025",
-      "web_search": "10"
     }
   },
   {
@@ -17423,9 +17476,9 @@
       },
       "regional": {
         "us": {
-          "input": "0.0000015",
-          "output": "0.0000045",
-          "input_cache_read": "0.0000003"
+          "input": "0.0000014",
+          "output": "0.0000044",
+          "input_cache_read": "0.00000014"
         }
       }
     }
@@ -17441,7 +17494,7 @@
     "context_window": 1000000,
     "max_tokens": 128000,
     "type": "language",
-    "zdr": "some",
+    "zdr": "all",
     "no_training": "all",
     "tags": ["reasoning", "tool-use", "implicit-caching"],
     "regions": ["us"],

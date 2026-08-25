@@ -65,6 +65,13 @@ export interface DocumentPart {
   metadata?: unknown
 }
 
+export type ContentPart =
+  | TextPart
+  | ImagePart
+  | AudioPart
+  | VideoPart
+  | DocumentPart
+
 export interface ToolCallPart<TMetadata = unknown> {
   type: 'tool-call'
   id: string
@@ -84,10 +91,14 @@ export interface ToolCallPart<TMetadata = unknown> {
 
 export interface ToolResultPart {
   type: 'tool-result'
+  id?: string
+  name?: string
   toolCallId: string
-  content: string
+  content: string | Array<ContentPart>
   state: ToolResultState
   error?: string
+  metadata?: Record<string, unknown>
+  createdAt?: Date
 }
 
 export interface ThinkingPart {

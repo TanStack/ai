@@ -162,6 +162,32 @@
     ]
   },
   {
+    "id": "alibaba/wan-3.0",
+    "canonical_slug": "alibaba/wan-3.0-20260824",
+    "hugging_face_id": null,
+    "name": "Alibaba: Wan 3.0",
+    "created": 1787603856,
+    "description": "Wan 3.0 is a video generation model from Alibaba for text-to-video, image-to-video, and reference-guided video generation. It produces 480p, 720p, or 1080p video with durations from 2 to 30 seconds.",
+    "supported_resolutions": ["480p", "720p", "1080p"],
+    "supported_aspect_ratios": ["16:9", "4:3", "1:1", "3:4", "9:16"],
+    "supported_sizes": null,
+    "supported_durations": [
+      2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21,
+      22, 23, 24, 25, 26, 27, 28, 29, 30
+    ],
+    "supported_frame_images": ["first_frame"],
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": true,
+    "seed": true,
+    "pricing_skus": {
+      "duration_seconds_480p": "0.05",
+      "duration_seconds_720p": "0.1",
+      "duration_seconds_1080p": "0.2"
+    },
+    "allowed_passthrough_parameters": []
+  },
+  {
     "id": "black-forest-labs/flux-3-video",
     "canonical_slug": "black-forest-labs/flux-3-video-20260804",
     "hugging_face_id": null,
@@ -563,6 +589,37 @@
       "negativePrompt",
       "conditioningScale",
       "enhancePrompt"
+    ]
+  },
+  {
+    "id": "heygen/avatar-iv",
+    "canonical_slug": "heygen/avatar-iv-20260625",
+    "hugging_face_id": null,
+    "name": "HeyGen: Avatar IV",
+    "created": 1787595728,
+    "description": "HeyGen: Avatar IV is an image-to-video model that animates a single photo into an expressive, lip-synced talking-head video. Rather than only matching mouth shapes to words, it interprets the vocal...",
+    "supported_resolutions": ["720p", "1080p"],
+    "supported_aspect_ratios": ["16:9", "9:16", "1:1"],
+    "supported_sizes": null,
+    "supported_durations": null,
+    "supported_frame_images": null,
+    "upscale_factor": null,
+    "creativity": null,
+    "generate_audio": false,
+    "seed": false,
+    "pricing_skus": {
+      "duration_seconds": "0.05"
+    },
+    "allowed_passthrough_parameters": [
+      "voice_id",
+      "voice_settings",
+      "motion_prompt",
+      "expressiveness",
+      "fit",
+      "remove_background",
+      "background",
+      "caption",
+      "title"
     ]
   },
   {
