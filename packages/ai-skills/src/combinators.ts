@@ -4,11 +4,7 @@
  * collisions, `filter` hides, `cache` memoizes.
  */
 import { stableHash } from './util'
-import type {
-  SkillMetadata,
-  SkillScriptRef,
-  SkillSource,
-} from './types'
+import type { SkillMetadata, SkillScriptRef, SkillSource } from './types'
 
 export type FilterContext = Record<string, unknown>
 export type FilterPredicate = (
@@ -140,8 +136,7 @@ export function cache(
 
   const now = () => (opts.refreshInterval ? Date.now() : 0)
   const fresh = () =>
-    opts.refreshInterval === undefined ||
-    now() - listAt < opts.refreshInterval
+    opts.refreshInterval === undefined || now() - listAt < opts.refreshInterval
 
   return {
     ...source,

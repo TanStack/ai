@@ -9,9 +9,7 @@ export function assertSafeResourcePath(path: string): void {
   const bad =
     normalized.startsWith('/') ||
     /^[a-zA-Z]:/.test(normalized) ||
-    normalized
-      .split('/')
-      .some((seg) => seg === '..' || seg === '~')
+    normalized.split('/').some((seg) => seg === '..' || seg === '~')
   if (bad) {
     throw new Error(`unsafe resource path: "${path}"`)
   }

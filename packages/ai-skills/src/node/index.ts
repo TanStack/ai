@@ -67,7 +67,8 @@ export function skillDirectory(
 
   const dirOf = async (name: string): Promise<string> => {
     const dir = (await scan()).get(name)
-    if (!dir) throw new Error(`no skill named "${name}" under ${roots.join(', ')}`)
+    if (!dir)
+      throw new Error(`no skill named "${name}" under ${roots.join(', ')}`)
     return dir
   }
 
@@ -90,9 +91,7 @@ export function skillDirectory(
         )
         if (raw === undefined) continue
         try {
-          out.push(
-            parseSkill(raw, { dirName: basename(dir), strict }).metadata,
-          )
+          out.push(parseSkill(raw, { dirName: basename(dir), strict }).metadata)
         } catch {
           // Lenient: an unparseable skill is skipped, not fatal (spec §7).
           // strict mode still throws inside parseSkill for warnings, but a
@@ -119,7 +118,11 @@ export function skillDirectory(
       const dir = await dirOf(name)
       const files = await collectFiles(join(dir, SCRIPT_DIR), dir)
       return files.map(
-        (p): SkillScriptRef => ({ path: p, executable: false, reason: 'no-runtime' }),
+        (p): SkillScriptRef => ({
+          path: p,
+          executable: false,
+          reason: 'no-runtime',
+        }),
       )
     },
     readScript: async (name, path) => {
@@ -161,7 +164,9 @@ export async function generateCatalog(
       const resources: Record<string, string> = {}
       for (const sub of RESOURCE_DIRS) {
         for (const rel of await collectFiles(join(dir, sub), dir)) {
-          resources[rel] = await readFile(join(dir, rel), 'utf8').catch(() => '')
+          resources[rel] = await readFile(join(dir, rel), 'utf8').catch(
+            () => '',
+          )
         }
       }
       skills.push({

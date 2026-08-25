@@ -18,7 +18,11 @@ runSkillSourceConformance(
         instructions: 'Do A.',
         resources: { 'references/note.md': 'hello' },
       }),
-      inlineSkill({ name: 'beta', description: 'does B', instructions: 'Do B.' }),
+      inlineSkill({
+        name: 'beta',
+        description: 'does B',
+        instructions: 'Do B.',
+      }),
     ]),
   'inlineSkill',
 )

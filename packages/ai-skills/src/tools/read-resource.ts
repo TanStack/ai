@@ -44,6 +44,11 @@ export function createResourceTool(source: SkillSource): Tool {
     if (typeof value === 'string') {
       return { skill, path, content: value, encoding: 'utf8' as const }
     }
-    return { skill, path, content: toBase64(value), encoding: 'base64' as const }
+    return {
+      skill,
+      path,
+      content: toBase64(value),
+      encoding: 'base64' as const,
+    }
   })
 }

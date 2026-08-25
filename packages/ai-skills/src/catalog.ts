@@ -7,17 +7,14 @@
 import type { ModelFamily, SkillMetadata } from './types'
 
 /** Sort skills into a stable, cache-friendly order. */
-export function sortSkills(
-  skills: Array<SkillMetadata>,
-): Array<SkillMetadata> {
-  return [...skills].sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : 0))
+export function sortSkills(skills: Array<SkillMetadata>): Array<SkillMetadata> {
+  return [...skills].sort((a, b) =>
+    a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+  )
 }
 
 function escapeXml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
 }
 
 /** Render the skill catalog for a model family. Skills are sorted by name. */
@@ -35,6 +32,8 @@ export function renderCatalog(
       .join('\n')
     return `<available_skills>\n${entries}\n</available_skills>`
   }
-  const entries = sorted.map((s) => `- **${s.name}**: ${s.description}`).join('\n')
+  const entries = sorted
+    .map((s) => `- **${s.name}**: ${s.description}`)
+    .join('\n')
   return `## Available skills\n\n${entries}`
 }

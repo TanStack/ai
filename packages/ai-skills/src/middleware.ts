@@ -6,10 +6,7 @@
  * S3-backed source would hit the network per loop turn and catalog reordering
  * would break Anthropic's cache prefix mid-run.
  */
-import {
-  createCapability,
-  defineChatMiddleware,
-} from '@tanstack/ai'
+import { createCapability, defineChatMiddleware } from '@tanstack/ai'
 import { combineSources } from './combinators'
 import { renderCatalog } from './catalog'
 import { modelFamilyOf } from './types'
@@ -77,10 +74,7 @@ function findNativeSkillTool(tools: Array<Tool>): string | undefined {
     if (tool.name === 'code_execution' && (meta?.skills?.length ?? 0) > 0) {
       return 'code_execution'
     }
-    if (
-      tool.name === 'shell' &&
-      (meta?.environment?.skills?.length ?? 0) > 0
-    ) {
+    if (tool.name === 'shell' && (meta?.environment?.skills?.length ?? 0) > 0) {
       return 'shell'
     }
   }
@@ -104,7 +98,11 @@ function activationInstructions(
 export function withSkills(
   sources: SkillSource | Array<SkillSource>,
   options: SkillsOptions = {},
-): DefinedChatMiddleware<unknown, readonly [], readonly [typeof SkillsCapability]> {
+): DefinedChatMiddleware<
+  unknown,
+  readonly [],
+  readonly [typeof SkillsCapability]
+> {
   if (options.instructionTemplate && options.renderCatalog) {
     throw new Error(
       '`instructionTemplate` and `renderCatalog` are mutually exclusive',
@@ -114,7 +112,9 @@ export function withSkills(
     options.instructionTemplate &&
     !options.instructionTemplate.includes('{skills}')
   ) {
-    throw new Error('`instructionTemplate` must contain a `{skills}` placeholder')
+    throw new Error(
+      '`instructionTemplate` must contain a `{skills}` placeholder',
+    )
   }
 
   return defineChatMiddleware({
@@ -195,7 +195,9 @@ export function withSkills(
       const promptPresent =
         !prompt ||
         config.systemPrompts.some((p) =>
-          typeof p === 'string' ? p === prompt.content : p.content === prompt.content,
+          typeof p === 'string'
+            ? p === prompt.content
+            : p.content === prompt.content,
         )
       const existingNames = new Set(config.tools.map((t) => t.name))
       const toolsToAdd = rt.memo.tools.filter((t) => !existingNames.has(t.name))

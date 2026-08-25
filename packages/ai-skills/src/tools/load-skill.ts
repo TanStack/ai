@@ -44,9 +44,18 @@ export function createLoadSkillTool(deps: LoadSkillDeps): Tool {
   const nameEnum = z.enum(names as [string, ...Array<string>])
   const byName = new Map(deps.skills.map((s) => [s.name, s]))
 
-  const handler = async ({ name }: { name: string }): Promise<LoadSkillResult> => {
+  const handler = async ({
+    name,
+  }: {
+    name: string
+  }): Promise<LoadSkillResult> => {
     if (deps.activated.has(name)) {
-      return { skill: name, content: ALREADY_LOADED, resources: [], scripts: [] }
+      return {
+        skill: name,
+        content: ALREADY_LOADED,
+        resources: [],
+        scripts: [],
+      }
     }
     const raw = await deps.source.load(name)
     const resources = (await deps.source.listResources?.(name)) ?? []

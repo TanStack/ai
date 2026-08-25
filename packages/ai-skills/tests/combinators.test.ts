@@ -3,7 +3,11 @@ import { aggregate, cache, dedupe, filter } from '../src/combinators'
 import { inlineSkill } from '../src/sources/inline'
 import type { SkillMetadata, SkillSource } from '../src/types'
 
-const alpha = inlineSkill({ name: 'alpha', description: 'a', instructions: 'A' })
+const alpha = inlineSkill({
+  name: 'alpha',
+  description: 'a',
+  instructions: 'A',
+})
 const beta = inlineSkill({ name: 'beta', description: 'b', instructions: 'B' })
 const alpha2 = inlineSkill({
   name: 'alpha',

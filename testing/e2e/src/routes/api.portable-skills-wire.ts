@@ -3,7 +3,11 @@ import { chat, createChatOptions } from '@tanstack/ai'
 import { createAnthropicChat } from '@tanstack/ai-anthropic'
 import { codeExecutionTool } from '@tanstack/ai-anthropic/tools'
 import { createOpenaiChat } from '@tanstack/ai-openai'
-import { createResourceTool, inlineSkill, withSkills } from '@tanstack/ai-skills'
+import {
+  createResourceTool,
+  inlineSkill,
+  withSkills,
+} from '@tanstack/ai-skills'
 
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
@@ -44,8 +48,16 @@ function makeAnthropicStream(): ReadableStream<Uint8Array> {
         usage: { input_tokens: 5, output_tokens: 0 },
       },
     },
-    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
-    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } },
+    {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'text', text: '' },
+    },
+    {
+      type: 'content_block_delta',
+      index: 0,
+      delta: { type: 'text_delta', text: 'ok' },
+    },
     { type: 'content_block_stop', index: 0 },
     {
       type: 'message_delta',
@@ -58,7 +70,9 @@ function makeAnthropicStream(): ReadableStream<Uint8Array> {
     start(controller) {
       for (const event of events) {
         controller.enqueue(
-          encoder.encode(`event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`),
+          encoder.encode(
+            `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`,
+          ),
         )
       }
       controller.close()
@@ -129,7 +143,8 @@ export const Route = createFileRoute('/api/portable-skills-wire')({
         } | null = null
 
         const capturingFetch: typeof fetch = async (input, init) => {
-          const req = input instanceof Request ? input : new Request(input, init)
+          const req =
+            input instanceof Request ? input : new Request(input, init)
           const headers: Record<string, string> = {}
           req.headers.forEach((value, key) => {
             headers[key] = value
@@ -165,7 +180,15 @@ export const Route = createFileRoute('/api/portable-skills-wire')({
             ? [
                 codeExecutionTool(
                   { type: 'code_execution_20250825', name: 'code_execution' },
-                  { skills: [{ type: 'anthropic', skill_id: 'pptx', version: 'latest' }] },
+                  {
+                    skills: [
+                      {
+                        type: 'anthropic',
+                        skill_id: 'pptx',
+                        version: 'latest',
+                      },
+                    ],
+                  },
                 ),
               ]
             : [createResourceTool(skillSource)]

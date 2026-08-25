@@ -60,7 +60,10 @@ test.describe('portable skills — withSkills wire format', () => {
   test('refuses to combine portable withSkills with hosted native skills', async ({
     request,
   }) => {
-    const { ok, error } = await post(request, '?provider=anthropic&mode=coexist')
+    const { ok, error } = await post(
+      request,
+      '?provider=anthropic&mode=coexist',
+    )
     expect(ok).toBe(false)
     expect(error).toContain('code_execution')
     expect(error).toMatch(/portable|withSkills/i)

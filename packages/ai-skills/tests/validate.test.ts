@@ -3,9 +3,7 @@ import { validateSkill } from '../src/validate'
 
 describe('validateSkill', () => {
   it('passes a clean portable skill by default', () => {
-    expect(
-      validateSkill({ name: 'my-skill', description: 'ok' }).ok,
-    ).toBe(true)
+    expect(validateSkill({ name: 'my-skill', description: 'ok' }).ok).toBe(true)
   })
 
   it('flags invalid portable names', () => {

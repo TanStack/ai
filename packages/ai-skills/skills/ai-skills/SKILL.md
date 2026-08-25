@@ -29,11 +29,11 @@ the provider's sandbox and are referenced by ID.
 
 ## Two skill features, do not confuse them
 
-| Need                                              | Use                                      |
-| ------------------------------------------------- | ---------------------------------------- |
-| Model loads SKILL.md at runtime, any provider     | `withSkills` (this package)              |
-| Hosted skill runs in a provider sandbox by ID     | `codeExecutionTool` / `shellTool`        |
-| Teach a coding assistant how to use TanStack AI   | Ship a `SKILL.md`, install via Intent    |
+| Need                                            | Use                                   |
+| ----------------------------------------------- | ------------------------------------- |
+| Model loads SKILL.md at runtime, any provider   | `withSkills` (this package)           |
+| Hosted skill runs in a provider sandbox by ID   | `codeExecutionTool` / `shellTool`     |
+| Teach a coding assistant how to use TanStack AI | Ship a `SKILL.md`, install via Intent |
 
 The portable and hosted paths do not mix in one `chat()` call: `withSkills`
 throws if a `code_execution`/`shell` tool in the same call carries skills.

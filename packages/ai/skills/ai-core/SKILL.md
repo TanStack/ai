@@ -37,7 +37,7 @@ Always import from the framework package on the client — never from
 | Turn on/off debug logging, pipe into pino/winston | ai-core/debug-logging/SKILL.md                |
 | Persist chats server-side (history, runs)         | See `@tanstack/ai-persistence` package skills |
 | Set up Code Mode (LLM code execution)             | See `@tanstack/ai-code-mode` package skills   |
-| Give the model a catalog of SKILL.md skills       | See `@tanstack/ai-skills` package skills       |
+| Give the model a catalog of SKILL.md skills       | See `@tanstack/ai-skills` package skills      |
 
 ## Companion packages
 
