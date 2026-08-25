@@ -144,31 +144,40 @@ describe.skipIf(!apiKey)(
         await forked.fs.write('/workspace/only-in-fork.txt', 'x')
         expect(await src.fs.exists('/workspace/only-in-fork.txt')).toBe(false)
       } finally {
-        await src?.destroy()
-        await forked?.destroy()
+        // Sequential awaits would strand the fork if the first destroy rejects,
+        // and destroy() now rethrows anything that is not a 404.
+        await Promise.allSettled([src?.destroy(), forked?.destroy()])
       }
     }, 900_000)
 
     // MEASURES networkPolicy: a deny policy must actually block egress.
     it('a deny network policy blocks outbound traffic', async () => {
       const provider = upstashBoxSandbox({ apiKey })
+      const PROBE =
+        'curl -s -m 10 -o /dev/null -w "%{http_code}" https://example.com'
       let denied: SandboxHandle | undefined
+      let control: SandboxHandle | undefined
       try {
-        denied = await provider.create({
-          policy: { capabilities: { network: 'deny' } },
-        })
-        // curl must exist, or the probe proves nothing: a missing binary also
-        // produces "no 200".
+        ;[denied, control] = await Promise.all([
+          provider.create({ policy: { capabilities: { network: 'deny' } } }),
+          provider.create({}),
+        ])
+        // POSITIVE CONTROL, without it the test passes whenever the probe fails
+        // for an unrelated reason (DNS, routing, TLS, example.com being down)
+        // even though egress is wide open.
+        const reachable = await control.process.exec(PROBE)
+        expect(reachable.stdout).toContain('200')
+
+        // curl must exist, or the negative case proves nothing: a missing binary
+        // also produces "no 200".
         expect((await denied.process.exec('command -v curl')).exitCode).toBe(0)
         // Assert the connection actually failed rather than merely "not 200",
         // which an empty stdout would satisfy for any unrelated reason.
-        const probe = await denied.process.exec(
-          'curl -s -m 10 -o /dev/null -w "%{http_code}" https://example.com',
-        )
-        expect(probe.exitCode).not.toBe(0)
-        expect(probe.stdout).not.toContain('200')
+        const blocked = await denied.process.exec(PROBE)
+        expect(blocked.exitCode).not.toBe(0)
+        expect(blocked.stdout).not.toContain('200')
       } finally {
-        await denied?.destroy()
+        await Promise.allSettled([denied?.destroy(), control?.destroy()])
       }
     }, 900_000)
   },

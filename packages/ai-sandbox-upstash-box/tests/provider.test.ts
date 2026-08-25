@@ -132,6 +132,19 @@ describe('upstashBoxSandbox provider', () => {
     )
   })
 
+  it('carries a deny network policy through restoreSnapshot too', async () => {
+    fromSnapshotMock.mockResolvedValue(boxStub())
+    // restoreSnapshot is optional on the contract; this provider implements it.
+    await upstashBoxSandbox({ apiKey: 'k' }).restoreSnapshot!({
+      snapshotId: 'snap_1',
+      policy: { capabilities: { network: 'deny' } },
+    })
+    expect(fromSnapshotMock).toHaveBeenCalledWith(
+      'snap_1',
+      expect.objectContaining({ networkPolicy: { mode: 'deny-all' } }),
+    )
+  })
+
   it('leaves egress unset for allow/ask, which Box defaults to open', async () => {
     createMock.mockResolvedValue(boxStub())
     await upstashBoxSandbox({ apiKey: 'k' }).create({

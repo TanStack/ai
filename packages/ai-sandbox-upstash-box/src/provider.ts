@@ -167,7 +167,12 @@ class UpstashBoxProvider implements SandboxProvider {
 
   async restoreSnapshot(input: SandboxRestoreInput): Promise<SandboxHandle> {
     input.signal?.throwIfAborted()
-    const boxConfig = this.boxConfig({ env: input.env })
+    // `SandboxRestoreInput` carries a policy too. Dropping it would restore a
+    // snapshot taken under `network: 'deny'` into a box with default egress.
+    const boxConfig = this.boxConfig({
+      env: input.env,
+      ...(input.policy ? { policy: input.policy } : {}),
+    })
     const box = await Box.fromSnapshot(input.snapshotId, boxConfig)
     await this.settleAbort(box, input.signal)
     return new UpstashBoxHandle({
