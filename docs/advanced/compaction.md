@@ -183,6 +183,21 @@ The token count is a rough `characters / 4` estimate. It is good enough to trigg
 - **Tool calls stay paired with their results.** The built-in strategies never leave an orphaned tool result, so the request stays valid.
 - **It runs before every model call.** Compaction is incremental: as the chat keeps growing it compacts again, and a later `summarizeOldest` pass folds an earlier summary into the new one.
 
+## Compaction and persistence
+
+Compaction rewrites the messages the model sees. If you also save the thread on the server, know which copy you save.
+
+`withCompaction` and server-side [`withPersistence`](../persistence/chat-persistence) share one message array for the run. Compaction shrinks that array, and `withPersistence` saves it on finish with a full-overwrite `saveThread`. So the stored thread becomes the compacted one. Dropped, summarized, or stubbed messages are gone from the store. The middleware order does not change this.
+
+This is what you want when the compacted thread is the memory. It is data loss when you expected the store to keep every message.
+
+Two ways to keep a full transcript and still compact:
+
+- **Client-authoritative persistence.** The browser keeps the full transcript. The server compacts only for the model call. See [Client persistence](../persistence/client-persistence).
+- **Save the transcript yourself first.** Persist the incoming `messages`, then call `chat()` with compaction.
+
+Do you use server-side [Chat persistence](../persistence/chat-persistence) and want the saved thread to stay readable? Prefer `clearToolResults` or `summarizeOldest` over `evictOldest`. They keep the shape of the conversation instead of dropping turns.
+
 ## Next steps
 
 - [Middleware](./middleware): the full hook reference and how middleware composes

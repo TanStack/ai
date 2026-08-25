@@ -91,6 +91,15 @@ generation hooks. [How persistence works](./internals) has the rest.
   middleware loads the stored transcript and the run picks up from there, so the
   client does not have to re-send history.
 
+## Compaction rewrites what you save
+
+Do you add [`withCompaction`](../advanced/compaction) to the same `chat()`? The
+saved thread is the compacted one. Compaction and `withPersistence` share the
+message array of the run, and `saveThread` overwrites the thread in full. The
+stored transcript then matches what the model saw, not the original messages. To
+keep a full transcript, see
+[Compaction and persistence](../advanced/compaction#compaction-and-persistence).
+
 ## What gets persisted, and when
 
 `withPersistence` writes at **four** moments so a reload never loses a turn:

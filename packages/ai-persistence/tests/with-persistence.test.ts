@@ -3,6 +3,7 @@ import { EventType, chat } from '@tanstack/ai'
 import type {
   AdapterYieldChunk,
   AnyTextAdapter,
+  ChatMiddleware,
   ModelMessage,
   StreamChunk,
   Tool,
@@ -138,6 +139,47 @@ describe('withPersistence (state-only)', () => {
       { role: 'user', content: 'hi' },
       expect.objectContaining({ role: 'assistant', content: 'hello' }),
     ])
+  })
+
+  it('saves the compacted transcript when a middleware drops messages in onConfig', async () => {
+    // Reproduces the compaction + persistence seam: a middleware (here a stand-in
+    // for `withCompaction`) shrinks `config.messages` in `onConfig`. The engine
+    // makes that the run's live message array, so `onFinish` saves the shrunk set
+    // via a full-overwrite `saveThread`. The dropped message is gone from the store.
+    const persistence = memoryPersistence()
+    const { adapter } = mockAdapter([
+      [ev.runStarted(), ev.text('hello'), ev.runFinished()],
+    ])
+
+    const dropOldest: ChatMiddleware = {
+      name: 'drop-oldest',
+      onConfig(_ctx, config) {
+        if (config.messages.length <= 1) return
+        return { messages: config.messages.slice(1) }
+      },
+    }
+
+    await collect(
+      chat({
+        adapter,
+        messages: [
+          { role: 'user', content: 'DROP_ME_FIRST' },
+          { role: 'user', content: 'KEEP_ME_LAST' },
+        ],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [dropOldest, withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    // The saved thread is the compacted one: the dropped message is absent, and
+    // the kept message plus the assistant reply remain.
+    const thread = await persistence.stores.messages!.loadThread('t1')
+    expect(thread).toEqual([
+      { role: 'user', content: 'KEEP_ME_LAST' },
+      expect.objectContaining({ role: 'assistant', content: 'hello' }),
+    ])
+    expect(JSON.stringify(thread)).not.toContain('DROP_ME_FIRST')
   })
 
   it('persists cumulative usage across model calls', async () => {

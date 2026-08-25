@@ -278,7 +278,7 @@
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-19"
+          "updatedAt": "2026-08-25"
         },
         {
           "label": "Client Persistence",
@@ -548,7 +548,8 @@
         {
           "label": "Compaction",
           "to": "advanced/compaction",
-          "addedAt": "2026-08-24"
+          "addedAt": "2026-08-24",
+          "updatedAt": "2026-08-25"
         },
         {
           "label": "Locks",
