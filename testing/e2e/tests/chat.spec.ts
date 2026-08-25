@@ -81,9 +81,13 @@ test('preserves UI message IDs at the server conversion boundary', async ({
             },
             {
               type: 'tool-result',
+              id: 'result-1',
+              name: 'getWeather',
               toolCallId: 'tool-1',
-              content: '{"temp":72}',
+              content: [{ type: 'text', content: '{"temp":72}' }],
               state: 'complete',
+              metadata: { source: 'e2e' },
+              createdAt: '2026-08-20T00:00:00.000Z',
             },
           ],
         },
@@ -92,7 +96,8 @@ test('preserves UI message IDs at the server conversion boundary', async ({
   })
 
   expect(response.ok()).toBe(true)
-  const modelMessages = await response.json()
+  const { modelMessages, wireMessages, snapshots, mergedSnapshots } =
+    await response.json()
 
   expect(modelMessages).toEqual([
     { id: 'user-1', role: 'user', content: 'Hello' },
@@ -109,12 +114,65 @@ test('preserves UI message IDs at the server conversion boundary', async ({
       ],
     },
     {
-      id: 'assistant-1',
+      id: 'result-1',
       role: 'tool',
-      content: '{"temp":72}',
+      name: 'getWeather',
+      content: [{ type: 'text', content: '{"temp":72}' }],
       toolCallId: 'tool-1',
+      metadata: { source: 'e2e' },
+      createdAt: '2026-08-20T00:00:00.000Z',
     },
   ])
+  expect(wireMessages).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({ role: 'assistant', id: 'assistant-1' }),
+      expect.objectContaining({
+        role: 'tool',
+        toolCallId: 'tool-1',
+        id: 'result-1',
+        metadata: {
+          source: 'e2e',
+          tanstack: {
+            toolResult: {
+              id: 'result-1',
+              createdAt: '2026-08-20T00:00:00.000Z',
+              content: [{ type: 'text', content: '{"temp":72}' }],
+            },
+          },
+        },
+      }),
+    ]),
+  )
+  expect(snapshots).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'tool-result',
+            id: 'result-1',
+            content: [{ type: 'text', content: '{"temp":72}' }],
+            metadata: { source: 'e2e' },
+          }),
+        ]),
+      }),
+    ]),
+  )
+  const mergedAssistant = mergedSnapshots.find(
+    (message: { id?: string }) => message.id === 'assistant-1',
+  )
+  expect(mergedAssistant?.parts).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        type: 'tool-result',
+        id: 'result-1',
+        content: [{ type: 'text', content: '{"temp":72}' }],
+        metadata: { source: 'e2e' },
+        createdAt: '2026-08-20T00:00:00.000Z',
+      }),
+    ]),
+  )
 })
 
 test('rejects malformed JSON at the server conversion boundary', async ({

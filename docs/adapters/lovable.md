@@ -239,7 +239,7 @@ See [Bring Your Own Key](../advanced/byok) for the client store and a save UI.
 
 ## Models
 
-Pass any model id the gateway accepts. Curated ids get type metadata.
+Pass a model id from the curated lists. TypeScript rejects an id that is not on a list.
 
 Chat:
 

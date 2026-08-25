@@ -103,7 +103,6 @@ import type {
   Interrupt,
   JSONSchema,
   LazyToolsConfig,
-  MessagesSnapshotEvent,
   ModelMessage,
   ProviderTool,
   RunFinishedEvent,
@@ -2756,9 +2755,9 @@ class TextEngine<
     return {
       type: EventType.MESSAGES_SNAPSHOT,
       timestamp: Date.now(),
-      messages: uiMessagesToWire(
-        modelMessagesToUIMessages(withIds),
-      ) as MessagesSnapshotEvent['messages'],
+      messages: uiMessagesToWire(modelMessagesToUIMessages(withIds), {
+        includeSnapshotStructuredOutput: true,
+      }),
     }
   }
 

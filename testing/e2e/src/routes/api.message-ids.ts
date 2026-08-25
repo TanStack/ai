@@ -1,5 +1,11 @@
 import { createFileRoute } from '@tanstack/react-router'
-import { convertMessagesToModelMessages } from '@tanstack/ai'
+import {
+  convertMessagesToModelMessages,
+  EventType,
+  modelMessagesToUIMessages,
+  StreamProcessor,
+  uiMessagesToWire,
+} from '@tanstack/ai'
 import { z } from 'zod'
 import type { UIMessage } from '@tanstack/ai'
 
@@ -20,13 +26,13 @@ const contentPartSchema = z.discriminatedUnion('type', [
   z.object({
     type: z.literal('text'),
     content: z.string(),
-    metadata: z.unknown().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
   }),
   ...(['image', 'audio', 'video', 'document'] as const).map((type) =>
     z.object({
       type: z.literal(type),
       source: sourceSchema,
-      metadata: z.unknown().optional(),
+      metadata: z.record(z.string(), z.unknown()).optional(),
     }),
   ),
 ])
@@ -56,14 +62,18 @@ const messagePartSchema = z.discriminatedUnion('type', [
       })
       .optional(),
     output: z.unknown().optional(),
-    metadata: z.unknown().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
   }),
   z.object({
     type: z.literal('tool-result'),
+    id: z.string().optional(),
+    name: z.string().optional(),
     toolCallId: z.string(),
     content: z.union([z.string(), z.array(contentPartSchema)]),
     state: z.enum(['streaming', 'complete', 'error']),
     error: z.string().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+    createdAt: z.coerce.date().optional(),
   }),
   z.object({
     type: z.literal('thinking'),
@@ -127,9 +137,23 @@ export const Route = createFileRoute('/api/message-ids')({
           return new Response('Invalid message data', { status: 400 })
         }
 
-        return Response.json(
-          convertMessagesToModelMessages(parsed.data.messages),
+        const modelMessages = convertMessagesToModelMessages(
+          parsed.data.messages,
         )
+        const wireMessages = uiMessagesToWire(parsed.data.messages)
+        const processor = new StreamProcessor()
+        processor.processChunk({
+          type: EventType.MESSAGES_SNAPSHOT,
+          messages: wireMessages,
+        })
+        const snapshots = processor.getMessages()
+        const mergedSnapshots = modelMessagesToUIMessages(modelMessages)
+        return Response.json({
+          modelMessages,
+          wireMessages,
+          snapshots,
+          mergedSnapshots,
+        })
       },
     },
   },

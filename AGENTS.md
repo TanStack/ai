@@ -1,5 +1,9 @@
 # AGENTS.md
 
+Read and follow [`CONTRIBUTING.md`](./CONTRIBUTING.md) before analyzing or
+changing this repository. Its contribution and pull request requirements apply
+to AI-assisted work.
+
 Cross-agent guidance for this repository. See `CLAUDE.md` for the full project
 overview, architecture, and conventions — this file mirrors the rules that
 apply to every coding agent regardless of tool.
