@@ -26,6 +26,7 @@ import {
 } from './connection-adapters'
 import { ChatPersistor } from './client-persistor'
 import { ClearedStreamTracker } from './cleared-stream-tracker'
+import { normalizeMessagesDates } from './message-date-normalizer'
 import { InterruptManager } from './interrupt-manager'
 import type {
   AnyClientTool,
@@ -1025,7 +1026,7 @@ export class ChatClient<
       // A send may have started while the fetch was in flight — don't stomp it.
       if (this.isLoading || this.abortController) return
       if (result.messages.length > 0) {
-        this.processor.setMessages(result.messages)
+        this.processor.setMessages(normalizeMessagesDates(result.messages))
       }
       if (result.interrupts && result.interrupts.pending.length > 0) {
         // Pending interrupt = the thread is paused awaiting a human decision, so
