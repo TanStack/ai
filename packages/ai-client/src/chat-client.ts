@@ -430,6 +430,8 @@ export class ChatClient<
   private continuationPending = false
   private subscriptionAbortController: AbortController | null = null
   private processingResolve: (() => void) | null = null
+  private chunkProcessingTime = 0
+  private chunkProcessingYield: Promise<void> | null = null
   private errorReportedGeneration: number | null = null
   private streamGeneration = 0
   // Tracks whether a queued checkForContinuation was skipped because
@@ -1646,29 +1648,41 @@ export class ChatClient<
       })
   }
 
-  private consumeSubscription(signal: AbortSignal): Promise<void> {
-    return this.consumeChunks(this.connection.subscribe(signal), signal)
+  private async consumeSubscription(signal: AbortSignal): Promise<void> {
+    await this.consumeChunks(this.connection.subscribe(signal), signal)
   }
 
-  /** Consume chunks in order, yielding after bounded processing work. */
+  /** Consume chunks in order against the client-wide processing budget. */
   private async consumeChunks(
     stream: AsyncIterable<StreamChunk>,
     signal: AbortSignal,
     beforeProcess?: (chunk: StreamChunk) => void,
   ): Promise<void> {
-    let processingTime = 0
     for await (const chunk of stream) {
       if (signal.aborted) break
+      const pendingYield = this.chunkProcessingYield
+      if (pendingYield) {
+        await pendingYield
+        if (signal.aborted) break
+      }
       beforeProcess?.(chunk)
       const startedAt = performance.now()
       this.processIncomingChunk(chunk)
-      processingTime += performance.now() - startedAt
+      this.chunkProcessingTime += performance.now() - startedAt
       if (
-        processingTime >= STREAM_PROCESSING_BUDGET_MS &&
+        this.chunkProcessingTime >= STREAM_PROCESSING_BUDGET_MS &&
         (typeof document === 'undefined' || !document.hidden)
       ) {
-        await yieldToHost()
-        processingTime = 0
+        this.chunkProcessingTime = 0
+        const processingYield = yieldToHost()
+        this.chunkProcessingYield = processingYield
+        try {
+          await processingYield
+        } finally {
+          if (this.chunkProcessingYield === processingYield) {
+            this.chunkProcessingYield = null
+          }
+        }
       }
     }
   }
