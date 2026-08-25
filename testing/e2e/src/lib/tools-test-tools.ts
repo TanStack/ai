@@ -7,6 +7,8 @@ export type TestRuntimeContext = {
   source: string
 }
 
+export const STOP_CLIENT_TOOL_MESSAGE = 'Wait until Stop'
+
 /**
  * Server-side tool definitions (for tools that execute on the server)
  */
@@ -192,6 +194,11 @@ export const SCENARIO_LIST = [
     label: 'Client Tool with Reasoning',
     category: 'basic',
   },
+  {
+    id: 'client-tool-stop',
+    label: 'Stop Pending Client Tool',
+    category: 'race',
+  },
   { id: 'approval-tool', label: 'Approval Required Tool', category: 'basic' },
   {
     id: 'sequence-server-client',
@@ -308,6 +315,7 @@ export function getToolsForScenario(scenario: string) {
 
     case 'client-tool-single':
     case 'client-tool-reasoning':
+    case 'client-tool-stop':
     case 'client-tool-input-error':
     case 'invalid-client-tool-retry':
       return [clientToolDefinitions.show_notification]

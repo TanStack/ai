@@ -1487,6 +1487,171 @@ describe('ChatClient native interrupts', () => {
     )
   })
 
+  it.each([
+    ['a client-tool success lands after Stop', 'resolve-after'],
+    ['a client-tool error lands after Stop', 'reject-after'],
+    ['a native resume is queued before Stop', 'resolve-before'],
+    ['addToolResult is called after Stop', 'add-result-after'],
+  ] as const)('does not continue when %s', async (_label, toolTiming) => {
+    let resolveTool!: (value: { accountId: string }) => void
+    let rejectToolExecution!: (reason: unknown) => void
+    const toolResult = new Promise<{ accountId: string }>((resolve, reject) => {
+      resolveTool = resolve
+      rejectToolExecution = reject
+    })
+    const lookup = lookupDefinition.client(() => toolResult)
+    const responseSchema =
+      convertSchemaToJsonSchema(lookupDefinition.outputSchema) ?? {}
+    const outputSchemaHash = hashSchemaInput(lookupDefinition.outputSchema)
+    const responseSchemaHash = digestInterruptJson(
+      canonicalInterruptJson(responseSchema),
+    )
+    const contexts: Array<RunAgentInputContext | undefined> = []
+    let releaseFirstRun!: () => void
+    const firstRunHold = new Promise<void>((resolve) => {
+      releaseFirstRun = resolve
+    })
+    let calls = 0
+    const connection: ConnectConnectionAdapter = {
+      async *connect(_messages, _data, _signal, context) {
+        contexts.push(context)
+        calls++
+        const runId = context?.runId ?? `run-${calls}`
+        const threadId = context?.threadId ?? 'thread-1'
+        yield {
+          type: EventType.RUN_STARTED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+        }
+        if (calls === 1) {
+          yield {
+            type: EventType.TOOL_CALL_START,
+            toolCallId: 'call-1',
+            toolCallName: 'lookup',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.TOOL_CALL_ARGS,
+            toolCallId: 'call-1',
+            delta: '{}',
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.CUSTOM,
+            name: 'tool-input-available',
+            value: {
+              toolCallId: 'call-1',
+              toolName: 'lookup',
+              input: {},
+            },
+            timestamp: Date.now(),
+          }
+          yield {
+            type: EventType.RUN_FINISHED,
+            runId,
+            threadId,
+            timestamp: Date.now(),
+            outcome: {
+              type: 'interrupt',
+              interrupts: [
+                descriptor(
+                  {
+                    v: INTERRUPT_BINDING_VERSION,
+                    kind: 'client-tool-execution',
+                    interruptId: 'client-1',
+                    interruptedRunId: runId,
+                    generation: 0,
+                    toolName: 'lookup',
+                    toolCallId: 'call-1',
+                    outputSchemaHash,
+                    responseSchemaHash,
+                  },
+                  { responseSchema },
+                ),
+              ],
+            },
+          }
+          await firstRunHold
+          return
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: `msg-${calls}`,
+          role: 'assistant',
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_CONTENT,
+          messageId: `msg-${calls}`,
+          delta: 'ok',
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.TEXT_MESSAGE_END,
+          messageId: `msg-${calls}`,
+          timestamp: Date.now(),
+        }
+        yield {
+          type: EventType.RUN_FINISHED,
+          runId,
+          threadId,
+          timestamp: Date.now(),
+          outcome: { type: 'success' },
+        }
+      },
+    }
+    const client = new ChatClient({
+      connection,
+      threadId: 'thread-1',
+      tools: [lookup],
+    })
+
+    const send = client.sendMessage('start')
+    await vi.waitFor(() => expect(client.getResumeState()).not.toBeNull())
+
+    if (toolTiming === 'resolve-before') {
+      resolveTool({ accountId: 'account-1' })
+      await vi.waitFor(() =>
+        expect(client.getInterruptState().resuming).toBe(true),
+      )
+    }
+    const messagesAtStop = structuredClone(client.getMessages())
+    client.stop()
+    if (toolTiming === 'resolve-after' || toolTiming === 'add-result-after') {
+      resolveTool({ accountId: 'account-1' })
+    } else if (toolTiming === 'reject-after') {
+      rejectToolExecution(new Error('tool failed'))
+    }
+    releaseFirstRun()
+    await send
+    await settle()
+
+    if (toolTiming === 'add-result-after') {
+      await client.addToolResult({
+        toolCallId: 'call-1',
+        tool: 'lookup',
+        output: { accountId: 'late-result' },
+        state: 'output-available',
+      })
+      await settle()
+    }
+
+    expect(contexts).toHaveLength(1)
+    expect(client.getMessages()).toEqual(messagesAtStop)
+    expect(client.getResumeState()).toBeNull()
+    expect(client.getInterruptState()).toMatchObject({
+      interrupts: [],
+      interruptErrors: [],
+      resuming: false,
+    })
+
+    await client.sendMessage('later')
+    expect(contexts).toHaveLength(2)
+    expect(contexts[1]?.parentRunId).toBeUndefined()
+    expect(contexts[1]?.resume).toBeUndefined()
+  })
+
   it('owns one immutable interrupt state and resumes with a fresh child run', async () => {
     const contexts: Array<RunAgentInputContext | undefined> = []
     const sentMessages: Array<Array<ModelMessage> | Array<UIMessage>> = []

@@ -6,7 +6,7 @@ import { z } from 'zod'
 import type { ModelMessage, ToolCallPart } from '@tanstack/ai'
 import type { UIMessage } from '@tanstack/ai-react'
 import { parseAimockPort } from '@/lib/devtools-test'
-import { SCENARIO_LIST } from '@/lib/tools-test-tools'
+import { SCENARIO_LIST, STOP_CLIENT_TOOL_MESSAGE } from '@/lib/tools-test-tools'
 
 /**
  * Event log entry for tracking tool execution flow
@@ -91,8 +91,12 @@ function createTrackedTools(
       details: args.message,
     })
 
-    // Simulate async work
-    await new Promise((r) => setTimeout(r, 50))
+    await new Promise((resolve) =>
+      setTimeout(
+        resolve,
+        args.message === STOP_CLIENT_TOOL_MESSAGE ? 1000 : 50,
+      ),
+    )
 
     addEvent({
       type: 'execution-complete',
