@@ -158,22 +158,32 @@ describe.skipIf(!apiKey)(
       let denied: SandboxHandle | undefined
       let control: SandboxHandle | undefined
       try {
-        ;[denied, control] = await Promise.all([
+        // allSettled, not all: a rejecting create would otherwise reject before
+        // either handle is assigned, and `finally` could not destroy the box the
+        // sibling call had already made.
+        const [deniedRes, controlRes] = await Promise.allSettled([
           provider.create({ policy: { capabilities: { network: 'deny' } } }),
           provider.create({}),
         ])
+        if (deniedRes.status === 'fulfilled') denied = deniedRes.value
+        if (controlRes.status === 'fulfilled') control = controlRes.value
+        if (deniedRes.status === 'rejected') throw deniedRes.reason
+        if (controlRes.status === 'rejected') throw controlRes.reason
+
         // POSITIVE CONTROL, without it the test passes whenever the probe fails
         // for an unrelated reason (DNS, routing, TLS, example.com being down)
         // even though egress is wide open.
-        const reachable = await control.process.exec(PROBE)
+        const reachable = await controlRes.value.process.exec(PROBE)
         expect(reachable.stdout).toContain('200')
 
         // curl must exist, or the negative case proves nothing: a missing binary
         // also produces "no 200".
-        expect((await denied.process.exec('command -v curl')).exitCode).toBe(0)
+        expect(
+          (await deniedRes.value.process.exec('command -v curl')).exitCode,
+        ).toBe(0)
         // Assert the connection actually failed rather than merely "not 200",
         // which an empty stdout would satisfy for any unrelated reason.
-        const blocked = await denied.process.exec(PROBE)
+        const blocked = await deniedRes.value.process.exec(PROBE)
         expect(blocked.exitCode).not.toBe(0)
         expect(blocked.stdout).not.toContain('200')
       } finally {
