@@ -218,7 +218,9 @@ id, so a later `attach()` continues where it left off. See
 
 #### `stop()`
 
-Stops the current response generation.
+Stops the current response generation. It aborts the in-flight request.
+Pending client-tool results for that turn are ignored. A later
+`addToolResult()` call for that turn is ignored. It does not start a resume.
 
 ```typescript
 import { client } from "./client";
@@ -250,7 +252,9 @@ client.setMessagesManually([...newMessages]);
 
 #### `addToolResult(result)`
 
-Adds the result of a client-side tool execution.
+Adds the result of a client-side tool execution. After `stop()`, a result for
+the stopped turn is ignored. A new user message starts a new turn. Then
+`addToolResult()` applies to that turn.
 
 ```typescript
 import { client } from "./client";
