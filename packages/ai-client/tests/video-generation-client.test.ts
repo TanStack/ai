@@ -224,6 +224,7 @@ describe('VideoGenerationClient', () => {
       )
       expect(client.getStatus()).toBe('success')
       expect(client.getJobId()).toBe('job-123')
+      expect(client.getSnapshot().runId).toBeNull()
     })
 
     it('should track video status updates', async () => {
@@ -314,6 +315,7 @@ describe('VideoGenerationClient', () => {
       expect(onError).toHaveBeenCalledWith(expect.any(Error))
       expect(client.getStatus()).toBe('error')
       expect(client.getError()?.message).toBe('Video generation failed')
+      expect(client.getSnapshot().runId).toBeNull()
     })
 
     it('should report progress from video:status events', async () => {
@@ -483,10 +485,12 @@ describe('VideoGenerationClient', () => {
 
       const generatePromise = client.generate({ prompt: 'test' })
       expect(client.getIsLoading()).toBe(true)
+      expect(client.getSnapshot().runId).toEqual(expect.any(String))
 
       client.stop()
       expect(client.getIsLoading()).toBe(false)
       expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
 
       resolvePromise!({
         jobId: 'job-1',
@@ -494,6 +498,454 @@ describe('VideoGenerationClient', () => {
         url: 'https://example.com/video.mp4',
       })
       await generatePromise
+    })
+
+    it('should not overwrite a run started by the stopped loading callback', async () => {
+      const firstVideo = {
+        jobId: 'job-1',
+        status: 'completed' as const,
+        url: 'https://example.com/first.mp4',
+      }
+      const secondVideo = {
+        jobId: 'job-2',
+        status: 'completed' as const,
+        url: 'https://example.com/second.mp4',
+      }
+      let releaseFirst!: (value: typeof firstVideo) => void
+      let releaseSecond!: (value: typeof secondVideo) => void
+      const firstResult = new Promise<typeof firstVideo>((resolve) => {
+        releaseFirst = resolve
+      })
+      const secondResult = new Promise<typeof secondVideo>((resolve) => {
+        releaseSecond = resolve
+      })
+      let secondGenerate: Promise<void> | undefined
+      let secondRunId: string | null = null
+      let replaced = false
+      let client!: VideoGenerationClient
+      client = new VideoGenerationClient({
+        fetcher: async (input) =>
+          input.prompt === 'first' ? firstResult : secondResult,
+        onLoadingChange: (isLoading) => {
+          if (isLoading || replaced) return
+          replaced = true
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondRunId = client.getSnapshot().runId
+        },
+      })
+
+      const firstGenerate = client.generate({ prompt: 'first' })
+      client.stop()
+
+      expect(secondRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondRunId)
+      expect(client.getIsLoading()).toBe(true)
+      expect(client.getStatus()).toBe('generating')
+      releaseFirst(firstVideo)
+      releaseSecond(secondVideo)
+      await Promise.all([firstGenerate, secondGenerate])
+    })
+
+    it('should clear the run id when the success status callback stops', async () => {
+      let client!: VideoGenerationClient
+      client = new VideoGenerationClient({
+        fetcher: async () => ({
+          jobId: 'job-1',
+          status: 'completed',
+          url: 'https://example.com/video.mp4',
+        }),
+        onStatusChange: (status) => {
+          if (status === 'success') client.stop()
+        },
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(client.getStatus()).toBe('success')
+      expect(client.getSnapshot().runId).toBeNull()
+      expect(client.getResumeSnapshot()).toBeUndefined()
+    })
+
+    it('should remain stopped when the error callback stops', async () => {
+      let client!: VideoGenerationClient
+      client = new VideoGenerationClient({
+        fetcher: async () => {
+          throw new Error('failed')
+        },
+        onErrorChange: (error) => {
+          if (error) client.stop()
+        },
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
+    })
+
+    it('should stop before transport work when loading callback stops', async () => {
+      const fetcher = vi.fn(async () => ({
+        jobId: 'unexpected',
+        status: 'completed' as const,
+        url: 'https://example.com/unexpected.mp4',
+      }))
+      let client!: VideoGenerationClient
+      client = new VideoGenerationClient({
+        fetcher,
+        onLoadingChange: (isLoading) => {
+          if (isLoading) client.stop()
+        },
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(fetcher).not.toHaveBeenCalled()
+      expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
+    })
+
+    it('should not let initialization continue after loading callback starts a replacement', async () => {
+      const secondVideo = {
+        jobId: 'job-2',
+        status: 'completed' as const,
+        url: 'https://example.com/second.mp4',
+      }
+      let releaseSecond!: (value: typeof secondVideo) => void
+      const secondResult = new Promise<typeof secondVideo>((resolve) => {
+        releaseSecond = resolve
+      })
+      const prompts: Array<string> = []
+      let client!: VideoGenerationClient
+      let replaced = false
+      let secondGenerate: Promise<void> | undefined
+      client = new VideoGenerationClient({
+        fetcher: async (input) => {
+          if (typeof input.prompt === 'string') prompts.push(input.prompt)
+          return input.prompt === 'second'
+            ? secondResult
+            : {
+                jobId: 'job-1',
+                status: 'completed',
+                url: 'https://example.com/first.mp4',
+              }
+        },
+        onLoadingChange: (isLoading) => {
+          if (!isLoading || replaced) return
+          replaced = true
+          client.stop()
+          secondGenerate = client.generate({ prompt: 'second' })
+        },
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(prompts).toEqual(['second'])
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond(secondVideo)
+      await secondGenerate
+    })
+
+    it('should not let an old result callback complete a replacement run', async () => {
+      const secondVideo = {
+        jobId: 'job-2',
+        status: 'completed' as const,
+        url: 'https://example.com/second.mp4',
+      }
+      let releaseSecond!: (value: typeof secondVideo) => void
+      const secondResult = new Promise<typeof secondVideo>((resolve) => {
+        releaseSecond = resolve
+      })
+      let client!: VideoGenerationClient
+      let secondGenerate: Promise<void> | undefined
+      let secondRunId: string | null = null
+      client = new VideoGenerationClient({
+        fetcher: async (input) =>
+          input.prompt === 'first'
+            ? {
+                jobId: 'job-1',
+                status: 'completed',
+                url: 'https://example.com/first.mp4',
+              }
+            : secondResult,
+        onResultChange: (result) => {
+          if (result?.jobId !== 'job-1') return
+          client.stop()
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondRunId = client.getSnapshot().runId
+        },
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(secondRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondRunId)
+      expect(client.getStatus()).toBe('generating')
+      expect(client.getResumeSnapshot()).toBeUndefined()
+      releaseSecond(secondVideo)
+      await secondGenerate
+    })
+
+    it('should not let an old error callback overwrite a replacement run', async () => {
+      const secondVideo = {
+        jobId: 'job-2',
+        status: 'completed' as const,
+        url: 'https://example.com/second.mp4',
+      }
+      let releaseSecond!: (value: typeof secondVideo) => void
+      const secondResult = new Promise<typeof secondVideo>((resolve) => {
+        releaseSecond = resolve
+      })
+      let client!: VideoGenerationClient
+      let secondGenerate: Promise<void> | undefined
+      let secondRunId: string | null = null
+      client = new VideoGenerationClient({
+        fetcher: async (input) => {
+          if (input.prompt === 'first') throw new Error('first failed')
+          return secondResult
+        },
+        onErrorChange: (error) => {
+          if (error?.message !== 'first failed') return
+          client.stop()
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondRunId = client.getSnapshot().runId
+        },
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(secondRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondRunId)
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond(secondVideo)
+      await secondGenerate
+    })
+
+    it('should not let an old error status callback overwrite a replacement run', async () => {
+      const secondVideo = {
+        jobId: 'job-2',
+        status: 'completed' as const,
+        url: 'https://example.com/second.mp4',
+      }
+      let releaseSecond!: (value: typeof secondVideo) => void
+      const secondResult = new Promise<typeof secondVideo>((resolve) => {
+        releaseSecond = resolve
+      })
+      let client!: VideoGenerationClient
+      let secondGenerate: Promise<void> | undefined
+      let replaced = false
+      client = new VideoGenerationClient({
+        fetcher: async (input) => {
+          if (input.prompt === 'first') throw new Error('first failed')
+          return secondResult
+        },
+        onStatusChange: (status) => {
+          if (status !== 'error' || replaced) return
+          replaced = true
+          client.stop()
+          secondGenerate = client.generate({ prompt: 'second' })
+        },
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(client.getStatus()).toBe('generating')
+      expect(client.getError()).toBeUndefined()
+      releaseSecond(secondVideo)
+      await secondGenerate
+    })
+
+    it('should stop before transport when the run id subscriber stops', async () => {
+      const fetcher = vi.fn(async () => ({
+        jobId: 'unexpected',
+        status: 'completed' as const,
+        url: 'https://example.com/unexpected.mp4',
+      }))
+      const onLoadingChange = vi.fn()
+      const client = new VideoGenerationClient({ fetcher, onLoadingChange })
+      client.subscribe(() => {
+        if (client.getSnapshot().runId) client.stop()
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(fetcher).not.toHaveBeenCalled()
+      expect(onLoadingChange).not.toHaveBeenCalledWith(true)
+      expect(client.getSnapshot().runId).toBeNull()
+    })
+
+    it('should not continue an old run after the run id subscriber starts a replacement', async () => {
+      const secondVideo = {
+        jobId: 'job-2',
+        status: 'completed' as const,
+        url: 'https://example.com/second.mp4',
+      }
+      let releaseSecond!: (value: typeof secondVideo) => void
+      const secondResult = new Promise<typeof secondVideo>((resolve) => {
+        releaseSecond = resolve
+      })
+      const prompts: Array<string> = []
+      let secondGenerate: Promise<void> | undefined
+      let replaced = false
+      const client = new VideoGenerationClient({
+        fetcher: async (input) => {
+          if (typeof input.prompt === 'string') prompts.push(input.prompt)
+          return input.prompt === 'second'
+            ? secondResult
+            : {
+                jobId: 'job-1',
+                status: 'completed',
+                url: 'https://example.com/first.mp4',
+              }
+        },
+      })
+      client.subscribe(() => {
+        if (!client.getSnapshot().runId || replaced) return
+        replaced = true
+        client.stop()
+        secondGenerate = client.generate({ prompt: 'second' })
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(prompts).toEqual(['second'])
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond(secondVideo)
+      await secondGenerate
+    })
+
+    it('should not call the loading callback after its snapshot subscriber stops', async () => {
+      const fetcher = vi.fn(async () => ({
+        jobId: 'unexpected',
+        status: 'completed' as const,
+        url: 'https://example.com/unexpected.mp4',
+      }))
+      const onLoadingChange = vi.fn()
+      const client = new VideoGenerationClient({ fetcher, onLoadingChange })
+      client.subscribe(() => {
+        if (client.getSnapshot().isLoading) client.stop()
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(fetcher).not.toHaveBeenCalled()
+      expect(onLoadingChange).not.toHaveBeenCalledWith(true)
+    })
+
+    it('should not call the old status callback after its subscriber starts a replacement', async () => {
+      const secondVideo = {
+        jobId: 'job-2',
+        status: 'completed' as const,
+        url: 'https://example.com/second.mp4',
+      }
+      let releaseSecond!: (value: typeof secondVideo) => void
+      const secondResult = new Promise<typeof secondVideo>((resolve) => {
+        releaseSecond = resolve
+      })
+      const generatingStatuses: Array<string> = []
+      let secondGenerate: Promise<void> | undefined
+      let replaced = false
+      const client = new VideoGenerationClient({
+        fetcher: async (input) =>
+          input.prompt === 'second'
+            ? secondResult
+            : {
+                jobId: 'job-1',
+                status: 'completed',
+                url: 'https://example.com/first.mp4',
+              },
+        onStatusChange: (status) => {
+          if (status === 'generating') generatingStatuses.push(status)
+        },
+      })
+      client.subscribe(() => {
+        if (client.getSnapshot().status !== 'generating' || replaced) return
+        replaced = true
+        client.stop()
+        secondGenerate = client.generate({ prompt: 'second' })
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(generatingStatuses).toEqual(['generating'])
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond(secondVideo)
+      await secondGenerate
+    })
+
+    it('should not call the old result callback after its subscriber starts a replacement', async () => {
+      const secondVideo = {
+        jobId: 'job-2',
+        status: 'completed' as const,
+        url: 'https://example.com/second.mp4',
+      }
+      let releaseSecond!: (value: typeof secondVideo) => void
+      const secondResult = new Promise<typeof secondVideo>((resolve) => {
+        releaseSecond = resolve
+      })
+      const onResultChange = vi.fn()
+      let secondGenerate: Promise<void> | undefined
+      let replaced = false
+      const client = new VideoGenerationClient({
+        fetcher: async (input) =>
+          input.prompt === 'second'
+            ? secondResult
+            : {
+                jobId: 'job-1',
+                status: 'completed',
+                url: 'https://example.com/first.mp4',
+              },
+        onResultChange,
+      })
+      client.subscribe(() => {
+        if (client.getResult()?.jobId !== 'job-1' || replaced) return
+        replaced = true
+        client.stop()
+        secondGenerate = client.generate({ prompt: 'second' })
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(onResultChange).not.toHaveBeenCalledWith(
+        expect.objectContaining({ jobId: 'job-1' }),
+      )
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond(secondVideo)
+      await secondGenerate
+    })
+
+    it('should not call the old error callback after its subscriber starts a replacement', async () => {
+      const secondVideo = {
+        jobId: 'job-2',
+        status: 'completed' as const,
+        url: 'https://example.com/second.mp4',
+      }
+      let releaseSecond!: (value: typeof secondVideo) => void
+      const secondResult = new Promise<typeof secondVideo>((resolve) => {
+        releaseSecond = resolve
+      })
+      const onErrorChange = vi.fn()
+      let secondGenerate: Promise<void> | undefined
+      let replaced = false
+      const client = new VideoGenerationClient({
+        fetcher: async (input) => {
+          if (input.prompt === 'first') throw new Error('first failed')
+          return secondResult
+        },
+        onErrorChange,
+      })
+      client.subscribe(() => {
+        if (client.getError()?.message !== 'first failed' || replaced) return
+        replaced = true
+        client.stop()
+        secondGenerate = client.generate({ prompt: 'second' })
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(onErrorChange).not.toHaveBeenCalledWith(expect.any(Error))
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond(secondVideo)
+      await secondGenerate
     })
   })
 
@@ -561,6 +1013,112 @@ describe('VideoGenerationClient', () => {
       expect(client.getVideoStatus()).toBeNull()
       expect(client.getError()).toBeUndefined()
       expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
+    })
+
+    it('should not overwrite a run started by the reset loading callback', async () => {
+      const seedVideo = {
+        jobId: 'seed',
+        status: 'completed' as const,
+        url: 'https://example.com/seed.mp4',
+      }
+      const firstVideo = {
+        jobId: 'job-1',
+        status: 'completed' as const,
+        url: 'https://example.com/first.mp4',
+      }
+      const secondVideo = {
+        jobId: 'job-2',
+        status: 'completed' as const,
+        url: 'https://example.com/second.mp4',
+      }
+      let releaseFirst!: (value: typeof firstVideo) => void
+      let releaseSecond!: (value: typeof secondVideo) => void
+      const firstResult = new Promise<typeof firstVideo>((resolve) => {
+        releaseFirst = resolve
+      })
+      const secondResult = new Promise<typeof secondVideo>((resolve) => {
+        releaseSecond = resolve
+      })
+      let replaceOnStop = false
+      let secondGenerate: Promise<void> | undefined
+      let secondRunId: string | null = null
+      let client!: VideoGenerationClient
+      client = new VideoGenerationClient({
+        fetcher: async (input) => {
+          if (input.prompt === 'seed') return seedVideo
+          return input.prompt === 'first' ? firstResult : secondResult
+        },
+        onLoadingChange: (isLoading) => {
+          if (isLoading || !replaceOnStop) return
+          replaceOnStop = false
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondRunId = client.getSnapshot().runId
+        },
+      })
+      await client.generate({ prompt: 'seed' })
+      const firstGenerate = client.generate({ prompt: 'first' })
+      replaceOnStop = true
+
+      client.reset()
+
+      expect(secondRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondRunId)
+      expect(client.getStatus()).toBe('generating')
+      expect(client.getIsLoading()).toBe(true)
+      expect(client.getResult()).toEqual(seedVideo)
+      releaseFirst(firstVideo)
+      releaseSecond(secondVideo)
+      await Promise.all([firstGenerate, secondGenerate])
+    })
+  })
+
+  describe('dispose()', () => {
+    it('should not overwrite a run started by the dispose loading callback', async () => {
+      const firstVideo = {
+        jobId: 'job-1',
+        status: 'completed' as const,
+        url: 'https://example.com/first.mp4',
+      }
+      const secondVideo = {
+        jobId: 'job-2',
+        status: 'completed' as const,
+        url: 'https://example.com/second.mp4',
+      }
+      let releaseFirst!: (value: typeof firstVideo) => void
+      let releaseSecond!: (value: typeof secondVideo) => void
+      const first = new Promise<typeof firstVideo>((resolve) => {
+        releaseFirst = resolve
+      })
+      const second = new Promise<typeof secondVideo>((resolve) => {
+        releaseSecond = resolve
+      })
+      let replaceOnDispose = false
+      let secondGenerate: Promise<void> | undefined
+      let secondRunId: string | null = null
+      let client!: VideoGenerationClient
+      client = new VideoGenerationClient({
+        fetcher: (input) => (input.prompt === 'first' ? first : second),
+        onLoadingChange: (isLoading) => {
+          if (isLoading || !replaceOnDispose) return
+          replaceOnDispose = false
+          client.mountDevtools()
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondRunId = client.getSnapshot().runId
+        },
+      })
+      const firstGenerate = client.generate({ prompt: 'first' })
+      replaceOnDispose = true
+
+      client.dispose()
+
+      expect(secondRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondRunId)
+      expect(client.getStatus()).toBe('generating')
+      expect(client.getIsLoading()).toBe(true)
+      releaseFirst(firstVideo)
+      releaseSecond(secondVideo)
+      await Promise.all([firstGenerate, secondGenerate])
     })
   })
 
@@ -651,6 +1209,75 @@ describe('VideoGenerationClient', () => {
       expect(onResult).not.toHaveBeenCalled()
       expect(client.getResult()).toBeNull()
       expect(client.getStatus()).toBe('idle')
+    })
+
+    it('should not publish a run id after onChunk stops the run', async () => {
+      const connection: ConnectConnectionAdapter = {
+        async *connect() {
+          yield {
+            type: EventType.RUN_STARTED as const,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          }
+        },
+      }
+      let client!: VideoGenerationClient
+      client = new VideoGenerationClient({
+        connection,
+        onChunk: (chunk) => {
+          if (chunk.type === EventType.RUN_STARTED) client.stop()
+        },
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(client.getSnapshot().runId).toBeNull()
+      expect(client.getStatus()).toBe('idle')
+    })
+
+    it('should not let an old onChunk continuation overwrite a newer run', async () => {
+      let connectionCount = 0
+      let releaseSecond!: () => void
+      const secondBlocked = new Promise<void>((resolve) => {
+        releaseSecond = resolve
+      })
+      const connection: ConnectConnectionAdapter = {
+        async *connect() {
+          connectionCount++
+          if (connectionCount === 1) {
+            yield {
+              type: EventType.RUN_STARTED as const,
+              runId: 'run-1',
+              threadId: 'thread-1',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          await secondBlocked
+        },
+      }
+      let client!: VideoGenerationClient
+      let secondGenerate: Promise<void> | undefined
+      let secondLocalRunId: string | null = null
+      client = new VideoGenerationClient({
+        connection,
+        onChunk: (chunk) => {
+          if (chunk.type !== EventType.RUN_STARTED) return
+          client.stop()
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondLocalRunId = client.getSnapshot().runId
+        },
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(secondLocalRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondLocalRunId)
+      expect(client.getIsLoading()).toBe(true)
+      client.stop()
+      releaseSecond()
+      await secondGenerate
     })
   })
 

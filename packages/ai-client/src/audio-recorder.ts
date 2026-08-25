@@ -66,6 +66,7 @@ export class AudioRecorder {
   private startedAt = 0
   private readonly snapshotAtom: Atom<AudioRecorderState> =
     createAtom<AudioRecorderState>('idle')
+  private readonly listeners = new Set<(state: AudioRecorderState) => void>()
   // True while start() is awaiting getUserMedia (state is still 'idle' then).
   private starting = false
   // Set by cancel()/teardown during that window so start() releases the
@@ -93,10 +94,8 @@ export class AudioRecorder {
   }
 
   subscribe(cb: (state: AudioRecorderState) => void): () => void {
-    const { unsubscribe } = this.snapshotAtom.subscribe((next) => {
-      cb(next)
-    })
-    return unsubscribe
+    this.listeners.add(cb)
+    return () => this.listeners.delete(cb)
   }
 
   /** Current recorder lifecycle state. */
@@ -104,6 +103,7 @@ export class AudioRecorder {
 
   private setState(state: AudioRecorderState): void {
     this.snapshotAtom.set(state)
+    for (const listener of this.listeners) listener(state)
   }
 
   async start(): Promise<void> {

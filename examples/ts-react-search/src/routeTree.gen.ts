@@ -9,48 +9,28 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LayoutRouteRouteImport } from './routes/_layout/route'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ApiSettlementsRouteImport } from './routes/api/settlements'
-import { Route as ApiSearchRouteImport } from './routes/api/search'
-import { Route as ApiOrdersRouteImport } from './routes/api/orders'
-import { Route as ApiDisputesRouteImport } from './routes/api/disputes'
-import { Route as LayoutSettlementsRouteImport } from './routes/_layout/settlements'
-import { Route as LayoutOrdersRouteImport } from './routes/_layout/orders'
+import { Route as LayoutRouteRouteImport } from './routes/_layout/route'
 import { Route as LayoutDisputesRouteImport } from './routes/_layout/disputes'
+import { Route as LayoutOrdersRouteImport } from './routes/_layout/orders'
+import { Route as LayoutSettlementsRouteImport } from './routes/_layout/settlements'
+import { Route as ApiDisputesRouteImport } from './routes/api/disputes'
+import { Route as ApiOrdersRouteImport } from './routes/api/orders'
+import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as ApiSettlementsRouteImport } from './routes/api/settlements'
 
-const LayoutRouteRoute = LayoutRouteRouteImport.update({
-  id: '/_layout',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSettlementsRoute = ApiSettlementsRouteImport.update({
-  id: '/api/settlements',
-  path: '/api/settlements',
+const LayoutRouteRoute = LayoutRouteRouteImport.update({
+  id: '/_layout',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSearchRoute = ApiSearchRouteImport.update({
-  id: '/api/search',
-  path: '/api/search',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiOrdersRoute = ApiOrdersRouteImport.update({
-  id: '/api/orders',
-  path: '/api/orders',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiDisputesRoute = ApiDisputesRouteImport.update({
-  id: '/api/disputes',
-  path: '/api/disputes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LayoutSettlementsRoute = LayoutSettlementsRouteImport.update({
-  id: '/settlements',
-  path: '/settlements',
+const LayoutDisputesRoute = LayoutDisputesRouteImport.update({
+  id: '/disputes',
+  path: '/disputes',
   getParentRoute: () => LayoutRouteRoute,
 } as any)
 const LayoutOrdersRoute = LayoutOrdersRouteImport.update({
@@ -58,10 +38,30 @@ const LayoutOrdersRoute = LayoutOrdersRouteImport.update({
   path: '/orders',
   getParentRoute: () => LayoutRouteRoute,
 } as any)
-const LayoutDisputesRoute = LayoutDisputesRouteImport.update({
-  id: '/disputes',
-  path: '/disputes',
+const LayoutSettlementsRoute = LayoutSettlementsRouteImport.update({
+  id: '/settlements',
+  path: '/settlements',
   getParentRoute: () => LayoutRouteRoute,
+} as any)
+const ApiDisputesRoute = ApiDisputesRouteImport.update({
+  id: '/api/disputes',
+  path: '/api/disputes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiOrdersRoute = ApiOrdersRouteImport.update({
+  id: '/api/orders',
+  path: '/api/orders',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSearchRoute = ApiSearchRouteImport.update({
+  id: '/api/search',
+  path: '/api/search',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSettlementsRoute = ApiSettlementsRouteImport.update({
+  id: '/api/settlements',
+  path: '/api/settlements',
+  getParentRoute: () => rootRouteImport,
 } as any)
 
 export interface FileRoutesByFullPath {
@@ -141,13 +141,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/_layout': {
-      id: '/_layout'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof LayoutRouteRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -155,39 +148,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/settlements': {
-      id: '/api/settlements'
-      path: '/api/settlements'
-      fullPath: '/api/settlements'
-      preLoaderRoute: typeof ApiSettlementsRouteImport
+    '/_layout': {
+      id: '/_layout'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof LayoutRouteRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/search': {
-      id: '/api/search'
-      path: '/api/search'
-      fullPath: '/api/search'
-      preLoaderRoute: typeof ApiSearchRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/orders': {
-      id: '/api/orders'
-      path: '/api/orders'
-      fullPath: '/api/orders'
-      preLoaderRoute: typeof ApiOrdersRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/disputes': {
-      id: '/api/disputes'
-      path: '/api/disputes'
-      fullPath: '/api/disputes'
-      preLoaderRoute: typeof ApiDisputesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_layout/settlements': {
-      id: '/_layout/settlements'
-      path: '/settlements'
-      fullPath: '/settlements'
-      preLoaderRoute: typeof LayoutSettlementsRouteImport
+    '/_layout/disputes': {
+      id: '/_layout/disputes'
+      path: '/disputes'
+      fullPath: '/disputes'
+      preLoaderRoute: typeof LayoutDisputesRouteImport
       parentRoute: typeof LayoutRouteRoute
     }
     '/_layout/orders': {
@@ -197,12 +169,40 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LayoutOrdersRouteImport
       parentRoute: typeof LayoutRouteRoute
     }
-    '/_layout/disputes': {
-      id: '/_layout/disputes'
-      path: '/disputes'
-      fullPath: '/disputes'
-      preLoaderRoute: typeof LayoutDisputesRouteImport
+    '/_layout/settlements': {
+      id: '/_layout/settlements'
+      path: '/settlements'
+      fullPath: '/settlements'
+      preLoaderRoute: typeof LayoutSettlementsRouteImport
       parentRoute: typeof LayoutRouteRoute
+    }
+    '/api/disputes': {
+      id: '/api/disputes'
+      path: '/api/disputes'
+      fullPath: '/api/disputes'
+      preLoaderRoute: typeof ApiDisputesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/orders': {
+      id: '/api/orders'
+      path: '/api/orders'
+      fullPath: '/api/orders'
+      preLoaderRoute: typeof ApiOrdersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/search': {
+      id: '/api/search'
+      path: '/api/search'
+      fullPath: '/api/search'
+      preLoaderRoute: typeof ApiSearchRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/settlements': {
+      id: '/api/settlements'
+      path: '/api/settlements'
+      fullPath: '/api/settlements'
+      preLoaderRoute: typeof ApiSettlementsRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }

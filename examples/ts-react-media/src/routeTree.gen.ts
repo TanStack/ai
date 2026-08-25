@@ -9,17 +9,17 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SeedanceRouteImport } from './routes/seedance'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SeedanceRouteImport } from './routes/seedance'
 
-const SeedanceRoute = SeedanceRouteImport.update({
-  id: '/seedance',
-  path: '/seedance',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SeedanceRoute = SeedanceRouteImport.update({
+  id: '/seedance',
+  path: '/seedance',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -51,18 +51,18 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/seedance': {
-      id: '/seedance'
-      path: '/seedance'
-      fullPath: '/seedance'
-      preLoaderRoute: typeof SeedanceRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/seedance': {
+      id: '/seedance'
+      path: '/seedance'
+      fullPath: '/seedance'
+      preLoaderRoute: typeof SeedanceRouteImport
       parentRoute: typeof rootRouteImport
     }
   }

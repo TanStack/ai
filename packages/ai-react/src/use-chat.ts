@@ -18,6 +18,7 @@ import type {
   StreamChunk,
 } from '@tanstack/ai/client'
 import type {
+  ChatClientPersistence,
   ResolvableChatInterrupt,
   ChatResumeState,
   InferredClientContext,
@@ -68,128 +69,180 @@ export function useChat<
   optionsRef.current = options
 
   // Create ChatClient instance with callbacks to sync state
-  const { client, initialization } = useMemo(() => {
-    const messagesToUse = options.initialMessages || []
+  const { client, initialization, serverSnapshot, startPersistenceHydration } =
+    useMemo(() => {
+      const messagesToUse = options.initialMessages || []
 
-    // Build options with conditional spreads for fields whose source
-    // type is `T | undefined` but the ChatClient target uses a strict
-    // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
-    // assigning `undefined` to those, so we omit the key when absent.
-    const initialOptions = optionsRef.current
-    const transport = initialOptions.connection
-      ? { connection: initialOptions.connection }
-      : { fetcher: initialOptions.fetcher }
+      // Build options with conditional spreads for fields whose source
+      // type is `T | undefined` but the ChatClient target uses a strict
+      // optional (`field?: T`) — `exactOptionalPropertyTypes` rejects
+      // assigning `undefined` to those, so we omit the key when absent.
+      const initialOptions = optionsRef.current
+      let persistence = initialOptions.persistence
+      let releasePersistenceHydration = () => {}
+      if (persistence && typeof persistence === 'object') {
+        const source = persistence
+        let hydrationStarted = false
+        let releaseRead: (() => void) | undefined
+        let hydrationPromise:
+          | Promise<
+              Awaited<ReturnType<ChatClientPersistence<TTools>['getItem']>>
+            >
+          | undefined
+        const gatedPersistence: ChatClientPersistence<TTools> = {
+          getItem(id) {
+            if (!hydrationPromise) {
+              hydrationPromise = new Promise((resolve, reject) => {
+                let readStarted = false
+                releaseRead = () => {
+                  if (readStarted) return
+                  readStarted = true
+                  try {
+                    resolve(source.getItem.call(source, id))
+                  } catch (error) {
+                    reject(error)
+                  }
+                }
+              })
+            }
+            if (hydrationStarted) releaseRead?.()
+            return hydrationPromise
+          },
+          setItem(id, state) {
+            return source.setItem.call(source, id, state)
+          },
+          removeItem(id) {
+            return source.removeItem.call(source, id)
+          },
+        }
+        persistence = gatedPersistence
+        releasePersistenceHydration = () => {
+          if (hydrationStarted) return
+          hydrationStarted = true
+          releaseRead?.()
+        }
+      }
+      const transport = initialOptions.connection
+        ? { connection: initialOptions.connection }
+        : { fetcher: initialOptions.fetcher }
 
-    const instanceHolder: {
-      current: ChatClient<TTools, TContext, TInterrupts> | undefined
-    } = { current: undefined }
-    const getActiveInstance = () => {
-      const currentInstance = instanceHolder.current
-      if (!currentInstance || activeClientRef.current !== currentInstance) {
-        return undefined
+      const instanceHolder: {
+        current: ChatClient<TTools, TContext, TInterrupts> | undefined
+      } = { current: undefined }
+      const getActiveInstance = () => {
+        const currentInstance = instanceHolder.current
+        if (!currentInstance || activeClientRef.current !== currentInstance) {
+          return undefined
+        }
+        return currentInstance
       }
-      return currentInstance
-    }
-    // ChatClient may publish while its constructor is running or while async
-    // persistence resolves before commit. Preserve those exact notifications
-    // until this render commits; invoking them here would run state setters and
-    // user callbacks for a client React may abandon.
-    const initializationState = {
-      ready: false,
-      callbacks: [] as Array<() => void>,
-    }
-    const runOrQueueForActiveInstance = (callback: () => void) => {
-      if (!initializationState.ready) {
-        initializationState.callbacks.push(callback)
-        return
+      // ChatClient may publish while its constructor is running or while async
+      // persistence resolves before commit. Preserve those exact notifications
+      // until this render commits; invoking them here would run state setters and
+      // user callbacks for a client React may abandon.
+      const initializationState = {
+        ready: false,
+        callbacks: [] as Array<() => void>,
       }
-      const currentInstance = instanceHolder.current
-      if (!currentInstance || activeClientRef.current !== currentInstance)
-        return
-      callback()
-    }
-    const instance = new ChatClient<TTools, TContext, TInterrupts>({
-      devtoolsBridgeFactory: createChatDevtoolsBridge,
-      ...transport,
-      initialMessages: messagesToUse,
-      ...(typeof initialOptions.threadId === 'string' &&
-      initialOptions.persistence
-        ? {
-            persistence: initialOptions.persistence,
-            threadId: initialOptions.threadId,
-          }
-        : {
-            ...(initialOptions.threadId !== undefined && {
+      const runOrQueueForActiveInstance = (callback: () => void) => {
+        if (!initializationState.ready) {
+          initializationState.callbacks.push(callback)
+          return
+        }
+        const currentInstance = instanceHolder.current
+        if (!currentInstance || activeClientRef.current !== currentInstance)
+          return
+        callback()
+      }
+      const instance = new ChatClient<TTools, TContext, TInterrupts>({
+        devtoolsBridgeFactory: createChatDevtoolsBridge,
+        ...transport,
+        initialMessages: messagesToUse,
+        ...(typeof initialOptions.threadId === 'string' && persistence
+          ? {
+              persistence,
               threadId: initialOptions.threadId,
+            }
+          : {
+              ...(initialOptions.threadId !== undefined && {
+                threadId: initialOptions.threadId,
+              }),
             }),
-          }),
-      ...(initialOptions.body !== undefined && { body: initialOptions.body }),
-      ...(initialOptions.forwardedProps !== undefined && {
-        forwardedProps: initialOptions.forwardedProps,
-      }),
-      ...(initialOptions.byok !== undefined && { byok: initialOptions.byok }),
-      byokProvider: () => optionsRef.current.byokProvider?.(),
-      ...(initialOptions.initialResumeSnapshot !== undefined && {
-        initialResumeSnapshot: initialOptions.initialResumeSnapshot,
-      }),
-      ...(initialOptions.context !== undefined && {
-        context: initialOptions.context,
-      }),
-      devtools: {
-        ...initialOptions.devtools,
-        framework: 'react',
-        hookName: 'useChat',
-        outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
-      },
-      onResponse: (response) => {
-        // ChatClient awaits this return value. Queuing would drop the promise.
-        if (!getActiveInstance()) return
-        return optionsRef.current.onResponse?.(response)
-      },
-      onChunk: (chunk: StreamChunk) => {
-        runOrQueueForActiveInstance(() => {
-          optionsRef.current.onChunk?.(chunk)
-        })
-      },
-      onFinish: (message: UIMessage<TTools>) => {
-        runOrQueueForActiveInstance(() => {
-          optionsRef.current.onFinish?.(message)
-        })
-      },
-      onError: (error: Error) => {
-        runOrQueueForActiveInstance(() => {
-          optionsRef.current.onError?.(error)
-        })
-      },
-      ...(initialOptions.tools !== undefined && {
-        tools: initialOptions.tools,
-      }),
-      ...(initialOptions.interrupts !== undefined && {
-        interrupts: initialOptions.interrupts,
-      }),
-      onCustomEvent: (eventType, data, context) => {
-        runOrQueueForActiveInstance(() => {
-          optionsRef.current.onCustomEvent?.(eventType, data, context)
-        })
-      },
-      ...(options.streamProcessor !== undefined && {
-        streamProcessor: options.streamProcessor,
-      }),
-      ...(optionsRef.current.queue !== undefined && {
-        queue: optionsRef.current.queue,
-      }),
-      onInterruptStateChange: (nextInterruptState, context) => {
-        runOrQueueForActiveInstance(() => {
-          optionsRef.current.onInterruptStateChange?.(
-            nextInterruptState,
-            context,
-          )
-        })
-      },
-    })
-    instanceHolder.current = instance
-    return { client: instance, initialization: initializationState }
-  }, [clientId])
+        ...(initialOptions.body !== undefined && { body: initialOptions.body }),
+        ...(initialOptions.forwardedProps !== undefined && {
+          forwardedProps: initialOptions.forwardedProps,
+        }),
+        ...(initialOptions.byok !== undefined && { byok: initialOptions.byok }),
+        byokProvider: () => optionsRef.current.byokProvider?.(),
+        ...(initialOptions.initialResumeSnapshot !== undefined && {
+          initialResumeSnapshot: initialOptions.initialResumeSnapshot,
+        }),
+        ...(initialOptions.context !== undefined && {
+          context: initialOptions.context,
+        }),
+        devtools: {
+          ...initialOptions.devtools,
+          framework: 'react',
+          hookName: 'useChat',
+          outputKind: initialOptions.outputSchema ? 'structured' : 'chat',
+        },
+        onResponse: (response) => {
+          // ChatClient awaits this return value. Queuing would drop the promise.
+          if (!getActiveInstance()) return
+          return optionsRef.current.onResponse?.(response)
+        },
+        onChunk: (chunk: StreamChunk) => {
+          runOrQueueForActiveInstance(() => {
+            optionsRef.current.onChunk?.(chunk)
+          })
+        },
+        onFinish: (message: UIMessage<TTools>) => {
+          runOrQueueForActiveInstance(() => {
+            optionsRef.current.onFinish?.(message)
+          })
+        },
+        onError: (error: Error) => {
+          runOrQueueForActiveInstance(() => {
+            optionsRef.current.onError?.(error)
+          })
+        },
+        ...(initialOptions.tools !== undefined && {
+          tools: initialOptions.tools,
+        }),
+        ...(initialOptions.interrupts !== undefined && {
+          interrupts: initialOptions.interrupts,
+        }),
+        onCustomEvent: (eventType, data, context) => {
+          runOrQueueForActiveInstance(() => {
+            optionsRef.current.onCustomEvent?.(eventType, data, context)
+          })
+        },
+        ...(options.streamProcessor !== undefined && {
+          streamProcessor: options.streamProcessor,
+        }),
+        ...(optionsRef.current.queue !== undefined && {
+          queue: optionsRef.current.queue,
+        }),
+        onInterruptStateChange: (nextInterruptState, context) => {
+          runOrQueueForActiveInstance(() => {
+            optionsRef.current.onInterruptStateChange?.(
+              nextInterruptState,
+              context,
+            )
+          })
+        },
+      })
+      instanceHolder.current = instance
+      const capturedServerSnapshot = instance.getSnapshot()
+      return {
+        client: instance,
+        initialization: initializationState,
+        serverSnapshot: capturedServerSnapshot,
+        startPersistenceHydration: releasePersistenceHydration,
+      }
+    }, [clientId])
+
+  const getServerSnapshot = useCallback(() => serverSnapshot, [serverSnapshot])
 
   useEffect(() => {
     activeClientRef.current = client
@@ -212,7 +265,7 @@ export function useChat<
   const snapshot = useSyncExternalStore(
     client.subscribeSnapshot,
     client.getSnapshot,
-    client.getSnapshot,
+    getServerSnapshot,
   )
 
   // Sync each wire-payload slot in its own effect so an unrelated option
@@ -277,10 +330,11 @@ export function useChat<
   // run is picked straight back up from the durable log.
   useEffect(() => {
     client.attach()
+    startPersistenceHydration()
     return () => {
       client.detach()
     }
-  }, [client])
+  }, [client, startPersistenceHydration])
 
   useEffect(() => {
     if (cleanupDisposalRef.current?.client === client) {

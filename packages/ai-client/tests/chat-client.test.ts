@@ -98,6 +98,75 @@ describe('ChatClient', () => {
       stop()
     })
 
+    it('isolates nested message parts from callers and old snapshots', () => {
+      const adapter = createMockConnectionAdapter()
+      const source = {
+        type: 'url' as const,
+        value: 'https://example.com/a.png',
+      }
+      const client = new ChatClient({
+        connection: adapter,
+        initialMessages: [
+          {
+            id: 'msg-1',
+            role: 'user',
+            parts: [{ type: 'image', source }],
+            createdAt: new Date(),
+          },
+        ],
+      })
+      const oldSnapshot = client.getSnapshot()
+
+      source.value = 'https://example.com/changed.png'
+      expect(oldSnapshot.messages[0]?.parts[0]).toMatchObject({
+        source: { value: 'https://example.com/a.png' },
+      })
+      const publishedPart = oldSnapshot.messages[0]?.parts[0]
+      expect(Object.isFrozen(publishedPart)).toBe(true)
+      if (!publishedPart || !('source' in publishedPart)) {
+        throw new Error('Expected a message part with a source')
+      }
+      expect(Object.isFrozen(publishedPart.source)).toBe(true)
+    })
+
+    it('isolates messages published by normal updates', () => {
+      const client = new ChatClient({
+        connection: createMockConnectionAdapter(),
+      })
+      const oldSnapshot = client.getSnapshot()
+      const source = {
+        type: 'url' as const,
+        value: 'https://example.com/updated.png',
+      }
+
+      client.setMessagesManually([
+        {
+          id: 'updated-1',
+          role: 'user',
+          parts: [{ type: 'image', source }],
+        },
+      ])
+
+      const snapshot = client.getSnapshot()
+      const part = snapshot.messages[0]?.parts[0]
+      expect(snapshot).not.toBe(oldSnapshot)
+      expect(oldSnapshot.messages).toEqual([])
+      expect(Object.isFrozen(snapshot.messages)).toBe(true)
+      expect(Object.isFrozen(snapshot.messages[0])).toBe(true)
+      expect(Object.isFrozen(snapshot.messages[0]?.parts)).toBe(true)
+      expect(Object.isFrozen(part)).toBe(true)
+      expect(part).toMatchObject({ source })
+
+      if (!part || !('source' in part)) {
+        throw new Error('Expected a message part with a source')
+      }
+      const publishedSource = part.source
+      expect(Object.isFrozen(publishedSource)).toBe(true)
+      expect(Reflect.set(publishedSource, 'value', 'changed')).toBe(false)
+      expect(client.getMessages()[0]?.parts[0]).toMatchObject({ source })
+      expect(client.getSnapshot()).toBe(snapshot)
+    })
+
     it('should initialize with provided messages', () => {
       const adapter = createMockConnectionAdapter()
       const initialMessages: Array<UIMessage> = [
@@ -2277,6 +2346,61 @@ describe('ChatClient', () => {
         { type: 'text', content: 'First' },
         { type: 'text', content: 'Second' },
       ])
+    })
+
+    it('isolates queue entries published by normal updates', async () => {
+      const client = new ChatClient({
+        connection: createMockConnectionAdapter({
+          chunks: createTextChunks('Response'),
+          chunkDelay: 100,
+        }),
+      })
+      const firstSend = client.sendMessage('First')
+      const oldSnapshot = client.getSnapshot()
+
+      await client.sendMessage({
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'url',
+              value: 'https://example.com/queued.png',
+            },
+          },
+        ],
+      })
+
+      const snapshot = client.getSnapshot()
+      const queuedContent = snapshot.queue[0]?.content
+      expect(snapshot).not.toBe(oldSnapshot)
+      expect(oldSnapshot.queue).toEqual([])
+      expect(Object.isFrozen(snapshot.queue)).toBe(true)
+      expect(Object.isFrozen(snapshot.queue[0])).toBe(true)
+      expect(typeof queuedContent).toBe('object')
+      if (typeof queuedContent === 'object') {
+        expect(Object.isFrozen(queuedContent)).toBe(true)
+        expect(Object.isFrozen(queuedContent.content)).toBe(true)
+        const queuedPart = Array.isArray(queuedContent.content)
+          ? queuedContent.content[0]
+          : undefined
+        expect(Object.isFrozen(queuedPart)).toBe(true)
+        if (!queuedPart || !('source' in queuedPart)) {
+          throw new Error('Expected a queued content part with a source')
+        }
+        const publishedSource = queuedPart.source
+        expect(Object.isFrozen(publishedSource)).toBe(true)
+        expect(Reflect.set(publishedSource, 'value', 'changed')).toBe(false)
+      }
+      expect(client.getQueue()[0]?.content).toMatchObject({
+        content: [
+          {
+            source: { value: 'https://example.com/queued.png' },
+          },
+        ],
+      })
+      expect(client.getSnapshot()).toBe(snapshot)
+
+      await firstSend
     })
   })
 

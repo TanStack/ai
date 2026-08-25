@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from 'vitest'
 import { createAtom, patchAtom, subscribeAtom } from '../src/snapshot-atom'
 
 describe('snapshot-atom', () => {
+  it('freezes object snapshots and keeps identity without a change', () => {
+    const atom = createAtom({ count: 1 })
+    const snapshot = atom.get()
+
+    expect(Object.isFrozen(snapshot)).toBe(true)
+    expect(atom.get()).toBe(snapshot)
+  })
+
   it('patchAtom skips notify when every field is unchanged', () => {
     const atom = createAtom({ count: 1, label: 'a' })
     const listener = vi.fn()

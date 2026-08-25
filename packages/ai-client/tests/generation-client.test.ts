@@ -115,6 +115,7 @@ describe('GenerationClient', () => {
       expect(onResultChange).toHaveBeenCalledWith(mockResult)
       expect(client.getResult()).toEqual(mockResult)
       expect(client.getStatus()).toBe('success')
+      expect(client.getSnapshot().runId).toBeNull()
       expect(client.getIsLoading()).toBe(false)
     })
 
@@ -274,6 +275,7 @@ describe('GenerationClient', () => {
       expect(onError).toHaveBeenCalledWith(expect.any(Error))
       expect(client.getStatus()).toBe('error')
       expect(client.getError()?.message).toBe('Generation failed')
+      expect(client.getSnapshot().runId).toBeNull()
     })
 
     it('should report progress from CUSTOM progress events', async () => {
@@ -408,13 +410,365 @@ describe('GenerationClient', () => {
 
       const generatePromise = client.generate({ prompt: 'test' })
       expect(client.getIsLoading()).toBe(true)
+      expect(client.getSnapshot().runId).toEqual(expect.any(String))
 
       client.stop()
       expect(client.getIsLoading()).toBe(false)
       expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
 
       resolvePromise!({ id: '1' })
       await generatePromise
+    })
+
+    it('should not overwrite a run started by the stopped loading callback', async () => {
+      let releaseFirst!: (value: { id: string }) => void
+      let releaseSecond!: (value: { id: string }) => void
+      const firstResult = new Promise<{ id: string }>((resolve) => {
+        releaseFirst = resolve
+      })
+      const secondResult = new Promise<{ id: string }>((resolve) => {
+        releaseSecond = resolve
+      })
+      let secondGenerate: Promise<void> | undefined
+      let secondRunId: string | null = null
+      let replaced = false
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      client = new GenerationClient({
+        fetcher: async (input) =>
+          input.prompt === 'first' ? firstResult : secondResult,
+        onLoadingChange: (isLoading) => {
+          if (isLoading || replaced) return
+          replaced = true
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondRunId = client.getSnapshot().runId
+        },
+      })
+
+      const firstGenerate = client.generate({ prompt: 'first' })
+      client.stop()
+
+      expect(secondRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondRunId)
+      expect(client.getIsLoading()).toBe(true)
+      expect(client.getStatus()).toBe('generating')
+      releaseFirst({ id: 'first' })
+      releaseSecond({ id: 'second' })
+      await Promise.all([firstGenerate, secondGenerate])
+    })
+
+    it('should stop before transport work when loading callback stops', async () => {
+      const fetcher = vi.fn(async () => ({ id: 'unexpected' }))
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      client = new GenerationClient({
+        fetcher,
+        onLoadingChange: (isLoading) => {
+          if (isLoading) client.stop()
+        },
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(fetcher).not.toHaveBeenCalled()
+      expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
+    })
+
+    it('should not complete resume state after success callback stops', async () => {
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      client = new GenerationClient({
+        fetcher: async () => ({ id: 'result' }),
+        onStatusChange: (status) => {
+          if (status === 'success') client.stop()
+        },
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(client.getStatus()).toBe('success')
+      expect(client.getSnapshot().runId).toBeNull()
+      expect(client.getResumeSnapshot()).toBeUndefined()
+    })
+
+    it('should not let initialization continue after loading callback starts a replacement', async () => {
+      let releaseSecond!: (value: { id: string }) => void
+      const secondResult = new Promise<{ id: string }>((resolve) => {
+        releaseSecond = resolve
+      })
+      const prompts: Array<string> = []
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      let replaced = false
+      let secondGenerate: Promise<void> | undefined
+      client = new GenerationClient({
+        fetcher: async (input) => {
+          prompts.push(input.prompt)
+          return input.prompt === 'second' ? secondResult : { id: 'first' }
+        },
+        onLoadingChange: (isLoading) => {
+          if (!isLoading || replaced) return
+          replaced = true
+          client.stop()
+          secondGenerate = client.generate({ prompt: 'second' })
+        },
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(prompts).toEqual(['second'])
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond({ id: 'second' })
+      await secondGenerate
+    })
+
+    it('should not let an old result callback complete a replacement run', async () => {
+      let releaseSecond!: (value: { id: string }) => void
+      const secondResult = new Promise<{ id: string }>((resolve) => {
+        releaseSecond = resolve
+      })
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      let secondGenerate: Promise<void> | undefined
+      let secondRunId: string | null = null
+      client = new GenerationClient({
+        fetcher: async (input) =>
+          input.prompt === 'first' ? { id: 'first' } : secondResult,
+        onResultChange: (result) => {
+          if (result?.id !== 'first') return
+          client.stop()
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondRunId = client.getSnapshot().runId
+        },
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(secondRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondRunId)
+      expect(client.getStatus()).toBe('generating')
+      expect(client.getResumeSnapshot()).toBeUndefined()
+      releaseSecond({ id: 'second' })
+      await secondGenerate
+    })
+
+    it('should not let an old error callback overwrite a replacement run', async () => {
+      let releaseSecond!: (value: { id: string }) => void
+      const secondResult = new Promise<{ id: string }>((resolve) => {
+        releaseSecond = resolve
+      })
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      let secondGenerate: Promise<void> | undefined
+      let secondRunId: string | null = null
+      client = new GenerationClient({
+        fetcher: async (input) => {
+          if (input.prompt === 'first') throw new Error('first failed')
+          return secondResult
+        },
+        onErrorChange: (error) => {
+          if (error?.message !== 'first failed') return
+          client.stop()
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondRunId = client.getSnapshot().runId
+        },
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(secondRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondRunId)
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond({ id: 'second' })
+      await secondGenerate
+    })
+
+    it('should remain stopped when the error callback stops', async () => {
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      client = new GenerationClient({
+        fetcher: async (): Promise<{ id: string }> => {
+          throw new Error('failed')
+        },
+        onErrorChange: (error) => {
+          if (error) client.stop()
+        },
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
+    })
+
+    it('should not let an old error status callback overwrite a replacement run', async () => {
+      let releaseSecond!: (value: { id: string }) => void
+      const secondResult = new Promise<{ id: string }>((resolve) => {
+        releaseSecond = resolve
+      })
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      let secondGenerate: Promise<void> | undefined
+      let replaced = false
+      client = new GenerationClient({
+        fetcher: async (input) => {
+          if (input.prompt === 'first') throw new Error('first failed')
+          return secondResult
+        },
+        onStatusChange: (status) => {
+          if (status !== 'error' || replaced) return
+          replaced = true
+          client.stop()
+          secondGenerate = client.generate({ prompt: 'second' })
+        },
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(client.getStatus()).toBe('generating')
+      expect(client.getError()).toBeUndefined()
+      releaseSecond({ id: 'second' })
+      await secondGenerate
+    })
+
+    it('should stop before transport when the run id subscriber stops', async () => {
+      const fetcher = vi.fn(async () => ({ id: 'unexpected' }))
+      const onLoadingChange = vi.fn()
+      const client = new GenerationClient({ fetcher, onLoadingChange })
+      client.subscribe(() => {
+        if (client.getSnapshot().runId) client.stop()
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(fetcher).not.toHaveBeenCalled()
+      expect(onLoadingChange).not.toHaveBeenCalledWith(true)
+      expect(client.getSnapshot().runId).toBeNull()
+    })
+
+    it('should not continue an old run after the run id subscriber starts a replacement', async () => {
+      let releaseSecond!: (value: { id: string }) => void
+      const secondResult = new Promise<{ id: string }>((resolve) => {
+        releaseSecond = resolve
+      })
+      const prompts: Array<string> = []
+      let secondGenerate: Promise<void> | undefined
+      let replaced = false
+      const client = new GenerationClient({
+        fetcher: async (input) => {
+          prompts.push(input.prompt)
+          return input.prompt === 'second' ? secondResult : { id: 'first' }
+        },
+      })
+      client.subscribe(() => {
+        if (!client.getSnapshot().runId || replaced) return
+        replaced = true
+        client.stop()
+        secondGenerate = client.generate({ prompt: 'second' })
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(prompts).toEqual(['second'])
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond({ id: 'second' })
+      await secondGenerate
+    })
+
+    it('should not call the loading callback after its snapshot subscriber stops', async () => {
+      const fetcher = vi.fn(async () => ({ id: 'unexpected' }))
+      const onLoadingChange = vi.fn()
+      const client = new GenerationClient({ fetcher, onLoadingChange })
+      client.subscribe(() => {
+        if (client.getSnapshot().isLoading) client.stop()
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(fetcher).not.toHaveBeenCalled()
+      expect(onLoadingChange).not.toHaveBeenCalledWith(true)
+    })
+
+    it('should not call the old status callback after its subscriber starts a replacement', async () => {
+      let releaseSecond!: (value: { id: string }) => void
+      const secondResult = new Promise<{ id: string }>((resolve) => {
+        releaseSecond = resolve
+      })
+      const generatingStatuses: Array<string> = []
+      let secondGenerate: Promise<void> | undefined
+      let replaced = false
+      const client = new GenerationClient({
+        fetcher: async (input) =>
+          input.prompt === 'second' ? secondResult : { id: 'first' },
+        onStatusChange: (status) => {
+          if (status === 'generating') generatingStatuses.push(status)
+        },
+      })
+      client.subscribe(() => {
+        if (client.getSnapshot().status !== 'generating' || replaced) return
+        replaced = true
+        client.stop()
+        secondGenerate = client.generate({ prompt: 'second' })
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(generatingStatuses).toEqual(['generating'])
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond({ id: 'second' })
+      await secondGenerate
+    })
+
+    it('should not call the old result callback after its subscriber starts a replacement', async () => {
+      let releaseSecond!: (value: { id: string }) => void
+      const secondResult = new Promise<{ id: string }>((resolve) => {
+        releaseSecond = resolve
+      })
+      const onResultChange = vi.fn()
+      let secondGenerate: Promise<void> | undefined
+      let replaced = false
+      const client = new GenerationClient({
+        fetcher: async (input) =>
+          input.prompt === 'second' ? secondResult : { id: 'first' },
+        onResultChange,
+      })
+      client.subscribe(() => {
+        if (client.getResult()?.id !== 'first' || replaced) return
+        replaced = true
+        client.stop()
+        secondGenerate = client.generate({ prompt: 'second' })
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(onResultChange).not.toHaveBeenCalledWith({ id: 'first' })
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond({ id: 'second' })
+      await secondGenerate
+    })
+
+    it('should not call the old error callback after its subscriber starts a replacement', async () => {
+      let releaseSecond!: (value: { id: string }) => void
+      const secondResult = new Promise<{ id: string }>((resolve) => {
+        releaseSecond = resolve
+      })
+      const onErrorChange = vi.fn()
+      let secondGenerate: Promise<void> | undefined
+      let replaced = false
+      const client = new GenerationClient({
+        fetcher: async (input) => {
+          if (input.prompt === 'first') throw new Error('first failed')
+          return secondResult
+        },
+        onErrorChange,
+      })
+      client.subscribe(() => {
+        if (client.getError()?.message !== 'first failed' || replaced) return
+        replaced = true
+        client.stop()
+        secondGenerate = client.generate({ prompt: 'second' })
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(onErrorChange).not.toHaveBeenCalledWith(expect.any(Error))
+      expect(client.getStatus()).toBe('generating')
+      releaseSecond({ id: 'second' })
+      await secondGenerate
     })
   })
 
@@ -432,6 +786,82 @@ describe('GenerationClient', () => {
       expect(client.getResult()).toBeNull()
       expect(client.getError()).toBeUndefined()
       expect(client.getStatus()).toBe('idle')
+      expect(client.getSnapshot().runId).toBeNull()
+    })
+
+    it('should not overwrite a run started by the reset loading callback', async () => {
+      let releaseFirst!: (value: { id: string }) => void
+      let releaseSecond!: (value: { id: string }) => void
+      const firstResult = new Promise<{ id: string }>((resolve) => {
+        releaseFirst = resolve
+      })
+      const secondResult = new Promise<{ id: string }>((resolve) => {
+        releaseSecond = resolve
+      })
+      let replaceOnStop = false
+      let secondGenerate: Promise<void> | undefined
+      let secondRunId: string | null = null
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      client = new GenerationClient({
+        fetcher: async (input) => {
+          if (input.prompt === 'seed') return { id: 'seed' }
+          return input.prompt === 'first' ? firstResult : secondResult
+        },
+        onLoadingChange: (isLoading) => {
+          if (isLoading || !replaceOnStop) return
+          replaceOnStop = false
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondRunId = client.getSnapshot().runId
+        },
+      })
+      await client.generate({ prompt: 'seed' })
+      const firstGenerate = client.generate({ prompt: 'first' })
+      replaceOnStop = true
+
+      client.reset()
+
+      expect(secondRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondRunId)
+      expect(client.getStatus()).toBe('generating')
+      expect(client.getIsLoading()).toBe(true)
+      expect(client.getResult()).toEqual({ id: 'seed' })
+      releaseFirst({ id: 'first' })
+      releaseSecond({ id: 'second' })
+      await Promise.all([firstGenerate, secondGenerate])
+    })
+  })
+
+  describe('dispose()', () => {
+    it('should not overwrite a run started by the dispose loading callback', async () => {
+      const first = createDeferred<{ id: string }>()
+      const second = createDeferred<{ id: string }>()
+      let replaceOnDispose = false
+      let secondGenerate: Promise<void> | undefined
+      let secondRunId: string | null = null
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      client = new GenerationClient({
+        fetcher: (input) =>
+          input.prompt === 'first' ? first.promise : second.promise,
+        onLoadingChange: (isLoading) => {
+          if (isLoading || !replaceOnDispose) return
+          replaceOnDispose = false
+          client.mountDevtools()
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondRunId = client.getSnapshot().runId
+        },
+      })
+      const firstGenerate = client.generate({ prompt: 'first' })
+      replaceOnDispose = true
+
+      client.dispose()
+
+      expect(secondRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondRunId)
+      expect(client.getStatus()).toBe('generating')
+      expect(client.getIsLoading()).toBe(true)
+      first.resolve({ id: 'first' })
+      second.resolve({ id: 'second' })
+      await Promise.all([firstGenerate, secondGenerate])
     })
   })
 
@@ -560,6 +990,75 @@ describe('GenerationClient', () => {
       expect(client.getStatus()).toBe('idle')
     })
 
+    it('should not publish a run id after onChunk stops the run', async () => {
+      const connection: ConnectConnectionAdapter = {
+        async *connect() {
+          yield {
+            type: EventType.RUN_STARTED as const,
+            runId: 'run-1',
+            threadId: 'thread-1',
+            timestamp: Date.now(),
+          }
+        },
+      }
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      client = new GenerationClient({
+        connection,
+        onChunk: (chunk) => {
+          if (chunk.type === EventType.RUN_STARTED) client.stop()
+        },
+      })
+
+      await client.generate({ prompt: 'test' })
+
+      expect(client.getSnapshot().runId).toBeNull()
+      expect(client.getStatus()).toBe('idle')
+    })
+
+    it('should not let an old onChunk continuation overwrite a newer run', async () => {
+      let connectionCount = 0
+      let releaseSecond!: () => void
+      const secondBlocked = new Promise<void>((resolve) => {
+        releaseSecond = resolve
+      })
+      const connection: ConnectConnectionAdapter = {
+        async *connect() {
+          connectionCount++
+          if (connectionCount === 1) {
+            yield {
+              type: EventType.RUN_STARTED as const,
+              runId: 'run-1',
+              threadId: 'thread-1',
+              timestamp: Date.now(),
+            }
+            return
+          }
+          await secondBlocked
+        },
+      }
+      let client!: GenerationClient<{ prompt: string }, { id: string }>
+      let secondGenerate: Promise<void> | undefined
+      let secondLocalRunId: string | null = null
+      client = new GenerationClient({
+        connection,
+        onChunk: (chunk) => {
+          if (chunk.type !== EventType.RUN_STARTED) return
+          client.stop()
+          secondGenerate = client.generate({ prompt: 'second' })
+          secondLocalRunId = client.getSnapshot().runId
+        },
+      })
+
+      await client.generate({ prompt: 'first' })
+
+      expect(secondLocalRunId).not.toBeNull()
+      expect(client.getSnapshot().runId).toBe(secondLocalRunId)
+      expect(client.getIsLoading()).toBe(true)
+      client.stop()
+      releaseSecond()
+      await secondGenerate
+    })
+
     it('should not let a stopped run clear the controller for a newer generation', async () => {
       const firstAborted = createDeferred()
       const firstCanFinish = createDeferred()
@@ -621,12 +1120,14 @@ describe('GenerationClient', () => {
       await waitForCondition(() => {
         expect(signals).toHaveLength(2)
         expect(client.getIsLoading()).toBe(true)
+        expect(client.getSnapshot().runId).toBe('run-2')
       })
 
       firstCanFinish.resolve(undefined)
       await firstGenerate
 
       expect(client.getIsLoading()).toBe(true)
+      expect(client.getSnapshot().runId).toBe('run-2')
 
       client.stop()
       expect(signals[1]?.aborted).toBe(true)
@@ -758,12 +1259,14 @@ describe('GenerationClient', () => {
       await waitForCondition(() => {
         expect(signals).toHaveLength(2)
         expect(client.getIsLoading()).toBe(true)
+        expect(client.getSnapshot().runId).toBe('run-2')
       })
 
       firstCanFinish.resolve(undefined)
       await firstGenerate
 
       expect(client.getIsLoading()).toBe(true)
+      expect(client.getSnapshot().runId).toBe('run-2')
 
       client.stop()
       expect(signals[1]?.aborted).toBe(true)

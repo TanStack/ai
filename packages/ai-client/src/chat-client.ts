@@ -671,7 +671,9 @@ export class ChatClient<
         onMessagesChange: (messages: Array<UIMessage>) => {
           this.persistor?.notifyMessagesChanged(messages)
           this.patchSnapshot({
-            messages: messages as Array<UIMessage<TTools>>,
+            messages: this.freezeSnapshotMessages(
+              messages as Array<UIMessage<TTools>>,
+            ),
           })
           this.callbacksRef.current.onMessagesChange(messages)
         },
@@ -1506,19 +1508,89 @@ export class ChatClient<
     return `${prefix}-${Date.now()}-${Math.random().toString(36).substring(7)}`
   }
 
+  private freezeSnapshotPart<TPart extends ContentPart | MessagePart<TTools>>(
+    part: TPart,
+  ): TPart {
+    return Object.freeze({
+      ...part,
+      ...('source' in part &&
+      typeof part.source === 'object' &&
+      part.source !== null
+        ? { source: Object.freeze({ ...part.source }) }
+        : {}),
+      ...(part.type === 'tool-call' && 'approval' in part && part.approval
+        ? { approval: Object.freeze({ ...part.approval }) }
+        : {}),
+      ...(part.type === 'tool-result' && Array.isArray(part.content)
+        ? {
+            content: Object.freeze(
+              part.content.map((contentPart) =>
+                this.freezeSnapshotPart(contentPart),
+              ),
+            ),
+          }
+        : {}),
+    }) as TPart
+  }
+
+  private freezeSnapshotMessages(
+    messages: Array<UIMessage<TTools>>,
+  ): Array<UIMessage<TTools>> {
+    return Object.freeze(
+      messages.map((message) =>
+        Object.freeze({
+          ...message,
+          parts: Object.freeze(
+            message.parts.map((part) => this.freezeSnapshotPart(part)),
+          ),
+        }),
+      ),
+    ) as Array<UIMessage<TTools>>
+  }
+
+  private freezeSnapshotQueue(
+    queue: Array<QueuedMessage>,
+  ): Array<QueuedMessage> {
+    return Object.freeze(
+      queue.map((item) =>
+        Object.freeze({
+          ...item,
+          ...(typeof item.content === 'object'
+            ? {
+                content: Object.freeze({
+                  ...item.content,
+                  ...(Array.isArray(item.content.content)
+                    ? {
+                        content: Object.freeze(
+                          item.content.content.map((part) =>
+                            this.freezeSnapshotPart(part),
+                          ),
+                        ),
+                      }
+                    : {}),
+                }),
+              }
+            : {}),
+        }),
+      ),
+    ) as Array<QueuedMessage>
+  }
+
   private readSnapshot(): ChatClientSnapshot<TTools, TInterrupts> {
-    return {
-      messages: this.processor.getMessages() as Array<UIMessage<TTools>>,
+    return Object.freeze({
+      messages: this.freezeSnapshotMessages(
+        this.processor.getMessages() as Array<UIMessage<TTools>>,
+      ),
       status: this.status,
       isLoading: this.isLoading,
       error: this.error,
       isSubscribed: this.isSubscribed,
       connectionStatus: this.connectionStatus,
       sessionGenerating: this.sessionGenerating,
-      queue: this.getQueue(),
+      queue: this.freezeSnapshotQueue(this.getQueue()),
       runId: this.currentRunId,
       interruptState: this.interruptManager.getState(),
-    }
+    })
   }
 
   private patchSnapshot(
@@ -3041,7 +3113,7 @@ export class ChatClient<
 
   private emitQueueChange(): void {
     const queue = this.getQueue()
-    this.patchSnapshot({ queue })
+    this.patchSnapshot({ queue: this.freezeSnapshotQueue(queue) })
     this.callbacksRef.current.onQueueChange(queue)
     this.devtoolsBridge.emitSnapshot()
   }

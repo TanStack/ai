@@ -1,5 +1,5 @@
 import { convertSchemaToJsonSchema } from '@tanstack/ai/client'
-import { createAtom, patchAtom, subscribeAtom } from './snapshot-atom'
+import { createAtom, subscribeAtom } from './snapshot-atom'
 import type { Atom } from './snapshot-atom'
 import type {
   AnyClientTool,
@@ -51,19 +51,17 @@ export class RealtimeClient {
     new Set()
   private unsubscribers: Array<() => void> = []
 
-  private readonly snapshotAtom: Atom<RealtimeClientState> =
-    createAtom<RealtimeClientState>({
-      status: 'idle',
-      mode: 'idle',
-      messages: [],
-      pendingUserTranscript: null,
-      pendingAssistantTranscript: null,
-      error: null,
-    })
-
-  private get state(): RealtimeClientState {
-    return this.snapshotAtom.get()
+  private state: RealtimeClientState = {
+    status: 'idle',
+    mode: 'idle',
+    messages: [],
+    pendingUserTranscript: null,
+    pendingAssistantTranscript: null,
+    error: null,
   }
+  private readonly snapshotAtom: Atom<RealtimeClientState> = createAtom(
+    this.buildSnapshot(),
+  )
 
   constructor(options: RealtimeClientOptions) {
     this.options = {
@@ -373,11 +371,18 @@ export class RealtimeClient {
   // ============================================================================
 
   private updateState(updates: Partial<RealtimeClientState>): void {
-    patchAtom(this.snapshotAtom, updates)
+    const changed = Object.keys(updates).some((key) => {
+      const stateKey = key as keyof RealtimeClientState
+      return !Object.is(this.state[stateKey], updates[stateKey])
+    })
+    if (!changed) return
+    this.state = { ...this.state, ...updates }
+    this.snapshotAtom.set(this.buildSnapshot())
+    const snapshot = this.snapshotAtom.get()
 
     // Notify callbacks
     for (const callback of this.stateChangeCallbacks) {
-      callback(this.state)
+      callback(snapshot)
     }
 
     // Notify specific callbacks
@@ -386,6 +391,31 @@ export class RealtimeClient {
     }
     if ('mode' in updates && updates.mode !== undefined) {
       this.options.onModeChange?.(updates.mode)
+    }
+  }
+
+  private buildSnapshot(): RealtimeClientState {
+    return {
+      ...this.state,
+      messages: Object.freeze(
+        this.state.messages.map((message) =>
+          Object.freeze({
+            ...message,
+            parts: Object.freeze(
+              message.parts.map((part) =>
+                Object.freeze({
+                  ...part,
+                  ...('source' in part &&
+                  typeof part.source === 'object' &&
+                  part.source !== null
+                    ? { source: Object.freeze({ ...part.source }) }
+                    : {}),
+                }),
+              ),
+            ),
+          }),
+        ),
+      ) as Array<RealtimeMessage>,
     }
   }
 

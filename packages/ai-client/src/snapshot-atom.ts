@@ -1,8 +1,27 @@
-import { createAtom } from '@tanstack/store'
+import { createAtom as createStoreAtom } from '@tanstack/store'
 import type { Atom } from '@tanstack/store'
 
-export { createAtom }
 export type { Atom }
+
+function freezeSnapshot<T>(value: T): T {
+  return typeof value === 'object' && value !== null
+    ? Object.freeze(value)
+    : value
+}
+
+export function createAtom<T>(initialValue: T): Atom<T> {
+  const atom = createStoreAtom(freezeSnapshot(initialValue))
+  const set = atom.set.bind(atom)
+  atom.set = (updater) =>
+    set((previous) =>
+      freezeSnapshot(
+        typeof updater === 'function'
+          ? (updater as (value: T) => T)(previous)
+          : updater,
+      ),
+    )
+  return atom
+}
 
 /**
  * Merge a partial update into an object atom. Skips notify when every

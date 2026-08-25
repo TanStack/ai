@@ -289,8 +289,15 @@ const client = new ChatClient({
   connection: fetchServerSentEvents("/api/chat"),
 });
 
+function logSnapshot() {
+  const snapshot = client.getSnapshot();
+  console.log(snapshot.status, snapshot.messages.length);
+}
+
+logSnapshot();
+
 const stop = client.subscribeSnapshot(() => {
-  render(client.getSnapshot());
+  logSnapshot();
 });
 
 client.attach();

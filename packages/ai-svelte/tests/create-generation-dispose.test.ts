@@ -18,11 +18,17 @@ describe('Svelte generate() after dispose() rebinds the snapshot', () => {
 
   it('createGenerateVideo updates result after dispose then generate', async () => {
     const video = createGenerateVideo({
-      fetcher: async (input) => ({
-        jobId: input.prompt,
-        status: 'completed' as const,
-        url: `https://example.com/${input.prompt}.mp4`,
-      }),
+      fetcher: async (input) => {
+        if (typeof input.prompt !== 'string') {
+          throw new Error('Expected a text prompt')
+        }
+
+        return {
+          jobId: input.prompt,
+          status: 'completed' as const,
+          url: `https://example.com/${input.prompt}.mp4`,
+        }
+      },
     })
 
     await video.generate({ prompt: 'one' })
