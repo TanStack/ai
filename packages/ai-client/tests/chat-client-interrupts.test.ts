@@ -1578,6 +1578,7 @@ describe('ChatClient native interrupts', () => {
         yield {
           type: EventType.TEXT_MESSAGE_START,
           messageId: `msg-${calls}`,
+          role: 'assistant',
           timestamp: Date.now(),
         }
         yield {

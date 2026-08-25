@@ -2744,7 +2744,11 @@ export class ChatClient<
    * Queue an action to be executed after the current stream ends
    */
   private queuePostStreamAction(action: () => Promise<void>): void {
-    this.postStreamActions.push(action)
+    const continuationGeneration = this.continuationGeneration
+    this.postStreamActions.push(async () => {
+      if (continuationGeneration !== this.continuationGeneration) return
+      await action()
+    })
   }
 
   /**
@@ -2767,6 +2771,10 @@ export class ChatClient<
    * Check if we should continue the flow and do so if needed
    */
   private async checkForContinuation(): Promise<void> {
+    // stop() bumps continuationGeneration without opening a new stream.
+    if (this.streamContinuationGeneration !== this.continuationGeneration) {
+      return
+    }
     if (this.hasPendingInterrupts()) return
 
     // Prevent duplicate continuation attempts
