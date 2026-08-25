@@ -253,10 +253,27 @@ describe('UpstashBoxHandle', () => {
     await expect(proc.wait()).resolves.toBe(143)
   })
 
-  it('fork throws UnsupportedCapabilityError', () => {
+  // An unbounded queue lets a chatty process whose consumer lags grow the buffer
+  // without limit. The cap must announce itself rather than silently truncating.
+  it('caps a spawned stream and stops the process on overflow', async () => {
+    const fake = fakeSession()
+    const { box } = fakeBox({ session: fake })
+    const handle = new UpstashBoxHandle({ box })
+    const proc = await handle.process.spawn('noisy')
+    const mb = 'x'.repeat(1024 * 1024)
+    for (let i = 0; i < 9; i += 1) fake.session.emitStdout(mb)
+    let out = ''
+    for await (const c of proc.stdout) out += c
+    expect(out).toContain('output truncated')
+    expect(out.length).toBeLessThan(9 * 1024 * 1024)
+    // Overflow signals the process rather than leaving it writing into a dead stream.
+    expect(fake.session.kill).toHaveBeenCalledWith('TERM')
+  })
+
+  it('fork without a boxConfig throws UnsupportedCapabilityError', async () => {
     const { box } = fakeBox()
     const handle = new UpstashBoxHandle({ box })
-    expect(() => handle.fork()).toThrow(UnsupportedCapabilityError)
+    await expect(handle.fork()).rejects.toThrow(UnsupportedCapabilityError)
   })
 
   it('write mkdirs the parent dir then writes via the native file API', async () => {

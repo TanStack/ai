@@ -1,9 +1,10 @@
-import { Box } from '@upstash/box'
+import { Box, BoxError } from '@upstash/box'
 import { UPSTASH_BOX_CAPS, UpstashBoxHandle } from './handle'
 import type { PublicUrlAuth } from './handle'
 import type { BoxConfig, BoxSize, Runtime } from '@upstash/box'
 import type {
   SandboxCapabilities,
+  SandboxPolicy,
   SandboxCreateInput,
   SandboxDestroyInput,
   SandboxHandle,
@@ -44,6 +45,16 @@ export interface UpstashBoxSandboxConfig {
 
 const DEFAULT_RUNTIME: Runtime = 'node'
 
+/**
+ * Measured against the API: a missing box and a deleted box both answer 404
+ * ("Box not found" / "Box has been deleted"). Anything else, notably 401 for a
+ * bad key, is a real failure and must not be reported as "gone" — that would
+ * silently create a duplicate box on an auth blip or a transport error.
+ */
+function isGone(error: unknown): boolean {
+  return error instanceof BoxError && error.statusCode === 404
+}
+
 class UpstashBoxProvider implements SandboxProvider {
   readonly name = 'upstash-box'
 
@@ -64,6 +75,7 @@ class UpstashBoxProvider implements SandboxProvider {
   private boxConfig(input?: {
     env?: Record<string, string>
     name?: string
+    policy?: SandboxPolicy
   }): BoxConfig {
     const cfg: BoxConfig = {
       ...this.connection,
@@ -76,19 +88,61 @@ class UpstashBoxProvider implements SandboxProvider {
     const name = input?.name ?? this.config.name
     if (name !== undefined) cfg.name = name
     if (input?.env !== undefined) cfg.env = input.env
+    // The contract's network gate is coarse (allow/ask/deny), so only an
+    // explicit deny maps; Box's domain/CIDR allowlists have no contract surface.
+    if (input?.policy?.capabilities?.network === 'deny') {
+      cfg.networkPolicy = { mode: 'deny-all' }
+    }
     return cfg
+  }
+
+  /**
+   * Carry a live box's actual network policy into the config a fork will reuse.
+   *
+   * `boxConfig` is what `fork()` hands to `Box.fromSnapshot`, and a snapshot
+   * does not inherit the parent's policy, so a resumed deny-all box would come
+   * back open one fork later. The live box is the authority here: the caller's
+   * create-time policy is not part of a resume input.
+   */
+  private withLivePolicy(
+    box: Awaited<ReturnType<typeof Box.create>>,
+    base: BoxConfig,
+  ): BoxConfig {
+    const policy = box.networkPolicy
+    if (policy === undefined) return base
+    return { ...base, networkPolicy: policy }
+  }
+
+  /**
+   * The SDK cannot cancel an in-flight create, so a caller that aborts mid-call
+   * would otherwise leave a billed box nobody holds the id for. Reconcile by
+   * deleting what we just made, then honour the abort.
+   */
+  private async settleAbort(
+    box: Awaited<ReturnType<typeof Box.create>>,
+    signal: AbortSignal | undefined,
+  ): Promise<void> {
+    if (signal?.aborted !== true) return
+    await box.delete().catch(() => undefined)
+    signal.throwIfAborted()
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
     // Best-effort: the SDK can't cancel an in-flight call.
     input.signal?.throwIfAborted()
     // The caller's deterministic id becomes the box name (Box.getByName === Box.get).
-    const boxConfig = this.boxConfig({ env: input.env, name: input.id })
+    const boxConfig = this.boxConfig({
+      env: input.env,
+      name: input.id,
+      ...(input.policy ? { policy: input.policy } : {}),
+    })
     const box = this.config.snapshot
       ? await Box.fromSnapshot(this.config.snapshot, boxConfig)
       : await Box.create(boxConfig)
+    await this.settleAbort(box, input.signal)
     return new UpstashBoxHandle({
       box,
+      boxConfig,
       publicUrlAuth: this.config.publicUrlAuth,
     })
   }
@@ -102,22 +156,23 @@ class UpstashBoxProvider implements SandboxProvider {
       await box.getStatus()
       return new UpstashBoxHandle({
         box,
+        boxConfig: this.withLivePolicy(box, this.boxConfig()),
         publicUrlAuth: this.config.publicUrlAuth,
       })
-    } catch {
-      // Gone / not found.
-      return null
+    } catch (error) {
+      if (isGone(error)) return null
+      throw error
     }
   }
 
   async restoreSnapshot(input: SandboxRestoreInput): Promise<SandboxHandle> {
     input.signal?.throwIfAborted()
-    const box = await Box.fromSnapshot(
-      input.snapshotId,
-      this.boxConfig({ env: input.env }),
-    )
+    const boxConfig = this.boxConfig({ env: input.env })
+    const box = await Box.fromSnapshot(input.snapshotId, boxConfig)
+    await this.settleAbort(box, input.signal)
     return new UpstashBoxHandle({
       box,
+      boxConfig: this.withLivePolicy(box, boxConfig),
       publicUrlAuth: this.config.publicUrlAuth,
     })
   }
@@ -127,8 +182,10 @@ class UpstashBoxProvider implements SandboxProvider {
     try {
       const box = await Box.get(input.id, this.connection)
       await box.delete()
-    } catch {
-      // Already deleted / gone.
+    } catch (error) {
+      // Already gone is success; anything else must surface so the caller does
+      // not believe a still-running box was destroyed.
+      if (!isGone(error)) throw error
     }
   }
 }

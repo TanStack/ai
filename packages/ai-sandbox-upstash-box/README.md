@@ -88,9 +88,15 @@ try {
 | `backgroundProcesses` | ✅        | `spawn()` runs the command as a live `exec.session` with a real in-box pid.                 |
 | `writableStdin`       | ✅        | `stdin.write()` / `stdin.end()` map to the session's `write` / `endStdin`.                  |
 | `killableProcesses`   | ✅        | `kill()` signals the process tree server-side; `TERM`/`KILL`/`INT`/`HUP`, others send TERM. |
-| `networkPolicy`       | ❌        | Box supports network policies; mapping them onto `SandboxPolicy` is not done yet.           |
-| `fork`                | ❌        | `fork()` throws.                                                                            |
+| `networkPolicy`       | ✅        | `policy.capabilities.network: 'deny'` maps to Box's `deny-all` egress mode.                 |
+| `fork`                | ✅        | `snapshot()` + `Box.fromSnapshot()`. Costs a full snapshot round trip (~25s).               |
 
 A spawned process is tied to its session: dropping the connection kills the
 command, and sessions cannot be reattached. `spawn()` is therefore scoped to the
 lifetime of the handle, not the box.
+
+`network: 'deny'` is stricter here than under providers that model deny as an
+allowlist. Box's `deny-all` blocks every outbound connection, so an agent that
+runs fine under an allowlist-style deny will not reach package registries or
+model provider hosts on this one. Leave the capability unset if the agent needs
+either.

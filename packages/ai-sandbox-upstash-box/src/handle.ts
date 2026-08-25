@@ -13,7 +13,8 @@ import {
   UnsupportedCapabilityError,
   createExecBackedGit,
 } from '@tanstack/ai-sandbox'
-import type { Box } from '@upstash/box'
+import { Box } from '@upstash/box'
+import type { BoxConfig, ExecSessionHandle } from '@upstash/box'
 import type {
   ExecResult,
   ProcessOptions,
@@ -38,10 +39,12 @@ export const UPSTASH_BOX_CAPS: SandboxCapabilities = {
   killableProcesses: true,
   // Native box.snapshot / Box.fromSnapshot.
   snapshots: true,
-  networkPolicy: false,
+  // `policy.capabilities.network: 'deny'` maps to Box's deny-all egress policy.
+  networkPolicy: true,
   // The box filesystem persists across exec calls and pause/resume until deleted.
   durableFilesystem: true,
-  fork: false,
+  // snapshot() + Box.fromSnapshot(), the same shape as docker's commit + create.
+  fork: true,
 }
 
 /** The `/workspace` virtual root maps to Box's session home. */
@@ -72,14 +75,48 @@ function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-/** A push-driven async iterable: push chunks, `end()` once. */
+/** Per-stream cap for a spawned process, matching other cloud providers. */
+const MAX_STREAM_BYTES = 8 * 1024 * 1024
+
+/**
+ * A push-driven async iterable: push chunks, `end()` once. Bounded, so a chatty
+ * process whose consumer lags cannot grow the buffer without limit.
+ */
 class AsyncChunkQueue implements AsyncIterable<string> {
   private readonly chunks: Array<string> = []
   private readonly waiters: Array<(r: IteratorResult<string>) => void> = []
   private ended = false
+  private bytes = 0
+  private truncated = false
+
+  constructor(
+    private readonly label: string,
+    private readonly onOverflow?: () => void,
+  ) {}
 
   push(chunk: string): void {
-    if (chunk === '') return
+    if (chunk === '' || this.ended) return
+    this.bytes += Buffer.byteLength(chunk)
+    if (this.bytes > MAX_STREAM_BYTES) {
+      // Announce the truncation rather than silently dropping output, then stop
+      // the process so it isn't left writing into a stream nobody reads.
+      this.truncated = true
+      this.emit(
+        `\n[upstash-box] ${this.label} exceeded ${MAX_STREAM_BYTES} bytes; output truncated\n`,
+      )
+      this.end()
+      this.onOverflow?.()
+      return
+    }
+    this.emit(chunk)
+  }
+
+  /** Whether the cap was hit. */
+  get overflowed(): boolean {
+    return this.truncated
+  }
+
+  private emit(chunk: string): void {
     const waiter = this.waiters.shift()
     if (waiter) waiter({ value: chunk, done: false })
     else this.chunks.push(chunk)
@@ -121,6 +158,8 @@ export interface UpstashBoxHandleDeps {
   box: Box
   /** Auth requested for `ports.connect` public URLs. Defaults to none. */
   publicUrlAuth?: PublicUrlAuth
+  /** Config used to mint a new box; required for `fork()`. */
+  boxConfig?: BoxConfig
 }
 
 export class UpstashBoxHandle implements SandboxHandle {
@@ -136,11 +175,13 @@ export class UpstashBoxHandle implements SandboxHandle {
 
   private readonly box: Box
   private readonly publicUrlAuth?: PublicUrlAuth
+  private readonly boxConfig?: BoxConfig
   private readonly envVars: Record<string, string> = {}
 
   constructor(deps: UpstashBoxHandleDeps) {
     this.box = deps.box
     this.publicUrlAuth = deps.publicUrlAuth
+    this.boxConfig = deps.boxConfig
     this.id = deps.box.id
 
     this.process = {
@@ -268,14 +309,23 @@ export class UpstashBoxHandle implements SandboxHandle {
   ): Promise<SpawnHandle> {
     opts?.signal?.throwIfAborted()
 
-    const stdoutQ = new AsyncChunkQueue()
-    const stderrQ = new AsyncChunkQueue()
+    // Overflow stops the process: a stream nobody can read any more should not
+    // keep a billed command running. The queues can overflow while the
+    // handshake is still settling, so this reads the session through a holder
+    // rather than closing over a binding that is still in its temporal dead
+    // zone, which would throw a ReferenceError instead of killing anything.
+    const started: { session?: ExecSessionHandle } = {}
+    const onOverflow = (): void => {
+      started.session?.kill('TERM')
+    }
+    const stdoutQ = new AsyncChunkQueue('stdout', () => onOverflow())
+    const stderrQ = new AsyncChunkQueue('stderr', () => onOverflow())
     // Streaming decoders: a multi-byte char can split across frames.
     const outDecoder = new TextDecoder()
     const errDecoder = new TextDecoder()
 
     // Awaited so a failed start rejects spawn(), not a later wait().
-    const session = await this.box.exec.session({
+    const session: ExecSessionHandle = await this.box.exec.session({
       cmd: command,
       cwd: this.abs(opts?.cwd ?? this.workspaceRoot),
       env: this.envList(opts?.env),
@@ -285,8 +335,14 @@ export class UpstashBoxHandle implements SandboxHandle {
         stderrQ.push(errDecoder.decode(data, { stream: true })),
     })
 
+    started.session = session
+
     const onAbort = (): void => session.kill('TERM')
     opts?.signal?.addEventListener('abort', onAbort, { once: true })
+    // The SDK cannot cancel an in-flight handshake, so an abort raised while it
+    // was settling is only observable now. Honour it rather than handing back a
+    // process the caller already cancelled.
+    if (opts?.signal?.aborted === true) onAbort()
 
     const exit = session.wait().finally(() => {
       opts?.signal?.removeEventListener('abort', onAbort)
@@ -295,6 +351,9 @@ export class UpstashBoxHandle implements SandboxHandle {
       stdoutQ.end()
       stderrQ.end()
     })
+    // spawn() is often fire-and-forget, so `exit` may never be observed via
+    // wait(). Mark it handled here; wait() still surfaces the rejection.
+    exit.catch(() => undefined)
 
     return {
       pid: session.pid,
@@ -342,8 +401,27 @@ export class UpstashBoxHandle implements SandboxHandle {
     return { id: snap.id, label: snap.name }
   }
 
-  fork = (): Promise<SandboxHandle> => {
-    throw new UnsupportedCapabilityError('upstash-box', 'fork')
+  fork = async (): Promise<SandboxHandle> => {
+    if (this.boxConfig === undefined) {
+      throw new UnsupportedCapabilityError('upstash-box', 'fork')
+    }
+    // Box has no native branch, but snapshot + fromSnapshot is the same shape as
+    // docker's commit + create-from-image. Costs a full snapshot round trip.
+    const snap = await this.box.snapshot({ name: `tanstack-fork-${Date.now()}` })
+    const { name: _name, ...config } = this.boxConfig
+    try {
+      const box = await Box.fromSnapshot(snap.id, config)
+      return new UpstashBoxHandle({
+        box,
+        boxConfig: this.boxConfig,
+        ...(this.publicUrlAuth ? { publicUrlAuth: this.publicUrlAuth } : {}),
+      })
+    } finally {
+      // The snapshot is scratch for the copy: the child box exists on its own
+      // once fromSnapshot returns, so keeping it would bill snapshot storage
+      // that accumulates with every fork, including the failed ones.
+      await this.box.deleteSnapshot(snap.id).catch(() => undefined)
+    }
   }
 
   async destroy(): Promise<void> {

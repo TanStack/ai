@@ -332,6 +332,16 @@ const box = upstashBoxSandbox({ apiKey: process.env.UPSTASH_BOX_API_KEY })
   `publicUrlAuth` to gate it, `{ bearerToken: true }` returns a token plus an
   `Authorization: Bearer` header and `{ basicAuth: true }` returns Basic
   credentials; without it the preview URL is unauthenticated.
+- **Network:** a `policy.capabilities.network` of `'deny'` maps to Box's
+  `deny-all` egress mode. The contract's gate is coarse, so Box's domain and CIDR
+  allowlists are not reachable through it. This is stricter than providers that
+  model deny as an allowlist: `deny-all` blocks every outbound connection, so an
+  agent that works under an allowlist-style deny will not reach package
+  registries or model provider hosts here. Leave the capability unset if the
+  agent needs either.
+- **Fork:** `fork()` snapshots the box and creates a new one from that snapshot,
+  the same shape as Docker's commit plus create. It costs a full snapshot round
+  trip (about 25 seconds), unlike Docker's local commit.
 - **Bridge:** like Daytona and Vercel, it is a remote VM, so bridged tools need
   the tunnel in local dev (see [tools](./tools)).
 
