@@ -6,22 +6,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { upstashBoxSandbox } from '../src/index'
 
-const { getMock, createMock, fromSnapshotMock, MockBoxError } = vi.hoisted(() => {
-  class MockBoxError extends Error {
-    constructor(
-      message: string,
-      readonly statusCode?: number,
-    ) {
-      super(message)
+const { getMock, createMock, fromSnapshotMock, MockBoxError } = vi.hoisted(
+  () => {
+    class MockBoxError extends Error {
+      constructor(
+        message: string,
+        readonly statusCode?: number,
+      ) {
+        super(message)
+      }
     }
-  }
-  return {
-    getMock: vi.fn(),
-    createMock: vi.fn(),
-    fromSnapshotMock: vi.fn(),
-    MockBoxError,
-  }
-})
+    return {
+      getMock: vi.fn(),
+      createMock: vi.fn(),
+      fromSnapshotMock: vi.fn(),
+      MockBoxError,
+    }
+  },
+)
 
 vi.mock('@upstash/box', () => ({
   Box: { get: getMock, create: createMock, fromSnapshot: fromSnapshotMock },
@@ -60,7 +62,9 @@ beforeEach(() => {
 describe('upstashBoxSandbox provider', () => {
   it('resumes a live box into a handle', async () => {
     getMock.mockResolvedValue(boxStub())
-    const handle = await upstashBoxSandbox({ apiKey: 'k' }).resume({ id: 'box_123' })
+    const handle = await upstashBoxSandbox({ apiKey: 'k' }).resume({
+      id: 'box_123',
+    })
     expect(handle).not.toBeNull()
     expect(handle!.id).toBe('box_123')
   })
@@ -73,14 +77,18 @@ describe('upstashBoxSandbox provider', () => {
       },
     })
     getMock.mockResolvedValue(tombstone)
-    const handle = await upstashBoxSandbox({ apiKey: 'k' }).resume({ id: 'box_123' })
+    const handle = await upstashBoxSandbox({ apiKey: 'k' }).resume({
+      id: 'box_123',
+    })
     expect(handle).toBeNull()
     expect(tombstone.getStatus).toHaveBeenCalledOnce()
   })
 
   it('resumes a missing box as null when Box.get itself throws', async () => {
     getMock.mockRejectedValue(gone())
-    const handle = await upstashBoxSandbox({ apiKey: 'k' }).resume({ id: 'nope' })
+    const handle = await upstashBoxSandbox({ apiKey: 'k' }).resume({
+      id: 'nope',
+    })
     expect(handle).toBeNull()
   })
 
@@ -102,9 +110,17 @@ describe('upstashBoxSandbox provider', () => {
 
   it('passes the deterministic id through as the box name on create', async () => {
     createMock.mockResolvedValue(boxStub({ id: 'agent-1' }))
-    await upstashBoxSandbox({ apiKey: 'k' }).create({ id: 'agent-1', env: { A: 'b' } })
+    await upstashBoxSandbox({ apiKey: 'k' }).create({
+      id: 'agent-1',
+      env: { A: 'b' },
+    })
     expect(createMock).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'agent-1', env: { A: 'b' }, runtime: 'node', keepAlive: false }),
+      expect.objectContaining({
+        name: 'agent-1',
+        env: { A: 'b' },
+        runtime: 'node',
+        keepAlive: false,
+      }),
     )
   })
 
@@ -189,12 +205,16 @@ describe('resumed handles keep their sandbox boundary', () => {
 
     const provider = upstashBoxSandbox({ apiKey: 'box_test' })
     const handle = await provider.resume({ id: 'box_123' })
-    if (handle?.fork === undefined) throw new Error('resume did not return a forkable handle')
+    if (handle?.fork === undefined)
+      throw new Error('resume did not return a forkable handle')
     await handle.fork()
 
     // A snapshot does not carry the parent's policy, so the resumed handle has
     // to supply it or a deny-all box comes back open one fork later.
-    const [, forkConfig] = fromSnapshotMock.mock.calls[0] as [string, { networkPolicy?: unknown }]
+    const [, forkConfig] = fromSnapshotMock.mock.calls[0] as [
+      string,
+      { networkPolicy?: unknown },
+    ]
     expect(forkConfig.networkPolicy).toEqual({ mode: 'deny-all' })
     // The snapshot is scratch for the copy; keeping it bills storage per fork.
     expect(resumed.deleteSnapshot).toHaveBeenCalledWith('snap_1')
@@ -207,7 +227,8 @@ describe('resumed handles keep their sandbox boundary', () => {
 
     const provider = upstashBoxSandbox({ apiKey: 'box_test' })
     const handle = await provider.resume({ id: 'box_123' })
-    if (handle?.fork === undefined) throw new Error('resume did not return a forkable handle')
+    if (handle?.fork === undefined)
+      throw new Error('resume did not return a forkable handle')
     await expect(handle.fork()).rejects.toThrow(/capacity/)
     expect(resumed.deleteSnapshot).toHaveBeenCalledWith('snap_1')
   })

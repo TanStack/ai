@@ -79,9 +79,7 @@ function fakeBox(
     exec: {
       command: vi.fn(async (cmd: string) => {
         commands.push(cmd)
-        return (
-          overrides.exec?.(cmd) ?? { stdout: '', stderr: '', exitCode: 0 }
-        )
+        return overrides.exec?.(cmd) ?? { stdout: '', stderr: '', exitCode: 0 }
       }),
       session: vi.fn(async (opts: Record<string, unknown>) => {
         sessionOptions.push(opts)
@@ -428,7 +426,8 @@ describe('UpstashBoxHandle', () => {
       session: fake,
       // Overflow BEFORE exec.session() resolves, when there is no session to kill.
       duringHandshake: (f) => {
-        for (let i = 0; i < 9; i += 1) f.session.emitStdout('x'.repeat(1024 * 1024))
+        for (let i = 0; i < 9; i += 1)
+          f.session.emitStdout('x'.repeat(1024 * 1024))
       },
     })
     const handle = new UpstashBoxHandle({ box })

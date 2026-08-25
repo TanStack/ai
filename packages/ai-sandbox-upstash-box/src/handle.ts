@@ -249,8 +249,7 @@ export class UpstashBoxHandle implements SandboxHandle {
       },
       mkdir: (p) => this.box.files.mkdir(this.abs(p), { parents: true }),
       remove: (p) => this.box.files.remove(this.abs(p), { recursive: true }),
-      rename: (from, to) =>
-        this.box.files.rename(this.abs(from), this.abs(to)),
+      rename: (from, to) => this.box.files.rename(this.abs(from), this.abs(to)),
       exists: async (p) => {
         try {
           await this.box.files.stat(this.abs(p))
@@ -444,7 +443,9 @@ export class UpstashBoxHandle implements SandboxHandle {
     }
     // Box has no native branch, but snapshot + fromSnapshot is the same shape as
     // docker's commit + create-from-image. Costs a full snapshot round trip.
-    const snap = await this.box.snapshot({ name: `tanstack-fork-${Date.now()}` })
+    const snap = await this.box.snapshot({
+      name: `tanstack-fork-${Date.now()}`,
+    })
     const { name: _name, ...config } = this.boxConfig
     try {
       const box = await Box.fromSnapshot(snap.id, config)

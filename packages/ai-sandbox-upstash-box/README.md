@@ -27,9 +27,7 @@ const sandbox = defineSandbox({
     apiKey: process.env.UPSTASH_BOX_API_KEY, // or set the env var and omit
     runtime: 'node',
   }),
-  workspace: defineWorkspace({
-    /* … */
-  }),
+  workspace: defineWorkspace({/* … */}),
 })
 
 // Then pass `withSandbox(sandbox)` as chat() middleware.
