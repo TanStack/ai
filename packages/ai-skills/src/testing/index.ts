@@ -73,7 +73,8 @@ export function runSkillSourceConformance(
       const resources = await listResources('alpha')
       expect(resources).toContain('references/note.md')
       const value = await readResource('alpha', 'references/note.md')
-      expect(dec(value)).toBe('hello')
+      // trimEnd: a file-backed source keeps the fixture's trailing newline (formatters add one); the payload is what matters.
+      expect(dec(value).trimEnd()).toBe('hello')
       // Path traversal must be rejected — by the source or the shared guard.
       await expect(
         (async () => {
