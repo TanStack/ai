@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-sandbox-upstash-box",
   "version": "0.1.0",
-  "description": "Upstash Box sandbox provider for TanStack AI — run harness adapters inside isolated Upstash Box cloud sandboxes through the uniform SandboxHandle.",
+  "description": "Upstash Box sandbox provider for TanStack AI \u2014 run harness adapters inside isolated Upstash Box cloud sandboxes through the uniform SandboxHandle.",
   "author": "",
   "license": "MIT",
   "repository": {
@@ -35,21 +35,21 @@
   "scripts": {
     "build": "vite build",
     "clean": "premove ./build ./dist",
-    "lint:fix": "eslint ./src --fix",
+    "lint:fix": "oxlint src --type-aware --fix",
     "test:build": "publint --strict",
-    "test:eslint": "eslint ./src",
+    "test:oxlint": "oxlint src --type-aware",
     "test:lib": "vitest",
     "test:lib:dev": "pnpm test:lib --watch",
     "test:types": "tsc"
   },
   "dependencies": {
-    "@upstash/box": "^0.5.1"
+    "@upstash/box": "^0.7.1"
   },
   "peerDependencies": {
     "@tanstack/ai-sandbox": "workspace:^"
   },
   "devDependencies": {
     "@tanstack/ai-sandbox": "workspace:*",
-    "@vitest/coverage-v8": "4.0.14"
+    "@vitest/coverage-v8": "4.1.10"
   }
 }

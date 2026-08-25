@@ -4,18 +4,66 @@ import { UPSTASH_BOX_CAPS, UpstashBoxHandle } from '../src/handle'
 import type { Box } from '@upstash/box'
 import type { PublicUrlAuth } from '../src/handle'
 
-/**
- * Build a fake Box exposing only the surface the handle touches. `exec.command`
- * records every wrapped command and returns a successful run by default.
- */
-type StreamChunk =
-  | { type: 'output'; data: string }
-  | { type: 'exit'; exitCode: number; cpuNs: number }
+/** A fake Box covering only the surface the handle touches. */
+interface FakeSession {
+  pid: number
+  execId: string
+  write: ReturnType<typeof vi.fn>
+  endStdin: ReturnType<typeof vi.fn>
+  resize: ReturnType<typeof vi.fn>
+  kill: ReturnType<typeof vi.fn>
+  terminate: ReturnType<typeof vi.fn>
+  wait: () => Promise<number>
+  close: ReturnType<typeof vi.fn>
+  emitStdout: (text: string) => void
+  emitStderr: (text: string) => void
+  exit: (code: number) => void
+}
+
+/** A fake exec.session whose output and exit are driven by the test. */
+function fakeSession(pid = 4242): {
+  session: FakeSession
+  attach: (opts: {
+    onStdout?: (d: Uint8Array) => void
+    onStderr?: (d: Uint8Array) => void
+  }) => void
+} {
+  const enc = new TextEncoder()
+  let onStdout: ((d: Uint8Array) => void) | undefined
+  let onStderr: ((d: Uint8Array) => void) | undefined
+  let settle!: (code: number) => void
+  const exited = new Promise<number>((r) => (settle = r))
+  const session: FakeSession = {
+    pid,
+    execId: 'exec_1',
+    write: vi.fn(),
+    endStdin: vi.fn(),
+    resize: vi.fn(),
+    kill: vi.fn(() => settle(143)),
+    terminate: vi.fn(),
+    wait: () => exited,
+    close: vi.fn(),
+    emitStdout: (text) => onStdout?.(enc.encode(text)),
+    emitStderr: (text) => onStderr?.(enc.encode(text)),
+    exit: (code) => settle(code),
+  }
+  return {
+    session,
+    attach: (opts) => {
+      onStdout = opts.onStdout
+      onStderr = opts.onStderr
+    },
+  }
+}
 
 function fakeBox(
   overrides: {
-    exec?: (cmd: string) => { result: string; exitCode: number | null }
-    stream?: (cmd: string) => AsyncIterable<StreamChunk>
+    exec?: (cmd: string) => {
+      stdout: string
+      stderr: string
+      exitCode: number | null
+    }
+    session?: ReturnType<typeof fakeSession>
     files?: Partial<Box['files']>
     getPublicURL?: Box['getPublicURL']
     snapshot?: Box['snapshot']
@@ -23,31 +71,49 @@ function fakeBox(
   } = {},
 ) {
   const commands: Array<string> = []
+  const sessionOptions: Array<Record<string, unknown>> = []
   const box = {
     id: 'box_123',
     exec: {
       command: vi.fn(async (cmd: string) => {
         commands.push(cmd)
-        return overrides.exec?.(cmd) ?? { result: '', exitCode: 0 }
+        return (
+          overrides.exec?.(cmd) ?? { stdout: '', stderr: '', exitCode: 0 }
+        )
       }),
-      stream: vi.fn(async (cmd: string) => {
-        commands.push(cmd)
-        return overrides.stream
-          ? overrides.stream(cmd)
-          : (async function* () {})()
+      session: vi.fn(async (opts: Record<string, unknown>) => {
+        sessionOptions.push(opts)
+        const fake = overrides.session ?? fakeSession()
+        fake.attach(
+          opts as {
+            onStdout?: (d: Uint8Array) => void
+            onStderr?: (d: Uint8Array) => void
+          },
+        )
+        return fake.session
       }),
     },
     files: {
       read: vi.fn(async () => ''),
       write: vi.fn(async () => {}),
       list: vi.fn(async () => []),
+      stat: vi.fn(async () => ({
+        type: 'file' as const,
+        size: 0,
+        mod_time: '',
+        inode: 1,
+        version: 'v1',
+      })),
+      mkdir: vi.fn(async () => {}),
+      rename: vi.fn(async () => {}),
+      remove: vi.fn(async () => {}),
       ...overrides.files,
     },
     getPublicURL: overrides.getPublicURL ?? vi.fn(),
     snapshot: overrides.snapshot ?? vi.fn(),
     delete: overrides.delete ?? vi.fn(async () => {}),
   }
-  return { box: box as unknown as Box, commands }
+  return { box: box as unknown as Box, commands, sessionOptions }
 }
 
 describe('UpstashBoxHandle', () => {
@@ -60,16 +126,20 @@ describe('UpstashBoxHandle', () => {
     expect(handle.capabilities).toBe(UPSTASH_BOX_CAPS)
     expect(handle.capabilities.backgroundProcesses).toBe(true)
     expect(handle.capabilities.snapshots).toBe(true)
-    expect(handle.capabilities.writableStdin).toBe(false)
+    // exec.session carries real stdin and server-side signals.
+    expect(handle.capabilities.writableStdin).toBe(true)
+    expect(handle.capabilities.killableProcesses).toBe(true)
   })
 
-  it('shell-wraps exec with the mapped cwd and returns combined output', async () => {
+  it('shell-wraps exec with the mapped cwd and splits stdout from stderr', async () => {
     const { box, commands } = fakeBox({
-      exec: () => ({ result: 'hello', exitCode: 0 }),
+      exec: () => ({ stdout: 'hello', stderr: 'warned', exitCode: 0 }),
     })
     const handle = new UpstashBoxHandle({ box })
     const res = await handle.process.exec('echo hello')
-    expect(res).toEqual({ stdout: 'hello', stderr: '', exitCode: 0 })
+    // Box reports stdout and stderr on separate fields; a warning on stderr
+    // must not shadow stdout on success.
+    expect(res).toEqual({ stdout: 'hello', stderr: 'warned', exitCode: 0 })
     // Default cwd is the mapped workspace root.
     expect(commands[0]).toBe("cd '/workspace/home' && echo hello")
   })
@@ -89,44 +159,98 @@ describe('UpstashBoxHandle', () => {
     )
   })
 
-  it('spawn streams stdout via exec.stream and resolves wait() with the exit code', async () => {
-    async function* chunks(): AsyncGenerator<StreamChunk> {
-      yield { type: 'output', data: 'streamed-' }
-      yield { type: 'output', data: 'line\n' }
-      yield { type: 'exit', exitCode: 0, cpuNs: 0 }
-    }
-    const { box, commands } = fakeBox({ stream: () => chunks() })
+  it('spawn streams stdout via exec.session and resolves wait() with the exit code', async () => {
+    const fake = fakeSession(4242)
+    const { box, sessionOptions } = fakeBox({ session: fake })
     const handle = new UpstashBoxHandle({ box })
     const proc = await handle.process.spawn('run-agent')
+    // Real in-box pid, not a placeholder.
+    expect(proc.pid).toBe(4242)
+    fake.session.emitStdout('streamed-')
+    fake.session.emitStdout('line\n')
+    fake.session.exit(0)
     let out = ''
     for await (const c of proc.stdout) out += c
     expect(out).toBe('streamed-line\n')
     expect(await proc.wait()).toBe(0)
-    expect(proc.pid).toBe(-1)
-    // Command is shell-wrapped with the mapped cwd, same as exec.
-    expect(commands[0]).toBe("cd '/workspace/home' && run-agent")
+    // The session takes cwd natively, so the command is NOT shell-wrapped.
+    expect(sessionOptions[0]).toMatchObject({
+      cmd: 'run-agent',
+      cwd: '/workspace/home',
+    })
   })
 
-  it('spawned process has no writable stdin', async () => {
-    const { box } = fakeBox({ stream: () => (async function* () {})() })
+  it('spawn keeps stderr on its own stream', async () => {
+    const fake = fakeSession()
+    const { box } = fakeBox({ session: fake })
     const handle = new UpstashBoxHandle({ box })
     const proc = await handle.process.spawn('run-agent')
-    await expect(proc.stdin.write('x')).rejects.toThrow()
+    fake.session.emitStdout('out')
+    fake.session.emitStderr('err')
+    fake.session.exit(0)
+    let out = ''
+    for await (const c of proc.stdout) out += c
+    let err = ''
+    for await (const c of proc.stderr) err += c
+    expect(out).toBe('out')
+    expect(err).toBe('err')
   })
 
-  it('kill() unblocks wait() even when the stream is silent', async () => {
-    // A stream whose next() never resolves and never ends on its own — only an
-    // abort can unblock the consumer.
-    const silent: AsyncIterable<StreamChunk> = {
-      [Symbol.asyncIterator]: () => ({
-        next: () => new Promise<IteratorResult<StreamChunk>>(() => {}),
-      }),
-    }
-    const { box } = fakeBox({ stream: () => silent })
+  it('spawn passes cwd and merged env natively instead of shell-wrapping', async () => {
+    const { box, sessionOptions, commands } = fakeBox()
+    const handle = new UpstashBoxHandle({ box })
+    await handle.env.set({ FOO: 'bar' })
+    await handle.process.spawn('run', {
+      cwd: '/workspace/app',
+      env: { BAZ: 'q' },
+    })
+    expect(sessionOptions[0]).toMatchObject({
+      cmd: 'run',
+      cwd: '/workspace/home/app',
+      env: ['FOO=bar', 'BAZ=q'],
+    })
+    // No `sh -c` round-trip for a spawned command.
+    expect(commands).toEqual([])
+  })
+
+  it('spawned process has a writable stdin', async () => {
+    const fake = fakeSession()
+    const { box } = fakeBox({ session: fake })
+    const handle = new UpstashBoxHandle({ box })
+    const proc = await handle.process.spawn('run-agent')
+    await proc.stdin.write('prompt')
+    await proc.stdin.end()
+    expect(fake.session.write).toHaveBeenCalledWith('prompt')
+    expect(fake.session.endStdin).toHaveBeenCalledOnce()
+  })
+
+  it('kill maps Node signals onto the box allowlist', async () => {
+    const fake = fakeSession()
+    const { box } = fakeBox({ session: fake })
     const handle = new UpstashBoxHandle({ box })
     const proc = await handle.process.spawn('sleep-forever')
+    await proc.kill('SIGKILL')
+    expect(fake.session.kill).toHaveBeenCalledWith('KILL')
+    await proc.kill(2)
+    expect(fake.session.kill).toHaveBeenCalledWith('INT')
+    // Default, and anything outside the allowlist, degrades to TERM.
     await proc.kill()
-    await expect(proc.wait()).resolves.toBe(0)
+    await proc.kill('SIGWINCH')
+    expect(fake.session.kill).toHaveBeenLastCalledWith('TERM')
+  })
+
+  it('aborting the spawn signal terminates the session', async () => {
+    const fake = fakeSession()
+    const { box } = fakeBox({ session: fake })
+    const handle = new UpstashBoxHandle({ box })
+    const controller = new AbortController()
+    const proc = await handle.process.spawn('sleep-forever', {
+      signal: controller.signal,
+    })
+    controller.abort()
+    expect(fake.session.kill).toHaveBeenCalledWith('TERM')
+    // The fake settles wait() on kill, mirroring a server-side signal landing.
+    await expect(proc.wait()).resolves.toBe(143)
   })
 
   it('fork throws UnsupportedCapabilityError', () => {
@@ -139,10 +263,11 @@ describe('UpstashBoxHandle', () => {
     const { box, commands } = fakeBox()
     const handle = new UpstashBoxHandle({ box })
     await handle.fs.write('/workspace/dir/note.txt', 'hi')
-    // mkdir runs through the cd-wrapped exec at the default workspace root.
-    expect(commands[0]).toBe(
-      "cd '/workspace/home' && mkdir -p '/workspace/home/dir'",
-    )
+    // The parent dir is ensured through the native file API, not a shell.
+    expect(box.files.mkdir).toHaveBeenCalledWith('/workspace/home/dir', {
+      parents: true,
+    })
+    expect(commands).toEqual([])
     expect(box.files.write).toHaveBeenCalledWith({
       path: '/workspace/home/dir/note.txt',
       content: 'hi',
@@ -204,6 +329,44 @@ describe('UpstashBoxHandle', () => {
       { name: 'sub', path: '/workspace/sub', type: 'dir' },
     ])
     expect(box.files.list).toHaveBeenCalledWith('/workspace/home')
+  })
+
+  it('mkdir/remove/rename go through the native file API', async () => {
+    const { box, commands } = fakeBox()
+    const handle = new UpstashBoxHandle({ box })
+    await handle.fs.mkdir('/workspace/a/b')
+    await handle.fs.remove('/workspace/a')
+    await handle.fs.rename('/workspace/x', '/workspace/y')
+    expect(box.files.mkdir).toHaveBeenCalledWith('/workspace/home/a/b', {
+      parents: true,
+    })
+    // `recursive` is required for a directory, empty or not.
+    expect(box.files.remove).toHaveBeenCalledWith('/workspace/home/a', {
+      recursive: true,
+    })
+    expect(box.files.rename).toHaveBeenCalledWith(
+      '/workspace/home/x',
+      '/workspace/home/y',
+    )
+    // None of these desugar to a shell command any more.
+    expect(commands).toEqual([])
+  })
+
+  it('exists probes stat and reports false when it throws', async () => {
+    const { box } = fakeBox()
+    const handle = new UpstashBoxHandle({ box })
+    await expect(handle.fs.exists('/workspace/here')).resolves.toBe(true)
+    expect(box.files.stat).toHaveBeenCalledWith('/workspace/home/here')
+
+    const missing = fakeBox({
+      files: {
+        stat: vi.fn(async () => {
+          throw new Error('404')
+        }) as unknown as Box['files']['stat'],
+      },
+    })
+    const handle2 = new UpstashBoxHandle({ box: missing.box })
+    await expect(handle2.fs.exists('/workspace/gone')).resolves.toBe(false)
   })
 
   it('maps a bare public URL to a plain channel', async () => {

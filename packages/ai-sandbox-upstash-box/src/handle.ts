@@ -1,32 +1,19 @@
 /**
  * SandboxHandle backed by an Upstash Box cloud sandbox (via `@upstash/box`).
- * Real isolation: fs/exec/git operate inside the remote box. The conventional
- * `/workspace` virtual root maps to Box's session home, `/workspace/home`
- * (`Box.WORKSPACE`).
+ * The `/workspace` virtual root maps to Box's session home, `/workspace/home`.
  *
- * Filesystem read/write/list use Box's native file API; mkdir/remove/rename/
- * exists desugar to `process.exec` (the box image provides `sh` + coreutils).
- *
- * NOTES on parity with the contract:
- * - Box's `exec.command` returns a single combined `result` string plus an
- *   `exitCode`; there is no separate stderr channel, so {@link ExecResult.stderr}
- *   is always empty for this provider.
- * - `exec.command` takes no per-call cwd/env arguments, and the SDK's `cd()` /
- *   `box.cwd` is in-memory client state that resets when a box is re-fetched with
- *   `Box.get()`. So cwd and env are applied by shell-wrapping every command
- *   (`cd <cwd> && export … && <command>`).
- * - Background processes (`process.spawn`) run on Box's `exec.stream`: stdout is
- *   streamed, `wait()` resolves with the exit code. There is no writable stdin
- *   (`capabilities.writableStdin` is false) and no host-visible pid, and `kill()`
- *   only stops consuming the stream (the server-side command keeps running) —
- *   the same shape as the Daytona provider's session-backed spawn.
+ * `exec()` is shell-wrapped for cwd/env because `exec.command` takes neither and
+ * the SDK's cwd resets on `Box.get()`. `spawn()` runs on `exec.session`, which
+ * takes both natively and adds a real pid, stdin, and server-side signals — but
+ * owns its process: dropping the connection kills it and it cannot be
+ * reattached, so `spawn()` is scoped to this handle, not the box.
  */
 import { Buffer } from 'node:buffer'
 import {
   UnsupportedCapabilityError,
   createExecBackedGit,
 } from '@tanstack/ai-sandbox'
-import type { Box, ExecStreamChunk } from '@upstash/box'
+import type { Box } from '@upstash/box'
 import type {
   ExecResult,
   ProcessOptions,
@@ -42,11 +29,13 @@ export const UPSTASH_BOX_CAPS: SandboxCapabilities = {
   exec: true,
   env: true,
   ports: true,
-  // spawn() streams a background command via Box's exec.stream.
+  // spawn() runs the command as a live exec.session.
   backgroundProcesses: true,
-  // The streamed command has no host->process stdin; adapters that feed a prompt
-  // over stdin must deliver it via a file + shell redirection instead.
-  writableStdin: false,
+  // exec.session carries a real host->process stdin (`write` / `endStdin`).
+  writableStdin: true,
+  // Measured: the agent signals the process TREE server-side, not a client-side
+  // stream abort. See `tests/journal.conformance.test.ts`.
+  killableProcesses: true,
   // Native box.snapshot / Box.fromSnapshot.
   snapshots: true,
   networkPolicy: false,
@@ -58,15 +47,32 @@ export const UPSTASH_BOX_CAPS: SandboxCapabilities = {
 /** The `/workspace` virtual root maps to Box's session home. */
 export const WORKSPACE_ROOT = '/workspace/home'
 
+/** Signals the box agent accepts; anything else is delivered as TERM. */
+const BOX_SIGNALS = new Set(['TERM', 'KILL', 'INT', 'HUP'])
+
+const SIGNAL_NUMBERS: Record<number, string> = {
+  1: 'HUP',
+  2: 'INT',
+  9: 'KILL',
+  15: 'TERM',
+}
+
+/** Map a Node signal name/number onto the box agent's allowlist. */
+function toBoxSignal(signal?: NodeJS.Signals | number): string {
+  if (signal === undefined) return 'TERM'
+  const name =
+    typeof signal === 'number'
+      ? SIGNAL_NUMBERS[signal]
+      : signal.replace(/^SIG/, '')
+  return name !== undefined && BOX_SIGNALS.has(name) ? name : 'TERM'
+}
+
 /** POSIX single-quote escape for embedding a value in a `sh -c` command. */
 function q(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`
 }
 
-/**
- * A push-driven async iterable. The streamer pushes decoded chunks and calls
- * `end()` once; consumers `for await` over it and terminate cleanly.
- */
+/** A push-driven async iterable: push chunks, `end()` once. */
 class AsyncChunkQueue implements AsyncIterable<string> {
   private readonly chunks: Array<string> = []
   private readonly waiters: Array<(r: IteratorResult<string>) => void> = []
@@ -154,9 +160,7 @@ export class UpstashBoxHandle implements SandboxHandle {
         const abs = this.abs(p)
         // Box's file API does not guarantee parent-dir creation; ensure it.
         const dir = abs.replace(/\/[^/]*$/, '') || '/'
-        const mk = await this.exec(`mkdir -p ${q(dir)}`)
-        if (mk.exitCode !== 0)
-          throw new Error(`write failed (mkdir): ${mk.stdout.trim()}`)
+        await this.box.files.mkdir(dir, { parents: true })
         if (typeof data === 'string') {
           await this.box.files.write({ path: abs, content: data })
         } else {
@@ -178,24 +182,17 @@ export class UpstashBoxHandle implements SandboxHandle {
           type: e.is_dir ? ('dir' as const) : ('file' as const),
         }))
       },
-      mkdir: async (p) => {
-        const r = await this.exec(`mkdir -p ${q(this.abs(p))}`)
-        if (r.exitCode !== 0)
-          throw new Error(`mkdir failed: ${r.stdout.trim()}`)
-      },
-      remove: async (p) => {
-        const r = await this.exec(`rm -rf ${q(this.abs(p))}`)
-        if (r.exitCode !== 0)
-          throw new Error(`remove failed: ${r.stdout.trim()}`)
-      },
-      rename: async (from, to) => {
-        const r = await this.exec(`mv ${q(this.abs(from))} ${q(this.abs(to))}`)
-        if (r.exitCode !== 0)
-          throw new Error(`rename failed: ${r.stdout.trim()}`)
-      },
+      mkdir: (p) => this.box.files.mkdir(this.abs(p), { parents: true }),
+      remove: (p) => this.box.files.remove(this.abs(p), { recursive: true }),
+      rename: (from, to) =>
+        this.box.files.rename(this.abs(from), this.abs(to)),
       exists: async (p) => {
-        const r = await this.exec(`test -e ${q(this.abs(p))}`)
-        return r.exitCode === 0
+        try {
+          await this.box.files.stat(this.abs(p))
+          return true
+        } catch {
+          return false
+        }
       },
     }
 
@@ -226,11 +223,14 @@ export class UpstashBoxHandle implements SandboxHandle {
     return p
   }
 
-  /**
-   * Prefix a command with `export`s for the accumulated env vars (and any
-   * per-command overrides) so they apply to the executed command. Applied
-   * in-shell because Box's `exec.command` has no env argument.
-   */
+  /** Accumulated env plus per-command overrides, as Box's `KEY=VALUE` list. */
+  private envList(extra?: Record<string, string>): Array<string> {
+    return Object.entries({ ...this.envVars, ...extra }).map(
+      ([k, v]) => `${k}=${v}`,
+    )
+  }
+
+  /** Prefix a command with `export`s for the accumulated env vars. */
   private withEnv(command: string, extra?: Record<string, string>): string {
     const merged = { ...this.envVars, ...extra }
     const exports = Object.entries(merged)
@@ -239,18 +239,10 @@ export class UpstashBoxHandle implements SandboxHandle {
     return `${exports}${command}`
   }
 
-  /**
-   * Wrap a command with `cd <cwd>` and env exports. Done in-shell because Box's
-   * `exec.command`/`exec.stream` take no cwd/env args and the SDK's cwd resets
-   * when a box is re-fetched with `Box.get()`.
-   */
+  /** Wrap a blocking command with `cd <cwd>` and env exports. */
   private wrap(command: string, opts?: ProcessOptions): string {
     const cwd = this.abs(opts?.cwd ?? this.workspaceRoot)
-    // Env exports go BEFORE `cd` so a failed `cd` (guarded by `&&`) prevents the
-    // command from running. Wrapping the exports around `cd … && command` — i.e.
-    // `export …; cd … && command` — keeps the command `&&`-gated on cd success;
-    // putting exports between `cd &&` and the command would let a `;`-separated
-    // command run even when cd failed.
+    // Exports go BEFORE `cd` so a failed `cd` still `&&`-gates the command.
     return this.withEnv(`cd ${q(cwd)} && ${command}`, opts?.env)
   }
 
@@ -263,90 +255,64 @@ export class UpstashBoxHandle implements SandboxHandle {
     opts?.signal?.throwIfAborted()
     const run = await this.box.exec.command(this.wrap(command, opts))
     return {
-      // Box returns a single combined output string; there is no separate
-      // stderr channel for blocking exec.
-      stdout: run.result,
-      stderr: '',
+      stdout: run.stdout,
+      stderr: run.stderr,
       exitCode: run.exitCode ?? 1,
     }
   }
 
-  /**
-   * Background process backed by Box's `exec.stream`. stdout is streamed;
-   * `wait()` resolves with the exit code. There is no writable stdin and no
-   * host-visible pid; `kill()` stops consuming the stream (the server-side
-   * command keeps running).
-   */
+  /** Background process backed by a live `exec.session`. */
   private async spawnProcess(
     command: string,
     opts?: ProcessOptions,
   ): Promise<SpawnHandle> {
     opts?.signal?.throwIfAborted()
-    // Awaited so a failed stream start rejects spawn() rather than only
-    // surfacing later on wait()/stdout.
-    const stream = await this.box.exec.stream(this.wrap(command, opts))
 
     const stdoutQ = new AsyncChunkQueue()
-    // Box's stream merges stderr into stdout; expose an empty, closed stderr.
     const stderrQ = new AsyncChunkQueue()
-    let exitCode = 0
-    // kill() and the caller's signal both feed this controller; its
-    // `signal.aborted` flag stops the consume loop.
-    const controller = new AbortController()
-    const onAbort = (): void => controller.abort()
-    opts?.signal?.addEventListener('abort', onAbort, { once: true })
+    // Streaming decoders: a multi-byte char can split across frames.
+    const outDecoder = new TextDecoder()
+    const errDecoder = new TextDecoder()
 
-    // Resolves as a terminated iterator result the moment the controller aborts,
-    // so a killed but silent long-running stream unblocks `wait()` immediately
-    // instead of hanging until the next chunk/exit arrives.
-    const aborted = new Promise<IteratorResult<ExecStreamChunk>>((resolve) => {
-      const done = (): void => resolve({ done: true, value: undefined })
-      if (controller.signal.aborted) done()
-      else controller.signal.addEventListener('abort', done, { once: true })
+    // Awaited so a failed start rejects spawn(), not a later wait().
+    const session = await this.box.exec.session({
+      cmd: command,
+      cwd: this.abs(opts?.cwd ?? this.workspaceRoot),
+      env: this.envList(opts?.env),
+      onStdout: (data) =>
+        stdoutQ.push(outDecoder.decode(data, { stream: true })),
+      onStderr: (data) =>
+        stderrQ.push(errDecoder.decode(data, { stream: true })),
     })
 
-    const pump = (async (): Promise<void> => {
-      const iterator = stream[Symbol.asyncIterator]()
-      try {
-        for (;;) {
-          const nextResult = iterator.next()
-          // Guard against an unhandled rejection if next() loses the race to
-          // `aborted` and later rejects; the winning branch still surfaces below.
-          nextResult.catch(() => undefined)
-          const result = await Promise.race([nextResult, aborted])
-          if (result.done) break
-          const chunk = result.value
-          if (chunk.type === 'output') stdoutQ.push(chunk.data)
-          else exitCode = chunk.exitCode
-        }
-      } finally {
-        // Best-effort: close the underlying stream reader on kill/exit.
-        await iterator.return?.().catch(() => undefined)
-        opts?.signal?.removeEventListener('abort', onAbort)
-        stdoutQ.end()
-        stderrQ.end()
-      }
-    })()
+    const onAbort = (): void => session.kill('TERM')
+    opts?.signal?.addEventListener('abort', onAbort, { once: true })
+
+    const exit = session.wait().finally(() => {
+      opts?.signal?.removeEventListener('abort', onAbort)
+      stdoutQ.push(outDecoder.decode())
+      stderrQ.push(errDecoder.decode())
+      stdoutQ.end()
+      stderrQ.end()
+    })
 
     return {
-      pid: -1,
+      pid: session.pid,
       stdout: stdoutQ,
       stderr: stderrQ,
       stdin: {
-        write: () =>
-          Promise.reject(
-            new Error(
-              'upstash-box: background process stdin is not writable (see capabilities.writableStdin)',
-            ),
-          ),
-        end: () => Promise.resolve(),
+        write: (data) => {
+          session.write(data)
+          return Promise.resolve()
+        },
+        end: () => {
+          session.endStdin()
+          return Promise.resolve()
+        },
       },
-      wait: async () => {
-        await pump
-        return exitCode
-      },
-      kill: () => {
-        controller.abort()
+      wait: () => exit,
+      kill: (signal) => {
+        session.kill(toBoxSignal(signal))
         return Promise.resolve()
       },
     }

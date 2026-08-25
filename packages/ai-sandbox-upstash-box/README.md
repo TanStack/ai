@@ -3,7 +3,7 @@
 Upstash Box sandbox provider for [TanStack AI](https://tanstack.com/ai). Runs
 harness adapters inside isolated [Upstash Box](https://github.com/upstash/box)
 cloud sandboxes through the uniform `SandboxHandle` — real filesystem, shell,
-public preview URLs, and native snapshots.
+interactive processes, public preview URLs, and native snapshots.
 
 ## Install
 
@@ -77,15 +77,20 @@ try {
 
 ## Capabilities
 
-| Capability            | Supported | Notes                                                                                                                    |
-| --------------------- | --------- | ------------------------------------------------------------------------------------------------------------------------ |
-| `fs`                  | ✅        | Native Box file API (read/write/list) + shell for mkdir/remove/rename.                                                   |
-| `exec`                | ✅        | Combined stdout/stderr in `stdout`; `stderr` is always empty.                                                            |
-| `env`                 | ✅        | Applied as shell `export` prefixes on subsequent `exec` calls.                                                           |
-| `ports`               | ✅        | Public preview URLs via `getPublicURL`.                                                                                  |
-| `snapshots`           | ✅        | Native `box.snapshot()` / `Box.fromSnapshot()`.                                                                          |
-| `durableFilesystem`   | ✅        | Persists across pause/resume until deleted.                                                                              |
-| `backgroundProcesses` | ✅        | `spawn()` streams stdout via `exec.stream`; no host-visible pid, `kill()` stops consuming the stream.                    |
-| `writableStdin`       | ❌        | No host→process stdin; stdin-driven harnesses (Codex/Gemini ACP) must deliver the prompt via a file + shell redirection. |
-| `networkPolicy`       | ❌        |                                                                                                                          |
-| `fork`                | ❌        | `fork()` throws.                                                                                                         |
+| Capability            | Supported | Notes                                                                                       |
+| --------------------- | --------- | ------------------------------------------------------------------------------------------- |
+| `fs`                  | ✅        | Native Box file API throughout; `exists` is a `stat` probe.                                 |
+| `exec`                | ✅        | Separate `stdout` and `stderr`.                                                             |
+| `env`                 | ✅        | Shell `export` prefixes for `exec`; passed natively to `spawn`.                             |
+| `ports`               | ✅        | Public preview URLs via `getPublicURL`.                                                     |
+| `snapshots`           | ✅        | Native `box.snapshot()` / `Box.fromSnapshot()`.                                             |
+| `durableFilesystem`   | ✅        | Persists across pause/resume until deleted.                                                 |
+| `backgroundProcesses` | ✅        | `spawn()` runs the command as a live `exec.session` with a real in-box pid.                 |
+| `writableStdin`       | ✅        | `stdin.write()` / `stdin.end()` map to the session's `write` / `endStdin`.                  |
+| `killableProcesses`   | ✅        | `kill()` signals the process tree server-side; `TERM`/`KILL`/`INT`/`HUP`, others send TERM. |
+| `networkPolicy`       | ❌        | Box supports network policies; mapping them onto `SandboxPolicy` is not done yet.           |
+| `fork`                | ❌        | `fork()` throws.                                                                            |
+
+A spawned process is tied to its session: dropping the connection kills the
+command, and sessions cannot be reattached. `spawn()` is therefore scoped to the
+lifetime of the handle, not the box.

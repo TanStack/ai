@@ -80,11 +80,9 @@ class UpstashBoxProvider implements SandboxProvider {
   }
 
   async create(input: SandboxCreateInput): Promise<SandboxHandle> {
-    // Best-effort: the Box SDK can't cancel an in-flight create/snapshot, so we
-    // only pre-flight check the signal here.
+    // Best-effort: the SDK can't cancel an in-flight call.
     input.signal?.throwIfAborted()
-    // Pass the caller's deterministic id through as the box name so it becomes
-    // a stable, addressable label (Box.getByName === Box.get).
+    // The caller's deterministic id becomes the box name (Box.getByName === Box.get).
     const boxConfig = this.boxConfig({ env: input.env, name: input.id })
     const box = this.config.snapshot
       ? await Box.fromSnapshot(this.config.snapshot, boxConfig)
@@ -99,6 +97,9 @@ class UpstashBoxProvider implements SandboxProvider {
     input.signal?.throwIfAborted()
     try {
       const box = await Box.get(input.id, this.connection)
+      // `Box.get` resolves for a DELETED box; only `getStatus` reports the
+      // tombstone. Without this probe a destroyed box resumes as a live handle.
+      await box.getStatus()
       return new UpstashBoxHandle({
         box,
         publicUrlAuth: this.config.publicUrlAuth,

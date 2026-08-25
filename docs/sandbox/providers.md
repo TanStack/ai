@@ -2,7 +2,7 @@
 title: Providers
 id: providers
 order: 3
-description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, or Vercel) and what each one can do."
+description: "Pick and configure where a TanStack AI sandbox runs (local process, Docker container, Docker Sandboxes microVM, Daytona, Vercel, or Upstash Box) and what each one can do."
 ---
 
 A provider owns the isolation primitive: where the harness actually runs. Every
@@ -30,6 +30,7 @@ completed workspace data in your application persistence for reconstruction.
 | Daytona | `@tanstack/ai-sandbox-daytona` | cloud sandbox | Managed [Daytona](https://www.daytona.io/) sandboxes; snapshots after setup, port preview links, resume-by-id. Needs `DAYTONA_API_KEY`. |
 | Vercel | `@tanstack/ai-sandbox-vercel` | microVM | Managed [Vercel Sandbox](https://vercel.com/docs/sandbox) microVMs; exposed-port domains, resume-by-id (persistent). Needs `VERCEL_TOKEN` + team/project. |
 | Sprites | `@tanstack/ai-sandbox-sprites` | stateful sandbox | Managed [Sprites](https://sprites.dev) (Fly.io) sandboxes; durable filesystem, in-place checkpoints, single proxied public-URL port, resume-by-id. Needs `SPRITES_API_KEY`. |
+| Upstash Box | `@tanstack/ai-sandbox-upstash-box` | cloud sandbox | Managed [Upstash Box](https://github.com/upstash/box) sandboxes; interactive processes over a WebSocket session (real pid, stdin, signals), native snapshots, preview URLs, resume-by-id. Needs `UPSTASH_BOX_API_KEY`. |
 
 Most providers are their own package. `dockerSandbox()` and `sbxSandbox()` both
 come from `@tanstack/ai-sandbox-docker`. The constructor is the only thing that
@@ -300,6 +301,40 @@ const sprites = spritesSandbox({ apiKey: process.env.SPRITES_API_KEY })
 - **Bridge:** like Daytona and Vercel, it is a remote VM, so bridged tools need the tunnel in
   local dev (see [tools](./tools)).
 
+## Upstash Box
+
+```ts
+import { upstashBoxSandbox } from '@tanstack/ai-sandbox-upstash-box'
+
+const box = upstashBoxSandbox({ apiKey: process.env.UPSTASH_BOX_API_KEY })
+```
+
+- **Isolation:** a managed [Upstash Box](https://github.com/upstash/box) cloud
+  sandbox, a remote container you do not run yourself.
+- **Auth / env:** needs `UPSTASH_BOX_API_KEY` (or `apiKey`); override the API
+  base with `baseUrl` / `UPSTASH_BOX_BASE_URL`. Pick the image and size with
+  `runtime` (default `node`) and `size`.
+- **Paths:** the conventional `/workspace` virtual root maps to the box home,
+  `/workspace/home`, which is the handle's `workspaceRoot`.
+- **Processes:** `spawn()` opens a live `exec.session` over a WebSocket, so a
+  background process has a real in-box pid, a writable stdin, separate stdout and
+  stderr, and server-side signals. A session owns its process: dropping the
+  connection kills the command and sessions cannot be reattached, so `spawn()` is
+  scoped to the lifetime of the handle rather than the box. Blocking `exec()`
+  stays on the HTTP path and is shell-wrapped for `cwd`/env, which the session
+  takes natively.
+- **Snapshot / resume:** `snapshot()` calls `box.snapshot()` and
+  `restoreSnapshot()` reconstructs a new box from it via `Box.fromSnapshot()`, so
+  a snapshot survives deletion of the box that made it. Resume-by-id uses
+  `Box.get` (id or name) and probes `getStatus`, so a deleted record resumes as
+  `null` rather than a tombstone handle.
+- **Ports:** `ports.connect(port)` mints a preview URL via `getPublicURL`. Pass
+  `publicUrlAuth` to gate it, `{ bearerToken: true }` returns a token plus an
+  `Authorization: Bearer` header and `{ basicAuth: true }` returns Basic
+  credentials; without it the preview URL is unauthenticated.
+- **Bridge:** like Daytona and Vercel, it is a remote VM, so bridged tools need
+  the tunnel in local dev (see [tools](./tools)).
+
 ## Capabilities
 
 Providers declare what they support via `capabilities()`. The flags are:
@@ -311,7 +346,7 @@ Providers declare what they support via `capabilities()`. The flags are:
 | `env` | Inject environment variables. |
 | `ports` | Expose/forward ports (preview URLs). |
 | `backgroundProcesses` | Keep long-running processes alive between calls. |
-| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, and Daytona. `false` for Docker Sandboxes (`sbx`), Vercel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
+| `writableStdin` | A spawned process exposes a writable host→process stdin. `true` for local-process, Docker container, Daytona, and Upstash Box. `false` for Docker Sandboxes (`sbx`), Vercel, and Cloudflare. When `false`, stdin-fed harnesses write the prompt to a file and redirect it in the shell. |
 | `killableProcesses` | A spawned process can be forcibly stopped via `SpawnHandle.kill()` **and** aborted mid-flight via the `signal` passed to `spawn`. |
 | `snapshots` | Capture and restore point-in-time snapshots. |
 | `networkPolicy` | Enforce network allow/deny rules. |
@@ -360,6 +395,7 @@ merely slower while a wrong `follow` is a leak.
 | Daytona | `false` | `kill()` only aborts the client-side poll loop and does not await any termination; the `deleteSession` that might terminate the command runs later from the pump's teardown, is failure-swallowed, and is documented as cleanup for a *completed* session. Unmeasured, needs `DAYTONA_API_KEY`. |
 | Vercel | `false` | The abort signal reaches only the HTTP request that STARTS a detached command, so the old `kill()` was a no-op. It now issues the SDK's server-side `Command.kill`, but whether that reaches a forked child (the follow command is a multi-statement shell, so `tail -f` is always a child) is unmeasured, needs Vercel credentials. |
 | Sprites | `true` (unverified) | Not a client-side detach: `kill()` issues a real server-side `POST /exec/<sessionId>/kill` before closing the socket. What that endpoint signals (process group or pid) is undocumented and unmeasured; needs `SPRITES_API_KEY`. |
+| Upstash Box | `true` | **Measured.** `kill()` sends an allowlisted signal (`TERM`/`KILL`/`INT`/`HUP`) that the box agent delivers to the process TREE server-side, so a forked child is signalled too. Verified against production: a spawned `sleep 5 && touch <marker>` was killed and the marker never appeared. Needs `UPSTASH_BOX_API_KEY`. |
 | Cloudflare | `false` | `kill()` is a no-op, and the caller's `AbortSignal` reaches neither `exec` nor `spawn`, because Workers RPC cannot serialize one. |
 
 Each of the remote providers registers the shared journal conformance suite, so
