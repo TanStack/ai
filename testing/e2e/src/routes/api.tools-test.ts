@@ -93,12 +93,11 @@ function createProviderFreeAdapter(scenario: string): AnyTextAdapter {
                   : 'Runtime context was read.',
                 result: undefined,
                 state: undefined,
-                toolName:
-                  stopsPendingTool
-                    ? 'show_notification'
-                    : scenario === 'client-context'
-                      ? 'read_client_context'
-                      : 'read_server_context',
+                toolName: stopsPendingTool
+                  ? 'show_notification'
+                  : scenario === 'client-context'
+                    ? 'read_client_context'
+                    : 'read_server_context',
               }
   return {
     kind: 'text',
