@@ -595,10 +595,14 @@ export type ToolCallPart<TTools extends ReadonlyArray<AnyClientTool> = any> =
 
 export interface ToolResultPart {
   type: 'tool-result'
+  id?: string
+  name?: string
   toolCallId: string
   content: string | Array<ContentPart>
   state: ToolResultState
   error?: string // Error message if state is "error"
+  metadata?: Record<string, unknown>
+  createdAt?: Date
 }
 
 export interface ThinkingPart {
@@ -639,6 +643,7 @@ export interface UIMessage<
 > {
   id: string
   role: 'system' | 'user' | 'assistant'
+  name?: string
   parts: Array<MessagePart<TTools, TData>>
   createdAt?: Date
   /**

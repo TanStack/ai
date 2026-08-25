@@ -20,6 +20,7 @@ import type {
   UIMessage,
 } from '@tanstack/ai/client'
 import type { ChatFetcher, ChatPendingInterrupt } from './types'
+import { normalizeMessagesDates } from './message-date-normalizer'
 
 /**
  * Associates connect-wrapped chunks with the run they were produced under.
@@ -573,7 +574,9 @@ async function fetchThreadHydration(
         }
       : null
   return {
-    messages: Array.isArray(data.messages) ? data.messages : [],
+    messages: Array.isArray(data.messages)
+      ? normalizeMessagesDates(data.messages)
+      : [],
     activeRun,
     interrupts,
   }

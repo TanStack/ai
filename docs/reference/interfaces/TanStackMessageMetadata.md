@@ -5,7 +5,7 @@ title: TanStackMessageMetadata
 
 # Interface: TanStackMessageMetadata
 
-Defined in: [packages/ai/src/types.ts:520](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L520)
+Defined in: [packages/ai/src/types.ts:528](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L528)
 
 Shape of `metadata.tanstack` on a message.
 `createdAt` is an ISO-8601 string.
@@ -18,7 +18,7 @@ Shape of `metadata.tanstack` on a message.
 optional createdAt?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:521](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L521)
+Defined in: [packages/ai/src/types.ts:529](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L529)
 
 ***
 
@@ -28,7 +28,7 @@ Defined in: [packages/ai/src/types.ts:521](https://github.com/TanStack/ai/blob/m
 optional model?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:522](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L522)
+Defined in: [packages/ai/src/types.ts:530](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L530)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [packages/ai/src/types.ts:522](https://github.com/TanStack/ai/blob/m
 optional signature?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:524](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L524)
+Defined in: [packages/ai/src/types.ts:532](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L532)
 
 Thinking signature for a `role: 'reasoning'` fan-out message.
 
@@ -50,7 +50,13 @@ Thinking signature for a `role: 'reasoning'` fan-out message.
 optional structuredOutput?: object;
 ```
 
-Defined in: [packages/ai/src/types.ts:527](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L527)
+Defined in: [packages/ai/src/types.ts:540](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L540)
+
+#### data?
+
+```ts
+optional data?: unknown;
+```
 
 #### errorMessage?
 
@@ -58,10 +64,22 @@ Defined in: [packages/ai/src/types.ts:527](https://github.com/TanStack/ai/blob/m
 optional errorMessage?: string;
 ```
 
+#### partial?
+
+```ts
+optional partial?: unknown;
+```
+
 #### raw?
 
 ```ts
 optional raw?: string;
+```
+
+#### reasoning?
+
+```ts
+optional reasoning?: string;
 ```
 
 #### status?
@@ -78,9 +96,37 @@ optional status?: "error" | "complete" | "streaming";
 optional toolCallMetadata?: Record<string, unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:526](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L526)
+Defined in: [packages/ai/src/types.ts:534](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L534)
 
 Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature).
+
+***
+
+### toolResult?
+
+```ts
+optional toolResult?: object;
+```
+
+Defined in: [packages/ai/src/types.ts:535](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L535)
+
+#### content?
+
+```ts
+optional content?: ContentPart<unknown, unknown, unknown, unknown, unknown>[];
+```
+
+#### createdAt?
+
+```ts
+optional createdAt?: string;
+```
+
+#### id?
+
+```ts
+optional id?: string;
+```
 
 ***
 
@@ -90,4 +136,4 @@ Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignat
 optional uiResources?: UIResourcePart[];
 ```
 
-Defined in: [packages/ai/src/types.ts:532](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L532)
+Defined in: [packages/ai/src/types.ts:548](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L548)

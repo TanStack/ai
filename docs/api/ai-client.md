@@ -590,8 +590,9 @@ This library does not ship a dialog. Call `byok.update(provider, value)` from yo
 ```typescript ignore
 interface UIMessage {
   id: string;
-  role: "user" | "assistant";
+  role: "system" | "user" | "assistant";
   parts: MessagePart[];
+  name?: string;
   createdAt?: Date;
   metadata?: Record<string, any>;
 }
@@ -649,10 +650,14 @@ When you pass a typed `tools` array (a plain array works — `clientTools()` is 
 ```typescript ignore
 interface ToolResultPart {
   type: "tool-result";
+  id?: string;
+  name?: string;
   toolCallId: string;
-  content: string;
+  content: string | ContentPart[];
   state: ToolResultState;
   error?: string;
+  metadata?: Record<string, unknown>;
+  createdAt?: Date;
 }
 ```
 

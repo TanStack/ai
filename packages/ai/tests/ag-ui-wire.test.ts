@@ -1,7 +1,23 @@
 import { describe, it, expect } from 'vitest'
+import type { MessagesSnapshotEvent } from '@ag-ui/core'
 import { convertMessagesToModelMessages } from '../src/activities/chat/messages'
 import { uiMessagesToWire, type WireMessage } from '../src/utilities/ag-ui-wire'
 import type { ModelMessage, UIMessage } from '../src/types'
+
+// @ts-expect-error system wire messages require content
+const systemWithoutContent: WireMessage = { id: 'system', role: 'system' }
+// @ts-expect-error user wire messages require content
+const userWithoutContent: WireMessage = { id: 'user', role: 'user' }
+const activityMessage: WireMessage = {
+  id: 'activity',
+  // @ts-expect-error uiMessagesToWire never emits activity messages
+  role: 'activity',
+  activityType: 'status',
+  content: '',
+}
+void systemWithoutContent
+void userWithoutContent
+void activityMessage
 
 function anchorContent(
   wire: Array<WireMessage>,
@@ -19,6 +35,24 @@ function anchorContent(
 }
 
 describe('uiMessagesToWire', () => {
+  it('returns messages that assign directly to an AG-UI snapshot', () => {
+    const input: Array<UIMessage> = [
+      {
+        id: 'system',
+        role: 'system',
+        parts: [{ type: 'text', content: 'You are helpful' }],
+      },
+      {
+        id: 'user',
+        role: 'user',
+        parts: [{ type: 'text', content: 'Hello' }],
+      },
+    ]
+    const messages: MessagesSnapshotEvent['messages'] = uiMessagesToWire(input)
+
+    expect(messages).toHaveLength(2)
+  })
+
   it('mirrors a system UIMessage to a string content field', () => {
     const messages: Array<UIMessage> = [
       {
@@ -132,6 +166,206 @@ describe('uiMessagesToWire', () => {
     })
   })
 
+  it('fans out two output-only tool calls with unique tool-owned ids', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'assistant-1',
+        name: 'assistant-name',
+        role: 'assistant',
+        createdAt: new Date('2026-08-20T00:00:00.000Z'),
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'call-1',
+            name: 'first',
+            arguments: '{}',
+            state: 'complete',
+            output: { value: 1 },
+          },
+          {
+            type: 'tool-call',
+            id: 'call-2',
+            name: 'second',
+            arguments: '{}',
+            state: 'complete',
+            output: { value: 2 },
+          },
+        ],
+      },
+    ])
+
+    expect(wire).toHaveLength(3)
+    expect(wire.slice(1)).toEqual([
+      {
+        id: 'tool-call-1',
+        role: 'tool',
+        toolCallId: 'call-1',
+        content: '{"value":1}',
+        metadata: { tanstack: { toolResult: {} } },
+      },
+      {
+        id: 'tool-call-2',
+        role: 'tool',
+        toolCallId: 'call-2',
+        content: '{"value":2}',
+        metadata: { tanstack: { toolResult: {} } },
+      },
+    ])
+  })
+
+  it('fans out an approval result without assistant identity fields', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'assistant-1',
+        name: 'assistant-name',
+        role: 'assistant',
+        createdAt: new Date('2026-08-20T00:00:00.000Z'),
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'call-approval',
+            name: 'removeItem',
+            arguments: '{}',
+            state: 'approval-responded',
+            approval: {
+              id: 'approval-1',
+              needsApproval: true,
+              approved: false,
+            },
+          },
+        ],
+      },
+    ])
+
+    expect(wire[1]).toEqual({
+      id: 'tool-call-approval',
+      role: 'tool',
+      toolCallId: 'call-approval',
+      content: JSON.stringify({
+        approved: false,
+        message: 'User denied this action',
+      }),
+      metadata: { tanstack: { toolResult: {} } },
+    })
+  })
+
+  it('preserves multimodal output-only content in tool ownership metadata', () => {
+    const content = [
+      { type: 'text' as const, content: 'result' },
+      {
+        type: 'image' as const,
+        source: {
+          type: 'url' as const,
+          value: 'https://example.com/result.png',
+        },
+      },
+    ]
+    const wire = uiMessagesToWire([
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'call-image',
+            name: 'createImage',
+            arguments: '{}',
+            state: 'complete',
+            output: content,
+          },
+        ],
+      },
+    ])
+
+    expect(wire[1]).toEqual({
+      id: 'tool-call-image',
+      role: 'tool',
+      toolCallId: 'call-image',
+      content: JSON.stringify(content),
+      metadata: { tanstack: { toolResult: { content } } },
+    })
+  })
+
+  it('preserves tool metadata and multimodal content through JSON wire data', () => {
+    const createdAt = new Date('2026-08-20T00:00:00.000Z')
+    const content = [
+      { type: 'text' as const, content: 'result' },
+      {
+        type: 'image' as const,
+        source: {
+          type: 'url' as const,
+          value: 'https://example.com/result.png',
+        },
+      },
+    ]
+    const metadata = {
+      source: 'test',
+      createdAt: 'metadata-date',
+      nested: { createdAt: 'nested-date' },
+      tanstack: {
+        createdAt: 'tanstack-date',
+        uiResources: [{ type: 'ui-resource', resource: { value: 1 } }],
+        toolCallMetadata: { call: { createdAt: 'call-date' } },
+        toolResult: { id: 'stale', createdAt: 'stale', content: 'stale' },
+      },
+    }
+    const wire = JSON.parse(
+      JSON.stringify(
+        uiMessagesToWire([
+          {
+            id: 'result-1',
+            role: 'tool',
+            name: 'createImage',
+            toolCallId: 'call-image',
+            content,
+            metadata,
+            createdAt,
+          },
+        ]),
+      ),
+    )
+
+    expect(wire[0]).toEqual({
+      id: 'result-1',
+      role: 'tool',
+      name: 'createImage',
+      toolCallId: 'call-image',
+      content: JSON.stringify(content),
+      metadata: {
+        ...metadata,
+        tanstack: {
+          ...metadata.tanstack,
+          toolResult: {
+            id: 'result-1',
+            createdAt: createdAt.toISOString(),
+            content,
+          },
+        },
+      },
+    })
+
+    expect(convertMessagesToModelMessages(wire)).toEqual([
+      {
+        id: 'result-1',
+        role: 'tool',
+        name: 'createImage',
+        toolCallId: 'call-image',
+        content,
+        metadata: {
+          source: 'test',
+          createdAt: 'metadata-date',
+          nested: { createdAt: 'nested-date' },
+          tanstack: {
+            createdAt: 'tanstack-date',
+            uiResources: [{ type: 'ui-resource', resource: { value: 1 } }],
+            toolCallMetadata: { call: { createdAt: 'call-date' } },
+          },
+        },
+        createdAt,
+      },
+    ])
+  })
+
   it('preserves ModelMessage name on the AG-UI wire', () => {
     const wire = uiMessagesToWire([
       { id: 'u1', role: 'user', content: 'hi', name: 'Dana' },
@@ -153,6 +387,7 @@ describe('uiMessagesToWire', () => {
         role: 'tool',
         toolCallId: 'call-1',
         content: '[]',
+        metadata: { tanstack: { toolResult: { id: 'tool-call-1' } } },
       },
     ])
 
@@ -163,6 +398,7 @@ describe('uiMessagesToWire', () => {
         role: 'tool',
         toolCallId: 'call-1',
         content: '[]',
+        metadata: { tanstack: { toolResult: { id: 'a1' } } },
       },
     ])
   })
@@ -174,6 +410,7 @@ describe('uiMessagesToWire', () => {
         role: 'tool',
         toolCallId: 'call-1',
         content: '[]',
+        metadata: { tanstack: { toolResult: { id: 'result-1' } } },
       },
     ])
 
@@ -183,6 +420,7 @@ describe('uiMessagesToWire', () => {
         role: 'tool',
         toolCallId: 'call-1',
         content: '[]',
+        metadata: { tanstack: { toolResult: { id: 'result-1' } } },
       },
     ])
   })
@@ -195,6 +433,7 @@ describe('uiMessagesToWire', () => {
         toolCallId: 'call-1',
         content: '{"error":"boom"}',
         error: 'boom',
+        metadata: { tanstack: { toolResult: { id: 'result-1' } } },
       },
     ])
 
@@ -205,6 +444,7 @@ describe('uiMessagesToWire', () => {
         toolCallId: 'call-1',
         content: '{"error":"boom"}',
         error: 'boom',
+        metadata: { tanstack: { toolResult: { id: 'result-1' } } },
       },
     ])
   })
@@ -255,6 +495,38 @@ describe('uiMessagesToWire', () => {
         },
       },
     ])
+  })
+
+  it('round-trips null tool-call metadata losslessly', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'assistant-1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'call-1',
+            name: 'lookup',
+            arguments: '{}',
+            state: 'input-complete',
+            metadata: null,
+          },
+        ],
+      },
+    ])
+
+    expect(wire[0]).toHaveProperty(
+      'metadata.tanstack.toolCallMetadata.call-1',
+      null,
+    )
+    const assistant = wire[0]
+    if (assistant?.role !== 'assistant') {
+      throw new Error('missing assistant wire message')
+    }
+    const model = convertMessagesToModelMessages([
+      { ...assistant, content: assistant.content ?? null },
+    ])
+    expect(model[0]).toHaveProperty('toolCalls.0.metadata', null)
   })
 
   it('converts multimodal user ModelMessage content to AG-UI content', () => {
@@ -506,7 +778,12 @@ describe('uiMessagesToWire', () => {
     if (!Array.isArray(content)) {
       throw new Error('expected multimodal user content')
     }
-    expect(content[0]?.metadata).toEqual({ detail: 'high' })
+    const first = content[0]
+    expect(
+      first && typeof first === 'object' && 'metadata' in first
+        ? first.metadata
+        : undefined,
+    ).toEqual({ detail: 'high' })
   })
 
   it('copies user metadata and writes metadata.tanstack.createdAt as ISO-8601', () => {
@@ -727,5 +1004,139 @@ describe('uiMessagesToWire', () => {
         },
       },
     })
+  })
+
+  it('does not carry stale TanStack metadata into a later snapshot', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'a1',
+        role: 'assistant',
+        metadata: {
+          tanstack: {
+            structuredOutput: { status: 'complete', raw: '{"old":true}' },
+            uiResources: [],
+            toolCallMetadata: { old: { value: true } },
+            createdAt: '2026-08-20T00:00:00.000Z',
+          },
+        },
+        parts: [{ type: 'text', content: 'new' }],
+      },
+    ])
+
+    expect(wire[0]).toMatchObject({
+      content: 'new',
+    })
+    expect(wire[0]).not.toHaveProperty('metadata.tanstack.structuredOutput')
+    expect(wire[0]).not.toHaveProperty('metadata.tanstack.uiResources')
+    expect(wire[0]).not.toHaveProperty('metadata.tanstack.toolCallMetadata')
+  })
+
+  it('keeps distinct per-tool ids and metadata when multiple results are emitted', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-call',
+            id: 'call-1',
+            name: 'one',
+            arguments: '{}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            id: 'result-1',
+            name: 'one',
+            toolCallId: 'call-1',
+            content: '1',
+            state: 'complete',
+            metadata: { n: 1 },
+          },
+          {
+            type: 'tool-call',
+            id: 'call-2',
+            name: 'two',
+            arguments: '{}',
+            state: 'input-complete',
+          },
+          {
+            type: 'tool-result',
+            id: 'result-2',
+            name: 'two',
+            toolCallId: 'call-2',
+            content: '2',
+            state: 'complete',
+            metadata: { n: 2 },
+          },
+        ],
+      },
+    ])
+    expect(wire.filter((message) => message.role === 'tool')).toMatchObject([
+      { id: 'result-1', name: 'one', metadata: { n: 1 } },
+      { id: 'result-2', name: 'two', metadata: { n: 2 } },
+    ])
+  })
+
+  it('suffixes duplicate explicit tool-result ids', () => {
+    const wire = uiMessagesToWire([
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-result',
+            id: 'same',
+            toolCallId: 'call-1',
+            content: '1',
+            state: 'complete',
+          },
+          {
+            type: 'tool-result',
+            id: 'same',
+            toolCallId: 'call-2',
+            content: '2',
+            state: 'complete',
+          },
+        ],
+      },
+    ])
+    expect(
+      wire
+        .filter((message) => message.role === 'tool')
+        .map((message) => message.id),
+    ).toEqual(['same', 'same-2'])
+  })
+
+  it('keeps each tool result timestamp in snapshot metadata', () => {
+    const first = new Date('2026-08-20T00:00:00.000Z')
+    const second = new Date('2026-08-20T00:00:01.000Z')
+    const wire = uiMessagesToWire([
+      {
+        id: 'a1',
+        role: 'assistant',
+        parts: [
+          {
+            type: 'tool-result',
+            toolCallId: 'call-1',
+            content: '1',
+            state: 'complete',
+            createdAt: first,
+          },
+          {
+            type: 'tool-result',
+            toolCallId: 'call-2',
+            content: '2',
+            state: 'complete',
+            createdAt: second,
+          },
+        ],
+      },
+    ])
+    expect(
+      wire
+        .filter((message) => message.role === 'tool')
+        .map((message) => message.metadata?.tanstack?.toolResult?.createdAt),
+    ).toEqual([first.toISOString(), second.toISOString()])
   })
 })

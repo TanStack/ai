@@ -439,10 +439,14 @@ export interface ToolCallPart<TMetadata = unknown> {
 
 export interface ToolResultPart {
   type: 'tool-result'
+  id?: string
+  name?: string
   toolCallId: string
   content: string | Array<ContentPart>
   state: ToolResultState
   error?: string // Error message if state is "error"
+  metadata?: Record<string, unknown>
+  createdAt?: Date
 }
 
 export interface ThinkingPart {
@@ -528,6 +532,11 @@ export interface TanStackMessageMetadata {
   signature?: string
   /** Per-tool-call provider metadata keyed by tool call id (e.g. Gemini thoughtSignature). */
   toolCallMetadata?: Record<string, unknown>
+  toolResult?: {
+    id?: string
+    createdAt?: string
+    content?: Array<ContentPart>
+  }
   structuredOutput?: {
     status?: 'streaming' | 'complete' | 'error'
     partial?: unknown

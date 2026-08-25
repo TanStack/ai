@@ -1,4 +1,13 @@
 import type {
+  AssistantMessage,
+  InputContent,
+  ReasoningMessage,
+  SystemMessage,
+  ToolCall,
+  ToolMessage,
+  UserMessage,
+} from '@ag-ui/core'
+import type {
   ContentPart,
   MessagePart,
   ModelMessage,
@@ -9,53 +18,56 @@ import type {
 } from '../types'
 import type { MetadataRecord } from './merge-metadata'
 import { tanstackMetadata } from './merge-metadata'
+import { normalizeToolResult } from './tool-result'
 import {
   coerceCreatedAt,
   modelMessageToUIMessage,
 } from '../activities/chat/messages'
 
-type AGUITextInputContent = { type: 'text'; text: string }
-type AGUIInputContent =
-  | AGUITextInputContent
-  | (ContentPart & { type: 'image' | 'audio' | 'video' | 'document' })
+type WithMetadata<T> = T & { metadata?: MetadataRecord }
+type WireSystemMessage = WithMetadata<SystemMessage>
+type WireUserMessage = WithMetadata<UserMessage>
+type WireAssistantMessage = WithMetadata<AssistantMessage>
+type WireToolMessage = WithMetadata<
+  ToolMessage & {
+    name?: string
+  }
+>
+type WireReasoningMessage = WithMetadata<ReasoningMessage>
 
-type AGUIToolCallMirror = {
-  id: string
-  type: 'function'
-  function: { name: string; arguments: string }
-  encryptedValue?: string
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-type AGUIToolMessage = {
-  role: 'tool'
-  id: string
-  toolCallId: string
-  content: string
-  error?: string
-}
-
-type AGUIReasoningMessage = {
-  role: 'reasoning'
-  id: string
-  content: string
-  encryptedValue?: string
-  metadata?: MetadataRecord
-}
-
-/** Spec AG-UI message. No `parts`, no `createdAt` Date. */
-type WireAnchorMessage = {
-  id: string
-  role: UIMessage['role']
-  name?: string
-  content?: string | Array<AGUIInputContent>
-  toolCalls?: Array<AGUIToolCallMirror>
-  metadata?: MetadataRecord
+function rebuiltToolMetadata(
+  metadata: unknown,
+  createdAt: unknown,
+  id: string | undefined,
+  content: string | null | Array<ContentPart>,
+  anchorOwnsUiResources = false,
+): MetadataRecord | undefined {
+  const source: MetadataRecord = isRecord(metadata) ? metadata : {}
+  const tanstack = isRecord(source.tanstack) ? { ...source.tanstack } : {}
+  if (anchorOwnsUiResources) delete tanstack.uiResources
+  const date = coerceCreatedAt(createdAt)
+  const toolResult: NonNullable<TanStackMessageMetadata['toolResult']> = {
+    ...(id !== undefined ? { id } : {}),
+    ...(date && { createdAt: date.toISOString() }),
+    ...(Array.isArray(content) && { content }),
+  }
+  const result = {
+    ...source,
+    tanstack: { ...tanstack, toolResult },
+  }
+  return Object.keys(result).length ? result : undefined
 }
 
 export type WireMessage =
-  | WireAnchorMessage
-  | AGUIToolMessage
-  | AGUIReasoningMessage
+  | WireSystemMessage
+  | WireUserMessage
+  | WireAssistantMessage
+  | WireToolMessage
+  | WireReasoningMessage
 
 /**
  * Serialize TanStack `UIMessage`s and `ModelMessage`s into the AG-UI
@@ -71,6 +83,13 @@ export function uiMessagesToWire(
   options?: { includeSnapshotStructuredOutput: boolean },
 ): Array<WireMessage> {
   const wire: Array<WireMessage> = []
+  const usedWireIds = new Set<string>(
+    messages.flatMap((message) =>
+      'id' in message && message.id && message.role !== 'tool'
+        ? [message.id]
+        : [],
+    ),
+  )
   const includeSnapshotStructuredOutput =
     options?.includeSnapshotStructuredOutput ?? false
 
@@ -83,15 +102,27 @@ export function uiMessagesToWire(
 
   for (const msg of messages) {
     if (!('parts' in msg) && msg.role === 'tool' && msg.toolCallId) {
+      const id = uniqueToolWireId(
+        toolWireId(msg.id, msg.toolCallId, assistantIds),
+        usedWireIds,
+      )
+      const metadata = rebuiltToolMetadata(
+        msg.metadata,
+        msg.createdAt,
+        msg.id,
+        msg.content,
+      )
       wire.push({
         role: 'tool',
-        id: toolWireId(msg.id, msg.toolCallId, assistantIds),
+        id,
+        ...(msg.name !== undefined && { name: msg.name }),
         toolCallId: msg.toolCallId,
         content:
           typeof msg.content === 'string'
             ? msg.content
             : JSON.stringify(msg.content),
         ...(msg.error !== undefined && { error: msg.error }),
+        ...(metadata !== undefined && { metadata }),
       })
       continue
     }
@@ -99,11 +130,13 @@ export function uiMessagesToWire(
     const uiMessage: UIMessage =
       'parts' in msg ? msg : modelMessageToUIMessage(msg, msg.id)
     const parts: ReadonlyArray<MessagePart> = uiMessage.parts
+    usedWireIds.add(uiMessage.id)
 
     if (msg.role === 'system') {
       wire.push(
         toAnchor(
           uiMessage,
+          'system',
           {
             content:
               parts.length > 0
@@ -121,6 +154,7 @@ export function uiMessagesToWire(
       wire.push(
         toAnchor(
           uiMessage,
+          'user',
           {
             content:
               parts.length > 0
@@ -137,9 +171,9 @@ export function uiMessagesToWire(
     // assistant: emit reasoning fan-outs first, then anchor, then tool fan-outs
     for (const part of parts) {
       if (part.type === 'thinking') {
-        const reasoning: AGUIReasoningMessage = {
+        const reasoning: WireReasoningMessage = {
           role: 'reasoning',
-          id: deriveReasoningId(uiMessage.id, part),
+          id: uniqueWireId(deriveReasoningId(uiMessage.id, part), usedWireIds),
           content: part.content,
         }
         if (part.signature) {
@@ -154,6 +188,7 @@ export function uiMessagesToWire(
     wire.push(
       toAnchor(
         uiMessage,
+        'assistant',
         {
           ...(text !== '' && { content: text }),
           ...(toolCalls && { toolCalls }),
@@ -163,17 +198,68 @@ export function uiMessagesToWire(
       ),
     )
 
+    const explicitToolResults = new Set(
+      parts.flatMap((part) =>
+        part.type === 'tool-result' ? [part.toolCallId] : [],
+      ),
+    )
     for (const part of parts) {
       if (part.type === 'tool-result') {
+        const id = uniqueToolWireId(
+          part.id ?? deriveToolMessageId(part.toolCallId),
+          usedWireIds,
+        )
+        const metadata = rebuiltToolMetadata(
+          part.metadata,
+          part.createdAt,
+          part.id,
+          part.content,
+          true,
+        )
         wire.push({
           role: 'tool',
-          id: deriveToolMessageId(part.toolCallId),
+          id,
           toolCallId: part.toolCallId,
+          ...(part.name !== undefined && { name: part.name }),
           content:
             typeof part.content === 'string'
               ? part.content
               : JSON.stringify(part.content),
           ...(part.error !== undefined && { error: part.error }),
+          ...(metadata !== undefined && { metadata }),
+        })
+      } else if (part.type === 'tool-call') {
+        const approved = part.approval?.approved
+        if (
+          explicitToolResults.has(part.id) ||
+          (part.output === undefined &&
+            (part.state !== 'approval-responded' || approved === undefined))
+        ) {
+          continue
+        }
+        const result =
+          part.output !== undefined
+            ? normalizeToolResult(part.output)
+            : JSON.stringify({
+                approved,
+                ...(approved && { pendingExecution: true }),
+                message: approved
+                  ? 'User approved this action'
+                  : 'User denied this action',
+              })
+        const content =
+          typeof result === 'string' ? result : JSON.stringify(result)
+        wire.push({
+          role: 'tool',
+          id: uniqueToolWireId(deriveToolMessageId(part.id), usedWireIds),
+          toolCallId: part.id,
+          content,
+          metadata: rebuiltToolMetadata(
+            undefined,
+            undefined,
+            undefined,
+            result,
+          ),
         })
       }
     }
@@ -184,20 +270,55 @@ export function uiMessagesToWire(
 
 function toAnchor(
   msg: UIMessage,
+  role: 'system',
+  extras: { content: string },
+  parts: ReadonlyArray<MessagePart>,
+  includeSnapshotStructuredOutput: boolean,
+): WireSystemMessage
+function toAnchor(
+  msg: UIMessage,
+  role: 'user',
+  extras: { content: string | Array<InputContent> },
+  parts: ReadonlyArray<MessagePart>,
+  includeSnapshotStructuredOutput: boolean,
+): WireUserMessage
+function toAnchor(
+  msg: UIMessage,
+  role: 'assistant',
   extras: {
-    content?: string | Array<AGUIInputContent>
-    toolCalls?: Array<AGUIToolCallMirror>
+    content?: string
+    toolCalls?: Array<ToolCall>
   },
   parts: ReadonlyArray<MessagePart>,
   includeSnapshotStructuredOutput: boolean,
-): WireAnchorMessage {
+): WireAssistantMessage
+function toAnchor(
+  msg: UIMessage,
+  role: UIMessage['role'],
+  extras: {
+    content?: string | Array<InputContent>
+    toolCalls?: Array<ToolCall>
+  },
+  parts: ReadonlyArray<MessagePart>,
+  includeSnapshotStructuredOutput: boolean,
+): WireSystemMessage | WireUserMessage | WireAssistantMessage {
   const metadata = messageMetadata(msg, parts, includeSnapshotStructuredOutput)
-  return {
+  const base = {
     id: msg.id,
-    role: msg.role,
     ...(msg.name !== undefined && { name: msg.name }),
-    ...extras,
     ...(metadata !== undefined && { metadata }),
+  }
+  if (role === 'system') {
+    return { ...base, role, content: String(extras.content ?? '') }
+  }
+  if (role === 'user') {
+    return { ...base, role, content: extras.content ?? '' }
+  }
+  return {
+    ...base,
+    role,
+    ...(typeof extras.content === 'string' && { content: extras.content }),
+    ...(extras.toolCalls !== undefined && { toolCalls: extras.toolCalls }),
   }
 }
 
@@ -207,7 +328,12 @@ function messageMetadata(
   includeSnapshotStructuredOutput: boolean,
 ): MetadataRecord | undefined {
   const base: MetadataRecord = { ...(msg.metadata ?? {}) }
-  const tanstack: MetadataRecord = { ...(tanstackMetadata(msg) ?? {}) }
+  const previousTanstack = tanstackMetadata(msg)
+  const tanstack: TanStackMessageMetadata = {}
+  if (previousTanstack?.model !== undefined)
+    tanstack.model = previousTanstack.model
+  if (previousTanstack?.signature !== undefined)
+    tanstack.signature = previousTanstack.signature
   const createdAt = coerceCreatedAt(msg.createdAt)
   if (createdAt !== undefined) tanstack.createdAt = createdAt.toISOString()
 
@@ -233,6 +359,7 @@ function messageMetadata(
   if (uiResources.length > 0) tanstack.uiResources = uiResources
 
   if (Object.keys(tanstack).length > 0) base.tanstack = tanstack
+  else delete base.tanstack
   return Object.keys(base).length > 0 ? base : undefined
 }
 
@@ -299,7 +426,7 @@ function collectText(parts: ReadonlyArray<MessagePart>): string {
 
 function collectUserContent(
   parts: ReadonlyArray<MessagePart>,
-): string | Array<AGUIInputContent> {
+): string | Array<InputContent> {
   const hasMultimodal = parts.some(
     (p) =>
       p.type === 'image' ||
@@ -310,7 +437,7 @@ function collectUserContent(
   if (!hasMultimodal) {
     return collectText(parts)
   }
-  const out: Array<AGUIInputContent> = []
+  const out: Array<InputContent> = []
   for (const p of parts) {
     if (p.type === 'text') {
       out.push({ type: 'text', text: p.content })
@@ -341,8 +468,8 @@ function thoughtSignatureFromMetadata(metadata: unknown): string | undefined {
 
 function collectToolCalls(
   parts: ReadonlyArray<MessagePart>,
-): Array<AGUIToolCallMirror> | undefined {
-  const calls: Array<AGUIToolCallMirror> = []
+): Array<ToolCall> | undefined {
+  const calls: Array<ToolCall> = []
   for (const p of parts) {
     if (p.type === 'tool-call') {
       const encryptedValue = thoughtSignatureFromMetadata(p.metadata)
@@ -363,6 +490,22 @@ function deriveReasoningId(messageId: string, part: MessagePart): string {
 
 function deriveToolMessageId(toolCallId: string): string {
   return `tool-${toolCallId}`
+}
+
+function uniqueToolWireId(id: string, used: Set<string>): string {
+  return uniqueWireId(id, used)
+}
+
+function uniqueWireId(id: string, used: Set<string>): string {
+  if (!used.has(id)) {
+    used.add(id)
+    return id
+  }
+  let suffix = 2
+  while (used.has(`${id}-${suffix}`)) suffix++
+  const unique = `${id}-${suffix}`
+  used.add(unique)
+  return unique
 }
 
 function toolWireId(

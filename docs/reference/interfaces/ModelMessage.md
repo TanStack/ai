@@ -31,10 +31,22 @@ Defined in: [packages/ai/src/types.ts:370](https://github.com/TanStack/ai/blob/m
 optional createdAt?: Date;
 ```
 
-Defined in: [packages/ai/src/types.ts:394](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L394)
+Defined in: [packages/ai/src/types.ts:398](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L398)
 
 Optional message creation timestamp. When present, message converters
 preserve it across persist → hydrate round-trips.
+
+***
+
+### error?
+
+```ts
+optional error?: string;
+```
+
+Defined in: [packages/ai/src/types.ts:376](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L376)
+
+Error reported by an AG-UI tool message.
 
 ***
 
@@ -44,7 +56,7 @@ preserve it across persist → hydrate round-trips.
 optional id?: string;
 ```
 
-Defined in: [packages/ai/src/types.ts:389](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L389)
+Defined in: [packages/ai/src/types.ts:393](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L393)
 
 Optional stable message id. Providers ignore it; it exists so a persisted
 transcript can retain the streaming `messageId` and survive the
@@ -77,18 +89,6 @@ Defined in: [packages/ai/src/types.ts:371](https://github.com/TanStack/ai/blob/m
 
 ***
 
-### error?
-
-```ts
-optional error?: string;
-```
-
-Defined in: [packages/ai/src/types.ts:376](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L376)
-
-Error reported by an AG-UI tool message.
-
-***
-
 ### role
 
 ```ts
@@ -105,7 +105,7 @@ Defined in: [packages/ai/src/types.ts:369](https://github.com/TanStack/ai/blob/m
 optional structuredOutput?: StructuredOutputPart<unknown>;
 ```
 
-Defined in: [packages/ai/src/types.ts:380](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L380)
+Defined in: [packages/ai/src/types.ts:384](https://github.com/TanStack/ai/blob/main/packages/ai/src/types.ts#L384)
 
 Completed structured output represented by this assistant message.
 `content` remains the provider-facing JSON text; this field preserves the
