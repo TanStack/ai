@@ -348,7 +348,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-14"
+          "updatedAt": "2026-08-25"
         },
         {
           "label": "How Persistence Works",

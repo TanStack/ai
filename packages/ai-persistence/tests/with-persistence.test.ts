@@ -136,7 +136,7 @@ describe('withPersistence (state-only)', () => {
     // assistant's terminal text reply.
     expect((await persistence.stores.runs!.get('r1'))?.status).toBe('completed')
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'hi' },
+      expect.objectContaining({ role: 'user', content: 'hi' }),
       expect.objectContaining({ role: 'assistant', content: 'hello' }),
     ])
   })
@@ -176,10 +176,88 @@ describe('withPersistence (state-only)', () => {
     // the kept message plus the assistant reply remain.
     const thread = await persistence.stores.messages!.loadThread('t1')
     expect(thread).toEqual([
-      { role: 'user', content: 'KEEP_ME_LAST' },
+      expect.objectContaining({ role: 'user', content: 'KEEP_ME_LAST' }),
       expect.objectContaining({ role: 'assistant', content: 'hello' }),
     ])
     expect(JSON.stringify(thread)).not.toContain('DROP_ME_FIRST')
+  })
+
+  it('stamps a stable id on every persisted message and keeps it across turns', async () => {
+    // The engine ids assistant messages but leaves incoming user messages and
+    // engine-created tool messages without one. Persistence must fill those so a
+    // row-keyed adapter can reconcile by id. Turn 1 runs a tool round-trip
+    // (user 'search' -> assistant tool call -> tool result -> assistant reply).
+    const persistence = memoryPersistence()
+    const toolThenText = mockAdapter([
+      [
+        ev.runStarted(),
+        {
+          type: EventType.TEXT_MESSAGE_START,
+          messageId: 'agent-tool',
+          role: 'assistant',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_START,
+          toolCallId: 'call_1',
+          toolCallName: 'search',
+          toolName: 'search',
+          parentMessageId: 'agent-tool',
+          timestamp: 1,
+        },
+        {
+          type: EventType.TOOL_CALL_ARGS,
+          toolCallId: 'call_1',
+          delta: '{}',
+          timestamp: 1,
+        },
+        {
+          type: EventType.RUN_FINISHED,
+          runId: 'r1',
+          threadId: 't1',
+          finishReason: 'tool_calls',
+          timestamp: 1,
+        },
+      ],
+      [ev.runStarted(), ev.text('done'), ev.runFinished()],
+    ])
+
+    await collect(
+      chat({
+        adapter: toolThenText.adapter,
+        messages: [{ role: 'user', content: 'search' }],
+        tools: [serverSearchTool()],
+        runId: 'r1',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const turn1 = await persistence.stores.messages!.loadThread('t1')
+    // User, assistant(tool call), tool result, assistant(reply) — all must have ids.
+    expect(turn1.length).toBeGreaterThanOrEqual(3)
+    expect(
+      turn1.every((m) => typeof m.id === 'string' && m.id.length > 0),
+    ).toBe(true)
+    const idsBefore = turn1.map((m) => m.id)
+
+    // Turn 2 continues from the stored thread. The earlier messages already carry
+    // ids, so ensureMessageIds is a no-op on them: same ids survive the round-trip.
+    const { adapter: turn2Adapter } = mockAdapter([
+      [ev.runStarted('r2'), ev.text('more'), ev.runFinished('r2')],
+    ])
+    await collect(
+      chat({
+        adapter: turn2Adapter,
+        messages: [...turn1, { role: 'user', content: 'again' }],
+        runId: 'r2',
+        threadId: 't1',
+        middleware: [withPersistence(persistence)],
+      }) as AsyncIterable<StreamChunk>,
+    )
+
+    const turn2 = await persistence.stores.messages!.loadThread('t1')
+    expect(turn2.slice(0, idsBefore.length).map((m) => m.id)).toEqual(idsBefore)
   })
 
   it('persists cumulative usage across model calls', async () => {
@@ -299,7 +377,7 @@ describe('withPersistence (state-only)', () => {
 
     // onStart persisted the user turn before the failure, so it is not lost.
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'hi' },
+      expect.objectContaining({ role: 'user', content: 'hi' }),
     ])
     expect((await persistence.stores.runs!.get('r1'))?.status).toBe('failed')
   })
@@ -343,7 +421,7 @@ describe('withPersistence (state-only)', () => {
     // The partial assistant reply was snapshotted mid-stream, so it survives —
     // tagged with its stream messageId so a reload resumes the same bubble.
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'hi' },
+      expect.objectContaining({ role: 'user', content: 'hi' }),
       expect.objectContaining({
         role: 'assistant',
         content: 'Half a stor',
@@ -397,7 +475,7 @@ describe('withPersistence (state-only)', () => {
     ).rejects.toThrow('crash mid-stream')
 
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'hi' },
+      expect.objectContaining({ role: 'user', content: 'hi' }),
       expect.objectContaining({
         role: 'assistant',
         content: 'Half a stor',
@@ -527,7 +605,7 @@ describe('withPersistence (state-only)', () => {
     // Identity round-trip: the persisted assistant turn keeps the stream id, so
     // `modelMessagesToUIMessages` reuses it and a reload can resume in place.
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'hi' },
+      expect.objectContaining({ role: 'user', content: 'hi' }),
       expect.objectContaining({
         role: 'assistant',
         content: 'hello',
@@ -789,7 +867,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'extract' },
+      expect.objectContaining({ role: 'user', content: 'extract' }),
       expect.objectContaining({
         id: 'structured-native',
         role: 'assistant',
@@ -852,7 +930,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'extract' },
+      expect.objectContaining({ role: 'user', content: 'extract' }),
       expect.objectContaining({
         id: 'harness-prose',
         role: 'assistant',
@@ -920,7 +998,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'extract' },
+      expect.objectContaining({ role: 'user', content: 'extract' }),
       expect.objectContaining({
         id: 'harness-prose',
         role: 'assistant',
@@ -977,7 +1055,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'extract' },
+      expect.objectContaining({ role: 'user', content: 'extract' }),
       expect.objectContaining({
         id: 'harness-prose',
         role: 'assistant',
@@ -1036,7 +1114,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'name her' },
+      expect.objectContaining({ role: 'user', content: 'name her' }),
       expect.objectContaining({
         id: 'think-msg',
         role: 'assistant',
@@ -1071,7 +1149,7 @@ describe('withPersistence (state-only)', () => {
     )
 
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      { role: 'user', content: 'extract' },
+      expect.objectContaining({ role: 'user', content: 'extract' }),
       expect.objectContaining({
         role: 'assistant',
         content: raw,

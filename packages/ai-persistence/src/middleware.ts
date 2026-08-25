@@ -1,6 +1,7 @@
 import {
   defineChatMiddleware,
   fromSpecTokenUsage,
+  generateMessageId,
   getDetachableRun,
   InterruptResumeValidationError,
   readInterruptBinding,
@@ -45,6 +46,7 @@ import type {
   GenerationMiddleware,
   GenerationMiddlewareContext,
   Interrupt,
+  ModelMessage,
   PendingInterruptResumeRecord,
   PersistedArtifactActivity,
   PersistedArtifactRef,
@@ -1938,6 +1940,25 @@ export interface WithPersistenceOptions {
 }
 
 /**
+ * Stamp a stable `id` on any message that lacks one, in place, before the
+ * transcript is saved. The engine always ids assistant messages but leaves
+ * incoming user messages (when the client omits an id), engine-created tool
+ * messages, and compaction-injected messages without one. Mutating the shared
+ * `ctx.messages` objects means the SAME message keeps its id across this run's
+ * saves and, when the server owns the thread, across the next turn's reload.
+ * That is what lets a row-keyed store reconcile by id instead of rewriting the
+ * whole transcript.
+ *
+ * ponytail: server-authoritative only. A client that owns the transcript must
+ * send its own ids; upgrade path is stamping ids in the engine if that matters.
+ */
+function ensureMessageIds(messages: ReadonlyArray<ModelMessage>): void {
+  for (const message of messages) {
+    if (message.id === undefined) message.id = generateMessageId()
+  }
+}
+
+/**
  * @param persistence - Must satisfy {@link ChatTranscriptStores} (messages
  *   required). Known-absent `messages` or `interrupts` without `runs` fail at
  *   compile time; fully dynamic bags are checked at runtime.
@@ -2012,6 +2033,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           // The SAME rule `onConfig` applies when it merges. Kept here, in the
           // owner, because `saveThread` REPLACES the thread: a caller that stored
           // only the newly-sent list would delete the history.
+          ensureMessageIds(ctx.messages)
           const list = ctx.messages.length > 0 ? [...ctx.messages] : stored
           await messageStore.saveThread(ctx.threadId, list)
         },
@@ -2090,6 +2112,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // it before the assistant reply exists. Best-effort: a failed eager
       // snapshot must not abort the run — the authoritative save is `onFinish`.
       try {
+        ensureMessageIds(ctx.messages)
         await messageStore.saveThread(ctx.threadId, [...ctx.messages])
       } catch {
         // Eager pre-save is best-effort; the run continues and onFinish saves.
@@ -2142,6 +2165,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           if (now - (snapshotState.lastSnapshotAt ?? 0) >= snapshotIntervalMs) {
             snapshotState.lastSnapshotAt = now
             try {
+              ensureMessageIds(ctx.messages)
               await messageStore.saveThread(ctx.threadId, [
                 ...ctx.messages,
                 {
@@ -2197,6 +2221,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
           : (state.usage ?? chunkUsage)
       state.usage = usage
       await interruptRun(runs, ctx.runId, usage)
+      ensureMessageIds(ctx.messages)
       await messageStore.saveThread(ctx.threadId, [...ctx.messages])
       state.interrupted = true
     },
@@ -2215,6 +2240,7 @@ export function withPersistence<TStores extends ChatTranscriptStores>(
       // or consuming approvals before the durable history lands leaves a
       // "finished" run whose transcript is missing the terminal turn.
       try {
+        ensureMessageIds(ctx.messages)
         await messageStore.saveThread(ctx.threadId, [...ctx.messages])
         await commitPendingResumes(state, persistence.stores.interrupts)
         await completeRun(runs, ctx.runId, state?.usage ?? info.usage)
