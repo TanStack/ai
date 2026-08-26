@@ -68,8 +68,7 @@
     "zod": "^4.2.0"
   },
   "peerDependencies": {
-    "@tanstack/ai": "workspace:^",
-    "zod": "^4.0.0"
+    "@tanstack/ai": "workspace:^"
   },
   "dependencies": {
     "@tanstack/ai-utils": "workspace:^",

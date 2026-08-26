@@ -71,8 +71,7 @@
   },
   "peerDependencies": {
     "@anthropic-ai/vertex-sdk": "^0.19.0",
-    "@tanstack/ai": "workspace:^",
-    "zod": "^4.0.0"
+    "@tanstack/ai": "workspace:^"
   },
   "peerDependenciesMeta": {
     "@anthropic-ai/vertex-sdk": {

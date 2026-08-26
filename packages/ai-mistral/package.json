@@ -62,8 +62,7 @@
   },
   "peerDependencies": {
     "@tanstack/ai": "workspace:^",
-    "google-auth-library": "^10.5.0",
-    "zod": "^4.0.0"
+    "google-auth-library": "^10.5.0"
   },
   "peerDependenciesMeta": {
     "google-auth-library": {
