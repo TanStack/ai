@@ -19,10 +19,17 @@ If you need Mynth image models via `generateImage()` → install `@mynthio/tanst
 
 ## Install
 
-```sh
-pnpm add @mynthio/tanstack-ai-adapter @tanstack/ai
-# or: bun add … / npm install …
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @mynthio/tanstack-ai-adapter @tanstack/ai
+vue: @mynthio/tanstack-ai-adapter @tanstack/ai
+solid: @mynthio/tanstack-ai-adapter @tanstack/ai
+svelte: @mynthio/tanstack-ai-adapter @tanstack/ai
+preact: @mynthio/tanstack-ai-adapter @tanstack/ai
+angular: @mynthio/tanstack-ai-adapter @tanstack/ai
+vanilla: @mynthio/tanstack-ai-adapter @tanstack/ai
+
+<!-- ::end:tabs -->
 
 ```sh
 MYNTH_API_KEY=mak_...

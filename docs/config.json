@@ -19,7 +19,7 @@
           "label": "Quick Start: React",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
+          "updatedAt": "2026-08-26"
         },
         {
           "label": "Quick Start: React Native",
@@ -37,25 +37,25 @@
           "label": "Quick Start: Vue",
           "to": "getting-started/quick-start-vue",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
+          "updatedAt": "2026-08-26"
         },
         {
           "label": "Quick Start: Svelte",
           "to": "getting-started/quick-start-svelte",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
+          "updatedAt": "2026-08-26"
         },
         {
           "label": "Quick Start: Angular",
           "to": "getting-started/quick-start-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-08-06"
+          "updatedAt": "2026-08-26"
         },
         {
           "label": "Quick Start: Server Only",
           "to": "getting-started/quick-start-server",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
+          "updatedAt": "2026-08-26"
         },
         {
           "label": "Agent Skills (TanStack Intent)",
@@ -72,7 +72,7 @@
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
+          "updatedAt": "2026-08-26"
         }
       ]
     },
@@ -964,7 +964,7 @@
           "label": "Mynth",
           "to": "community-adapters/mynth",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
+          "updatedAt": "2026-08-26"
         }
       ]
     },

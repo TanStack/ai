@@ -19,13 +19,11 @@ Prefer one key for many models → [OpenRouter](../adapters/openrouter).
 
 ## 1. Install
 
-```bash
-npm install @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
-# or
-pnpm add @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
-# or
-yarn add @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+angular: @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 ## 2. Server
 

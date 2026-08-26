@@ -20,13 +20,17 @@ Prefer one key for many models → [OpenRouter](../adapters/openrouter).
 
 ## 1. Install
 
-```bash
-npm install @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
-# or
-pnpm add @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
-#or
-yarn add @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-react @tanstack/ai-openai
+vue: @tanstack/ai @tanstack/ai-vue @tanstack/ai-openai
+solid: @tanstack/ai @tanstack/ai-solid @tanstack/ai-openai
+svelte: @tanstack/ai @tanstack/ai-svelte @tanstack/ai-openai
+preact: @tanstack/ai @tanstack/ai-preact @tanstack/ai-openai
+angular: @tanstack/ai @tanstack/ai-angular @tanstack/ai-openai
+vanilla: @tanstack/ai @tanstack/ai-client @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 ## 2. Server route
 

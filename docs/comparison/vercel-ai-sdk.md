@@ -651,11 +651,17 @@ import { openai } from '@ai-sdk/openai'
 
 ## Start with TanStack
 
-```bash
-npm install @tanstack/ai @tanstack/ai-openai
-# or
-pnpm add @tanstack/ai @tanstack/ai-openai
-```
+<!-- ::start:tabs variant="package-manager" mode="install" -->
+
+react: @tanstack/ai @tanstack/ai-openai
+vue: @tanstack/ai @tanstack/ai-openai
+solid: @tanstack/ai @tanstack/ai-openai
+svelte: @tanstack/ai @tanstack/ai-openai
+preact: @tanstack/ai @tanstack/ai-openai
+angular: @tanstack/ai @tanstack/ai-openai
+vanilla: @tanstack/ai @tanstack/ai-openai
+
+<!-- ::end:tabs -->
 
 - [Quick Start](../getting-started/quick-start)
 - [Overview](../getting-started/overview)
