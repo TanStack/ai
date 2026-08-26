@@ -1,4 +1,4 @@
-export { createUI } from './create-ui'
+export { createUI, getUIContext } from './create-ui'
 export type {
   ChatUIComponents,
   ChatUIHost,
@@ -7,6 +7,7 @@ export type {
   LayoutProps,
   MessageProps,
   PartProps,
+  RegisteredInterruptProps,
   ToolProps,
   UIDescriptor,
 } from './create-ui'

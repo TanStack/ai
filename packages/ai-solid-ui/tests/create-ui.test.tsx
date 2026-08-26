@@ -26,7 +26,7 @@ describe('Solid createUI', () => {
         getWeather: (props) => <strong>{props.part.input?.city}</strong>,
         purchaseItem: () => null,
       },
-      interrupts: { fallback: () => null },
+      interrupts: { generic: { fallback: () => null } },
     })
 
     expect(
@@ -55,7 +55,7 @@ describe('Solid createUI', () => {
         getWeather: () => null,
         purchaseItem: () => null,
       },
-      interrupts: { fallback: () => null },
+      interrupts: { generic: { fallback: () => null } },
     })
     renderHtml(() => <UI.Chat chat={chat} components={components} />)
     renderHtml(() => <UI.Chat chat={chat} components={components} />)

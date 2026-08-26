@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { partTypeToKey, selectChatUI } from '../src/ui'
+import {
+  partTypeToKey,
+  resolveInterruptComponent,
+  selectChatUI,
+} from '../src/ui'
 import {
   approvalInterrupt,
   genericInterrupt,
@@ -171,5 +175,30 @@ describe('selectChatUI', () => {
       interrupts: [genericInterrupt, unboundInterrupt],
     })
     expect(selected.interrupts).toEqual([genericInterrupt, unboundInterrupt])
+  })
+})
+
+describe('resolveInterruptComponent', () => {
+  const Plan = { id: 'plan' }
+  const Fallback = { id: 'fallback' }
+  const Purchase = { id: 'purchase' }
+  const map = {
+    tools: { purchaseItem: Purchase },
+    generic: {
+      choosePlan: Plan,
+      fallback: Fallback,
+    },
+  }
+
+  it('resolves a registered generic interrupt from generic[id]', () => {
+    expect(resolveInterruptComponent(genericInterrupt, map)).toBe(Plan)
+  })
+
+  it('resolves unbound through generic.fallback', () => {
+    expect(resolveInterruptComponent(unboundInterrupt, map)).toBe(Fallback)
+  })
+
+  it('resolves a tool approval from tools[name]', () => {
+    expect(resolveInterruptComponent(approvalInterrupt, map)).toBe(Purchase)
   })
 })

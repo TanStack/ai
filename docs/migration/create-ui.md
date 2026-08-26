@@ -110,6 +110,7 @@ export function NewChat() {
 
 - A shared `chatOptions` variable does not need `as const`.
 - `{ component, placement: 'inline' }` puts a tool approval in the tool slot. A direct tool interrupt component uses the list.
+- Generic interrupts live under `interrupts.generic`: a registered id such as `choosePlan`, plus `fallback`. Unbound interrupts use `fallback`.
 - Matched `tool-result` parts are hidden in automatic traversal. Unmatched results stay visible.
 - Nested providers use the nearest chat instance.
 

@@ -8,6 +8,7 @@ keywords:
   - createUI
   - vue
   - headless ui
+  - ToolProps
 ---
 
 Install `@tanstack/ai-vue-ui`. Call `createUI(chatOptions)` once. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
@@ -56,7 +57,7 @@ const components = ui.defineComponents({
       },
     }),
   },
-  interrupts: { fallback: defineComponent(() => () => null) },
+  interrupts: { generic: { fallback: defineComponent(() => () => null) } },
 })
 
 export default defineComponent({
@@ -69,4 +70,92 @@ export default defineComponent({
 
 Layout uses slots `messages`, `interrupts`, and `input`. Message uses slot `parts`. Manual lists use the default slot on `UIMessages` with `{ messages }`.
 
-The typed tool map, interrupt map, and fallback rules match the [React contract](./react).
+## Type a component in its own file
+
+Use `ToolProps` on the component props. Share the same `chatOptions` object that you pass to `createUI`.
+
+```ts
+import { defineComponent, h } from 'vue'
+import { fetchServerSentEvents } from '@tanstack/ai-vue'
+import { createUI, type ToolProps } from '@tanstack/ai-vue-ui'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'getWeather',
+  description: 'Look up weather',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ temperature: z.number() }),
+}).client()
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  tools: [getWeather],
+}
+
+export const WeatherTool = defineComponent(
+  (props: ToolProps<typeof chatOptions, 'getWeather'>) => {
+    return () => h('strong', props.part.input?.city)
+  },
+)
+
+const ui = createUI(chatOptions)
+
+export const components = ui.defineComponents({
+  layout: defineComponent((_, { slots }) => () => slots.messages?.()),
+  message: defineComponent((_, { slots }) => () => h('article', slots.parts?.())),
+  parts: { fallback: defineComponent(() => () => null) },
+  tools: { getWeather: WeatherTool },
+})
+```
+
+Registered generic interrupts use `RegisteredInterruptProps<typeof chatOptions, 'choosePlan'>`.
+
+## Read chat from `ui.useChat()`
+
+Call `ui.useChat()` inside a child of `UIChat` or `UIProvider`.
+
+```ts
+import { defineComponent, h } from 'vue'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
+import { createUI, UIChat } from '@tanstack/ai-vue-ui'
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+}
+
+const ui = createUI(chatOptions)
+
+const StatusLine = defineComponent({
+  setup() {
+    const chat = ui.useChat()
+    return () => {
+      const messages = Array.isArray(chat.messages) ? chat.messages : []
+      return h('p', String(messages.length) + ' messages')
+    }
+  },
+})
+
+const components = ui.defineComponents({
+  layout: defineComponent((_, { slots }) => () =>
+    h('main', [h(StatusLine), slots.messages?.()]),
+  ),
+  message: defineComponent((_, { slots }) => () => h('article', slots.parts?.())),
+  parts: { fallback: defineComponent(() => () => null) },
+})
+
+export default defineComponent({
+  setup() {
+    const chat = useChat(chatOptions)
+    return () => h(UIChat, { ui, chat, components })
+  },
+})
+```
+
+`useChat(chatOptions)` from `@tanstack/ai-vue` owns the state. `ui.useChat()` reads the instance you passed into `UIChat`.
+
+## Interrupts
+
+Tool approvals can sit in the tool (`placement: 'inline'` plus the `renderInterrupt` slot) or in the list (a direct component). Generic interrupts always sit in the list under `interrupts.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
+
+The full map is on the [React page](./react).

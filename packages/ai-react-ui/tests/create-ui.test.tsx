@@ -30,7 +30,9 @@ describe('createUI', () => {
         getWeather: ({ part }) => <strong>{part.input?.city}</strong>,
         purchaseItem: () => null,
       },
-      interrupts: { fallback: ({ interrupt }) => <i>{interrupt.reason}</i> },
+      interrupts: {
+        generic: { fallback: ({ interrupt }) => <i>{interrupt.reason}</i> },
+      },
     })
 
     const chat = createChatResult({ messages: [messageWithToolResults] })
@@ -61,7 +63,7 @@ describe('createUI', () => {
         getWeather: () => null,
         purchaseItem: () => null,
       },
-      interrupts: { fallback: () => null },
+      interrupts: { generic: { fallback: () => null } },
     })
     renderToStaticMarkup(<UI.Chat chat={chat} components={components} />)
     renderToStaticMarkup(<UI.Chat chat={chat} components={components} />)
@@ -83,7 +85,7 @@ describe('createUI', () => {
         getWeather: () => <strong>weather</strong>,
         purchaseItem: () => null,
       },
-      interrupts: { fallback: () => null },
+      interrupts: { generic: { fallback: () => null } },
     })
 
     const matched = renderToStaticMarkup(
@@ -131,7 +133,7 @@ describe('createUI', () => {
             placement: 'inline',
           },
         },
-        fallback: ({ interrupt }) => <i>{interrupt.reason}</i>,
+        generic: { fallback: ({ interrupt }) => <i>{interrupt.reason}</i> },
       },
     })
 
@@ -169,7 +171,7 @@ describe('createUI', () => {
         tools: {
           purchaseItem: () => <b>list-approval</b>,
         },
-        fallback: () => null,
+        generic: { fallback: () => null },
       },
     })
 
@@ -185,7 +187,7 @@ describe('createUI', () => {
     expect(listMarkup).toContain('list-approval')
   })
 
-  it('renders generic and unbound interrupts through specific entries or fallback', () => {
+  it('renders registered generic interrupts and sends the rest to fallback', () => {
     const UI = createUI(chatOptions)
     const components = UI.defineComponents({
       layout: ({ renderInterrupts }) => renderInterrupts(),
@@ -196,11 +198,10 @@ describe('createUI', () => {
         purchaseItem: () => null,
       },
       interrupts: {
-        registered: {
+        generic: {
           choosePlan: () => <span>plan</span>,
+          fallback: () => <span>fallback</span>,
         },
-        unbound: () => <span>foreign</span>,
-        fallback: () => <span>fallback</span>,
       },
     })
 
@@ -213,7 +214,7 @@ describe('createUI', () => {
       />,
     )
     expect(markup).toContain('plan')
-    expect(markup).toContain('foreign')
+    expect(markup).toContain('fallback')
   })
 
   it('omits input when no input component exists', () => {
@@ -277,7 +278,7 @@ describe('createUI', () => {
         getWeather: ({ part }) => <span>{part.state}</span>,
         purchaseItem: () => null,
       },
-      interrupts: { fallback: () => null },
+      interrupts: { generic: { fallback: () => null } },
     })
 
     for (const state of states) {

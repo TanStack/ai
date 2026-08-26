@@ -27,14 +27,14 @@ UI.defineComponents({
     unknownTool: () => null,
   },
   interrupts: {
-    registered: {
+    generic: {
       choosePlan: (props) => {
         props.interrupt.resolveInterrupt('approved')
         // @ts-expect-error The response schema accepts a string.
         props.interrupt.resolveInterrupt(42)
         return null
       },
+      fallback: () => null,
     },
-    fallback: () => null,
   },
 })

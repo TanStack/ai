@@ -78,12 +78,29 @@ export type InterruptProps<TOptions> = {
   readonly __ui?: TOptions
 }
 
+export type RegisteredInterruptProps<
+  TOptions,
+  TId extends ChatUIRegisteredInterruptId<TOptions> =
+    ChatUIRegisteredInterruptId<TOptions>,
+> = {
+  chat: ChatUIHost
+  interrupt: RegisteredUIInterrupt<TOptions, TId>
+}
+
 type InterruptEntry<TOptions> =
   | ComponentType<InterruptProps<TOptions>>
   | {
       component: ComponentType<InterruptProps<TOptions>>
       placement?: 'inline' | 'list'
     }
+
+type GenericInterruptComponents<TOptions> = {
+  [K in ChatUIRegisteredInterruptId<TOptions> as K extends 'fallback'
+    ? never
+    : K]?: ComponentType<RegisteredInterruptProps<TOptions, K>>
+} & {
+  fallback?: ComponentType<InterruptProps<TOptions>>
+}
 
 export type ChatUIComponents<TOptions> = {
   layout: ComponentType<LayoutProps<TOptions>>
@@ -101,15 +118,7 @@ export type ChatUIComponents<TOptions> = {
     tools?: {
       [K in ChatUIToolName<TOptions>]?: InterruptEntry<TOptions>
     }
-    registered?: {
-      [K in ChatUIRegisteredInterruptId<TOptions>]?: ComponentType<{
-        chat: ChatUIHost
-        interrupt: RegisteredUIInterrupt<TOptions, K>
-      }>
-    }
-    generic?: ComponentType<InterruptProps<TOptions>>
-    unbound?: ComponentType<InterruptProps<TOptions>>
-    fallback?: ComponentType<InterruptProps<TOptions>>
+    generic?: GenericInterruptComponents<TOptions>
   }
 }
 

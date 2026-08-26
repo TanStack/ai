@@ -14,14 +14,14 @@ ui.defineComponents({
     unknownTool: () => null,
   },
   interrupts: {
-    registered: {
+    generic: {
       choosePlan: (props: {
         interrupt: { resolveInterrupt: (value: string) => void }
       }) => {
         expectTypeOf(props.interrupt.resolveInterrupt).toBeFunction()
         return null
       },
+      fallback: () => null,
     },
-    fallback: () => null,
   },
 })

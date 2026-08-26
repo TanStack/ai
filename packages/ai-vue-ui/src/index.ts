@@ -22,6 +22,7 @@ export {
   type LayoutProps,
   type MessageProps,
   type PartProps,
+  type RegisteredInterruptProps,
   type ToolProps,
   type UIDescriptor,
 } from './create-ui'

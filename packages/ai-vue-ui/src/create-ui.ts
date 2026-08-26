@@ -73,12 +73,29 @@ export type InterruptProps<TOptions> = {
   readonly __ui?: TOptions
 }
 
+export type RegisteredInterruptProps<
+  TOptions,
+  TId extends ChatUIRegisteredInterruptId<TOptions> =
+    ChatUIRegisteredInterruptId<TOptions>,
+> = {
+  chat: ChatUIHost
+  interrupt: RegisteredUIInterrupt<TOptions, TId>
+}
+
 type InterruptEntry<TOptions> =
   | Component<InterruptProps<TOptions>>
   | {
       component: Component<InterruptProps<TOptions>>
       placement?: 'inline' | 'list'
     }
+
+type GenericInterruptComponents<TOptions> = {
+  [K in ChatUIRegisteredInterruptId<TOptions> as K extends 'fallback'
+    ? never
+    : K]?: Component<RegisteredInterruptProps<TOptions, K>>
+} & {
+  fallback?: Component<InterruptProps<TOptions>>
+}
 
 export type ChatUIComponents<TOptions> = {
   layout: Component
@@ -96,15 +113,7 @@ export type ChatUIComponents<TOptions> = {
     tools?: {
       [K in ChatUIToolName<TOptions>]?: InterruptEntry<TOptions>
     }
-    registered?: {
-      [K in ChatUIRegisteredInterruptId<TOptions>]?: Component<{
-        chat: ChatUIHost
-        interrupt: RegisteredUIInterrupt<TOptions, K>
-      }>
-    }
-    generic?: Component<InterruptProps<TOptions>>
-    unbound?: Component<InterruptProps<TOptions>>
-    fallback?: Component<InterruptProps<TOptions>>
+    generic?: GenericInterruptComponents<TOptions>
   }
 }
 
@@ -114,6 +123,7 @@ export type UIDescriptor<TOptions = unknown> = {
   defineComponents: (
     components: ChatUIComponents<TOptions>,
   ) => ChatUIComponents<TOptions>
+  useChat: () => ChatUIHost
 }
 
 type UIContextValue<TOptions> = {
@@ -225,13 +235,17 @@ export function createUI<const TOptions>(
 ): UIDescriptor<TOptions> {
   void options
   const key = Symbol('tanstack-ai-ui') as InjectionKey<UIContextValue<TOptions>>
-  return {
+  const ui: UIDescriptor<TOptions> = {
     key,
     warn: createWarnOnce(),
     defineComponents(components) {
       return components
     },
+    useChat() {
+      return useUI(ui).chat
+    },
   }
+  return ui
 }
 
 export const UIProvider = defineComponent({
