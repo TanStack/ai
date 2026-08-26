@@ -23,6 +23,12 @@
           "updatedAt": "2026-08-26"
         },
         {
+          "label": "Quick Start: Server Only",
+          "to": "getting-started/quick-start-server",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-26"
+        },
+        {
           "label": "Quick Start: React Native",
           "to": "getting-started/quick-start-react-native",
           "addedAt": "2026-05-28",
@@ -35,22 +41,11 @@
           "updatedAt": "2026-08-06"
         },
         {
-          "label": "Quick Start: Server Only",
-          "to": "getting-started/quick-start-server",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-26"
-        },
-        {
           "label": "Agent Skills (TanStack Intent)",
           "to": "getting-started/agent-skills",
           "addedAt": "2026-04-17",
           "updatedAt": "2026-08-06"
-        }
-      ]
-    },
-    {
-      "label": "Comparison",
-      "children": [
+        },
         {
           "label": "TanStack AI vs Vercel AI SDK",
           "to": "comparison/vercel-ai-sdk",
@@ -60,29 +55,46 @@
       ]
     },
     {
+      "label": "Chat & Streaming",
+      "children": [
+        {
+          "label": "Streaming",
+          "to": "chat/streaming",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Connection Adapters",
+          "to": "chat/connection-adapters",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Thinking & Reasoning",
+          "to": "chat/thinking-content",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Agentic Cycle",
+          "to": "chat/agentic-cycle",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Custom Events Reference",
+          "to": "protocol/custom-events",
+          "addedAt": "2026-07-03",
+          "updatedAt": "2026-08-06"
+        }
+      ]
+    },
+    {
       "label": "Tools",
       "children": [
         {
           "label": "Tools",
           "to": "tools/tools",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Provider Tools",
-          "to": "tools/provider-tools",
-          "addedAt": "2026-04-21",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Provider Skills",
-          "to": "tools/provider-skills",
-          "addedAt": "2026-06-04",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Tool Architecture",
-          "to": "tools/tool-architecture",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-06"
         },
@@ -105,16 +117,29 @@
           "updatedAt": "2026-08-06"
         },
         {
+          "label": "Tool Architecture",
+          "to": "tools/tool-architecture",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Provider Tools",
+          "to": "tools/provider-tools",
+          "addedAt": "2026-04-21",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Provider Skills",
+          "to": "tools/provider-skills",
+          "addedAt": "2026-06-04",
+          "updatedAt": "2026-08-06"
+        },
+        {
           "label": "Lazy Tool Discovery",
           "to": "tools/lazy-tool-discovery",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-06"
-        }
-      ]
-    },
-    {
-      "label": "MCP",
-      "children": [
+        },
         {
           "label": "MCP Server Tools",
           "to": "tools/mcp",
@@ -148,29 +173,207 @@
       ]
     },
     {
-      "label": "Chat & Streaming",
+      "label": "Adapters",
       "children": [
         {
-          "label": "Agentic Cycle",
-          "to": "chat/agentic-cycle",
+          "label": "OpenRouter Adapter",
+          "to": "adapters/openrouter",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-06"
         },
         {
-          "label": "Streaming",
-          "to": "chat/streaming",
+          "label": "OpenAI",
+          "to": "adapters/openai",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-06"
         },
         {
-          "label": "Connection Adapters",
-          "to": "chat/connection-adapters",
+          "label": "Anthropic",
+          "to": "adapters/anthropic",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-06"
         },
         {
-          "label": "Thinking & Reasoning",
-          "to": "chat/thinking-content",
+          "label": "Google Gemini",
+          "to": "adapters/gemini",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Ollama",
+          "to": "adapters/ollama",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Grok (xAI)",
+          "to": "adapters/grok",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Groq",
+          "to": "adapters/groq",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Mistral",
+          "to": "adapters/mistral",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Amazon Bedrock",
+          "to": "adapters/bedrock",
+          "addedAt": "2026-06-25",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "BytePlus",
+          "to": "adapters/byteplus",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "ElevenLabs",
+          "to": "adapters/elevenlabs",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "fal.ai",
+          "to": "adapters/fal",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "OpenAI-Compatible",
+          "to": "adapters/openai-compatible",
+          "addedAt": "2026-06-01",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Claude Code",
+          "to": "adapters/claude-code",
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Codex",
+          "to": "adapters/codex",
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "OpenCode",
+          "to": "adapters/opencode",
+          "addedAt": "2026-06-12",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Grok Build",
+          "to": "adapters/grok-build",
+          "addedAt": "2026-06-29",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "ACP-Compatible",
+          "to": "adapters/acp-compatible",
+          "addedAt": "2026-06-30",
+          "updatedAt": "2026-08-06"
+        }
+      ]
+    },
+    {
+      "label": "Structured Outputs",
+      "tab": "guides",
+      "children": [
+        {
+          "label": "Overview",
+          "to": "structured-outputs/overview",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "One-Shot Extraction",
+          "to": "structured-outputs/one-shot",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Streaming UIs",
+          "to": "structured-outputs/streaming",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Multi-Turn Chat",
+          "to": "structured-outputs/multi-turn",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "With Tools",
+          "to": "structured-outputs/with-tools",
+          "addedAt": "2026-05-19",
+          "updatedAt": "2026-08-06"
+        }
+      ]
+    },
+    {
+      "label": "Media",
+      "children": [
+        {
+          "label": "Generations",
+          "to": "media/generations",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Realtime Voice Chat",
+          "to": "media/realtime-chat",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Text-to-Speech",
+          "to": "media/text-to-speech",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Transcription",
+          "to": "media/transcription",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Audio Recording",
+          "to": "media/audio-recording",
+          "addedAt": "2026-06-23",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Audio Generation",
+          "to": "media/audio-generation",
+          "addedAt": "2026-04-23",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Image Generation",
+          "to": "media/image-generation",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Video Generation",
+          "to": "media/video-generation",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Generation Hooks",
+          "to": "media/generation-hooks",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-06"
         }
@@ -207,30 +410,6 @@
         {
           "label": "Migration",
           "to": "interrupts/migration",
-          "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-06"
-        }
-      ]
-    },
-    {
-      "label": "Resumable Streams",
-      "tab": "guides",
-      "children": [
-        {
-          "label": "Overview",
-          "to": "resumable-streams/overview",
-          "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Advanced",
-          "to": "resumable-streams/advanced",
-          "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Custom Durability Adapter",
-          "to": "resumable-streams/custom-adapter",
           "addedAt": "2026-08-04",
           "updatedAt": "2026-08-06"
         }
@@ -335,48 +514,90 @@
       ]
     },
     {
-      "label": "Protocol",
+      "label": "Resumable Streams",
+      "tab": "guides",
       "children": [
         {
-          "label": "Custom Events Reference",
-          "to": "protocol/custom-events",
-          "addedAt": "2026-07-03",
+          "label": "Overview",
+          "to": "resumable-streams/overview",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Advanced",
+          "to": "resumable-streams/advanced",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Custom Durability Adapter",
+          "to": "resumable-streams/custom-adapter",
+          "addedAt": "2026-08-04",
           "updatedAt": "2026-08-06"
         }
       ]
     },
     {
-      "label": "Structured Outputs",
+      "label": "Middleware",
+      "children": [
+        {
+          "label": "Middleware",
+          "to": "advanced/middleware",
+          "addedAt": "2026-04-15",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Built-in Middleware",
+          "to": "advanced/built-in-middleware",
+          "addedAt": "2026-06-03",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "Locks",
+          "to": "advanced/locks",
+          "addedAt": "2026-08-04",
+          "updatedAt": "2026-08-06"
+        },
+        {
+          "label": "OpenTelemetry",
+          "to": "advanced/otel",
+          "addedAt": "2026-05-08",
+          "updatedAt": "2026-08-06"
+        }
+      ]
+    },
+    {
+      "label": "Memory",
       "tab": "guides",
       "children": [
         {
           "label": "Overview",
-          "to": "structured-outputs/overview",
-          "addedAt": "2026-05-19",
+          "to": "memory/overview",
+          "addedAt": "2026-08-04",
           "updatedAt": "2026-08-06"
         },
         {
-          "label": "One-Shot Extraction",
-          "to": "structured-outputs/one-shot",
-          "addedAt": "2026-05-19",
+          "label": "Quickstart",
+          "to": "memory/quickstart",
+          "addedAt": "2026-08-04",
           "updatedAt": "2026-08-06"
         },
         {
-          "label": "Streaming UIs",
-          "to": "structured-outputs/streaming",
-          "addedAt": "2026-05-19",
+          "label": "Adapters",
+          "to": "memory/adapters",
+          "addedAt": "2026-08-04",
           "updatedAt": "2026-08-06"
         },
         {
-          "label": "Multi-Turn Chat",
-          "to": "structured-outputs/multi-turn",
-          "addedAt": "2026-05-19",
+          "label": "Custom Adapter",
+          "to": "memory/custom-adapter",
+          "addedAt": "2026-08-04",
           "updatedAt": "2026-08-06"
         },
         {
-          "label": "With Tools",
-          "to": "structured-outputs/with-tools",
-          "addedAt": "2026-05-19",
+          "label": "Operating",
+          "to": "memory/operating",
+          "addedAt": "2026-08-04",
           "updatedAt": "2026-08-06"
         }
       ]
@@ -412,94 +633,6 @@
           "label": "Lazy Tools",
           "to": "code-mode/lazy-tools",
           "addedAt": "2026-06-08",
-          "updatedAt": "2026-08-06"
-        }
-      ]
-    },
-    {
-      "label": "Media",
-      "children": [
-        {
-          "label": "Generations",
-          "to": "media/generations",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Realtime Voice Chat",
-          "to": "media/realtime-chat",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Text-to-Speech",
-          "to": "media/text-to-speech",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Transcription",
-          "to": "media/transcription",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Audio Recording",
-          "to": "media/audio-recording",
-          "addedAt": "2026-06-23",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Audio Generation",
-          "to": "media/audio-generation",
-          "addedAt": "2026-04-23",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Image Generation",
-          "to": "media/image-generation",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Video Generation",
-          "to": "media/video-generation",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Generation Hooks",
-          "to": "media/generation-hooks",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        }
-      ]
-    },
-    {
-      "label": "Middleware",
-      "children": [
-        {
-          "label": "Middleware",
-          "to": "advanced/middleware",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Built-in Middleware",
-          "to": "advanced/built-in-middleware",
-          "addedAt": "2026-06-03",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Locks",
-          "to": "advanced/locks",
-          "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "OpenTelemetry",
-          "to": "advanced/otel",
-          "addedAt": "2026-05-08",
           "updatedAt": "2026-08-06"
         }
       ]
@@ -616,42 +749,6 @@
           "label": "Cloudflare (Edge)",
           "to": "sandbox/cloudflare",
           "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-06"
-        }
-      ]
-    },
-    {
-      "label": "Memory",
-      "tab": "guides",
-      "children": [
-        {
-          "label": "Overview",
-          "to": "memory/overview",
-          "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Quickstart",
-          "to": "memory/quickstart",
-          "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Adapters",
-          "to": "memory/adapters",
-          "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Custom Adapter",
-          "to": "memory/custom-adapter",
-          "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Operating",
-          "to": "memory/operating",
-          "addedAt": "2026-08-04",
           "updatedAt": "2026-08-06"
         }
       ]
@@ -793,118 +890,6 @@
           "label": "@tanstack/ai-angular",
           "to": "api/ai-angular",
           "addedAt": "2026-06-15",
-          "updatedAt": "2026-08-06"
-        }
-      ]
-    },
-    {
-      "label": "Adapters",
-      "children": [
-        {
-          "label": "OpenAI",
-          "to": "adapters/openai",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Anthropic",
-          "to": "adapters/anthropic",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Google Gemini",
-          "to": "adapters/gemini",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Ollama",
-          "to": "adapters/ollama",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Grok (xAI)",
-          "to": "adapters/grok",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Groq",
-          "to": "adapters/groq",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Mistral",
-          "to": "adapters/mistral",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "ElevenLabs",
-          "to": "adapters/elevenlabs",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "fal.ai",
-          "to": "adapters/fal",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "OpenRouter Adapter",
-          "to": "adapters/openrouter",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "OpenAI-Compatible",
-          "to": "adapters/openai-compatible",
-          "addedAt": "2026-06-01",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Claude Code",
-          "to": "adapters/claude-code",
-          "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Codex",
-          "to": "adapters/codex",
-          "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "OpenCode",
-          "to": "adapters/opencode",
-          "addedAt": "2026-06-12",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Grok Build",
-          "to": "adapters/grok-build",
-          "addedAt": "2026-06-29",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "ACP-Compatible",
-          "to": "adapters/acp-compatible",
-          "addedAt": "2026-06-30",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Amazon Bedrock",
-          "to": "adapters/bedrock",
-          "addedAt": "2026-06-25",
-          "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "BytePlus",
-          "to": "adapters/byteplus",
-          "addedAt": "2026-08-04",
           "updatedAt": "2026-08-06"
         }
       ]
