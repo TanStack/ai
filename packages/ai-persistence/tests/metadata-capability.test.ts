@@ -6,11 +6,7 @@ import {
   defineChatMiddleware,
   getMetadata,
 } from '@tanstack/ai'
-import type {
-  AnyTextAdapter,
-  MetadataStore,
-  StreamChunk,
-} from '@tanstack/ai'
+import type { AnyTextAdapter, MetadataStore, StreamChunk } from '@tanstack/ai'
 import { memoryPersistence } from '../src/memory'
 import { withPersistence } from '../src/middleware'
 import { defineAIPersistence, defineMessageStore } from '../src/types'

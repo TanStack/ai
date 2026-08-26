@@ -32,7 +32,9 @@ test.describe('withCompaction — wire format', () => {
 
     // Persistence keeps the canonical transcript, while a later request reuses
     // the compacted checkpoint without compacting the same prefix again.
-    expect(JSON.stringify(result.canonicalMessages)).toContain('SECRET_ALPHA_ONE')
+    expect(JSON.stringify(result.canonicalMessages)).toContain(
+      'SECRET_ALPHA_ONE',
+    )
     expect(JSON.stringify(result.secondRequestBody)).not.toContain(
       'SECRET_ALPHA_ONE',
     )

@@ -8,10 +8,7 @@ import {
 } from '@tanstack/ai-compaction'
 import type { CompactionStrategy } from '@tanstack/ai-compaction'
 import type { ModelMessage } from '@tanstack/ai'
-import {
-  memoryPersistence,
-  withPersistence,
-} from '@tanstack/ai-persistence'
+import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 

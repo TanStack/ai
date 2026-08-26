@@ -327,20 +327,14 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       let workingMessages = inputMessages
       let reusedCheckpoint = false
 
-      if (
-        metadata &&
-        checkpointStrategyKey &&
-        inputMessages === messages
-      ) {
+      if (metadata && checkpointStrategyKey && inputMessages === messages) {
         const stored = await metadata.get(CHECKPOINT_NAMESPACE, ctx.threadId)
         if (
           isCompactionCheckpoint(stored) &&
           stored.strategyKey === checkpointStrategyKey &&
           stored.sourceMessageCount <= messages.length &&
           stored.sourceHash ===
-            (await hashMessages(
-              messages.slice(0, stored.sourceMessageCount),
-            ))
+            (await hashMessages(messages.slice(0, stored.sourceMessageCount)))
         ) {
           workingMessages = [
             ...stored.compactedMessages,

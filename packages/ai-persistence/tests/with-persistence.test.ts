@@ -176,9 +176,7 @@ describe('withPersistence (state-only)', () => {
     ])
     expect(calls[0]).toEqual(
       expect.objectContaining({
-        messages: [
-          { role: 'user', content: 'KEEP_ME_LAST' },
-        ],
+        messages: [{ role: 'user', content: 'KEEP_ME_LAST' }],
       }),
     )
   })

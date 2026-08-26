@@ -15,7 +15,6 @@ export interface MetadataStore {
   delete: (namespace: string, key: string) => Promise<void>
 }
 
-export const MetadataCapability =
-  createCapability<MetadataStore>()('metadata')
+export const MetadataCapability = createCapability<MetadataStore>()('metadata')
 
 export const [getMetadata, provideMetadata] = MetadataCapability
