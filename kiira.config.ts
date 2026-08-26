@@ -74,7 +74,7 @@ export default defineConfig({
     },
     // Solid snippets compile JSX through solid-js.
     {
-      include: ['docs/api/ai-solid.md'],
+      include: ['docs/api/ai-solid.md', 'docs/ui/solid.md'],
       jsx: 'preserve',
       jsxImportSource: 'solid-js',
     },

@@ -24,6 +24,18 @@
  * ```
  */
 
+export {
+  createUI,
+  type ChatUIComponents,
+  type ChatUIHost,
+  type InputProps,
+  type InterruptProps,
+  type LayoutProps,
+  type MessageProps,
+  type PartProps,
+  type ToolProps,
+} from './create-ui'
+
 // Main components
 export { Chat, useChatContext, type ChatProps } from './chat'
 export { ChatMessages, type ChatMessagesProps } from './chat-messages'

@@ -31,6 +31,9 @@ export interface ChatInputProps {
 }
 
 /**
+ * @deprecated Use `createUI()` and an application-owned input component.
+ * Deprecated in 0.9.0. Removed in 1.0.0.
+ *
  * Chat input component - handles message input and submission
  *
  * Features:

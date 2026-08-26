@@ -15,6 +15,8 @@ keywords:
 
 Framework-agnostic headless client for managing chat state and streaming.
 
+For typed headless chat UI types and selectors, import `@tanstack/ai-client/ui`. See [Custom Chat UI Adapters](../ui/custom-adapters).
+
 ## Installation
 
 ```bash

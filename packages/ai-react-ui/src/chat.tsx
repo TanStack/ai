@@ -16,6 +16,7 @@ const ChatContext = createContext<UseChatReturn | null>(null)
  * Hook to access chat context
  * @throws Error if used outside of Chat component
  */
+/** @deprecated Use `createUI().useChat()` instead. Deprecated in 0.9.0. Removed in 1.0.0. */
 export function useChatContext() {
   const context = useContext(ChatContext)
   if (!context) {
@@ -26,6 +27,7 @@ export function useChatContext() {
   return context
 }
 
+/** @deprecated Use `createUI()` Chat/Provider instead. Deprecated in 0.9.0. Removed in 1.0.0. */
 export interface ChatProps {
   /** Child components (Chat.Messages, Chat.Input, etc.) */
   children: ReactNode
@@ -52,6 +54,10 @@ export interface ChatProps {
 }
 
 /**
+ * @deprecated Use `createUI()` from `@tanstack/ai-react-ui` instead.
+ * See https://tanstack.com/ai/latest/docs/migration/create-ui
+ * Deprecated in 0.9.0. Removed in 1.0.0.
+ *
  * Root Chat component - provides context for all chat subcomponents
  *
  * @example

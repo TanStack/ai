@@ -18,7 +18,7 @@ const config = defineConfig({
     // vite-plugin-solid transforms them into the test graph, so tests run in
     // a DOM environment rather than 'node'.
     environment: 'happy-dom',
-    include: ['tests/**/*.test.ts'],
+    include: ['tests/**/*.test.ts', 'tests/**/*.test.tsx'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],

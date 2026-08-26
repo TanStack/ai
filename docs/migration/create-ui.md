@@ -1,0 +1,116 @@
+---
+title: Migrate to createUI
+id: migrate-create-ui
+order: 5
+description: "Move chat-state ownership out of the old Chat component and onto createUI with a typed component map."
+keywords:
+  - tanstack ai
+  - createUI
+  - migration
+  - deprecation
+---
+
+The old `Chat` component owned chat state and lost configured types. `createUI` keeps types from your `chatOptions` and leaves `useChat` in your app.
+
+This is a semantic migration. There is no codemod.
+
+## What changes
+
+1. You call `useChat` or `createChat` yourself.
+2. You supply every visible component.
+3. Tool inputs stay optional while they stream.
+4. Tool approvals come from `chat.interrupts`.
+5. Unknown runtime keys can use a fallback or render nothing.
+6. `createUI()` must run at module scope so identity stays stable.
+
+## Why
+
+The old APIs drop configured types, keep unused properties, use a deprecated approval path, cover only part of the message protocol, and own chat state. Two orchestration models duplicate fixes.
+
+## Minimum versions
+
+- `@tanstack/ai-react-ui` 0.9.0
+- `@tanstack/ai-solid-ui` 0.8.0
+- `@tanstack/ai-vue-ui` 0.3.0
+- `@tanstack/ai-svelte-ui` 0.1.0
+
+Old orchestration exports stay importable until each package's `1.0.0`. `TextPart` and `ThinkingPart` stay supported.
+
+## Before
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-react'
+import { Chat, ChatMessages, ChatInput } from '@tanstack/ai-react-ui'
+
+const connection = fetchServerSentEvents('/api/chat')
+
+export function OldChat() {
+  return (
+    <Chat connection={connection}>
+      <ChatMessages />
+      <ChatInput />
+    </Chat>
+  )
+}
+```
+
+## After
+
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { createUI } from '@tanstack/ai-react-ui'
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+}
+
+const UI = createUI(chatOptions)
+
+const components = UI.defineComponents({
+  layout: ({ renderMessages, renderInput }) => (
+    <main>
+      {renderMessages()}
+      {renderInput()}
+    </main>
+  ),
+  message: ({ renderParts }) => <article>{renderParts()}</article>,
+  input: ({ chat }) => (
+    <form
+      onSubmit={(event) => {
+        event.preventDefault()
+        const field = event.currentTarget.elements.namedItem('message')
+        if (!(field instanceof HTMLInputElement)) return
+        const text = field.value.trim()
+        if (!text) return
+        field.value = ''
+        void chat.sendMessage?.(text)
+      }}
+    >
+      <input name="message" />
+    </form>
+  ),
+  parts: { fallback: () => null },
+})
+
+export function NewChat() {
+  const chat = useChat(chatOptions)
+  return <UI.Chat chat={chat} components={components} />
+}
+```
+
+## Steps
+
+1. Move `connection`, `tools`, and `interrupts` into a module-level `chatOptions` object.
+2. Call `createUI(chatOptions)` next to that object.
+3. Call `useChat(chatOptions)` in the screen component.
+4. Define `layout`, `message`, `parts`, `tools`, and `interrupts` in `defineComponents`.
+5. Replace `<Chat>` with `<UI.Chat chat={chat} components={components} />`.
+
+## Gotchas
+
+- A shared `chatOptions` variable does not need `as const`.
+- `{ component, placement: 'inline' }` puts a tool approval in the tool slot. A direct tool interrupt component uses the list.
+- Matched `tool-result` parts are hidden in automatic traversal. Unmatched results stay visible.
+- Nested providers use the nearest chat instance.
+
+See the [React UI guide](../ui/react) for a full map.

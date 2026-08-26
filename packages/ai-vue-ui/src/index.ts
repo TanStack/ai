@@ -7,6 +7,26 @@ import TextPart from './text-part.vue'
 import ToolApproval from './tool-approval.vue'
 
 export {
+  createUI,
+  UIChat,
+  UIProvider,
+  UIMessages,
+  UIMessage,
+  UIPart,
+  UIInterrupts,
+  UIInterrupt,
+  type ChatUIComponents,
+  type ChatUIHost,
+  type InputProps,
+  type InterruptProps,
+  type LayoutProps,
+  type MessageProps,
+  type PartProps,
+  type ToolProps,
+  type UIDescriptor,
+} from './create-ui'
+
+export {
   Chat,
   ChatInput,
   ChatMessage,

@@ -1,12 +1,68 @@
 import { useEffect, useMemo, useState } from 'react'
-import { fetchServerSentEvents } from '@tanstack/ai-react'
-import type { UIMessage } from '@tanstack/ai-react'
-import {
-  Chat,
-  ChatInput,
-  ChatMessage,
-  ChatMessages,
-} from '@tanstack/ai-react-ui'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import type { ConnectionAdapter } from '@tanstack/ai-react'
+import { ChatMessage, createUI } from '@tanstack/ai-react-ui'
+
+const UI = createUI({})
+
+function AgUiChat({
+  connection,
+  placeholder,
+  emptyLabel,
+}: {
+  connection: ConnectionAdapter
+  placeholder: string
+  emptyLabel: string
+}) {
+  const chat = useChat({ connection })
+  const [draft, setDraft] = useState('')
+  const components = UI.defineComponents({
+    layout: ({ chat: current, renderMessages, renderInput }) => (
+      <div className="flex min-h-[70vh] flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50">
+        {current.error ? (
+          <p className="p-4 text-sm text-red-300">{current.error.message}</p>
+        ) : current.messages.length === 0 ? (
+          <div className="flex h-full min-h-48 items-center justify-center text-center text-sm text-slate-400">
+            {emptyLabel}
+          </div>
+        ) : (
+          <div className="flex-1 space-y-4 overflow-y-auto p-4">
+            {renderMessages()}
+          </div>
+        )}
+        <div className="border-t border-slate-800 p-4">{renderInput()}</div>
+      </div>
+    ),
+    message: ({ message }) => <ChatMessage message={message} />,
+    input: () => (
+      <form
+        className="flex gap-2"
+        onSubmit={(event) => {
+          event.preventDefault()
+          const text = draft.trim()
+          if (!text) return
+          setDraft('')
+          void chat.sendMessage(text)
+        }}
+      >
+        <input
+          className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-white"
+          placeholder={placeholder}
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+        <button
+          className="rounded-lg bg-amber-500 px-3 py-2 text-sm font-medium text-slate-950"
+          type="submit"
+        >
+          Send
+        </button>
+      </form>
+    ),
+    parts: { fallback: () => null },
+  })
+  return <UI.Chat chat={chat} components={components} />
+}
 
 type Backend = 'go' | 'rust' | 'php' | 'zig' | 'bash' | 'python'
 type Provider = 'openai' | 'anthropic'
@@ -280,28 +336,12 @@ export function App() {
             Loading backend availability…
           </div>
         ) : active.available && connection ? (
-          <Chat
+          <AgUiChat
             key={`${backend}-${provider}-${model}`}
-            className="flex min-h-[70vh] flex-1 flex-col rounded-xl border border-slate-800 bg-slate-900/50"
             connection={connection}
-          >
-            <ChatMessages
-              className="flex-1 space-y-4 overflow-y-auto p-4"
-              emptyState={
-                <div className="flex h-full min-h-48 items-center justify-center text-center text-sm text-slate-400">
-                  Chat with {active.label} over AG-UI SSE using{' '}
-                  {activeProvider.label}.
-                </div>
-              }
-            >
-              {(message: UIMessage) => <ChatMessage message={message} />}
-            </ChatMessages>
-            <div className="border-t border-slate-800 p-4">
-              <ChatInput
-                placeholder={`Message via ${active.label} + ${activeProvider.label}…`}
-              />
-            </div>
-          </Chat>
+            placeholder={`Message via ${active.label} + ${activeProvider.label}…`}
+            emptyLabel={`Chat with ${active.label} over AG-UI SSE using ${activeProvider.label}.`}
+          />
         ) : (
           <SetupInstructions server={active} />
         )}

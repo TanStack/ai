@@ -13,6 +13,8 @@ keywords:
 ---
 
 React hooks for TanStack AI, providing convenient React bindings for the headless client.
+
+For a typed headless chat UI, see [React Chat UI](../ui/react) and [Migrate to createUI](../migration/create-ui).
 For React Native, the documented support surface is narrow: `useChat` with chat
 connection adapters. React DOM-specific UI packages and TanStack AI devtools UI
 are not part of the React Native support surface.

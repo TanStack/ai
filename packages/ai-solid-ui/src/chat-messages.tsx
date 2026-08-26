@@ -4,6 +4,7 @@ import { ChatMessage } from './chat-message'
 import type { JSX } from 'solid-js'
 import type { UIMessage } from '@tanstack/ai-solid'
 
+/** @deprecated Use `createUI()` Messages instead. Deprecated in 0.8.0. Removed in 1.0.0. */
 export interface ChatMessagesProps {
   /** Custom render function for each message */
   children?: (message: UIMessage, index: number) => JSX.Element
@@ -23,6 +24,8 @@ export interface ChatMessagesProps {
 }
 
 /**
+ * @deprecated Use `createUI()` Messages instead. Deprecated in 0.8.0. Removed in 1.0.0.
+ *
  * Messages container - renders all messages in the conversation
  *
  * @example

@@ -46,6 +46,10 @@
     "./byok": {
       "types": "./dist/esm/byok.d.ts",
       "import": "./dist/esm/byok.js"
+    },
+    "./ui": {
+      "types": "./dist/esm/ui.d.ts",
+      "import": "./dist/esm/ui.js"
     }
   },
   "files": [
