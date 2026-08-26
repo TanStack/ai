@@ -91,13 +91,16 @@ generation hooks. [How persistence works](./internals) has the rest.
   middleware loads the stored transcript and the run picks up from there, so the
   client does not have to re-send history.
 
-## Compaction rewrites what you save
+## Compaction keeps the transcript complete
 
 Do you add [`withCompaction`](../advanced/compaction) to the same `chat()`? The
-saved thread is the compacted one. Compaction and `withPersistence` share the
-message array of the run, and `saveThread` overwrites the thread in full. The
-stored transcript then matches what the model saw, not the original messages. To
-keep a full transcript, see
+saved thread remains canonical. Compaction changes only the provider context,
+not `ctx.messages`. The message store keeps dropped content, summaries do not
+replace old turns, and cleared tool output remains available for reloads.
+
+If your adapter provides `stores.metadata`, `withPersistence` exposes it to
+other middleware. Compaction uses it automatically for validated checkpoints.
+See
 [Compaction and persistence](../advanced/compaction#compaction-and-persistence).
 
 ## What gets persisted, and when

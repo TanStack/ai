@@ -8,13 +8,14 @@ import {
 } from '@tanstack/ai-compaction'
 import type { CompactionStrategy } from '@tanstack/ai-compaction'
 import type { ModelMessage } from '@tanstack/ai'
+import { memoryPersistence, withPersistence } from '@tanstack/ai-persistence'
 
 const DUMMY_KEY = 'sk-e2e-test-dummy-key'
 
-function makeTextStream(): ReadableStream<Uint8Array> {
+function makeTextStream(callNumber: number): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder()
-  const responseId = 'resp_compaction'
-  const itemId = 'msg_compaction'
+  const responseId = `resp_compaction_${callNumber}`
+  const itemId = `msg_compaction_${callNumber}`
   const events = [
     {
       type: 'response.created',
@@ -111,15 +112,13 @@ export const Route = createFileRoute('/api/compaction-wire')({
         const clear =
           new URL(request.url).searchParams.get('strategy') === 'clear'
 
-        let firstRequestBody: unknown
+        const requestBodies: Array<unknown> = []
 
         const mockFetch: typeof fetch = async (input, init) => {
           const req =
             input instanceof Request ? input : new Request(input, init)
-          if (firstRequestBody === undefined) {
-            firstRequestBody = JSON.parse(await req.text())
-          }
-          return new Response(makeTextStream(), {
+          requestBodies.push(JSON.parse(await req.text()))
+          return new Response(makeTextStream(requestBodies.length), {
             headers: { 'Content-Type': 'text/event-stream' },
           })
         }
@@ -132,15 +131,44 @@ export const Route = createFileRoute('/api/compaction-wire')({
         const adapter = createOpenaiChat('gpt-5.2', DUMMY_KEY, {
           fetch: mockFetch,
         })
+        const persistence = memoryPersistence()
+        let compactionCount = 0
 
         try {
           for await (const _ of chat({
             ...createChatOptions({ adapter }),
             messages,
-            middleware: [withCompaction({ maxTokens: 60, strategy })],
+            threadId: 'compaction-wire',
+            runId: 'compaction-wire-1',
+            middleware: [
+              withPersistence(persistence),
+              withCompaction({
+                maxTokens: 60,
+                strategy,
+                onCompact: () => compactionCount++,
+              }),
+            ],
             agentLoopStrategy: maxIterations(1),
           })) {
             // Drain the stream.
+          }
+
+          for await (const _ of chat({
+            ...createChatOptions({ adapter }),
+            messages: [],
+            threadId: 'compaction-wire',
+            runId: 'compaction-wire-2',
+            middleware: [
+              withPersistence(persistence),
+              withCompaction({
+                maxTokens: 60,
+                strategy,
+                onCompact: () => compactionCount++,
+              }),
+            ],
+            agentLoopStrategy: maxIterations(1),
+          })) {
+            // Drain the restored run.
           }
         } catch (error) {
           return Response.json({
@@ -149,7 +177,15 @@ export const Route = createFileRoute('/api/compaction-wire')({
           })
         }
 
-        return Response.json({ ok: true, firstRequestBody })
+        const canonicalMessages =
+          await persistence.stores.messages.loadThread('compaction-wire')
+        return Response.json({
+          ok: true,
+          firstRequestBody: requestBodies[0],
+          secondRequestBody: requestBodies[1],
+          canonicalMessages,
+          compactionCount,
+        })
       },
     },
   },

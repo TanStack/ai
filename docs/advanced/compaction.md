@@ -14,7 +14,7 @@ keywords:
 
 A long chat or a multi-step agent loop keeps adding messages. At some point the transcript passes the model's context limit and the call fails. You want the conversation to keep working without hitting that wall.
 
-`withCompaction` shrinks the history before each model call. When the transcript passes `maxTokens`, it runs a **strategy** that rewrites the messages. It is an ordinary [`ChatMiddleware`](./middleware), so you add it to the `middleware` array of any `chat()` call.
+`withCompaction` shrinks provider context before each model call. When the context passes `maxTokens`, a **strategy** rewrites what the model sees. The canonical transcript does not change. Add this [`ChatMiddleware`](./middleware) to the `middleware` array of any `chat()` call.
 
 ## Install
 
@@ -135,8 +135,16 @@ const keepLastOnly: CompactionStrategy = (messages) => {
   return messages.slice(-1);
 };
 
-withCompaction({ maxTokens: 100_000, strategy: keepLastOnly });
+withCompaction({
+  maxTokens: 100_000,
+  strategy: keepLastOnly,
+  strategyKey: "keep-last-v1",
+});
 ```
+
+Set `strategyKey` when you combine a custom strategy with persistence. Change
+the key when the strategy can produce different output. This prevents an old
+checkpoint from using stale behavior.
 
 ## Combine strategies
 
@@ -165,6 +173,7 @@ withCompaction({
 | `maxTokens` | `number` | - | **Required.** Compact when the estimated tokens across `messages` pass this. |
 | `strategy` | `CompactionStrategy` | `evictOldest()` | How to shrink the messages. |
 | `estimateTokens` | `(message: ModelMessage) => number` | characters / 4 | Per-message token estimate. Pass a real tokenizer if you need exact counts. |
+| `strategyKey` | `string` | built-in strategy identity | Stable checkpoint identity. Set it for custom strategies, custom estimators, `summarizeOldest`, or a custom eviction marker. |
 | `onCompact` | `(info: CompactionInfo) => void` | - | Runs after each compaction. `info` is `{ before, after, messagesBefore, messagesAfter }` (token and message counts). |
 
 ### Strategy options
@@ -182,21 +191,28 @@ The token count is a rough `characters / 4` estimate. It is good enough to trigg
 - **The system prompt is never dropped.** `chat()` keeps it separate from `messages`, so compaction only touches the conversation.
 - **Tool calls stay paired with their results.** The built-in strategies never leave an orphaned tool result, so the request stays valid.
 - **It runs before every model call.** Compaction is incremental: as the chat keeps growing it compacts again, and a later `summarizeOldest` pass folds an earlier summary into the new one.
+- **The canonical transcript stays complete.** Compaction writes provider-only context. Persistence and other middleware still read `ctx.messages`.
 
 ## Compaction and persistence
 
-Compaction rewrites the messages the model sees. If you also save the thread on the server, know which copy you save.
+Compaction and server-side [`withPersistence`](../persistence/chat-persistence)
+use two message views:
 
-`withCompaction` and server-side [`withPersistence`](../persistence/chat-persistence) share one message array for the run. Compaction shrinks that array, and `withPersistence` saves it on finish with a full-overwrite `saveThread`. So the stored thread becomes the compacted one. Dropped, summarized, or stubbed messages are gone from the store. The middleware order does not change this.
+- `messages` is the complete canonical transcript. Persistence saves this view.
+- `providerMessages` is temporary model context. Compaction rewrites this view.
 
-This is what you want when the compacted thread is the memory. It is data loss when you expected the store to keep every message.
+Middleware order does not change this split. Dropped, summarized, and stubbed
+content remains in the message store.
 
-Two ways to keep a full transcript and still compact:
+If the persistence adapter has a `metadata` store, compaction also saves a small
+checkpoint. The next request validates the canonical prefix, restores the last
+compacted result, and adds only new messages. A changed prefix or strategy key
+invalidates the checkpoint.
 
-- **Client-authoritative persistence.** The browser keeps the full transcript. The server compacts only for the model call. See [Client persistence](../persistence/client-persistence).
-- **Save the transcript yourself first.** Persist the incoming `messages`, then call `chat()` with compaction.
-
-Do you use server-side [Chat persistence](../persistence/chat-persistence) and want the saved thread to stay readable? Prefer `clearToolResults` or `summarizeOldest` over `evictOldest`. They keep the shape of the conversation instead of dropping turns.
+The default strategy, standard `evictOldest`, `clearToolResults`, and safe
+compositions get a strategy key automatically. Set `strategyKey` for
+`summarizeOldest`, custom strategies, custom estimators, or custom marker
+functions. Without a metadata store or safe key, compaction stays stateless.
 
 ## Next steps
 

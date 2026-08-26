@@ -305,7 +305,10 @@ export interface ChatMiddlewareContext<TContext = unknown> {
  * that middleware is allowed to modify.
  */
 export interface ChatMiddlewareConfig {
+  /** Canonical conversation history. Middleware and persistence read this. */
   messages: Array<ModelMessage>
+  /** Provider-only context. Defaults to `messages` when it is not set. */
+  providerMessages?: Array<ModelMessage> | undefined
   systemPrompts: Array<SystemPrompt>
   tools: Array<Tool>
   resume?: Array<RunAgentResumeItem> | undefined

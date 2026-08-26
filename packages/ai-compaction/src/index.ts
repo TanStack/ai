@@ -12,7 +12,69 @@
  * The system prompt is never touched — `chat()` keeps it separate from
  * `messages`.
  */
+import { MetadataCapability, getMetadata } from '@tanstack/ai'
 import type { ChatMiddleware, ModelMessage } from '@tanstack/ai'
+
+const strategyKeys = new WeakMap<CompactionStrategy, string>()
+const CHECKPOINT_NAMESPACE = '@tanstack/ai-compaction'
+
+interface CompactionCheckpoint {
+  schemaVersion: 1
+  sourceMessageCount: number
+  sourceHash: string
+  strategyKey: string
+  compactedMessages: Array<ModelMessage>
+}
+
+function identifyStrategy(
+  strategy: CompactionStrategy,
+  key: string | undefined,
+): CompactionStrategy {
+  if (key) strategyKeys.set(strategy, key)
+  return strategy
+}
+
+async function hashMessages(
+  messages: ReadonlyArray<ModelMessage>,
+): Promise<string> {
+  const bytes = new TextEncoder().encode(JSON.stringify(messages))
+  const digest = await globalThis.crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest), (byte) =>
+    byte.toString(16).padStart(2, '0'),
+  ).join('')
+}
+
+function isModelMessage(value: unknown): value is ModelMessage {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'role' in value &&
+    (value.role === 'user' ||
+      value.role === 'assistant' ||
+      value.role === 'tool') &&
+    'content' in value
+  )
+}
+
+function isCompactionCheckpoint(value: unknown): value is CompactionCheckpoint {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'schemaVersion' in value &&
+    value.schemaVersion === 1 &&
+    'sourceMessageCount' in value &&
+    typeof value.sourceMessageCount === 'number' &&
+    Number.isInteger(value.sourceMessageCount) &&
+    value.sourceMessageCount >= 0 &&
+    'sourceHash' in value &&
+    typeof value.sourceHash === 'string' &&
+    'strategyKey' in value &&
+    typeof value.strategyKey === 'string' &&
+    'compactedMessages' in value &&
+    Array.isArray(value.compactedMessages) &&
+    value.compactedMessages.every(isModelMessage)
+  )
+}
 
 /** Rough token estimate for one message. Default: characters / 4. */
 export function estimateMessageTokens(message: ModelMessage): number {
@@ -60,6 +122,11 @@ export interface CompactionOptions {
   strategy?: CompactionStrategy
   /** Per-message token estimator. Default: {@link estimateMessageTokens}. */
   estimateTokens?: (message: ModelMessage) => number
+  /**
+   * Stable identity for persisted checkpoints. Set this for custom strategies
+   * or estimators, and change it when their output can change.
+   */
+  strategyKey?: string
   /** Observe each compaction (logging, metrics). */
   onCompact?: (info: CompactionInfo) => void
 }
@@ -108,7 +175,7 @@ export function evictOldest(
     marker?: (droppedCount: number) => string
   } = {},
 ): CompactionStrategy {
-  return (messages, ctx) => {
+  const strategy: CompactionStrategy = (messages, ctx) => {
     const keep = options.keepRecentTokens ?? Math.floor(ctx.maxTokens / 2)
     const cut = splitAtRecent(messages, ctx.estimate, keep)
     // ponytail: can't shrink past the recent window; raise keepRecentTokens or
@@ -119,6 +186,12 @@ export function evictOldest(
       `[${cut} earlier message(s) omitted to save context.]`
     return [{ role: 'user', content: marker }, ...messages.slice(cut)]
   }
+  return identifyStrategy(
+    strategy,
+    options.marker
+      ? undefined
+      : `evict-oldest:${options.keepRecentTokens ?? 'half'}`,
+  )
 }
 
 /**
@@ -164,7 +237,7 @@ export function clearToolResults(
 ): CompactionStrategy {
   const keepN = options.keepRecentToolResults ?? 3
   const stub = options.stub ?? '[tool output cleared to save context]'
-  return (messages) => {
+  const strategy: CompactionStrategy = (messages) => {
     const toolIndexes: Array<number> = []
     messages.forEach((m, i) => {
       if (m.role === 'tool') toolIndexes.push(i)
@@ -181,6 +254,7 @@ export function clearToolResults(
     })
     return changed ? next : null
   }
+  return identifyStrategy(strategy, `clear-tool-results:${keepN}:${stub}`)
 }
 
 /**
@@ -201,12 +275,12 @@ export function clearToolResults(
 export function composeStrategies(
   ...strategies: Array<CompactionStrategy>
 ): CompactionStrategy {
-  return async (messages, ctx) => {
+  const strategy: CompactionStrategy = async (messages, ctx) => {
     let current: ReadonlyArray<ModelMessage> = messages
     let result: Array<ModelMessage> | null = null
-    for (const strategy of strategies) {
+    for (const itemStrategy of strategies) {
       if (sum(current, ctx.estimate) <= ctx.maxTokens) break
-      const out = await strategy(current, ctx)
+      const out = await itemStrategy(current, ctx)
       if (out) {
         current = out
         result = out
@@ -214,6 +288,11 @@ export function composeStrategies(
     }
     return result
   }
+  const keys = strategies.map((item) => strategyKeys.get(item))
+  return identifyStrategy(
+    strategy,
+    keys.every((key) => key !== undefined) ? keys.join('|') : undefined,
+  )
 }
 
 /**
@@ -231,28 +310,78 @@ export function composeStrategies(
 export function withCompaction(options: CompactionOptions): ChatMiddleware {
   const estimate = options.estimateTokens ?? estimateMessageTokens
   const strategy = options.strategy ?? evictOldest()
+  const strategyKey =
+    options.strategyKey ??
+    (options.estimateTokens ? undefined : strategyKeys.get(strategy))
+  const checkpointStrategyKey = strategyKey
+    ? `${strategyKey}:maxTokens=${options.maxTokens}`
+    : undefined
 
   return {
     name: 'compaction',
-    async onConfig(_ctx, config) {
+    optionalRequires: [MetadataCapability],
+    async onConfig(ctx, config) {
       const { messages } = config
-      const before = sum(messages, estimate)
-      if (before <= options.maxTokens) return
+      const inputMessages = config.providerMessages ?? messages
+      const metadata = getMetadata(ctx, { optional: true })
+      let workingMessages = inputMessages
+      let reusedCheckpoint = false
 
-      const next = await strategy(messages, {
+      if (metadata && checkpointStrategyKey && inputMessages === messages) {
+        const stored = await metadata.get(CHECKPOINT_NAMESPACE, ctx.threadId)
+        if (
+          isCompactionCheckpoint(stored) &&
+          stored.strategyKey === checkpointStrategyKey &&
+          stored.sourceMessageCount <= messages.length &&
+          stored.sourceHash ===
+            (await hashMessages(messages.slice(0, stored.sourceMessageCount)))
+        ) {
+          workingMessages = [
+            ...stored.compactedMessages,
+            ...messages.slice(stored.sourceMessageCount),
+          ]
+          reusedCheckpoint = true
+        }
+      }
+
+      const before = sum(workingMessages, estimate)
+      if (before <= options.maxTokens) {
+        return reusedCheckpoint
+          ? { providerMessages: workingMessages }
+          : undefined
+      }
+
+      const next = await strategy(workingMessages, {
         maxTokens: options.maxTokens,
         estimate,
       })
-      if (!next || next === messages) return
+      if (!next || next === workingMessages) {
+        return reusedCheckpoint
+          ? { providerMessages: workingMessages }
+          : undefined
+      }
 
       options.onCompact?.({
         before,
         after: sum(next, estimate),
-        messagesBefore: messages.length,
+        messagesBefore: workingMessages.length,
         messagesAfter: next.length,
       })
 
-      return { messages: next }
+      if (metadata && checkpointStrategyKey && inputMessages === messages) {
+        const checkpoint: CompactionCheckpoint = {
+          schemaVersion: 1,
+          sourceMessageCount: messages.length,
+          sourceHash: await hashMessages(messages),
+          strategyKey: checkpointStrategyKey,
+          compactedMessages: next,
+        }
+        if (!ctx.signal?.aborted) {
+          await metadata.set(CHECKPOINT_NAMESPACE, ctx.threadId, checkpoint)
+        }
+      }
+
+      return { providerMessages: next }
     },
   }
 }

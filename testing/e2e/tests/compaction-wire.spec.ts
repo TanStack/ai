@@ -16,6 +16,9 @@ test.describe('withCompaction — wire format', () => {
       ok: boolean
       error?: string
       firstRequestBody: unknown
+      secondRequestBody: unknown
+      canonicalMessages: unknown
+      compactionCount: number
     }
     if (!result.ok) throw new Error(`Route failed: ${result.error}`)
 
@@ -26,6 +29,16 @@ test.describe('withCompaction — wire format', () => {
     expect(wire).toContain('omitted to save context')
     // The oldest message is gone.
     expect(wire).not.toContain('SECRET_ALPHA_ONE')
+
+    // Persistence keeps the canonical transcript, while a later request reuses
+    // the compacted checkpoint without compacting the same prefix again.
+    expect(JSON.stringify(result.canonicalMessages)).toContain(
+      'SECRET_ALPHA_ONE',
+    )
+    expect(JSON.stringify(result.secondRequestBody)).not.toContain(
+      'SECRET_ALPHA_ONE',
+    )
+    expect(result.compactionCount).toBe(1)
   })
 
   test('clearToolResults stubs old tool output and keeps the recent one', async ({

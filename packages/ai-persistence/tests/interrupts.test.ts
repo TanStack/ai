@@ -269,7 +269,7 @@ describe('interrupt persistence', () => {
     )
 
     expect(await persistence.stores.messages!.loadThread('t1')).toEqual([
-      expect.objectContaining({ role: 'user', content: 'hi' }),
+      { role: 'user', content: 'hi' },
     ])
   })
 

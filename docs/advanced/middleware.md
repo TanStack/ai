@@ -157,13 +157,18 @@ const dynamicTemperature: ChatMiddleware = {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | `ModelMessage[]` | Conversation history |
+| `messages` | `ModelMessage[]` | Canonical conversation history. Persistence and `ctx.messages` use this field. |
+| `providerMessages` | `ModelMessage[]` | Temporary context sent to the provider. Defaults to `messages`. |
 | `systemPrompts` | `string[]` | System prompts |
 | `tools` | `Tool[]` | Available tools |
 | `metadata` | `Record<string, unknown>` | Request metadata |
 | `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |
 
 When multiple middleware define `onConfig`, the config is **piped** through them in order — each receives the merged config from the previous middleware.
+
+Return `providerMessages` when a transform must affect only the model call. For
+compatibility, returning `messages` also updates provider input unless the same
+result sets `providerMessages` explicitly.
 
 ### onStructuredOutputConfig
 
@@ -195,7 +200,8 @@ const injectDefs: ChatMiddleware = {
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `messages` | `ModelMessage[]` | Conversation history sent to the final call |
+| `messages` | `ModelMessage[]` | Canonical conversation history |
+| `providerMessages` | `ModelMessage[]` | Temporary context sent to the final call |
 | `systemPrompts` | `SystemPrompt[]` | System prompts on the final call |
 | `metadata` | `Record<string, unknown>` | Request metadata |
 | `modelOptions` | `Record<string, unknown>` | Provider-native options — this is where sampling params (`temperature`, `top_p` / `topP`, the provider's `max*Tokens` key) now live, alongside every other model-specific knob. See [Moving Sampling Options into modelOptions](../migration/sampling-options-to-model-options). |

@@ -278,7 +278,7 @@
           "label": "Chat Persistence",
           "to": "persistence/chat-persistence",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-25"
+          "updatedAt": "2026-08-26"
         },
         {
           "label": "Client Persistence",
@@ -348,7 +348,7 @@
           "label": "Store Reference",
           "to": "persistence/store-reference",
           "addedAt": "2026-08-04",
-          "updatedAt": "2026-08-25"
+          "updatedAt": "2026-08-26"
         },
         {
           "label": "How Persistence Works",
@@ -537,7 +537,7 @@
           "label": "Middleware",
           "to": "advanced/middleware",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-24"
+          "updatedAt": "2026-08-26"
         },
         {
           "label": "Built-in Middleware",
@@ -549,7 +549,7 @@
           "label": "Compaction",
           "to": "advanced/compaction",
           "addedAt": "2026-08-24",
-          "updatedAt": "2026-08-25"
+          "updatedAt": "2026-08-26"
         },
         {
           "label": "Locks",

@@ -166,7 +166,13 @@ export class MiddlewareRunner<
         const result = await mw.onConfig(ctx, current)
         const hasTransform = result !== undefined && result !== null
         if (hasTransform) {
-          current = { ...current, ...result }
+          current = {
+            ...current,
+            ...result,
+            ...('messages' in result && !('providerMessages' in result)
+              ? { providerMessages: result.messages }
+              : {}),
+          }
           if (!skip) {
             this.logger.config(
               `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result).join(',')}`,
@@ -221,7 +227,13 @@ export class MiddlewareRunner<
         const result = await mw.onStructuredOutputConfig(ctx, current)
         const hasTransform = result !== undefined && result !== null
         if (hasTransform) {
-          current = { ...current, ...result }
+          current = {
+            ...current,
+            ...result,
+            ...('messages' in result && !('providerMessages' in result)
+              ? { providerMessages: result.messages }
+              : {}),
+          }
           if (!skip) {
             this.logger.config(
               `middleware=${mw.name ?? 'unnamed'} keys=${Object.keys(result).join(',')}`,
