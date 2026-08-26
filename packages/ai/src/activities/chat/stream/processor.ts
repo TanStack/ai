@@ -1307,12 +1307,14 @@ export class StreamProcessor {
     // Detect if this is a NEW text segment (after tool calls) vs continuation
     const isNewSegment =
       state.hasToolCallsSinceTextStart &&
-      previousSegment.length > 0 &&
       this.isNewTextSegment(chunk, previousSegment)
 
     if (isNewSegment) {
       // Emit any accumulated text before starting new segment
-      if (previousSegment !== state.lastEmittedText) {
+      if (
+        previousSegment.length > 0 &&
+        previousSegment !== state.lastEmittedText
+      ) {
         this.emitTextUpdateForMessage(messageId)
       }
       // Reset SEGMENT text accumulation for the new text segment after tool calls

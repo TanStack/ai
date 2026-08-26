@@ -1396,6 +1396,39 @@ describe('StreamProcessor', () => {
       expect((textParts[0] as any).content).toBe('Before')
       expect((textParts[1] as any).content).toBe('After')
     })
+
+    // A turn that opens with a tool call and THEN speaks: the assistant
+    // message is auto-created by TOOL_CALL_START, so TEXT_MESSAGE_START hits
+    // the pending-message path and does not reset the post-tool segment flag.
+    // The first TEXT_MESSAGE_CONTENT delta must still survive in the assembled
+    // TextPart (spec: every delta appends) rather than being folded away on the
+    // next delta.
+    it('keeps the first post-tool text delta when the turn opens with a tool call', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.toolStart('tc-1', 'search'))
+      processor.processChunk(ev.toolArgs('tc-1', '{}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'search'))
+      processor.processChunk(ev.toolResult('tc-1', '{"ok":true}'))
+      processor.processChunk(ev.textStart())
+      processor.processChunk(ev.textContent('Hello '))
+      processor.processChunk(ev.textContent('from '))
+      processor.processChunk(ev.textContent('the '))
+      processor.processChunk(ev.textContent('model.'))
+      processor.processChunk(ev.textEnd())
+      processor.processChunk(ev.runFinished('stop'))
+      processor.finalizeStream()
+
+      const textParts = processor
+        .getMessages()
+        .flatMap((m) => m.parts)
+        .filter((p): p is TextPart => p.type === 'text')
+      expect(textParts.map((p) => p.content).join('')).toBe(
+        'Hello from the model.',
+      )
+    })
   })
 
   // ==========================================================================
