@@ -1,0 +1,27 @@
+{
+  "fixtures": [
+    {
+      "match": {
+        "userMessage": "[tool-text] list the guitars in stock",
+        "sequenceIndex": 0
+      },
+      "response": {
+        "toolCalls": [
+          {
+            "name": "getGuitars",
+            "arguments": "{}"
+          }
+        ]
+      }
+    },
+    {
+      "match": {
+        "userMessage": "[tool-text] list the guitars in stock",
+        "sequenceIndex": 1
+      },
+      "response": {
+        "content": "Absolutely, here's our inventory: Fender Stratocaster, Gibson Les Paul, and Martin D-28."
+      }
+    }
+  ]
+}
