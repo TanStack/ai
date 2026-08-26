@@ -61,12 +61,8 @@ framework bindings as your app needs them.
 
 - [Overview](https://tanstack.com/ai/latest/docs/getting-started/overview) -
   what TanStack AI is and how the packages fit together.
-- [Quick Start: React](https://tanstack.com/ai/latest/docs/getting-started/quick-start) -
-  add streaming chat to a React app.
-- [Quick Start: Vue](https://tanstack.com/ai/latest/docs/getting-started/quick-start-vue) -
-  build with Vue composables.
-- [Quick Start: Svelte](https://tanstack.com/ai/latest/docs/getting-started/quick-start-svelte) -
-  build with Svelte 5 runes.
+- [Quick Start](https://tanstack.com/ai/latest/docs/getting-started/quick-start) -
+  add streaming chat (pick a framework in the docs sidebar).
 - [Quick Start: Server Only](https://tanstack.com/ai/latest/docs/getting-started/quick-start-server) -
   use TanStack AI from a server endpoint, script, or backend service.
 - [TanStack AI vs Vercel AI SDK](https://tanstack.com/ai/latest/docs/comparison/vercel-ai-sdk) -

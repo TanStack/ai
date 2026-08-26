@@ -16,7 +16,7 @@ keywords:
 
 If you need a working chat UI → [Quick Start](./quick-start). Server only → [Server Quick Start](./quick-start-server).
 
-TanStack AI is a type-safe TypeScript SDK for streaming chat, tool calling, and multi-provider AI apps. Core is framework-agnostic; React, Solid, Vue, Svelte, and Preact ship first-class clients.
+TanStack AI is a type-safe TypeScript SDK for streaming chat, tool calling, and multi-provider AI apps. Core is framework-agnostic; React, Solid, Vue, Svelte, Preact, Angular, and Octane ship first-class clients.
 
 ## When to use it
 

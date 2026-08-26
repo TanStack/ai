@@ -160,4 +160,4 @@ Adapter reads the key at runtime. Never expose to the browser.
 - [Tools](../tools/tools)
 - [StreamProcessor](../reference/classes/StreamProcessor)
 - [Adapters](../adapters/openai)
-- [React Quick Start](./quick-start)
+- [Quick Start](./quick-start)

@@ -27,6 +27,7 @@ solid: @mynthio/tanstack-ai-adapter @tanstack/ai
 svelte: @mynthio/tanstack-ai-adapter @tanstack/ai
 preact: @mynthio/tanstack-ai-adapter @tanstack/ai
 angular: @mynthio/tanstack-ai-adapter @tanstack/ai
+octane: @mynthio/tanstack-ai-adapter @tanstack/ai
 vanilla: @mynthio/tanstack-ai-adapter @tanstack/ai
 
 <!-- ::end:tabs -->

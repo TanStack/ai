@@ -659,6 +659,7 @@ solid: @tanstack/ai @tanstack/ai-openai
 svelte: @tanstack/ai @tanstack/ai-openai
 preact: @tanstack/ai @tanstack/ai-openai
 angular: @tanstack/ai @tanstack/ai-openai
+octane: @tanstack/ai @tanstack/ai-openai
 vanilla: @tanstack/ai @tanstack/ai-openai
 
 <!-- ::end:tabs -->

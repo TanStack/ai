@@ -8,15 +8,16 @@
   "sections": [
     {
       "label": "Getting Started",
+      "tab": "get-started",
       "children": [
         {
           "label": "Overview",
           "to": "getting-started/overview",
           "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-06"
+          "updatedAt": "2026-08-26"
         },
         {
-          "label": "Quick Start: React",
+          "label": "Quick Start",
           "to": "getting-started/quick-start",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-26"
@@ -32,24 +33,6 @@
           "to": "getting-started/devtools",
           "addedAt": "2026-04-15",
           "updatedAt": "2026-08-06"
-        },
-        {
-          "label": "Quick Start: Vue",
-          "to": "getting-started/quick-start-vue",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-26"
-        },
-        {
-          "label": "Quick Start: Svelte",
-          "to": "getting-started/quick-start-svelte",
-          "addedAt": "2026-04-15",
-          "updatedAt": "2026-08-26"
-        },
-        {
-          "label": "Quick Start: Angular",
-          "to": "getting-started/quick-start-angular",
-          "addedAt": "2026-06-15",
-          "updatedAt": "2026-08-26"
         },
         {
           "label": "Quick Start: Server Only",
