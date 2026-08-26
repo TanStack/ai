@@ -4109,6 +4109,38 @@ describe('StreamProcessor', () => {
         },
       ])
     })
+
+    it('should not drop the first TEXT_MESSAGE_CONTENT delta in a tool-first flow (#1247)', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'tc-1',
+          toolCallName: 'lookupWeather',
+          toolName: 'lookupWeather',
+          parentMessageId: 'anthropic-msg-1',
+        }),
+      )
+      processor.processChunk(ev.toolArgs('tc-1', '{"location":"Berlin"}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'lookupWeather'))
+
+      processor.processChunk(
+        chunk(EventType.TEXT_MESSAGE_START, {
+          messageId: 'anthropic-msg-1',
+          role: 'assistant' as const,
+        }),
+      )
+      // Two deltas: the bug only surfaces once a second delta arrives after
+      // the tool-first message's real TEXT_MESSAGE_START.
+      processor.processChunk(ev.textContent('It is ', 'anthropic-msg-1'))
+      processor.processChunk(ev.textContent('sunny.', 'anthropic-msg-1'))
+      processor.processChunk(ev.textEnd('anthropic-msg-1'))
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      const textParts = messages[0]?.parts.filter((p) => p.type === 'text')
+      expect(textParts).toEqual([{ type: 'text', content: 'It is sunny.' }])
+    })
   })
 
   describe('double onStreamEnd guard', () => {

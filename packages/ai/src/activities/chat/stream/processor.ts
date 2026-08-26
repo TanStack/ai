@@ -900,9 +900,21 @@ export class StreamProcessor {
       }
 
       // Ensure state exists
-      if (!this.messageStates.has(messageId)) {
-        this.createMessageState(messageId, uiRole)
+      let pendingState = this.messageStates.get(messageId)
+      if (!pendingState) {
+        pendingState = this.createMessageState(messageId, uiRole)
         this.activeMessageIds.add(messageId)
+      } else if (pendingState.hasToolCallsSinceTextStart) {
+        // A tool call (e.g. TOOL_CALL_START with parentMessageId) marked
+        // this message before its "real" TEXT_MESSAGE_START arrived — same
+        // reset Case 2 performs, so the segment accumulator doesn't carry
+        // stale tool-call state into the text that follows.
+        if (pendingState.currentSegmentText !== pendingState.lastEmittedText) {
+          this.emitTextUpdateForMessage(messageId)
+        }
+        pendingState.currentSegmentText = ''
+        pendingState.lastEmittedText = ''
+        pendingState.hasToolCallsSinceTextStart = false
       }
 
       this.mergeMessageMetadata(messageId, chunk.metadata)
