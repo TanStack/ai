@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { fetchServerSentEvents } from '@tanstack/ai-vue'
+import { computed, defineComponent, h, ref } from 'vue'
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
 import { clientTools } from '@tanstack/ai-client'
-import { Chat, ChatMessages, ChatInput } from '@tanstack/ai-vue-ui'
+import { createUI, UIChat } from '@tanstack/ai-vue-ui'
 
 import type { ModelOption } from '@/lib/model-selection'
 
@@ -70,8 +70,78 @@ const handleModelChange = (e: Event) => {
   setStoredModelPreference(option)
 }
 
-// Connection with dynamic body
 const connection = fetchServerSentEvents('/api/chat')
+
+const chatOptions = {
+  connection,
+  tools,
+  get body() {
+    return {
+      provider: selectedModel.value.provider,
+      model: selectedModel.value.model,
+    }
+  },
+}
+
+const ui = createUI(chatOptions)
+const chat = useChat(chatOptions)
+const draft = ref('')
+
+const components = ui.defineComponents({
+  layout: defineComponent(
+    (_, { slots }) =>
+      () =>
+        h('div', { class: 'flex-1 flex flex-col overflow-hidden' }, [
+          slots.messages?.(),
+          slots.input?.(),
+        ]),
+  ),
+  message: defineComponent({
+    props: ['message'],
+    setup(props) {
+      return () =>
+        h('article', { 'data-role': props.message.role }, [
+          ...(props.message.parts ?? []).map(
+            (part: { type: string; content?: string }) =>
+              part.type === 'text' ? h('p', part.content) : null,
+          ),
+        ])
+    },
+  }),
+  input: defineComponent({
+    setup() {
+      return () =>
+        h('div', { class: 'border-t border-orange-500/20 bg-gray-800 p-4' }, [
+          h(
+            'form',
+            {
+              onSubmit: (event: Event) => {
+                event.preventDefault()
+                const text = draft.value.trim()
+                if (!text) return
+                draft.value = ''
+                void chat.sendMessage(text)
+              },
+            },
+            [
+              h('input', {
+                class:
+                  'w-full rounded-lg border border-orange-500/20 bg-gray-900 px-3 py-2 text-white',
+                placeholder: 'Ask about guitars...',
+                value: draft.value,
+                onInput: (event: Event) => {
+                  const target = event.target
+                  if (target instanceof HTMLInputElement)
+                    draft.value = target.value
+                },
+              }),
+            ],
+          ),
+        ])
+    },
+  }),
+  parts: { fallback: defineComponent(() => () => null) },
+})
 </script>
 
 <template>
@@ -109,41 +179,7 @@ const connection = fetchServerSentEvents('/api/chat')
         </div>
       </div>
 
-      <!-- Chat component from ai-vue-ui -->
-      <Chat
-        :connection="connection"
-        :tools="tools"
-        :body="{
-          provider: selectedModel.provider,
-          model: selectedModel.model,
-        }"
-        class="flex-1 flex flex-col overflow-hidden"
-      >
-        <ChatMessages
-          class="flex-1 overflow-y-auto p-4 space-y-4"
-          :auto-scroll="true"
-        >
-          <template #emptyState>
-            <div
-              class="flex-1 flex items-center justify-center text-gray-400 h-full"
-            >
-              <div class="text-center">
-                <p class="text-lg mb-2">Welcome to the Vue UI Demo!</p>
-                <p class="text-sm">
-                  This view uses
-                  <code class="text-cyan-400">@tanstack/ai-vue-ui</code>
-                  components.
-                </p>
-                <p class="text-sm mt-1">Send a message to get started.</p>
-              </div>
-            </div>
-          </template>
-        </ChatMessages>
-
-        <div class="border-t border-orange-500/20 bg-gray-800 p-4">
-          <ChatInput placeholder="Ask about guitars..." />
-        </div>
-      </Chat>
+      <UIChat :ui="ui" :chat="chat" :components="components" />
     </div>
   </div>
 </template>

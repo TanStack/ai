@@ -15,6 +15,8 @@ keywords:
 
 Vue composables for TanStack AI, providing convenient Vue 3 bindings for the headless client.
 
+For a typed headless chat UI, see [Vue Chat UI](../ui/vue) and [Migrate to createUI](../migration/create-ui).
+
 ## Installation
 
 ```bash

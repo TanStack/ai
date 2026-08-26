@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/** @deprecated Use `createUI()` Message instead. Deprecated in 0.3.0. Removed in 1.0.0. */
 import { computed } from 'vue'
 import MessagePart from './message-part.vue'
 import type { ChatMessageProps } from './types'

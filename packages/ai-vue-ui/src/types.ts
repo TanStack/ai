@@ -1,6 +1,7 @@
 import type { ConnectionAdapter, UIMessage } from '@tanstack/ai-vue'
 import type { PluggableList } from '@crazydos/vue-markdown'
 
+/** @deprecated Use `createUI()` from `@tanstack/ai-vue-ui`. Deprecated in 0.3.0. Removed in 1.0.0. */
 export interface ChatProps {
   /** CSS class name for the root element */
   class?: string
@@ -21,6 +22,7 @@ export interface ChatProps {
   // >
 }
 
+/** @deprecated Use `createUI()` and an application-owned input component. Deprecated in 0.3.0. Removed in 1.0.0. */
 export interface ChatInputProps {
   /** CSS class name */
   class?: string
@@ -32,6 +34,7 @@ export interface ChatInputProps {
   submitOnEnter?: boolean
 }
 
+/** @deprecated Use `createUI()` and an application-owned input component. Deprecated in 0.3.0. Removed in 1.0.0. */
 export interface ChatInputRenderProps {
   /** Current input value (use v-model on ChatInput to control) */
   value: string
@@ -52,6 +55,7 @@ export interface ThinkingPartProps {
   isComplete?: boolean
 }
 
+/** @deprecated Use `createUI()` tool components instead. Deprecated in 0.3.0. Removed in 1.0.0. */
 export interface ToolCallRenderProps {
   id: string
   name: string
@@ -61,6 +65,7 @@ export interface ToolCallRenderProps {
   output?: any
 }
 
+/** @deprecated Use `createUI()` Message instead. Deprecated in 0.3.0. Removed in 1.0.0. */
 export interface ChatMessageProps {
   /** The message to render (accepts readonly from useChat) */
   message: any // Using any to accept DeepReadonly<UIMessage> from useChat
@@ -72,6 +77,7 @@ export interface ChatMessageProps {
   assistantClass?: string
 }
 
+/** @deprecated Use `createUI()` Messages instead. Deprecated in 0.3.0. Removed in 1.0.0. */
 export interface ChatMessagesProps {
   /** CSS class name */
   class?: string
@@ -101,6 +107,7 @@ export interface TextPartProps {
   disableDefaultPlugins?: boolean
 }
 
+/** @deprecated Use `createUI()` interrupt components with `chat.interrupts`. Deprecated in 0.3.0. Removed in 1.0.0. */
 export interface ToolApprovalProps {
   /** Tool call ID */
   toolCallId: string
@@ -118,6 +125,7 @@ export interface ToolApprovalProps {
   class?: string
 }
 
+/** @deprecated Use `createUI()` interrupt components with `chat.interrupts`. Deprecated in 0.3.0. Removed in 1.0.0. */
 export interface ToolApprovalRenderProps {
   /** Tool name */
   toolName: string

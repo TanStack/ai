@@ -1,6 +1,7 @@
 import { useChatContext } from './chat'
 import type { JSX } from 'solid-js'
 
+/** @deprecated Use `createUI()` interrupt components with `chat.interrupts`. Deprecated in 0.8.0. Removed in 1.0.0. */
 export interface ToolApprovalProps {
   /** Tool call ID */
   toolCallId: string
@@ -36,6 +37,8 @@ export interface ToolApprovalRenderProps {
 }
 
 /**
+ * @deprecated Use `createUI()` interrupt components with `chat.interrupts`. Deprecated in 0.8.0. Removed in 1.0.0.
+ *
  * Tool approval component - renders approve/deny buttons for tools that need approval
  *
  * @example

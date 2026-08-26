@@ -15,6 +15,8 @@ keywords:
 
 Svelte 5 bindings for TanStack AI, providing reactive factory functions for the headless client using Svelte runes.
 
+For a typed headless chat UI, see [Svelte Chat UI](../ui/svelte) and [Migrate to createUI](../migration/create-ui).
+
 ## Installation
 
 ```bash

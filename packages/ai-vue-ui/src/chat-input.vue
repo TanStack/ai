@@ -1,4 +1,5 @@
 <script setup lang="ts">
+/** @deprecated Use `createUI()` and an application-owned input component. Deprecated in 0.3.0. Removed in 1.0.0. */
 import { computed } from 'vue'
 import { useChatContext } from './use-chat-context'
 import type { ChatInputProps, ChatInputRenderProps } from './types'
