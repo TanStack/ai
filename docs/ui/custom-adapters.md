@@ -16,7 +16,7 @@ The subpath gives you:
 
 1. `selectChatUI` to match tool results and split list vs inline interrupts
 2. `partTypeToKey` to turn `tool-call` into `toolCall`
-3. Option types for tools, registered interrupts, and `outputSchema`
+3. Option types for tools, generic interrupts, and `outputSchema`
 
 Your adapter owns:
 

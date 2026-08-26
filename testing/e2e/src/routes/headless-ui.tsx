@@ -231,7 +231,7 @@ const components = UI.defineComponents({
         placement: 'inline',
       },
     },
-    fallback: () => null,
+    generic: { fallback: () => null },
   },
 })
 

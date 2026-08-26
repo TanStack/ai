@@ -8,6 +8,7 @@ keywords:
   - createUI
   - solid
   - headless ui
+  - ToolProps
 ---
 
 Install `@tanstack/ai-solid-ui`, then call `createUI(chatOptions)` once at module scope. Do not destructure reactive props.
@@ -51,7 +52,7 @@ const components = UI.defineComponents({
   tools: {
     getWeather: (props) => <strong>{props.part.input?.city}</strong>,
   },
-  interrupts: { fallback: () => null },
+  interrupts: { generic: { fallback: () => null } },
 })
 
 export function ChatScreen() {
@@ -60,6 +61,88 @@ export function ChatScreen() {
 }
 ```
 
+## Type a component in its own file
+
+Use `ToolProps` the same way as React. Keep the `props` object so Solid can track it.
+
+```tsx
+import { fetchServerSentEvents } from '@tanstack/ai-solid'
+import { createUI, type ToolProps } from '@tanstack/ai-solid-ui'
+import { toolDefinition } from '@tanstack/ai'
+import { z } from 'zod'
+
+const getWeather = toolDefinition({
+  name: 'getWeather',
+  description: 'Look up weather',
+  inputSchema: z.object({ city: z.string() }),
+  outputSchema: z.object({ temperature: z.number() }),
+}).client()
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+  tools: [getWeather],
+}
+
+export function WeatherTool(
+  props: ToolProps<typeof chatOptions, 'getWeather'>,
+) {
+  return <strong>{props.part.input?.city}</strong>
+}
+
+const UI = createUI(chatOptions)
+
+export const components = UI.defineComponents({
+  layout: (props) => props.renderMessages(),
+  message: (props) => <article>{props.renderParts()}</article>,
+  parts: { fallback: () => null },
+  tools: { getWeather: WeatherTool },
+})
+```
+
+Registered generic interrupts use `RegisteredInterruptProps<typeof chatOptions, 'choosePlan'>`.
+
+## Read chat from `UI.useChat()`
+
+```tsx
+import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
+import { createUI } from '@tanstack/ai-solid-ui'
+
+const chatOptions = {
+  connection: fetchServerSentEvents('/api/chat'),
+}
+
+const UI = createUI(chatOptions)
+
+function StatusLine() {
+  const chat = UI.useChat()
+  return <p>{chat.messages.length} messages</p>
+}
+
+const components = UI.defineComponents({
+  layout: (props) => (
+    <>
+      <StatusLine />
+      {props.renderMessages()}
+    </>
+  ),
+  message: (props) => <article>{props.renderParts()}</article>,
+  parts: { fallback: () => null },
+})
+
+export function ChatScreen() {
+  const chat = useChat(chatOptions)
+  return <UI.Chat chat={chat} components={components} />
+}
+```
+
+Call `UI.useChat()` only inside `UI.Chat` or `UI.Provider`.
+
+## Interrupts
+
+Tool approvals can sit in the tool (`placement: 'inline'` plus `props.renderInterrupt()`) or in the list (a direct component). Generic interrupts always sit in the list under `interrupts.generic`: `{ choosePlan, fallback }`. An unbound interrupt uses `fallback`. Branch on `interrupt.kind === 'unbound'` if the copy must differ.
+
+The full map is on the [React page](./react).
+
 Manual list: `<UI.Messages>{(messages) => <span>{messages().length}</span>}</UI.Messages>`.
 
-The full component map, tool states, interrupt statuses, inline approvals, and context access match the [React contract](./react). Solid keeps accessors. Pass `props.chat`, `props.part`, and `props.renderParts()` without destructure.
+Pass `props.chat`, `props.part`, and `props.renderParts()` without destructure.

@@ -16,7 +16,12 @@ import type {
   ChatUIToolsOf,
   RegisteredUIInterrupt,
 } from '@tanstack/ai-client/ui'
-import type { MessagePart, UIMessage } from '@tanstack/ai-client'
+import type {
+  MessagePart,
+  ToolCallPart,
+  ToolResultPart,
+  UIMessage,
+} from '@tanstack/ai-client'
 
 // ponytail: duck-typed so createChat assigns; UIMessage generics are invariant
 export type ChatUIHost = {
@@ -26,6 +31,14 @@ export type ChatUIHost = {
   isLoading?: boolean
   status?: string
   sendMessage?: (content: string, ...args: Array<any>) => Promise<void> | void
+}
+
+type GenericInterruptComponents<TOptions> = {
+  [K in ChatUIRegisteredInterruptId<TOptions> as K extends 'fallback'
+    ? never
+    : K]?: unknown
+} & {
+  fallback?: unknown
 }
 
 export type ChatUIComponents<TOptions> = {
@@ -46,12 +59,7 @@ export type ChatUIComponents<TOptions> = {
         | unknown
         | { component: unknown; placement?: 'inline' | 'list' }
     }
-    registered?: {
-      [K in ChatUIRegisteredInterruptId<TOptions>]?: unknown
-    }
-    generic?: unknown
-    unbound?: unknown
-    fallback?: unknown
+    generic?: GenericInterruptComponents<TOptions>
   }
 }
 
@@ -61,6 +69,7 @@ export type UIDescriptor<TOptions = unknown> = {
   defineComponents: (
     components: ChatUIComponents<TOptions>,
   ) => ChatUIComponents<TOptions>
+  useChat: () => ChatUIHost
 }
 
 export type UIContextValue<TOptions = unknown> = {
@@ -83,13 +92,17 @@ export function createUI<const TOptions>(
   options: TOptions,
 ): UIDescriptor<TOptions> {
   void options
-  return {
+  const ui: UIDescriptor<TOptions> = {
     key: Symbol('tanstack-ai-ui'),
     warn: createWarnOnce(),
     defineComponents(components) {
       return components
     },
+    useChat() {
+      return getUIContext(ui).chat
+    },
   }
+  return ui
 }
 
 export function setUIContext<TOptions>(value: UIContextValue<TOptions>) {
@@ -173,14 +186,29 @@ export type PartProps<TOptions> = {
   chat: ChatUIHost
   part: MessagePart<ChatUIToolsOf<TOptions>, ChatUIData<TOptions>>
 }
-export type ToolProps<TOptions> = {
+export type ToolProps<
+  TOptions,
+  TName extends ChatUIToolName<TOptions> = ChatUIToolName<TOptions>,
+> = {
   chat: ChatUIHost
-  part: unknown
-  result?: unknown
-  interrupt?: unknown
+  part: Extract<ToolCallPart<ChatUIToolsOf<TOptions>>, { name: TName }>
+  result?: ToolResultPart
+  interrupt?: Extract<
+    ChatUIInterrupt,
+    { kind: 'tool-approval'; toolName: TName }
+  >
   readonly __ui?: TOptions
 }
 export type InterruptProps<TOptions> = {
   chat: ChatUIHost
-  interrupt: ChatUIInterrupt | RegisteredUIInterrupt<TOptions>
+  interrupt: ChatUIInterrupt
+  readonly __ui?: TOptions
+}
+export type RegisteredInterruptProps<
+  TOptions,
+  TId extends ChatUIRegisteredInterruptId<TOptions> =
+    ChatUIRegisteredInterruptId<TOptions>,
+> = {
+  chat: ChatUIHost
+  interrupt: RegisteredUIInterrupt<TOptions, TId>
 }

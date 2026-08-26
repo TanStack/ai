@@ -41,7 +41,7 @@ describe('Vue createUI', () => {
         }),
         purchaseItem: defineComponent(() => () => null),
       },
-      interrupts: { fallback: defineComponent(() => () => null) },
+      interrupts: { generic: { fallback: defineComponent(() => () => null) } },
     })
 
     const automatic = await renderVueText(
@@ -92,7 +92,7 @@ describe('Vue createUI', () => {
         getWeather: defineComponent(() => () => null),
         purchaseItem: defineComponent(() => () => null),
       },
-      interrupts: { fallback: defineComponent(() => () => null) },
+      interrupts: { generic: { fallback: defineComponent(() => () => null) } },
     })
     await renderVueText(
       defineComponent(() => () => h(UIChat, { ui, chat, components })),

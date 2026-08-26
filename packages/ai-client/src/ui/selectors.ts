@@ -68,10 +68,7 @@ export function resolveInterruptComponent(
   interruptsMap:
     | {
         tools?: Record<string, unknown>
-        registered?: Record<string, unknown>
-        generic?: unknown
-        unbound?: unknown
-        fallback?: unknown
+        generic?: Record<string, unknown>
       }
     | undefined,
 ): unknown {
@@ -79,18 +76,17 @@ export function resolveInterruptComponent(
   if (interrupt.kind === 'tool-approval') {
     return getMappedComponent(interruptsMap.tools?.[interrupt.toolName])
   }
-  if (interrupt.kind === 'unbound') {
-    return interruptsMap.unbound ?? interruptsMap.fallback
-  }
+  const generic = interruptsMap.generic
+  if (!generic) return undefined
   const definitionId =
     'definitionId' in interrupt && typeof interrupt.definitionId === 'string'
       ? interrupt.definitionId
       : undefined
-  if (definitionId) {
-    const registered = interruptsMap.registered?.[definitionId]
+  if (definitionId && definitionId !== 'fallback') {
+    const registered = generic[definitionId]
     if (registered) return getMappedComponent(registered)
   }
-  return interruptsMap.generic ?? interruptsMap.fallback
+  return generic.fallback
 }
 
 function isToolCallPart(part: MessagePart): part is ToolCallPart {
