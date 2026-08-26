@@ -789,6 +789,7 @@ class TextEngine<
   private readonly effectiveSignal?: AbortSignal
 
   private messages: Array<ModelMessage>
+  private providerMessages: Array<ModelMessage>
   private iterationCount = 0
   /** Cumulative tool calls counted in this run (emitted + pending resume). */
   private toolCallCount = 0
@@ -936,6 +937,7 @@ class TextEngine<
     // Convert messages to ModelMessage format (handles both UIMessage and ModelMessage input)
     // This ensures consistent internal format regardless of what the client sends
     this.messages = convertMessagesToModelMessages(config.params.messages)
+    this.providerMessages = this.messages
 
     // Initialize lazy tool manager after messages are converted (needs message history for scanning)
     assertUniqueToolNames(config.params.tools || [])
@@ -1498,7 +1500,7 @@ class TextEngine<
 
     for await (const raw of this.adapter.chatStream({
       model: this.params.model,
-      messages: this.messages,
+      messages: this.providerMessages,
       tools: toolsWithJsonSchemas,
       metadata,
       request: this.effectiveRequest,
@@ -3471,7 +3473,7 @@ class TextEngine<
     const structuredCallOptions = {
       chatOptions: {
         model: this.params.model,
-        messages: this.messages,
+        messages: this.providerMessages,
         metadata: postOnConfig.metadata,
         modelOptions: postOnConfig.modelOptions,
         systemPrompts: postOnConfig.systemPrompts,
@@ -3950,6 +3952,7 @@ class TextEngine<
   private buildMiddlewareConfig(): ChatMiddlewareConfig {
     return {
       messages: this.messages,
+      providerMessages: this.messages,
       systemPrompts: [...this.systemPrompts],
       tools: [...this.tools],
       resume: this.params.resume,
@@ -4368,6 +4371,7 @@ class TextEngine<
   private applyMiddlewareConfig(config: ChatMiddlewareConfig): void {
     this.applyResumeToolState(config.resumeToolState)
     this.messages = config.messages
+    this.providerMessages = config.providerMessages ?? config.messages
     this.systemPrompts = config.systemPrompts
     assertUniqueToolNames(config.tools)
     this.tools = config.tools

@@ -40,31 +40,6 @@ interface MessageStore {
 `saveThread` receives the full authoritative model-message history, not a delta.
 `loadThread` returns `[]` (never `null`) for a thread that was never saved.
 
-### Storing messages per row
-
-The simplest `saveThread` writes the whole transcript as one row: a JSON blob
-keyed by `threadId`. That is what the shipped adapters do, and it stays cheap
-until threads get very long.
-
-To store one row per message instead, reconcile against what you already have
-rather than rewrite everything. Every persisted message carries a stable `id`.
-The middleware fills one in for any message that lacks it, including messages
-that [compaction](../advanced/compaction) rewrote. So you can key rows by the
-`id`:
-
-1. `SELECT id, version FROM messages WHERE thread_id = ?` to read the light index.
-2. Diff the incoming array against it: insert new ids, delete absent ids, update
-   rows whose `version` changed.
-3. Set `version` to a content hash, so an in-place edit (a cleared tool result)
-   shows up as a change.
-
-Keep an order column, because compaction can insert a message at the front.
-Assign a sortable value once (a gapped or fractional index) so an insert does not
-renumber every row. Order the load by it.
-
-The stable `id` holds when the server owns the thread. A client-authoritative
-caller that re-sends the transcript must keep the ids itself.
-
 ## RunStore
 
 `RunStore` and `RunRecord` come from `@tanstack/ai`; `@tanstack/ai-persistence`
@@ -293,6 +268,12 @@ Namespaces and value schemas are application-owned, and `(scope, key)` is the
 composite identity. A stored `null` is indistinguishable from absence at the type
 level, so wrap a value you must persist as `null` (e.g. `{ value: null }`), or
 reject nullish values outright the way the SQLite store above does.
+
+`withPersistence` also provides this store through the core
+`MetadataCapability`. Middleware can use it for derived state without depending
+on `@tanstack/ai-persistence`. For example, `withCompaction` stores validated
+context checkpoints here. Do not place the canonical transcript in metadata;
+the `messages` store owns it.
 
 ## GenerationRunStore
 

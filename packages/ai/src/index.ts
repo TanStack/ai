@@ -281,6 +281,9 @@ export {
   createCapability,
   defineChatMiddleware,
   createChatMiddleware,
+  MetadataCapability,
+  getMetadata,
+  provideMetadata,
 } from './activities/chat/middleware/index'
 export type {
   Capability,
@@ -290,6 +293,7 @@ export type {
   CapabilityProvider,
   DefinedChatMiddleware,
   AnyChatMiddleware,
+  MetadataStore,
 } from './activities/chat/middleware/index'
 // Locks are a distributed-mutex primitive — coordination, not chat state — and
 // live behind their own subpath: `@tanstack/ai/locks` (see ./locks.ts).

@@ -2,9 +2,9 @@
 
 Context-window compaction as a `chat()` middleware. When the working message set
 grows past `maxTokens`, `withCompaction` runs a pluggable **strategy** that
-rewrites the messages. It runs before every model call, so compaction is
-incremental and rolling. The system prompt is untouched (`chat()` keeps it
-separate from `messages`).
+rewrites provider context. It runs before every model call, so compaction is
+incremental and rolling. The canonical transcript and system prompt stay
+unchanged.
 
 ```bash
 npm install @tanstack/ai-compaction
@@ -94,6 +94,12 @@ import type { CompactionStrategy } from '@tanstack/ai-compaction'
 
 const keepLastOnly: CompactionStrategy = (messages) =>
   messages.length <= 1 ? null : messages.slice(-1)
+
+withCompaction({
+  maxTokens: 100_000,
+  strategy: keepLastOnly,
+  strategyKey: 'keep-last-v1',
+})
 ```
 
 ## Options
@@ -105,6 +111,7 @@ const keepLastOnly: CompactionStrategy = (messages) =>
 | `maxTokens`      | (required)      | Compact when estimated tokens exceed this.                                   |
 | `strategy`       | `evictOldest()` | How to shrink the messages.                                                  |
 | `estimateTokens` | chars / 4       | Per-message token estimate. Swap in a real tokenizer for accuracy.           |
+| `strategyKey`    | built-in key    | Stable checkpoint identity. Set it for custom strategies or estimators.      |
 | `onCompact`      | —               | Observe each compaction (`before`/`after`/`messagesBefore`/`messagesAfter`). |
 
 ### Strategy options
@@ -117,3 +124,7 @@ const keepLastOnly: CompactionStrategy = (messages) =>
 
 The token estimate is a rough `chars / 4` heuristic, good enough to trigger on,
 not exact. Pass `estimateTokens` if you need provider-accurate counts.
+
+When `withPersistence` provides a metadata store, compaction saves a validated
+checkpoint automatically. The next request reuses the compacted prefix and adds
+new canonical messages. Without metadata, compaction remains stateless.

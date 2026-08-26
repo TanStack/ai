@@ -2,9 +2,11 @@ import { describe, expect, it, vi } from 'vitest'
 import type {
   ChatMiddlewareConfig,
   ChatMiddlewareContext,
+  MetadataStore,
   ModelMessage,
   ToolCall,
 } from '@tanstack/ai'
+import { provideMetadata } from '@tanstack/ai'
 import {
   clearToolResults,
   composeStrategies,
@@ -20,13 +22,28 @@ const CTX = {} as unknown as ChatMiddlewareContext
 function runOnConfig(
   mw: ReturnType<typeof withCompaction>,
   messages: Array<ModelMessage>,
+  ctx = CTX,
 ) {
   const config: ChatMiddlewareConfig = {
     messages,
     systemPrompts: [],
     tools: [],
   }
-  return mw.onConfig?.(CTX, config)
+  return mw.onConfig?.(ctx, config)
+}
+
+function checkpointContext(
+  store: MetadataStore,
+  options: { aborted?: boolean } = {},
+): ChatMiddlewareContext {
+  // oxlint-disable-next-line eslint-js/no-restricted-syntax -- focused hook stub; only capability identity, threadId, and signal are read
+  const ctx = {
+    threadId: 'thread-1',
+    signal: options.aborted ? AbortSignal.abort() : undefined,
+    capabilities: { markProvided: () => undefined },
+  } as unknown as ChatMiddlewareContext
+  provideMetadata(ctx, store)
+  return ctx
 }
 
 const text = (role: ModelMessage['role'], content: string): ModelMessage => ({
@@ -56,7 +73,7 @@ describe('withCompaction', () => {
     const mw = withCompaction({ maxTokens: 100 })
     const msgs = [big('user'), big('assistant'), big('user'), big('assistant')]
     const result = await runOnConfig(mw, msgs)
-    const out = result?.messages ?? []
+    const out = result?.providerMessages ?? []
     expect(out[0]?.content).toContain('omitted')
     expect(out[out.length - 1]).toBe(msgs[msgs.length - 1])
   })
@@ -75,6 +92,102 @@ describe('withCompaction', () => {
     expect(info.after).toBeLessThan(info.before)
     expect(info.messagesAfter).toBeLessThan(info.messagesBefore)
   })
+
+  it('reuses a persisted checkpoint for an unchanged canonical prefix', async () => {
+    const values = new Map<string, unknown>()
+    const store: MetadataStore = {
+      get: async (namespace, key) => values.get(`${namespace}:${key}`) ?? null,
+      set: async (namespace, key, value) => {
+        values.set(`${namespace}:${key}`, value)
+      },
+      delete: async (namespace, key) => {
+        values.delete(`${namespace}:${key}`)
+      },
+    }
+    const summarize = vi.fn(async () => 'the gist')
+    const messages = [
+      big('user'),
+      big('assistant'),
+      big('user'),
+      big('assistant'),
+    ]
+    const options = {
+      maxTokens: 100,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+      strategyKey: 'summary-v1',
+    }
+
+    const first = await runOnConfig(
+      withCompaction(options),
+      messages,
+      checkpointContext(store),
+    )
+    const appended = [...messages, text('user', 'new')]
+    const second = await runOnConfig(
+      withCompaction(options),
+      appended,
+      checkpointContext(store),
+    )
+
+    expect(summarize).toHaveBeenCalledOnce()
+    expect(first?.providerMessages?.[0]?.content).toContain('the gist')
+    expect(second?.providerMessages?.[0]?.content).toContain('the gist')
+    expect(second?.providerMessages?.at(-1)?.content).toBe('new')
+    expect(appended).toHaveLength(5)
+  })
+
+  it('rejects a checkpoint when the canonical prefix changes', async () => {
+    const values = new Map<string, unknown>()
+    const store: MetadataStore = {
+      get: async (namespace, key) => values.get(`${namespace}:${key}`) ?? null,
+      set: async (namespace, key, value) => {
+        values.set(`${namespace}:${key}`, value)
+      },
+      delete: async () => undefined,
+    }
+    const summarize = vi.fn(async () => 'the gist')
+    const options = {
+      maxTokens: 100,
+      strategy: summarizeOldest({ summarize, keepRecentTokens: 50 }),
+      strategyKey: 'summary-v1',
+    }
+    const messages = [
+      big('user'),
+      big('assistant'),
+      big('user'),
+      big('assistant'),
+    ]
+
+    await runOnConfig(
+      withCompaction(options),
+      messages,
+      checkpointContext(store),
+    )
+    await runOnConfig(
+      withCompaction(options),
+      [text('user', 'changed'.repeat(30)), ...messages.slice(1)],
+      checkpointContext(store),
+    )
+
+    expect(summarize).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not write a checkpoint after cancellation', async () => {
+    const set = vi.fn<MetadataStore['set']>()
+    const store: MetadataStore = {
+      get: async () => null,
+      set,
+      delete: async () => undefined,
+    }
+
+    await runOnConfig(
+      withCompaction({ maxTokens: 100 }),
+      [big('user'), big('assistant'), big('user'), big('assistant')],
+      checkpointContext(store, { aborted: true }),
+    )
+
+    expect(set).not.toHaveBeenCalled()
+  })
 })
 
 describe('evictOldest', () => {
@@ -84,7 +197,7 @@ describe('evictOldest', () => {
       strategy: evictOldest({ keepRecentTokens: 50 }),
     })
     const msgs = [big('user'), big('assistant'), big('user'), big('assistant')]
-    const out = (await runOnConfig(mw, msgs))?.messages ?? []
+    const out = (await runOnConfig(mw, msgs))?.providerMessages ?? []
     expect(out[0]?.content).toContain('omitted')
     expect(out[out.length - 1]).toBe(msgs[msgs.length - 1])
   })
@@ -105,7 +218,7 @@ describe('evictOldest', () => {
       maxTokens: 100,
       strategy: evictOldest({ keepRecentTokens: 45 }),
     })
-    const out = (await runOnConfig(mw, msgs))?.messages ?? []
+    const out = (await runOnConfig(mw, msgs))?.providerMessages ?? []
     expect(out.slice(1).some((m) => m.role === 'tool')).toBe(false)
   })
 })
@@ -124,7 +237,7 @@ describe('summarizeOldest', () => {
       big('assistant'),
     ])
     expect(summarize).toHaveBeenCalledOnce()
-    expect(result?.messages?.[0]?.content).toBe(
+    expect(result?.providerMessages?.[0]?.content).toBe(
       'Summary of earlier conversation:\nthe gist',
     )
   })
@@ -149,7 +262,7 @@ describe('clearToolResults', () => {
       maxTokens: 100,
       strategy: clearToolResults({ keepRecentToolResults: 2 }),
     })
-    const out = (await runOnConfig(mw, msgs))?.messages ?? []
+    const out = (await runOnConfig(mw, msgs))?.providerMessages ?? []
     // Same number of messages — structure is untouched.
     expect(out.length).toBe(msgs.length)
     // Oldest two tool results are stubbed.
@@ -201,7 +314,7 @@ describe('composeStrategies', () => {
       ),
     })
     const msgs = history()
-    const out = (await runOnConfig(mw, msgs))?.messages ?? []
+    const out = (await runOnConfig(mw, msgs))?.providerMessages ?? []
     // Clearing one tool result was enough, so evict never ran:
     // the head message and full message count survive.
     expect(out.length).toBe(msgs.length)
@@ -218,7 +331,7 @@ describe('composeStrategies', () => {
       ),
     })
     const msgs = history()
-    const out = (await runOnConfig(mw, msgs))?.messages ?? []
+    const out = (await runOnConfig(mw, msgs))?.providerMessages ?? []
     // Clearing was not enough, so evict ran too: the head is dropped.
     expect(out.some((m) => m.content === 'HEAD_MARKER')).toBe(false)
     expect(out[0]?.content).toContain('omitted')

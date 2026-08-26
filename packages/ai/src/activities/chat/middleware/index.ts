@@ -68,6 +68,13 @@ export {
 export type { LockStore } from './locks'
 
 export {
+  MetadataCapability,
+  getMetadata,
+  provideMetadata,
+} from './metadata'
+export type { MetadataStore } from './metadata'
+
+export {
   isRunStatus,
   isTerminalRunStatus,
   defineRunStore,
