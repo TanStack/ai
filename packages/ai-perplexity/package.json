@@ -1,6 +1,6 @@
 {
   "name": "@tanstack/ai-perplexity",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Perplexity Search API client and tool for TanStack AI",
   "author": "Tanner Linsley",
   "license": "MIT",

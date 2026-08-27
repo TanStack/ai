@@ -6,6 +6,7 @@ import type {
   BetaCodeExecutionTool20250522,
   BetaCodeExecutionTool20250825,
 } from '@anthropic-ai/sdk/resources/beta'
+import { SkillLimitError } from '@tanstack/ai'
 import type { ProviderTool, Tool } from '@tanstack/ai'
 
 export type CodeExecutionToolConfig =
@@ -87,7 +88,14 @@ export function codeExecutionTool(
   const { skills } = options
   if (skills) {
     if (skills.length > 8) {
-      throw new Error('code_execution supports at most 8 skills per request.')
+      throw new SkillLimitError({
+        provider: 'anthropic',
+        path: 'native',
+        limit: 'code_execution supports at most 8 skills per request',
+        allowed: 8,
+        actual: skills.length,
+        offending: skills.map((s) => s.skill_id),
+      })
     }
     for (const skill of skills) {
       if (skill.skill_id.length < 1 || skill.skill_id.length > 64) {

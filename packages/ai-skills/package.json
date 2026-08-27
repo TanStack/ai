@@ -1,0 +1,90 @@
+{
+  "name": "@tanstack/ai-skills",
+  "version": "0.1.0",
+  "description": "Portable Agent Skills (SKILL.md) as a first-class chat() middleware for TanStack AI.",
+  "author": "Tanner Linsley",
+  "license": "MIT",
+  "homepage": "https://tanstack.com/ai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/TanStack/ai.git",
+    "directory": "packages/ai-skills"
+  },
+  "bugs": {
+    "url": "https://github.com/TanStack/ai/issues"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/tannerlinsley"
+  },
+  "type": "module",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/esm/index.d.ts",
+      "import": "./dist/esm/index.js"
+    },
+    "./node": {
+      "types": "./dist/esm/node/index.d.ts",
+      "import": "./dist/esm/node/index.js"
+    },
+    "./static": {
+      "types": "./dist/esm/static/index.d.ts",
+      "import": "./dist/esm/static/index.js"
+    },
+    "./testing": {
+      "types": "./dist/esm/testing/index.d.ts",
+      "import": "./dist/esm/testing/index.js"
+    }
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "dist",
+    "src",
+    "skills"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "clean": "premove ./build ./dist",
+    "lint:fix": "oxlint src --type-aware --fix",
+    "test:build": "publint --strict",
+    "test:oxlint": "oxlint src --type-aware",
+    "test:lib": "vitest",
+    "test:lib:dev": "pnpm test:lib --watch",
+    "test:types": "tsc"
+  },
+  "keywords": [
+    "ai",
+    "ai-sdk",
+    "typescript",
+    "tanstack",
+    "tanstack-intent",
+    "skills",
+    "agent-skills",
+    "skill-md",
+    "tool-calling",
+    "llm"
+  ],
+  "dependencies": {
+    "@tanstack/ai": "workspace:^"
+  },
+  "peerDependencies": {
+    "@tanstack/ai": "workspace:^",
+    "vitest": "^4.1.10",
+    "zod": "^3.0.0 || ^4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "vitest": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "4.1.10",
+    "vitest": "^4.1.10",
+    "zod": "^4.2.0"
+  }
+}

@@ -250,6 +250,40 @@ describe('ChatClient devtools bridge', () => {
     expect(eventClientMock.emitted('hook:unregistered')).toEqual([])
   })
 
+  it('registers a generated hookId when construct had no threadId', () => {
+    const client = new ChatClient({
+      connection: createMockConnectionAdapter(),
+      devtools: {
+        framework: 'react',
+        hookName: 'useChat',
+        name: 'Skills',
+      },
+    })
+    client.mountDevtools()
+
+    expect(eventClientMock.emitted('hook:registered')).toEqual([
+      [
+        'hook:registered',
+        expect.objectContaining({
+          hookId: expect.stringMatching(/^thread-/),
+          displayName: 'Skills',
+          lifecycle: 'mounted',
+        }),
+      ],
+    ])
+    expect(eventClientMock.emitted('client:created')).toEqual([
+      [
+        'client:created',
+        expect.objectContaining({
+          clientId: expect.stringMatching(/^thread-/),
+          hookId: expect.stringMatching(/^thread-/),
+        }),
+      ],
+    ])
+
+    client.dispose()
+  })
+
   it('can register again after a mount cleanup cycle', () => {
     const client = createClient({ mountDevtools: false })
 
@@ -1417,6 +1451,70 @@ describe('ChatClient devtools bridge', () => {
       [
         'memory:retrieve:completed',
         expect.objectContaining({ adapter: 'in-memory', fragmentCount: 2 }),
+      ],
+    ])
+
+    client.dispose()
+  })
+
+  it('re-emits skills:snapshot from a transported skills:state CUSTOM chunk', async () => {
+    const runContexts: Array<RunAgentInputContext> = []
+    const chunks: Array<StreamChunk> = [
+      runStartedChunk({ threadId: 'thread-1', runId: 'run-skills' }),
+      {
+        type: EventType.CUSTOM,
+        metadata: { tanstack: { model: 'test' } },
+        timestamp: Date.now(),
+        name: 'skills:state',
+        value: {
+          catalog: [
+            { name: 'pirate-speak', description: 'talk like a pirate' },
+          ],
+          activated: [],
+        },
+      },
+      textContentChunk({
+        messageId: 'msg-skills',
+        delta: 'Ahoy',
+        content: 'Ahoy',
+      }),
+      runFinishedChunk({ threadId: 'thread-1', runId: 'run-skills' }),
+    ]
+    const client = createClient({
+      connection: createRunTrackingAdapter([chunks], runContexts),
+    })
+    vi.clearAllMocks()
+
+    await client.sendMessage('talk like a pirate')
+    await waitForCondition(
+      () => eventClientMock.emitted('skills:snapshot').length > 0,
+    )
+
+    expect(eventClientMock.emitted('skills:snapshot')).toEqual([
+      [
+        'skills:snapshot',
+        expect.objectContaining({
+          catalog: [
+            { name: 'pirate-speak', description: 'talk like a pirate' },
+          ],
+          activated: [],
+        }),
+      ],
+    ])
+
+    vi.clearAllMocks()
+    eventClientMock.dispatch('devtools:request-state', {})
+    await waitForCondition(
+      () => eventClientMock.emitted('skills:snapshot').length > 0,
+    )
+    expect(eventClientMock.emitted('skills:snapshot')).toEqual([
+      [
+        'skills:snapshot',
+        expect.objectContaining({
+          catalog: [
+            { name: 'pirate-speak', description: 'talk like a pirate' },
+          ],
+        }),
       ],
     ])
 
