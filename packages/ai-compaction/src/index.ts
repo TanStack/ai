@@ -13,7 +13,42 @@
  * `messages`.
  */
 import { MetadataCapability, getMetadata } from '@tanstack/ai'
-import type { ChatMiddleware, ModelMessage } from '@tanstack/ai'
+import type {
+  ChatMiddleware,
+  ChatMiddlewareContext,
+  ModelMessage,
+  StreamChunk,
+} from '@tanstack/ai'
+
+/** CUSTOM stream event that carries compaction stats to client DevTools. */
+export const COMPACTION_STATE_EVENT = 'compaction:state'
+
+/** Payload of {@link COMPACTION_STATE_EVENT}. Token and message counts only. */
+export interface CompactionStateEventValue {
+  before: number
+  after: number
+  messagesBefore: number
+  messagesAfter: number
+  reusedCheckpoint: boolean
+}
+
+interface CompactionRequestState {
+  pending: Array<CompactionStateEventValue>
+}
+
+const stateByCtx = new WeakMap<ChatMiddlewareContext, CompactionRequestState>()
+
+function stageCompactionState(
+  ctx: ChatMiddlewareContext,
+  value: CompactionStateEventValue,
+) {
+  let state = stateByCtx.get(ctx)
+  if (!state) {
+    state = { pending: [] }
+    stateByCtx.set(ctx, state)
+  }
+  state.pending.push(value)
+}
 
 const strategyKeys = new WeakMap<CompactionStrategy, string>()
 const CHECKPOINT_NAMESPACE = '@tanstack/ai-compaction'
@@ -361,9 +396,17 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
 
       const before = sum(workingMessages, estimate)
       if (before <= options.maxTokens) {
-        return reusedCheckpoint
-          ? { providerMessages: workingMessages }
-          : undefined
+        if (reusedCheckpoint) {
+          stageCompactionState(ctx, {
+            before,
+            after: before,
+            messagesBefore: workingMessages.length,
+            messagesAfter: workingMessages.length,
+            reusedCheckpoint: true,
+          })
+          return { providerMessages: workingMessages }
+        }
+        return
       }
 
       const next = await strategy(workingMessages, {
@@ -371,16 +414,29 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
         estimate,
       })
       if (!next || next === workingMessages) {
-        return reusedCheckpoint
-          ? { providerMessages: workingMessages }
-          : undefined
+        if (reusedCheckpoint) {
+          stageCompactionState(ctx, {
+            before,
+            after: before,
+            messagesBefore: workingMessages.length,
+            messagesAfter: workingMessages.length,
+            reusedCheckpoint: true,
+          })
+          return { providerMessages: workingMessages }
+        }
+        return
       }
 
-      options.onCompact?.({
+      const info = {
         before,
         after: sum(next, estimate),
         messagesBefore: workingMessages.length,
         messagesAfter: next.length,
+      }
+      options.onCompact?.(info)
+      stageCompactionState(ctx, {
+        ...info,
+        reusedCheckpoint,
       })
 
       if (metadata && checkpointStrategyKey && inputMessages === messages) {
@@ -397,6 +453,18 @@ export function withCompaction(options: CompactionOptions): ChatMiddleware {
       }
 
       return { providerMessages: next }
+    },
+    onChunk(ctx, chunk) {
+      const state = stateByCtx.get(ctx)
+      if (!state?.pending.length) return
+      const pending = state.pending.splice(0)
+      const customs: Array<StreamChunk> = pending.map((value) => ({
+        type: 'CUSTOM',
+        name: COMPACTION_STATE_EVENT,
+        value,
+        timestamp: Date.now(),
+      }))
+      return [chunk, ...customs]
     },
   }
 }

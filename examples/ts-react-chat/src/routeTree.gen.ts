@@ -29,6 +29,7 @@ import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenericInterruptsRouteImport } from './routes/generic-interrupts'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
 import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
+import { Route as CompactionRouteImport } from './routes/compaction'
 import { Route as AppStudioRouteImport } from './routes/app-studio'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
@@ -66,6 +67,7 @@ import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-r
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ApiGenericInterruptsRouteImport } from './routes/api.generic-interrupts'
 import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
+import { Route as ApiCompactionRouteImport } from './routes/api.compaction'
 import { Route as ApiArtifactsRouteImport } from './routes/api.artifacts'
 import { Route as ApiAppStudioForkRouteImport } from './routes/api.app-studio-fork'
 import { Route as ApiAppStudioRouteImport } from './routes/api.app-studio'
@@ -175,6 +177,11 @@ const GenerationHooksRoute = GenerationHooksRouteImport.update({
 const CapabilityDemoRoute = CapabilityDemoRouteImport.update({
   id: '/capability-demo',
   path: '/capability-demo',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CompactionRoute = CompactionRouteImport.update({
+  id: '/compaction',
+  path: '/compaction',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppStudioRoute = AppStudioRouteImport.update({
@@ -367,6 +374,11 @@ const ApiCapabilityDemoRoute = ApiCapabilityDemoRouteImport.update({
   path: '/api/capability-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCompactionRoute = ApiCompactionRouteImport.update({
+  id: '/api/compaction',
+  path: '/api/compaction',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiArtifactsRoute = ApiArtifactsRouteImport.update({
   id: '/api/artifacts',
   path: '/api/artifacts',
@@ -423,6 +435,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app-studio': typeof AppStudioRoute
   '/capability-demo': typeof CapabilityDemoRoute
+  '/compaction': typeof CompactionRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/generic-interrupts': typeof GenericInterruptsRoute
   '/image-gen': typeof ImageGenRoute
@@ -446,6 +459,7 @@ export interface FileRoutesByFullPath {
   '/api/app-studio-fork': typeof ApiAppStudioForkRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
+  '/api/compaction': typeof ApiCompactionRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -492,6 +506,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app-studio': typeof AppStudioRoute
   '/capability-demo': typeof CapabilityDemoRoute
+  '/compaction': typeof CompactionRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/generic-interrupts': typeof GenericInterruptsRoute
   '/image-gen': typeof ImageGenRoute
@@ -515,6 +530,7 @@ export interface FileRoutesByTo {
   '/api/app-studio-fork': typeof ApiAppStudioForkRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
+  '/api/compaction': typeof ApiCompactionRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -562,6 +578,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app-studio': typeof AppStudioRoute
   '/capability-demo': typeof CapabilityDemoRoute
+  '/compaction': typeof CompactionRoute
   '/generation-hooks': typeof GenerationHooksRoute
   '/generic-interrupts': typeof GenericInterruptsRoute
   '/image-gen': typeof ImageGenRoute
@@ -585,6 +602,7 @@ export interface FileRoutesById {
   '/api/app-studio-fork': typeof ApiAppStudioForkRoute
   '/api/artifacts': typeof ApiArtifactsRoute
   '/api/capability-demo': typeof ApiCapabilityDemoRoute
+  '/api/compaction': typeof ApiCompactionRoute
   '/api/generic-interrupts': typeof ApiGenericInterruptsRoute
   '/api/image-gen': typeof ApiImageGenRoute
   '/api/image-tool-repro': typeof ApiImageToolReproRoute
@@ -633,6 +651,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app-studio'
     | '/capability-demo'
+    | '/compaction'
     | '/generation-hooks'
     | '/generic-interrupts'
     | '/image-gen'
@@ -656,6 +675,7 @@ export interface FileRouteTypes {
     | '/api/app-studio-fork'
     | '/api/artifacts'
     | '/api/capability-demo'
+    | '/api/compaction'
     | '/api/generic-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -702,6 +722,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app-studio'
     | '/capability-demo'
+    | '/compaction'
     | '/generation-hooks'
     | '/generic-interrupts'
     | '/image-gen'
@@ -725,6 +746,7 @@ export interface FileRouteTypes {
     | '/api/app-studio-fork'
     | '/api/artifacts'
     | '/api/capability-demo'
+    | '/api/compaction'
     | '/api/generic-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -771,6 +793,7 @@ export interface FileRouteTypes {
     | '/'
     | '/app-studio'
     | '/capability-demo'
+    | '/compaction'
     | '/generation-hooks'
     | '/generic-interrupts'
     | '/image-gen'
@@ -794,6 +817,7 @@ export interface FileRouteTypes {
     | '/api/app-studio-fork'
     | '/api/artifacts'
     | '/api/capability-demo'
+    | '/api/compaction'
     | '/api/generic-interrupts'
     | '/api/image-gen'
     | '/api/image-tool-repro'
@@ -841,6 +865,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppStudioRoute: typeof AppStudioRoute
   CapabilityDemoRoute: typeof CapabilityDemoRoute
+  CompactionRoute: typeof CompactionRoute
   GenerationHooksRoute: typeof GenerationHooksRoute
   GenericInterruptsRoute: typeof GenericInterruptsRoute
   ImageGenRoute: typeof ImageGenRoute
@@ -864,6 +889,7 @@ export interface RootRouteChildren {
   ApiAppStudioForkRoute: typeof ApiAppStudioForkRoute
   ApiArtifactsRoute: typeof ApiArtifactsRoute
   ApiCapabilityDemoRoute: typeof ApiCapabilityDemoRoute
+  ApiCompactionRoute: typeof ApiCompactionRoute
   ApiGenericInterruptsRoute: typeof ApiGenericInterruptsRoute
   ApiImageGenRoute: typeof ApiImageGenRoute
   ApiImageToolReproRoute: typeof ApiImageToolReproRoute
@@ -1046,6 +1072,13 @@ declare module '@tanstack/react-router' {
       path: '/capability-demo'
       fullPath: '/capability-demo'
       preLoaderRoute: typeof CapabilityDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/compaction': {
+      id: '/compaction'
+      path: '/compaction'
+      fullPath: '/compaction'
+      preLoaderRoute: typeof CompactionRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app-studio': {
@@ -1307,6 +1340,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCapabilityDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/compaction': {
+      id: '/api/compaction'
+      path: '/api/compaction'
+      fullPath: '/api/compaction'
+      preLoaderRoute: typeof ApiCompactionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/artifacts': {
       id: '/api/artifacts'
       path: '/api/artifacts'
@@ -1395,6 +1435,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppStudioRoute: AppStudioRoute,
   CapabilityDemoRoute: CapabilityDemoRoute,
+  CompactionRoute: CompactionRoute,
   GenerationHooksRoute: GenerationHooksRoute,
   GenericInterruptsRoute: GenericInterruptsRoute,
   ImageGenRoute: ImageGenRoute,
@@ -1418,6 +1459,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAppStudioForkRoute: ApiAppStudioForkRoute,
   ApiArtifactsRoute: ApiArtifactsRoute,
   ApiCapabilityDemoRoute: ApiCapabilityDemoRoute,
+  ApiCompactionRoute: ApiCompactionRoute,
   ApiGenericInterruptsRoute: ApiGenericInterruptsRoute,
   ApiImageGenRoute: ApiImageGenRoute,
   ApiImageToolReproRoute: ApiImageToolReproRoute,

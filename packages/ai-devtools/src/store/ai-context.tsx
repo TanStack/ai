@@ -2958,6 +2958,48 @@ export const AIProvider: ParentComponent = (props) => {
     )
 
     cleanupFns.push(
+      aiEventClient.on('compaction:applied', (e) => {
+        const { requestId, streamId, clientId } = e.payload
+
+        const conversationId =
+          clientId ||
+          (streamId ? streamToConversation.get(streamId) : undefined) ||
+          requestToConversation.get(requestId)
+        if (!conversationId || !state.conversations[conversationId]) return
+
+        const conv = state.conversations[conversationId]
+        const iterIndex = findLatestIterationIndex(conv, requestId)
+        if (iterIndex < 0) return
+
+        const mwEvent: MiddlewareEvent = {
+          id: `mw-cmp-${Date.now()}-${Math.random()}`,
+          middlewareName: 'compaction',
+          hookName: 'onCompact',
+          timestamp: e.payload.timestamp,
+          hasTransform: true,
+          configChanges: {
+            before: e.payload.before,
+            after: e.payload.after,
+            messagesBefore: e.payload.messagesBefore,
+            messagesAfter: e.payload.messagesAfter,
+            reusedCheckpoint: e.payload.reusedCheckpoint,
+          },
+        }
+
+        setState(
+          'conversations',
+          conversationId,
+          'iterations',
+          iterIndex,
+          'middlewareEvents',
+          produce((arr: Array<MiddlewareEvent>) => {
+            arr.push(mwEvent)
+          }),
+        )
+      }),
+    )
+
+    cleanupFns.push(
       aiEventClient.on('summarize:request:started', (e) => {
         const { requestId, model, inputLength, timestamp, clientId } = e.payload
 

@@ -193,6 +193,16 @@ The token count is a rough `characters / 4` estimate. It is good enough to trigg
 - **It runs before every model call.** Compaction is incremental: as the chat keeps growing it compacts again.
 - **The canonical transcript stays complete.** Compaction writes provider-only context. Persistence and other middleware still read `ctx.messages`.
 
+## DevTools
+
+After a compaction, the chat stream includes a `compaction:state` CUSTOM event.
+TanStack AI DevTools shows a `compaction` / `onCompact` step on that iteration.
+The step lists before and after token and message counts.
+
+Open the AI plugin in the DevTools panel (the `ts-react-chat` example mounts it). Then inspect the iteration that ran the model call.
+
+The `/compaction` route in `examples/ts-react-chat` uses a small `maxTokens` so this fires after a few turns.
+
 ## Compaction and persistence
 
 Compaction and server-side [`withPersistence`](../persistence/chat-persistence)

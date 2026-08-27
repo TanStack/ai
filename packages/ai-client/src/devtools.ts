@@ -712,6 +712,7 @@ export class ClientDevtoolsBridge<TSnapshot extends object> {
       | 'memory:retrieve:started'
       | 'memory:retrieve:completed'
       | 'memory:snapshot'
+      | 'compaction:applied'
       | AIDevtoolsRunEventType,
     visibility: AIDevtoolsEventVisibility = 'client-state',
     context: { runId?: string } = {},
@@ -770,6 +771,8 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
   private lastRunEventContext: ChatClientRunEventContext | undefined
   /** Last transported `memory:state` value, replayed when a panel opens. */
   private lastMemoryStateValue: unknown = null
+  /** Last transported `compaction:state` value, replayed when a panel opens. */
+  private lastCompactionStateValue: unknown = null
 
   constructor(options: ChatDevtoolsBridgeOptions) {
     super({
@@ -926,9 +929,50 @@ export class ChatDevtoolsBridge extends ClientDevtoolsBridge<AIDevtoolsChatSnaps
     }
   }
 
+  /**
+   * Record a transported `compaction:state` value. Called from the chat
+   * client's `onCustomEvent` handler so server-side compaction reaches the
+   * browser DevTools panel.
+   */
+  recordCompactionState(rawValue: unknown): void {
+    this.lastCompactionStateValue = rawValue
+    this.emitCompactionState(rawValue)
+  }
+
+  private emitCompactionState(rawValue: unknown): void {
+    if (!rawValue || typeof rawValue !== 'object') return
+    const value = rawValue as {
+      before?: unknown
+      after?: unknown
+      messagesBefore?: unknown
+      messagesAfter?: unknown
+      reusedCheckpoint?: unknown
+    }
+    if (
+      typeof value.before !== 'number' ||
+      typeof value.after !== 'number' ||
+      typeof value.messagesBefore !== 'number' ||
+      typeof value.messagesAfter !== 'number'
+    ) {
+      return
+    }
+    const runContext = this.currentRunId ? { runId: this.currentRunId } : {}
+    emitAIDevtoolsEvent('compaction:applied', {
+      ...this.createEnvelope('compaction:applied', 'client-state', runContext),
+      before: value.before,
+      after: value.after,
+      messagesBefore: value.messagesBefore,
+      messagesAfter: value.messagesAfter,
+      reusedCheckpoint: value.reusedCheckpoint === true,
+    })
+  }
+
   protected override onReplayState(): void {
     if (this.lastMemoryStateValue != null) {
       this.emitMemoryState(this.lastMemoryStateValue)
+    }
+    if (this.lastCompactionStateValue != null) {
+      this.emitCompactionState(this.lastCompactionStateValue)
     }
   }
 

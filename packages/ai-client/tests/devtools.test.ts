@@ -1423,6 +1423,65 @@ describe('ChatClient devtools bridge', () => {
     client.dispose()
   })
 
+  it('re-emits compaction:applied from a transported compaction:state CUSTOM chunk', async () => {
+    const runContexts: Array<RunAgentInputContext> = []
+    const chunks: Array<StreamChunk> = [
+      runStartedChunk({ threadId: 'thread-1', runId: 'run-cmp' }),
+      {
+        type: EventType.CUSTOM,
+        metadata: { tanstack: { model: 'test' } },
+        timestamp: Date.now(),
+        name: 'compaction:state',
+        value: {
+          before: 400,
+          after: 180,
+          messagesBefore: 8,
+          messagesAfter: 3,
+          reusedCheckpoint: false,
+        },
+      },
+      textContentChunk({
+        messageId: 'msg-cmp',
+        delta: 'ok',
+        content: 'ok',
+      }),
+      runFinishedChunk({ threadId: 'thread-1', runId: 'run-cmp' }),
+    ]
+    const client = createClient({
+      connection: createRunTrackingAdapter([chunks], runContexts),
+    })
+    vi.clearAllMocks()
+
+    await client.sendMessage('keep going')
+    await waitForCondition(
+      () => eventClientMock.emitted('compaction:applied').length > 0,
+    )
+
+    expect(eventClientMock.emitted('compaction:applied')).toEqual([
+      [
+        'compaction:applied',
+        expect.objectContaining({
+          before: 400,
+          after: 180,
+          messagesBefore: 8,
+          messagesAfter: 3,
+          reusedCheckpoint: false,
+        }),
+      ],
+    ])
+
+    vi.clearAllMocks()
+    eventClientMock.dispatch('devtools:request-state', {})
+    await waitForCondition(
+      () => eventClientMock.emitted('compaction:applied').length > 0,
+    )
+    expect(eventClientMock.emitted('compaction:applied')).toEqual([
+      ['compaction:applied', expect.objectContaining({ after: 180 })],
+    ])
+
+    client.dispose()
+  })
+
   it('batches structured output update events while preserving final state', async () => {
     const runContexts: Array<RunAgentInputContext> = []
     const finalObject = { title: 'Pasta', servings: 2 }

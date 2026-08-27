@@ -128,3 +128,7 @@ not exact. Pass `estimateTokens` if you need provider-accurate counts.
 When `withPersistence` provides a metadata store, compaction saves a validated
 checkpoint automatically. The next request reuses the compacted prefix and adds
 new canonical messages. Without metadata, compaction remains stateless.
+
+TanStack AI DevTools shows each compaction as an `onCompact` step (before/after
+token and message counts). The stats ride the chat stream as a `compaction:state`
+CUSTOM event.

@@ -980,6 +980,24 @@ export interface VideoUsageEvent extends BaseEventContext {
 }
 
 // ---------------------------------------------------------------------------
+// Compaction events
+// ---------------------------------------------------------------------------
+
+/** Emitted when `withCompaction` rewrites provider context for a model call. */
+export interface CompactionAppliedEvent extends BaseEventContext {
+  /** Estimated tokens before compaction. */
+  before: number
+  /** Estimated tokens after compaction. */
+  after: number
+  /** Message count before compaction. */
+  messagesBefore: number
+  /** Message count after compaction. */
+  messagesAfter: number
+  /** True when a persisted checkpoint supplied the compacted prefix. */
+  reusedCheckpoint: boolean
+}
+
+// ---------------------------------------------------------------------------
 // Memory events
 // ---------------------------------------------------------------------------
 
@@ -1321,6 +1339,9 @@ export interface AIDevtoolsEventMap {
   'client:messages:cleared': ClientMessagesClearedEvent
   'client:reloaded': ClientReloadedEvent
   'client:stopped': ClientStoppedEvent
+
+  // Compaction events
+  'compaction:applied': CompactionAppliedEvent
 
   // Memory events
   'memory:retrieve:started': MemoryRetrieveStartedEvent

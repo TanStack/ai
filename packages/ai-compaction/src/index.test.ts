@@ -4,10 +4,12 @@ import type {
   ChatMiddlewareContext,
   MetadataStore,
   ModelMessage,
+  StreamChunk,
   ToolCall,
 } from '@tanstack/ai'
-import { provideMetadata } from '@tanstack/ai'
+import { EventType, provideMetadata } from '@tanstack/ai'
 import {
+  COMPACTION_STATE_EVENT,
   clearToolResults,
   composeStrategies,
   estimateMessageTokens,
@@ -112,6 +114,44 @@ describe('withCompaction', () => {
     const info = onCompact.mock.calls[0]?.[0]
     expect(info.after).toBeLessThan(info.before)
     expect(info.messagesAfter).toBeLessThan(info.messagesBefore)
+  })
+
+  it('injects a compaction:state CUSTOM chunk after compacting', async () => {
+    const mw = withCompaction({ maxTokens: 100 })
+    const ctx = phaseContext('beforeModel')
+    const msgs = [big('user'), big('assistant'), big('user'), big('assistant')]
+    await runOnConfig(mw, msgs, ctx)
+    const chunk: StreamChunk = {
+      type: EventType.RUN_STARTED,
+      timestamp: Date.now(),
+      threadId: 't',
+      runId: 'r',
+    }
+    const out = await mw.onChunk?.(ctx, chunk)
+    expect(Array.isArray(out)).toBe(true)
+    const custom = Array.isArray(out) ? out[1] : undefined
+    expect(custom).toMatchObject({
+      type: 'CUSTOM',
+      name: COMPACTION_STATE_EVENT,
+    })
+    if (custom && custom.type === 'CUSTOM') {
+      expect(custom.value).toMatchObject({
+        reusedCheckpoint: false,
+      })
+    }
+  })
+
+  it('does not inject a CUSTOM chunk when under the token budget', async () => {
+    const mw = withCompaction({ maxTokens: 1000 })
+    const ctx = phaseContext('beforeModel')
+    await runOnConfig(mw, [text('user', 'hi')], ctx)
+    const chunk: StreamChunk = {
+      type: EventType.RUN_STARTED,
+      timestamp: Date.now(),
+      threadId: 't',
+      runId: 'r',
+    }
+    expect(await mw.onChunk?.(ctx, chunk)).toBeUndefined()
   })
 
   it('does not compact during init', async () => {
