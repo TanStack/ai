@@ -1055,6 +1055,28 @@ export function normalizeConnectionAdapter(
     }
   }
 
+  async function waitUntilSubscriberIdle(
+    abortSignal?: AbortSignal,
+  ): Promise<void> {
+    // Idle means the subscriber is waiting for the next chunk, so the
+    // previous chunk has left processIncomingChunk. Empty waiters with an
+    // empty buffer is in-flight delivery, not idle.
+    const idle = () =>
+      activeBuffer.length === 0 &&
+      (activeWaiters.length > 0 || abortSignal?.aborted)
+    for (let i = 0; i < 16 && !abortSignal?.aborted; i++) {
+      if (idle()) return
+      await Promise.resolve()
+    }
+    let macrotaskWaits = 0
+    while (!abortSignal?.aborted) {
+      if (idle()) return
+      await new Promise<void>((resolve) => setTimeout(resolve, 0))
+      macrotaskWaits++
+      if (activeWaiters.length === 0 && macrotaskWaits >= 32) return
+    }
+  }
+
   return {
     subscribe(abortSignal?: AbortSignal): AsyncIterable<StreamChunk> {
       // Transfer ownership to the latest subscriber so only one active
@@ -1162,6 +1184,7 @@ export function normalizeConnectionAdapter(
         }
         throw err
       }
+      await waitUntilSubscriberIdle(abortSignal)
     },
     // Expose joinRun only when the underlying connection is resumable. Require
     // a real function — `'joinRun' in connection` is true for

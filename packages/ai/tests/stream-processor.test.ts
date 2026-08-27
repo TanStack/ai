@@ -2976,7 +2976,9 @@ describe('StreamProcessor', () => {
       expect(state.toolCalls.size).toBe(1)
       expect(state.toolCallOrder).toEqual(['tc-1'])
       expect(state.finishReason).toBe('tool_calls')
-      expect(state.done).toBe(true)
+      expect(state.done).toBe(false)
+      processor.finalizeStream()
+      expect(processor.getState().done).toBe(true)
     })
 
     it('should return independent copies (mutations do not affect internal state)', () => {
@@ -4109,6 +4111,38 @@ describe('StreamProcessor', () => {
         },
       ])
     })
+
+    it('should not drop the first TEXT_MESSAGE_CONTENT delta in a tool-first flow (#1247)', () => {
+      const processor = new StreamProcessor()
+
+      processor.processChunk(
+        chunk(EventType.TOOL_CALL_START, {
+          toolCallId: 'tc-1',
+          toolCallName: 'lookupWeather',
+          toolName: 'lookupWeather',
+          parentMessageId: 'anthropic-msg-1',
+        }),
+      )
+      processor.processChunk(ev.toolArgs('tc-1', '{"location":"Berlin"}'))
+      processor.processChunk(ev.toolEnd('tc-1', 'lookupWeather'))
+
+      processor.processChunk(
+        chunk(EventType.TEXT_MESSAGE_START, {
+          messageId: 'anthropic-msg-1',
+          role: 'assistant' as const,
+        }),
+      )
+      // Two deltas: the bug only surfaces once a second delta arrives after
+      // the tool-first message's real TEXT_MESSAGE_START.
+      processor.processChunk(ev.textContent('It is ', 'anthropic-msg-1'))
+      processor.processChunk(ev.textContent('sunny.', 'anthropic-msg-1'))
+      processor.processChunk(ev.textEnd('anthropic-msg-1'))
+      processor.finalizeStream()
+
+      const messages = processor.getMessages()
+      const textParts = messages[0]?.parts.filter((p) => p.type === 'text')
+      expect(textParts).toEqual([{ type: 'text', content: 'It is sunny.' }])
+    })
   })
 
   describe('double onStreamEnd guard', () => {
@@ -4603,6 +4637,84 @@ describe('StreamProcessor', () => {
       expect(processor.getState().done).toBe(true)
     })
 
+    it('appends leftover reasoning after a stop RUN_FINISHED onto the same thinking part', () => {
+      const processor = new StreamProcessor()
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.stepStarted('step-1'))
+      processor.processChunk(
+        ev.reasoningContent(
+          'The user is asking for a beginner guitar recommen.',
+        ),
+      )
+      processor.processChunk(ev.runFinished('stop'))
+      processor.processChunk(ev.reasoningContent(' $1,299.'))
+
+      const messages = processor.getMessages()
+      expect(messages).toHaveLength(1)
+      const thinkingParts = messages[0]!.parts.filter(
+        (part) => part.type === 'thinking',
+      )
+      expect(thinkingParts).toHaveLength(1)
+      const thinkingPart = thinkingParts[0]
+      if (thinkingPart?.type !== 'thinking') {
+        throw new Error('expected a thinking part')
+      }
+      expect(thinkingPart.content).toBe(
+        'The user is asking for a beginner guitar recommen. $1,299.',
+      )
+    })
+
+    it('flushes leftover text after a stop RUN_FINISHED and fires onStreamEnd once', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+      processor.prepareAssistantMessage()
+
+      processor.processChunk(ev.runStarted())
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('Hello', 'msg-1'))
+      processor.processChunk(ev.runFinished('stop'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+
+      processor.processChunk(ev.textContent(' world', 'msg-1'))
+      expect(processor.getState().done).toBe(false)
+      processor.processChunk(ev.textEnd('msg-1'))
+      processor.finalizeStream()
+
+      const textPart = processor
+        .getMessages()[0]!
+        .parts.find((part) => part.type === 'text')
+      if (textPart?.type !== 'text') {
+        throw new Error('expected a text part')
+      }
+      expect(textPart.content).toBe('Hello world')
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
+    it('does not fire onStreamEnd on a sequential tool_calls terminal', () => {
+      const events = spyEvents()
+      const processor = new StreamProcessor({ events })
+
+      processor.processChunk(ev.runStarted('run-1'))
+      processor.processChunk(ev.textStart('msg-1'))
+      processor.processChunk(ev.textContent('calling', 'msg-1'))
+      processor.processChunk(ev.runFinished('tool_calls', 'run-1'))
+
+      expect(events.onStreamEnd).not.toHaveBeenCalled()
+      expect(processor.getState().done).toBe(false)
+
+      processor.processChunk(ev.runStarted('run-2'))
+      processor.processChunk(ev.textContent(' done', 'msg-1'))
+      processor.processChunk(ev.runFinished('stop', 'run-2'))
+
+      expect(events.onStreamEnd).toHaveBeenCalledTimes(1)
+      expect(processor.getState().done).toBe(true)
+    })
+
     it('single run should finalize normally (backward compat)', () => {
       const events = spyEvents()
       const processor = new StreamProcessor({ events })
@@ -4656,6 +4768,8 @@ describe('StreamProcessor', () => {
       expect(processor.getState().toolCalls.get('tc-a')?.state).toBe(
         'input-complete',
       )
+      expect(processor.getState().done).toBe(false)
+      processor.finalizeStream()
       expect(processor.getState().done).toBe(true)
     })
 
