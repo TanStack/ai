@@ -182,7 +182,13 @@ const MiddlewareStep: Component<{
 
   return (
     <>
-      <div class={s().step}>
+      <div
+        class={s().step}
+        style={hasChanges() ? { cursor: 'pointer' } : undefined}
+        onClick={() => {
+          if (hasChanges()) setExpanded(!expanded())
+        }}
+      >
         <span class={`${s().stepPrefix} ${s().stepPrefixMiddleware}`}>
           Middleware
         </span>
@@ -197,10 +203,7 @@ const MiddlewareStep: Component<{
           <span class={s().mwSuffix}>{suffix()}</span>
         </Show>
         <Show when={hasChanges()}>
-          <span
-            class={s().stepExpandToggle}
-            onClick={() => setExpanded(!expanded())}
-          >
+          <span class={s().stepExpandToggle}>
             {expanded() ? 'hide changes' : 'show changes'}
           </span>
         </Show>

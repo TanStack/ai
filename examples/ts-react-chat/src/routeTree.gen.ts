@@ -28,8 +28,8 @@ import { Route as ImageToolReproRouteImport } from './routes/image-tool-repro'
 import { Route as ImageGenRouteImport } from './routes/image-gen'
 import { Route as GenericInterruptsRouteImport } from './routes/generic-interrupts'
 import { Route as GenerationHooksRouteImport } from './routes/generation-hooks'
-import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
 import { Route as CompactionRouteImport } from './routes/compaction'
+import { Route as CapabilityDemoRouteImport } from './routes/capability-demo'
 import { Route as AppStudioRouteImport } from './routes/app-studio'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as GenerationsVideoRouteImport } from './routes/generations.video'
@@ -66,8 +66,8 @@ import { Route as ApiInterruptsRouteImport } from './routes/api.interrupts'
 import { Route as ApiImageToolReproRouteImport } from './routes/api.image-tool-repro'
 import { Route as ApiImageGenRouteImport } from './routes/api.image-gen'
 import { Route as ApiGenericInterruptsRouteImport } from './routes/api.generic-interrupts'
-import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
 import { Route as ApiCompactionRouteImport } from './routes/api.compaction'
+import { Route as ApiCapabilityDemoRouteImport } from './routes/api.capability-demo'
 import { Route as ApiArtifactsRouteImport } from './routes/api.artifacts'
 import { Route as ApiAppStudioForkRouteImport } from './routes/api.app-studio-fork'
 import { Route as ApiAppStudioRouteImport } from './routes/api.app-studio'
@@ -174,14 +174,14 @@ const GenerationHooksRoute = GenerationHooksRouteImport.update({
   path: '/generation-hooks',
   getParentRoute: () => rootRouteImport,
 } as any)
-const CapabilityDemoRoute = CapabilityDemoRouteImport.update({
-  id: '/capability-demo',
-  path: '/capability-demo',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const CompactionRoute = CompactionRouteImport.update({
   id: '/compaction',
   path: '/compaction',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CapabilityDemoRoute = CapabilityDemoRouteImport.update({
+  id: '/capability-demo',
+  path: '/capability-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AppStudioRoute = AppStudioRouteImport.update({
@@ -369,14 +369,14 @@ const ApiGenericInterruptsRoute = ApiGenericInterruptsRouteImport.update({
   path: '/api/generic-interrupts',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiCapabilityDemoRoute = ApiCapabilityDemoRouteImport.update({
-  id: '/api/capability-demo',
-  path: '/api/capability-demo',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const ApiCompactionRoute = ApiCompactionRouteImport.update({
   id: '/api/compaction',
   path: '/api/compaction',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiCapabilityDemoRoute = ApiCapabilityDemoRouteImport.update({
+  id: '/api/capability-demo',
+  path: '/api/capability-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiArtifactsRoute = ApiArtifactsRouteImport.update({
@@ -1067,18 +1067,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GenerationHooksRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/capability-demo': {
-      id: '/capability-demo'
-      path: '/capability-demo'
-      fullPath: '/capability-demo'
-      preLoaderRoute: typeof CapabilityDemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/compaction': {
       id: '/compaction'
       path: '/compaction'
       fullPath: '/compaction'
       preLoaderRoute: typeof CompactionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/capability-demo': {
+      id: '/capability-demo'
+      path: '/capability-demo'
+      fullPath: '/capability-demo'
+      preLoaderRoute: typeof CapabilityDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/app-studio': {
@@ -1333,18 +1333,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiGenericInterruptsRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/capability-demo': {
-      id: '/api/capability-demo'
-      path: '/api/capability-demo'
-      fullPath: '/api/capability-demo'
-      preLoaderRoute: typeof ApiCapabilityDemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/api/compaction': {
       id: '/api/compaction'
       path: '/api/compaction'
       fullPath: '/api/compaction'
       preLoaderRoute: typeof ApiCompactionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/capability-demo': {
+      id: '/api/capability-demo'
+      path: '/api/capability-demo'
+      fullPath: '/api/capability-demo'
+      preLoaderRoute: typeof ApiCapabilityDemoRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/artifacts': {

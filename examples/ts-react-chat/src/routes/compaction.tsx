@@ -1,8 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { Send, Scissors } from 'lucide-react'
-import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
+import { fetchServerSentEvents, useByok, useChat } from '@tanstack/ai-react'
 import type { UIMessage } from '@tanstack/ai-react'
+import type { ProviderId } from '@tanstack/ai/byok'
+import { ByokKeyDialog } from '@/components/ByokKeyDialog'
+import { byok, getEnvKeyStatus, toByokProvider } from '@/lib/byok'
 import { DEFAULT_MODEL_OPTION, MODEL_OPTIONS } from '@/lib/model-selection'
 import type { ModelOption } from '@/lib/model-selection'
 
@@ -22,8 +25,26 @@ function CompactionPage() {
   const [maxTokens, setMaxTokens] = useState(400)
   const [strategy, setStrategy] = useState<'evict' | 'summarize'>('evict')
   const [input, setInput] = useState('')
+  const selectedProviderRef = useRef(selectedModel.provider)
+  selectedProviderRef.current = selectedModel.provider
+  const snapshot = useByok(byok)
+  const [envKeyStatus, setEnvKeyStatus] = useState<Record<string, boolean>>({})
+  const [keyDialog, setKeyDialog] = useState<{
+    open: boolean
+    provider: ProviderId | null
+  }>({ open: false, provider: null })
 
-  const body = useMemo(
+  useEffect(() => {
+    void getEnvKeyStatus().then(setEnvKeyStatus)
+  }, [])
+
+  useEffect(() => {
+    if (snapshot.prompt?.reason === 'missing') {
+      setKeyDialog({ open: true, provider: snapshot.prompt.provider })
+    }
+  }, [snapshot.prompt])
+
+  const forwardedProps = useMemo(
     () => ({
       provider: selectedModel.provider,
       model: selectedModel.model,
@@ -33,9 +54,11 @@ function CompactionPage() {
     [selectedModel.provider, selectedModel.model, maxTokens, strategy],
   )
 
-  const { messages, sendMessage, isLoading } = useChat({
+  const { messages, sendMessage, isLoading, error } = useChat({
     connection: fetchServerSentEvents('/api/compaction'),
-    body,
+    byok,
+    byokProvider: () => toByokProvider(selectedProviderRef.current),
+    forwardedProps,
     devtools: { name: 'Compaction' },
   })
 
@@ -55,8 +78,8 @@ function CompactionPage() {
         </div>
         <p className="text-sm text-gray-400">
           Chat until the transcript passes maxTokens. Then open TanStack
-          DevTools (bottom-right), pick the AI plugin, and inspect the
-          compaction / onCompact step for before and after token counts.
+          DevTools (bottom-right), pick the AI plugin, and click the compaction
+          step to see before and after token counts.
         </p>
         <div>
           <label className="mb-2 block text-sm text-gray-400">
@@ -81,6 +104,13 @@ function CompactionPage() {
             ))}
           </select>
         </div>
+        <ByokKeyDialog
+          open={keyDialog.open}
+          onOpenChange={(open) => setKeyDialog((s) => ({ ...s, open }))}
+          envStatus={envKeyStatus}
+          activeProvider={toByokProvider(selectedModel.provider)}
+          highlightProvider={keyDialog.provider}
+        />
         <div>
           <label className="mb-1 block text-sm text-gray-400">
             maxTokens (compact above this): {maxTokens}
@@ -141,6 +171,12 @@ function CompactionPage() {
           ))
         )}
       </div>
+
+      {error && (
+        <div className="mx-4 mb-2 rounded-lg border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-400">
+          {error.message}
+        </div>
+      )}
 
       <div className="border-t border-cyan-500/10 bg-gray-900/80 px-4 py-3">
         <div className="flex gap-2">
