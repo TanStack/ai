@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** @deprecated Use `createUI()` Messages instead. Deprecated in 0.3.0. Removed in 1.0.0. */
+/** @deprecated Use `createChatUI()` Messages instead. Deprecated in 0.3.0. Removed in 1.0.0. */
 import { useTemplateRef, watch } from 'vue'
 import { useChatContext } from './use-chat-context'
 import ChatMessage from './chat-message.vue'

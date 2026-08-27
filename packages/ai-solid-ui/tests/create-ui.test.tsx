@@ -1,6 +1,6 @@
 import { render } from 'solid-js/web'
 import { describe, expect, it, vi } from 'vitest'
-import { createUI } from '../src/create-ui'
+import { createChatUI } from '../src/create-ui'
 import type { ChatUIHost } from '../src/create-ui'
 import {
   chatOptions,
@@ -23,9 +23,9 @@ function renderHtml(node: () => unknown) {
   return container.innerHTML
 }
 
-describe('Solid createUI', () => {
+describe('Solid createChatUI', () => {
   it('renders automatic and manual traversal', () => {
-    const UI = createUI(chatOptions)
+    const UI = createChatUI(chatOptions)
     const chat = host([messageWithToolResults])
     const components = UI.defineComponents({
       layout: (props) => <>{props.renderMessages()}</>,
@@ -54,7 +54,7 @@ describe('Solid createUI', () => {
 
   it('warns once for a missing runtime key', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const UI = createUI(chatOptions)
+    const UI = createChatUI(chatOptions)
     const chat = host([unknownToolMessage])
     const components = UI.defineComponents({
       layout: (props) => props.renderMessages(),

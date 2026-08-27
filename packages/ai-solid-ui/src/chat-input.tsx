@@ -17,7 +17,7 @@ export interface ChatInputRenderProps {
   ref: (el: HTMLInputElement | HTMLTextAreaElement) => void
 }
 
-/** @deprecated Use `createUI()` and an application-owned input component. Deprecated in 0.8.0. Removed in 1.0.0. */
+/** @deprecated Use `createChatUI()` and an application-owned input component. Deprecated in 0.8.0. Removed in 1.0.0. */
 export interface ChatInputProps {
   /** Render prop for full control */
   children?: (props: ChatInputRenderProps) => JSX.Element
@@ -32,7 +32,7 @@ export interface ChatInputProps {
 }
 
 /**
- * @deprecated Use `createUI()` and an application-owned input component. Deprecated in 0.8.0. Removed in 1.0.0.
+ * @deprecated Use `createChatUI()` and an application-owned input component. Deprecated in 0.8.0. Removed in 1.0.0.
  *
  * Chat input component - handles message input and submission
  *

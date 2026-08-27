@@ -12,7 +12,7 @@ export interface ToolCallRenderProps {
   output?: any
 }
 
-/** @deprecated Use `createUI()` Message instead. Deprecated in 0.8.0. Removed in 1.0.0. */
+/** @deprecated Use `createChatUI()` Message instead. Deprecated in 0.8.0. Removed in 1.0.0. */
 export interface ChatMessageProps {
   /** The message to render */
   message: UIMessage
@@ -42,7 +42,7 @@ export interface ChatMessageProps {
 }
 
 /**
- * @deprecated Use `createUI()` Message instead. Deprecated in 0.8.0. Removed in 1.0.0.
+ * @deprecated Use `createChatUI()` Message instead. Deprecated in 0.8.0. Removed in 1.0.0.
  *
  * Message component - renders a single message with all its parts
  *

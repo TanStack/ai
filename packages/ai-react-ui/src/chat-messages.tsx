@@ -4,7 +4,7 @@ import { ChatMessage } from './chat-message'
 import type { ReactNode } from 'react'
 import type { UIMessage } from '@tanstack/ai-react'
 
-/** @deprecated Use `createUI()` Messages instead. Deprecated in 0.9.0. Removed in 1.0.0. */
+/** @deprecated Use `createChatUI()` Messages instead. Deprecated in 0.9.0. Removed in 1.0.0. */
 export interface ChatMessagesProps {
   /** Custom render function for each message */
   children?: (message: UIMessage, index: number) => ReactNode
@@ -24,7 +24,7 @@ export interface ChatMessagesProps {
 }
 
 /**
- * @deprecated Use `createUI()` Messages instead. Deprecated in 0.9.0. Removed in 1.0.0.
+ * @deprecated Use `createChatUI()` Messages instead. Deprecated in 0.9.0. Removed in 1.0.0.
  *
  * Messages container - renders all messages in the conversation
  *

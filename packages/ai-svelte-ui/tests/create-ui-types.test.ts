@@ -1,9 +1,9 @@
 import { describe, expectTypeOf, it } from 'vitest'
-import { createUI } from '../src/create-ui'
+import { createChatUI } from '../src/create-ui'
 import type { ChatUIHost, InterruptProps, ToolProps } from '../src/create-ui'
 import { chatOptions } from '../../ai-client/tests/ui-fixtures'
 
-describe('Svelte createUI types', () => {
+describe('Svelte createChatUI types', () => {
   it('infers defineComponents from a bare options variable', () => {
     type PurchaseInterrupt = InterruptProps<typeof chatOptions, 'purchaseItem'>
     expectTypeOf<
@@ -18,7 +18,7 @@ describe('Svelte createUI types', () => {
       NonNullable<PurchaseTool['interrupt']>['originalArgs']
     >().toEqualTypeOf<{ item: string }>()
 
-    const ui = createUI(chatOptions)
+    const ui = createChatUI(chatOptions)
     expectTypeOf(ui.useChat).returns.toEqualTypeOf<
       ChatUIHost<typeof chatOptions>
     >()
@@ -70,7 +70,7 @@ describe('Svelte createUI types', () => {
       },
     })
 
-    const untyped = createUI({})
+    const untyped = createChatUI({})
     untyped.defineComponents({
       layout: {},
       message: {},

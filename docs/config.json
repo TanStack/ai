@@ -880,7 +880,7 @@
           "updatedAt": "2026-07-22"
         },
         {
-          "label": "createUI",
+          "label": "createChatUI",
           "to": "migration/create-ui",
           "addedAt": "2026-08-26",
           "updatedAt": "2026-08-27"

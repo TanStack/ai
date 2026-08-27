@@ -162,7 +162,7 @@ function messagesAccessor<TOptions>(
   return chat.messages
 }
 
-export function createUI<const TOptions>(options: TOptions) {
+export function createChatUI<const TOptions>(options: TOptions) {
   void options
   const warn = createWarnOnce()
   const ChatContext = createContext<ChatUIHost<TOptions> | null>(null)

@@ -253,7 +253,7 @@ function renderSelectedPart(
   return h(PartComponent, { part: selected.part })
 }
 
-export function createUI<const TOptions>(
+export function createChatUI<const TOptions>(
   options: TOptions,
 ): UIDescriptor<TOptions> {
   void options

@@ -5,7 +5,7 @@ order: 5
 description: "Build a framework adapter on @tanstack/ai-client/ui. The core is types and selectors only."
 keywords:
   - tanstack ai
-  - createUI
+  - createChatUI
   - custom adapter
   - headless ui
 ---

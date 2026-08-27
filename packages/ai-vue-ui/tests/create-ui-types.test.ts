@@ -1,5 +1,5 @@
 import { expectTypeOf, it } from 'vitest'
-import { createUI } from '../src/create-ui'
+import { createChatUI } from '../src/create-ui'
 import type { ChatUIHost, InterruptProps, ToolProps } from '../src/create-ui'
 import { chatOptions } from '../../ai-client/tests/ui-fixtures'
 
@@ -17,7 +17,7 @@ it('requires every tool name and interrupt id', () => {
     NonNullable<PurchaseTool['interrupt']>['originalArgs']
   >().toEqualTypeOf<{ item: string }>()
 
-  const ui = createUI(chatOptions)
+  const ui = createChatUI(chatOptions)
   expectTypeOf(ui.useChat).returns.toEqualTypeOf<
     ChatUIHost<typeof chatOptions>
   >()
@@ -76,7 +76,7 @@ it('requires every tool name and interrupt id', () => {
     },
   })
 
-  const untyped = createUI({})
+  const untyped = createChatUI({})
   untyped.defineComponents({
     layout: () => null,
     message: () => null,

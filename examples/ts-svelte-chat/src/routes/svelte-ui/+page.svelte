@@ -4,7 +4,7 @@
     fetchServerSentEvents,
     clientTools,
   } from '@tanstack/ai-svelte'
-  import { createUI, UIChat } from '@tanstack/ai-svelte-ui'
+  import { createChatUI, UIChat } from '@tanstack/ai-svelte-ui'
   import {
     addToCartToolDef,
     addToWishListToolDef,
@@ -14,6 +14,7 @@
   import Fallback from './Fallback.svelte'
   import Layout from './Layout.svelte'
   import Message from './Message.svelte'
+  import Tool from './Tool.svelte'
 
   const getPersonalGuitarPreferenceToolClient =
     getPersonalGuitarPreferenceToolDef.client(() => ({
@@ -55,17 +56,23 @@
     tools,
   }
 
-  const ui = createUI(chatOptions)
+  const ui = createChatUI(chatOptions)
   const chat = createChat(chatOptions)
   const components = ui.defineComponents({
     layout: Layout,
     message: Message,
     parts: { fallback: Fallback },
+    tools: {
+      recommendGuitar: Tool,
+      getPersonalGuitarPreference: Tool,
+      addToWishList: Tool,
+      addToCart: Tool,
+    },
   })
 </script>
 
 <svelte:head>
-  <title>TanStack AI - Svelte createUI</title>
+  <title>TanStack AI - Svelte createChatUI</title>
 </svelte:head>
 
 <UIChat {ui} {chat} {components} />

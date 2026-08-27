@@ -1,5 +1,5 @@
 <script setup lang="ts">
-/** @deprecated Use `createUI()` interrupt components with `chat.interrupts`. Deprecated in 0.3.0. Removed in 1.0.0. */
+/** @deprecated Use `createChatUI()` interrupt components with `chat.interrupts`. Deprecated in 0.3.0. Removed in 1.0.0. */
 import { computed } from 'vue'
 import { useChatContext } from './use-chat-context'
 import type { ToolApprovalProps, ToolApprovalRenderProps } from './types'

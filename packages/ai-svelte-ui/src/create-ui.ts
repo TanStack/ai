@@ -113,7 +113,7 @@ function createWarnOnce() {
   }
 }
 
-export function createUI<const TOptions>(
+export function createChatUI<const TOptions>(
   options: TOptions,
 ): UIDescriptor<TOptions> {
   void options
