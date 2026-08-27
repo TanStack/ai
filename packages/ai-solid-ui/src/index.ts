@@ -25,7 +25,7 @@
  */
 
 export {
-  createUI,
+  createChatUI,
   type ChatUIComponents,
   type ChatUIHost,
   type InputProps,

@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it, vi } from 'vitest'
-import { createUI } from '../src/create-ui'
+import { createChatUI } from '../src/create-ui'
 import type { ChatUIHost } from '../src/create-ui'
 import {
   chatOptions,
@@ -23,9 +23,9 @@ function host(
   >
 }
 
-describe('createUI', () => {
+describe('createChatUI', () => {
   it('renders automatic and manual trees', () => {
-    const UI = createUI(chatOptions)
+    const UI = createChatUI(chatOptions)
     const components = UI.defineComponents({
       layout: ({ renderMessages, renderInterrupts }) => (
         <>
@@ -65,7 +65,7 @@ describe('createUI', () => {
 
   it('warns once for a missing runtime key', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const UI = createUI(chatOptions)
+    const UI = createChatUI(chatOptions)
     const chat = host({ messages: [unknownToolMessage] })
     const components = UI.defineComponents({
       layout: ({ renderMessages }) => renderMessages(),
@@ -86,7 +86,7 @@ describe('createUI', () => {
   })
 
   it('keeps unmatched tool results and suppresses matched ones', () => {
-    const UI = createUI(chatOptions)
+    const UI = createChatUI(chatOptions)
     const components = UI.defineComponents({
       layout: ({ renderMessages }) => renderMessages(),
       message: ({ renderParts }) => renderParts(),
@@ -123,7 +123,7 @@ describe('createUI', () => {
   })
 
   it('puts list approvals in Interrupts when interrupts.tools has the tool', () => {
-    const UI = createUI(chatOptions)
+    const UI = createChatUI(chatOptions)
     const list = UI.defineComponents({
       layout: ({ renderMessages, renderInterrupts }) => (
         <>
@@ -160,7 +160,7 @@ describe('createUI', () => {
 
   it('lets a tool render its approval from interrupt without a registered interrupt component', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const UI = createUI(chatOptions)
+    const UI = createChatUI(chatOptions)
     const components = UI.defineComponents({
       layout: ({ renderMessages, renderInterrupts }) => (
         <>
@@ -199,7 +199,7 @@ describe('createUI', () => {
   })
 
   it('renders registered generic interrupts and sends the rest to fallback', () => {
-    const UI = createUI(chatOptions)
+    const UI = createChatUI(chatOptions)
     const components = UI.defineComponents({
       layout: ({ renderInterrupts }) => renderInterrupts(),
       message: ({ renderParts }) => renderParts(),
@@ -229,7 +229,7 @@ describe('createUI', () => {
   })
 
   it('omits input when no input component exists', () => {
-    const UI = createUI(chatOptions)
+    const UI = createChatUI(chatOptions)
     const components = UI.defineComponents({
       layout: ({ renderInput }) => <main>{renderInput()}</main>,
       message: ({ renderParts }) => renderParts(),
@@ -249,7 +249,7 @@ describe('createUI', () => {
   })
 
   it('reads chat from nested provider context and throws outside a provider', () => {
-    const UI = createUI(chatOptions)
+    const UI = createChatUI(chatOptions)
     const components = UI.defineComponents({
       layout: () => {
         const chat = UI.useChat()
@@ -294,7 +294,7 @@ describe('createUI', () => {
       'complete',
       'error',
     ]
-    const UI = createUI(chatOptions)
+    const UI = createChatUI(chatOptions)
     const components = UI.defineComponents({
       layout: ({ renderMessages }) => renderMessages(),
       message: ({ renderParts }) => renderParts(),

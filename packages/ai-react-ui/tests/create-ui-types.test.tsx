@@ -1,5 +1,5 @@
 import { expectTypeOf, it } from 'vitest'
-import { createUI } from '../src/create-ui'
+import { createChatUI } from '../src/create-ui'
 import type {
   ChatUIHost,
   InterruptProps,
@@ -47,7 +47,7 @@ it('types tool and interrupt component props from chatOptions', () => {
     { title: string } | undefined
   >()
 
-  const UI = createUI(chatOptions)
+  const UI = createChatUI(chatOptions)
 
   UI.defineComponents({
     layout: ({ renderMessages }) => {
@@ -132,7 +132,7 @@ it('types tool and interrupt component props from chatOptions', () => {
     },
   })
 
-  const Untyped = createUI({})
+  const Untyped = createChatUI({})
   Untyped.defineComponents({
     layout: () => null,
     message: () => null,

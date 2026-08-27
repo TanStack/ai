@@ -7,7 +7,7 @@ import TextPart from './text-part.vue'
 import ToolApproval from './tool-approval.vue'
 
 export {
-  createUI,
+  createChatUI,
   UIChat,
   UIProvider,
   UIMessages,

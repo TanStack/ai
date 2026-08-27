@@ -1,6 +1,6 @@
 import { createFileRoute } from '@tanstack/solid-router'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
-import { createUI } from '@tanstack/ai-solid-ui'
+import { createChatUI } from '@tanstack/ai-solid-ui'
 import { createSignal } from 'solid-js'
 import { clientTools } from '@/lib/guitar-tools'
 
@@ -9,7 +9,7 @@ const chatOptions = {
   tools: clientTools,
 }
 
-const UI = createUI(chatOptions)
+const UI = createChatUI(chatOptions)
 
 function SolidUIPage() {
   const chat = useChat(chatOptions)

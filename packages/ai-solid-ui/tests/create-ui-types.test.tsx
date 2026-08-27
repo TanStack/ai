@@ -1,5 +1,5 @@
 import { expectTypeOf, it } from 'vitest'
-import { createUI } from '../src/create-ui'
+import { createChatUI } from '../src/create-ui'
 import type { ChatUIHost, InterruptProps, ToolProps } from '../src/create-ui'
 import { chatOptions } from '../../ai-client/tests/ui-fixtures'
 
@@ -19,7 +19,7 @@ it('requires every tool name and interrupt id', () => {
     item: string
   }>()
 
-  const UI = createUI(chatOptions)
+  const UI = createChatUI(chatOptions)
 
   UI.defineComponents({
     layout: (props) => {
@@ -94,7 +94,7 @@ it('requires every tool name and interrupt id', () => {
     },
   })
 
-  const Untyped = createUI({})
+  const Untyped = createChatUI({})
   Untyped.defineComponents({
     layout: () => null,
     message: () => null,

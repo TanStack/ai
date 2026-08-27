@@ -1,6 +1,6 @@
 import { defineComponent, h } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
-import { createUI, UIChat, UIMessages, UIProvider } from '../src'
+import { createChatUI, UIChat, UIMessages, UIProvider } from '../src'
 import { renderVueText } from './test-renderer'
 import {
   chatOptions,
@@ -9,9 +9,9 @@ import {
   unknownToolMessage,
 } from '../../ai-client/tests/ui-fixtures'
 
-describe('Vue createUI', () => {
+describe('Vue createChatUI', () => {
   it('renders automatic and scoped-slot traversal', async () => {
-    const ui = createUI(chatOptions)
+    const ui = createChatUI(chatOptions)
     const chat = createVueChatResult([messageWithToolResults])
     const components = ui.defineComponents({
       layout: defineComponent(
@@ -79,7 +79,7 @@ describe('Vue createUI', () => {
 
   it('warns once for a missing runtime key', async () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined)
-    const ui = createUI(chatOptions)
+    const ui = createChatUI(chatOptions)
     const chat = createVueChatResult([unknownToolMessage])
     const components = ui.defineComponents({
       layout: defineComponent(

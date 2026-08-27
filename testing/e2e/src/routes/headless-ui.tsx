@@ -8,7 +8,7 @@ import {
   toolDefinition,
 } from '@tanstack/ai'
 import { useChat } from '@tanstack/ai-react'
-import { createUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react-ui'
 import { EventType } from '@tanstack/ai/client'
 import type { ChatFetcher } from '@tanstack/ai-client'
 import { z } from 'zod'
@@ -150,7 +150,7 @@ const chatOptions = {
   fetcher,
 }
 
-const UI = createUI(chatOptions)
+const UI = createChatUI(chatOptions)
 
 const components = UI.defineComponents({
   layout: ({ renderMessages, renderInterrupts, renderInput }) => {

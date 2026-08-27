@@ -2,27 +2,27 @@
 title: Svelte Chat UI
 id: typed-headless-ui-svelte
 order: 4
-description: "Build a typed, headless Svelte 5 chat UI with createUI, snippets, and static components."
+description: "Build a typed, headless Svelte 5 chat UI with createChatUI, snippets, and static components."
 keywords:
   - tanstack ai
-  - createUI
+  - createChatUI
   - svelte
   - headless ui
   - ToolProps
 ---
 
-Install `@tanstack/ai-svelte-ui`. Call `createUI(chatOptions)` once. Pass `{ui}`, `{chat}`, and `{components}` into `UIChat`.
+Install `@tanstack/ai-svelte-ui`. Call `createChatUI(chatOptions)` once. Pass `{ui}`, `{chat}`, and `{components}` into `UIChat`.
 
 `defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
 
-The server route matches the [React page](./react). Use `gpt-5.2` on the OpenAI text adapter.
+The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
 ## Client
 
 ```svelte
 <script lang="ts">
   import { createChat, fetchServerSentEvents } from '@tanstack/ai-svelte'
-  import { createUI, UIChat } from '@tanstack/ai-svelte-ui'
+  import { createChatUI, UIChat } from '@tanstack/ai-svelte-ui'
   import { toolDefinition } from '@tanstack/ai'
   import { z } from 'zod'
   import Layout from './Layout.svelte'
@@ -42,7 +42,7 @@ The server route matches the [React page](./react). Use `gpt-5.2` on the OpenAI 
     tools: [getWeather],
   }
 
-  const ui = createUI(chatOptions)
+  const ui = createChatUI(chatOptions)
   const chat = createChat(chatOptions)
   const components = ui.defineComponents({
     layout: Layout,
@@ -59,7 +59,7 @@ The server route matches the [React page](./react). Use `gpt-5.2` on the OpenAI 
 
 ## Type a component in its own file
 
-Type the `$props()` of a tool file with `ToolProps`. Share the same `chatOptions` module that you pass to `createUI`.
+Type the `$props()` of a tool file with `ToolProps`. Share the same `chatOptions` module that you pass to `createChatUI`.
 
 ```svelte
 <script lang="ts">

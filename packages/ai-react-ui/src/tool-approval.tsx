@@ -36,7 +36,7 @@ export interface ToolApprovalRenderProps {
 }
 
 /**
- * @deprecated Use `createUI()` interrupt components with `chat.interrupts`.
+ * @deprecated Use `createChatUI()` interrupt components with `chat.interrupts`.
  * Deprecated in 0.9.0. Removed in 1.0.0.
  *
  * Tool approval component - renders approve/deny buttons for tools that need approval

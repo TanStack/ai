@@ -1,4 +1,4 @@
-export { createUI, getUIContext } from './create-ui'
+export { createChatUI, getUIContext } from './create-ui'
 export type {
   ChatUIComponents,
   ChatUIHost,

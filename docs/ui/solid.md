@@ -2,26 +2,26 @@
 title: Solid Chat UI
 id: typed-headless-ui-solid
 order: 2
-description: "Build a typed, headless Solid chat UI with createUI. Accessors stay tracked. Your app owns useChat."
+description: "Build a typed, headless Solid chat UI with createChatUI. Accessors stay tracked. Your app owns useChat."
 keywords:
   - tanstack ai
-  - createUI
+  - createChatUI
   - solid
   - headless ui
   - ToolProps
 ---
 
-Install `@tanstack/ai-solid-ui`, then call `createUI(chatOptions)` once at module scope. Do not destructure reactive props.
+Install `@tanstack/ai-solid-ui`, then call `createChatUI(chatOptions)` once at module scope. Do not destructure reactive props.
 
 `defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
 
-The server route matches the [React page](./react). Use `gpt-5.2` on the OpenAI text adapter.
+The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
 ## Client
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
-import { createUI } from '@tanstack/ai-solid-ui'
+import { createChatUI } from '@tanstack/ai-solid-ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -37,7 +37,7 @@ const chatOptions = {
   tools: [getWeather],
 }
 
-const UI = createUI(chatOptions)
+const UI = createChatUI(chatOptions)
 
 const components = UI.defineComponents({
   layout: (props) => (
@@ -68,7 +68,7 @@ Use `ToolProps` the same way as React. Keep the `props` object so Solid can trac
 
 ```tsx
 import { fetchServerSentEvents } from '@tanstack/ai-solid'
-import { createUI, type ToolProps } from '@tanstack/ai-solid-ui'
+import { createChatUI, type ToolProps } from '@tanstack/ai-solid-ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -90,7 +90,7 @@ export function WeatherTool(
   return <strong>{props.part.input?.city}</strong>
 }
 
-const UI = createUI(chatOptions)
+const UI = createChatUI(chatOptions)
 
 export const components = UI.defineComponents({
   layout: (props) => props.renderMessages(),
@@ -110,13 +110,13 @@ Mapped components do not receive `chat` as a prop. Call `UI.useChat()` when a co
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-solid'
-import { createUI } from '@tanstack/ai-solid-ui'
+import { createChatUI } from '@tanstack/ai-solid-ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
 }
 
-const UI = createUI(chatOptions)
+const UI = createChatUI(chatOptions)
 
 function StatusLine() {
   const chat = UI.useChat()

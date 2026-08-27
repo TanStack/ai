@@ -1,7 +1,7 @@
 {
   "name": "@tanstack/ai-svelte-ui",
   "version": "0.1.0",
-  "description": "Headless Svelte 5 components for building TanStack AI chat interfaces with typed createUI adapters.",
+  "description": "Headless Svelte 5 components for building TanStack AI chat interfaces with typed createChatUI adapters.",
   "author": "Tanner Linsley",
   "license": "MIT",
   "homepage": "https://tanstack.com/ai",

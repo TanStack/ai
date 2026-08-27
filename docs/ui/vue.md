@@ -2,27 +2,27 @@
 title: Vue Chat UI
 id: typed-headless-ui-vue
 order: 3
-description: "Build a typed, headless Vue chat UI with createUI and static primitives. Slots replace render callbacks."
+description: "Build a typed, headless Vue chat UI with createChatUI and static primitives. Slots replace render callbacks."
 keywords:
   - tanstack ai
-  - createUI
+  - createChatUI
   - vue
   - headless ui
   - ToolProps
 ---
 
-Install `@tanstack/ai-vue-ui`. Call `createUI(chatOptions)` once. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
+Install `@tanstack/ai-vue-ui`. Call `createChatUI(chatOptions)` once. Pass the descriptor as `ui` into `UIChat`, `UIProvider`, and the other static primitives.
 
 `defineComponents` needs a `tools` entry for every tool name in `chatOptions`. It also needs an `interrupts.generic` entry for every interrupt id. `generic.fallback` is optional.
 
-The server route matches the [React page](./react). Use `gpt-5.2` on the OpenAI text adapter.
+The server route matches the [React page](./react). Use `gpt-5.6` on the OpenAI text adapter.
 
 ## Client
 
 ```ts
 import { defineComponent, h } from 'vue'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
-import { createUI, UIChat } from '@tanstack/ai-vue-ui'
+import { createChatUI, UIChat } from '@tanstack/ai-vue-ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -38,10 +38,12 @@ const chatOptions = {
   tools: [getWeather],
 }
 
-const ui = createUI(chatOptions)
+const ui = createChatUI(chatOptions)
 
 const components = ui.defineComponents({
-  layout: defineComponent((_, { slots }) => () => slots.messages?.()),
+  layout: defineComponent((_, { slots }) => () =>
+    h('div', [slots.messages?.(), slots.interrupts?.(), slots.input?.()]),
+  ),
   message: defineComponent((_, { slots }) => () => h('article', slots.parts?.())),
   parts: {
     fallback: defineComponent({
@@ -73,12 +75,12 @@ Layout uses slots `messages`, `interrupts`, and `input`. Message uses slot `part
 
 ## Type a component in its own file
 
-Use `ToolProps` on the component props. Share the same `chatOptions` object that you pass to `createUI`.
+Use `ToolProps` on the component props. Share the same `chatOptions` object that you pass to `createChatUI`.
 
 ```ts
 import { defineComponent, h } from 'vue'
 import { fetchServerSentEvents } from '@tanstack/ai-vue'
-import { createUI, type ToolProps } from '@tanstack/ai-vue-ui'
+import { createChatUI, type ToolProps } from '@tanstack/ai-vue-ui'
 import { toolDefinition } from '@tanstack/ai'
 import { z } from 'zod'
 
@@ -100,10 +102,12 @@ export const WeatherTool = defineComponent(
   },
 )
 
-const ui = createUI(chatOptions)
+const ui = createChatUI(chatOptions)
 
 export const components = ui.defineComponents({
-  layout: defineComponent((_, { slots }) => () => slots.messages?.()),
+  layout: defineComponent((_, { slots }) => () =>
+    h('div', [slots.messages?.(), slots.interrupts?.(), slots.input?.()]),
+  ),
   message: defineComponent((_, { slots }) => () => h('article', slots.parts?.())),
   parts: { fallback: defineComponent(() => () => null) },
   tools: { getWeather: WeatherTool },
@@ -123,13 +127,13 @@ Call `ui.useChat()` inside a child of `UIChat` or `UIProvider`.
 ```ts
 import { defineComponent, h } from 'vue'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
-import { createUI, UIChat } from '@tanstack/ai-vue-ui'
+import { createChatUI, UIChat } from '@tanstack/ai-vue-ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
 }
 
-const ui = createUI(chatOptions)
+const ui = createChatUI(chatOptions)
 
 const StatusLine = defineComponent({
   setup() {

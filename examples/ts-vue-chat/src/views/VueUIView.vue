@@ -2,7 +2,7 @@
 import { computed, defineComponent, h, ref } from 'vue'
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-vue'
 import { clientTools } from '@tanstack/ai-client'
-import { createUI, UIChat } from '@tanstack/ai-vue-ui'
+import { createChatUI, UIChat } from '@tanstack/ai-vue-ui'
 
 import type { ModelOption } from '@/lib/model-selection'
 
@@ -83,7 +83,7 @@ const chatOptions = {
   },
 }
 
-const ui = createUI(chatOptions)
+const ui = createChatUI(chatOptions)
 const chat = useChat(chatOptions)
 const draft = ref('')
 
@@ -141,6 +141,58 @@ const components = ui.defineComponents({
     },
   }),
   parts: { fallback: defineComponent(() => () => null) },
+  tools: {
+    recommendGuitar: defineComponent({
+      props: ['part'],
+      setup(props) {
+        return () => h('p', props.part.input?.id)
+      },
+    }),
+    getPersonalGuitarPreference: defineComponent({
+      props: ['part'],
+      setup(props) {
+        return () => h('p', props.part.output?.preference)
+      },
+    }),
+    addToWishList: defineComponent({
+      props: ['part', 'interrupt'],
+      setup(props) {
+        return () =>
+          h('p', [
+            props.part.input?.guitarId,
+            props.interrupt?.status === 'pending'
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: () => props.interrupt?.resolveInterrupt(true),
+                  },
+                  'Approve',
+                )
+              : null,
+          ])
+      },
+    }),
+    addToCart: defineComponent({
+      props: ['part', 'interrupt'],
+      setup(props) {
+        return () =>
+          h('p', [
+            props.part.input?.guitarId,
+            props.interrupt?.status === 'pending'
+              ? h(
+                  'button',
+                  {
+                    type: 'button',
+                    onClick: () => props.interrupt?.resolveInterrupt(true),
+                  },
+                  'Approve',
+                )
+              : null,
+          ])
+      },
+    }),
+  },
 })
 </script>
 

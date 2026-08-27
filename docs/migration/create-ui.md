@@ -1,16 +1,16 @@
 ---
-title: Migrate to createUI
+title: Migrate to createChatUI
 id: migrate-create-ui
 order: 5
-description: "Move chat-state ownership out of the old Chat component and onto createUI with a typed component map."
+description: "Move chat-state ownership out of the old Chat component and onto createChatUI with a typed component map."
 keywords:
   - tanstack ai
-  - createUI
+  - createChatUI
   - migration
   - deprecation
 ---
 
-The old `Chat` component owned chat state and lost configured types. `createUI` keeps types from your `chatOptions` and leaves `useChat` in your app.
+The old `Chat` component owned chat state and lost configured types. `createChatUI` keeps types from your `chatOptions` and leaves `useChat` in your app.
 
 This is a semantic migration. There is no codemod.
 
@@ -21,7 +21,7 @@ This is a semantic migration. There is no codemod.
 3. Tool inputs stay optional while they stream.
 4. Tool approvals come from `chat.interrupts`.
 5. Unknown runtime keys can use a fallback or render nothing.
-6. `createUI()` must run at module scope so identity stays stable.
+6. `createChatUI()` must run at module scope so identity stays stable.
 
 ## Why
 
@@ -32,7 +32,7 @@ The old APIs drop configured types, keep unused properties, use a deprecated app
 - `@tanstack/ai-react-ui` 0.9.0
 - `@tanstack/ai-solid-ui` 0.8.0
 - `@tanstack/ai-vue-ui` 0.3.0
-- `@tanstack/ai-svelte-ui` 0.1.0
+- `@tanstack/ai-svelte-ui` 0.2.0
 
 Old orchestration exports stay importable until each package's `1.0.0`. `TextPart` and `ThinkingPart` stay supported.
 
@@ -58,13 +58,13 @@ export function OldChat() {
 
 ```tsx
 import { fetchServerSentEvents, useChat } from '@tanstack/ai-react'
-import { createUI } from '@tanstack/ai-react-ui'
+import { createChatUI } from '@tanstack/ai-react-ui'
 
 const chatOptions = {
   connection: fetchServerSentEvents('/api/chat'),
 }
 
-const UI = createUI(chatOptions)
+const UI = createChatUI(chatOptions)
 
 const components = UI.defineComponents({
   layout: ({ renderMessages, renderInput }) => (
@@ -104,7 +104,7 @@ export function NewChat() {
 ## Steps
 
 1. Move `connection`, `tools`, and `interrupts` into a module-level `chatOptions` object.
-2. Call `createUI(chatOptions)` next to that object.
+2. Call `createChatUI(chatOptions)` next to that object.
 3. Call `useChat(chatOptions)` in the screen component.
 4. Define `layout`, `message`, `parts`, `tools`, and `interrupts` in `defineComponents`.
 5. Replace `<Chat>` with `<UI.Chat chat={chat} components={components} />`.
